@@ -914,18 +914,141 @@ Manifest: name Dana, display standalone, start_url /app, icons 192 and 512, them
 
 One transactional provider serves invite, share-grant, and reminder templates. Launch checklist: sending domain with SPF, DKIM, DMARC configured; from-address noreply@ the product domain; plain, short templates with one action link each. This is a named operational setup cost, done once.
 
-## 11. Recommended implementation stack
+## 11. Architecture
 
-**This section is a proposal and is the only non-normative section of the spec.** Every other section is implementation-agnostic and must survive a different stack choice. Weighting: a two-person team, one semi-technical builder driving agents, no dedicated ops.
+**This section is normative.** It records the implementation stack, the constraint each choice imposes, and the alternatives rejected with their reasons, so a future change is an argument with a recorded decision rather than a silent replacement. Agents implement against it exactly as against every other section; changes go through an RFC. External facts cited here (platform limits, versions, prices) were verified on 2026-07-29; prices are context, never contract.
 
-- **Application framework: Next.js (current stable, App Router) with TypeScript.** One codebase and one deployable for landing page, app shell, and API routes; the largest documentation and agent-training surface of any option, which materially helps agent-driven implementation. Alternative: SvelteKit, lighter runtime and simpler mental model; pick it if the builder prefers Svelte, nothing in this spec cares.
-- **Database: managed Postgres 16 (Neon or the host's managed Postgres).** The spec leans on partial unique indexes, composite foreign keys, CHECK constraints, and pg_trgm, all first-class in Postgres. Alternative: SQLite via Turso or LiteFS for even lower ops; costs the composite FK ON DELETE SET NULL form and pg_trgm (FTS5 differs), so several constraints move into transactions; choose only if hosting collapses to a single tiny box.
-- **ORM and migrations: Drizzle.** SQL-shaped, generates plain migrations agents can read and review, no runtime magic. Alternative: Prisma, better tooling polish, heavier runtime and a schema DSL further from the SQL in section 4.
-- **Auth: Auth.js (NextAuth v5) with the Google provider and database sessions.** Boring, documented, revocable sessions per 10.1. Alternative: Better Auth, cleaner API and first-class TypeScript, younger project; verify maintenance cadence before committing.
-- **Email: Resend.** Minimal API, template-friendly, cheap at v1 volume. Alternatives: Postmark, the deliverability benchmark, slightly more setup; AWS SES, cheapest at scale, most configuration. All three satisfy 10.7.
-- **Hosting: one always-on Node service on Railway or Render, plus managed Postgres.** The deciding constraint is the reminder scheduler (8.6): a persistent process makes the one-minute tick a ten-line in-process cron (node-cron), with no platform cron tier to fight. Serverless-first platforms constrain schedule frequency by plan (Vercel's Hobby cron, for instance, is documented as daily-frequency; verify current limits, section 13). Alternative: Vercel plus Neon plus an external minute-tick (Upstash QStash schedules hitting a secured endpoint); choose it if the team prefers Vercel's deploy ergonomics and accepts one more vendor.
-- **Libraries:** rrule for RRULE iteration (verify UNTIL inclusivity against 8.5 before relying on it); Luxon for timezone math over the IANA database; Serwist (or a hand-rolled service worker of under a hundred lines) for 10.6. Exact APIs need verification at build time; section 13 flags this.
-- **Named ongoing burdens with this stack:** DNS and DKIM setup once; watching one hosting dashboard and one database dashboard; Sentry free tier for error reporting; an uptime ping (UptimeRobot free) against /api/health. Total steady-state ops: minutes per week.
+### 11.1 Shape
+
+One deployable: a single Node process runs the Express API, serves the static landing page, and serves the built client. One origin serves everything, so there is no CORS surface. The client is a Vite-built React single-page application; the server renders nothing but the landing page and JSON.
+
+Three structural rules, each load-bearing:
+
+- **Single instance.** Exactly one instance runs in production. Rate limiting (10.4) is in-memory and the reminder tick (11.7) is in-process; both assume it. A second instance requires moving rate limits to a shared store and electing a single tick owner, and must be flagged before it happens, never discovered after.
+- **The API of section 7 is the only mutation path.** All client data access is fetch calls to /api/v1. No server-side rendering of application data exists, and no code path touches the database without passing the 10.2 chokepoint middleware. This is why the SPA-plus-API shape was chosen: it makes the single chokepoint architectural rather than merely mandated.
+- **Forward-only migrations** (11.5). There is no down migration; recovery from a bad migration is a fix-forward migration or a restore.
+
+### 11.2 Runtime, language, repository
+
+- Node 24 (Active LTS until 2028-04-30), pinned in `.nvmrc` and the package.json engines field. npm is the package manager. ESM throughout.
+- TypeScript in strict mode plus noUncheckedIndexedAccess. No JavaScript source files.
+- A single package rooted at `app/`; no workspaces. Ownership boundaries are directories: `app/src/server/**`, `app/src/client/**`, `app/src/shared/**` (zod schemas and API types used by both sides), `app/db/**` (schema, migrations, seed), `app/tests/**` (the acceptance suite, owned by the Adversarial Test role).
+
+### 11.3 Server
+
+- Express 5. Route modules mirror section 7's resource groups. Every data route passes, in order: session resolution, CSRF verification (mutations only), rate limiting, then the handler, which resolves membership scope per 10.2 before touching rows.
+- Validation with zod 4; the schemas live in `app/src/shared/` and produce the 422 field errors of 10.3. The client reuses them as convenience validation only (7.11).
+- Rate limiting with express-rate-limit, in-memory, keyed by authenticated user id, limits per 10.4. Counters reset on deploy; accepted.
+- Logging with pino to stdout. All log emission goes through one policy module that whitelists fields, making the 10.5 never-log list (task titles, notes, step titles, invite email addresses, tokens, session identifiers) structurally absent rather than filtered.
+
+### 11.4 Client
+
+- Vite 8, React, React Router 7 in library mode only: no loaders, no actions, no framework mode. Data fetching belongs to the query layer alone.
+- TanStack Query 5 implements the 8.3 policy: refetch on window focus and after each own mutation; no other invalidation strategy exists.
+- Forms with react-hook-form 7 plus the shared zod schemas via @hookform/resolvers.
+- Styling with Tailwind CSS 4 (CSS-first configuration through @tailwindcss/vite; there is no tailwind.config.js) and shadcn/ui components copied into `app/src/client/components/ui/`. Design tokens live in exactly one file, `app/src/client/styles/tokens.css`, as Tailwind @theme variables; it is the only place raw color, type, spacing, and radius values may appear, and it has one owner (the Component and Design System role).
+- Calendar: FullCalendar 7 standard plugins (MIT) through the @fullcalendar/react entrypoints. v7 consolidated standard plugins into the framework package: dayGrid and timeGrid are imported from @fullcalendar/react subpaths, never from the standalone @fullcalendar/daygrid package, which is frozen at v6. Virtual instances from /views/planned/calendar render as ghost-classed events; the Q3C cell order (banners, then timed, then ghosts) is implemented with a custom eventOrder comparator. If the comparator cannot express the order exactly, the fallback is rendering ghosts in a separate per-cell overlay: the visible order is the contract, the mechanism is not.
+- PWA: vite-plugin-pwa with the prompt-for-update registration flow (virtual:pwa-register with onNeedRefresh), satisfying 10.6's non-forcing update rule. Fallback if the plugin fights the 10.6 contract: a hand-written service worker under a hundred lines implementing precache, network-only API, and navigation fallback.
+
+### 11.5 Database and migrations
+
+- Postgres 18 in production, and the same major everywhere tests run: PGlite embeds Postgres 18 and CI pins the postgres:18 image. Section 4's reference dialect (Postgres 16) remains valid; nothing in the schema requires more than Postgres 15.
+- Drizzle ORM is the query client. The twelve queries of section 6 are written as SQL through Drizzle's sql template so their ORDER BY clauses can be compared to the spec textually; CRUD may use the query builder.
+- Migrations are hand-authored SQL files in `app/db/migrations/`, forward-only, one transaction per file, with every constraint and index explicitly named (AC-001 asserts them by name). The Drizzle programmatic migrator applies pending migrations at server boot, before the health endpoint reports ready.
+- Deploy interplay: the host's zero-downtime deploy keeps the old instance serving until the new one passes its health check. Postgres DDL is transactional, so a failed migration rolls back, boot fails, the deploy is canceled, and the old version keeps running. Destructive changes (drops, renames) must be split expand-and-contract across two releases, because the old code runs against the new schema during the overlap window (roughly ninety seconds).
+
+### 11.6 Authentication module
+
+Hand-rolled Google OIDC on openid-client 6, implementing sections 7.1 and 10.1 exactly, with no auth framework. The reason is recorded: the libraries available when this section was first drafted are gone or unfit (Auth.js is in maintenance mode by its own 2025-09-26 announcement and v5 never left beta; Lucia and Arctic are deprecated by their author; Better Auth would own the users table shape and the provisioning transaction boundary that section 4 and AC-005/AC-006 fix). The scope that makes hand-rolling defensible: Google-only authorization code flow, no passwords, no resets, no MFA.
+
+Requirements, each pinned by an acceptance criterion (AC-105 to AC-115):
+
+- Authorization requests carry state, nonce, and a PKCE S256 challenge; the callback validates all three, single-use, and rejects on any mismatch.
+- Sessions are rows in a sessions table (outside the section 4 core model, per 10.1), referenced by an opaque identifier in an httpOnly, Secure, SameSite=Lax cookie, with 30-day rolling expiry. A fresh identifier is issued at every sign-in; no pre-authentication session identifier is ever promoted.
+- CSRF uses the double-submit pattern so the frozen section 7 surface is untouched: a token bound to the session is set in a second, non-httpOnly cookie at sign-in, and every mutation must echo it in the X-CSRF-Token header; missing or mismatched answers 403 with no side effects.
+- Auth endpoints never redirect off the application origin, whatever the request carries in parameters or Host headers.
+- No Google access, refresh, or ID token is persisted once the callback transaction completes.
+- The development-only login endpoint (DANA_DEV_LOGIN) must be absent from production builds, regardless of environment variables.
+- Expired session rows are pruned opportunistically by the scheduler pass (11.7). Pruning is hygiene, not revocation; revocation never waits for it.
+
+### 11.7 Reminder scheduler
+
+The 8.6 delivery loop runs in-process: a 60-second interval in the server, guarded against overlapping passes, executing the poll-classify-send-mark cycle in a transaction that claims due rows with SELECT ... FOR UPDATE SKIP LOCKED. Consequences, each intended:
+
+- A missed tick self-heals: the poll is over fire_at <= now(), so the next pass picks up anything a missed one would have sent, inside the 6-hour stale window.
+- The deploy overlap window can run two instances for about ninety seconds; SKIP LOCKED makes concurrent ticks contend safely instead of double-sending. A crash between send and mark can duplicate at most one batch; 8.6 accepts duplicates.
+- Tick liveness is monitored separately from process liveness (11.12), because a dead interval inside a live server is invisible to an uptime check.
+- The same pass prunes expired session rows, so 8.6's statement that the reminder loop is the only background execution stays true: one scheduled process, two duties.
+
+The pass is a plain callable function and must stay one: if hosting ever moves somewhere without an always-on process, the replacement is an external per-minute trigger (Google Cloud Scheduler or equivalent) hitting an authenticated endpoint that runs one pass.
+
+### 11.8 Email
+
+Resend, one provider for the three templates (invite, share grant, reminder), behind a notification module that logs instead of sending in development and tests. The 10.7 deliverability checklist applies unchanged. The free tier (3,000 emails per month, 100 per day, as of 2026-07) covers v1; the daily cap is the number to watch if reminder volume grows.
+
+### 11.9 Recurrence and time
+
+- The 4.11 RRULE subset is implemented by an in-repo iterator module, not a runtime library. Reason, recorded: rrule.js is unmaintained (last publish about three years ago) and models results as reinterpreted UTC Dates, which collides with Dana's floating dates. The iterator is differential-tested against rrule 2.8.1 as a development-only oracle; where they disagree, RFC 5545 adjudicates, never the oracle.
+- Luxon 3 performs all IANA timezone math. Both DST rules of 8.6 are implemented explicitly in the fire-instant module because Luxon guarantees neither: for a nonexistent local time Luxon advances by the gap length (02:30 becomes 03:30) where 8.6 requires the first valid instant after the gap (03:00), so the module detects the gap and clamps; for an ambiguous local time Luxon's documentation declares the choice undefined, so the module selects the earlier instant itself. AC-083 to AC-086 pin both.
+
+### 11.10 Testing infrastructure
+
+- Vitest 4 runs unit and acceptance tests. The acceptance suite exercises section 7 over HTTP against the real Express app in-process.
+- The database under test is selected by one seam in `app/db/client.ts`: PGlite (embedded Postgres 18, in-process, no Docker, runs on Windows) by default, or any real Postgres via TEST_DATABASE_URL. CI runs the full suite both ways: PGlite for parity with local runs, and a postgres:18 container as the production-fidelity authority. PGlite's pg_trgm ships in its main package (contrib import). PGlite is alpha-badged; the named fallback behind the same seam is the embedded-postgres npm package (real Postgres binaries, Windows x64, no Docker or admin rights).
+- The AC-001 constraint catalog test asserts structured facts from pg_constraint and pg_index (constraint type, columns, on-delete targets, partial predicates, names), never deparsed SQL text, so the same test passes on every Postgres the suite runs against.
+- Playwright drives end-to-end tests on Windows and in CI, using the seed dataset and the development login endpoint for sessions.
+
+### 11.11 Hosting and delivery
+
+- Render: one Starter web service plus one Render Postgres instance (cheapest paid tier), same region, deployed from GitHub on push to main. Production is exactly one instance (11.1). Combined cost as of 2026-07: about 13 to 14 USD per month.
+- Render Postgres is paid from day one because the free tier expires after 30 days and has no recovery capability. The paid tier's point-in-time recovery (3-day window on the Hobby workspace) is the primary backup. The runbook's quarterly drill restores into a scratch instance, runs the constraint catalog test against it, and destroys it; a monthly pg_dump kept off-platform guards against account-level failure.
+- CI is GitHub Actions: npm ci, lint, typecheck, test on PGlite, test on postgres:18, build, Playwright. Merges to main require green CI.
+- Environments: production and local only, no standing staging. The release ritual is CI green, deploy, then the production smoke subset (health, auth round trip, one CRUD cycle). A throwaway Render service restored from point-in-time recovery substitutes for staging when a release warrants a rehearsal.
+- Secrets: Render environment variables in production, GitHub Actions secrets in CI, a gitignored .env locally, and an `.env.example` naming every variable.
+
+### 11.12 Observability
+
+- Sentry (free tier) receives server and client errors; AC-104 proves the wiring.
+- Better Stack (free tier): an uptime monitor on /api/health, and a heartbeat the scheduler pass pings after each successful cycle; heartbeat silence beyond 10 minutes alerts. /api/health also reports seconds since the last completed pass.
+- Logs go to stdout. Render retains them 7 days on the Hobby workspace, which does not meet 10.5's 30-day retention, so a workspace log stream must drain them to an external store holding at least 30 days. The store is chosen at P9 (candidates to verify at that point: Axiom, Better Stack Logs); any syslog-compatible store satisfying 10.5 may substitute without amending this section.
+
+### 11.13 Design artifacts
+
+The design contract between the designer and implementing agents is repo-committed, matching the protocol rule that state lives in artifacts: `docs/design/brief.md` (the designer-facing brief), `docs/design/screens/*.png` (exported screens, phone and desktop), `docs/design/notes.md` (behavior notes), and the single tokens file of 11.4. Figma is the designer's private workshop; nothing builds against it directly. Section 9 always wins over an image on structure and copy.
+
+### 11.14 Rejected alternatives
+
+Recorded so future work argues with a decision instead of rediscovering it. Verification date for the external facts: 2026-07-29.
+
+| Alternative | Rejected because |
+| - | - |
+| Next.js (App Router) | Server actions and RSC data paths are a second door past the section 7 contract and the 10.2 chokepoint; the framework is mid-churn (Turbopack default, middleware renamed proxy, async params), which is where agents invent; SSR has no consumer in a login-gated PWA |
+| Vercel hosting | No always-on process for the 8.6 tick (Hobby cron is daily-only and the plan is non-commercial; Pro adds 20 USD/month); ephemeral instances break 10.4's in-memory rate limiting; honest total cost about triple Render, across three vendors |
+| Railway | Close second: always-on and cheaper, but snapshot backups only, no point-in-time recovery |
+| Fly.io | No free allowance for new accounts; managed Postgres from 38 USD/month; the cheap path is self-operated Postgres, which the project constraints exclude |
+| Supabase | Free tier pauses after 7 idle days and has no automated backups; its native pattern (client-side data access behind RLS) is what 10.2 forbids; Pro costs more than this entire stack |
+| Neon | Scale-to-zero is defeated by the one-minute poll, so its pricing works against exactly this workload |
+| Auth.js (NextAuth) | Maintenance mode by its own 2025-09-26 announcement; v5 never left beta |
+| Better Auth | Would own the users table shape and the provisioning transaction that section 4 and AC-005/AC-006 fix; weekly release cadence outruns agent training data; it is the designated fallback if hand-rolled auth is ever vetoed |
+| Lucia, Arctic | Both deprecated by their author |
+| Prisma | Schema DSL far from section 4's SQL; heavier runtime; worse fit for constraint-exact migration work |
+| rrule.js at runtime | Unmaintained; its reinterpreted-UTC result model collides with floating dates; kept as a test oracle only |
+| Serwist | Coupled to Next.js, which was rejected |
+| GitHub Actions as the reminder trigger | Documented 5-minute floor, plus documented delays and dropped runs under load |
+| Standing staging environment | Doubles hosting cost to serve zero users; CI against postgres:18 plus the production smoke subset covers it |
+| pnpm, workspaces | Real virtues, but npm and a single package are what the protocol and personas assume, and nothing here ships separately |
+
+### 11.15 Known hazards for implementers
+
+Facts agents get wrong because training data lags the installed versions. Read before touching the area; when in doubt, open the installed package's documentation, not memory.
+
+- FullCalendar 7 imports standard plugins from @fullcalendar/react subpath entrypoints; the standalone @fullcalendar/daygrid package is v6-only.
+- Tailwind 4 is configured in CSS (@theme in tokens.css) through @tailwindcss/vite; there is no tailwind.config.js, and v3 configuration idioms are defects.
+- React Router runs in library mode; importing loader, action, or framework-mode APIs is a defect.
+- zod is v4; check its breaking changes against v3 idioms before writing schemas.
+- Luxon's raw DST gap and ambiguity behavior must never be used directly for fire instants (11.9).
+- Express 5 handles rejected promises in handlers natively; async wrapper hacks from Express 4 tutorials are noise.
+- PGlite is real Postgres but single-connection; tests must not assume parallel connections against one instance.
 
 ## 12. Acceptance criteria
 
@@ -1057,21 +1180,38 @@ Given/when/then, one behavior each, numbered to match the build order ranges. An
 - AC-103 Given the logs after a full suite run, then no task title, note, step title, email address in invite events, or token appears in them.
 - AC-104 Given /api/health, then 200 with the build version, and a deliberately thrown test error reaches the error tracker.
 
+**Auth security (P1; added by amendment on 2026-07-29, numbered additively so no existing number changes)**
+
+These belong to package P1 alongside AC-005 to AC-010. Rationale: with no human review on this project, the acceptance tests are the only reviewer of the authentication module (11.6), and AC-005 to AC-010 test provisioning behavior, not security properties. In tests, the Google endpoints are a local stub OIDC provider so requests and tokens can be crafted.
+
+- AC-105 Given an OAuth callback whose state does not match the value issued for this browser, when it is processed, then sign-in fails, no session exists, and no user row was created or modified.
+- AC-106 Given an ID token whose nonce does not match the pending authorization's nonce, when the callback validates it, then sign-in fails.
+- AC-107 Given an authorization request, when it is issued, then it carries a PKCE S256 code challenge, and a token exchange with a non-matching verifier fails.
+- AC-108 Given a session identifier that existed before sign-in, when sign-in completes, then the authenticated session uses a newly issued identifier and the old identifier grants nothing.
+- AC-109 Given crafted return-target parameters or Host headers on the auth endpoints, when they respond with redirects, then every redirect target is on the application origin.
+- AC-110 Given the session cookie, when inspected, then it is httpOnly, Secure, and SameSite=Lax, and its value is an opaque identifier carrying no session data.
+- AC-111 Given a mutation with a valid session cookie but a missing or mismatched X-CSRF-Token header, when processed, then 403 and no change; given the session's own token, then the mutation proceeds.
+- AC-112 Given a user with two active sessions on different clients, when DELETE /me completes, then both sessions answer 401 immediately.
+- AC-113 Given a session past its 30-day expiry, when presented, then 401; given a session used before expiry, then its expiry extends (rolling).
+- AC-114 Given a production build, when the development login route is called, then it does not exist (404), regardless of environment variables.
+- AC-115 Given a completed sign-in, when the database is inspected, then no Google access, refresh, or ID token is stored anywhere.
+
 ## 13. Open questions and assumptions
 
 Every unresolved external fact and every assumption this spec rests on, each with what changes if it is wrong. Nothing else in the document is knowingly uncertain.
 
 1. **Google email claim for dotted Gmail variants.** Unverified whether the OpenID email claim returns the address exactly as registered. The matching rule (lowercase equality) and its mitigation (visible pending invites with cancel and resend) hold either way; if variants prove common, add gmail.com dot-normalization behind a feature flag in v1.1.
 2. **Google account deletion policy text.** The mechanism of 8.10 is required regardless; verify the current policy wording during launch review to confirm nothing extra (such as a data export) is mandated.
-3. **Hosting cron frequency tiers.** The claim that serverless hobby tiers restrict schedule frequency (Vercel Hobby documented as daily) needs verification at build time; it decides between the always-on host and the external-tick alternative in section 11. The reminder contract of 8.6 does not change either way.
-4. **rrule library conformance.** UNTIL inclusivity (RFC says inclusive) and subset iteration must be pinned by AC-071 to AC-078 against the chosen library before P6 is declared done; a divergence means wrapping or replacing the library, not changing the spec.
+3. **Hosting cron frequency tiers. Resolved 2026-07-29.** Verified: Vercel Hobby cron is limited to daily frequency with hourly precision, and per-minute schedules require the Pro plan. Moot for v1: the scheduler runs in-process on an always-on host (11.7) and the 8.6 contract is unchanged. The facts are recorded so the rejection in 11.14 stays checkable.
+4. **rrule library conformance. Resolved by construction, 2026-07-29.** The 4.11 subset is implemented by an in-repo iterator (11.9); rrule 2.8.1 serves only as a development-time differential oracle. UNTIL inclusivity is therefore our own code, pinned by AC-071 to AC-078; a disagreement with the oracle is adjudicated against RFC 5545, never absorbed silently.
 5. **iOS PWA push constraints.** Irrelevant to v1 (email only); verify before scheduling push for v1.1.
 6. **Scale assumption behind caps.** Open lists cap at 1000 rows instead of paginating, assuming personal-scale data. If real accounts approach the cap, add keyset cursors to the view endpoints; the change is isolated to section 7.10 responses.
 7. **Single reminder per task.** Assumed sufficient (the source design always spoke of one). If multiple are demanded, reminders gets its own id key and PUT becomes POST plus DELETE; fire logic is unchanged per row.
 8. **Silent timezone auto-sync.** Assumed acceptable that travel moves today and reminder instants. If travelers complain, add a per-user timezone lock toggle; one column, one guard in the sync.
 9. **Verified email presence.** Assumed every allowed Google sign-in supplies a verified email (unverified ones are rejected outright). If Workspace edge cases surface, the rejection page is the containment.
 10. **Floating due_time across timezones.** Accepted that a shared 15:00 reads as each member's local 15:00. If cross-timezone coordination becomes a real use case, a per-task timezone column is the v2 change; storage stays floating.
-11. **Postgres 15 or later.** Assumed for the column-targeted ON DELETE SET NULL in 4.5; on older engines the member-removal transaction alone enforces the unassignment, which 8.8 already performs.
+11. **Postgres 15 or later. Resolved 2026-07-29: Postgres 18 everywhere.** Production and CI pin Postgres 18 (the host's current default for new databases), matching the embedded engine local tests run on (PGlite). Section 4's reference dialect remains Postgres 16 and nothing in the schema requires more than 15, so the column-targeted ON DELETE SET NULL form of 4.5 is safe on every engine in use.
 12. **Invite non-expiry.** Assumed safe because acceptance is login-gated with no secret in the link. Revisit trigger: any report of confusing stale grants; the change is a status sweep job plus an expires display, no schema change.
 13. **UNTIL-only recurrence ends.** COUNT stays unsupported. If demanded, it requires a durable occurrence ordinal on the series; that is a schema addition, deliberately deferred.
 14. **Landing copy.** Final wording is the designer's; the binding constraint is section 9.2's no-AI-claim rule.
+15. **YEARLY recurrence anchored on 29 February.** 4.11 restricts BYMONTHDAY for MONTHLY only, so a yearly rule anchored on a 29 February due date is legal input, and the spec is silent on its semantics. The iterator implements RFC 5545 behavior: instances occur only in leap years. Recorded here as an assumption; folding one sentence into 4.11 is a frozen-section amendment to make at the next authorized change to section 4's text. If leap-year-only proves surprising to users, the alternative (28 February in common years) is an iterator change plus an update to this item, with no schema change.
