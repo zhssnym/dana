@@ -34,7 +34,7 @@ AC-089 and AC-104 pass, a deploy runs migrations and rolls forward cleanly, the 
 
 ## Escalate when
 
-The hosting platform's scheduling constraints conflict with the one-minute tick (section 14 flags this as needing verification), email deliverability requires a product change, or an operational burden appears that the spec did not price in.
+The hosting platform's scheduling constraints conflict with the one-minute tick (section 13 flags this as needing verification), email deliverability requires a product change, or an operational burden appears that the spec did not price in.
 
 ## Skills
 

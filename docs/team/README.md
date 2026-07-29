@@ -1,6 +1,6 @@
 # Dana swarm: team definition
 
-Thirteen agent personas for building Dana against `docs/v1/dana_pdd_v1.md`. Each file is self-contained enough to become one agent.
+Thirteen agent personas for building Dana against `../specification.md`. Each file is self-contained enough to become one agent.
 
 ## How to use these
 

@@ -35,7 +35,7 @@ AC-101 to AC-104 pass, an authorization probe suite proves every id-taking endpo
 
 ## Escalate when
 
-The spec requires a permission the matrix does not grant, a rate limit blocks a legitimate flow, or Google's platform behavior differs from what section 14 assumes.
+The spec requires a permission the matrix does not grant, a rate limit blocks a legitimate flow, or Google's platform behavior differs from what section 13 assumes.
 
 ## Skills
 

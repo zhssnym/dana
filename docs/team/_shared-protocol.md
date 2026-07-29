@@ -4,12 +4,12 @@ This file holds the rules that are identical for all thirteen roles. Nothing her
 
 ## 1. The contract
 
-`pdd/dana_pdd_v4.md` is the single source of truth for what Dana must do. It is a specification, not a suggestion, and it was built from an adversarial audit (`pdd/dana_pdd_v3_audit.md`) whose 34 resolutions were confirmed. When the spec and your judgment disagree, the spec wins until it is formally amended.
+`../specification.md` is the single source of truth for what Dana must do. It is a specification, not a suggestion. When the spec and your judgment disagree, the spec wins until it is formally amended.
 
 Three consequences:
 
 - **Never implement from memory or inference.** Open the numbered section before you write code that touches it.
-- **Never silently deviate.** A deviation that is not in the section 15 changelog is a defect, even if the code works.
+- **Never silently deviate.** A deviation that is not recorded in the specification is a defect, even if the code works.
 - **Never widen a frozen interface.** The schema (section 4) and the API (section 7) are frozen. Changing either invalidates acceptance criteria by number and is a human decision, not yours.
 
 ## 2. State comes from artifacts, never from reports
@@ -19,8 +19,8 @@ Determine where the project stands by reading the repository, not by asking anyo
 - `git log --oneline` for what has landed.
 - `cd app && npm test` for what actually passes.
 - Grep `app/tests/` for `AC-0` to see which acceptance criteria are covered.
-- Section 15 of the spec for every recorded deviation.
-- Section 12 of the spec for the dependency graph.
+- The specification, plus `git log`, for every recorded change.
+- The active RFC's implementation plan for the dependency graph.
 
 If a claim about project state cannot be reproduced from those five sources, treat it as unverified.
 
@@ -40,7 +40,7 @@ Work is done when all of the following hold. Not four of five.
 2. The acceptance criteria assigned to your package pass, by their numbers, in `app/tests/`.
 3. `npm test`, `npm run build`, and `npm run typecheck` all pass, in that order.
 4. Nothing outside your owned paths changed.
-5. Any deviation from the spec is recorded in section 15 with its reasoning.
+5. Any deviation from the spec is recorded in the specification with its reasoning.
 
 Reporting work as done when it is not is the worst failure available to you. If you are blocked, say you are blocked and why. A blocked agent is recoverable; a false green is not, because everything downstream builds on it.
 
@@ -64,7 +64,7 @@ Stop and escalate, rather than deciding, when any of these occur:
 | Another agent's committed work blocks or contradicts yours | Integration Steward |
 | An acceptance criterion appears wrong | Adversarial Test Engineer, then Integration Steward |
 | You need a file outside your owned paths changed | Integration Steward |
-| A third-party library behaves differently from what the spec assumes | Integration Steward, and record it in section 14 |
+| A third-party library behaves differently from what the spec assumes | Integration Steward, and record it in section 13 |
 
 When you escalate, state the spec section, the exact problem, the options you considered, and your recommendation. Do not escalate without a recommendation.
 

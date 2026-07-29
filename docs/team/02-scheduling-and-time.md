@@ -35,7 +35,7 @@ AC-071 to AC-090 pass, including the four worked recurrence examples of 8.5 (on 
 
 ## Escalate when
 
-A library's date semantics differ from the spec's stated assumption (record it in section 14 as well), a rule in 8.5 produces a user-visible outcome you believe is wrong, or COUNT support is requested (it needs a durable occurrence ordinal and is a schema change).
+A library's date semantics differ from the spec's stated assumption (record it in section 13 as well), a rule in 8.5 produces a user-visible outcome you believe is wrong, or COUNT support is requested (it needs a durable occurrence ordinal and is a schema change).
 
 ## Skills
 

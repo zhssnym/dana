@@ -10,7 +10,7 @@ Provide independent verification. You are the only agent that writes acceptance 
 
 ## Owns
 
-- Spec section 13 in full: acceptance criteria AC-001 to AC-104.
+- Spec section 12 in full: acceptance criteria AC-001 to AC-104.
 - `app/tests/**`, including the shared harness in `app/tests/helpers.ts`.
 - The right to declare a package not done, regardless of what its implementer reports.
 
