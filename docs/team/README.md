@@ -8,21 +8,25 @@ An agent's system prompt is **`_shared-protocol.md` followed by its own persona 
 
 ## The roster
 
-| # | File | Role | Owns (spec) | Packages | Acceptance criteria |
-| - | - | - | - | - | - |
-| 1 | `01-data-and-invariants.md` | Data and Invariants | 3, 4 | P0 | AC-001 to AC-004 |
-| 2 | `02-scheduling-and-time.md` | Scheduling and Time | 8.1, 8.2, 8.5, 8.6, 4.11 | P6, P7 | AC-071 to AC-090 |
-| 3 | `03-collaboration-and-permissions.md` | Collaboration and Permissions | 5.2, 5.3, 5.4, 8.7 to 8.11 | P2, P3, P5 | AC-011 to AC-024, AC-059 to AC-069 |
-| 4 | `04-api-and-contract.md` | API and Contract | 7 | all backend | review authority |
-| 5 | `05-query-and-read-path.md` | Query and Read-Path | 6, 4.12 | P4 | AC-045 to AC-058, AC-070 |
-| 6 | `06-security-and-privacy.md` | Security and Privacy | 10.1, 10.2, 10.4, 10.5 | P1, P9 | AC-005 to AC-010, AC-101 to AC-104 |
-| 7 | `07-frontend-architect.md` | Frontend Architect | 9.1, 10.6 | P8 | AC-091, AC-095, AC-100 |
-| 8 | `08-component-and-design-system.md` | Component and Design System | 9 (components) | P8 | AC-096, AC-097, AC-099 |
-| 9 | `09-complex-interaction.md` | Complex Interaction | 9.3, 9.5, 9.9 | P8 | AC-092, AC-093, AC-094, AC-098 |
-| 10 | `10-platform.md` | Platform | 10.7, 11, 8.6 delivery | P7, P10, CI | AC-089, AC-104 |
-| 11 | `11-adversarial-test.md` | Adversarial Test | 13 | all | writes all 104 |
-| 12 | `12-integration-steward.md` | Integration Steward | 15, 14 | all | merge gate |
-| 13 | `13-dispatcher.md` | Dispatcher | 12 (reads) | none | none |
+This table is a navigation index and nothing more. Ownership of spec sections, packages, paths, and acceptance criteria is stated in each persona's Owns section and nowhere else, so there is exactly one place to change when ownership moves. Do not add ownership columns back to this table; the drift they cause is why they were removed. The package-to-owner view at a glance belongs to the active RFC's implementation plan.
+
+| # | File | Role | What it is for |
+| - | - | - | - |
+| 1 | `01-data-and-invariants.md` | Data and Invariants | The schema, its migrations, and the constraints that make bugs fail loudly |
+| 2 | `02-scheduling-and-time.md` | Scheduling and Time | Dates, timezones, recurrence, and reminder instants |
+| 3 | `03-collaboration-and-permissions.md` | Collaboration and Permissions | Multi-actor correctness: membership, invites, tasks core, cleanup |
+| 4 | `04-api-and-contract.md` | API and Contract | One HTTP dialect across forty endpoints |
+| 5 | `05-query-and-read-path.md` | Query and Read-Path | The twelve queries, their exact orders, and their indexes |
+| 6 | `06-security-and-privacy.md` | Security and Privacy | Authentication, the authorization chokepoint, limits, and logging |
+| 7 | `07-frontend-architect.md` | Frontend Architect | Client structure, the data layer, page assembly, and the PWA shell |
+| 8 | `08-component-and-design-system.md` | Component and Design System | The component library, the design tokens, copy fidelity, accessibility |
+| 9 | `09-complex-interaction.md` | Complex Interaction | The calendar, the task form, and the search overlay |
+| 10 | `10-platform.md` | Platform | Deploys, CI, the scheduler tick, email, backups, monitoring |
+| 11 | `11-adversarial-test.md` | Adversarial Test | Writes all 115 acceptance tests; never implements |
+| 12 | `12-integration-steward.md` | Integration Steward | Merges, specification change control, and the seams |
+| 13 | `13-dispatcher.md` | Dispatcher | Computes what is startable from artifacts; never judges |
+
+Coverage rule: specification sections 1 and 2 are shared context with no implementing owner, changed only through the Steward's change control like all spec text. Every other numbered section is owned by exactly one persona, named in that persona's Owns section.
 
 ## Three structural rules
 
@@ -36,10 +40,14 @@ These are the parts that make the difference between a swarm and a mess.
 
 ## Seams that need naming
 
-Two ownership boundaries are genuinely shared, and both have a stated tiebreaker so they do not become silent conflicts:
+Six ownership boundaries are genuinely shared, and each has a stated tiebreaker so it does not become a silent conflict:
 
 - **My Day and calendar queries**: the Query engineer writes the SQL and orderings; the Scheduling engineer owns the date predicates inside them and must approve changes to those predicates.
-- **Reminders**: the Scheduling engineer computes fire instants; the Platform engineer runs the delivery loop and owns email infrastructure; the Component engineer builds the reminder input control.
+- **Reminders and the scheduler pass**: the Scheduling engineer computes fire instants; the Platform engineer runs the delivery loop, owns email infrastructure, and invokes the Security engineer's session-pruning function from the same pass; the Component engineer builds the reminder input control.
+- **Storage formats and indexes (4.11, 4.12)**: the Data engineer owns the DDL; the Scheduling engineer owns the 4.11 format semantics; the Query engineer owns each 4.12 index's justification. A change to any of the three needs the affected owners' agreement.
+- **Status transitions**: the Collaboration engineer owns the transition endpoints; the Scheduling engineer owns the generation hook invoked inside them.
+- **Account deletion**: the Security engineer owns the DELETE /me route and session destruction; the Collaboration engineer owns the 8.10 transaction it calls.
+- **The OIDC test stub**: the Adversarial Test engineer owns the stub identity provider in `app/tests/`; the Security engineer's real module must pass against it unmodified.
 
 Any other overlap that appears in practice is an escalation to the Integration Steward, not something two agents settle between themselves.
 
