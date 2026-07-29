@@ -1,0 +1,86 @@
+# Dana swarm: shared protocol
+
+This file holds the rules that are identical for all thirteen roles. Nothing here is optional, and nothing here is overridden by a persona file; where a persona seems to conflict with this document, this document wins and the conflict is an escalation.
+
+## 1. The contract
+
+`pdd/dana_pdd_v4.md` is the single source of truth for what Dana must do. It is a specification, not a suggestion, and it was built from an adversarial audit (`pdd/dana_pdd_v3_audit.md`) whose 34 resolutions were confirmed. When the spec and your judgment disagree, the spec wins until it is formally amended.
+
+Three consequences:
+
+- **Never implement from memory or inference.** Open the numbered section before you write code that touches it.
+- **Never silently deviate.** A deviation that is not in the section 15 changelog is a defect, even if the code works.
+- **Never widen a frozen interface.** The schema (section 4) and the API (section 7) are frozen. Changing either invalidates acceptance criteria by number and is a human decision, not yours.
+
+## 2. State comes from artifacts, never from reports
+
+Determine where the project stands by reading the repository, not by asking anyone and not by trusting a previous summary:
+
+- `git log --oneline` for what has landed.
+- `cd app && npm test` for what actually passes.
+- Grep `app/tests/` for `AC-0` to see which acceptance criteria are covered.
+- Section 15 of the spec for every recorded deviation.
+- Section 12 of the spec for the dependency graph.
+
+If a claim about project state cannot be reproduced from those five sources, treat it as unverified.
+
+## 3. Boundaries are hard
+
+Every persona names the paths and spec sections it owns and the ones it must never touch. These are not guidelines. In a swarm, two agents editing the same file with different assumptions is the primary failure mode.
+
+- Edit only inside your owned paths.
+- If your work requires a change outside them, stop and raise it to the Integration Steward with a precise description of the change you need. Do not make it yourself, and do not work around it with a duplicate implementation.
+- Read anything. Reading the whole repository is encouraged. Writing is scoped.
+
+## 4. Definition of done
+
+Work is done when all of the following hold. Not four of five.
+
+1. The behavior matches the numbered spec sections you own.
+2. The acceptance criteria assigned to your package pass, by their numbers, in `app/tests/`.
+3. `npm test`, `npm run build`, and `npm run typecheck` all pass, in that order.
+4. Nothing outside your owned paths changed.
+5. Any deviation from the spec is recorded in section 15 with its reasoning.
+
+Reporting work as done when it is not is the worst failure available to you. If you are blocked, say you are blocked and why. A blocked agent is recoverable; a false green is not, because everything downstream builds on it.
+
+## 5. How to verify on this machine
+
+Hard-won and non-obvious. Follow it exactly.
+
+- The repository lives on a Google Drive synced path. Never run `npm install` there: run it in a local scratchpad copy, verify there, then copy clean sources back excluding `node_modules`, `.next`, `.data`, and `.git`.
+- There is no Docker on this machine. Tests run against PGlite, an embedded Postgres, with no setup. Set `TEST_DATABASE_URL` to use a real Postgres instead; CI does exactly that with `postgres:16`.
+- CI runs `build` before `typecheck`, because `next-env.d.ts` references types the build generates. Preserve that order.
+- `DANA_DEV_LOGIN=1` enables `POST /api/v1/auth/dev-login` for sessions without Google credentials. It is hard-disabled in production builds.
+
+## 6. Escalation
+
+Stop and escalate, rather than deciding, when any of these occur:
+
+| Trigger | Route to |
+| - | - |
+| The spec is ambiguous, contradictory, or silent on something you need | Integration Steward |
+| Your work needs a change to the schema or the API | Integration Steward, who routes to the human owner |
+| Another agent's committed work blocks or contradicts yours | Integration Steward |
+| An acceptance criterion appears wrong | Adversarial Test Engineer, then Integration Steward |
+| You need a file outside your owned paths changed | Integration Steward |
+| A third-party library behaves differently from what the spec assumes | Integration Steward, and record it in section 14 |
+
+When you escalate, state the spec section, the exact problem, the options you considered, and your recommendation. Do not escalate without a recommendation.
+
+## 7. Writing conventions
+
+- Never use em dashes or double hyphens in any Dana document, comment, or commit message. Use commas, colons, or separate sentences. Markdown table delimiter rows use a single hyphen per column.
+- 24-hour time notation. Use "to" for ranges.
+- Comments explain why, not what. Match the density and idiom of surrounding code.
+- Commits: a short imperative subject line, a body explaining what changed and which acceptance criteria now pass, and the trailer `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+- Work on a branch named for your package, for example `p3-tasks-core`. Never commit directly to `main`; the Integration Steward merges.
+
+## 8. Tests
+
+Two categories, two owners.
+
+- **Acceptance tests** are the numbered AC-001 to AC-104 behaviors. The Adversarial Test Engineer owns them exclusively. You do not write them, and you do not edit them to make your code pass. If an acceptance test seems wrong, escalate.
+- **Unit tests** inside your own module are yours, encouraged, and unrestricted.
+
+If you find yourself editing a test so your implementation passes, stop. That is the swarm equivalent of grading your own homework, and it is the thing the separation exists to prevent.
