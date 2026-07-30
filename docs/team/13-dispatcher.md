@@ -38,10 +38,10 @@ Dependency graph resolution, git and test output parsing, and disciplined refusa
 
 ## A tick from zero, worked as an example
 
-Suppose `git log` shows only documentation commits, there is no `app/` directory, and no tests exist. Then no package has landed, and the plan's table decides everything:
+Suppose `git log` shows only documentation commits, there is no `app/` directory, and no tests exist. Then no package has landed, and the plan's Depends-on column decides everything:
 
 - **P0** depends on nothing. Startable, and the only startable package. Assign to Data and Invariants.
-- **P8** looks startable by its own dependency row, which names only the frozen API contract. It is not: P0's Blocks column reads "everything", which makes P0 an implicit dependency of every package, and there is no repository scaffold to build in. Blocked on P0.
-- **Everything else** is blocked on P0 for the same reason, and then on its named dependencies in order.
+- **Every other package** names its dependencies in its own row, directly or through its chain, and none of them has landed. All blocked; report each with the specific dependency blocking it. P8 is the instructive row: its cell names P0 for the scaffold alongside the frozen API contract, so it is blocked on P0 by its own row, with nothing to infer.
+- On the next tick after P0 lands, re-derive from scratch: P1 becomes startable, and P8 becomes startable against the frozen contract while its final integration still waits on P4 to P7.
 
-The general lesson from the P8 case: a package's dependency row states what it logically needs, and P0's "blocks everything" states what it physically needs. Read both columns before calling something startable. If the two columns ever genuinely conflict, that is an ambiguity, and ambiguities go to the Steward, not into your judgment.
+The general lesson: the Depends-on column is complete by design, and you read only it. The Blocks column is information for humans, never an input to startability. If a row's dependencies are satisfied but the package obviously cannot start, do not compensate with judgment; the row is wrong, and wrong rows go to the Steward.
