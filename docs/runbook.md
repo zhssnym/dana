@@ -240,6 +240,10 @@ dependency-addition review); what you enforce around it:
 
 - A branch merges only through a Steward session. You never merge by hand, and
   branch protection (section 4) means a red branch cannot merge at all.
+- **Who pushes:** a working session pushes its own branch, because CI runs on push
+  and an unpushed branch is a branch the gate has never seen. The Steward pushes
+  `main` after it merges. Neither is your hands, and neither is optional: an
+  unpushed merge is a release that only exists on this machine.
 - Two branches touching adjacent seams merge one at a time, full suite between.
 - The changelog entry lands before the merge, not after.
 - A merge that would change the schema (section 4) or the API (section 7) does not

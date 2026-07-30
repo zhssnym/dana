@@ -88,6 +88,16 @@ Every concept file, and every subsection added later, answers in this order:
    mistake a local decision for the industry default.
 5. **What breaks without it.** One concrete failure that would occur if this
    piece were removed or wrong.
+6. **Try it yourself**, when and only when the concept has a safe hands-on
+   version. Name the task, where it happens, and what a mistake would cost.
+   Prefer work that is reversible and visible, a wrong DNS record noticed and
+   fixed in five minutes, over work that is neither, a wrong line of code that
+   fails silently three packages later. Vendor dashboards, configuration,
+   drills, and reading a diff qualify; application code, acceptance tests, and
+   specification edits never do, because those have owners. Omit this part
+   rather than inventing a task: a concept with no safe hands-on version is
+   normal, and `docs/runbook.md` section 4 is the standing list of work that
+   is already his.
 
 Close with one **check yourself** question the reader can answer in their own
 words. No written answer; the tutor gives one on request.
