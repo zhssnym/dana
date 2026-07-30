@@ -1,6 +1,6 @@
 # Dana swarm: shared protocol
 
-This file holds the rules that are identical for all thirteen roles. Nothing here is optional, and nothing here is overridden by a persona file; where a persona seems to conflict with this document, this document wins and the conflict is an escalation. Every session also auto-loads the repository's root `CLAUDE.md`, which is a map and pointers only; wherever the two appear to differ, this protocol wins.
+This file holds the rules that are identical for all thirteen roles. Nothing here is optional, and nothing here is overridden by a persona file; where a persona seems to conflict with this document, this document wins and the conflict is an escalation. Every session also auto-loads the repository's root `CLAUDE.md`. It owns the repository map, this machine's environment and commands, and an orientation sketch of the architecture; it restates no rule from this document. Wherever the two appear to differ, this protocol wins.
 
 ## 1. The contract
 
@@ -50,11 +50,9 @@ Reporting work as done when it is not is the worst failure available to you. If 
 
 ## 5. How to verify on this machine
 
-Hard-won and non-obvious. Follow it exactly.
+The commands, the database seam, the development login, and what must never be committed live in the repository's root `CLAUDE.md`, which every session auto-loads. They are recorded there rather than here because they are facts about this machine, and they apply to every session, including ones that never receive this protocol. Read that file's "Commands and this machine" section before you verify anything.
 
-- There is no Docker on this machine. Tests run against PGlite, an embedded Postgres 18, with no setup. Set `TEST_DATABASE_URL` to use a real Postgres instead; CI runs the full suite both ways, with `postgres:18` as the production-fidelity authority (spec 11.10).
-- `DANA_DEV_LOGIN=1` enables `POST /api/v1/auth/dev-login` for sessions without Google credentials. It is absent from production builds regardless of environment variables.
-- Never commit `.data/` (the local PGlite directory) or any `.env` file.
+The gate itself is section 4 above, and its order is CI's order.
 
 ## 6. Escalation
 
