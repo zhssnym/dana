@@ -21,7 +21,7 @@ the preamble of `../rfcs/0000-template.md`.
 
 | Section | File | Covers |
 | - | - | - |
-| 1 | [`01-scope.md`](01-scope.md) | What Dana is, what is in v1, what is out and why |
+| 1 | [`01-scope.md`](01-scope.md) | What Dana is, what it does, what it does not do and why |
 | 2 | [`02-glossary.md`](02-glossary.md) | Every term with exactly one meaning; no synonyms |
 | 3 | [`03-invariants.md`](03-invariants.md) | The 14 properties that must always hold, and what enforces each |
 | 4 | [`04-data-model.md`](04-data-model.md) | Tables, columns, constraints, storage formats, indexes. FROZEN |
