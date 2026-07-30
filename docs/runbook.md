@@ -1,4 +1,4 @@
-# Dana runbook
+# Dana runbook for rfcs/0001-mvp.md
 
 > **Audience:** the human operator running agent sessions. This file is never loaded
 > into an agent's context. It describes how to drive the build, not what to build.
@@ -18,6 +18,7 @@ of them, the pointed-at document wins, and the disagreement is a defect to fix h
 | What binds every agent | `team/_shared-protocol.md`: boundaries, definition of done, escalation, conventions |
 | What the stack is and why | specification section 11, including the rejected alternatives |
 | What Imran works from | `design/brief.md`; his outputs land in `design/` |
+| How you learn along the way | `learn/`; its `000-how-this-works.md` is the tutor's contract, the ledger of what you have been taught, and the session prompt to open a tutor |
 
 ## 2. Finding out where the project stands
 
