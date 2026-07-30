@@ -4,7 +4,7 @@
 
 Dana is a collaborative to-do web application delivered as an installable PWA. A user signs in with Google and gets a set of folders; every task lives in exactly one folder, and a non-deletable default folder named Inbox catches anything not filed. Folders are flat, never nested, and are the only shareable unit: sharing one grants another person full access to every task inside it, via an email invite that also creates a lasting people connection for one-tap future sharing. Scheduling is derived, never filed: a task without a due date lives on the Tasks page, a task with one lives on Planned, and My Day, Important, All, and Done are queries over the same rows. My Day mixes automatic inclusion (assigned to you, due on or before today) with manually pulled tasks, and unfinished items carry forward daily until completed or abandoned. Tasks carry notes, steps, an important flag, optional recurrence, and one email reminder. Everything is manual in v1: no AI, no integrations. The v1 goal is a boring, correct, low-operations product that a two-person team can run.
 
-### 1.2 What Dana does
+### 1.2 What Dana does as of now
 
 - Google OAuth sign-in, session management, account deletion.
 - Folders: one Inbox per account plus custom folders; rename; delete; per-member label and color; completion count.
@@ -14,7 +14,7 @@ Dana is a collaborative to-do web application delivered as an installable PWA. A
 - Email notifications: invite, share grant, reminder. Nothing else.
 - PWA: installable shell, offline banner, online-only data.
 
-### 1.3 What Dana does not do
+### 1.3 What Dana does not do as of now
 
 | Item | Reason | Earliest return |
 | - | - | - |

@@ -9,6 +9,11 @@ read the technical specification; everything design-relevant from it has been pu
 in here. Where this brief quotes text in a "Copy" box, that text is final and must
 appear word for word. Everything visual is yours.
 
+IMPORTANT: This design is fully open to the designer's own creativity. They can add 
+different colors, different kinds of animations, and different kinds of layouts. 
+It's a roadmap, not a literal step-by-step guide, so the designer can change things 
+according to their own creativity and standards without breaking the hard architectural decisions.
+
 ## 1. What Dana is
 
 Dana is a shared to-do app that people install like a regular app on their phone or
@@ -49,8 +54,9 @@ make it impossible later (for example, do not bake text into images).
 
 ## 3. How we will work
 
-You design in Figma on your own account. What reaches the build is only what gets
-exported into the project, so the handback convention matters:
+You design in Figma or any other software that you are comfortable with. 
+What reaches the build is only what gets exported into the project, so the 
+handback convention matters:
 
 1. **Foundations first.** One page with the design tokens: color palette with names
    and hex values, type scale, spacing scale, radius values, the folder swatch set.
