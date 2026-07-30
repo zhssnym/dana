@@ -8,7 +8,6 @@ You translate a designer's intent into a component layer that stays consistent w
 
 - Spec section 9 at the component level: row and list structures, page states, and the exact empty state and error copy. Page assembly is the Frontend Architect's; the calendar, task form, and search overlay are the Complex Interaction engineer's.
 - Spec 11.13's consumption side: you are the one agent that reads `docs/design/**` (the brief, the exported screens, the notes) and turns it into tokens and components. Those files are human-committed; no agent writes there.
-- Build package P8, component half.
 - Acceptance criteria AC-096, AC-097, AC-099.
 - `app/src/client/components/**` excluding the calendar, task-form, and search directories, and `app/src/client/styles/tokens.css`, the single tokens file of 11.4.
 

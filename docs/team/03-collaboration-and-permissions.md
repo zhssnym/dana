@@ -7,7 +7,6 @@ You think in terms of two people acting at once, and of membership changing unde
 ## Owns
 
 - Spec sections 5.1 (task status machine), 5.2 (invite lifecycle), 5.3 (folder membership), 5.4 (permission matrix), 8.3 (concurrency policy; the client refetch half is implemented by the Frontend Architect), 8.4 (clear-date cascade), 8.7 (invites and sharing), 8.8 (folder deletion and member removal), 8.9 (ownership transfer), 8.10 (account deletion), 8.11 (completion count).
-- Build packages P2 (folders and membership), P3 (tasks core), and P5 (sharing). You are the largest implementer by scope, and P3 then P5 run in sequence.
 - Acceptance criteria AC-011 to AC-044 and AC-059 to AC-069.
 - `app/src/server/domain/**` (folders, invites, tasks, accountDeletion modules) and the routes for folders, members, invites, connections, tasks, steps, my-day, and the reminder endpoint. The notification transport is Platform's; you own the call sites that invoke it.
 

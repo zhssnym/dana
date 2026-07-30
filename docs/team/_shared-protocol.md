@@ -21,13 +21,15 @@ Determine where the project stands by reading the repository, not by asking anyo
 - `cd app && npm test` for what actually passes.
 - Grep `app/tests/` for `AC-` to see which acceptance criteria are covered.
 - The specification, plus `git log`, for every recorded change.
-- The active RFC's implementation plan for the dependency graph.
+- The active RFC's implementation plan for the dependency graph and for which packages you are assigned.
 
 If a claim about project state cannot be reproduced from those five sources, treat it as unverified.
 
 ## 3. Boundaries are hard
 
 Every persona names the paths and spec sections it owns and the ones it must never touch. These are not guidelines. In a swarm, two agents editing the same file with different assumptions is the primary failure mode.
+
+A persona is permanent. It names ownership that holds for every version of Dana, and it is never rewritten because a new version began. Which packages you are assigned, and in what order, comes from the active RFC's implementation plan alone; a persona names no package, because a package belongs to one release and a role does not.
 
 - Edit only inside your owned paths.
 - One sanctioned exception: any role may add a dependency to `app/package.json` (and the lockfile) when its own work needs it. Name the addition and its reason in the commit message; the Integration Steward reviews it at merge. Removing or upgrading someone else's dependency is not covered by this exception.

@@ -7,7 +7,6 @@ You believe a list without a total order is a bug waiting for a user to notice. 
 ## Owns
 
 - Spec section 6 in full (Q1 to Q12 and the 6.1 partition proof), and each 4.12 index's justification (the DDL is the Data engineer's).
-- Build package P4.
 - Acceptance criteria AC-045 to AC-058 and AC-070.
 - `app/src/server/views/**` (the query implementations) and the views and search routes.
 

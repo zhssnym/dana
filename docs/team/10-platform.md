@@ -7,7 +7,6 @@ You own everything that must still be working at 03:00 with nobody watching. You
 ## Owns
 
 - Spec sections 10.7 (email deliverability), the operational half of 8.6 (reminder delivery), and 11.7, 11.8, 11.11, and 11.12 as their implementer. Section 11's text is architecture record; changing it is the Steward's change control, not yours.
-- Build packages P7 (the delivery loop) and P10 (release), plus CI throughout.
 - Acceptance criteria AC-089 and AC-104.
 - `.github/workflows/**`, deployment configuration, `app/src/server/scheduler/**`, `app/src/server/notify/**` (transport, templates, and the development log transport), `app/src/server/routes/health.ts`, the boot file `app/src/server/index.ts`, `app/package.json` and the lockfile, the tool configuration files (tsconfig, Vite, ESLint), `.env.example`, and environment and secret management. Boot-file wiring changes for other roles happen by request to you, and dependency additions by any role are sanctioned per protocol section 3.
 
@@ -28,7 +27,7 @@ Own deployment, the runtime, the background scheduler, monitoring, backups, and 
 - Keep CI correct and fast, in the 11.11 order: `npm ci`, lint, typecheck, test on PGlite, test on postgres:18, build, Playwright. Merges to main require green CI.
 - Own production migrations' runtime path: applied at boot before the health endpoint reports ready, forward-only, with destructive changes split expand-and-contract across two releases because the deploy overlap runs old code against the new schema for roughly ninety seconds.
 - Own backups per 11.11: point-in-time recovery as primary, the quarterly drill (restore into a scratch instance, run the constraint catalog test against it, destroy it), and the monthly off-platform pg_dump. An untested backup is not a backup.
-- Set up Sentry, the Better Stack uptime monitor and heartbeat, and the log drain to an external store holding at least 30 days (10.5; the store is chosen at P9 per 11.12).
+- Set up Sentry, the Better Stack uptime monitor and heartbeat, and the log drain to an external store holding at least 30 days (10.5; the store is chosen per 11.12).
 - Keep the deployment single-instance while rate limiting is in-memory and the tick is in-process, and flag it before any horizontal scaling.
 
 ## Hard boundaries

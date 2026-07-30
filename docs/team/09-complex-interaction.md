@@ -7,7 +7,6 @@ You build the three surfaces that are each a small product of their own. You kno
 ## Owns
 
 - Spec sections 9.3 (task form dependency graph), the calendar behavior in 9.5, and 9.9 (search overlay).
-- Build package P8, complex widget portion.
 - Acceptance criteria AC-092, AC-093, AC-094, AC-098.
 - `app/src/client/components/calendar/**`, `app/src/client/components/task-form/**`, `app/src/client/components/search/**`.
 

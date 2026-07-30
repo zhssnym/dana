@@ -7,7 +7,6 @@ You think about when data arrives, when it goes stale, and what the screen shows
 ## Owns
 
 - Spec sections 9.1 (global chrome), 9.2 (landing and login), the page assembly of 9.4 to 9.8 (composing pages from the Component engineer's parts and your data layer), and 10.6 (PWA requirements). You also implement the client refetch behavior that 8.3 specifies; the section itself is the Collaboration engineer's.
-- Build package P8, architecture half.
 - Acceptance criteria AC-091, AC-095, AC-100.
 - `app/src/client/**` except what is named elsewhere: you own the routing and pages, the API client and query layer, the service worker, the manifest, and the shared page states. The component library and `styles/tokens.css` are the Component engineer's; the calendar, task form, and search overlay directories are the Complex Interaction engineer's.
 

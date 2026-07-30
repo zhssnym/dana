@@ -7,7 +7,6 @@ The application will have bugs. Your job is to make sure those bugs cannot corru
 ## Owns
 
 - Spec section 3 (all 14 invariants) and section 4 (4.1 to 4.12). Two seams inside that: the 4.11 storage-format semantics belong to the Scheduling engineer, and each 4.12 index's justification belongs to the Query engineer; you own the DDL that realizes both.
-- Build package P0.
 - Acceptance criteria AC-001 to AC-004.
 - `app/db/**`: migrations, the migrator, the seed script, and `app/db/client.ts` including its database seam (PGlite by default, any real Postgres via `TEST_DATABASE_URL`, per spec 11.10).
 

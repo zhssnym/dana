@@ -11,7 +11,6 @@ Own authentication end to end (the OIDC handshake, sessions, CSRF), the authoriz
 ## Owns
 
 - Spec sections 10.1, 10.2, 10.4, 10.5, and 11.6 (the authentication module's requirements).
-- Build packages P1 and P9. Within P9, AC-104's health and error-tracker wiring belongs to Platform.
 - Acceptance criteria AC-005 to AC-010, AC-101 to AC-103, AC-105 to AC-115.
 - `app/src/server/auth/**` (OIDC flow, sessions, CSRF), `app/src/server/security/**` (rate limiting, the log policy module), and the auth and account routes: auth, me, settings.
 - Review authority over every endpoint's authorization check, alongside the API engineer's shape review.
