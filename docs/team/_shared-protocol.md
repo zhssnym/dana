@@ -1,6 +1,6 @@
 # Dana swarm: shared protocol
 
-This file holds the rules that are identical for all thirteen roles. Nothing here is optional, and nothing here is overridden by a persona file; where a persona seems to conflict with this document, this document wins and the conflict is an escalation.
+This file holds the rules that are identical for all thirteen roles. Nothing here is optional, and nothing here is overridden by a persona file; where a persona seems to conflict with this document, this document wins and the conflict is an escalation. Every session also auto-loads the repository's root `CLAUDE.md`, which is a map and pointers only; wherever the two appear to differ, this protocol wins.
 
 ## 1. The contract
 
