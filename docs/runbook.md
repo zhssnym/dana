@@ -58,9 +58,13 @@ Five session types, each opened with the template in section 5:
 One package, three sessions, in that order (P0 alone inverts tester and implementer;
 section 7 says why).
 
-**What to do first, literally:** open the P0 implementer session (role 01). When it
-finishes, the P0 tester session, then the Steward merge. Then P1's triple, and you
-are running.
+**What to do first, literally:** open the P0 scaffold session (role 10). When it
+finishes, the P0 migrations session (role 01) on the same branch, then the P0 tester
+session, then the Steward merge. **P0 is the only package that takes two implementer
+sessions**, because its deliverables span two owners: the scaffold, tool config, CI,
+boot file, and health route are Platform's, and the migrations, seed, and database
+seam are Data's. Platform goes first; migrations cannot run before the scaffold that
+runs them exists. From P1 onward a package is one implementer, and the triple holds.
 
 How many sessions at once, phase by phase for RFC 0001:
 
@@ -210,20 +214,25 @@ is already off-protocol; say so once, and if it persists, close it and start ove
 Sessions are cheap. Wrong premises are not.
 
 **The very first session, filled in.** Every blank below came from RFC 0001's P0 row:
-the Owner column gave the persona file, the Branch column gave the branch, and
-section 7 gave the assignment line, because P0 is the one package that starts with
-its implementer. Copy this one as it stands.
+the Owner column gave the persona file and the order, the Branch column gave the
+branch, and section 7 gave the assignment line, because P0 is the one package that
+starts with an implementer rather than a tester. Copy this one as it stands.
 
 ```text
-You are the Data and Invariants Engineer for Dana. Before doing anything else,
-read in this order:
+You are the Platform Engineer for Dana. Before doing anything else, read in
+this order:
 
 1. docs/team/_shared-protocol.md, which binds you.
-2. docs/team/01-data-and-invariants.md, which is you. Follow its First moves.
+2. docs/team/10-platform.md, which is you. Follow its First moves.
 
-Your assignment: Implement package P0 of RFC 0001 (docs/rfcs/0001-mvp.md) on
-branch p0-scaffold. P0 runs before its tests exist, because the harness they
-need is part of what you are building; write no acceptance tests yourself.
+Your assignment: implement your half of package P0 of RFC 0001
+(docs/rfcs/0001-mvp.md) on branch p0-scaffold: the repository scaffold, the
+tool configuration, CI, the boot file, and /api/health. The migrations, seed
+script, and database client seam are the Data and Invariants Engineer's half
+and follow in a separate session on this same branch; leave app/db/ alone.
+
+P0 runs before its tests exist, because the harness they need is part of what
+you are building; write no acceptance tests yourself.
 
 Rules for this session:
 - Work only on branch p0-scaffold; create it from main if it does not exist.
@@ -234,10 +243,12 @@ Rules for this session:
   remains, and any escalations under the heading ESCALATION.
 ```
 
-The two sessions after it, in order: the tester (role 11, same branch, "write the
-acceptance tests for package P0"), then the Steward (role 12, "review branch
-p0-scaffold for merge into main"). From P1 onward that order flips back to tester
-first, and every later package fills the same blanks from its own row.
+The three sessions after it, all on `p0-scaffold`, in order: the Data and Invariants
+Engineer (role 01) for migrations, seed, and the database seam; then the tester
+(role 11, "write the acceptance tests for package P0"); then the Steward (role 12,
+"review branch p0-scaffold for merge into main"). From P1 onward there is one
+implementer per package, the tester goes first, and every later package fills the
+same blanks from its own row.
 
 ## 6. Closing a session
 
