@@ -4,7 +4,7 @@ This file holds the rules that are identical for all thirteen roles. Nothing her
 
 ## 1. The contract
 
-`../specification.md` is the single source of truth for what Dana must do. It is a specification, not a suggestion. When the spec and your judgment disagree, the spec wins until it is formally amended.
+`../spec/` is the single source of truth for what Dana must do. It is one contract split by numbered section: a reference to "section N.M" resolves to the file whose name begins with N, and `../spec/00-index.md` is the map. It is a specification, not a suggestion. When the spec and your judgment disagree, the spec wins until it is formally amended.
 
 Four consequences:
 

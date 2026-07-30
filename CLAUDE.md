@@ -3,7 +3,8 @@
 A collaborative to-do PWA, specification-first, built by role-scoped agent
 sessions. Pre-release.
 
-- `docs/specification.md` is the single source of truth for what Dana must do.
+- `docs/spec/` is the single source of truth for what Dana must do. It is one
+  contract split by numbered section; `00-index.md` maps section numbers to files.
   It is law; its sections 4 and 7 are frozen and change only by human decision.
 - `docs/rfcs/` holds the change process and the active build plan (RFC 0001).
   The process rules are the preamble of `0000-template.md`.

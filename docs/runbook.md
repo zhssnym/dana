@@ -11,7 +11,7 @@ of them, the pointed-at document wins, and the disagreement is a defect to fix h
 
 | Question | Lives in |
 | - | - |
-| What must Dana do | `specification.md`, the single source of truth |
+| What must Dana do | `spec/`, the single source of truth, one file per numbered section; `spec/00-index.md` is the map |
 | How does the spec change | the preamble of `rfcs/0000-template.md`: the gate, numbering, statuses, the merge ritual for deltas |
 | What is being built and in what order | RFC 0001's implementation plan, the only package-to-owner map |
 | Who owns what | each persona's Owns section in `team/`, and nowhere else |

@@ -65,7 +65,9 @@ Everything about the template serves that property.
 
 The merge is the Steward's, and it is mechanical by design: for each delta unit,
 copy the fenced body into the specification at the stated location, append the
-changelog entry, flip the status. If a merge ever requires interpretation, the
+changelog entry, flip the status. The specification is the `../spec/` directory:
+a section number resolves to the file whose name begins with that number, so
+"Replace section 8.5" names its target file unambiguously. If a merge ever requires interpretation, the
 delta was written wrong; fix the writing, not the process.
 
 ## Removing behavior

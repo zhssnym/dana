@@ -14,7 +14,7 @@ the specification, not any agent's memory, is the contract.
 
 | Path | What it is |
 | - | - |
-| `docs/specification.md` | The single source of truth: data model, invariants, state machines, queries, API, UI, architecture, acceptance criteria |
+| `docs/spec/` | The single source of truth, one file per numbered section: data model, invariants, state machines, queries, API, UI, architecture, acceptance criteria. Start at `00-index.md` |
 | `docs/rfcs/` | Numbered RFCs proposing changes; `0001-mvp.md` is the build plan (packages P0 to P10) |
 | `docs/team/` | The thirteen agent role definitions and the shared protocol every session loads |
 | `docs/design/` | The design brief for the designer, plus exported screens and notes as they land |
