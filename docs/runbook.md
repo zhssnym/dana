@@ -118,9 +118,16 @@ repository's `CLAUDE.md` loads automatically; everything else the agent needs is
 the repository, so you never paste documents, you name them. One session, one
 persona, one assignment.
 
-**Before opening, know three things:** which package or task, which persona owns it
-(the persona's Owns section is the authority; RFC 0001's plan table is the quick
-map), and which branch. Branches are named for the package, like `p3-tasks-core`.
+**Before opening, know three things**, and RFC 0001's plan table has all three in the
+package's own row: which package, which persona owns it (its Owner column names the
+file; that persona's Owns section is the authority), and which branch (its Branch
+column, for example `p3-tasks-core`). Read the row, fill the blanks, open the session.
+
+**Which assignment line is yours** is decided by where the package is in its triple:
+tester, then implementer, then Steward, one package at a time, per section 3. P0 is
+the one package that inverts the first two, and section 7 says why. Dispatcher and
+Probe are optional sessions, opened only when you are unsure what is startable or
+suspicious of a green result; neither is part of the triple.
 
 **The opening prompt.** Copy this, fill the angle-bracket blanks, delete the
 assignment lines that do not apply:
@@ -170,6 +177,36 @@ summary."
 **Then let it read.** A session that starts writing before it has read its two files
 is already off-protocol; say so once, and if it persists, close it and start over.
 Sessions are cheap. Wrong premises are not.
+
+**The very first session, filled in.** Every blank below came from RFC 0001's P0 row:
+the Owner column gave the persona file, the Branch column gave the branch, and
+section 7 gave the assignment line, because P0 is the one package that starts with
+its implementer. Copy this one as it stands.
+
+```text
+You are the Data and Invariants Engineer for Dana. Before doing anything else,
+read in this order:
+
+1. docs/team/_shared-protocol.md, which binds you.
+2. docs/team/01-data-and-invariants.md, which is you. Follow its First moves.
+
+Your assignment: Implement package P0 of RFC 0001 (docs/rfcs/0001-mvp.md) on
+branch p0-scaffold. P0 runs before its tests exist, because the harness they
+need is part of what you are building; write no acceptance tests yourself.
+
+Rules for this session:
+- Work only on branch p0-scaffold; create it from main if it does not exist.
+- Commit as you go, per protocol section 7, and push the branch.
+- If you hit an escalation trigger (protocol section 6), stop and continue only
+  on what is unaffected.
+- End with a final block: branch state, which acceptance criteria pass, what
+  remains, and any escalations under the heading ESCALATION.
+```
+
+The two sessions after it, in order: the tester (role 11, same branch, "write the
+acceptance tests for package P0"), then the Steward (role 12, "review branch
+p0-scaffold for merge into main"). From P1 onward that order flips back to tester
+first, and every later package fills the same blanks from its own row.
 
 ## 6. Closing a session
 
