@@ -81,6 +81,37 @@ Two rules cap the parallelism: never two sessions writing in the same path area
 implementers for one package), and no more than three live working sessions,
 because you are the merge queue, the escalation reader, and the only human.
 
+### Which model each package needs
+
+Two levels, because your access to the stronger model is limited and spending it
+everywhere wastes it. **Hard** means the acceptance tests cannot fully catch a wrong
+implementation, or the work sets conventions everything downstream inherits.
+**Normal** means the specification is precise enough that a good model plus failing
+tests converges, and a mistake shows up as a red test rather than as a silent defect.
+
+| Package | Level | Why |
+| - | - | - |
+| P0 | **hard** | The one session with no prior art in the repository to imitate, and every convention it sets is inherited by all ten that follow. The 11.15 hazards land here first, and the database seam decides whether testing works at all |
+| P1 | **hard** | Security code with no human reviewer. AC-105 to AC-115 test what they can, but a missing nonce check, a reused session identifier, or a subtly wrong PKCE exchange can pass a suite and still be a hole |
+| P2 | normal | The permission matrix and CRUD are transcription from sections 5.4 and 7.4; R-CLEAN's edges are pinned by AC-016 to AC-021, including the double-add race |
+| P3 | normal | The longest package, not the hardest: every rule is precisely specified. Budget for resumption (section 6) rather than for difficulty |
+| P4 | normal | Orderings transcribe from section 6, and AC-070's property test is a real safety net under the partition |
+| P5 | normal | The invite lifecycle is a state table and the acceptance transaction is ordered steps; the awkward cases are already enumerated in 8.7 |
+| P6 | **hard** | The one algorithm this project chose to write rather than install: floating-date recurrence, UNTIL inclusivity, the G-SERIES guard, and projection that must never draw a series twice |
+| P7 | **hard** | Daylight-saving gap and overlap resolution, five recompute triggers, and exactly-once delivery under races. Timezone arithmetic is where confident models are confidently wrong |
+| P8 | **hard** for the calendar, task form, and search (role 09); normal for the shell and pages (07) and the component set (08) | FullCalendar 7's entrypoints and the cell-order comparator are flagged in 11.15 as needing a spike; the task form's dependency graph is a state machine. The rest is well-trodden React |
+| P9 | normal | Rate limits, redaction, and the limits sweep are mechanical, and the authorization probe is the check |
+| P10 | normal | Configuration, dashboards, and DNS, most of which is your own track in section 4 |
+
+Two rules for the sessions around a package:
+
+- **A tester inherits its package's level.** Writing acceptance tests for recurrence
+  demands the same understanding as implementing it; a weak test suite on a hard
+  package is worse than none, because it manufactures false confidence.
+- **A Steward review runs at normal**, whatever the package, with one exception: when
+  it is packaging a frozen-interface decision for you (section 11), the reasoning
+  matters more than the review, so use the stronger model.
+
 ## 4. Your own track: work only you can do, on lead times
 
 Everything in this section fails the same way: discovered at the moment it blocks,
