@@ -54,8 +54,8 @@ exported into the project, so the handback convention matters:
 
 1. **Foundations first.** One page with the design tokens: color palette with names
    and hex values, type scale, spacing scale, radius values, the folder swatch set.
-   Hassan will transcribe these into code; after that, changing a token is a small
-   request, not a redesign.
+   These get transcribed into code on our side; after that, changing a token is a
+   small request, not a redesign.
 2. **One PNG per screen**, exported at two widths: phone (390 wide) and desktop
    (1440 wide). File names follow the screen list in section 5, for example
    `my-day-phone.png`, `my-day-desktop.png`. These go into the project folder
