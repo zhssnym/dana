@@ -65,6 +65,11 @@ export function createApp(): express.Express {
 }
 
 function main(): void {
+  // Local development reads the gitignored .env that 11.11 names; production
+  // and CI set real environment variables and ship no .env file.
+  if (existsSync('.env')) {
+    process.loadEnvFile()
+  }
   const port = Number(process.env.PORT ?? 3000)
   const app = createApp()
   const server = app.listen(port, () => {
