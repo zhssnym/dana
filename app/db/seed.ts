@@ -7,7 +7,8 @@ table: it is what Playwright runs against (spec 11.10) together with the
 development login endpoint. Identifiers are fixed so end to end tests can
 reference rows; dates are relative to today so the day-scoped pages (My Day,
 Planned) have content whenever the seed runs. Reseeding wipes application
-rows first, so it is destructive and never points at production.
+rows first: it refuses to run when NODE_ENV is production, and beyond that
+guard, pointing it at a database asserts the data there is disposable.
 */
 import { pathToFileURL } from 'node:url'
 
@@ -36,6 +37,9 @@ function isoDate(daysFromToday: number): string {
 }
 
 export async function seed(): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('the seed truncates every table and refuses to run in production')
+  }
   const client = await createDbClient({
     url: process.env.DATABASE_URL === '' ? undefined : process.env.DATABASE_URL,
     dataDir: '.data',
@@ -45,7 +49,12 @@ export async function seed(): Promise<void> {
   const tomorrow = isoDate(1)
   const nextWeek = isoDate(7)
   const yesterdayInstant = new Date(Date.now() - 86400000).toISOString()
-  const tomorrowMorningInstant = `${tomorrow}T08:00:00Z`
+  // What the 8.6 derivation yields for the seeded reminder: due 09:00 minus
+  // 60 minutes in the assignee's zone, and the assignee is Hassan in
+  // Asia/Karachi, fixed UTC+5 with no DST, so 08:00 there is 03:00Z in
+  // every season. Real fire instants are computed only by the Scheduling
+  // engineer's 8.6 module; a seed must merely be consistent with it.
+  const reminderFireInstant = `${tomorrow}T03:00:00Z`
 
   await client.runMigrations()
   await db.execute(sql`
@@ -86,7 +95,7 @@ export async function seed(): Promise<void> {
       (${seedIds.taskBuyMilk}, ${seedIds.groceries}, 'Buy milk', 'Two cartons', 'pending',
         true, ${today}, NULL, NULL, NULL, ${seedIds.hassan}, ${seedIds.hassan}, NULL, NULL),
       (${seedIds.taskCallPlumber}, ${seedIds.groceries}, 'Call plumber', NULL, 'pending',
-        false, ${tomorrow}, '09:00', NULL, NULL, ${seedIds.imran}, ${seedIds.hassan}, NULL, NULL),
+        false, ${tomorrow}, '09:00', NULL, NULL, ${seedIds.hassan}, ${seedIds.hassan}, NULL, NULL),
       (${seedIds.taskWaterPlants}, ${seedIds.groceries}, 'Water plants', NULL, 'pending',
         false, ${nextWeek}, NULL, 'FREQ=WEEKLY;BYDAY=MO', ${seedIds.waterPlantsSeries},
         ${seedIds.hassan}, ${seedIds.hassan}, NULL, NULL),
@@ -110,7 +119,7 @@ export async function seed(): Promise<void> {
   `)
   await db.execute(sql`
     INSERT INTO reminders (task_id, offset_minutes, time_of_day, fire_at, created_by)
-    VALUES (${seedIds.taskCallPlumber}, 60, NULL, ${tomorrowMorningInstant}, ${seedIds.hassan})
+    VALUES (${seedIds.taskCallPlumber}, 60, NULL, ${reminderFireInstant}, ${seedIds.hassan})
   `)
   await db.execute(sql`
     INSERT INTO invites (inviter_id, email, folder_id, task_id, status)

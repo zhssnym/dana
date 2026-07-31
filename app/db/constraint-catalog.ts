@@ -12,7 +12,9 @@ for a foreign key, "columns" and "references.columns" pair up positionally.
 CHECK column lists are sorted alphabetically, since the expression imposes no
 order; assert them against a sorted read of pg_constraint.conkey. Index
 column lists are in index order, which is meaningful; expression members
-appear as the literal string 'expr' (pg_index.indkey holds 0 there). "partial" means pg_index.indpred is set;
+appear as the literal string 'expr' (pg_index.indkey holds 0 there). An
+absent descColumns means every column ascending, and the assertion runs
+either way; an absent method means btree. "partial" means pg_index.indpred is set;
 the predicate's text is deliberately not recorded. Primary keys and unique
 constraints arrive with backing indexes named like the constraint; the
 "indexes" arrays below list only standalone CREATE INDEX statements, so the

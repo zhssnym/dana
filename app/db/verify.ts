@@ -35,8 +35,6 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i])
 }
 
-// The attname aggregates are cast to text[] because node-postgres leaves
-// name[] unparsed as a string while PGlite parses it; text[] parses on both.
 const onDeleteByCode: Record<string, OnDelete> = {
   c: 'cascade',
   r: 'restrict',
@@ -60,6 +58,8 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
   string,
   ExpectedTable,
 ][]) {
+  // The attname aggregates are cast to text[] because node-postgres leaves
+  // name[] unparsed as a string while PGlite parses it; text[] parses on both.
   const conRows = await rows(sql`
     SELECT
       c.conname AS name,
@@ -191,13 +191,14 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
     if (!sameList(idx.columns, (row.cols as string[] | null) ?? [])) {
       problem(`${idx.name}: columns ${String(row.cols)}`)
     }
-    if (idx.descColumns !== undefined) {
-      const opts = ((row.opts as (number | string)[] | null) ?? []).map(Number)
-      const cols = (row.cols as string[] | null) ?? []
-      const actualDesc = cols.filter((_, i) => ((opts[i] ?? 0) & 1) === 1)
-      if (!sameList(idx.descColumns, actualDesc)) {
-        problem(`${idx.name}: descending columns [${actualDesc.join(', ')}]`)
-      }
+    // Absent descColumns means all ascending, and that is asserted, not
+    // skipped: an accidental DESC anywhere would silently diverge from the
+    // frozen 4.12 otherwise.
+    const opts = ((row.opts as (number | string)[] | null) ?? []).map(Number)
+    const cols = (row.cols as string[] | null) ?? []
+    const actualDesc = cols.filter((_, i) => ((opts[i] ?? 0) & 1) === 1)
+    if (!sameList(idx.descColumns ?? [], actualDesc)) {
+      problem(`${idx.name}: descending columns [${actualDesc.join(', ')}]`)
     }
   }
 }
