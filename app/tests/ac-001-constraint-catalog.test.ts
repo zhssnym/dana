@@ -280,13 +280,16 @@ describe('AC-001: migrated schema matches the section 4 catalog', () => {
     const userId = randomUUID()
     createdUserIds.push(userId)
     await client.db.execute(sql`INSERT INTO users (id) VALUES (${userId})`)
+    // The fragment is the server's own message text, not the bare column
+    // name: the column name also appears in the statement itself, and a
+    // fragment satisfiable by the statement text proves nothing.
     await expectRejectedBy(
       () =>
         client.db.execute(sql`
           INSERT INTO tasks (folder_id, title, created_by)
           VALUES (NULL, 'A task with no folder', ${userId})
         `),
-      'folder_id',
+      'null value in column "folder_id"',
     )
   })
 

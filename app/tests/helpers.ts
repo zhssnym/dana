@@ -10,7 +10,7 @@ never TRUNCATE) and remove them on the way out, so parallel files sharing one
 database cannot interfere.
 */
 import pg from 'pg'
-import { sql } from 'drizzle-orm'
+import { DrizzleQueryError, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { expect } from 'vitest'
 
@@ -55,15 +55,31 @@ export async function rows(
   return result.rows
 }
 
+// Drizzle wraps every failed query, on both backends, in a DrizzleQueryError
+// whose message embeds the statement's full SQL and params. That message must
+// never enter the searched text: a fragment that happens to appear in the
+// statement itself (a column name, say) would then match any rejection
+// whatsoever, and the attribution the fragment exists for would be vacuous.
+// The prefix check is belt and braces against a second module instance of
+// the class ever slipping into the graph.
+function isQueryTextWrapper(error: Error): boolean {
+  return (
+    error instanceof DrizzleQueryError ||
+    error.message.startsWith('Failed query: ')
+  )
+}
+
 // Both backends surface the Postgres error text, but the wrapping differs
-// (drizzle may nest the driver error under cause), so the search walks the
+// (drizzle nests the driver error under cause), so the search walks the
 // chain and also picks up the node-postgres structured constraint field.
 export function errorChainText(error: unknown): string {
   const parts: string[] = []
   let current: unknown = error
   for (let depth = 0; depth < 10 && current !== null && current !== undefined; depth += 1) {
     if (current instanceof Error) {
-      parts.push(current.message)
+      if (!isQueryTextWrapper(current)) {
+        parts.push(current.message)
+      }
       const constraint = (current as { constraint?: unknown }).constraint
       if (typeof constraint === 'string') {
         parts.push(constraint)
