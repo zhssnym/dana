@@ -249,6 +249,18 @@ export class TestBrowser {
   }
 
   /**
+   * A second browser holding this one's cookies as they stand now. AC-105's
+   * single-use case needs the jar as it was just before the callback ran, so
+   * that the replay differs from the original in nothing but having already
+   * happened.
+   */
+  clone(): TestBrowser {
+    const copy = new TestBrowser(this.origin)
+    for (const cookie of this.jar.values()) copy.jar.set(cookie.name, cookie)
+    return copy
+  }
+
+  /**
    * csrf: 'auto' echoes the non-httpOnly cookie's value in X-CSRF-Token, which
    * is the double-submit contract of 11.6; 'omit' sends no header; any other
    * string is sent verbatim, which is how the mismatch cases are written.
