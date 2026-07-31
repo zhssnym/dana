@@ -8,7 +8,7 @@ One deployable: a single Node process runs the Express API, serves the static la
 
 Three structural rules, each load-bearing:
 
-- **Single instance.** Exactly one instance runs in production. Rate limiting (10.4) is in-memory and the reminder tick (11.7) is in-process; both assume it. A second instance requires moving rate limits to a shared store and electing a single tick owner, and must be flagged before it happens, never discovered after.
+- **Single instance.** Exactly one instance runs in production. Rate limiting (10.4) is in-memory, the reminder tick (11.7) is in-process, and the boot-time migration run (11.5) takes no lock; all three assume it. A second instance requires moving rate limits to a shared store, electing a single tick owner, and serializing the migration run, and must be flagged before it happens, never discovered after.
 - **The API of section 7 is the only mutation path.** All client data access is fetch calls to /api/v1. No server-side rendering of application data exists, and no code path touches the database without passing the 10.2 chokepoint middleware. This is why the SPA-plus-API shape was chosen: it makes the single chokepoint architectural rather than merely mandated.
 - **Forward-only migrations** (11.5). There is no down migration; recovery from a bad migration is a fix-forward migration or a restore.
 
@@ -38,7 +38,7 @@ Three structural rules, each load-bearing:
 
 - Postgres 18 in production, and the same major everywhere tests run: PGlite embeds Postgres 18 and CI pins the postgres:18 image. Section 4's reference dialect (Postgres 16) remains valid; nothing in the schema requires more than Postgres 15.
 - Drizzle ORM is the query client. The twelve queries of section 6 are written as SQL through Drizzle's sql template so their ORDER BY clauses can be compared to the spec textually; CRUD may use the query builder.
-- Migrations are hand-authored SQL files in `app/db/migrations/`, forward-only, one transaction per file, with every constraint and index explicitly named (AC-001 asserts them by name). The Drizzle programmatic migrator applies pending migrations at server boot, before the health endpoint reports ready.
+- Migrations are hand-authored SQL files in `app/db/migrations/`, forward-only, with every constraint and index explicitly named (AC-001 asserts them by name). The Drizzle programmatic migrator applies pending migrations at server boot, before the health endpoint reports ready, and wraps each run in one transaction: all pending files commit or roll back together, which is strictly stronger than per-file atomicity (verified in the installed migrator; section 13 item 16).
 - Deploy interplay: the host's zero-downtime deploy keeps the old instance serving until the new one passes its health check. Postgres DDL is transactional, so a failed migration rolls back, boot fails, the deploy is canceled, and the old version keeps running. Destructive changes (drops, renames) must be split expand-and-contract across two releases, because the old code runs against the new schema during the overlap window (roughly ninety seconds).
 
 ### 11.6 Authentication module
@@ -78,7 +78,7 @@ Resend, one provider for the three templates (invite, share grant, reminder), be
 ### 11.10 Testing infrastructure
 
 - Vitest 4 runs unit and acceptance tests. The acceptance suite exercises section 7 over HTTP against the real Express app in-process.
-- The database under test is selected by one seam in `app/db/client.ts`: PGlite (embedded Postgres 18, in-process, no Docker, runs on Windows) by default, or any real Postgres via TEST_DATABASE_URL. CI runs the full suite both ways: PGlite for parity with local runs, and a postgres:18 container as the production-fidelity authority. PGlite's pg_trgm ships in its main package (contrib import). PGlite is alpha-badged; the named fallback behind the same seam is the embedded-postgres npm package (real Postgres binaries, Windows x64, no Docker or admin rights).
+- The database under test is selected by one seam in `app/db/client.ts`: PGlite (embedded Postgres 18, in-process, no Docker, runs on Windows) by default, or any real Postgres via TEST_DATABASE_URL. The variable is scoped to test and database-script processes: a server entrypoint passes its connection string explicitly (DATABASE_URL) and clears TEST_DATABASE_URL from its environment before opening the seam. CI runs the full suite both ways: PGlite for parity with local runs, and a postgres:18 container as the production-fidelity authority. PGlite's pg_trgm ships in its main package (contrib import). PGlite is alpha-badged; the named fallback behind the same seam is the embedded-postgres npm package (real Postgres binaries, Windows x64, no Docker or admin rights).
 - The AC-001 constraint catalog test asserts structured facts from pg_constraint and pg_index (constraint type, columns, on-delete targets, partial predicates, names), never deparsed SQL text, so the same test passes on every Postgres the suite runs against.
 - Playwright drives end-to-end tests on Windows and in CI, using the seed dataset and the development login endpoint for sessions.
 

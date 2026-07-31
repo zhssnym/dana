@@ -78,9 +78,9 @@ Orientation only. Normative detail is spec section 11, and it wins.
   application data, and no code path reaches the database without passing the 10.2
   authorization chokepoint. This is why the SPA-plus-API shape was chosen: the
   chokepoint is architectural rather than merely mandated.
-- **Forward-only migrations.** Hand-authored SQL in `app/db/migrations/`, one
-  transaction per file, every constraint and index explicitly named because AC-001
-  asserts them by name. There is no down migration; recovery is a fix-forward
+- **Forward-only migrations.** Hand-authored SQL in `app/db/migrations/`, applied
+  by the migrator in one transaction per run (spec 11.5), every constraint and
+  index explicitly named because AC-001 asserts them by name. There is no down migration; recovery is a fix-forward
   migration or a restore. Destructive changes split expand-and-contract across two
   releases.
 - **Ownership boundaries are directories:** `app/src/server/**`, `app/src/client/**`,

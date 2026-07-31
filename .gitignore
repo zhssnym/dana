@@ -1,10 +1,10 @@
 node_modules/
 .next/
 .data/
+dist/
 desktop.ini
 Thumbs.db
 .DS_Store
 *.tsbuildinfo
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
