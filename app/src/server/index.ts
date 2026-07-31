@@ -6,6 +6,7 @@ import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import { pino } from 'pino'
 
+import { createDbClient } from '../../db/client.js'
 import { healthRouter } from './routes/health.js'
 
 export const logger = pino()
@@ -64,12 +65,24 @@ export function createApp(): express.Express {
   return app
 }
 
-function main(): void {
+async function main(): Promise<void> {
   // Local development reads the gitignored .env that 11.11 names; production
   // and CI set real environment variables and ship no .env file.
   if (existsSync('.env')) {
     process.loadEnvFile()
   }
+
+  // 11.5: pending migrations apply at boot, before the health endpoint can
+  // report ready. Listening starts only after they commit, so a failed
+  // migration fails the deploy's health check and the old instance keeps
+  // serving.
+  const dbClient = await createDbClient({
+    url: process.env.DATABASE_URL === '' ? undefined : process.env.DATABASE_URL,
+    dataDir: '.data',
+  })
+  await dbClient.runMigrations()
+  logger.info({ database: dbClient.kind }, 'migrations applied')
+
   const port = Number(process.env.PORT ?? 3000)
   const app = createApp()
   const server = app.listen(port, () => {
@@ -77,7 +90,9 @@ function main(): void {
   })
   const shutdown = (): void => {
     server.close(() => {
-      process.exit(0)
+      void dbClient.close().finally(() => {
+        process.exit(0)
+      })
     })
   }
   process.on('SIGTERM', shutdown)
@@ -88,5 +103,9 @@ if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  main()
+  main().catch((err: unknown) => {
+    const stack = err instanceof Error ? err.stack : String(err)
+    logger.error({ stack }, 'boot failed')
+    process.exit(1)
+  })
 }
