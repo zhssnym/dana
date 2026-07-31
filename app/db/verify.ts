@@ -35,6 +35,8 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i])
 }
 
+// The attname aggregates are cast to text[] because node-postgres leaves
+// name[] unparsed as a string while PGlite parses it; text[] parses on both.
 const onDeleteByCode: Record<string, OnDelete> = {
   c: 'cascade',
   r: 'restrict',
@@ -64,13 +66,13 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
       c.contype AS contype,
       c.confdeltype AS ondelete,
       rt.relname AS ref_table,
-      (SELECT array_agg(a.attname ORDER BY k.ord)
+      (SELECT array_agg(a.attname ORDER BY k.ord)::text[]
          FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ord)
          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum) AS cols,
-      (SELECT array_agg(a.attname ORDER BY k.ord)
+      (SELECT array_agg(a.attname ORDER BY k.ord)::text[]
          FROM unnest(c.confkey) WITH ORDINALITY k(attnum, ord)
          JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum) AS ref_cols,
-      (SELECT array_agg(a.attname ORDER BY a.attname)
+      (SELECT array_agg(a.attname ORDER BY a.attname)::text[]
          FROM unnest(c.confdelsetcols) k(attnum)
          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum) AS set_cols
     FROM pg_constraint c
@@ -153,7 +155,7 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
       x.indisunique AS is_unique,
       am.amname AS method,
       x.indpred IS NOT NULL AS partial,
-      (SELECT array_agg(CASE WHEN k.attnum = 0 THEN 'expr' ELSE a.attname END ORDER BY k.ord)
+      (SELECT array_agg(CASE WHEN k.attnum = 0 THEN 'expr' ELSE a.attname END ORDER BY k.ord)::text[]
          FROM unnest(x.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
          LEFT JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = k.attnum) AS cols,
       (SELECT array_agg(k.opt ORDER BY k.ord)
