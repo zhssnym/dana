@@ -36,6 +36,25 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Five P1 escalations from the Adversarial Test session ruled on 2026-07-31,
+  amendments on branch `p1-auth` so they merge with the package. Two were the
+  human owner's, both touching frozen section 7: GET /auth/google gains an
+  optional tz query parameter (an IANA identifier carried to the callback;
+  absent means UTC at provisioning and no sync on return; invalid is treated
+  as absent, a recorded deviation from the 422 rule), and 7.1 now states that
+  the auth endpoints mount under the /api/v1 base path. Three were the
+  Steward's: 10.1 replaces the stale auth-library sentence with the sessions
+  table's observable contract (named sessions, user_id ON DELETE CASCADE,
+  expires_at reset to 30 days out by every authenticated request); 11.10
+  records the createApp construction seam (synchronous, no I/O, injected
+  DbClient and auth configuration, environment fallback); 9.2 gains the
+  unverified-email page's normative copy. In support: 11.6 records the tz
+  carrier, unconditional Secure, and the dev-login flag and build-exclusion
+  semantics; 11.15 adds the tsc excluded-file emission hazard; 8.1 conditions
+  the login sync on a carried tz and ignores tzdb aliases; the RFC 0001 P1
+  row now names the P1 session order, adding the API and Contract role for
+  the shared schemas its Owns section already covers. AC-007 and AC-113 are
+  unblocked for the Adversarial Test role.
 - At the P0 merge, spec 11.5 now records the sanctioned migrator's verified
   behavior, one transaction per run rather than per file, with the external
   fact and its revisit trigger as section 13 item 16; 11.1's second-instance
