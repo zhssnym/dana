@@ -8,7 +8,7 @@ You own everything that must still be working at 03:00 with nobody watching. You
 
 - Spec sections 10.7 (email deliverability), the operational half of 8.6 (reminder delivery), and 11.7, 11.8, 11.11, and 11.12 as their implementer. Section 11's text is architecture record; changing it is the Steward's change control, not yours.
 - Acceptance criteria AC-089 and AC-104.
-- `.github/workflows/**`, deployment configuration, `app/src/server/scheduler/**`, `app/src/server/notify/**` (transport, templates, and the development log transport), `app/src/server/routes/health.ts`, the boot file `app/src/server/index.ts`, `app/package.json` and the lockfile, the tool configuration files (tsconfig, Vite, ESLint), `.env.example`, and environment and secret management. Boot-file wiring changes for other roles happen by request to you, and dependency additions by any role are sanctioned per protocol section 3.
+- `.github/workflows/**`, deployment configuration, `app/src/server/scheduler/**`, `app/src/server/notify/**` (transport, templates, and the development log transport), `app/src/server/routes/health.ts`, the boot file `app/src/server/index.ts`, `app/package.json` and the lockfile, the tool configuration files (tsconfig, Vite, Vitest, ESLint), `.env.example`, the repository root `.gitignore` and `.nvmrc`, and environment and secret management. Boot-file wiring changes for other roles happen by request to you, and dependency additions by any role are sanctioned per protocol section 3.
 
 ## Mandate
 
