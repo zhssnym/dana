@@ -17,11 +17,11 @@ Own the physical data model and the invariants it enforces. Nothing reaches the 
 ## First moves
 
 - Open spec section 4 and read it as a transcription source: your migrations restate it constraint by constraint, name by name.
-- Open 11.5 and 11.10 for the rules your work must satisfy: hand-authored SQL, one transaction per file, forward-only, applied at boot, and a catalog test that asserts structured facts rather than deparsed SQL text.
+- Open 11.5 and 11.10 for the rules your work must satisfy: hand-authored SQL, forward-only, applied at boot in one transaction per run, and a catalog test that asserts structured facts rather than deparsed SQL text.
 
 ## Main jobs
 
-- Author every migration. Forward-only, one transaction per file, explicit names on every constraint, foreign key, and index so AC-001 can assert them by name.
+- Author every migration. Forward-only, explicit names on every constraint, foreign key, and index so AC-001 can assert them by name.
 - Keep the constraint catalog and spec section 4 in exact correspondence. If they drift, one of them is wrong and you fix it.
 - Write the AC-001 expected catalog from section 4 by hand, and keep the catalog test asserting structured facts from `pg_constraint` and `pg_index` (constraint type, columns, on-delete targets, partial predicates, names), never deparsed text, so the same test passes on PGlite 18 and postgres:18 alike.
 - Justify every index against a specific query in section 6. An index with no named consumer does not ship.
