@@ -57,6 +57,13 @@ const compiledEntry = path.join(outDir, 'src', 'server', 'index.js')
 // that exists under either one exists.
 const DEV_LOGIN_PATHS = ['/api/v1/auth/dev-login', '/auth/dev-login']
 
+// Every test here loads a whole module graph through a fresh import: express,
+// pino, drizzle and pglite, uncached because vi.resetModules() precedes each
+// one. That does not fit in Vitest's default five second test timeout on a
+// cold run, and a timeout would report as an Error rather than as an
+// assertion, which is the one failure mode this suite must never produce.
+const MODULE_LOAD_TIMEOUT = 120_000
+
 type CreateApp = () => unknown
 
 interface RunningApp {
@@ -167,7 +174,7 @@ describe('AC-114: the development login route is absent from production builds',
       await devLoginStatuses(origin),
       'the development login route exists in a production build (spec 11.6)',
     ).toEqual([404, 404])
-  })
+  }, MODULE_LOAD_TIMEOUT)
 
   test('AC-114: the compiled build answers 404 regardless of NODE_ENV', async () => {
     // The "regardless of environment variables" clause, made concrete. A
@@ -184,7 +191,7 @@ describe('AC-114: the development login route is absent from production builds',
       await devLoginStatuses(origin),
       'the development login route returned in the production build once NODE_ENV was changed (spec 11.6)',
     ).toEqual([404, 404])
-  })
+  }, MODULE_LOAD_TIMEOUT)
 
   test('AC-114 control: with the flag set, the development build does have the route', async () => {
     // Without this the two tests above are satisfied by a route that exists
@@ -205,7 +212,7 @@ describe('AC-114: the development login route is absent from production builds',
       statuses.some((status) => status !== 404),
       'DANA_DEV_LOGIN=1 enables no development login route, so the production-build assertions above prove nothing',
     ).toBe(true)
-  })
+  }, MODULE_LOAD_TIMEOUT)
 
   test('AC-114 control: without the flag, the development build does not have it', async () => {
     const sourceEntry = pathToFileURL(
@@ -221,5 +228,5 @@ describe('AC-114: the development login route is absent from production builds',
       await devLoginStatuses(origin),
       'the development login route is reachable without DANA_DEV_LOGIN',
     ).toEqual([404, 404])
-  })
+  }, MODULE_LOAD_TIMEOUT)
 })
