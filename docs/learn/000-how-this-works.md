@@ -43,6 +43,14 @@ at first use or do not use it.
 | Taught | Concept | File |
 | - | - | - |
 | baseline | HTML, CSS, and JavaScript conceptually; static sites; git as practiced in this repository | none |
+| 2026-07-31 | Client, server, and HTTP: the request-response model, methods, status codes, JSON, ports | `101-client-server-and-http.md` |
+| 2026-07-31 | Node and the server process: runtimes, processes, signals, environment variables, graceful shutdown | `102-node-and-the-server-process.md` |
+| 2026-07-31 | Packages, dependencies, and the lockfile: manifest, registry, `node_modules`, `npm ci`, dev versus runtime dependencies | `103-packages-and-the-lockfile.md` |
+| 2026-07-31 | TypeScript and the build step: types as a pre-run proof, linting, bundling versus compiling, source versus `dist/` | `104-typescript-and-the-build-step.md` |
+| 2026-07-31 | What a database is: tables and rows, SQL, transactions, indexes, constraints as enforced truth | `201-what-a-database-is.md` |
+| 2026-07-31 | Migrations: schema as versioned code, the migrator, forward-only, expand-and-contract | `202-migrations.md` |
+| 2026-07-31 | Tests, the gate, and CI: test altitudes, acceptance criteria, the normative gate order, two-database runs | `501-tests-the-gate-and-ci.md` |
+| 2026-07-31 | The walking skeleton: why P0 wires every layer end to end before building any feature | `601-the-walking-skeleton.md` |
 
 The tutor appends one row per concept taught; the oldest row is at the top. The
 row order is the personal curriculum: reading the files in ledger order
