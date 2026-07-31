@@ -72,10 +72,21 @@ async function main(): Promise<void> {
     process.loadEnvFile()
   }
 
+  // 11.10 scopes TEST_DATABASE_URL to the test suite, but the seam falls
+  // back to it when no url is passed. Removing it from the boot's own
+  // environment keeps a filled test variable from silently redirecting
+  // npm run dev away from the .data directory it advertises.
+  delete process.env.TEST_DATABASE_URL
+
   // 11.5: pending migrations apply at boot, before the health endpoint can
   // report ready. Listening starts only after they commit, so a failed
   // migration fails the deploy's health check and the old instance keeps
-  // serving.
+  // serving. The migrator takes no lock, which is safe exactly as long as
+  // production is one instance with serial deploys (11.1); a second
+  // instance would add boot-migration racing to 11.1's scale-out list.
+  // While the dev server holds .data open, the db scripts (migrate, seed,
+  // verify) must not target it concurrently: PGlite is single-connection
+  // (11.15).
   const dbClient = await createDbClient({
     url: process.env.DATABASE_URL === '' ? undefined : process.env.DATABASE_URL,
     dataDir: '.data',
@@ -87,6 +98,13 @@ async function main(): Promise<void> {
   const app = createApp()
   const server = app.listen(port, () => {
     logger.info({ port }, 'dana listening')
+  })
+  // Binding errors (port in use, no permission) fire on the server after
+  // main() resolves, so they need their own route into the structured
+  // boot-failed log; without it they surface as a raw uncaught exception.
+  server.on('error', (err: Error) => {
+    logger.error({ stack: err.stack }, 'boot failed')
+    process.exit(1)
   })
   const shutdown = (): void => {
     server.close(() => {
