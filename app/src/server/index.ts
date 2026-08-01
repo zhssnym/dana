@@ -7,6 +7,7 @@ import type { NextFunction, Request, Response } from 'express'
 import { pino } from 'pino'
 
 import { createDbClient } from '../../db/client.js'
+import type { DbClient } from '../../db/client.js'
 import { healthRouter } from './routes/health.js'
 
 export const logger = pino()
@@ -18,7 +19,46 @@ function errorBody(code: string, message: string) {
   return { error: { code, message } }
 }
 
-export function createApp(): express.Express {
+/**
+ * Construction-time configuration for the 11.6 authentication module,
+ * injectable so the acceptance suite can point the module at a stub issuer:
+ * one that hardcodes accounts.google.com cannot be tested at all (11.10).
+ * When absent, the module falls back to the environment quintet that remains
+ * the production path: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+ * GOOGLE_ISSUER_URL, APP_ORIGIN, OIDC_ALLOW_INSECURE. This object wins over
+ * all five.
+ */
+export interface AuthConfig {
+  issuerUrl: string
+  clientId: string
+  clientSecret: string
+  appOrigin: string
+  allowInsecureRequests: boolean
+}
+
+/** The construction seam of 11.10. */
+export interface AppOptions {
+  /**
+   * The one database handle (app/db/client.ts). The boot path always passes
+   * its own; the acceptance suite passes an in-memory PGlite that no
+   * connection string could name. Routes that touch the database require it
+   * and fail only when called without it, never at construction, so
+   * database-free surfaces (health, route-presence probes) can construct
+   * the application bare.
+   */
+  dbClient?: DbClient
+  auth?: AuthConfig
+  /**
+   * Directory of the built client, present only after npm run build. The
+   * boot path performs the existence check and passes the result, because
+   * createApp itself performs no I/O (11.10).
+   */
+  clientDist?: string
+}
+
+// createApp is synchronous, performs no I/O, and opens no database (11.10):
+// everything a route needs arrives through options, already opened.
+export function createApp(options: AppOptions = {}): express.Express {
   const app = express()
   app.disable('x-powered-by')
   app.use(express.json())
@@ -27,16 +67,20 @@ export function createApp(): express.Express {
 
   // The frozen /api/v1 surface mounts here as later packages land, always
   // before this catch-all so unknown API paths answer JSON, not the SPA.
+  // Route modules receive options.dbClient and options.auth from this scope.
+  // Two rules bind the future auth mount: DANA_DEV_LOGIN is read here at
+  // call time, never at module load (11.6), and the dev-login loader must
+  // use a computed import specifier that treats a failed load as 404, or
+  // tsc would emit the module tsconfig.build.json excludes (11.15).
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))
   })
 
   // Present only after a build; npm run dev serves the client from Vite
   // instead, proxying /api here.
-  const clientDist = path.resolve(process.cwd(), 'dist', 'client')
-  const clientIndex = path.join(clientDist, 'index.html')
-  if (existsSync(clientIndex)) {
-    app.use(express.static(clientDist))
+  if (options.clientDist !== undefined) {
+    const clientIndex = path.join(options.clientDist, 'index.html')
+    app.use(express.static(options.clientDist))
     app.get('/{*splat}', (_req: Request, res: Response) => {
       res.sendFile(clientIndex)
     })
@@ -94,8 +138,16 @@ async function main(): Promise<void> {
   await dbClient.runMigrations()
   logger.info({ database: dbClient.kind }, 'migrations applied')
 
+  // The existence check lives here rather than in createApp, which performs
+  // no I/O (11.10). Absent means a source checkout that never built the
+  // client; Vite serves it in development.
+  const clientDist = path.resolve(process.cwd(), 'dist', 'client')
+  const hasClientBuild = existsSync(path.join(clientDist, 'index.html'))
+
   const port = Number(process.env.PORT ?? 3000)
-  const app = createApp()
+  const app = createApp(
+    hasClientBuild ? { dbClient, clientDist } : { dbClient },
+  )
   const server = app.listen(port, () => {
     logger.info({ port }, 'dana listening')
   })
