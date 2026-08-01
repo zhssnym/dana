@@ -7,5 +7,12 @@
     "sourceMap": true
   },
   "include": ["src/server/**/*", "src/shared/**/*", "db/**/*"],
-  "exclude": ["**/*.test.ts"]
+  // The development login module lives at src/server/auth/dev-login* and
+  // must be absent from compiled output (spec 11.6); AC-114 asserts the
+  // absence structurally. The exclusion holds only while no resolvable
+  // import names the module: tsc emits excluded files reachable that way,
+  // literal dynamic import() included, so the loader must use a computed
+  // specifier (spec 11.15). tsconfig.server.json carries no exclusion, so
+  // the module still typechecks.
+  "exclude": ["**/*.test.ts", "src/server/auth/dev-login*"]
 }
