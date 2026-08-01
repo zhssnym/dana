@@ -34,6 +34,7 @@ import {
   cleanupAuthSubs,
   completeCallback,
   expectNoSession,
+  expectRedirect,
   followAuthorization,
   startAuthTestApp,
   userForSub,
@@ -131,11 +132,10 @@ describe('AC-105: the callback validates state, bound and single-use', () => {
     const replayer = browser.clone()
 
     const first = await completeCallback(browser, callbackUrl)
-    expect(
-      first.status,
+    expectRedirect(
+      first,
       'the first callback must succeed, or single-use proves nothing',
-    ).toBeGreaterThanOrEqual(300)
-    expect(first.status).toBeLessThan(400)
+    )
 
     const before = await userForSub(app.db, replaySub)
     expect(before, 'the first callback must have provisioned the account').toBeDefined()

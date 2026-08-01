@@ -64,7 +64,7 @@ describe('AC-010: logout destroys the session', () => {
       'the session must authenticate before logout, or the 401 below proves nothing',
     ).toBe(200)
 
-    const logout = await browser.request(await authUrl(app, '/auth/logout'), {
+    const logout = await browser.request(authUrl(app, '/auth/logout'), {
       method: 'POST',
     })
     expect(logout.status, 'POST /auth/logout answers 204 (spec 7.1)').toBe(204)
@@ -77,7 +77,7 @@ describe('AC-010: logout destroys the session', () => {
     const { browser, session } = await signIn(app)
     expect((await browser.api('/me')).status).toBe(200)
 
-    await browser.request(await authUrl(app, '/auth/logout'), { method: 'POST' })
+    await browser.request(authUrl(app, '/auth/logout'), { method: 'POST' })
 
     // A logout that only clears the cookie, leaving the row live, would let a
     // copy of the identifier keep working. Cookie clearing is not revocation.
@@ -98,7 +98,7 @@ describe('AC-010: logout destroys the session', () => {
     expect((await first.browser.api('/me')).status).toBe(200)
     expect((await second.browser.api('/me')).status).toBe(200)
 
-    await first.browser.request(await authUrl(app, '/auth/logout'), {
+    await first.browser.request(authUrl(app, '/auth/logout'), {
       method: 'POST',
     })
 

@@ -42,6 +42,18 @@ const SECTION_4_TABLES = [
   'users',
 ]
 
+// Section 10.1's sessions table is deliberately outside the section 4 model,
+// and the 2026-07-31 amendment names it "the one named exception" this
+// catalog admits. Admitted means tolerated, not required: AC-001 is about
+// section 4, so it must neither fail when P1 adds the table nor pretend to
+// assert a table section 4 does not describe. The table's own contract is
+// asserted by AC-113, which is the criterion 10.1 fixes it for.
+//
+// This stays a list of one on purpose. Every other unexpected table is still
+// a failure, which is the property that makes the exact comparison worth
+// having.
+const ADMITTED_OUTSIDE_SECTION_4 = ['sessions']
+
 const onDeleteByCode: Record<string, OnDelete> = {
   c: 'cascade',
   r: 'restrict',
@@ -189,7 +201,14 @@ describe('AC-001: migrated schema matches the section 4 catalog', () => {
         WHERE n.nspname = 'public' AND t.relkind = 'r'
       `,
     )
-    expect(raw.map((r) => String(r.name)).sort()).toEqual(SECTION_4_TABLES)
+    const present = raw.map((r) => String(r.name)).sort()
+    expect(
+      present.filter((name) => !ADMITTED_OUTSIDE_SECTION_4.includes(name)),
+      `the migrated tables do not match section 4; the only table admitted outside it is ${ADMITTED_OUTSIDE_SECTION_4.join(', ')} (spec 10.1)`,
+    ).toEqual(SECTION_4_TABLES)
+    // The catalog itself admits nothing: 10.1 keeps sessions out of it, so a
+    // catalog that grew an entry for the table would be transcribing a table
+    // section 4 does not describe.
     expect(Object.keys(constraintCatalog).sort()).toEqual(SECTION_4_TABLES)
   })
 

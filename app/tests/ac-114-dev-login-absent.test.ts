@@ -29,14 +29,25 @@ development case is asserted too: with the flag set, in the source module, the
 route must exist. That is what CLAUDE.md and .env.example promise it does, and
 it is what fails today.
 
-This file deliberately imports nothing from the harness. Its source-side case
-turns on an environment variable read at module load, and a static import
-anywhere in its graph would be hoisted above the assignment.
+This file imports nothing from the auth harness. Its cases turn on environment
+variables applied around a fresh module load, and a static import of the
+application anywhere in its graph would be hoisted above the assignment,
+settling the question before the test asked it.
 
-Spec: 11.6. Repository: app/.env.example, CLAUDE.md.
+The 2026-07-31 amendment made three of this file's assumptions contract rather
+than inference. 11.6 fixes "absent" as excluded from the compiled output at
+build time and never a runtime guard, which is what the structural case below
+now asserts directly rather than only through behavior. It also fixes the flag
+as read at createApp() call time, which is what buildApp exists to honor.
+11.15 records the mechanism hazard behind all of it: tsc compiles and emits a
+tsconfig-excluded file whenever any resolvable import references it, a literal
+dynamic import() included, so the exclusion holds only for a loader using a
+computed specifier that treats the failed load as a 404.
+
+Spec: 11.6, 11.10, 11.15. Repository: app/.env.example, CLAUDE.md.
 */
 import { spawn } from 'node:child_process'
-import { rm } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -52,9 +63,10 @@ const appDir = process.cwd()
 const outDir = path.join(appDir, 'dist', 'acceptance-build')
 const compiledEntry = path.join(outDir, 'src', 'server', 'index.js')
 
-// Both spellings, because which base the auth routes mount under is itself
-// unsettled (7.0 fixes /api/v1, 7.1 spells the endpoints /auth/...). A route
-// that exists under either one exists.
+// The base is settled at /api/v1 by the amended 7.1, but both spellings are
+// probed anyway: this file asserts absence, and a route wrongly mounted at the
+// root is still a route that exists. Checking more paths can only make an
+// absence claim stronger.
 const DEV_LOGIN_PATHS = ['/api/v1/auth/dev-login', '/auth/dev-login']
 
 // Every test here loads a whole module graph through a fresh import: express,
@@ -126,11 +138,28 @@ afterAll(async () => {
   await rm(outDir, { recursive: true, force: true })
 })
 
-/** Loads a module fresh, with the environment the case is about already set. */
-async function loadApp(
+/**
+ * Loads a module fresh and constructs the application, both while the case's
+ * environment is applied.
+ *
+ * The construction has to happen inside that window. An earlier version of
+ * this helper restored the environment as soon as the import resolved and
+ * handed the factory back to the caller, which then called it with the
+ * variables already put back: every case here would have been asking about
+ * whatever DANA_DEV_LOGIN happened to be outside the test. It was invisible
+ * while the route existed nowhere and both readings answered 404. The
+ * 2026-07-31 amendment settles which reading is right, 11.6 fixing the flag as
+ * read at createApp() call time and never at module load, so the window has to
+ * cover the call.
+ *
+ * 11.10 makes createApp synchronous, performing no I/O and opening no
+ * database, and says a route-presence probe may construct it bare. So no
+ * dbClient is passed: this file asks only whether a route exists.
+ */
+async function buildApp(
   specifier: string,
   environment: Record<string, string | undefined>,
-): Promise<CreateApp> {
+): Promise<unknown> {
   const previous: Record<string, string | undefined> = {}
   for (const [key, value] of Object.entries(environment)) {
     previous[key] = process.env[key]
@@ -140,7 +169,7 @@ async function loadApp(
   vi.resetModules()
   try {
     const loaded = (await import(specifier)) as { createApp: CreateApp }
-    return loaded.createApp
+    return loaded.createApp()
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]
@@ -164,11 +193,11 @@ async function devLoginStatuses(origin: string): Promise<number[]> {
 
 describe('AC-114: the development login route is absent from production builds', () => {
   test('AC-114: the compiled build answers 404 with DANA_DEV_LOGIN set', async () => {
-    const createApp = await loadApp(pathToFileURL(compiledEntry).href, {
+    const app = await buildApp(pathToFileURL(compiledEntry).href, {
       DANA_DEV_LOGIN: '1',
       NODE_ENV: 'production',
     })
-    const { origin } = await serve(createApp())
+    const { origin } = await serve(app)
 
     expect(
       await devLoginStatuses(origin),
@@ -181,16 +210,34 @@ describe('AC-114: the development login route is absent from production builds',
     // route gated on NODE_ENV rather than removed from the build reappears
     // the moment the variable is wrong, which is a production incident that
     // looks like a configuration typo.
-    const createApp = await loadApp(pathToFileURL(compiledEntry).href, {
+    const app = await buildApp(pathToFileURL(compiledEntry).href, {
       DANA_DEV_LOGIN: '1',
       NODE_ENV: 'development',
     })
-    const { origin } = await serve(createApp())
+    const { origin } = await serve(app)
 
     expect(
       await devLoginStatuses(origin),
       'the development login route returned in the production build once NODE_ENV was changed (spec 11.6)',
     ).toEqual([404, 404])
+  }, MODULE_LOAD_TIMEOUT)
+
+  test('AC-114: no development login module is emitted into the production build', async () => {
+    // Behavior alone cannot separate "excluded from the build" from "present
+    // and guarded", and 11.6 requires the former in those words. 11.15
+    // explains how the latter happens by accident: tsc emits a
+    // tsconfig-excluded file anyway if any resolvable import names it, so an
+    // implementation can exclude the module, import it literally, and ship it
+    // regardless. What that produces is a file in the output tree.
+    const emitted = await readdir(outDir, { recursive: true })
+    const devLoginModules = emitted
+      .map((entry) => String(entry))
+      .filter((entry) => /dev[-_]?login/i.test(entry))
+
+    expect(
+      devLoginModules,
+      `the production build emitted a development login module (spec 11.6): ${devLoginModules.join(', ')}`,
+    ).toEqual([])
   }, MODULE_LOAD_TIMEOUT)
 
   test('AC-114 control: with the flag set, the development build does have the route', async () => {
@@ -201,11 +248,11 @@ describe('AC-114: the development login route is absent from production builds',
     const sourceEntry = pathToFileURL(
       path.join(appDir, 'src', 'server', 'index.ts'),
     ).href
-    const createApp = await loadApp(sourceEntry, {
+    const app = await buildApp(sourceEntry, {
       DANA_DEV_LOGIN: '1',
       NODE_ENV: 'development',
     })
-    const { origin } = await serve(createApp())
+    const { origin } = await serve(app)
 
     const statuses = await devLoginStatuses(origin)
     expect(
@@ -218,11 +265,11 @@ describe('AC-114: the development login route is absent from production builds',
     const sourceEntry = pathToFileURL(
       path.join(appDir, 'src', 'server', 'index.ts'),
     ).href
-    const createApp = await loadApp(sourceEntry, {
+    const app = await buildApp(sourceEntry, {
       DANA_DEV_LOGIN: undefined,
       NODE_ENV: 'development',
     })
-    const { origin } = await serve(createApp())
+    const { origin } = await serve(app)
 
     expect(
       await devLoginStatuses(origin),

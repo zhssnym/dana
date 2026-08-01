@@ -33,6 +33,7 @@ import {
   beginAuthorization,
   cleanupAuthSubs,
   completeCallback,
+  expectRedirect,
   followAuthorization,
   startAuthTestApp,
 } from './auth-harness.js'
@@ -163,16 +164,14 @@ describe('AC-109: auth endpoints never redirect off the application origin', () 
 
     for (const { param, target } of cases) {
       const browser = app.browser()
-      const start = new URL(await authUrl(app, '/auth/google'))
+      const start = new URL(authUrl(app, '/auth/google'))
       start.searchParams.set(param, target)
 
       const begun = await browser.request(start.toString())
-      expect(
-        begun.status,
+      expectRedirect(
+        begun,
         `GET /auth/google?${param} must still redirect to Google (spec 7.1)`,
-      ).toBeGreaterThanOrEqual(300)
-      expect(begun.status).toBeLessThan(400)
-      expect(begun.location, 'the authorization redirect carries no Location').not.toBeNull()
+      )
 
       const callbackUrl = await followAuthorization(
         app,

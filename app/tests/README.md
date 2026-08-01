@@ -17,40 +17,48 @@ npx vitest run -t "AC-105"
 | Package | Criteria | State |
 | - | - | - |
 | P0 | AC-001 to AC-004 | Covered, passing |
-| P1 | AC-005, AC-006, AC-008, AC-009, AC-010 | Covered, failing until P1 lands |
-| P1 | AC-105 to AC-112, AC-114, AC-115 | Covered, failing until P1 lands |
-| P1 | AC-007, AC-113 | **Held**, see below |
+| P1 | AC-005 to AC-010 | Covered, failing until P1 lands |
+| P1 | AC-105 to AC-115 | Covered, failing until P1 lands |
 | P2 to P10 | AC-011 to AC-104 excluding the above | Not yet written |
 
-## Held pending escalation
+P1's range is complete. AC-007 and AC-113 were held through the first pass and
+written after the 2026-07-31 amendments resolved what blocked them: 7.1 gained
+the tz query parameter that carries a client's zone, and 10.1 gained the
+sessions table's observable contract. Nothing in this suite is held now.
 
-Two P1 criteria are deliberately unwritten. Both are blocked on a contract the
-specification does not fix, and writing them now would freeze a guess into the
-suite that the implementation would then be measured against.
+## The two amendments these tests read closely
 
-**AC-007** (a returning login from a different timezone syncs `users.timezone`).
-Section 7.1 says the value comes from "the login page's detected zone" and
-section 8.1 says it "auto-syncs at login", but the frozen section 7 surface
-carries no parameter, header, or cookie on `GET /auth/google` or its callback
-that could carry it. The same gap holds back one assertion in AC-005, which
-asserts INV-14's "valid IANA timezone" instead of a specific value. Resolving it
-is a frozen-interface change: Integration Steward to the human owner.
+**7.1's tz parameter.** `GET /api/v1/auth/google` takes an optional `tz`. The
+amendment specifies four behaviors and AC-005 and AC-007 pin all four, because
+three of them are the kind an implementation gets right in one direction and
+wrong in the other: a reported zone is stored at provisioning and synced on
+return, no zone reported means UTC at provisioning and no sync on return, an
+unparseable zone is treated as absent rather than answered 422 (a recorded
+deviation from 10.3, so that a stale zone database cannot lock anyone out), and
+a tzdb alias of the stored zone is not a different zone. AC-007 also pins the
+carrier: 7.1 and 11.6 both say the zone rides the pending-authorization state
+and never `redirect_uri` or any redirect target.
 
-**AC-113** (30-day expiry, rolling extension). Both halves are unobservable from
-outside. Expiry needs a session row backdated past its expiry, and the rolling
-extension needs the stored expiry read before and after a request; sessions are
-the Security engineer's own table, outside the section 4 model by 10.1, so this
-suite cannot know its shape. It needs either the table's observable shape or a
-time seam, and the same escalation asks that the table's foreign key onto
-`users(id)` be `ON DELETE CASCADE`, since the shared-database CI leg deletes
-users during cleanup.
+**10.1's sessions contract.** Three facts are fixed so this suite can observe
+expiry and clean up after itself: the table is named `sessions`, `user_id`
+references `users(id)` `ON DELETE CASCADE`, and `expires_at` is a timestamptz
+that every authenticated request resets to 30 days out. AC-113 asserts all
+three and the behavior they exist for. Rows are addressed by `user_id` and
+never by the cookie value, because 11.6 makes the identifier opaque and 10.1
+leaves its storage form open; matching on the cookie would assert a decision
+the specification does not make.
+
+The table is outside section 4, so AC-001 admits it as that catalog's one named
+exception. Admitted means tolerated, not required: AC-001 is about section 4,
+so it neither fails when P1 adds the table nor pretends to assert it. Every
+other unexpected table is still a failure.
 
 ## The harness
 
 `helpers.ts` is the P0 harness: the database seam, rejection matching by
 constraint name, and user cleanup. `auth-harness.ts` adds what the P1 criteria
 need, `http-client.ts` carries the transport, and `oidc-stub.ts` is the stub
-identity provider. Each file's header explains its own decisions; three are
+identity provider. Each file's header explains its own decisions; four are
 worth knowing before reading any test.
 
 **The stub is the Adversarial Test role's, exclusively.** The Security
@@ -62,20 +70,21 @@ implementation that never sends one.
 **Cookies are identified by property, never by name.** Spec 11.6 fixes that the
 session cookie is httpOnly and the CSRF cookie is not, and fixes no names.
 
-**The auth path base is probed.** Section 7.0 fixes the base path `/api/v1`
-while 7.1 spells the endpoints `/auth/google`, so both are tried and the one
-that redirects is used. This is recorded as an escalation so it is decided
-rather than discovered; it is not blocking.
+**The auth base is `/api/v1`.** This was probed while 7.0's base path and 7.1's
+short spellings could each be read as the mount point. The amendment settles
+it, so the probe is gone: tolerating a root mount would now mean tolerating a
+specification violation.
+
+**Redirects are asserted through one helper**, `expectRedirect`. Written as a
+pair of bounds, a 404 satisfies the lower one and fails the upper one, so the
+failure lands on whichever half carries no message and the report names
+nothing. Every redirect assertion in the suite goes through the helper for that
+reason.
 
 ## What the tests need from outside `app/tests/`
 
-One seam, escalated to the Integration Steward and not yet ratified.
-`createApp` in `src/server/index.ts` takes no arguments and opens no database.
-Spec 11.10 requires the acceptance suite to exercise section 7 over HTTP
-against the real application in-process, and under the default PGlite backend
-the suite's database is an in-memory handle that cannot be passed by connection
-string, so the application has to receive the `DbClient` object. The harness
-assumes:
+One seam, now recorded in 11.10 rather than assumed. `createApp(options?)` in
+`src/server/index.ts` is synchronous, performs no I/O, and opens no database:
 
 ```ts
 createApp(options?: {
@@ -87,25 +96,28 @@ createApp(options?: {
     appOrigin: string
     allowInsecureRequests: boolean
   }
-}): Express | Promise<Express>
+}): Express
 ```
 
-The harness also sets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-`GOOGLE_ISSUER_URL`, `APP_ORIGIN`, and `OIDC_ALLOW_INSECURE` before calling it,
-so an implementation that reads its configuration from the environment is fed
-either way. Only the database handle genuinely needs the parameter.
+`options.auth` wins over the environment variables that remain the production
+path, and the harness sets both (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_ISSUER_URL`, `APP_ORIGIN`, `OIDC_ALLOW_INSECURE`), so an implementation
+reading either is fed. Only the database handle genuinely needs the parameter,
+because under the default PGlite backend it is an in-memory object that cannot
+arrive as a connection string. Routes that touch the database require
+`options.dbClient` and fail only when called without it, which is what lets
+AC-114 construct the application bare to ask whether a route exists.
 
-Four properties of the implementation follow from the tests and are worth
-knowing before writing it rather than after:
+Three implementation properties the tests depend on, all now in the
+specification rather than inferred:
 
-- The issuer must be injectable. An implementation that hardcodes
-  `https://accounts.google.com` cannot be tested at all.
-- `Secure` must be set on the session cookie unconditionally, not derived from
-  whether the request arrived over TLS. The suite speaks plain http, and in
-  production TLS terminates at the host ahead of the process.
-- `DANA_DEV_LOGIN` must be read per `createApp()` call rather than at module
-  load, or AC-114's controls cannot vary it.
-- The development login route must be absent from the compiled output, not
-  merely guarded at runtime, because AC-114 sets `DANA_DEV_LOGIN=1` against the
-  production build. Excluding its module from `tsconfig.build.json` is the
-  mechanism available; that file is the Platform role's.
+- The issuer is injectable (11.10). An implementation that hardcodes
+  `accounts.google.com` cannot be tested at all.
+- `Secure` is set unconditionally, never derived from the request's transport
+  (11.6). The suite speaks plain http, and in production TLS terminates ahead
+  of the process.
+- `DANA_DEV_LOGIN` is read at `createApp()` call time, never at module load
+  (11.6), and the development login route is excluded from the compiled output
+  rather than guarded at runtime. 11.15 records why that is delicate: tsc emits
+  a tsconfig-excluded file anyway if any resolvable import names it, a literal
+  dynamic `import()` included.

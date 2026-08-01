@@ -91,22 +91,19 @@ export interface AuthTestApp {
   dbClient: DbClient
   db: Db
   stub: OidcStub
-  /** Probed once; see resolveAuthBase. */
-  authBase(): Promise<string | null>
   browser(): TestBrowser
   close(): Promise<void>
 }
 
 /*
-Section 7.0 fixes the base path /api/v1 for the API; section 7.1 spells the
-auth endpoints /auth/google. An implementation may defensibly mount either
-/api/v1/auth/* or /auth/*, and a suite that hardcodes the wrong one is red
-forever with 404s indistinguishable from missing behavior. So it is probed
-rather than guessed, and recorded as an escalation so it ends up decided
-instead of discovered. This never skips an assertion: when neither exists, the
-callers assert and name both candidates.
+Settled by the 2026-07-31 amendment. This was probed while 7.0's base path and
+7.1's short spellings could each be read as the mount point; 7.1 now states
+outright that its endpoints mount under the base path, so GET /auth/google is
+GET /api/v1/auth/google. The probe is gone with the ambiguity: tolerating a
+root mount would now mean tolerating a specification violation, which is the
+opposite of this suite's job.
 */
-const AUTH_BASE_CANDIDATES = ['/api/v1', ''] as const
+const AUTH_BASE = '/api/v1'
 
 export async function startAuthTestApp(): Promise<AuthTestApp> {
   const dbClient = await createTestDb()
@@ -143,44 +140,11 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
   const app = await startApp({ dbClient, auth })
   server.on('request', app)
 
-  let base: string | null | undefined
-
   const testApp: AuthTestApp = {
     origin,
     dbClient,
     db: dbClient.db,
     stub,
-
-    async authBase() {
-      if (base !== undefined) return base
-      // "Not a 404" is not enough to conclude the endpoint is there. When a
-      // previous local build has left dist/client/index.html behind, the
-      // application mounts the single-page fallback (src/server/index.ts) and
-      // answers any non-/api path with 200 and the shell, so a root-mounted
-      // candidate looks present on a developer's machine and absent in CI,
-      // where the build step runs after the tests. What identifies the
-      // endpoint is that it does what 7.1 says: redirect.
-      const probes = new Map<string, RawResponse>()
-      for (const candidate of AUTH_BASE_CANDIDATES) {
-        const probe = await rawRequest(`${origin}${candidate}/auth/google`)
-        probes.set(candidate, probe)
-        if (probe.status >= 300 && probe.status < 400 && probe.location !== null) {
-          base = candidate
-          return base
-        }
-      }
-      // Nothing redirects. An endpoint that is present but answering an error
-      // should still be addressed, so its own failure is what the tests
-      // report rather than a misleading "no endpoint exists".
-      for (const [candidate, probe] of probes) {
-        if (probe.status !== 404 && !probe.contentType.includes('text/html')) {
-          base = candidate
-          return base
-        }
-      }
-      base = null
-      return base
-    },
 
     browser() {
       return new TestBrowser(origin)
@@ -198,39 +162,54 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
   return testApp
 }
 
-async function requireAuthBase(app: AuthTestApp): Promise<string> {
-  const base = await app.authBase()
-  expect(
-    base,
-    'no authorization endpoint: neither GET /api/v1/auth/google nor GET /auth/google exists (spec 7.1)',
-  ).not.toBeNull()
-  return base ?? ''
+export function authUrl(app: AuthTestApp, path: string): string {
+  return `${app.origin}${AUTH_BASE}${path}`
 }
 
-export async function authUrl(app: AuthTestApp, path: string): Promise<string> {
-  return `${app.origin}${await requireAuthBase(app)}${path}`
+/**
+ * One named assertion for "this answered a redirect", rather than a pair of
+ * bounds. Written as two comparisons, a 404 satisfies the lower bound and
+ * fails the upper one, so the failure surfaces on whichever half carries no
+ * message and the report names nothing. The status is in the message because
+ * that is the fact worth reading.
+ */
+export function expectRedirect(response: RawResponse, why: string): void {
+  const redirected =
+    response.status >= 300 && response.status < 400 && response.location !== null
+  expect(
+    redirected,
+    `${why}; answered ${String(response.status)}${response.location === null ? ' with no Location header' : ` to ${String(response.location)}`}`,
+  ).toBe(true)
 }
 
 /* ------------------------------------------------------------------ *
  * The sign-in flow, in pieces so attacks can enter partway
  * ------------------------------------------------------------------ */
 
+export interface AuthorizationOptions extends RawRequestOptions {
+  /**
+   * The 7.1 tz query parameter, the client's detected zone. Omitting the field
+   * omits the parameter, which is its own case: 8.1 says a login carrying no
+   * tz syncs nothing, and 7.1 provisions UTC for one.
+   */
+  tz?: string
+}
+
 /** Step one: the application's redirect to the identity provider. */
 export async function beginAuthorization(
   app: AuthTestApp,
   browser: TestBrowser,
-  options: RawRequestOptions = {},
+  options: AuthorizationOptions = {},
 ): Promise<URL> {
-  const response = await browser.request(await authUrl(app, '/auth/google'), options)
-  expect(
-    response.status,
-    'GET /auth/google must redirect to Google (spec 7.1)',
-  ).toBeGreaterThanOrEqual(300)
-  expect(response.status).toBeLessThan(400)
-  expect(
-    response.location,
-    'the authorization redirect carries no Location header',
-  ).not.toBeNull()
+  const { tz, ...request } = options
+  const target = new URL(authUrl(app, '/auth/google'))
+  if (tz !== undefined) target.searchParams.set('tz', tz)
+
+  const response = await browser.request(target.toString(), request)
+  expectRedirect(
+    response,
+    `GET ${AUTH_BASE}/auth/google must redirect to Google (spec 7.1, whose endpoints mount under the 7.0 base path)`,
+  )
   return new URL(response.location ?? '')
 }
 
@@ -267,23 +246,28 @@ export interface SignedIn {
   callback: RawResponse
 }
 
+export interface SignInOptions extends AuthorizationOptions {
+  /** Reuses an existing jar, for the fixation and returning-login cases. */
+  browser?: TestBrowser
+}
+
 /**
  * The whole flow, asserting success at each step. Attack tests use the three
  * pieces above instead, so they can corrupt one step and observe the refusal.
  */
 export async function signIn(
   app: AuthTestApp,
-  browser: TestBrowser = app.browser(),
+  options: SignInOptions = {},
 ): Promise<SignedIn> {
-  const authorization = await beginAuthorization(app, browser)
+  const browser = options.browser ?? app.browser()
+  const authorization = await beginAuthorization(app, browser, options)
   const callbackUrl = await followAuthorization(app, authorization)
   const callback = await completeCallback(browser, callbackUrl)
 
-  expect(
-    callback.status,
-    `the callback must establish a session and redirect into the app (spec 7.1), answered ${String(callback.status)}`,
-  ).toBeGreaterThanOrEqual(300)
-  expect(callback.status).toBeLessThan(400)
+  expectRedirect(
+    callback,
+    'the callback must establish a session and redirect into the app (spec 7.1)',
+  )
 
   const session = await sessionCookieFrom(app, browser, callback)
   const csrf = csrfCookieFrom(callback)
@@ -298,9 +282,10 @@ export async function signIn(
  */
 export async function attemptSignIn(
   app: AuthTestApp,
-  browser: TestBrowser = app.browser(),
+  options: SignInOptions = {},
 ): Promise<{ browser: TestBrowser; callback: RawResponse; callbackUrl: URL }> {
-  const authorization = await beginAuthorization(app, browser)
+  const browser = options.browser ?? app.browser()
+  const authorization = await beginAuthorization(app, browser, options)
   const callbackUrl = await followAuthorization(app, authorization)
   const callback = await completeCallback(browser, callbackUrl)
   return { browser, callback, callbackUrl }
@@ -405,6 +390,116 @@ export function isIanaTimezone(value: unknown): boolean {
   } catch {
     return false
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * The sessions table (spec 10.1)
+ * ------------------------------------------------------------------ */
+
+/*
+Section 10.1 fixes three facts about the sessions table as contract, precisely
+so this suite can observe them: it is named sessions, it references users(id)
+through a user_id column declared ON DELETE CASCADE, and expiry is a
+timestamptz column named expires_at that every authenticated request resets to
+30 days out. Everything else about the table is the Security engineer's.
+
+Sessions are addressed here by user_id and never by the cookie value, because
+10.1 leaves the identifier's storage form open and 11.6 makes it opaque; the
+Security persona intends to store it hashed. A test that matched rows on the
+cookie value would be asserting a storage choice the specification does not
+make.
+*/
+export const SESSIONS_TABLE = 'sessions'
+
+export async function sessionsTableExists(db: Db): Promise<boolean> {
+  const found = await rows(
+    db,
+    sql`
+      SELECT count(*)::int AS n FROM pg_class t
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      WHERE n.nspname = 'public' AND t.relkind = 'r' AND t.relname = ${SESSIONS_TABLE}
+    `,
+  )
+  return Number(found[0]?.n) > 0
+}
+
+/** Asserts the table is there before anything tries to read it, so a missing
+ * table reports as the missing behavior it is rather than as a SQL error. */
+export async function requireSessionsTable(db: Db): Promise<void> {
+  expect(
+    await sessionsTableExists(db),
+    'no sessions table exists (spec 10.1 fixes its name, its user_id foreign key, and its expires_at column as contract)',
+  ).toBe(true)
+}
+
+export async function sessionExpiriesForUser(
+  db: Db,
+  userId: string,
+): Promise<Date[]> {
+  const found = await rows(
+    db,
+    sql`SELECT expires_at FROM sessions WHERE user_id = ${userId} ORDER BY expires_at`,
+  )
+  return found.map((row) => new Date(String(row.expires_at)))
+}
+
+export async function countSessionsForUser(
+  db: Db,
+  userId: string,
+): Promise<number> {
+  const found = await rows(
+    db,
+    sql`SELECT count(*)::int AS n FROM sessions WHERE user_id = ${userId}`,
+  )
+  return Number(found[0]?.n)
+}
+
+/** Moves every session of one user to a chosen instant, which is how AC-113
+ * reaches an expiry 30 days out without waiting for it. */
+export async function setSessionExpiry(
+  db: Db,
+  userId: string,
+  expiresAt: Date,
+): Promise<void> {
+  await db.execute(
+    sql`UPDATE sessions SET expires_at = ${expiresAt.toISOString()}::timestamptz WHERE user_id = ${userId}`,
+  )
+}
+
+/* ------------------------------------------------------------------ *
+ * Rendered pages
+ * ------------------------------------------------------------------ */
+
+/**
+ * The words a person would read, with tags removed and the entity forms of
+ * the characters that appear in section 9's copy folded back. Copy assertions
+ * compare against this rather than the raw body, because "can't" is equally
+ * correctly served as can&#39;t, can&apos;t, or can&#x27;t, and none of those
+ * is a copy difference.
+ */
+export function visibleText(html: string): string {
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#34;': '"',
+    '&apos;': "'",
+    '&#39;': "'",
+    '&#x27;': "'",
+    '&#x2F;': '/',
+    '&nbsp;': ' ',
+    '&rsquo;': '’',
+    '&#8217;': '’',
+  }
+  return html
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[#a-zA-Z0-9]+;/g, (entity) => entities[entity.toLowerCase()] ?? entity)
+    // A typographic apostrophe reads identically and is not a copy change.
+    .replace(/’/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 interface ReferencingColumn {

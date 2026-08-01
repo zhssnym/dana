@@ -33,6 +33,7 @@ import {
   beginAuthorization,
   cleanupAuthSubs,
   completeCallback,
+  expectRedirect,
   followAuthorization,
   sessionCookieFrom,
   startAuthTestApp,
@@ -86,11 +87,7 @@ describe('AC-006: concurrent first sign-ins converge on one account', () => {
       ])
 
       for (const callback of [firstCallback, secondCallback]) {
-        expect(
-          callback.status,
-          `both concurrent callbacks must succeed, one answered ${String(callback.status)}`,
-        ).toBeGreaterThanOrEqual(300)
-        expect(callback.status).toBeLessThan(400)
+        expectRedirect(callback, 'both concurrent callbacks must succeed')
       }
 
       const users = await usersForSub(app.db, sub)

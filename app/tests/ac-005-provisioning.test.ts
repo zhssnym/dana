@@ -10,16 +10,18 @@ produces exactly the same rows as one that runs a single transaction. It is
 only observable when something fails partway, so the second test injects a
 fault into the last insert and asserts the first three rows are gone too.
 
-Two things this file deliberately does not assert. That users.timezone equals
-the browser's zone (AC-007's subject) is held: section 7.1 says the value comes
-from "the login page's detected zone" but the frozen API surface carries no
-parameter, header, or cookie for it, and inventing one here would freeze a
-guess into the acceptance suite. What is asserted instead is the half INV-14
-does fix without the transport: the value is a valid IANA identifier. And the
-explanation-page copy of a refusal belongs to AC-008, not here.
+The provisioned timezone is asserted here as of the 2026-07-31 amendment, which
+gave 7.1 the tz query parameter this file previously had no way to send. Both
+branches are pinned, because the amendment specifies two: a sign-in that
+reports a zone stores that zone, and a sign-in that reports none stores UTC.
+The second is the one an implementation gets wrong quietly, by defaulting to
+the server's own zone, which is correct on a machine in UTC and wrong in
+production the moment the host moves. Syncing on a returning login is AC-007's
+subject, not this file's, and the explanation-page copy of a refusal is
+AC-008's.
 
-Spec: 7.1 (provisioning transaction), 4.1, 4.3, 4.4, 4.10 (the four rows),
-INV-2, INV-3, INV-10, INV-14.
+Spec: 7.1 (provisioning transaction and the tz parameter), 4.1, 4.3, 4.4, 4.10
+(the four rows), INV-2, INV-3, INV-10, INV-14.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -48,6 +50,11 @@ const domain = `ac005-${randomUUID()}.test`
 const firstSub = `sub-first-${randomUUID()}`
 const faultSub = `sub-fault-${randomUUID()}`
 const repeatSub = `sub-repeat-${randomUUID()}`
+const zonelessSub = `sub-zoneless-${randomUUID()}`
+
+// A zone that is neither UTC nor plausibly the machine's own, so storing it
+// cannot be confused with defaulting.
+const REPORTED_ZONE = 'Asia/Karachi'
 const faultTag = randomUUID().replace(/-/g, '')
 
 // Cold PGlite instances compile WASM, and parallel workers all do it at
@@ -62,7 +69,7 @@ afterAll(async () => {
   // otherwise strand it, and on the shared-Postgres leg a stranded fault
   // trigger breaks every other file's provisioning.
   await dropFault()
-  await cleanupAuthSubs(app.db, [firstSub, faultSub, repeatSub])
+  await cleanupAuthSubs(app.db, [firstSub, faultSub, repeatSub, zonelessSub])
   await app.close()
 })
 
@@ -169,7 +176,7 @@ describe('AC-005: first sign-in provisions atomically (INV-14)', () => {
       name: 'Ada Lovelace',
     })
 
-    await signIn(app)
+    await signIn(app, { tz: REPORTED_ZONE })
 
     const users = await usersForSub(app.db, firstSub)
     expect(users, 'exactly one user row for the google_sub').toHaveLength(1)
@@ -180,11 +187,37 @@ describe('AC-005: first sign-in provisions atomically (INV-14)', () => {
     expect(user.display_name).toBe('Ada Lovelace')
     expect(user.deleted_at).toBeNull()
     expect(
+      user.timezone,
+      'section 7.1 provisions users.timezone from the reported tz',
+    ).toBe(REPORTED_ZONE)
+    expect(
       isIanaTimezone(user.timezone),
       `INV-14 requires a valid IANA timezone, found ${String(user.timezone)}`,
     ).toBe(true)
 
     await expectProvisioned(user)
+  })
+
+  test('AC-005 adversarial: a first sign-in reporting no zone provisions UTC', async () => {
+    // Section 7.1: "timezone from the reported tz, UTC when none was
+    // reported". The mistake this catches is defaulting to the server's own
+    // zone, which is invisible on a machine running in UTC and wrong in
+    // production the day the host moves.
+    app.stub.nextIdentity({
+      sub: zonelessSub,
+      email: `zoneless@${domain}`,
+      email_verified: true,
+      name: 'No Zone Reported',
+    })
+
+    await signIn(app)
+
+    const user = await userForSub(app.db, zonelessSub)
+    expect(user, 'the account must be provisioned').toBeDefined()
+    expect(
+      (user as UserRow).timezone,
+      'a sign-in carrying no tz must provision UTC (spec 7.1)',
+    ).toBe('UTC')
   })
 
   test('AC-005 adversarial: a fault in the last insert rolls back the first three', async () => {
