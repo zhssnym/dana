@@ -20,7 +20,11 @@ wrong in the other:
 - An unparseable tz is treated as absent rather than answered 422 (7.1). This
   is a recorded deviation from the 10.3 validation rule, made deliberately so
   that a stale client-side zone database cannot lock someone out of their
-  account. So the sign-in must still succeed.
+  account. So the sign-in must still succeed, and nothing may be stored. The
+  values include ECMA-402 offset identifiers (+05:30, -08:00), which 11.15
+  records as the oracle hole: Intl.DateTimeFormat accepts them although they
+  are not IANA names, so an implementation validating with bare Intl stores an
+  offset here and breaks both INV-14 and the 11.9 zone math reminders rely on.
 - A reported zone that is a tzdb alias of the stored one is not a different
   zone (8.1): no write. US/Eastern and America/New_York are the same zone
   wearing two names, and a comparison written as string inequality writes the
@@ -160,7 +164,23 @@ describe('AC-007: a returning login syncs users.timezone', () => {
     // Section 7.1 makes this a deliberate deviation from the 10.3 rule that
     // invalid input answers 422: "sign-in must not fail over a stale zone
     // database". So each of these must complete, and none may be stored.
-    for (const rubbish of ['Not/AZone', 'Mars/Olympus_Mons', '', 'UTC+5', '../../etc']) {
+    //
+    // The offset identifiers are the ones that matter most and were missing
+    // until the 2026-07-31 ruling. 11.15 records that Intl.DateTimeFormat
+    // accepts +05:30 and -08:00 as zones although they are not IANA names,
+    // so an implementation validating with bare Intl stores them, breaking
+    // INV-14 and the 11.9 zone math that reminders depend on later. UTC+5,
+    // the only offset-shaped value here before, does not exercise that at
+    // all: bare Intl refuses it too, so it discriminated nothing.
+    const OFFSETS = ['+05:30', '-08:00', '+00:00', '-05', '+0530']
+    for (const rubbish of [
+      'Not/AZone',
+      'Mars/Olympus_Mons',
+      '',
+      'UTC+5',
+      '../../etc',
+      ...OFFSETS,
+    ]) {
       const { session } = await signIn(app, { tz: rubbish })
       expect(
         session.value,

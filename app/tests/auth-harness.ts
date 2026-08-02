@@ -381,9 +381,35 @@ export async function userForSub(
   return (await usersForSub(db, sub))[0]
 }
 
-/** IANA validity, which INV-14 requires of every provisioned user. */
+/**
+ * IANA validity, which INV-14 requires of every provisioned user and 10.3
+ * requires of every zone that enters the system.
+ *
+ * Intl.DateTimeFormat is the oracle, and 11.15 records that it is tolerant
+ * beyond the tzdb: it accepts ECMA-402 offset identifiers like +05:30, which
+ * are not IANA names and would break the 11.9 zone math. Without the sign
+ * guard this predicate accepted them, so an implementation that stored an
+ * offset arriving on the 7.1 tz query passed AC-007's INV-14 assertion while
+ * violating the invariant it names. Nothing else in the suite discriminated
+ * either: AC-007's one offset-shaped value, UTC+5, is refused by bare Intl
+ * too, so it never exercised the difference.
+ *
+ * The guard is written here rather than imported from the shared validator
+ * (app/src/shared/timezone.ts), by the Steward's ruling: this suite measures
+ * that module and cannot borrow its definition of correct, or a wrong
+ * validator would agree with itself. The two were checked once, off to the
+ * side, against offsets, aliases, case variants and malformed input, and
+ * agreed on every value; that is what makes the independence worth having
+ * rather than merely principled.
+ *
+ * The oracle's other two tolerances stay, because the shared validator keeps
+ * them deliberately: tzdb aliases validate, since 8.1 counts US/Eastern and
+ * America/New_York as one zone, and names match case-insensitively.
+ */
 export function isIanaTimezone(value: unknown): boolean {
   if (typeof value !== 'string' || value === '') return false
+  // No IANA name opens with a sign; every ECMA-402 offset identifier does.
+  if (value.startsWith('+') || value.startsWith('-')) return false
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: value })
     return true
@@ -397,17 +423,17 @@ export function isIanaTimezone(value: unknown): boolean {
  * ------------------------------------------------------------------ */
 
 /*
-Section 10.1 fixes three facts about the sessions table as contract, precisely
-so this suite can observe them: it is named sessions, it references users(id)
-through a user_id column declared ON DELETE CASCADE, and expiry is a
-timestamptz column named expires_at that every authenticated request resets to
-30 days out. Everything else about the table is the Security engineer's.
+Section 10.1 fixes four facts about the sessions table as contract: it is named
+sessions, it references users(id) through a user_id column declared ON DELETE
+CASCADE, expiry is a timestamptz column named expires_at that every
+authenticated request resets to 30 days out, and the lookup key is a token_hash
+text column, the primary key, holding the lowercase hex sha256 digest of the
+cookie's token. Everything else about the table is the Security engineer's.
 
 Sessions are addressed here by user_id and never by the cookie value, because
-10.1 leaves the identifier's storage form open and 11.6 makes it opaque; the
-Security persona intends to store it hashed. A test that matched rows on the
-cookie value would be asserting a storage choice the specification does not
-make.
+the raw token is deliberately absent from the table: 10.1 keeps it nowhere at
+rest. AC-113 relates the two once, in the direction the specification gives, by
+hashing the cookie rather than by looking for it.
 */
 export const SESSIONS_TABLE = 'sessions'
 

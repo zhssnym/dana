@@ -39,14 +39,17 @@ a tzdb alias of the stored zone is not a different zone. AC-007 also pins the
 carrier: 7.1 and 11.6 both say the zone rides the pending-authorization state
 and never `redirect_uri` or any redirect target.
 
-**10.1's sessions contract.** Three facts are fixed so this suite can observe
-expiry and clean up after itself: the table is named `sessions`, `user_id`
-references `users(id)` `ON DELETE CASCADE`, and `expires_at` is a timestamptz
-that every authenticated request resets to 30 days out. AC-113 asserts all
-three and the behavior they exist for. Rows are addressed by `user_id` and
-never by the cookie value, because 11.6 makes the identifier opaque and 10.1
-leaves its storage form open; matching on the cookie would assert a decision
-the specification does not make.
+**10.1's sessions contract.** Four facts are fixed. Three so this suite can
+observe expiry and clean up after itself: the table is named `sessions`,
+`user_id` references `users(id)` `ON DELETE CASCADE`, and `expires_at` is a
+timestamptz that every authenticated request resets to 30 days out. A fourth so
+the migration and the module could be authored by separate owners without a
+guess: the lookup key is a `token_hash` text column, the primary key, holding
+the lowercase hex sha256 digest of the cookie's token. AC-113 asserts all four
+and the behavior they exist for, including that the digest really is the
+cookie's and that the raw token appears nowhere in the database. Rows are
+addressed by `user_id` and never by the cookie value, because the raw token is
+deliberately not there to match against.
 
 The table is outside section 4, so AC-001 admits it as that catalog's one named
 exception. Admitted means tolerated, not required: AC-001 is about section 4,
@@ -80,6 +83,15 @@ pair of bounds, a 404 satisfies the lower one and fails the upper one, so the
 failure lands on whichever half carries no message and the report names
 nothing. Every redirect assertion in the suite goes through the helper for that
 reason.
+
+**The timezone predicate is aligned with the shared validator, not imported
+from it.** `isIanaTimezone` here refuses identifiers opening with a sign, the
+same guard `app/src/shared/timezone.ts` carries, because 11.15 records that
+`Intl.DateTimeFormat` accepts ECMA-402 offsets like `+05:30` that are not IANA
+names. Importing the validator would be borrowing the definition of correct
+from the module under test, so a wrong validator would agree with itself; the
+two were checked once, off to the side, and agreed on offsets, aliases, case
+variants and malformed input alike.
 
 ## What the tests need from outside `app/tests/`
 
