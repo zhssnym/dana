@@ -36,6 +36,27 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Mid-P1 rulings of 2026-08-02, on branch `p1-auth`. The sessions identifier
+  column, escalated by the Data session, is ruled as 10.1's fourth fixed
+  fact: a token_hash text primary key holding the lowercase hex sha256
+  digest of the cookie's CSPRNG token, landing as migration 0002 by the Data
+  engineer before the Security session; the digest algorithm is the
+  ruling's choice (the persona fixes only "stored hashed"), standard for
+  high-entropy tokens and inside the persona's nothing-exotic rule. Any
+  further columns (a stored CSRF binding, timestamps) stay the Security
+  engineer's to request and Data's to transcribe. The Data session's NOT
+  NULL disclosure is ratified into 10.1's text. The acceptance harness's
+  timezone predicate was found weaker than the shared validator (Intl
+  accepts ECMA-402 offset identifiers; verified on this Node), so the
+  Adversarial Test role returns before the Security session: sign guard in
+  the harness predicate, offset identifiers among AC-007's unparseable
+  values, AC-113's contract case extended; 11.15 records the Intl oracle
+  hazard. And the 7.0 status reading is settled as the suite already pins
+  it (AC-009 answers 422 for wrong-typed fields): on a body that parses as
+  JSON, field-level failures are 422 with the field named; 400 is reserved
+  for bodies that do not parse. A clarifying sentence in frozen 7.0 is
+  proposed to the human owner but not required, since the acceptance suite
+  and the shared schemas already enforce the reading.
 - Five P1 escalations from the Adversarial Test session ruled on 2026-07-31,
   amendments on branch `p1-auth` so they merge with the package. Two were the
   human owner's, both touching frozen section 7: GET /auth/google gains an
