@@ -37,6 +37,16 @@ Planning and design. No software has been released yet.
   invalidated: AC-009 already pins the 422 half, and the two code edges
   answering otherwise today remain the named deviation Platform lands at its
   next boot-file touch, which the P2 merge gate holds.
+- RFC 0001's implementation plan gains row P2S, from the owner's 2026-08-04
+  acceptance of the P1 merge escalation's recommendation on the unscheduled
+  7.2 settings endpoints: tester-authored acceptance criteria arriving by
+  section 12 amendment, then one small Security session implementing GET and
+  PATCH /me/settings on branch p2s-settings, with the API and Contract role
+  supplying the settings body schema and the pre-merge shape review. The row
+  is slotted after P2's merge and before P8's integration window, which
+  AC-095 ties to it, and places one routed P1 leftover where it lands:
+  account.ts's local body type converges on the shared schema at Security's
+  touch.
 - Merge-review rulings at the P1 merge, 2026-08-03. By the human owner:
   frozen 7.1 now names PATCH /me's response body (the GET /me object,
   behavior unchanged), and the email collision across google_sub is parked
