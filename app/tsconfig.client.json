@@ -7,5 +7,10 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["vite/client"]
   },
-  "include": ["src/client/**/*", "src/shared/**/*"]
+  "include": ["src/client/**/*", "src/shared/**/*"],
+  // src/shared is compiled by both sides, so the client project would
+  // otherwise typecheck the shared modules' own tests under dom lib and
+  // bundler resolution, where they neither belong nor run. The server
+  // project keeps them.
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
 }
