@@ -14,8 +14,8 @@ import type { Db } from '../../../db/client.js'
 import { patchMeBody } from '../../shared/me.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
-import { rowsOf } from './provisioning.js'
-import { destroyAllSessionsForUser } from './sessions.js'
+import { inTransaction, rowsOf } from './provisioning.js'
+import { sameZone } from './timezone-sync.js'
 
 export interface MeBody {
   user: {
@@ -60,6 +60,14 @@ export async function meBody(db: Db, userId: string): Promise<MeBody | null> {
           )[0]?.n ?? 0,
         )
 
+  // INV-14 gives every user exactly one settings row. If it is missing the
+  // invariant is broken, and coercing three nulls to false would answer with
+  // a plausible object whose values are the inverse of two of 4.10's
+  // defaults: a wrong answer that looks right. Refusing is the honest one.
+  if (row.show_important === null || row.show_important === undefined) {
+    throw new Error(`user ${userId} has no user_settings row (INV-14)`)
+  }
+
   return {
     user: {
       id: String(row.id),
@@ -102,12 +110,28 @@ export async function handlePatchMe(
     return
   }
 
-  await db.execute(
-    sql`UPDATE users SET timezone = ${parsed.data.timezone} WHERE id = ${userId}`,
+  // 8.1's alias rule applies to this endpoint in the same sentence that gives
+  // it to the login path: "a reported zone that is a tzdb alias of the stored
+  // one is not a different zone: no write, and no 8.6 recompute". Writing
+  // US/Eastern over America/New_York would hand the account a zone its owner
+  // never chose, and would trigger a recompute of every reminder for nothing.
+  const current = await rowsOf(
+    db,
+    sql`SELECT timezone FROM users WHERE id = ${userId}`,
   )
-  // 7.1 also recomputes fire_at for scheduled reminders assigned to V (8.6).
-  // No reminder can exist before P7 lands the table's writers, so there is
-  // nothing to recompute here yet; the obligation is P7's to pick up.
+  const stored = current[0]?.timezone
+  const changed =
+    typeof stored !== 'string' || !sameZone(parsed.data.timezone, stored)
+
+  if (changed) {
+    await db.execute(
+      sql`UPDATE users SET timezone = ${parsed.data.timezone} WHERE id = ${userId}`,
+    )
+    // 7.1 also recomputes fire_at for scheduled reminders assigned to V
+    // (8.6), and only when the zone actually changed. No reminder can exist
+    // before P7 lands the table's writers, so there is nothing to recompute
+    // here yet; the obligation is P7's to pick up, at this branch.
+  }
 
   const body = await meBody(db, userId)
   if (body === null) {
@@ -136,24 +160,29 @@ what 8.10 means by rendering as "Deleted user". No row is hard-deleted here,
 so the RESTRICT tripwire on folders.owner_id that step ordering exists to
 avoid cannot fire against this stub.
 
-Sessions are destroyed after the scrub commits, immediately and all of them
-(11.6: revocation never waits for the pruning pass).
+Both steps run inside one transaction, because 8.10's first words are "One
+transaction" and the pair is exactly where that matters: a failure between a
+committed scrub and an uncommitted revocation would leave a deleted account
+whose every session still authenticates. Sessions are destroyed immediately
+and all of them (11.6: revocation never waits for the pruning pass).
 */
 export async function handleDeleteMe(
   db: Db,
   userId: string,
   res: Response,
 ): Promise<void> {
-  await db.execute(
-    sql`UPDATE users
-        SET google_sub = NULL,
-            email = NULL,
-            display_name = NULL,
-            avatar_url = NULL,
-            deleted_at = now()
-        WHERE id = ${userId}`,
-  )
-  await destroyAllSessionsForUser(db, userId)
+  await inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`UPDATE users
+          SET google_sub = NULL,
+              email = NULL,
+              display_name = NULL,
+              avatar_url = NULL,
+              deleted_at = now()
+          WHERE id = ${userId}`,
+    )
+    await tx.execute(sql`DELETE FROM sessions WHERE user_id = ${userId}`)
+  })
   clearSessionCookies(res)
   res.status(204).end()
 }

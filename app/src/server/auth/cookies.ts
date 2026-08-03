@@ -31,7 +31,19 @@ export function readCookie(req: Request, name: string): string | undefined {
     const equals = pair.indexOf('=')
     if (equals === -1) continue
     if (pair.slice(0, equals).trim() !== name) continue
-    return decodeURIComponent(pair.slice(equals + 1).trim())
+    const raw = pair.slice(equals + 1).trim()
+    try {
+      return decodeURIComponent(raw)
+    } catch {
+      // decodeURIComponent throws URIError on malformed percent-encoding, and
+      // a cookie is attacker-controlled input: "dana_session=%" would
+      // otherwise take down every route behind this middleware with a 500,
+      // and keep doing it, because nothing on that path clears the cookie the
+      // browser goes on resending. An undecodable value is simply not a
+      // session identifier, so it is returned as it stands and fails the
+      // lookup, which is the 401 that 7.0 requires.
+      return raw
+    }
   }
   return undefined
 }

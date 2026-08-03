@@ -187,6 +187,41 @@ describe('the handshake (AC-005, AC-105 to AC-107)', () => {
     expect(members, 'the owner is a member of their Inbox (INV-3, INV-10)').toHaveLength(1)
   })
 
+  test('the successful callback redirects into the app, not the landing page', async () => {
+    // 7.1 says "redirects into the app"; 10.6 fixes the app's start_url at
+    // /app. The landing page is a different surface with different copy.
+    identity('destination')
+    const jar = browser()
+    const begun = await jar.request(`${origin}/api/v1/auth/google`)
+    const provider = await fetch(new URL(begun.location ?? ''), { redirect: 'manual' })
+    const callback = await jar.request(provider.headers.get('location') ?? '')
+
+    const target = new URL(callback.location ?? '', origin)
+    expect(target.origin).toBe(origin)
+    expect(target.pathname, 'the callback must land in the app (7.1, 10.6)').toBe('/app')
+  })
+
+  test('an oversized provider claim does not break the sign-in (4.1 CHECKs)', async () => {
+    // display_name and avatar_url carry CHECK constraints, and the values
+    // arrive from Google rather than from this API's caller: an unusually
+    // long profile must not turn a legitimate sign-in into a constraint
+    // violation and a 5xx.
+    const sub = identity('oversized', {
+      name: 'N'.repeat(500),
+      picture: `https://example.test/${'p'.repeat(2500)}.png`,
+    })
+    const { jar } = await signIn()
+    const userId = await userIdFor(sub)
+    expect((await jar.request(`${origin}/api/v1/me`)).status).toBe(200)
+
+    const stored = await rows(
+      dbClient.db,
+      sql`SELECT display_name, avatar_url FROM users WHERE id = ${userId}`,
+    )
+    expect(String(stored[0]?.display_name).length).toBe(200)
+    expect(String(stored[0]?.avatar_url).length).toBe(2000)
+  })
+
   test('a sign-in reporting no zone provisions UTC, not the server zone', async () => {
     const sub = identity('zoneless')
     await signIn()
@@ -489,11 +524,61 @@ describe('sessions (AC-010, AC-110, AC-113)', () => {
   })
 
   test('a forged or malformed identifier answers 401, never 500 (AC-110)', async () => {
-    for (const value of [`forged-${randomUUID()}`, '../../etc/passwd', '']) {
+    for (const value of [
+      `forged-${randomUUID()}`,
+      '../../etc/passwd',
+      '',
+      // Malformed percent-encoding, which an adversarial review found took
+      // every route behind the session middleware down with a URIError: a
+      // cookie is attacker-controlled input, and a browser holding one goes
+      // on resending it, so the 500 repeated until the person cleared it by
+      // hand. Neither suite's hostile values contained a percent sign.
+      '%',
+      '%ZZ',
+      '50%off',
+      '%E0%A4%A',
+    ]) {
       const jar = browser()
       jar.plant('dana_session', value)
-      expect((await jar.request(`${origin}/api/v1/me`)).status).toBe(401)
+      expect(
+        (await jar.request(`${origin}/api/v1/me`)).status,
+        `session cookie ${JSON.stringify(value)} must answer 401, not crash`,
+      ).toBe(401)
     }
+  })
+
+  test('a malformed pending cookie refuses the callback without crashing', async () => {
+    for (const value of ['%', '%ZZ']) {
+      const jar = browser()
+      const begun = await jar.request(`${origin}/api/v1/auth/google`)
+      const provider = await fetch(new URL(begun.location ?? ''), {
+        redirect: 'manual',
+      })
+      jar.plant('dana_pending', value)
+      const callback = await jar.request(provider.headers.get('location') ?? '')
+      expect(
+        callback.status,
+        `pending cookie ${JSON.stringify(value)} must refuse, not crash`,
+      ).toBeLessThan(500)
+    }
+  })
+
+  test('an active session keeps a full lifetime on the cookie, not only the row', async () => {
+    // 10.1's expiry is rolling on both sides: a row extended to 30 days out
+    // behind a cookie that still expires on the original deadline signs an
+    // active person out on day 30.
+    identity('rolling-cookie')
+    const { jar } = await signIn()
+    const response = await jar.request(`${origin}/api/v1/me`)
+    expect(response.status).toBe(200)
+
+    const reissued = response.setCookie.map((line) => line.toLowerCase())
+    const session = reissued.find((line) => line.startsWith('dana_session='))
+    expect(
+      session,
+      'an authenticated request did not refresh the session cookie, so its lifetime never rolls',
+    ).toBeDefined()
+    expect(session).toContain('max-age=2592000')
   })
 
   test('pruning removes expired rows and leaves live ones (11.6, 11.7)', async () => {
@@ -584,6 +669,40 @@ describe('CSRF and the account endpoints (AC-009, AC-111, AC-112)', () => {
     expect(
       (await jar.request(`${origin}/api/v1/me`, { csrf: 'omit' })).status,
     ).toBe(200)
+  })
+
+  test('PATCH /me leaves a tzdb alias of the stored zone alone (8.1)', async () => {
+    // "a reported zone that is a tzdb alias of the stored one is not a
+    // different zone: no write, and no 8.6 recompute". The endpoint reads the
+    // same sentence as the login path, and writing US/Eastern over
+    // America/New_York would hand the account a zone nobody chose and, from
+    // P7, recompute every reminder for nothing.
+    const sub = identity('patch-alias')
+    const { jar } = await signIn()
+    const userId = await userIdFor(sub)
+
+    const set = await jar.request(`${origin}/api/v1/me`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ timezone: 'America/New_York' }),
+    })
+    expect(set.status).toBe(200)
+
+    const aliased = await jar.request(`${origin}/api/v1/me`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ timezone: 'US/Eastern' }),
+    })
+    expect(aliased.status).toBe(200)
+
+    const stored = await rows(
+      dbClient.db,
+      sql`SELECT timezone FROM users WHERE id = ${userId}`,
+    )
+    expect(
+      stored[0]?.timezone,
+      'US/Eastern was written over its canonical name (spec 8.1)',
+    ).toBe('America/New_York')
   })
 
   test('PATCH /me answers 422 naming the field for a bad zone (7.1, 10.3)', async () => {

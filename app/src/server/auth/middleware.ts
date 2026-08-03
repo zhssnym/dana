@@ -15,7 +15,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express'
 
 import type { Db } from '../../../db/client.js'
 import { sendError } from '../http/errors.js'
-import { SESSION_COOKIE, readCookie } from './cookies.js'
+import { SESSION_COOKIE, readCookie, setSessionCookies } from './cookies.js'
 import { resolveSession } from './sessions.js'
 import { csrfTokenFor, safeEqual } from './tokens.js'
 
@@ -37,7 +37,7 @@ export function sessionOf(req: Request): SessionContext | undefined {
  * answers, so public routes stay public and requireSession decides.
  */
 export function attachSession(db: Db): RequestHandler {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     const token = readCookie(req, SESSION_COOKIE)
     if (token === undefined || token === '') {
       next()
@@ -47,6 +47,12 @@ export function attachSession(db: Db): RequestHandler {
       .then((session) => {
         if (session !== null) {
           contexts.set(req, { userId: session.userId, token })
+          // 10.1's expiry is rolling on both sides or it is not rolling: the
+          // row moved to 30 days out just now, and the cookie has to move
+          // with it or the browser drops a session the server still honors,
+          // 30 days after sign-in however active the person has been. Same
+          // values, new lifetime.
+          setSessionCookies(res, token, csrfTokenFor(token))
         }
         next()
       })

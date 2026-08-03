@@ -24,9 +24,12 @@ in the authorization request (the library derives it from that URL).
 as locals inside the callback and are never stored, logged, or put in a
 cookie; what survives the callback is a user id and the claims that 7.1 names.
 
-**A refusal is a page, not an envelope.** The callback is a redirect target a
-browser lands on, so the 7.0 JSON envelope would arrive as text on a blank
-screen. The account endpoints, which clients call, use the envelope.
+**A refusal answers a browser, not a client.** The callback is a redirect
+target a person lands on, so the 7.0 JSON envelope would arrive as text on a
+blank screen. The one refusal section 9 gives copy for renders the 9.2 page;
+every other one returns to the landing page with a marker rather than
+inventing copy section 9 owns. The account endpoints, which clients call, use
+the envelope.
 */
 import { Router } from 'express'
 import type { Request, Response } from 'express'
@@ -43,6 +46,7 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { deleteMeBody } from '../../shared/me.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
 import { sendError, sendValidationError } from '../http/errors.js'
+import { logAuthEvent } from '../security/log.js'
 import {
   handleDeleteMe,
   handleGetMe,
@@ -59,7 +63,7 @@ import {
 import { attachSession, requireCsrf, requireSession, sessionOf } from './middleware.js'
 import { OidcClient, authConfigFromEnvironment, callbackUrl } from './oidc.js'
 import type { AuthConfig } from './oidc.js'
-import { signInFailedPage, unverifiedEmailPage } from './pages.js'
+import { SIGN_IN_FAILED_TARGET, unverifiedEmailPage } from './pages.js'
 import { PendingAuthorizations } from './pending.js'
 import { provisionUser, syncTimezone } from './provisioning.js'
 import type { GoogleIdentity } from './provisioning.js'
@@ -89,6 +93,16 @@ interface DevLoginModule {
   ): Promise<void>
 }
 
+// Section 4.1 and 10.3's bounds on the columns Google's claims land in.
+const MAX_EMAIL = 320
+const MAX_DISPLAY_NAME = 200
+const MAX_AVATAR_URL = 2000
+
+function clamp(value: unknown, limit: number): string | null {
+  if (typeof value !== 'string' || value === '') return null
+  return value.length <= limit ? value : value.slice(0, limit)
+}
+
 /** Issues a fresh identifier, stores its digest, and sets both cookies. */
 export async function establishSession(
   db: Db,
@@ -100,9 +114,22 @@ export async function establishSession(
   setSessionCookies(res, token, csrfTokenFor(token))
 }
 
-function refuse(res: Response, status: number, page: string): void {
+/**
+ * The 9.2 page, the only page this module renders, for the one refusal
+ * section 9 gives copy for.
+ */
+function refuseUnverified(res: Response): void {
   clearPendingCookie(res)
-  res.status(status).type('html').send(page)
+  res.status(403).type('html').send(unverifiedEmailPage())
+}
+
+/**
+ * Every other refusal. Back to the landing page with a marker, inventing no
+ * copy: a browser is what lands here, and section 9 owns what it reads.
+ */
+function refuse(res: Response): void {
+  clearPendingCookie(res)
+  res.redirect(303, SIGN_IN_FAILED_TARGET)
 }
 
 export function createAuthRouter(options: AuthRouterOptions = {}): Router {
@@ -185,7 +212,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     // through the cookie the authorization request set (AC-105).
     const record = pending.take(readCookie(req, PENDING_COOKIE))
     if (record === undefined) {
-      refuse(res, 400, signInFailedPage())
+      refuse(res)
       return
     }
 
@@ -195,7 +222,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     // The provider's own refusal path, which every cancelled consent screen
     // walks: answered as a refusal, never as a 500.
     if (typeof req.query.error === 'string') {
-      refuse(res, 400, signInFailedPage())
+      refuse(res)
       return
     }
 
@@ -214,7 +241,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       })
       const verified = tokens.claims()
       if (verified === undefined) {
-        refuse(res, 400, signInFailedPage())
+        refuse(res)
         return
       }
       claims = verified as unknown as Record<string, unknown>
@@ -222,37 +249,65 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       // A wrong state, a mismatched nonce, a bad signature, an expired or
       // foreign token: all one outcome, and none of them a 5xx, because every
       // one of them is attacker-reachable input.
-      refuse(res, 400, signInFailedPage())
+      refuse(res)
       return
     }
 
     const sub = typeof claims.sub === 'string' ? claims.sub : undefined
     const email = typeof claims.email === 'string' ? claims.email : undefined
     if (sub === undefined || email === undefined) {
-      refuse(res, 400, signInFailedPage())
+      refuse(res)
       return
     }
     // 7.1 and 10.1: an unverified email is refused with the 9.2 page, and no
     // rows are created.
     if (claims.email_verified !== true) {
-      refuse(res, 403, unverifiedEmailPage())
+      refuseUnverified(res)
+      return
+    }
+    // 10.3 caps a stored email at 320 characters, and an address is an
+    // identifier: it cannot be trimmed to fit the way a display name can, so
+    // one that does not fit is a refusal rather than a mangled account.
+    if (email.length > MAX_EMAIL) {
+      refuse(res)
       return
     }
 
     const identity: GoogleIdentity = {
       sub,
       email,
-      displayName: typeof claims.name === 'string' ? claims.name : null,
-      avatarUrl: typeof claims.picture === 'string' ? claims.picture : null,
+      // Section 4.1's CHECK constraints bound both of these, and neither is
+      // this API's input to validate: they arrive from Google. Clamping keeps
+      // an unusually long profile from turning a legitimate sign-in into a
+      // constraint violation, and both columns are nullable and cosmetic, so
+      // clamping costs nothing an account depends on.
+      displayName: clamp(claims.name, MAX_DISPLAY_NAME),
+      avatarUrl: clamp(claims.picture, MAX_AVATAR_URL),
     }
 
-    const user = await provisionUser(db, identity, record.timezone)
-    await syncTimezone(db, user, record.timezone)
+    let user
+    try {
+      user = await provisionUser(db, identity, record.timezone)
+      await syncTimezone(db, user, record.timezone)
+    } catch {
+      // A provisioning fault rolls the whole transaction back (AC-005), and
+      // the person still needs an answer. One case is known and unruled: a
+      // new google_sub claiming an email that already belongs to an active
+      // account collides with users_email_active_idx, and which account
+      // should win is a product decision, not this module's. Refusing is the
+      // safe half of every reading of it.
+      logAuthEvent('sign_in_failed', { reason: 'provisioning_failed' })
+      refuse(res)
+      return
+    }
+
     await establishSession(db, res, user.id)
     clearPendingCookie(res)
+    logAuthEvent('sign_in', { userId: user.id, provisioned: user.created })
 
-    // Into the app, on this origin by construction (7.1, AC-109).
-    res.redirect(303, '/')
+    // Into the app (7.1), which 10.6 fixes at /app, and on this origin by
+    // construction (AC-109).
+    res.redirect(303, '/app')
   })
 
   router.post(
@@ -268,6 +323,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         // plural, so signing out here must not touch the person's other
         // clients.
         await destroySession(db, session.token)
+        logAuthEvent('sign_out', { userId: session.userId })
       }
       clearSessionCookies(res)
       res.status(204).end()
@@ -308,7 +364,9 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         sendValidationError(res, parsed.error)
         return
       }
-      await handleDeleteMe(db, sessionOf(req)?.userId ?? '', res)
+      const userId = sessionOf(req)?.userId ?? ''
+      await handleDeleteMe(db, userId, res)
+      logAuthEvent('account_deleted', { userId })
     },
   )
 

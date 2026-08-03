@@ -46,17 +46,13 @@ export function unverifiedEmailPage(): string {
   )
 }
 
-/**
- * Every other refusal: a spent or forged state, a mismatched nonce, a
- * cancelled consent screen. The copy is deliberately incurious, because the
- * person reading it did nothing wrong in the cases they will actually see,
- * and the ones they will not see are attacks that deserve no diagnostics.
- */
-export function signInFailedPage(): string {
-  return page(
-    'Sign-in failed',
-    'Sign-in failed',
-    'We could not complete your sign-in. Please try again.',
-    'Back to Dana',
-  )
-}
+/*
+There is deliberately no second page here. Every other refusal (a spent or
+forged state, a mismatched nonce, a cancelled consent screen) returns to the
+landing page carrying ?signin=failed rather than rendering copy this module
+would have to invent: section 9 owns every user-facing word, and 9.2 is the
+only page it gives the callback. 11.1 says the same thing from the other side,
+that the server renders nothing but the landing page and JSON. The marker is
+the landing page's cue to say whatever section 9 eventually decides it says.
+*/
+export const SIGN_IN_FAILED_TARGET = '/?signin=failed'

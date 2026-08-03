@@ -28,9 +28,14 @@ async function query(db: Db, statement: SQL): Promise<Record<string, unknown>[]>
   return result.rows
 }
 
-function expiryFromNow(): string {
-  return new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString()
-}
+/*
+The deadline is computed by the database rather than by this process, because
+the predicate that tests it is the database's now(). Mixing the two clocks
+would make every session longer or shorter than 30 days by whatever the skew
+between the application host and the Postgres host happens to be, silently and
+in whichever direction.
+*/
+const expiry = sql.raw(`now() + interval '${String(SESSION_TTL_DAYS)} days'`)
 
 /**
  * Issues a fresh identifier and stores only its digest. The raw token is the
@@ -44,7 +49,7 @@ export async function createSession(
 ): Promise<void> {
   await db.execute(
     sql`INSERT INTO sessions (token_hash, user_id, expires_at)
-        VALUES (${sha256Hex(token)}, ${userId}, ${expiryFromNow()}::timestamptz)`,
+        VALUES (${sha256Hex(token)}, ${userId}, ${expiry})`,
   )
 }
 
@@ -64,8 +69,18 @@ export async function resolveSession(
   const rows = await query(
     db,
     sql`UPDATE sessions
-        SET expires_at = ${expiryFromNow()}::timestamptz
-        WHERE token_hash = ${sha256Hex(token)} AND expires_at > now()
+        SET expires_at = ${expiry}
+        WHERE token_hash = ${sha256Hex(token)}
+          AND expires_at > now()
+          -- A scrubbed account authenticates nothing, whatever rows survive.
+          -- Deletion destroys its sessions in the same transaction as the
+          -- scrub (8.10), so this predicate should never be the thing that
+          -- refuses; it is here so that revocation does not rest on one
+          -- statement having run.
+          AND EXISTS (
+            SELECT 1 FROM users u
+            WHERE u.id = sessions.user_id AND u.deleted_at IS NULL
+          )
         RETURNING user_id`,
   )
   const userId = rows[0]?.user_id
