@@ -47,6 +47,15 @@ Planning and design. No software has been released yet.
   AC-095 ties to it, and places one routed P1 leftover where it lands:
   account.ts's local body type converges on the shared schema at Security's
   touch.
+- The P2 row of RFC 0001's plan now carries its session order the way the P1
+  row does: Adversarial Test first (AC-011 to AC-024, tests before
+  implementation, plus the P1-routed judgment on criteria-level pinning of
+  the /me shape, envelope, and status taxonomy), API and Contract's shared
+  schemas for the 7.4 bodies, Collaboration and Permissions implementing the
+  package, then Platform's boot wiring by request, the same boot-file touch
+  landing the held 7.0 edge mapping, and API and Contract's endpoint shape
+  review before the Steward merges. The row's Delivers now names that held
+  mapping, so the merge gate that holds it is visible from the plan alone.
 - Merge-review rulings at the P1 merge, 2026-08-03. By the human owner:
   frozen 7.1 now names PATCH /me's response body (the GET /me object,
   behavior unchanged), and the email collision across google_sub is parked
