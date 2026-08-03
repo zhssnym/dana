@@ -5,7 +5,7 @@
 Model: floating dates and times everywhere a human plans; UTC instants everywhere the system records an event.
 
 - Every request that evaluates dates carries tz, the client's current IANA zone. today(V) = the current date in tz at the moment of evaluation. The server computes it; the client never filters by date itself.
-- users.timezone exists for one consumer only: reminder fire-instant computation for that user as assignee. It auto-syncs at login and whenever a session reports a different zone; there is no manual lock in v1. Traveling therefore moves both today and future reminder instants to the new zone.
+- users.timezone exists for one consumer only: reminder fire-instant computation for that user as assignee. It auto-syncs at every successful login that carries the 7.1 tz parameter, and whenever a session reports a different zone through PATCH /me; a login carrying no tz syncs nothing, and a reported zone that is a tzdb alias of the stored one is not a different zone: no write, and no 8.6 recompute. There is no manual lock in v1. Traveling therefore moves both today and future reminder instants to the new zone.
 - The day boundary is local midnight in tz. DST changes move that instant but never break date arithmetic, because comparisons are date against date, never instant against instant.
 - Boundary statement, exact: a task with due_date D is due today when D = today(V), overdue when D < today(V), future when D > today(V). My Day's automatic clause admits D <= today(V).
 

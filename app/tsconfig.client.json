@@ -7,5 +7,17 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["vite/client"]
   },
-  "include": ["src/client/**/*", "src/shared/**/*"]
+  "include": ["src/client/**/*", "src/shared/**/*"],
+  // src/shared is compiled by both sides, so the client project would
+  // otherwise typecheck the shared modules' own tests under dom lib and
+  // bundler resolution, where they neither belong nor run. The server
+  // project keeps them.
+  //
+  // Scoped to src/shared on purpose. An app-rooted "**/*.test.ts" would also
+  // drop src/client's own tests, and no other project includes them:
+  // tsconfig.server.json covers src/server, src/shared, db, and tests, never
+  // src/client. They would run under Vitest while typechecking silently
+  // ignored them, which is the failure mode a green gate is worst at
+  // reporting. Two entries because tsconfig globs have no brace expansion.
+  "exclude": ["src/shared/**/*.test.ts", "src/shared/**/*.test.tsx"]
 }

@@ -48,7 +48,14 @@ const tableRows = await rows(sql`
   JOIN pg_namespace n ON n.oid = t.relnamespace
   WHERE n.nspname = 'public' AND t.relkind = 'r'
 `)
-const actualTables = tableRows.map((r) => String(r.name)).sort()
+// 10.1 keeps the sessions table out of the section 4 catalog, and AC-001
+// admits it as the one named exception; this diff mirrors that ruling. The
+// table's own contract is AC-113's to assert, not this file's.
+const ADMITTED_OUTSIDE_SECTION_4 = ['sessions']
+const actualTables = tableRows
+  .map((r) => String(r.name))
+  .filter((name) => !ADMITTED_OUTSIDE_SECTION_4.includes(name))
+  .sort()
 const expectedTables = Object.keys(constraintCatalog).sort()
 if (!sameList(actualTables, expectedTables)) {
   problem(`tables: expected [${expectedTables.join(', ')}], found [${actualTables.join(', ')}]`)

@@ -3,8 +3,9 @@ Seeds the example dataset of two users sharing one folder. Run from app/ with:
 npx tsx db/seed.ts
 
 The dataset is constraint-conformant by construction and exercises every
-table: it is what Playwright runs against (spec 11.10) together with the
-development login endpoint. Identifiers are fixed so end to end tests can
+section 4 table: it is what Playwright runs against (spec 11.10) together
+with the development login endpoint, which is also where sessions come from,
+so the 10.1 sessions table seeds nothing here. Identifiers are fixed so end to end tests can
 reference rows; dates are relative to today so the day-scoped pages (My Day,
 Planned) have content whenever the seed runs. Reseeding wipes application
 rows first: it refuses to run when NODE_ENV is production, and beyond that

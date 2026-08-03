@@ -9,6 +9,49 @@ follow Semantic Versioning.
 Planning and design. No software has been released yet.
 
 ### Added
+
+- Package P1 of RFC 0001, authentication: hand-rolled Google OIDC on
+  openid-client 6 per 11.6, with state, nonce, and PKCE validated single-use,
+  ID token signature verification forced on (section 13 item 17), and no
+  Google token persisted; the 10.1 sessions table (migrations 0001 and 0002)
+  storing only sha256 digests of CSPRNG identifiers, with the 30-day rolling
+  expiry checked and extended in one statement; CSRF as a token derived from
+  the session token by HMAC, so the 11.6 binding needs no stored column; the
+  idempotent provisioning transaction; timezone sync per 7.1 and 8.1 with the
+  tzdb-alias rule; the 9.2 unverified-email page; /me, PATCH /me, and DELETE
+  /me with the 8.10 stub the P1 row places in the auth module; a development
+  login excluded from production builds; the shared contract surface (zod
+  schemas, error envelope, the one IANA validator) and the 7.0 envelope
+  helpers; and boot wiring that mounts the surface, scrubs database wrapper
+  messages from 5xx logs, and refuses to start when no sign-in path is
+  configured. The full gate is green with every criterion from AC-001 to
+  AC-010 and AC-105 to AC-115 passing by number.
+
+### Changed
+
+- Merge-review rulings at the P1 merge, 2026-08-03. By the human owner:
+  frozen 7.1 now names PATCH /me's response body (the GET /me object,
+  behavior unchanged), and the email collision across google_sub is parked
+  as section 13 item 19 beside the dotted-variant question it mirrors.
+  Ratified from session disclosures: Data's sessions_token_hash_format_check
+  (transcription of 10.1's digest wording), Platform's 5xx log scrubbing and
+  boot sign-in precondition (both 10.5 and operability wins inside its own
+  file), and Security's HMAC-derived CSRF, which closes the 0003 migration
+  question the 5e01e49 ruling left open. Recorded: section 13 items 17 and
+  18 (openid-client and drizzle library defaults, each with an upgrade
+  revisit trigger) and a fourth entry in 11.1's single-instance checklist
+  (the in-memory pending-authorization store). Ruled on the shape review's
+  findings: the 7.0 taxonomy reading extends to the two edges it found, a
+  body over the parse limit is a body that did not parse (400, not 413) and
+  a parsed body that is not a JSON object is malformed (400), while an
+  object with bad fields stays 422; both edges answer otherwise today, a
+  named deviation Platform lands at its next boot-file touch and the P2
+  merge gate holds. Routed: the sessions.user_id index to the Data engineer
+  pending P9's evidence; account.ts's local body type converging on the
+  shared schema to Security's next touch; criteria-level pinning of the /me
+  shape, envelope, and status taxonomy to the Adversarial Test role's
+  judgment; and the unscheduled 7.2 settings endpoints to the human owner,
+  since no RFC 0001 row claims them and P8's AC-095 will need them.
 - Product design settled over four iterations, from a bullet list to a full
   technical specification: data model, invariants, state machines, query
   specifications, API surface, and 104 acceptance criteria.
@@ -36,6 +79,46 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Mid-P1 rulings of 2026-08-02, on branch `p1-auth`. The sessions identifier
+  column, escalated by the Data session, is ruled as 10.1's fourth fixed
+  fact: a token_hash text primary key holding the lowercase hex sha256
+  digest of the cookie's CSPRNG token, landing as migration 0002 by the Data
+  engineer before the Security session; the digest algorithm is the
+  ruling's choice (the persona fixes only "stored hashed"), standard for
+  high-entropy tokens and inside the persona's nothing-exotic rule. Any
+  further columns (a stored CSRF binding, timestamps) stay the Security
+  engineer's to request and Data's to transcribe. The Data session's NOT
+  NULL disclosure is ratified into 10.1's text. The acceptance harness's
+  timezone predicate was found weaker than the shared validator (Intl
+  accepts ECMA-402 offset identifiers; verified on this Node), so the
+  Adversarial Test role returns before the Security session: sign guard in
+  the harness predicate, offset identifiers among AC-007's unparseable
+  values, AC-113's contract case extended; 11.15 records the Intl oracle
+  hazard. And the 7.0 status reading is settled as the suite already pins
+  it (AC-009 answers 422 for wrong-typed fields): on a body that parses as
+  JSON, field-level failures are 422 with the field named; 400 is reserved
+  for bodies that do not parse. A clarifying sentence in frozen 7.0 is
+  proposed to the human owner but not required, since the acceptance suite
+  and the shared schemas already enforce the reading.
+- Five P1 escalations from the Adversarial Test session ruled on 2026-07-31,
+  amendments on branch `p1-auth` so they merge with the package. Two were the
+  human owner's, both touching frozen section 7: GET /auth/google gains an
+  optional tz query parameter (an IANA identifier carried to the callback;
+  absent means UTC at provisioning and no sync on return; invalid is treated
+  as absent, a recorded deviation from the 422 rule), and 7.1 now states that
+  the auth endpoints mount under the /api/v1 base path. Three were the
+  Steward's: 10.1 replaces the stale auth-library sentence with the sessions
+  table's observable contract (named sessions, user_id ON DELETE CASCADE,
+  expires_at reset to 30 days out by every authenticated request); 11.10
+  records the createApp construction seam (synchronous, no I/O, injected
+  DbClient and auth configuration, environment fallback); 9.2 gains the
+  unverified-email page's normative copy. In support: 11.6 records the tz
+  carrier, unconditional Secure, and the dev-login flag and build-exclusion
+  semantics; 11.15 adds the tsc excluded-file emission hazard; 8.1 conditions
+  the login sync on a carried tz and ignores tzdb aliases; the RFC 0001 P1
+  row now names the P1 session order, adding the API and Contract role for
+  the shared schemas its Owns section already covers. AC-007 and AC-113 are
+  unblocked for the Adversarial Test role.
 - At the P0 merge, spec 11.5 now records the sanctioned migrator's verified
   behavior, one transaction per run rather than per file, with the external
   fact and its revisit trigger as section 13 item 16; 11.1's second-instance
