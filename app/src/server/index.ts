@@ -8,16 +8,12 @@ import { pino } from 'pino'
 
 import { createDbClient } from '../../db/client.js'
 import type { DbClient } from '../../db/client.js'
+import { createAuthRouter } from './auth/index.js'
+import type { AuthConfig } from './auth/index.js'
+import { errorBody } from './http/errors.js'
 import { healthRouter } from './routes/health.js'
 
 export const logger = pino()
-
-// Section 7.0 fixes the error envelope for the API surface; the scaffold's
-// generic handlers use the same shape so Express never answers an /api path
-// with its default HTML error page.
-function errorBody(code: string, message: string) {
-  return { error: { code, message } }
-}
 
 /**
  * Construction-time configuration for the 11.6 authentication module,
@@ -27,14 +23,12 @@ function errorBody(code: string, message: string) {
  * the production path: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
  * GOOGLE_ISSUER_URL, APP_ORIGIN, OIDC_ALLOW_INSECURE. This object wins over
  * all five.
+ *
+ * The type is the auth module's own, re-exported rather than restated: it
+ * describes that module's configuration, and two copies of one interface are
+ * two things that can disagree.
  */
-export interface AuthConfig {
-  issuerUrl: string
-  clientId: string
-  clientSecret: string
-  appOrigin: string
-  allowInsecureRequests: boolean
-}
+export type { AuthConfig }
 
 /** The construction seam of 11.10. */
 export interface AppOptions {
@@ -65,13 +59,25 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.use('/api/health', healthRouter)
 
-  // The frozen /api/v1 surface mounts here as later packages land, always
-  // before this catch-all so unknown API paths answer JSON, not the SPA.
-  // Route modules receive options.dbClient and options.auth from this scope.
-  // Two rules bind the future auth mount: DANA_DEV_LOGIN is read here at
-  // call time, never at module load (11.6), and the dev-login loader must
-  // use a computed import specifier that treats a failed load as 404, or
-  // tsc would emit the module tsconfig.build.json excludes (11.15).
+  // The frozen /api/v1 surface. The 7.1 auth and account endpoints mount
+  // first, by the request recorded in src/server/auth/README.md; later
+  // packages add their routers here, and every one of them stays ahead of
+  // the catch-all below so unknown API paths answer JSON, not the SPA.
+  //
+  // Both options are handed straight through and both may be absent, which
+  // is what 11.10 requires of this seam: createAuthRouter is synchronous,
+  // opens nothing, and resolves the issuer lazily, so an application built
+  // without configuration still builds and a route-presence probe still
+  // works. The two rules that bind this mount are honored inside the module
+  // rather than here: DANA_DEV_LOGIN is read at this call, never at module
+  // load (11.6), and the dev-login loader uses a computed specifier and
+  // treats a failed load as 404, because tsc would otherwise emit the module
+  // tsconfig.build.json excludes (11.15).
+  app.use(
+    '/api/v1',
+    createAuthRouter({ dbClient: options.dbClient, auth: options.auth }),
+  )
+
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))
   })
