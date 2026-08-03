@@ -4,9 +4,9 @@ Configuration and discovery for the Google OIDC client (11.6, openid-client 6).
 Two rules from 11.10 shape this file. The construction seam is synchronous and
 performs no I/O, so discovery cannot happen while the application is being
 built; it happens on the first request that needs it and is memoized from
-then on. And the issuer is injectable, because a module that hardcodes
-accounts.google.com cannot be tested at all: options win over the environment
-variables that remain the production path.
+then on, on success only (see OidcClient below). And the issuer is injectable,
+because a module that hardcodes accounts.google.com cannot be tested at all:
+options win over the environment variables that remain the production path.
 
 allowInsecureRequests is passed to discovery rather than applied afterwards,
 because the metadata request itself is the first http call and would otherwise
@@ -77,24 +77,48 @@ export function callbackUrl(config: AuthConfig): string {
   return `${config.appOrigin.replace(/\/$/, '')}/api/v1/auth/google/callback`
 }
 
-/** Lazy, memoized discovery: one metadata request per configuration, ever. */
+/**
+ * Lazy discovery, memoized on success only: one metadata request per
+ * configuration for as long as that request succeeded.
+ *
+ * The success-only part is the whole of it. Memoizing the promise itself
+ * caches a rejection just as durably as a result, so a single transient
+ * failure of the first metadata fetch (a DNS blip, a cold-start timeout
+ * against the issuer) would disable sign-in for the life of the process and
+ * be repaired only by a restart nobody knew to perform. The suite cannot see
+ * that: its stub issuer always answers. Platform found it by reading, and it
+ * is the kind of failure that arrives at 03:00 on the day Google's endpoint
+ * is briefly slow.
+ *
+ * A failed attempt clears the field so the next request tries again, and
+ * clears it only if it is still its own attempt, so a late rejection can
+ * never discard a good configuration that replaced it. Callers that were
+ * already awaiting the failed attempt still see the failure, because they
+ * asked during it.
+ */
 export class OidcClient {
   private configuration: Promise<Configuration> | undefined
 
   constructor(readonly config: AuthConfig) {}
 
   async configure(): Promise<Configuration> {
-    this.configuration ??= discovery(
-      new URL(this.config.issuerUrl),
-      this.config.clientId,
-      { client_secret: this.config.clientSecret },
-      ClientSecretPost(this.config.clientSecret),
-      {
-        execute: this.config.allowInsecureRequests
-          ? [allowInsecureRequests, enableNonRepudiationChecks]
-          : [enableNonRepudiationChecks],
-      },
-    )
+    if (this.configuration === undefined) {
+      const attempt: Promise<Configuration> = discovery(
+        new URL(this.config.issuerUrl),
+        this.config.clientId,
+        { client_secret: this.config.clientSecret },
+        ClientSecretPost(this.config.clientSecret),
+        {
+          execute: this.config.allowInsecureRequests
+            ? [allowInsecureRequests, enableNonRepudiationChecks]
+            : [enableNonRepudiationChecks],
+        },
+      ).catch((error: unknown) => {
+        if (this.configuration === attempt) this.configuration = undefined
+        throw error
+      })
+      this.configuration = attempt
+    }
     return this.configuration
   }
 }
