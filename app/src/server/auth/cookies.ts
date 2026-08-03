@@ -93,12 +93,42 @@ export function setSessionCookies(
   })
 }
 
+/**
+ * Drops any Set-Cookie lines already queued for these names. Without it a
+ * response can carry two instructions for one cookie: every authenticated
+ * request refreshes the session cookie's lifetime (10.1's rolling expiry),
+ * and logout and account deletion are authenticated requests, so the response
+ * that destroys a session was also handing the browser a fresh 30-day copy of
+ * it. Browsers apply the last line and the session was gone from the database
+ * either way, so nothing misbehaved; a response that contradicts itself and
+ * relies on header order to come out right is still one nobody should have to
+ * reason about, least of all here.
+ */
+function dropQueuedCookies(res: Response, names: readonly string[]): void {
+  const queued = res.getHeader('Set-Cookie')
+  if (queued === undefined) return
+  const lines = (Array.isArray(queued) ? queued : [String(queued)]).filter(
+    (line) => !names.some((name) => line.startsWith(`${name}=`)),
+  )
+  if (lines.length === 0) res.removeHeader('Set-Cookie')
+  else res.setHeader('Set-Cookie', lines)
+}
+
 export function clearSessionCookies(res: Response): void {
-  for (const name of [SESSION_COOKIE, CSRF_COOKIE]) {
-    res.clearCookie(name, {
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-    })
-  }
+  dropQueuedCookies(res, [SESSION_COOKIE, CSRF_COOKIE])
+  // The attributes match the ones the cookies were set with, httpOnly
+  // included, so the deletion addresses the same cookie rather than a
+  // sibling that differs by one attribute.
+  res.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+  })
+  res.clearCookie(CSRF_COOKIE, {
+    httpOnly: false,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+  })
 }

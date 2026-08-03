@@ -523,6 +523,52 @@ describe('sessions (AC-010, AC-110, AC-113)', () => {
     ).toBe(200)
   })
 
+  test('the logout response does not also reissue the session it destroys', async () => {
+    // Every authenticated request refreshes the cookie's lifetime, and logout
+    // is an authenticated request, so the response carried both a fresh
+    // 30-day session cookie and its deletion. Browsers apply the last line
+    // and the row was gone regardless, but a response that contradicts itself
+    // and comes out right only because of header order is one nobody should
+    // have to reason about. Platform found it reading the mounted app.
+    identity('logout-headers')
+    const { jar } = await signIn()
+
+    const logout = await jar.request(`${origin}/api/v1/auth/logout`, {
+      method: 'POST',
+    })
+    expect(logout.status).toBe(204)
+
+    for (const name of ['dana_session', 'dana_csrf']) {
+      const lines = logout.setCookie.filter((line) => line.startsWith(`${name}=`))
+      expect(
+        lines.length,
+        `the logout response carries ${String(lines.length)} instructions for ${name}: ${lines.join(' | ')}`,
+      ).toBe(1)
+      expect(
+        lines[0],
+        `the one ${name} line must be a deletion, not a reissue`,
+      ).toMatch(/Expires=Thu, 01 Jan 1970/)
+    }
+  })
+
+  test('the account deletion response does not reissue cookies either', async () => {
+    identity('delete-headers')
+    const { jar } = await signIn()
+
+    const deletion = await jar.request(`${origin}/api/v1/me`, {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ confirm: 'DELETE' }),
+    })
+    expect(deletion.status).toBe(204)
+
+    for (const name of ['dana_session', 'dana_csrf']) {
+      expect(
+        deletion.setCookie.filter((line) => line.startsWith(`${name}=`)),
+      ).toHaveLength(1)
+    }
+  })
+
   test('a forged or malformed identifier answers 401, never 500 (AC-110)', async () => {
     for (const value of [
       `forged-${randomUUID()}`,
