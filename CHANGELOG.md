@@ -29,6 +29,14 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Frozen 7.0 amended at the P2 kickoff, 2026-08-04: the human owner accepted
+  verbatim the clarifying sentence offered at the P1 merge, so the 400 bullet
+  now reads that a body not parsing as JSON, or parsing to something other
+  than an object, is malformed, while on a parsed object unknown fields are
+  tolerated and wrong types answer 422 naming the field. No criterion is
+  invalidated: AC-009 already pins the 422 half, and the two code edges
+  answering otherwise today remain the named deviation Platform lands at its
+  next boot-file touch, which the P2 merge gate holds.
 - Merge-review rulings at the P1 merge, 2026-08-03. By the human owner:
   frozen 7.1 now names PATCH /me's response body (the GET /me object,
   behavior unchanged), and the email collision across google_sub is parked

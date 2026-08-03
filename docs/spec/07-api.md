@@ -5,7 +5,7 @@
 Base path /api/v1. JSON bodies. Authentication: server session established by Google OAuth; every endpoint below requires it except the auth endpoints themselves. Mutations require a CSRF token header when cookie sessions are used (section 10.1).
 
 Error envelope: { "error": { "code": string, "message": string } }. Status usage, uniform:
-- 400 malformed request (unparseable body, unknown fields tolerated but wrong types not).
+- 400 malformed request: a body that does not parse as JSON, or parses to something other than an object. On a parsed object, unknown fields are tolerated and wrong types are not: they are validation failures answering 422 with the field named.
 - 401 no valid session.
 - 403 authenticated, resource visible, action not permitted by the matrix in 5.4.
 - 404 resource nonexistent, or existent but not accessible to V. Inaccessible always reads as 404, never 403, to avoid existence leaks.
