@@ -33,6 +33,11 @@ touch the database answer 500 when called without `options.dbClient`, and the
 issuer is resolved lazily on the first request that needs it, so a bare
 `createApp()` still builds and AC-114's route-presence probe still works.
 
+The router also exports the 11.3 middleware (`attachSession`, `requireSession`,
+`requireCsrf`, `sessionOf`) from `./auth/index.js`. P2 onward mount their own
+routers behind those three, in that order; persona 06's Handoff calls the order
+a stable interface.
+
 **2. Nothing else about the dev-login route needs wiring.** The computed
 specifier and the treat-a-failed-load-as-404 rule of 11.15 live inside
 `router.ts`; the comment at the current mount point in `index.ts` describes
@@ -64,6 +69,27 @@ rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
 | `account.ts` | `/me`, and the 8.10 deletion stub the P1 row places here |
 | `pages.ts` | The 9.2 unverified-email page and the generic refusal |
 | `dev-login.ts` | Excluded from production builds; see 11.6 and 11.15 |
+
+## Open items for the Steward
+
+- **openid-client does not verify the ID token signature in the code flow by
+  default**, as OIDC Core 3.1.3.7 item 6 permits, which AC-106 forbids.
+  `oidc.ts` switches on `enableNonRepudiationChecks`; verified against the
+  installed version, a rogue-key token signed in without it. Protocol section 6
+  routes a library-versus-specification difference to the Steward and asks for
+  it in spec section 13, which is not this role's path to write.
+- **An email collision with a different `google_sub` is unruled.** 7.1 makes
+  provisioning idempotent under `google_sub` only; a new subject claiming an
+  email that already belongs to an active account hits
+  `users_email_active_idx`. The callback refuses cleanly rather than crashing,
+  but which account should win is a product decision. Section 13 item 1 (the
+  Gmail dotted-variant claim) is the same question from another angle.
+- **In-memory pending authorizations are a fourth item for 11.1's
+  single-instance checklist**, which today names three (rate limiting, the
+  reminder tick, the boot migration run).
+- **`sessions` has no index on `user_id`**, which the deletion path and the
+  10.1 cascade both scan. `app/db` is the Data engineer's path; worth an 0003
+  if P9's sweep agrees it matters.
 
 ## Two decisions worth knowing before changing anything
 
