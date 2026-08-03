@@ -31,11 +31,29 @@ export function sendError(
   res.status(status).json(errorBody(code, message))
 }
 
+/**
+ * 10.3's 422, with every failing field named in one message.
+ *
+ * An issue with an empty path is not about a field: it is the body itself
+ * being something other than the object the endpoint takes, which is what a
+ * request with no JSON content type produces, since nothing parsed a body for
+ * the schema to see. Those answer a sentence a person can act on rather than
+ * the validator's own phrasing, which would surface "expected object,
+ * received undefined" to a caller who never mentioned an object.
+ */
 export function sendValidationError(res: Response, error: ZodError): void {
-  const problems = error.issues.map((issue) =>
-    issue.path.length === 0
-      ? issue.message
-      : `${issue.path.map(String).join('.')}: ${issue.message}`,
+  const fieldIssues = error.issues.filter((issue) => issue.path.length > 0)
+  if (fieldIssues.length === 0) {
+    sendError(
+      res,
+      422,
+      'validation_failed',
+      'A JSON object body is required.',
+    )
+    return
+  }
+  const problems = fieldIssues.map(
+    (issue) => `${issue.path.map(String).join('.')}: ${issue.message}`,
   )
   sendError(res, 422, 'validation_failed', `${problems.join('; ')}.`)
 }
