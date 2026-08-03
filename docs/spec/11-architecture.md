@@ -8,7 +8,7 @@ One deployable: a single Node process runs the Express API, serves the static la
 
 Three structural rules, each load-bearing:
 
-- **Single instance.** Exactly one instance runs in production. Rate limiting (10.4) is in-memory, the reminder tick (11.7) is in-process, and the boot-time migration run (11.5) takes no lock; all three assume it. A second instance requires moving rate limits to a shared store, electing a single tick owner, and serializing the migration run, and must be flagged before it happens, never discovered after.
+- **Single instance.** Exactly one instance runs in production. Rate limiting (10.4) is in-memory, the reminder tick (11.7) is in-process, the boot-time migration run (11.5) takes no lock, and the auth module's pending-authorization records (11.6) live in process memory; all four assume it. A second instance requires moving rate limits to a shared store, electing a single tick owner, serializing the migration run, and relocating the pending-authorization records beside the rate limits, and must be flagged before it happens, never discovered after.
 - **The API of section 7 is the only mutation path.** All client data access is fetch calls to /api/v1. No server-side rendering of application data exists, and no code path touches the database without passing the 10.2 chokepoint middleware. This is why the SPA-plus-API shape was chosen: it makes the single chokepoint architectural rather than merely mandated.
 - **Forward-only migrations** (11.5). There is no down migration; recovery from a bad migration is a fix-forward migration or a restore.
 

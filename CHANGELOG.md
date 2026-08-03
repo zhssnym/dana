@@ -9,6 +9,49 @@ follow Semantic Versioning.
 Planning and design. No software has been released yet.
 
 ### Added
+
+- Package P1 of RFC 0001, authentication: hand-rolled Google OIDC on
+  openid-client 6 per 11.6, with state, nonce, and PKCE validated single-use,
+  ID token signature verification forced on (section 13 item 17), and no
+  Google token persisted; the 10.1 sessions table (migrations 0001 and 0002)
+  storing only sha256 digests of CSPRNG identifiers, with the 30-day rolling
+  expiry checked and extended in one statement; CSRF as a token derived from
+  the session token by HMAC, so the 11.6 binding needs no stored column; the
+  idempotent provisioning transaction; timezone sync per 7.1 and 8.1 with the
+  tzdb-alias rule; the 9.2 unverified-email page; /me, PATCH /me, and DELETE
+  /me with the 8.10 stub the P1 row places in the auth module; a development
+  login excluded from production builds; the shared contract surface (zod
+  schemas, error envelope, the one IANA validator) and the 7.0 envelope
+  helpers; and boot wiring that mounts the surface, scrubs database wrapper
+  messages from 5xx logs, and refuses to start when no sign-in path is
+  configured. The full gate is green with every criterion from AC-001 to
+  AC-010 and AC-105 to AC-115 passing by number.
+
+### Changed
+
+- Merge-review rulings at the P1 merge, 2026-08-03. By the human owner:
+  frozen 7.1 now names PATCH /me's response body (the GET /me object,
+  behavior unchanged), and the email collision across google_sub is parked
+  as section 13 item 19 beside the dotted-variant question it mirrors.
+  Ratified from session disclosures: Data's sessions_token_hash_format_check
+  (transcription of 10.1's digest wording), Platform's 5xx log scrubbing and
+  boot sign-in precondition (both 10.5 and operability wins inside its own
+  file), and Security's HMAC-derived CSRF, which closes the 0003 migration
+  question the 5e01e49 ruling left open. Recorded: section 13 items 17 and
+  18 (openid-client and drizzle library defaults, each with an upgrade
+  revisit trigger) and a fourth entry in 11.1's single-instance checklist
+  (the in-memory pending-authorization store). Ruled on the shape review's
+  findings: the 7.0 taxonomy reading extends to the two edges it found, a
+  body over the parse limit is a body that did not parse (400, not 413) and
+  a parsed body that is not a JSON object is malformed (400), while an
+  object with bad fields stays 422; both edges answer otherwise today, a
+  named deviation Platform lands at its next boot-file touch and the P2
+  merge gate holds. Routed: the sessions.user_id index to the Data engineer
+  pending P9's evidence; account.ts's local body type converging on the
+  shared schema to Security's next touch; criteria-level pinning of the /me
+  shape, envelope, and status taxonomy to the Adversarial Test role's
+  judgment; and the unscheduled 7.2 settings endpoints to the human owner,
+  since no RFC 0001 row claims them and P8's AC-095 will need them.
 - Product design settled over four iterations, from a bullet list to a full
   technical specification: data model, invariants, state machines, query
   specifications, API surface, and 104 acceptance criteria.

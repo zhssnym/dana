@@ -28,7 +28,7 @@ All 7.1 endpoints mount under the 7.0 base path like the rest of this section: G
 - GET /auth/google/callback. Establishes the session. First login runs the provisioning transaction: insert user (google_sub, lowercased email, display_name, avatar_url, timezone from the reported tz, UTC when none was reported), insert default folder name "Inbox" with owner membership, insert user_settings row; the whole transaction is idempotent under the google_sub unique constraint (a concurrent duplicate loses and adopts the winner's rows). Every successful login also syncs users.timezone to the reported tz when one was reported and it differs (8.1); a login carrying no tz syncs nothing. Sign-in is rejected with an explanatory page (copy in 9.2) if Google reports the email unverified. Redirects into the app, which immediately surfaces Q12 pending invites.
 - POST /auth/logout. Destroys the session. 204.
 - GET /me. Returns { user: {id, email, display_name, avatar_url, timezone}, settings, pending_invite_count }.
-- PATCH /me. Body { timezone }. 422 if not IANA. Recomputes fire_at for scheduled reminders on tasks assigned to V (section 8.6). 200.
+- PATCH /me. Body { timezone }. 422 if not IANA. Recomputes fire_at for scheduled reminders on tasks assigned to V (section 8.6). 200, returning the GET /me object, so a client that changed the timezone holds the same truth a fresh GET would give it.
 - DELETE /me. Body { confirm: "DELETE" }, literal string required, else 422. Runs the account deletion transaction (section 8.10), destroys all sessions. 204. Invariants enforced: INV-1, INV-2, INV-10 survive via transfer-before-delete ordering.
 
 ### 7.2 Settings
