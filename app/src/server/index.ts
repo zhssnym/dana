@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { DrizzleQueryError } from 'drizzle-orm'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import { pino } from 'pino'
@@ -48,6 +49,32 @@ export interface AppOptions {
    * createApp itself performs no I/O (11.10).
    */
   clientDist?: string
+}
+
+/*
+A stack safe to log, which a raw one is not once a database is behind the API.
+Drizzle wraps every failed statement in an error whose message embeds the SQL
+and its bound parameters, and Error.stack begins with that message: verified
+here against the installed version, a failed insert put the invite email
+address it was carrying straight into err.stack. Section 10.5 names invite
+email addresses, tokens, and session identifiers as things Dana never logs, so
+the wrapper's message is dropped and its frames, which say where the failure
+happened, are kept. Other errors keep their message, which carries no
+parameters.
+
+The acceptance harness documents the same wrapper for its own reasons
+(app/tests/helpers.ts). P9 folds this into the single 10.5 policy module that
+all emission passes through; until then this is the one place the boot file
+turns an error into a log line.
+*/
+function safeStack(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined
+  const stack = err.stack ?? ''
+  const carriesQuery =
+    err instanceof DrizzleQueryError || err.message.startsWith('Failed query: ')
+  if (!carriesQuery) return stack
+  const frames = stack.indexOf('\n    at ')
+  return frames === -1 ? err.name : `${err.name}${stack.slice(frames)}`
 }
 
 // createApp is synchronous, performs no I/O, and opens no database (11.10):
@@ -101,10 +128,13 @@ export function createApp(options: AppOptions = {}): express.Express {
         ? err.status
         : 500
     // Only method, path, and status: request bodies and headers may carry
-    // fields the 10.5 never-log list forbids once product routes exist.
+    // fields the 10.5 never-log list forbids, and req.path excludes the query
+    // string, which on the auth callback carries the code and state.
     if (status >= 500) {
-      const stack = err instanceof Error ? err.stack : undefined
-      logger.error({ method: req.method, path: req.path, status, stack }, 'request failed')
+      logger.error(
+        { method: req.method, path: req.path, status, stack: safeStack(err) },
+        'request failed',
+      )
       res.status(status).json(errorBody('internal_error', 'Something went wrong.'))
       return
     }
@@ -115,12 +145,44 @@ export function createApp(options: AppOptions = {}): express.Express {
   return app
 }
 
+/*
+Sign-in has exactly two doors: the Google handshake, which needs its three
+secrets and this deployment's origin, and the development login, which needs
+none of them. A process with neither can authenticate nobody, and until this
+check existed it started anyway and answered /api/health with 200, so a deploy
+carrying a typo in an environment variable went green and only the first person
+to try signing in found out.
+
+Refusing to start is the right failure because of what 11.5 already arranges:
+the host keeps the old instance serving until the new one passes its health
+check, so a boot that fails here cancels the deploy instead of replacing a
+working sign-in with a broken one. The variables themselves are the module's
+to interpret (11.10 keeps them the production path behind createApp's options);
+this only asks whether one of the two doors is configured at all.
+*/
+function assertSignInIsPossible(): void {
+  if (process.env.DANA_DEV_LOGIN === '1') return
+  const missing = [
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'APP_ORIGIN',
+  ].filter((name) => (process.env[name] ?? '') === '')
+  if (missing.length === 0) return
+  throw new Error(
+    `sign-in is not configured: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} unset, and DANA_DEV_LOGIN is not enabled`,
+  )
+}
+
 async function main(): Promise<void> {
   // Local development reads the gitignored .env that 11.11 names; production
   // and CI set real environment variables and ship no .env file.
   if (existsSync('.env')) {
     process.loadEnvFile()
   }
+
+  // Before the database, because a misconfigured deploy should fail on the
+  // cheap check rather than after migrating.
+  assertSignInIsPossible()
 
   // 11.10 scopes TEST_DATABASE_URL to the test suite, but the seam falls
   // back to it when no url is passed. Removing it from the boot's own
