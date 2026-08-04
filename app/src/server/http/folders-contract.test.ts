@@ -12,12 +12,11 @@ AC-011 to AC-024's, and nothing here duplicates a criterion; where a
 behavior is exercised (an add, a delete) it exists to produce a body
 worth parsing.
 
-One exactness gap is deliberate: the members' user object is not yet
-pinned key-exact, because the mounted implementation still carries an
-email field the review ruled out of the shape (routed to the
-Collaboration engineer; the shared schema already states the ruled
-form and parsing strips the extra key). The key-exact probe lands when
-that finding does.
+The members' user object is pinned key-exact below. The review deferred
+that one probe while the mounted implementation still carried an email
+field the ruling excluded; the Collaboration engineer's fix landed the
+ruled shape (9653582), and the probe landed with it, reading the raw
+body because a parse strips what exactness exists to notice.
 */
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
@@ -147,6 +146,23 @@ const FOLDER_KEYS = [
   'name',
 ]
 
+/** 7.4's member element, and inside it 7.0's person shape as the review
+ * ruled it: no email, the TaskCard-assignee object. */
+const MEMBER_KEYS = ['is_owner', 'joined_at', 'role', 'user']
+const PERSON_KEYS = ['avatar_url', 'display_name', 'id']
+
+function expectMemberElementExact(element: unknown, where: string): void {
+  const record = element as Record<string, unknown>
+  expect(
+    Object.keys(record).sort(),
+    `${where} must carry exactly the member element keys`,
+  ).toEqual(MEMBER_KEYS)
+  expect(
+    Object.keys(record.user as Record<string, unknown>).sort(),
+    `${where} must carry exactly the ruled person shape, email excluded`,
+  ).toEqual(PERSON_KEYS)
+}
+
 let owner: Person
 let member: Person
 let folderId: string
@@ -218,6 +234,7 @@ describe('the 7.4 shapes against the mounted application', () => {
         : addedParsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
       'the 201 member element does not match the shared schema',
     ).toEqual([])
+    expectMemberElementExact(added.json(), 'the POST members 201 body')
 
     // A pending invite seeded directly: invite rows are P5's surface, and
     // only the element's shape is under test here.
@@ -247,6 +264,11 @@ describe('the 7.4 shapes against the mounted application', () => {
       expect(parsed.data.pending_invites).toHaveLength(1)
       expect(parsed.data.pending_invites[0]?.email).toBe(inviteEmail)
       expect(parsed.data.pending_invites[0]?.task_id).toBeNull()
+    }
+    // Key-exactness reads the raw elements: parsed.data is post-strip and
+    // would hide exactly the extra field this probe exists to refuse.
+    for (const element of (body as { members: unknown[] }).members) {
+      expectMemberElementExact(element, 'a detail members element')
     }
 
     await dbClient.db.execute(
