@@ -102,6 +102,26 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.use(express.json())
 
+  // The amended 7.0 bullet, ruled at the P1 merge and held at this
+  // package's gate: a body that parses to something other than an object is
+  // malformed, 400, exactly like one that does not parse. The parser's
+  // strict mode already refuses the scalar forms; arrays parse, so they are
+  // refused here. The predicate still spells the whole rule rather than the
+  // parser's current share of it, so a parser swap cannot reopen the edge.
+  // undefined is a request that carried no JSON body at all, which is not
+  // this rule's business.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const body: unknown = req.body
+    const nonObject =
+      body !== undefined &&
+      (typeof body !== 'object' || body === null || Array.isArray(body))
+    if (nonObject) {
+      res.status(400).json(errorBody('bad_request', 'Malformed request body.'))
+      return
+    }
+    next()
+  })
+
   app.use('/api/health', healthRouter)
 
   // The frozen /api/v1 surface. The 7.1 auth and account endpoints mount
@@ -138,11 +158,22 @@ export function createApp(options: AppOptions = {}): express.Express {
   }
 
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-    const status =
+    // The other ruled 7.0 edge: the parser refuses an over-limit body with
+    // its own 413, but 413 is not in the taxonomy, and the ruling reads
+    // over-limit as a body that did not parse. Remapped before the status
+    // is read; the type marker was verified against the installed
+    // raw-body, which is where express.json's limit rejection is built.
+    const overLimit =
       typeof err === 'object' &&
       err !== null &&
-      'status' in err &&
-      typeof err.status === 'number'
+      'type' in err &&
+      err.type === 'entity.too.large'
+    const status = overLimit
+      ? 400
+      : typeof err === 'object' &&
+          err !== null &&
+          'status' in err &&
+          typeof err.status === 'number'
         ? err.status
         : 500
     // Only method, path, and status: request bodies and headers may carry
