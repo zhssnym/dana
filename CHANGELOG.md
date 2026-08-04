@@ -48,6 +48,24 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Section 12 gains AC-119 to AC-123 by amendment on branch p2s-settings,
+  2026-08-04, so the criteria merge with the package that satisfies them:
+  the Adversarial Test role's five proposed criteria for frozen 7.2,
+  transcribed unchanged under their own Settings heading, appended from the
+  next free number so no existing number moves. AC-119 pins GET /me/settings
+  to exactly the three booleans at their 4.10 defaults, AC-120 pins any
+  subset with absent fields unchanged and the new values readable from both
+  7.2 and the /me settings key, AC-121 pins 422 naming the field on any
+  non-boolean, AC-122 pins per-account isolation, and AC-123 pins frozen
+  7.2's own no-data-changes sentence as row-for-row stillness outside
+  user_settings. Recorded with them, two readings of the frozen text rather
+  than changes to it, the my-membership pattern of the P2 merge: the empty
+  subset is a subset, answering 200 and changing nothing, and null is a
+  wrong-typed value rather than a clear, because 4.10's columns are NOT NULL
+  booleans with defaults where 7.4's label and color are marked nullable by
+  the frozen text itself. Housekeeping in the same pass: the section 12 row
+  of the spec index, stale by three since the mid-P2 amendment, now reads
+  AC-001 to AC-123.
 - Merge rulings at the P2 merge, 2026-08-04. By the human owner: frozen
   7.4 gains the four response-shape sentences the shape review settled,
   transcribed at the merge: GET /folders answers the bare array, the
