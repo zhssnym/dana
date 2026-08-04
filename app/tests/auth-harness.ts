@@ -54,10 +54,34 @@ export interface AuthConfig {
   allowInsecureRequests: boolean
 }
 
+/*
+What the notification module (11.8) hands the transport when it would send.
+Spec 11.8 fixes three templates (invite, share grant, reminder) and that in
+tests the module logs instead of sending; it fixes no call shape. The suite
+needs the send observable because AC-024 counts share-grant emails, so the
+harness offers this sink through the same construction seam that carries the
+database handle, and normalizes whatever arrives rather than dictating key
+names. The seam is assumed here exactly as options.dbClient once was, and is
+escalated to the Integration Steward for ratification into 11.10.
+*/
+export interface OutboundEmail {
+  template: string
+  to: string
+  raw: unknown
+}
+
+export interface EmailRecorder {
+  sent(): readonly OutboundEmail[]
+  /** Emails whose template names the 11.8 share-grant one. */
+  shareGrants(): readonly OutboundEmail[]
+  clear(): void
+}
+
 export interface AppOptions {
   /** Named as the boot file already names its own (src/server/index.ts). */
   dbClient?: DbClient
   auth?: AuthConfig
+  notifications?: { send(message: unknown): void | Promise<void> }
 }
 
 type AppFactory = (
@@ -91,8 +115,60 @@ export interface AuthTestApp {
   dbClient: DbClient
   db: Db
   stub: OidcStub
+  /** Every outbound email the application attempted, via the injected sink. */
+  emails: EmailRecorder
   browser(): TestBrowser
   close(): Promise<void>
+}
+
+/*
+Field names are normalized by property rather than fixed by name, the same
+philosophy as cookie identification: 11.8 fixes that a send has a template
+and a recipient, not what the implementation calls them. A template counts
+as the share-grant one when its words contain "share" and "grant" in order,
+which admits share_grant, share-grant, shareGrant, and SHARE GRANT alike
+while refusing the invite and reminder templates.
+*/
+function normalizeEmail(message: unknown): OutboundEmail {
+  const record =
+    typeof message === 'object' && message !== null
+      ? (message as Record<string, unknown>)
+      : {}
+  const firstString = (keys: readonly string[]): string => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === 'string' && value !== '') return value
+    }
+    return ''
+  }
+  return {
+    template: firstString(['template', 'kind', 'type', 'name']),
+    to: firstString(['to', 'recipient', 'email', 'address']),
+    raw: message,
+  }
+}
+
+function isShareGrantTemplate(template: string): boolean {
+  return /share[\s_-]?grant/i.test(template)
+}
+
+function createEmailRecorder(): EmailRecorder & {
+  sink: { send(message: unknown): void }
+} {
+  const recorded: OutboundEmail[] = []
+  return {
+    sink: {
+      send(message: unknown): void {
+        recorded.push(normalizeEmail(message))
+      },
+    },
+    sent: () => [...recorded],
+    shareGrants: () =>
+      recorded.filter((email) => isShareGrantTemplate(email.template)),
+    clear: () => {
+      recorded.length = 0
+    },
+  }
 }
 
 /*
@@ -137,7 +213,8 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
   process.env.APP_ORIGIN = auth.appOrigin
   process.env.OIDC_ALLOW_INSECURE = '1'
 
-  const app = await startApp({ dbClient, auth })
+  const emails = createEmailRecorder()
+  const app = await startApp({ dbClient, auth, notifications: emails.sink })
   server.on('request', app)
 
   const testApp: AuthTestApp = {
@@ -145,6 +222,7 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
     dbClient,
     db: dbClient.db,
     stub,
+    emails,
 
     browser() {
       return new TestBrowser(origin)
