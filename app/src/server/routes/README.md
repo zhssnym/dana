@@ -6,6 +6,12 @@ protocol, section 3). This file is where those requests live, the same
 convention as `src/server/auth/README.md` at P1. `health.ts` is Platform's
 own and already mounted; entries below concern the rest.
 
+Ownership, ruled at the P2 merge: this directory is shared by file, each
+route file belonging to its route's owner, and this README is the shared
+wiring ledger. Each role appends the section for its own router; the
+Platform engineer, who executes the requests, may annotate or prune an
+entry once it is fulfilled.
+
 ## folders router (P2, Collaboration and Permissions)
 
 Requested wiring, one line in createApp, after the auth router's mount and

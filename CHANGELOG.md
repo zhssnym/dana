@@ -10,6 +10,18 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Package P2 of RFC 0001, folders and membership: the full 7.4 surface
+  (folder CRUD, member add and remove under 5.3's guards and 5.4's matrix,
+  the personal label and color membership PATCH, R-CLEAN on every removal
+  and leave, 8.9 ownership transfer, 8.11 counts inside the Folder object)
+  behind shared zod schemas for every body and response; the notify
+  module's send-or-log transport behind the ratified options.notifications
+  sink, observed by AC-021 and AC-024; the ruled 7.0 edge mapping in the
+  boot file, an over-limit or non-object body answering 400 with no side
+  effects; and the settled 7.4 response shapes pinned by shared response
+  schemas and a key-exact contract test against the mounted application.
+  The full gate is green at 353 tests across 50 files, AC-011 to AC-024
+  and AC-116 to AC-118 passing by number beside the P0 and P1 ranges.
 - Package P1 of RFC 0001, authentication: hand-rolled Google OIDC on
   openid-client 6 per 11.6, with state, nonce, and PKCE validated single-use,
   ID token signature verification forced on (section 13 item 17), and no
@@ -26,9 +38,37 @@ Planning and design. No software has been released yet.
   messages from 5xx logs, and refuses to start when no sign-in path is
   configured. The full gate is green with every criterion from AC-001 to
   AC-010 and AC-105 to AC-115 passing by number.
+- Package P0 of RFC 0001, the first code: the `app/` package and toolchain
+  (Node 24, TypeScript strict, ESM, Vite 8, Vitest 4, ESLint 9), CI in the
+  11.11 step order with the postgres:18 leg, a boot file that applies
+  migrations before /api/health reports ready, one hand-authored migration
+  realizing every constraint and index of spec section 4 by name, the seed
+  dataset, the PGlite or Postgres database seam, and acceptance tests AC-001
+  to AC-004.
 
 ### Changed
 
+- Merge rulings at the P2 merge, 2026-08-04. By the human owner: frozen
+  7.4 gains the four response-shape sentences the shape review settled,
+  transcribed at the merge: GET /folders answers the bare array, the
+  detail's invite key is pending_invites carrying 7.4's five element
+  fields, the members' user object is the TaskCard assignee person shape
+  with no email, and each 7.4 mutation answers what a fresh GET would.
+  Ratified from disclosure, the token_hash-CHECK pattern: the API
+  engineer's any-subset reading of the my-membership PATCH (absent
+  unchanged, null clears, a present value must be valid), grounded in
+  section 7's own PATCH conventions elsewhere and the order AC-023
+  requires, validate then delegate. Recorded by the Steward: section 13
+  item 20, the folder list's deliberate absence from the capped lists,
+  with its social bound and revisit trigger; and routes/README.md stays
+  where it is, ruled the routes directory's shared wiring ledger, each
+  role appending its own router's section and Platform annotating as
+  executor. Carried forward, not merge-blocking: the 8.10 stub still
+  holds only steps 7 and 8 until the Collaboration packages land the
+  real transaction; domain/db.ts is the third private copy of the row
+  and transaction adapters, consolidation flagged for P9; Security's
+  account.ts type convergence waits at its P2S touch; the
+  sessions.user_id index waits at Data on P9 evidence.
 - Mid-P2 ruling, 2026-08-04, on branch p2-folders so it merges with its
   package: the notification observability seam. AC-024 counts a share-grant
   email that 11.8 keeps unsent under test and 10.5 keeps out of the logs, so
@@ -129,16 +169,6 @@ Planning and design. No software has been released yet.
 - The team definitions rebuilt against the chosen architecture; the RFC process
   and template, with RFC 0001 written in full; the design brief for the
   designer; the operator runbook written in full.
-- Package P0 of RFC 0001, the first code: the `app/` package and toolchain
-  (Node 24, TypeScript strict, ESM, Vite 8, Vitest 4, ESLint 9), CI in the
-  11.11 step order with the postgres:18 leg, a boot file that applies
-  migrations before /api/health reports ready, one hand-authored migration
-  realizing every constraint and index of spec section 4 by name, the seed
-  dataset, the PGlite or Postgres database seam, and acceptance tests AC-001
-  to AC-004.
-
-### Changed
-
 - Mid-P1 rulings of 2026-08-02, on branch `p1-auth`. The sessions identifier
   column, escalated by the Data session, is ruled as 10.1's fourth fixed
   fact: a token_hash text primary key holding the lowercase hex sha256
