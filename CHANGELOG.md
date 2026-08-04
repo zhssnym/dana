@@ -41,6 +41,17 @@ Planning and design. No software has been released yet.
   HTTP-level Resend double (contrary to 11.8's no-send rule). The harness
   assumed the seam in exactly one typed place, as options.dbClient once was
   before its P1 ratification.
+- Section 12 gains AC-116 to AC-118 by mid-P2 amendment on the package
+  branch, the Adversarial Test role's yes on the criteria-level pinning
+  routed to its judgment at the P1 merge: AC-116 pins the GET and PATCH /me
+  bodies to exactly the 7.1 object, AC-117 pins the 7.0 envelope with
+  non-empty code and message on every 4xx of the mounted surface (presence,
+  not exclusivity: a future structured error key beside message stays open),
+  and AC-118 pins the amended 7.0 taxonomy, unparseable, non-object, and
+  over-limit bodies answering 400 with no side effects, wrong-typed fields
+  answering 422 naming the field, unknown fields ignored. Appended from the
+  next free number, so the P2S settings criteria start at AC-119. AC-118
+  rides the P2 merge gate that already holds the 400 mapping.
 - Frozen 7.0 amended at the P2 kickoff, 2026-08-04: the human owner accepted
   verbatim the clarifying sentence offered at the P1 merge, so the 400 bullet
   now reads that a body not parsing as JSON, or parsing to something other
