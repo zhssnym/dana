@@ -159,6 +159,56 @@ describe('AC-014: deleting a custom folder removes everything it holds', () => {
     ).toEqual({ pending: 2, completed: 1 })
   })
 
+  test('AC-014 adversarial: the detail lists exactly the pending invites before the delete', async () => {
+    // The key is pending_invites, settled at the shape review and ruled
+    // into frozen 7.4, and pending is the word: the declined invite seeded
+    // beside the two live ones must not appear. Element fields are frozen
+    // 7.4's five.
+    const { owner, folderId, doomedInviteIds } = await stage()
+    const [pendingPlain, pendingWithTask, declined] = doomedInviteIds
+    if (
+      pendingPlain === undefined ||
+      pendingWithTask === undefined ||
+      declined === undefined
+    ) {
+      throw new Error('stage must seed three invites')
+    }
+
+    const response = await owner.browser.api(`/folders/${folderId}`)
+    expectStatus(
+      response,
+      200,
+      'GET /folders/:id answers the detail to a member (spec 7.4)',
+    )
+    const detail = response.json() as { pending_invites?: unknown }
+    expect(
+      Array.isArray(detail.pending_invites),
+      'the detail carries its invites under pending_invites (7.4 as ruled at the shape review)',
+    ).toBe(true)
+    const invites = detail.pending_invites as Record<string, unknown>[]
+
+    expect(
+      invites.map((invite) => String(invite.id)).sort(),
+      'exactly the two pending invites are listed, never the declined one (7.4, 5.2 terminal states)',
+    ).toEqual([pendingPlain, pendingWithTask].sort())
+
+    for (const invite of invites) {
+      for (const field of ['id', 'email', 'task_id', 'created_at', 'last_sent_at']) {
+        expect(
+          field in invite,
+          `each pending_invites element carries ${field} (spec 7.4)`,
+        ).toBe(true)
+      }
+    }
+    const carrying = invites.find((invite) => String(invite.id) === pendingWithTask)
+    expect(carrying, 'the task-carrying invite must be listed').toBeDefined()
+    const { doomedTaskIds } = await stage()
+    expect(
+      String(carrying?.task_id),
+      'the task-carrying invite lists exactly the task it rides (spec 7.4)',
+    ).toBe(doomedTaskIds[1])
+  })
+
   test('AC-014: the delete answers 200 with the exact deleted counts', async () => {
     const { owner, folderId } = await stage()
     const response = await owner.browser.api(`/folders/${folderId}`, {

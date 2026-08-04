@@ -104,6 +104,13 @@ describe('AC-023: label and color are personal to the member who set them', () =
       'the member reads their own label back (spec 7.0 Folder shape)',
     ).toBe('Deep work')
     expect(mine?.my_color).toBe('#AB12CD')
+    // Ruled at the shape review into frozen 7.4: mutations answer what a
+    // fresh GET would, here the Folder object with the writer's own label
+    // and color already on it.
+    expect(
+      response.json(),
+      'the my-membership PATCH body must equal the folder entry a fresh GET answers (7.4 as ruled at the shape review)',
+    ).toEqual(mine)
   })
 
   test('AC-023: the other member sees no label change', async () => {

@@ -67,7 +67,7 @@ afterAll(async () => {
 })
 
 describe('AC-012: the owner renames and every member reads the new name', () => {
-  test('AC-012: the owner rename answers 200', async () => {
+  test('AC-012: the owner rename answers 200 with the Folder a fresh GET reads', async () => {
     const { owner, folderId } = await stage()
     const response = await owner.browser.json(`/folders/${folderId}`, 'PATCH', {
       name: 'p2 ac012 renamed',
@@ -77,6 +77,14 @@ describe('AC-012: the owner renames and every member reads the new name', () => 
       200,
       'PATCH /folders/:id by the owner must answer 200 (spec 7.4)',
     )
+    // Ruled at the shape review into frozen 7.4: mutations answer what a
+    // fresh GET would, so the PATCH body is the Folder object as the list
+    // then reads it, the PATCH /me convention carried over.
+    const fresh = await folderInList(owner, folderId)
+    expect(
+      response.json(),
+      'the rename body must equal the folder entry a fresh GET answers (7.4 as ruled at the shape review)',
+    ).toEqual(fresh)
   })
 
   test('AC-012: every member reads the new name', async () => {

@@ -93,6 +93,32 @@ describe('AC-024: a roster add admits the target and mails them once', () => {
       await membershipUserIds(app.db, folderId),
       'the membership row must exist (spec 5.3)',
     ).toContain(target.id)
+
+    // Ruled at the shape review into frozen 7.4: POST members answers the
+    // member element it created, and the person inside is 7.0's shape
+    // without email, an address co-members have no claim to.
+    const body = response.json() as {
+      user?: Record<string, unknown>
+      role?: unknown
+      is_owner?: unknown
+      joined_at?: unknown
+    }
+    expect(
+      body.user?.id,
+      'the 201 body is the member element it created (7.4 as ruled at the shape review)',
+    ).toBe(target.id)
+    expect(
+      Object.keys(body.user ?? {}).sort(),
+      'the created element carries the person shape and no email (7.4 as ruled at the shape review)',
+    ).toEqual(['avatar_url', 'display_name', 'id'])
+    expect(body.role, 'the role column admits only member (spec 4.4, 8.9)').toBe(
+      'member',
+    )
+    expect(body.is_owner, 'the added member is no owner (spec 8.9)').toBe(false)
+    expect(
+      typeof body.joined_at,
+      'the element carries its join instant (spec 7.4)',
+    ).toBe('string')
   })
 
   test('AC-024: exactly one share-grant email went to the target', async () => {
@@ -143,6 +169,17 @@ describe('AC-024: a roster add admits the target and mails them once', () => {
       members.filter((member) => member.is_owner === true).length,
       'exactly one element carries is_owner true (spec 7.4, 8.9)',
     ).toBe(1)
+    for (const element of members) {
+      const user = (element as { user?: unknown }).user
+      expect(
+        typeof user === 'object' && user !== null,
+        'each members element carries its person object (spec 7.4)',
+      ).toBe(true)
+      expect(
+        Object.keys(user as Record<string, unknown>).sort(),
+        'every member user object is the 7.0 person shape and carries no email (7.4 as ruled at the shape review)',
+      ).toEqual(['avatar_url', 'display_name', 'id'])
+    }
   })
 
   test('AC-024 adversarial: the owner adding from their roster works the same way', async () => {

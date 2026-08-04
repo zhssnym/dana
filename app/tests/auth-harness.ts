@@ -89,20 +89,19 @@ type AppFactory = (
 ) => ReturnType<typeof createApp> | Promise<ReturnType<typeof createApp>>
 
 /*
-createApp takes no arguments today and never opens a database; boot does that
-(src/server/index.ts). Under the default PGlite backend the suite's database is
-an in-memory handle that cannot be passed by connection string, so the
-application has to receive the DbClient object itself. That file belongs to the
-Platform role, so this suite cannot add the parameter, and the exact signature
-is escalated to the Integration Steward.
+The seam is 11.10's, ratified in full and implemented: options.dbClient and
+options.auth at the P1 rulings, options.notifications at the mid-P2 one.
+Under the default PGlite backend the suite's database is an in-memory handle
+that cannot arrive as a connection string, which is why the DbClient is
+passed as an object.
 
-The double assertion is deliberate rather than lazy. A plain structural
-assignment would break the typecheck gate the day the parameter lands as
-required rather than optional, or the factory turns async, and a suite that
-fails on typecheck fails for the wrong reason. This absorbs any of those
-shapes; the calls below await the result, so sync and async factories both
-work. It is the single place the seam is assumed, and it is what the
-escalation ratifies.
+The double assertion outlives the ratification for two reasons. AppOptions
+here restates 11.10 rather than importing createApp's own parameter type,
+because this suite measures that signature and cannot borrow its definition
+of correct. And the assertion absorbs signature evolution (a parameter
+turning required, the factory turning async; the calls below await the
+result either way), so a seam change fails this suite on the behavior it
+asserts rather than on the typecheck gate, which would name nothing.
 */
 const startApp = createApp as unknown as AppFactory
 

@@ -351,10 +351,13 @@ export interface FolderListEntry extends Record<string, unknown> {
 }
 
 /*
-7.0 fixes the Folder object and 7.4 the list's order; neither fixes a
-wrapper. A bare array is taken as written, and a single array-valued key is
-tolerated rather than pinned, the same philosophy as identifying cookies by
-property. Anything else fails here, once, with the section named.
+Settled at 04's shape review and ruled into frozen 7.4 by the human owner
+(grounds in src/shared/folders.ts, commit 7a40172; the Steward transcribes
+the sentence at the merge): GET /folders answers the bare array, because
+7.10's wrapped responses are the ones carrying more than rows. The
+single-wrapper-key tolerance this helper held while the shape was open is
+gone with the openness; a wrapper is a contract violation now and fails
+here, once, with the ruling named.
 */
 export async function listFolders(actor: Actor): Promise<FolderListEntry[]> {
   const response = await actor.browser.api('/folders')
@@ -364,18 +367,11 @@ export async function listFolders(actor: Actor): Promise<FolderListEntry[]> {
     'GET /folders must answer the accessible folders (spec 7.4)',
   )
   const body = response.json()
-  let list: unknown[] | undefined
-  if (Array.isArray(body)) {
-    list = body
-  } else if (typeof body === 'object' && body !== null) {
-    const arrays = Object.values(body).filter((value) => Array.isArray(value))
-    if (arrays.length === 1) list = arrays[0] as unknown[]
-  }
   expect(
-    list,
-    'GET /folders must answer Folder objects, bare or under one list key (spec 7.4)',
-  ).toBeDefined()
-  return list as FolderListEntry[]
+    Array.isArray(body),
+    'GET /folders answers the bare array of Folder objects (7.4 as ruled at the shape review)',
+  ).toBe(true)
+  return body as FolderListEntry[]
 }
 
 export async function folderInList(
