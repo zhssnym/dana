@@ -10,6 +10,20 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Package P2S of RFC 0001, the settings surface: frozen 7.2's GET and PATCH
+  /me/settings, mounted in the auth router beside the 7.1 account endpoints
+  because they speak for one authenticated person and take no id at all, so
+  every statement is keyed by the session's user id and nothing the request
+  carries; the 7.2 object declared once in the shared contract and reused by
+  the GET body, the ruled PATCH body, and the settings key of GET /me, which
+  retires the inline copy the /me response schema carried since P1; a PATCH
+  naming only the columns its body carried, which is what lets two concurrent
+  disjoint subsets compose instead of one overwriting the other from a stale
+  read, and which answers from RETURNING so the ruled fresh-GET body is the
+  row the write produced; and account.ts's local MeBody interface converged
+  on the shared response type, the one-line item carried since the P1 merge
+  review. The full gate is green at 404 tests across 57 files, AC-119 to
+  AC-123 passing by number beside the P0, P1, and P2 ranges.
 - Package P2 of RFC 0001, folders and membership: the full 7.4 surface
   (folder CRUD, member add and remove under 5.3's guards and 5.4's matrix,
   the personal label and color membership PATCH, R-CLEAN on every removal
@@ -48,6 +62,82 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Merge rulings at the P2S merge, 2026-08-05. By the human owner, pre-ruled on
+  the shape review's routed finding: the malformed-body status turns on the
+  content-type header rather than on whether the body parses, so identical
+  unparseable bytes answer 400 under application/json and 422 under text/plain
+  or under none at all. Verified at this merge against the running application
+  on both /me and /me/settings, so it is uniform and it is pre-existing: it
+  falls out of two P1 decisions, express.json parsing only matching content
+  types, and the empty-path branch of the validation helper answering "A JSON
+  object body is required", which that file's own comment anticipated. Option
+  (a) accepted, no code change: frozen 7.0's 400 bullet gains the scoping
+  sentence, that the bullet governs bodies presented as JSON, and that a
+  request claiming no JSON content type presents nothing to parse whatever
+  bytes it carries, so an endpoint needing a body answers 422 for the body it
+  did not receive rather than 400 for one it could not read. Under the
+  Steward's own change control, AC-118's sentence is clarified to match, "a
+  body presented as JSON that does not parse" where it read "a body that does
+  not parse as JSON". No test changes and the number keeps its meaning: every
+  AC-118 raw-body probe sets application/json explicitly and always did, so the
+  criterion tested the ruled reading already while its sentence, read
+  literally, claimed a status the surface does not give. Ratified from
+  disclosure, the token_hash-CHECK pattern: user_settings.updated_at moves on a
+  writing PATCH and stays put on the empty subset. Frozen 4.10 gives the column
+  its default and states no rule for when it moves, where the tasks table's own
+  updated_at row states "touched on every mutation", so the silence is a
+  distinction the frozen schema draws itself, and an empty subset that writes
+  nothing is not a mutation. 4.10 is unchanged; no endpoint exposes the column,
+  and the day one does, the rule becomes contract rather than staying a module
+  decision. Carried forward, not merge-blocking: the suite README's coverage
+  table still reads AC-119 to AC-123 as failing, written before the routes
+  landed, the same lag the P2 rows carried until the next tester session
+  refreshed them; and the 8.10 stub, the third private copy of the row and
+  transaction adapters in domain/db.ts, and the sessions.user_id index all
+  stand where the P2 merge left them.
+- The acceptance-test ownership rule loses its fixed range, by owner ruling on
+  branch p2s-settings, 2026-08-04. Protocol section 8, persona 11's Owns
+  section, and the team roster all bounded acceptance tests at AC-001 to
+  AC-115, a range the mid-P2 amendment had already outrun by three and the
+  P2S amendment outran by eight. Read literally, the protocol sentence that
+  stops an implementer editing a failing acceptance test covered none of
+  AC-116 to AC-123, and persona 11's Owns section, by the team README the
+  only statement of its ownership, claimed none of them either. All three now
+  point at spec section 12's numbered criteria openly, every number it
+  carries including those a later amendment appends, so an append-only
+  section cannot outrun the rule that protects it a third time.
+- Frozen 7.2 amended on branch p2s-settings, 2026-08-04, so it merges with
+  its package: the human owner accepted option (a) of the opening session's
+  escalation, and the subsection gains one appended sentence, PATCH
+  /me/settings answers the GET /me/settings object. The silence was real and
+  asymmetric. 7.2 named only 200 for its mutation, where 7.1 names PATCH
+  /me's body by the P1 merge ruling and 7.4 names each of its mutations'
+  bodies by the P2 shape review, so this was the one PATCH on the surface a
+  client had to chase with a fetch, and an implementer filling the gap
+  locally would have picked the shape by guess. The frozen bullets are
+  unchanged and the sentence is appended as its own paragraph, the shape the
+  P2 merge used for 7.4. No criterion is invalidated: the tester's files
+  judged no PATCH body while the silence stood, and the assertion now lands
+  in a scoped return to settings-harness.ts, which already holds one home
+  for it.
+- Section 12 gains AC-119 to AC-123 by amendment on branch p2s-settings,
+  2026-08-04, so the criteria merge with the package that satisfies them:
+  the Adversarial Test role's five proposed criteria for frozen 7.2,
+  transcribed unchanged under their own Settings heading, appended from the
+  next free number so no existing number moves. AC-119 pins GET /me/settings
+  to exactly the three booleans at their 4.10 defaults, AC-120 pins any
+  subset with absent fields unchanged and the new values readable from both
+  7.2 and the /me settings key, AC-121 pins 422 naming the field on any
+  non-boolean, AC-122 pins per-account isolation, and AC-123 pins frozen
+  7.2's own no-data-changes sentence as row-for-row stillness outside
+  user_settings. Recorded with them, two readings of the frozen text rather
+  than changes to it, the my-membership pattern of the P2 merge: the empty
+  subset is a subset, answering 200 and changing nothing, and null is a
+  wrong-typed value rather than a clear, because 4.10's columns are NOT NULL
+  booleans with defaults where 7.4's label and color are marked nullable by
+  the frozen text itself. Housekeeping in the same pass: the section 12 row
+  of the spec index, stale by three since the mid-P2 amendment, now reads
+  AC-001 to AC-123.
 - Merge rulings at the P2 merge, 2026-08-04. By the human owner: frozen
   7.4 gains the four response-shape sentences the shape review settled,
   transcribed at the merge: GET /folders answers the bare array, the

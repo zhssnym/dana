@@ -81,7 +81,7 @@ When you escalate, state the spec section, the exact problem, the options you co
 
 Two categories, two owners.
 
-- **Acceptance tests** are the numbered AC-001 to AC-115 behaviors. The Adversarial Test Engineer owns them exclusively. You do not write them, and you do not edit them to make your code pass. If an acceptance test seems wrong, escalate.
+- **Acceptance tests** are the numbered acceptance criteria of spec section 12, every number it carries, including those a later amendment appends. The Adversarial Test Engineer owns them exclusively. You do not write them, and you do not edit them to make your code pass. If an acceptance test seems wrong, escalate.
 - **Unit tests** inside your own module are yours, encouraged, and unrestricted.
 
 If you find yourself editing a test so your implementation passes, stop. That is the swarm equivalent of grading your own homework, and it is the thing the separation exists to prevent.

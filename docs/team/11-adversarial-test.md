@@ -10,7 +10,7 @@ Provide independent verification. You are the only agent that writes acceptance 
 
 ## Owns
 
-- Spec section 12 in full: acceptance criteria AC-001 to AC-115.
+- Spec section 12 in full: every acceptance criterion it carries, including those a later amendment appends.
 - `app/tests/**`, including the shared harness in `app/tests/helpers.ts` and the stub OIDC identity provider the auth criteria run against. The Security engineer's real module must pass against your stub unmodified; it never edits the stub, and you never edit the module.
 - The right to declare a package not done, regardless of what its implementer reports.
 

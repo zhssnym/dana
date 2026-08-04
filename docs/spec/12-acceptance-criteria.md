@@ -145,4 +145,16 @@ These belong to package P1 alongside AC-005 to AC-010. Rationale: with no human 
 - AC-115 Given a completed sign-in, when the database is inspected, then no Google access, refresh, or ID token is stored anywhere.
 - AC-116 Given GET /me or PATCH /me answers 200, when the body is inspected, then it is exactly the 7.1 object: the same keys and shapes, nothing extra, nothing missing.
 - AC-117 Given any request the mounted surface answers with a 4xx status, when the body is inspected, then it carries the 7.0 envelope with error.code and error.message both non-empty strings.
-- AC-118 Given a body that does not parse as JSON, parses to something other than an object, or exceeds the parse limit, when any endpoint receives it, then 400 in the envelope and no side effects; given a parsed object carrying a wrong-typed field, then 422 naming the field; given unknown fields beside valid ones, then they are ignored and the request is processed as if they were absent.
+- AC-118 Given a body presented as JSON that does not parse, parses to something other than an object, or exceeds the parse limit, when any endpoint receives it, then 400 in the envelope and no side effects; given a parsed object carrying a wrong-typed field, then 422 naming the field; given unknown fields beside valid ones, then they are ignored and the request is processed as if they were absent.
+
+**Settings (P2S; added by amendment on 2026-08-04, numbered additively so no existing number changes)**
+
+These belong to package P2S, the frozen 7.2 endpoints GET and PATCH /me/settings, which RFC 0001 scheduled after the P2 merge because no original row claimed them. The Adversarial Test role authored them with their tests on the package branch; they are transcribed here unchanged.
+
+Two readings of frozen 7.2 they rest on, both grounded in the P2 merge's ratified any-subset reading of section 7's PATCH conventions. The empty subset is a subset: a body carrying none of the three fields answers 200 and changes nothing, and an implementation refusing it with an at-least-one-field rule is refusing a body the frozen sentence admits. Null is a wrong-typed value here rather than a clear: 4.10's three columns are NOT NULL booleans with defaults, so there is nothing to clear back to, unlike the label and color of 7.4's my-membership, which the frozen text itself marks nullable. The frozen sentence is unchanged in both cases; the reading is the record.
+
+- AC-119 Given a fresh account, when GET /me/settings, then 200 and the body is exactly the three 7.2 booleans at their 4.10 defaults: show_important true, show_all true, show_done false, nothing extra, nothing missing.
+- AC-120 Given PATCH /me/settings with any subset of the three booleans, the empty subset included, then 200, present fields take the sent values, absent fields keep theirs, and both GET /me/settings and the settings key of GET /me read the new values afterwards.
+- AC-121 Given PATCH /me/settings carrying a non-boolean value for any of the three fields, null included since 4.10 admits no null state, then 422 naming the field and no setting changes.
+- AC-122 Given two users, when one PATCHes their settings, then the other's stored settings and GET bodies are unchanged.
+- AC-123 Given tasks of every status with steps, My Day entries, and reminders in the viewer's folders, when the viewer PATCHes any of the three toggles, then no row outside user_settings changes: hidden pages are a navigation preference only.

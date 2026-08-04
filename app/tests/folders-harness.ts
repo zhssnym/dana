@@ -249,6 +249,7 @@ export interface SeedTaskOptions {
   createdBy: string
   title?: string
   status?: 'pending' | 'completed' | 'abandoned'
+  important?: boolean
   assigneeId?: string | null
   dueDate?: string | null
   dueTime?: string | null
@@ -263,11 +264,12 @@ export async function seedTask(
   const id = randomUUID()
   const completed = options.status === 'completed'
   await db.execute(sql`
-    INSERT INTO tasks (id, folder_id, title, status, due_date, due_time,
-                       assignee_id, created_by, completed_at, completed_by)
+    INSERT INTO tasks (id, folder_id, title, status, important, due_date,
+                       due_time, assignee_id, created_by, completed_at,
+                       completed_by)
     VALUES (${id}::uuid, ${options.folderId}::uuid,
             ${options.title ?? `p2 task ${id.slice(0, 8)}`},
-            ${options.status ?? 'pending'},
+            ${options.status ?? 'pending'}, ${options.important ?? false},
             ${options.dueDate ?? null}::date, ${options.dueTime ?? null}::time,
             ${options.assigneeId ?? null}::uuid, ${options.createdBy}::uuid,
             ${completed ? new Date().toISOString() : null}::timestamptz,

@@ -1,9 +1,8 @@
 # The acceptance suite
 
-The numbered behaviors of spec section 12, AC-001 to AC-115, written by the
-Adversarial Test role and by nobody else (protocol section 8). Implementers do
-not edit these files; an acceptance test that seems wrong is an escalation, not
-a patch.
+The numbered behaviors of spec section 12, written by the Adversarial Test
+role and by nobody else (protocol section 8). Implementers do not edit these
+files; an acceptance test that seems wrong is an escalation, not a patch.
 
 Run one criterion by its number, which matches on the test name rather than the
 file name:
@@ -18,24 +17,43 @@ npx vitest run -t "AC-105"
 | - | - | - |
 | P0 | AC-001 to AC-004 | Covered, passing |
 | P1 | AC-005 to AC-010, AC-105 to AC-115 | Covered, passing |
-| P2 | AC-011 to AC-024 | Covered, failing until P2 lands |
-| P2 gate | AC-116 to AC-118 | Covered; 116 and 117 passing, 118 red until the ruled mapping |
+| P2 | AC-011 to AC-024 | Covered, passing since the P2 merge |
+| P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
+| P2S | AC-119 to AC-123 | Covered, failing until P2S lands the 7.2 endpoints |
 | P3 to P10 | AC-025 to AC-104 | Not yet written |
 
-P2's range is complete and written before its implementation, per the RFC 0001
-P2 row: the files fail today on sentences naming the missing endpoints, which
-is the designed order. Their adversarial companions also pin the amended 7.0
-taxonomy on the package's surface, including the two edges the P1 merge ruled
-and this package's merge gate holds: a non-object body and an over-limit body
-both answer 400.
+P2's range was written before its implementation, per the RFC 0001 P2 row,
+and failed on sentences naming the missing endpoints until the package
+landed, which is the designed order. Its adversarial companions also pin the
+amended 7.0 taxonomy on the package's surface, including the two edges the
+P1 merge ruled and the P2 merge gate held: a non-object body and an
+over-limit body both answer 400.
 
 AC-116 to AC-118 arrived by the mid-P2 section 12 amendment and pin the
 merged P1 surface: the exact /me body, the envelope on every 4xx, and the
-status taxonomy. AC-116 and AC-117 pass today. AC-118 fails on exactly the
-two ruled edges (an array body answers 422, an over-limit body 413, each
-already in the envelope) and turns green at Platform's mapping touch, which
-the retraced P2 row places before the folder routes; its probes stay on the
-/me surface for that reason.
+status taxonomy. AC-118's probes stay on the /me surface deliberately: body
+parsing is one boot-level middleware, so pinning the mapping on any real
+endpoint pins it for the application.
+
+P2S's range, AC-119 to AC-123, covers frozen 7.2's own endpoints, GET and
+PATCH /me/settings; the GET /me object's settings key was already pinned by
+AC-116. The criteria landed verbatim by section 12 amendment, carrying the
+two readings of frozen 7.2 they rest on: the empty subset is a subset, and
+null is a wrong-typed value rather than a clear, because 4.10's columns are
+NOT NULL booleans with defaults. The files fail today on the missing routes,
+the same designed order as P2.
+
+The one silence these files were written around is closed. Frozen 7.2 named
+no response body for PATCH /me/settings, only 200, so the opening session
+judged none and held a place for the assertion; the owner ruled at the same
+amendment, and 7.2 now carries the fresh-GET sentence it shares with PATCH
+/me and the 7.4 mutations. The body is judged in that one place,
+`patchSettingsOk` in settings-harness.ts: exactly the three booleans, equal
+to what a fresh GET then answers. Two callers stay on the unjudged
+transport. A refusal answers the envelope rather than the settings object,
+and AC-120's raced pair cannot assert the fresh-GET half at all, since each
+response is the truth at its own commit while a GET after both reflects
+both.
 
 ## The two amendments these tests read closely
 
@@ -75,8 +93,10 @@ need, `http-client.ts` carries the transport, `oidc-stub.ts` is the stub
 identity provider, and `folders-harness.ts` adds the P2 layer: lazily
 signed-in casts, setup through the package's own endpoints, direct seeding
 only for surfaces later packages own, and an invariant sweep scoped to named
-rows. Each file's header explains its own decisions; five are worth knowing
-before reading any test.
+rows. `settings-harness.ts` is the thin P2S layer over both: the exact 7.2
+shape stated once, wire-beside-row state assertions, and the one place the
+ruled PATCH response body is judged. Each file's header explains its own
+decisions; five are worth knowing before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
