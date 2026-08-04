@@ -12,6 +12,9 @@ import type { DbClient } from '../../db/client.js'
 import { createAuthRouter } from './auth/index.js'
 import type { AuthConfig } from './auth/index.js'
 import { errorBody } from './http/errors.js'
+import { attachNotifier, createNotifier } from './notify/index.js'
+import type { NotificationSink } from './notify/index.js'
+import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 
 export const logger = pino()
@@ -43,6 +46,15 @@ export interface AppOptions {
    */
   dbClient?: DbClient
   auth?: AuthConfig
+  /**
+   * The 11.10 notification sink, { send(message) }. When present, the 11.8
+   * notify module delivers every outbound message to it instead of logging,
+   * the only way a send is observable under test: 11.8 forbids real sending
+   * there, and 10.5 keeps recipient addresses out of the logs. Absent, the
+   * module logs the suppression and sends nothing until P7 lands the
+   * provider.
+   */
+  notifications?: NotificationSink
   /**
    * Directory of the built client, present only after npm run build. The
    * boot path performs the existence check and passes the result, because
@@ -82,7 +94,34 @@ function safeStack(err: unknown): string | undefined {
 export function createApp(options: AppOptions = {}): express.Express {
   const app = express()
   app.disable('x-powered-by')
+
+  // The 11.8 notify module is constructed with the application so the 11.10
+  // sink can replace its log transport. Nothing here consumes it yet: the
+  // call sites are the Collaboration engineer's (7.4 share grant, then 7.5)
+  // and reach the instance through notifierOf(app) when their routes mount.
+  attachNotifier(app, createNotifier({ sink: options.notifications, logger }))
+
   app.use(express.json())
+
+  // The amended 7.0 bullet, ruled at the P1 merge and held at this
+  // package's gate: a body that parses to something other than an object is
+  // malformed, 400, exactly like one that does not parse. The parser's
+  // strict mode already refuses the scalar forms; arrays parse, so they are
+  // refused here. The predicate still spells the whole rule rather than the
+  // parser's current share of it, so a parser swap cannot reopen the edge.
+  // undefined is a request that carried no JSON body at all, which is not
+  // this rule's business.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const body: unknown = req.body
+    const nonObject =
+      body !== undefined &&
+      (typeof body !== 'object' || body === null || Array.isArray(body))
+    if (nonObject) {
+      res.status(400).json(errorBody('bad_request', 'Malformed request body.'))
+      return
+    }
+    next()
+  })
 
   app.use('/api/health', healthRouter)
 
@@ -105,6 +144,11 @@ export function createApp(options: AppOptions = {}): express.Express {
     createAuthRouter({ dbClient: options.dbClient, auth: options.auth }),
   )
 
+  // The P2 folders router, mounted by the request recorded in
+  // src/server/routes/README.md: after the auth router, whose session
+  // attachment then serves both, and ahead of the catch-all.
+  app.use('/api/v1', createFoldersRouter({ dbClient: options.dbClient }))
+
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))
   })
@@ -120,11 +164,22 @@ export function createApp(options: AppOptions = {}): express.Express {
   }
 
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-    const status =
+    // The other ruled 7.0 edge: the parser refuses an over-limit body with
+    // its own 413, but 413 is not in the taxonomy, and the ruling reads
+    // over-limit as a body that did not parse. Remapped before the status
+    // is read; the type marker was verified against the installed
+    // raw-body, which is where express.json's limit rejection is built.
+    const overLimit =
       typeof err === 'object' &&
       err !== null &&
-      'status' in err &&
-      typeof err.status === 'number'
+      'type' in err &&
+      err.type === 'entity.too.large'
+    const status = overLimit
+      ? 400
+      : typeof err === 'object' &&
+          err !== null &&
+          'status' in err &&
+          typeof err.status === 'number'
         ? err.status
         : 500
     // Only method, path, and status: request bodies and headers may carry

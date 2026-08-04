@@ -17,14 +17,25 @@ npx vitest run -t "AC-105"
 | Package | Criteria | State |
 | - | - | - |
 | P0 | AC-001 to AC-004 | Covered, passing |
-| P1 | AC-005 to AC-010 | Covered, failing until P1 lands |
-| P1 | AC-105 to AC-115 | Covered, failing until P1 lands |
-| P2 to P10 | AC-011 to AC-104 excluding the above | Not yet written |
+| P1 | AC-005 to AC-010, AC-105 to AC-115 | Covered, passing |
+| P2 | AC-011 to AC-024 | Covered, failing until P2 lands |
+| P2 gate | AC-116 to AC-118 | Covered; 116 and 117 passing, 118 red until the ruled mapping |
+| P3 to P10 | AC-025 to AC-104 | Not yet written |
 
-P1's range is complete. AC-007 and AC-113 were held through the first pass and
-written after the 2026-07-31 amendments resolved what blocked them: 7.1 gained
-the tz query parameter that carries a client's zone, and 10.1 gained the
-sessions table's observable contract. Nothing in this suite is held now.
+P2's range is complete and written before its implementation, per the RFC 0001
+P2 row: the files fail today on sentences naming the missing endpoints, which
+is the designed order. Their adversarial companions also pin the amended 7.0
+taxonomy on the package's surface, including the two edges the P1 merge ruled
+and this package's merge gate holds: a non-object body and an over-limit body
+both answer 400.
+
+AC-116 to AC-118 arrived by the mid-P2 section 12 amendment and pin the
+merged P1 surface: the exact /me body, the envelope on every 4xx, and the
+status taxonomy. AC-116 and AC-117 pass today. AC-118 fails on exactly the
+two ruled edges (an array body answers 422, an over-limit body 413, each
+already in the envelope) and turns green at Platform's mapping touch, which
+the retraced P2 row places before the folder routes; its probes stay on the
+/me surface for that reason.
 
 ## The two amendments these tests read closely
 
@@ -60,9 +71,20 @@ other unexpected table is still a failure.
 
 `helpers.ts` is the P0 harness: the database seam, rejection matching by
 constraint name, and user cleanup. `auth-harness.ts` adds what the P1 criteria
-need, `http-client.ts` carries the transport, and `oidc-stub.ts` is the stub
-identity provider. Each file's header explains its own decisions; four are
-worth knowing before reading any test.
+need, `http-client.ts` carries the transport, `oidc-stub.ts` is the stub
+identity provider, and `folders-harness.ts` adds the P2 layer: lazily
+signed-in casts, setup through the package's own endpoints, direct seeding
+only for surfaces later packages own, and an invariant sweep scoped to named
+rows. Each file's header explains its own decisions; five are worth knowing
+before reading any test.
+
+**Outbound email is observed through an injected recorder.** 11.8's
+notification module logs instead of sending under test, and AC-024 counts
+share-grant emails, so `startAuthTestApp` offers `createApp` a
+`notifications` sink beside `dbClient` and `auth` and exposes what arrived as
+`app.emails`. Fields are normalized by property, not name, the same way
+cookies are identified. The seam is assumed in one place and its ratification
+into 11.10 is escalated to the Integration Steward.
 
 **The stub is the Adversarial Test role's, exclusively.** The Security
 engineer's module passes against it unmodified and never edits it (personas 06

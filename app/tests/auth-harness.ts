@@ -54,10 +54,34 @@ export interface AuthConfig {
   allowInsecureRequests: boolean
 }
 
+/*
+What the notification module (11.8) hands the transport when it would send.
+Spec 11.8 fixes three templates (invite, share grant, reminder) and that in
+tests the module logs instead of sending; it fixes no call shape. The suite
+needs the send observable because AC-024 counts share-grant emails, so the
+harness offers this sink through the same construction seam that carries the
+database handle, and normalizes whatever arrives rather than dictating key
+names. The seam is assumed here exactly as options.dbClient once was, and is
+escalated to the Integration Steward for ratification into 11.10.
+*/
+export interface OutboundEmail {
+  template: string
+  to: string
+  raw: unknown
+}
+
+export interface EmailRecorder {
+  sent(): readonly OutboundEmail[]
+  /** Emails whose template names the 11.8 share-grant one. */
+  shareGrants(): readonly OutboundEmail[]
+  clear(): void
+}
+
 export interface AppOptions {
   /** Named as the boot file already names its own (src/server/index.ts). */
   dbClient?: DbClient
   auth?: AuthConfig
+  notifications?: { send(message: unknown): void | Promise<void> }
 }
 
 type AppFactory = (
@@ -65,20 +89,19 @@ type AppFactory = (
 ) => ReturnType<typeof createApp> | Promise<ReturnType<typeof createApp>>
 
 /*
-createApp takes no arguments today and never opens a database; boot does that
-(src/server/index.ts). Under the default PGlite backend the suite's database is
-an in-memory handle that cannot be passed by connection string, so the
-application has to receive the DbClient object itself. That file belongs to the
-Platform role, so this suite cannot add the parameter, and the exact signature
-is escalated to the Integration Steward.
+The seam is 11.10's, ratified in full and implemented: options.dbClient and
+options.auth at the P1 rulings, options.notifications at the mid-P2 one.
+Under the default PGlite backend the suite's database is an in-memory handle
+that cannot arrive as a connection string, which is why the DbClient is
+passed as an object.
 
-The double assertion is deliberate rather than lazy. A plain structural
-assignment would break the typecheck gate the day the parameter lands as
-required rather than optional, or the factory turns async, and a suite that
-fails on typecheck fails for the wrong reason. This absorbs any of those
-shapes; the calls below await the result, so sync and async factories both
-work. It is the single place the seam is assumed, and it is what the
-escalation ratifies.
+The double assertion outlives the ratification for two reasons. AppOptions
+here restates 11.10 rather than importing createApp's own parameter type,
+because this suite measures that signature and cannot borrow its definition
+of correct. And the assertion absorbs signature evolution (a parameter
+turning required, the factory turning async; the calls below await the
+result either way), so a seam change fails this suite on the behavior it
+asserts rather than on the typecheck gate, which would name nothing.
 */
 const startApp = createApp as unknown as AppFactory
 
@@ -91,8 +114,60 @@ export interface AuthTestApp {
   dbClient: DbClient
   db: Db
   stub: OidcStub
+  /** Every outbound email the application attempted, via the injected sink. */
+  emails: EmailRecorder
   browser(): TestBrowser
   close(): Promise<void>
+}
+
+/*
+Field names are normalized by property rather than fixed by name, the same
+philosophy as cookie identification: 11.8 fixes that a send has a template
+and a recipient, not what the implementation calls them. A template counts
+as the share-grant one when its words contain "share" and "grant" in order,
+which admits share_grant, share-grant, shareGrant, and SHARE GRANT alike
+while refusing the invite and reminder templates.
+*/
+function normalizeEmail(message: unknown): OutboundEmail {
+  const record =
+    typeof message === 'object' && message !== null
+      ? (message as Record<string, unknown>)
+      : {}
+  const firstString = (keys: readonly string[]): string => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === 'string' && value !== '') return value
+    }
+    return ''
+  }
+  return {
+    template: firstString(['template', 'kind', 'type', 'name']),
+    to: firstString(['to', 'recipient', 'email', 'address']),
+    raw: message,
+  }
+}
+
+function isShareGrantTemplate(template: string): boolean {
+  return /share[\s_-]?grant/i.test(template)
+}
+
+function createEmailRecorder(): EmailRecorder & {
+  sink: { send(message: unknown): void }
+} {
+  const recorded: OutboundEmail[] = []
+  return {
+    sink: {
+      send(message: unknown): void {
+        recorded.push(normalizeEmail(message))
+      },
+    },
+    sent: () => [...recorded],
+    shareGrants: () =>
+      recorded.filter((email) => isShareGrantTemplate(email.template)),
+    clear: () => {
+      recorded.length = 0
+    },
+  }
 }
 
 /*
@@ -137,7 +212,8 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
   process.env.APP_ORIGIN = auth.appOrigin
   process.env.OIDC_ALLOW_INSECURE = '1'
 
-  const app = await startApp({ dbClient, auth })
+  const emails = createEmailRecorder()
+  const app = await startApp({ dbClient, auth, notifications: emails.sink })
   server.on('request', app)
 
   const testApp: AuthTestApp = {
@@ -145,6 +221,7 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
     dbClient,
     db: dbClient.db,
     stub,
+    emails,
 
     browser() {
       return new TestBrowser(origin)
