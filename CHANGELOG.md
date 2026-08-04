@@ -52,6 +52,16 @@ Planning and design. No software has been released yet.
   answering 422 naming the field, unknown fields ignored. Appended from the
   next free number, so the P2S settings criteria start at AC-119. AC-118
   rides the P2 merge gate that already holds the 400 mapping.
+- The P2 row retraced for both mid-P2 rulings: the tester returns next for
+  the AC-116 to AC-118 test files, and Platform's touch splits in two, an
+  early session landing the notify module's send-or-log transport behind
+  the ratified sink, the options.notifications parameter, and the ruled 7.0
+  edge mapping, placed before the package because the Collaboration
+  engineer's call sites invoke the module and cannot land before it exists,
+  then the late boot wiring by request. The 04 shape review closes the
+  branch carrying the tester's routed 7.4 observation (the GET /folders
+  wrapper shape and the pending-invites key name). P2's acceptance now
+  names AC-116 to AC-118 beside AC-011 to AC-024.
 - Frozen 7.0 amended at the P2 kickoff, 2026-08-04: the human owner accepted
   verbatim the clarifying sentence offered at the P1 merge, so the 400 bullet
   now reads that a body not parsing as JSON, or parsing to something other
