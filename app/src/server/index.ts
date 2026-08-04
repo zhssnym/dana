@@ -14,6 +14,7 @@ import type { AuthConfig } from './auth/index.js'
 import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
+import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 
 export const logger = pino()
@@ -142,6 +143,11 @@ export function createApp(options: AppOptions = {}): express.Express {
     '/api/v1',
     createAuthRouter({ dbClient: options.dbClient, auth: options.auth }),
   )
+
+  // The P2 folders router, mounted by the request recorded in
+  // src/server/routes/README.md: after the auth router, whose session
+  // attachment then serves both, and ahead of the catch-all.
+  app.use('/api/v1', createFoldersRouter({ dbClient: options.dbClient }))
 
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))
