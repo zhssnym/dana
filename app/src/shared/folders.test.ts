@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  deleteFolderResponse,
   folder,
+  folderMember,
+  folderPendingInvite,
+  getFolderResponse,
+  getFoldersResponse,
   patchFolderBody,
   patchFolderMyMembershipBody,
   postFolderMembersBody,
@@ -214,5 +219,103 @@ describe('folder (7.0: the shared Folder object)', () => {
     const { id, ...withoutId } = valid
     void id
     expect(folder.safeParse(withoutId).success).toBe(false)
+  })
+})
+
+describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
+  const member = {
+    user: {
+      id: '123e4567-e89b-42d3-a456-426614174000',
+      display_name: 'Sara',
+      avatar_url: null,
+    },
+    role: 'member',
+    joined_at: '2026-08-01T10:00:00.000Z',
+    is_owner: true,
+  }
+  const invite = {
+    id: '223e4567-e89b-42d3-a456-426614174000',
+    email: 'friend@example.test',
+    task_id: null,
+    created_at: '2026-08-02T10:00:00.000Z',
+    last_sent_at: '2026-08-02T10:00:00.000Z',
+  }
+  const detail = {
+    id: '323e4567-e89b-42d3-a456-426614174000',
+    name: 'Groceries',
+    is_default: false,
+    is_owner: true,
+    member_count: 1,
+    counts: { pending: 0, completed: 0 },
+    my_label: null,
+    my_color: null,
+    members: [member],
+    pending_invites: [invite],
+  }
+
+  test('GET /folders is the bare array, and only an array', () => {
+    expect(getFoldersResponse.safeParse([]).success).toBe(true)
+    const { members, pending_invites, ...bare } = detail
+    void members
+    void pending_invites
+    expect(getFoldersResponse.safeParse([bare]).success).toBe(true)
+    expect(
+      getFoldersResponse.safeParse({ folders: [bare] }).success,
+      'the wrapper 7.4 never wrote is not the shape',
+    ).toBe(false)
+  })
+
+  test('the detail extends Folder with members and pending_invites', () => {
+    expect(getFolderResponse.safeParse(detail).success).toBe(true)
+    const { members, ...withoutMembers } = detail
+    void members
+    expect(getFolderResponse.safeParse(withoutMembers).success).toBe(false)
+  })
+
+  test('a member element carries the 7.0 person shape and the v1 role', () => {
+    expect(folderMember.safeParse(member).success).toBe(true)
+    expect(
+      folderMember.safeParse({ ...member, role: 'owner' }).success,
+      '4.4 admits exactly member; ownership is the folder column (8.9)',
+    ).toBe(false)
+    const stripped = folderMember.safeParse({
+      ...member,
+      user: { ...member.user, email: 'sara@example.test' },
+    })
+    expect(stripped.success).toBe(true)
+    if (stripped.success) {
+      expect(
+        'email' in stripped.data.user,
+        'the ruled person shape carries no address; a parse strips one',
+      ).toBe(false)
+    }
+  })
+
+  test('a pending invite element matches 7.4 field for field', () => {
+    expect(folderPendingInvite.safeParse(invite).success).toBe(true)
+    expect(
+      folderPendingInvite.safeParse({
+        ...invite,
+        task_id: '423e4567-e89b-42d3-a456-426614174000',
+      }).success,
+    ).toBe(true)
+    expect(
+      folderPendingInvite.safeParse({ ...invite, created_at: 'yesterday' })
+        .success,
+    ).toBe(false)
+  })
+
+  test('the DELETE response carries exactly the three deletion tallies', () => {
+    expect(
+      deleteFolderResponse.safeParse({
+        deleted: { tasks_open: 2, tasks_completed: 1, tasks_abandoned: 0 },
+      }).success,
+    ).toBe(true)
+    expect(
+      deleteFolderResponse.safeParse({
+        deleted: { tasks_open: -1, tasks_completed: 0, tasks_abandoned: 0 },
+      }).success,
+    ).toBe(false)
+    expect(deleteFolderResponse.safeParse({}).success).toBe(false)
   })
 })

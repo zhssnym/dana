@@ -112,3 +112,78 @@ export const folder = z.object({
   my_color: hexColor.nullable(),
 })
 export type Folder = z.infer<typeof folder>
+
+/*
+The response side of 7.4, settled at this role's P2 shape review. Frozen
+7.4 fixes the Folder object, the members and pending-invites element
+fields, and the DELETE response; the four decisions below are the ones it
+leaves open, each settled here with its grounds, and each a candidate for
+a one-sentence recording in the frozen text through the Steward (the
+PATCH /me precedent from the P1 merge):
+
+- GET /folders answers the bare array. The section's own notation draws
+  the line: 7.10's view endpoints write their wrappers out ({ rows,
+  truncated }) because those responses carry more than rows, while 7.4
+  and 7.5 write lists. A wrapper here would be a shape the frozen text
+  never wrote, and the acceptance harness reads the bare form as the
+  literal one.
+- The detail's invite key is pending_invites. "Pending invites" is prose
+  that cannot be a key verbatim; this transcribes it, and stays distinct
+  from 7.5's /invites responses, which list every status.
+- The person inside a members element is 7.0's person shape, {id,
+  display_name, avatar_url}, the object TaskCard's assignee already
+  uses. 7.3 adds email to the roster's user object explicitly; 7.4 does
+  not, the 9.x sharing panel renders names and join dates and never a
+  member's address, and co-members are not necessarily connected, so the
+  contract carries no address nothing consumes.
+- Mutations answer what a fresh GET would: PATCH /folders/:id and PATCH
+  .../my-membership answer the Folder object (the ruled PATCH /me
+  convention), and POST members answers the member element it created.
+*/
+
+export const folderMemberUser = z.object({
+  id: z.uuid(),
+  display_name: z.string().nullable(),
+  avatar_url: z.string().nullable(),
+})
+
+export const folderMember = z.object({
+  user: folderMemberUser,
+  // 4.4 admits exactly 'member' in v1; ownership is the folder column,
+  // never this field (8.9).
+  role: z.literal('member'),
+  joined_at: z.iso.datetime(),
+  is_owner: z.boolean(),
+})
+export type FolderMember = z.infer<typeof folderMember>
+
+export const folderPendingInvite = z.object({
+  id: z.uuid(),
+  email: z.string().min(1),
+  task_id: z.uuid().nullable(),
+  created_at: z.iso.datetime(),
+  last_sent_at: z.iso.datetime(),
+})
+export type FolderPendingInvite = z.infer<typeof folderPendingInvite>
+
+export const getFoldersResponse = z.array(folder)
+export type GetFoldersResponse = z.infer<typeof getFoldersResponse>
+
+export const getFolderResponse = folder.extend({
+  members: z.array(folderMember),
+  pending_invites: z.array(folderPendingInvite),
+})
+export type GetFolderResponse = z.infer<typeof getFolderResponse>
+
+export const patchFolderResponse = folder
+export const patchFolderMyMembershipResponse = folder
+export const postFolderMembersResponse = folderMember
+
+export const deleteFolderResponse = z.object({
+  deleted: z.object({
+    tasks_open: z.int().nonnegative(),
+    tasks_completed: z.int().nonnegative(),
+    tasks_abandoned: z.int().nonnegative(),
+  }),
+})
+export type DeleteFolderResponse = z.infer<typeof deleteFolderResponse>
