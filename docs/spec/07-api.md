@@ -36,6 +36,8 @@ All 7.1 endpoints mount under the 7.0 base path like the rest of this section: G
 - GET /me/settings. { show_important, show_all, show_done }.
 - PATCH /me/settings. Any subset of the three booleans. Hidden pages are a navigation preference only; no data changes. 200.
 
+Response body, escalated from the P2S opening session and entered by owner ruling: PATCH /me/settings answers the GET /me/settings object, the same fresh-GET convention 7.1 carries on PATCH /me and 7.4 carries on each of its mutations.
+
 ### 7.3 Connections (roster)
 
 - GET /connections. List of { user: {id, display_name, avatar_url, email}, connected_at }, excluding soft-deleted users. Sorted display_name ascending, id.

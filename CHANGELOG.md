@@ -48,6 +48,20 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Frozen 7.2 amended on branch p2s-settings, 2026-08-04, so it merges with
+  its package: the human owner accepted option (a) of the opening session's
+  escalation, and the subsection gains one appended sentence, PATCH
+  /me/settings answers the GET /me/settings object. The silence was real and
+  asymmetric. 7.2 named only 200 for its mutation, where 7.1 names PATCH
+  /me's body by the P1 merge ruling and 7.4 names each of its mutations'
+  bodies by the P2 shape review, so this was the one PATCH on the surface a
+  client had to chase with a fetch, and an implementer filling the gap
+  locally would have picked the shape by guess. The frozen bullets are
+  unchanged and the sentence is appended as its own paragraph, the shape the
+  P2 merge used for 7.4. No criterion is invalidated: the tester's files
+  judged no PATCH body while the silence stood, and the assertion now lands
+  in a scoped return to settings-harness.ts, which already holds one home
+  for it.
 - Section 12 gains AC-119 to AC-123 by amendment on branch p2s-settings,
   2026-08-04, so the criteria merge with the package that satisfies them:
   the Adversarial Test role's five proposed criteria for frozen 7.2,
