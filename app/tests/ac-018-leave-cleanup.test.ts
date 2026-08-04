@@ -26,7 +26,6 @@ import {
   createFolder,
   expectFolderInvariants,
   expectStatus,
-  folderInList,
   membershipUserIds,
   removeMember,
   seedInvite,
