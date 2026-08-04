@@ -29,6 +29,18 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Mid-P2 ruling, 2026-08-04, on branch p2-folders so it merges with its
+  package: the notification observability seam. AC-024 counts a share-grant
+  email that 11.8 keeps unsent under test and 10.5 keeps out of the logs, so
+  11.10's construction seam gains options.notifications, an injected sink
+  { send(message) } the notification module delivers to instead of logging
+  when present; each message identifies its template and its recipient, the
+  remaining keys the module's own; absent the sink, 11.8 is unchanged, and
+  11.8 now points at the seam so the two sections cannot drift. Ratified
+  over stdout capture (blocked by 10.5's whitelist on purpose) and an
+  HTTP-level Resend double (contrary to 11.8's no-send rule). The harness
+  assumed the seam in exactly one typed place, as options.dbClient once was
+  before its P1 ratification.
 - Frozen 7.0 amended at the P2 kickoff, 2026-08-04: the human owner accepted
   verbatim the clarifying sentence offered at the P1 merge, so the 400 bullet
   now reads that a body not parsing as JSON, or parsing to something other
