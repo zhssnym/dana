@@ -1,5 +1,6 @@
 /*
-The 7.1 auth and account surface, mounted by the boot file under /api/v1.
+The 7.1 auth and account surface plus 7.2's settings pair, mounted by the boot
+file under /api/v1.
 
 The handshake, in the order 11.6 fixes it:
 
@@ -10,6 +11,7 @@ The handshake, in the order 11.6 fixes it:
                               adopt, sync the zone, issue a fresh session
   POST /auth/logout           destroy this session, not the person's others
   GET/PATCH/DELETE /me        the account endpoints, behind session then CSRF
+  GET/PATCH /me/settings      the 7.2 toggles, the same two middlewares
 
 Three rules run through every handler here.
 
@@ -66,6 +68,7 @@ import type { AuthConfig } from './oidc.js'
 import { SIGN_IN_FAILED_TARGET, unverifiedEmailPage } from './pages.js'
 import { PendingAuthorizations } from './pending.js'
 import { provisionUser, syncTimezone } from './provisioning.js'
+import { handleGetSettings, handlePatchSettings } from './settings.js'
 import type { GoogleIdentity } from './provisioning.js'
 import { createSession, destroySession } from './sessions.js'
 import { csrfTokenFor, newSessionToken } from './tokens.js'
@@ -367,6 +370,29 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       const userId = sessionOf(req)?.userId ?? ''
       await handleDeleteMe(db, userId, res)
       logAuthEvent('account_deleted', { userId })
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * The settings endpoints (7.2)
+   * ---------------------------------------------------------------- */
+
+  // A read carries no CSRF requirement: 7.0 puts the header on mutations
+  // only, and requiring it here would break every page load.
+  router.get('/me/settings', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    await handleGetSettings(db, sessionOf(req)?.userId ?? '', res)
+  })
+
+  router.patch(
+    '/me/settings',
+    requireSession,
+    requireCsrf,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      await handlePatchSettings(db, sessionOf(req)?.userId ?? '', req, res)
     },
   )
 
