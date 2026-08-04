@@ -19,6 +19,7 @@ npx vitest run -t "AC-105"
 | P0 | AC-001 to AC-004 | Covered, passing |
 | P1 | AC-005 to AC-010, AC-105 to AC-115 | Covered, passing |
 | P2 | AC-011 to AC-024 | Covered, failing until P2 lands |
+| P2 gate | AC-116 to AC-118 | Covered; 116 and 117 passing, 118 red until the ruled mapping |
 | P3 to P10 | AC-025 to AC-104 | Not yet written |
 
 P2's range is complete and written before its implementation, per the RFC 0001
@@ -27,6 +28,14 @@ is the designed order. Their adversarial companions also pin the amended 7.0
 taxonomy on the package's surface, including the two edges the P1 merge ruled
 and this package's merge gate holds: a non-object body and an over-limit body
 both answer 400.
+
+AC-116 to AC-118 arrived by the mid-P2 section 12 amendment and pin the
+merged P1 surface: the exact /me body, the envelope on every 4xx, and the
+status taxonomy. AC-116 and AC-117 pass today. AC-118 fails on exactly the
+two ruled edges (an array body answers 422, an over-limit body 413, each
+already in the envelope) and turns green at Platform's mapping touch, which
+the retraced P2 row places before the folder routes; its probes stay on the
+/me surface for that reason.
 
 ## The two amendments these tests read closely
 
