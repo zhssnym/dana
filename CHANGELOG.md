@@ -48,6 +48,17 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- The acceptance-test ownership rule loses its fixed range, by owner ruling on
+  branch p2s-settings, 2026-08-04. Protocol section 8, persona 11's Owns
+  section, and the team roster all bounded acceptance tests at AC-001 to
+  AC-115, a range the mid-P2 amendment had already outrun by three and the
+  P2S amendment outran by eight. Read literally, the protocol sentence that
+  stops an implementer editing a failing acceptance test covered none of
+  AC-116 to AC-123, and persona 11's Owns section, by the team README the
+  only statement of its ownership, claimed none of them either. All three now
+  point at spec section 12's numbered criteria openly, every number it
+  carries including those a later amendment appends, so an append-only
+  section cannot outrun the rule that protects it a third time.
 - Frozen 7.2 amended on branch p2s-settings, 2026-08-04, so it merges with
   its package: the human owner accepted option (a) of the opening session's
   escalation, and the subsection gains one appended sentence, PATCH

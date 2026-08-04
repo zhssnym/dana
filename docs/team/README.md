@@ -22,7 +22,7 @@ This table is a navigation index and nothing more. Ownership of spec sections, p
 | 8 | `08-component-and-design-system.md` | Component and Design System | The component library, the design tokens, copy fidelity, accessibility |
 | 9 | `09-complex-interaction.md` | Complex Interaction | The calendar, the task form, and the search overlay |
 | 10 | `10-platform.md` | Platform | Deploys, CI, the scheduler tick, email, backups, monitoring |
-| 11 | `11-adversarial-test.md` | Adversarial Test | Writes all 115 acceptance tests; never implements |
+| 11 | `11-adversarial-test.md` | Adversarial Test | Writes every acceptance test; never implements |
 | 12 | `12-integration-steward.md` | Integration Steward | Merges, specification change control, and the seams |
 | 13 | `13-dispatcher.md` | Dispatcher | Computes what is startable from artifacts; never judges |
 
