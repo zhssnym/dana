@@ -37,15 +37,23 @@ endpoint pins it for the application.
 
 P2S's range, AC-119 to AC-123, covers frozen 7.2's own endpoints, GET and
 PATCH /me/settings; the GET /me object's settings key was already pinned by
-AC-116. The criteria are proposals riding branch p2s-settings until the
-Steward lands them by section 12 amendment (RFC 0001, P2S row), and the
-files fail today on the missing routes, the same designed order as P2. One
-deliberate silence: frozen 7.2 names no response body for PATCH
-/me/settings, only 200, so no assertion reads the PATCH body; post-state is
-always a fresh GET plus the stored row. The gap is escalated to the
-Integration Steward with a recommendation to mirror the ruled 7.4 sentence,
-and the assertion has one home waiting in settings-harness.ts if the owner
-rules a body in.
+AC-116. The criteria landed verbatim by section 12 amendment, carrying the
+two readings of frozen 7.2 they rest on: the empty subset is a subset, and
+null is a wrong-typed value rather than a clear, because 4.10's columns are
+NOT NULL booleans with defaults. The files fail today on the missing routes,
+the same designed order as P2.
+
+The one silence these files were written around is closed. Frozen 7.2 named
+no response body for PATCH /me/settings, only 200, so the opening session
+judged none and held a place for the assertion; the owner ruled at the same
+amendment, and 7.2 now carries the fresh-GET sentence it shares with PATCH
+/me and the 7.4 mutations. The body is judged in that one place,
+`patchSettingsOk` in settings-harness.ts: exactly the three booleans, equal
+to what a fresh GET then answers. Two callers stay on the unjudged
+transport. A refusal answers the envelope rather than the settings object,
+and AC-120's raced pair cannot assert the fresh-GET half at all, since each
+response is the truth at its own commit while a GET after both reflects
+both.
 
 ## The two amendments these tests read closely
 
@@ -86,9 +94,9 @@ identity provider, and `folders-harness.ts` adds the P2 layer: lazily
 signed-in casts, setup through the package's own endpoints, direct seeding
 only for surfaces later packages own, and an invariant sweep scoped to named
 rows. `settings-harness.ts` is the thin P2S layer over both: the exact 7.2
-shape stated once, wire-beside-row state assertions, and the one place a
-PATCH body assertion would land if ruled in. Each file's header explains its
-own decisions; five are worth knowing before reading any test.
+shape stated once, wire-beside-row state assertions, and the one place the
+ruled PATCH response body is judged. Each file's header explains its own
+decisions; five are worth knowing before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
