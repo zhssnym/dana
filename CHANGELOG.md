@@ -10,6 +10,20 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Package P2S of RFC 0001, the settings surface: frozen 7.2's GET and PATCH
+  /me/settings, mounted in the auth router beside the 7.1 account endpoints
+  because they speak for one authenticated person and take no id at all, so
+  every statement is keyed by the session's user id and nothing the request
+  carries; the 7.2 object declared once in the shared contract and reused by
+  the GET body, the ruled PATCH body, and the settings key of GET /me, which
+  retires the inline copy the /me response schema carried since P1; a PATCH
+  naming only the columns its body carried, which is what lets two concurrent
+  disjoint subsets compose instead of one overwriting the other from a stale
+  read, and which answers from RETURNING so the ruled fresh-GET body is the
+  row the write produced; and account.ts's local MeBody interface converged
+  on the shared response type, the one-line item carried since the P1 merge
+  review. The full gate is green at 404 tests across 57 files, AC-119 to
+  AC-123 passing by number beside the P0, P1, and P2 ranges.
 - Package P2 of RFC 0001, folders and membership: the full 7.4 surface
   (folder CRUD, member add and remove under 5.3's guards and 5.4's matrix,
   the personal label and color membership PATCH, R-CLEAN on every removal
@@ -48,6 +62,39 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Merge rulings at the P2S merge, 2026-08-05. By the human owner, pre-ruled on
+  the shape review's routed finding: the malformed-body status turns on the
+  content-type header rather than on whether the body parses, so identical
+  unparseable bytes answer 400 under application/json and 422 under text/plain
+  or under none at all. Verified at this merge against the running application
+  on both /me and /me/settings, so it is uniform and it is pre-existing: it
+  falls out of two P1 decisions, express.json parsing only matching content
+  types, and the empty-path branch of the validation helper answering "A JSON
+  object body is required", which that file's own comment anticipated. Option
+  (a) accepted, no code change: frozen 7.0's 400 bullet gains the scoping
+  sentence, that the bullet governs bodies presented as JSON, and that a
+  request claiming no JSON content type presents nothing to parse whatever
+  bytes it carries, so an endpoint needing a body answers 422 for the body it
+  did not receive rather than 400 for one it could not read. Under the
+  Steward's own change control, AC-118's sentence is clarified to match, "a
+  body presented as JSON that does not parse" where it read "a body that does
+  not parse as JSON". No test changes and the number keeps its meaning: every
+  AC-118 raw-body probe sets application/json explicitly and always did, so the
+  criterion tested the ruled reading already while its sentence, read
+  literally, claimed a status the surface does not give. Ratified from
+  disclosure, the token_hash-CHECK pattern: user_settings.updated_at moves on a
+  writing PATCH and stays put on the empty subset. Frozen 4.10 gives the column
+  its default and states no rule for when it moves, where the tasks table's own
+  updated_at row states "touched on every mutation", so the silence is a
+  distinction the frozen schema draws itself, and an empty subset that writes
+  nothing is not a mutation. 4.10 is unchanged; no endpoint exposes the column,
+  and the day one does, the rule becomes contract rather than staying a module
+  decision. Carried forward, not merge-blocking: the suite README's coverage
+  table still reads AC-119 to AC-123 as failing, written before the routes
+  landed, the same lag the P2 rows carried until the next tester session
+  refreshed them; and the 8.10 stub, the third private copy of the row and
+  transaction adapters in domain/db.ts, and the sessions.user_id index all
+  stand where the P2 merge left them.
 - The acceptance-test ownership rule loses its fixed range, by owner ruling on
   branch p2s-settings, 2026-08-04. Protocol section 8, persona 11's Owns
   section, and the team roster all bounded acceptance tests at AC-001 to

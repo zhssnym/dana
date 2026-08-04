@@ -145,7 +145,7 @@ These belong to package P1 alongside AC-005 to AC-010. Rationale: with no human 
 - AC-115 Given a completed sign-in, when the database is inspected, then no Google access, refresh, or ID token is stored anywhere.
 - AC-116 Given GET /me or PATCH /me answers 200, when the body is inspected, then it is exactly the 7.1 object: the same keys and shapes, nothing extra, nothing missing.
 - AC-117 Given any request the mounted surface answers with a 4xx status, when the body is inspected, then it carries the 7.0 envelope with error.code and error.message both non-empty strings.
-- AC-118 Given a body that does not parse as JSON, parses to something other than an object, or exceeds the parse limit, when any endpoint receives it, then 400 in the envelope and no side effects; given a parsed object carrying a wrong-typed field, then 422 naming the field; given unknown fields beside valid ones, then they are ignored and the request is processed as if they were absent.
+- AC-118 Given a body presented as JSON that does not parse, parses to something other than an object, or exceeds the parse limit, when any endpoint receives it, then 400 in the envelope and no side effects; given a parsed object carrying a wrong-typed field, then 422 naming the field; given unknown fields beside valid ones, then they are ignored and the request is processed as if they were absent.
 
 **Settings (P2S; added by amendment on 2026-08-04, numbered additively so no existing number changes)**
 
