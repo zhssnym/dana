@@ -1,8 +1,8 @@
 /*
 Harness for the P2S settings criteria (AC-119 to AC-123), the thin layer the
 five files share, built on the P1 auth harness and the P2 actor pattern. The
-criteria themselves are proposals riding this branch: the Steward lands them
-by section 12 amendment in the session after this one (RFC 0001, P2S row).
+criteria landed verbatim by the Steward's section 12 amendment (RFC 0001,
+P2S row).
 
 Three decisions worth the words:
 
@@ -12,14 +12,12 @@ check is an exact key set with strictly boolean values, restated from frozen
 ruling: this suite measures that surface and cannot borrow its definition of
 correct. The 4.10 defaults are restated for the same reason.
 
-**PATCH response bodies are never judged.** Frozen 7.2 names no body for
-PATCH /me/settings, only 200, where 7.1 names PATCH /me's body by the P1
-merge ruling and 7.4 names its mutations' bodies by the P2 shape review
-ruling. The gap is escalated to the Integration Steward with a
-recommendation (rule the same fresh-GET convention onto 7.2); until it is
-ruled, every post-state assertion here reads a fresh GET and the stored row,
-and whatever the PATCH answers beyond its status is handed back unjudged. If
-the owner rules a body in, the assertion belongs in patchSettings, once.
+**The ruled PATCH response body is judged in exactly one place**,
+patchSettingsOk below. Frozen 7.2 named no body while these files were
+written, so nothing judged it and the place was held open; the owner ruled
+it at the same amendment that landed the criteria, and 7.2 now carries the
+fresh-GET sentence. Refusals and AC-120's raced pair stay on the unjudged
+transport, for the two reasons recorded there.
 
 **The stored row is read beside the wire.** A settings endpoint that answers
 200 without writing, or writes without answering, must fail on whichever
@@ -91,13 +89,55 @@ export async function readSettings(actor: Actor): Promise<SettingsBooleans> {
   return expectExactSettingsShape(response.json(), 'GET /me/settings')
 }
 
-/** PATCH /me/settings, unjudged: see the module header on response bodies. */
+/** PATCH /me/settings, unjudged: the transport the refusals and the raced
+ * pair use, where the response body is not the settings object. */
 export function patchSettings(
   actor: Actor,
   body: unknown,
   options: { csrf?: 'auto' | 'omit' | string } = {},
 ): Promise<RawResponse> {
   return actor.browser.json('/me/settings', 'PATCH', body, options)
+}
+
+/*
+PATCH /me/settings asserted, which is where the ruled response body is
+judged, once, for every sequential success in this package.
+
+Frozen 7.2 was silent on this body while the criteria were written, so
+this place was held open rather than guessed at. The owner ruled it at
+the section 12 amendment and 7.2 now carries the sentence: PATCH
+/me/settings answers the GET /me/settings object, the same fresh-GET
+convention 7.1 carries on PATCH /me and 7.4 on each of its mutations. So
+a success is judged twice over, the way ac-116 and ac-023 judge theirs:
+the body is exactly the three booleans, and it equals what a fresh GET
+then answers.
+
+Two callers stay on the unjudged transport above, each for a reason the
+ruling does not reach. A refusal answers the 7.0 envelope, not the
+settings object. And AC-120's raced pair cannot assert the fresh-GET
+half at all: each response is the truth at its own commit, and a GET
+after both reflects both, so an equality there would be asserting a
+coincidence and would fail on correct implementations.
+*/
+export async function patchSettingsOk(
+  actor: Actor,
+  body: unknown,
+  why: string,
+): Promise<SettingsBooleans> {
+  const response = await patchSettings(actor, body)
+  expect(
+    response.status,
+    `${why}; answered ${String(response.status)} with body: ${response.body.slice(0, 160)}`,
+  ).toBe(200)
+  const patched = expectExactSettingsShape(
+    response.json(),
+    'the PATCH /me/settings body',
+  )
+  expect(
+    patched,
+    'PATCH /me/settings answers the GET /me/settings object, so its body must equal what a fresh GET then answers (spec 7.2, owner ruling at the P2S amendment)',
+  ).toEqual(await readSettings(actor))
+  return patched
 }
 
 /** The settings key of GET /me, whose shape AC-116 already pins; these files

@@ -40,6 +40,7 @@ import {
   expectEnvelopedStatus,
   expectSettingsState,
   patchSettings,
+  patchSettingsOk,
   readSettings,
   storedSettings,
 } from './settings-harness.js'
@@ -54,17 +55,17 @@ async function writer(): Promise<Actor> {
   return actor
 }
 
-/** PATCH asserted 200, post-state asserted on wire, /me, and row. */
+/** PATCH asserted 200 with the ruled body, post-state asserted on wire,
+ * /me, and row. */
 async function patchTo(
   actor: Actor,
   body: Partial<SettingsBooleans>,
   expected: SettingsBooleans,
   why: string,
 ): Promise<void> {
-  const response = await patchSettings(actor, body)
-  expectStatus(
-    response,
-    200,
+  await patchSettingsOk(
+    actor,
+    body,
     `PATCH /me/settings with ${JSON.stringify(body)} is a subset of the three booleans and must answer 200 (spec 7.2)`,
   )
   await expectSettingsState(app.db, actor, expected, why)
@@ -142,14 +143,13 @@ describe('AC-120: PATCH /me/settings takes any subset, absent unchanged', () => 
     // where stripping happens per body rather than at boot.
     const actor = await writer()
     const before = await readSettings(actor)
-    const response = await patchSettings(actor, {
-      show_done: !before.show_done,
-      theme: 'dark',
-      nested: { anything: ['at', 'all'] },
-    })
-    expectStatus(
-      response,
-      200,
+    await patchSettingsOk(
+      actor,
+      {
+        show_done: !before.show_done,
+        theme: 'dark',
+        nested: { anything: ['at', 'all'] },
+      },
       'unknown fields beside a valid subset are tolerated (spec 7.0)',
     )
     await expectSettingsState(

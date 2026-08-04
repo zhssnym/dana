@@ -31,6 +31,7 @@ import {
   expectEnvelopedStatus,
   expectSettingsState,
   patchSettings,
+  patchSettingsOk,
   storedSettings,
 } from './settings-harness.js'
 import type { SettingsBooleans } from './settings-harness.js'
@@ -51,11 +52,11 @@ async function basedActor(): Promise<Actor> {
   if (based === undefined) {
     const [actor] = await cast.of(app)
     if (actor === undefined) throw new Error('cast must produce one actor')
-    const settle = await patchSettings(actor, BASELINE)
-    expect(
-      settle.status,
+    await patchSettingsOk(
+      actor,
+      BASELINE,
       'settling the baseline through a valid full subset must answer 200 before the refusals (spec 7.2)',
-    ).toBe(200)
+    )
     based = actor
   }
   return based

@@ -35,7 +35,6 @@ import {
   createFolder,
   defaultFolderOf,
   expectFolderInvariants,
-  expectStatus,
   seedMyDayEntry,
   seedReminder,
   seedStep,
@@ -43,7 +42,7 @@ import {
 } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
 import {
-  patchSettings,
+  patchSettingsOk,
   storedSettings,
 } from './settings-harness.js'
 import type { SettingsBooleans } from './settings-harness.js'
@@ -165,10 +164,9 @@ async function toggleAndExpectStillness(
   why: string,
 ): Promise<void> {
   const before = await snapshot(app.db, s)
-  const response = await patchSettings(s.actor, body)
-  expectStatus(
-    response,
-    200,
+  await patchSettingsOk(
+    s.actor,
+    body,
     `PATCH /me/settings with ${JSON.stringify(body)} must answer 200 (spec 7.2)`,
   )
   expect(

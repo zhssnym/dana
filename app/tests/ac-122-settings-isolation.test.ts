@@ -18,12 +18,12 @@ import { afterAll, beforeAll, describe, test } from 'vitest'
 
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
-import { Cast, expectStatus } from './folders-harness.js'
+import { Cast } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
 import {
   SETTINGS_DEFAULTS,
   expectSettingsState,
-  patchSettings,
+  patchSettingsOk,
 } from './settings-harness.js'
 
 let app: AuthTestApp
@@ -59,13 +59,9 @@ afterAll(async () => {
 describe('AC-122: settings are personal to the account that set them', () => {
   test('AC-122: one user\'s PATCH leaves the other account untouched', async () => {
     const { first, second } = await pair()
-    const response = await patchSettings(first, {
-      show_important: false,
-      show_done: true,
-    })
-    expectStatus(
-      response,
-      200,
+    await patchSettingsOk(
+      first,
+      { show_important: false, show_done: true },
       'PATCH /me/settings with a valid subset must answer 200 (spec 7.2)',
     )
     await expectSettingsState(
@@ -84,10 +80,9 @@ describe('AC-122: settings are personal to the account that set them', () => {
 
   test('AC-122 adversarial: independence holds in the other direction too', async () => {
     const { first, second } = await pair()
-    const response = await patchSettings(second, { show_all: false })
-    expectStatus(
-      response,
-      200,
+    await patchSettingsOk(
+      second,
+      { show_all: false },
       'the second account sets its own row (spec 7.2)',
     )
     await expectSettingsState(
