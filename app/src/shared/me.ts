@@ -58,8 +58,8 @@ export type Settings = z.infer<typeof settings>
 export const getMeSettingsResponse = settings
 
 /*
-The ruled PATCH body, by construction rather than by transcription: 7.2's
-appended sentence says PATCH /me/settings answers the GET /me/settings
+The ruled PATCH response, by construction rather than by transcription:
+7.2's appended sentence says PATCH /me/settings answers the GET /me/settings
 object, the fresh-GET convention 7.1 carries on PATCH /me and 7.4 on each of
 its mutations. Binding the name to the same schema is how a ruling stops
 being a sentence two shapes might each claim to satisfy.
