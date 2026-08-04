@@ -12,28 +12,20 @@ import type { Request, Response } from 'express'
 
 import type { Db } from '../../../db/client.js'
 import { patchMeBody } from '../../shared/me.js'
+import type { MeResponse } from '../../shared/me.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
 import { inTransaction, rowsOf } from './provisioning.js'
 import { sameZone } from './timezone-sync.js'
 
-export interface MeBody {
-  user: {
-    id: string
-    email: string | null
-    display_name: string | null
-    avatar_url: string | null
-    timezone: string
-  }
-  settings: {
-    show_important: boolean
-    show_all: boolean
-    show_done: boolean
-  }
-  pending_invite_count: number
-}
-
-export async function meBody(db: Db, userId: string): Promise<MeBody | null> {
+/*
+The 7.1 body's shape comes from the contract rather than from a copy of it.
+This was a local interface through P1, carried since that merge review as the
+one-line convergence: src/shared/me.ts is what the client and the acceptance
+suite read, so a second declaration here is a second promise that can drift
+from the first. Its settings key is the same 7.2 object settings.ts answers.
+*/
+export async function meBody(db: Db, userId: string): Promise<MeResponse | null> {
   const found = await rowsOf(
     db,
     sql`SELECT u.id, u.email, u.display_name, u.avatar_url, u.timezone,
