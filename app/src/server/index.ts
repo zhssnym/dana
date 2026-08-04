@@ -12,6 +12,8 @@ import type { DbClient } from '../../db/client.js'
 import { createAuthRouter } from './auth/index.js'
 import type { AuthConfig } from './auth/index.js'
 import { errorBody } from './http/errors.js'
+import { attachNotifier, createNotifier } from './notify/index.js'
+import type { NotificationSink } from './notify/index.js'
 import { healthRouter } from './routes/health.js'
 
 export const logger = pino()
@@ -43,6 +45,15 @@ export interface AppOptions {
    */
   dbClient?: DbClient
   auth?: AuthConfig
+  /**
+   * The 11.10 notification sink, { send(message) }. When present, the 11.8
+   * notify module delivers every outbound message to it instead of logging,
+   * the only way a send is observable under test: 11.8 forbids real sending
+   * there, and 10.5 keeps recipient addresses out of the logs. Absent, the
+   * module logs the suppression and sends nothing until P7 lands the
+   * provider.
+   */
+  notifications?: NotificationSink
   /**
    * Directory of the built client, present only after npm run build. The
    * boot path performs the existence check and passes the result, because
@@ -82,6 +93,13 @@ function safeStack(err: unknown): string | undefined {
 export function createApp(options: AppOptions = {}): express.Express {
   const app = express()
   app.disable('x-powered-by')
+
+  // The 11.8 notify module is constructed with the application so the 11.10
+  // sink can replace its log transport. Nothing here consumes it yet: the
+  // call sites are the Collaboration engineer's (7.4 share grant, then 7.5)
+  // and reach the instance through notifierOf(app) when their routes mount.
+  attachNotifier(app, createNotifier({ sink: options.notifications, logger }))
+
   app.use(express.json())
 
   app.use('/api/health', healthRouter)

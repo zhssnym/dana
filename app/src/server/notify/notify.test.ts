@@ -1,6 +1,8 @@
+import express from 'express'
 import { describe, expect, test } from 'vitest'
 
-import { createNotifier } from './index.js'
+import { createApp } from '../index.js'
+import { createNotifier, notifierOf } from './index.js'
 import type { NotifyLogger, OutboundMessage } from './index.js'
 
 const RECIPIENT = 'observer@notify.test'
@@ -79,5 +81,38 @@ describe('createNotifier without a sink (11.8: log, never send)', () => {
       JSON.stringify(logger.calls).includes(RECIPIENT),
       'no field or message text may carry the address',
     ).toBe(false)
+  })
+})
+
+describe('the createApp seam (11.10: options.notifications)', () => {
+  test('createApp forwards the injected sink to the module', async () => {
+    const delivered: OutboundMessage[] = []
+    const app = createApp({
+      notifications: {
+        send(sent: OutboundMessage): void {
+          delivered.push(sent)
+        },
+      },
+    })
+    await notifierOf(app).send(message)
+    expect(
+      delivered,
+      'a message sent through the attached notifier reaches the sink',
+    ).toEqual([message])
+  })
+
+  test('an application built without the option still carries a notifier', () => {
+    // Send is not exercised here: without a sink it would log through the
+    // boot logger, and the suppression behavior is proven above with an
+    // injected one. This asserts only that the seam attaches in both
+    // configurations, so the call sites never need to care.
+    const notifier = notifierOf(createApp({}))
+    expect(typeof notifier.send).toBe('function')
+  })
+
+  test('notifierOf refuses an application createApp did not build', () => {
+    expect(() => notifierOf(express())).toThrow(
+      'this application carries no notifier',
+    )
   })
 })
