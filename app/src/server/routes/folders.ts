@@ -339,7 +339,16 @@ export function createFoldersRouter(
           const added = members.find(
             (member) => member.user.id === parsed.data.user_id,
           )
-          res.status(201).json(added ?? { user: { id: parsed.data.user_id } })
+          // The row was inserted in this request; not finding it is a state
+          // the contract has no shape for, and the shape review ruled that
+          // answering a degenerate body is worse than failing loudly (the
+          // boot error handler envelopes this as the 500 it is).
+          if (added === undefined) {
+            throw new Error(
+              `membership ${parsed.data.user_id} vanished between insert and read`,
+            )
+          }
+          res.status(201).json(added)
           return
         }
       }

@@ -261,7 +261,6 @@ export interface MemberElement {
     id: string
     display_name: string | null
     avatar_url: string | null
-    email: string | null
   }
   role: string
   joined_at: string
@@ -276,17 +275,20 @@ export interface PendingInviteElement {
   last_sent_at: string
 }
 
-/** 7.4's members array. The user object is the 7.3 user shape, one
- * convention for a person on the wire; is_owner derives from
- * folders.owner_id, the single ownership source (4.3, 8.9). Ordered by
- * join instant then id, section 6's tie-break convention. */
+/** 7.4's members array. The user object is 7.0's person shape (id,
+ * display_name, avatar_url), the TaskCard-assignee object, per the shape
+ * review's ruling: 7.3's roster email is the contract's explicit
+ * exception, and the 9.x sharing panel never renders a member's address.
+ * is_owner derives from folders.owner_id, the single ownership source
+ * (4.3, 8.9). Ordered by join instant then id, section 6's tie-break
+ * convention. */
 export async function membersOf(
   db: Db,
   folderId: string,
 ): Promise<MemberElement[]> {
   const found = await rowsOf(
     db,
-    sql`SELECT u.id, u.display_name, u.avatar_url, u.email,
+    sql`SELECT u.id, u.display_name, u.avatar_url,
                m.role, m.created_at AS joined_at,
                (m.user_id = f.owner_id) AS is_owner
         FROM folder_members m
@@ -300,7 +302,6 @@ export async function membersOf(
       id: String(row.id),
       display_name: nullableString(row.display_name),
       avatar_url: nullableString(row.avatar_url),
-      email: nullableString(row.email),
     },
     role: String(row.role),
     joined_at: toIso(row.joined_at),
