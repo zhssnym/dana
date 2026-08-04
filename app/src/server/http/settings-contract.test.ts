@@ -302,6 +302,13 @@ describe('the 7.0 taxonomy on the 7.2 surface', () => {
     // no field path. The value matters less than the uniformity: two routes
     // of one surface must not disagree about the same malformed request, and
     // this asserts them against each other before asserting the number.
+    //
+    // Only the no-body case is pinned here. A request that sends bytes under
+    // a non-JSON content type answers this same 422 rather than the 400 the
+    // identical bytes get under application/json, which this review found and
+    // routed rather than blessed: pinning it would fight whoever rules on it.
+    // With no body at all there is nothing that failed to parse, so 422 is
+    // the answer on every reading, and that is the one worth a test.
     const who = await actor()
     const settings = await api(who, '/me/settings', { method: 'PATCH' })
     const me = await api(who, '/me', { method: 'PATCH' })
