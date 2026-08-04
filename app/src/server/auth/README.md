@@ -1,8 +1,8 @@
 # The authentication module (spec 11.6)
 
 Owned by the Security and Privacy engineer (`docs/team/06-security-and-privacy.md`).
-Implements sections 7.1, 10.1, and 11.6 against the acceptance criteria AC-005
-to AC-010 and AC-105 to AC-115.
+Implements sections 7.1, 7.2, 10.1, and 11.6 against the acceptance criteria
+AC-005 to AC-010, AC-105 to AC-115, and AC-119 to AC-123.
 
 ## How this module is wired
 
@@ -49,7 +49,7 @@ rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
 
 | File | What it owns |
 | - | - |
-| `router.ts` | The 7.1 endpoints, composed in the 11.3 order |
+| `router.ts` | The 7.1 and 7.2 endpoints, composed in the 11.3 order |
 | `middleware.ts` | Session resolution, then CSRF on mutations; the exported interface |
 | `oidc.ts` | Configuration resolution and lazy discovery, memoized on success only |
 | `sessions.ts` | The 10.1 sessions table: create, resolve and roll, destroy, prune |
@@ -59,6 +59,7 @@ rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
 | `provisioning.ts` | The 7.1 provisioning transaction, idempotent under `google_sub` |
 | `timezone-sync.ts` | 8.1's alias rule, the one predicate the shared validator lacks |
 | `account.ts` | `/me`, and the 8.10 deletion stub the P1 row places here |
+| `settings.ts` | `/me/settings`, the 7.2 pair; P2S added it inside this router, so it needed no new wiring |
 | `pages.ts` | The 9.2 unverified-email page, the only page this module renders |
 | `dev-login.ts` | Excluded from production builds; see 11.6 and 11.15 |
 
@@ -86,6 +87,13 @@ which P9 extends rather than replaces.
 - **`sessions` has no index on `user_id`**, which the deletion path and the
   10.1 cascade both scan. `app/db` is the Data engineer's path; worth an 0003
   if P9's sweep agrees it matters.
+- **Disclosed for ratification at the P2S merge, in the token_hash-CHECK
+  pattern rather than as an escalation: `user_settings.updated_at` moves on a
+  writing PATCH and not on the empty subset.** 4.10 gives the column a
+  `now()` default and never says when it moves afterwards, no endpoint exposes
+  it, and no criterion observes it, so this is a judgment inside an owned file
+  rather than a spec question. It is recorded because it is the one behavior of
+  these endpoints nothing outside `settings.test.ts` would catch changing.
 
 ## Two decisions worth knowing before changing anything
 
