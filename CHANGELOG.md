@@ -62,6 +62,25 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- The commit trailer names the model that ran the session, by owner ruling on
+  the P3 tester session's note, 2026-08-05. Protocol section 7 fixed the
+  trailer to one literal model string, accurate when written and false from
+  the moment the model lineup changed, so a session could either misattribute
+  itself or depart from the rule and had no third option. The sentence now
+  points at the session rather than at a literal, the same open-reference fix
+  made when section 12 outran the "AC-001 to AC-115" range that three team
+  documents had written down. The address is unchanged and only the name is
+  the session's own. History stays as written: the rule governs new commits,
+  starting with the one that lands it.
+- The pending_invite_email coverage gap is routed into the P5 row, 2026-08-05.
+  Frozen 7.0 derives TaskCard.pending_invite_email from invites.task_id and no
+  criterion in any range pins the derivation. P3's tester session found it and
+  could go no further, that package creating no invite, so its files assert the
+  key's presence and say so. P5 is the first package that can create one, so
+  the gap is its tester session's, by an amendment appending to the P5 range if
+  the existing numbers have no room. It is in the plan and not only in the
+  suite README, because the session that should act on it opens against the
+  plan.
 - Kickoff rulings for package P3, 2026-08-05, landed on main ahead of the
   branch, the P2 precedent: a kickoff amends the plan, not the code, and
   `p3-tasks-core` is created by the package's first working session rather
