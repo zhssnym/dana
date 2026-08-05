@@ -16,6 +16,7 @@ import { attachNotifier, createNotifier } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
+import { createTasksRouter } from './routes/tasks.js'
 
 export const logger = pino()
 
@@ -148,6 +149,12 @@ export function createApp(options: AppOptions = {}): express.Express {
   // src/server/routes/README.md: after the auth router, whose session
   // attachment then serves both, and ahead of the catch-all.
   app.use('/api/v1', createFoldersRouter({ dbClient: options.dbClient }))
+
+  // The P3 tasks router, by the request beside the folders one in that same
+  // ledger: the 7.6, 7.7 and 7.8 surfaces. Same position and the same reason,
+  // and its paths (/tasks, /steps) meet nothing the folders router claims, so
+  // the pair is order-independent between themselves.
+  app.use('/api/v1', createTasksRouter({ dbClient: options.dbClient }))
 
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))

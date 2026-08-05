@@ -39,6 +39,9 @@ Facts the wiring can rely on:
 - Mounting this router is what turns AC-011 to AC-024 green; nothing else
   is owed by the boot file for P2.
 
+Fulfilled at fc6325f. Kept rather than pruned: the facts above still
+describe the mounted router, and the next boot-file touch reads them.
+
 ## tasks router (P3, Collaboration and Permissions)
 
 The 7.6, 7.7 and 7.8 surfaces: tasks, steps, and My Day membership.
@@ -71,3 +74,10 @@ Facts the wiring can rely on:
   tests across 79 files, the whole P3 range included, with the mount
   reverted before the commit so the tree this request describes is the tree
   the boot file will meet.
+
+Fulfilled as requested, both lines verbatim, beside the folders mount. Every
+fact above held: the factory took the same options, the paths met nothing the
+folders router claims, and no further wiring was owed. The suite runs 579 of
+579 on the PGlite leg, and the 11.11 release ritual passes against the real
+boot path, health and an auth round trip and one CRUD cycle over this
+surface.
