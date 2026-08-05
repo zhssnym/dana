@@ -38,6 +38,7 @@ import {
 import type { Actor } from './folders-harness.js'
 import {
   createTaskOk,
+  expectSweptTasks,
   expectTaskInvariants,
   patchTask,
   patchTaskOk,
@@ -223,6 +224,7 @@ describe('AC-028: clearing the due date clears its three dependents', () => {
 
   test('AC-028: invariants hold afterwards', async () => {
     const { author, folderId } = await stage()
+    expectSweptTasks(fixtureIds)
     await expectTaskInvariants(app.db, fixtureIds, [folderId], [author.id])
   })
 })

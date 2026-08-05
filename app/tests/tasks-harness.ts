@@ -610,6 +610,20 @@ export function yesterdayInUtc(): string {
  * ------------------------------------------------------------------ */
 
 /*
+Files whose cases each create their own fixture collect the ids as they go
+and sweep them at the end. An empty collection means no case got far enough
+to create one, and the sweep would then pass while asserting nothing about
+this package, which reads as coverage that is not there. Asserted rather
+than tolerated, so the sweep fails with the file it belongs to.
+*/
+export function expectSweptTasks(taskIds: readonly string[]): void {
+  expect(
+    taskIds.length,
+    'the invariant sweep runs over the rows this file\'s own cases created, and none exist',
+  ).toBeGreaterThan(0)
+}
+
+/*
 The task-scoped half of the sweep the persona requires after mutation-heavy
 tests. The folder-scoped half (INV-2, INV-3, INV-4, INV-5, INV-10) is
 P2's expectFolderInvariants, delegated to rather than restated. Deleted

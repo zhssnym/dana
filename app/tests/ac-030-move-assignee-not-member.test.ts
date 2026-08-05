@@ -31,6 +31,7 @@ import {
 import type { Actor } from './folders-harness.js'
 import {
   createTaskOk,
+  expectSweptTasks,
   expectTaskInvariants,
   patchTaskOk,
   requireTaskRow,
@@ -177,6 +178,7 @@ describe('AC-030: a move past the assignee unassigns the task', () => {
 
   test('AC-030: invariants hold afterwards', async () => {
     const { owner, helper, other, sourceId, targetId } = await stage()
+    expectSweptTasks(movedIds)
     await expectTaskInvariants(
       app.db,
       movedIds,

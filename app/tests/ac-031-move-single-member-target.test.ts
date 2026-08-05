@@ -32,6 +32,7 @@ import {
 import type { Actor } from './folders-harness.js'
 import {
   createTaskOk,
+  expectSweptTasks,
   expectTaskInvariants,
   patchTaskOk,
   requireTaskRow,
@@ -163,6 +164,7 @@ describe('AC-031: a move into a single-member folder assigns the task', () => {
 
   test('AC-031: invariants hold afterwards', async () => {
     const { owner, helper, sharedId, soloId } = await stage()
+    expectSweptTasks(movedIds)
     await expectTaskInvariants(
       app.db,
       movedIds,

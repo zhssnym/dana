@@ -19,8 +19,9 @@ npx vitest run -t "AC-105"
 | P1 | AC-005 to AC-010, AC-105 to AC-115 | Covered, passing |
 | P2 | AC-011 to AC-024 | Covered, passing since the P2 merge |
 | P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
-| P2S | AC-119 to AC-123 | Covered, failing until P2S lands the 7.2 endpoints |
-| P3 to P10 | AC-025 to AC-104 | Not yet written |
+| P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
+| P3 | AC-025 to AC-044 | Covered, failing until P3 lands the 7.6, 7.7, and 7.8 endpoints |
+| P4 to P10 | AC-045 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -40,8 +41,34 @@ PATCH /me/settings; the GET /me object's settings key was already pinned by
 AC-116. The criteria landed verbatim by section 12 amendment, carrying the
 two readings of frozen 7.2 they rest on: the empty subset is a subset, and
 null is a wrong-typed value rather than a clear, because 4.10's columns are
-NOT NULL booleans with defaults. The files fail today on the missing routes,
-the same designed order as P2.
+NOT NULL booleans with defaults. They failed on the missing routes until the
+package landed, the same designed order as P2, and pass since the P2S merge.
+
+P3's range, AC-025 to AC-044, covers frozen 7.6, 7.7, and 7.8 and the 7.0
+TaskCard and TaskDetail shapes those endpoints answer. Written before the
+implementation per the RFC 0001 P3 row, so the files fail today on the
+routes answering 404, which is again the designed order.
+
+Three things those files are written around, each recorded where it is
+asserted rather than left to be rediscovered:
+
+- **Two arms of 7.6's body are not P3's.** The P3 kickoff deferred
+  recurrence_rule to P6, which delivers the 4.11 subset validator that
+  section requires revalidated server-side, and reminder to P7, which
+  delivers the 8.6 fire instant 4.8's NOT NULL fire_at column demands. The
+  fixtures AC-028 and AC-040 turn on are therefore seeded directly, the
+  folders-harness precedent for surfaces later packages own. The response
+  side is not deferred: TaskDetail is 7.0's frozen shape and P3 answers it,
+  rule and reminder keys included.
+- **AC-039 spans two packages.** Its transition and the state every page
+  queries are asserted here; the faded rendering is section 9's and arrives
+  with P8, pinned by AC-053 at P4 and AC-097 at P8. The file says so rather
+  than skipping the clause silently.
+- **Concurrency is asserted twice.** AC-035 runs its two PATCHes as a real
+  race and again as a deterministic partial-write probe, because 11.15
+  records that PGlite is single-connection: under the default backend the
+  race may serialize completely, and a whole-row write would survive it by
+  luck.
 
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
@@ -95,8 +122,13 @@ signed-in casts, setup through the package's own endpoints, direct seeding
 only for surfaces later packages own, and an invariant sweep scoped to named
 rows. `settings-harness.ts` is the thin P2S layer over both: the exact 7.2
 shape stated once, wire-beside-row state assertions, and the one place the
-ruled PATCH response body is judged. Each file's header explains its own
-decisions; five are worth knowing before reading any test.
+ruled PATCH response body is judged. `tasks-harness.ts` is the P3 layer over
+the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
+asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
+and P7's reminders, and the task half of the invariant sweep, which
+delegates the folder half to `expectFolderInvariants` rather than restating
+it. Each file's header explains its own decisions; the seven below are worth
+knowing before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
@@ -134,6 +166,20 @@ names. Importing the validator would be borrowing the definition of correct
 from the module under test, so a wrong validator would agree with itself; the
 two were checked once, off to the side, and agreed on offsets, aliases, case
 variants and malformed input alike.
+
+**Frozen response shapes are restated in the harness, never imported, and
+asserted key-exact.** The 7.1 object, the 7.2 booleans, and the 7.0 TaskCard
+and TaskDetail each appear as a key list in the harness that reads them, by
+the standing Steward ruling: this suite measures `app/src/shared/` and
+cannot borrow its definition of correct. Exact because those shapes are
+enumerated in a frozen section, so a missing key breaks the client contract
+and an extra one is drift it cannot absorb. Two tolerances are deliberate
+and recorded at their assertions in `tasks-harness.ts`: TaskDetail's
+reminder object, whose "offset_minutes or time_of_day" names a 4.8 mode
+rather than a key list, and TaskCard's pending_invite_email, whose
+derivation from `invites.task_id` belongs to P5, the package that creates
+those rows. Nothing in section 12 pins that derivation today, which is
+recorded here for P5's tester session rather than left to be noticed.
 
 ## What the tests need from outside `app/tests/`
 

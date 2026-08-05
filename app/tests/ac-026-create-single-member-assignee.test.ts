@@ -37,6 +37,7 @@ import {
 import type { Actor } from './folders-harness.js'
 import {
   createTaskOk,
+  expectSweptTasks,
   expectTaskInvariants,
   requireTaskRow,
 } from './tasks-harness.js'
@@ -50,6 +51,7 @@ interface Stage {
   inboxId: string
 }
 let staged: Stage | undefined
+const taskIds: string[] = []
 
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
@@ -88,6 +90,7 @@ describe('AC-026: a single-member folder forces the assignee', () => {
       { title: 'p3 ac026 explicit null', folder_id: folderId, assignee_id: null },
       'a create carrying an explicit null assignee in a single-member folder must be accepted (spec 7.6)',
     )
+    taskIds.push(body.id)
     const assignee = body.assignee as Record<string, unknown> | null
     expect(
       assignee,
@@ -109,6 +112,7 @@ describe('AC-026: a single-member folder forces the assignee', () => {
       { title: 'p3 ac026 omitted', folder_id: folderId },
       'a create omitting assignee_id must be accepted (spec 7.6)',
     )
+    taskIds.push(body.id)
     const row = await requireTaskRow(app.db, body.id)
     expect(
       row.assignee_id === null ? null : String(row.assignee_id),
@@ -120,7 +124,16 @@ describe('AC-026: a single-member folder forces the assignee', () => {
     const { folderId } = await stage()
     // The sweep asks about every row in the folder rather than the two the
     // cases above name, so a create that forces on one path and not another
-    // is caught by whichever path it missed.
+    // is caught by whichever path it missed. The count is asserted first
+    // because an empty folder satisfies the sweep while proving nothing.
+    expectSweptTasks(taskIds)
+    expect(
+      await countRows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM tasks WHERE folder_id = ${folderId}`,
+      ),
+      'the two cases above put their tasks in this folder',
+    ).toBe(taskIds.length)
     expect(
       await countRows(
         app.db,
@@ -133,6 +146,12 @@ describe('AC-026: a single-member folder forces the assignee', () => {
 
   test('AC-026: invariants hold afterwards', async () => {
     const { solo, folderId, inboxId } = await stage()
-    await expectTaskInvariants(app.db, [], [folderId, inboxId], [solo.id])
+    expectSweptTasks(taskIds)
+    await expectTaskInvariants(
+      app.db,
+      taskIds,
+      [folderId, inboxId],
+      [solo.id],
+    )
   })
 })
