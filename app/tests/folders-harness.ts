@@ -52,17 +52,21 @@ export interface Actor {
   browser: TestBrowser
 }
 
+/** The package prefix only names rows: on the TEST_DATABASE_URL leg every
+ * worker shares one database, so a stray row should say which package left
+ * it. Defaulted so the P2 files that predate the parameter read unchanged. */
 export async function signInActor(
   app: AuthTestApp,
   slug: string,
+  prefix = 'p2',
 ): Promise<Actor> {
-  const sub = `p2-${slug}-${randomUUID()}`
-  const email = `${slug}-${randomUUID()}@p2-folders.test`
+  const sub = `${prefix}-${slug}-${randomUUID()}`
+  const email = `${slug}-${randomUUID()}@${prefix}-folders.test`
   app.stub.nextIdentity({
     sub,
     email,
     email_verified: true,
-    name: `P2 ${slug}`,
+    name: `${prefix.toUpperCase()} ${slug}`,
   })
   const { browser } = await signIn(app)
   const row = await userForSub(app.db, sub)
@@ -83,12 +87,17 @@ export class Cast {
   private actors: Actor[] | undefined
   private readonly seededUserIds: string[] = []
 
-  constructor(private readonly slugs: readonly string[]) {}
+  constructor(
+    private readonly slugs: readonly string[],
+    private readonly prefix = 'p2',
+  ) {}
 
   async of(app: AuthTestApp): Promise<Actor[]> {
     if (this.actors === undefined) {
       const created: Actor[] = []
-      for (const slug of this.slugs) created.push(await signInActor(app, slug))
+      for (const slug of this.slugs) {
+        created.push(await signInActor(app, slug, this.prefix))
+      }
       this.actors = created
     }
     return this.actors
