@@ -38,3 +38,36 @@ Facts the wiring can rely on:
   wiring is needed for it.
 - Mounting this router is what turns AC-011 to AC-024 green; nothing else
   is owed by the boot file for P2.
+
+## tasks router (P3, Collaboration and Permissions)
+
+The 7.6, 7.7 and 7.8 surfaces: tasks, steps, and My Day membership.
+Requested wiring, one line in createApp, beside the folders router's mount
+and ahead of the `/api` catch-all:
+
+```ts
+import { createTasksRouter } from './routes/tasks.js'
+
+app.use('/api/v1', createTasksRouter({ dbClient: options.dbClient }))
+```
+
+Facts the wiring can rely on:
+
+- The factory is synchronous, performs no I/O, and opens no database, the
+  same 11.10 discipline the folders router keeps. With no dbClient, every
+  data route answers the constructed-without-a-database 500.
+- It attaches its own session middleware and steps aside when another
+  router's already ran on the request, so it is order-tolerant; after the
+  auth router is still the order to prefer, because that resolves each
+  request's session exactly once.
+- It shares no path with the folders router (`/tasks`, `/tasks/:id/...`,
+  `/steps/:id`), so the two mount in either order.
+- It reaches no module the boot file does not already construct: no notify
+  call site exists on this surface, because 5.3's share grant is the only
+  outbound message P3 can cause and that call site is the folders router's.
+- Mounting this router is what turns AC-025 to AC-044 green; nothing else is
+  owed by the boot file for P3. Verified before the request was written, by
+  mounting the two lines above locally and running the suite: 574 of 574
+  tests across 79 files, the whole P3 range included, with the mount
+  reverted before the commit so the tree this request describes is the tree
+  the boot file will meet.
