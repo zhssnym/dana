@@ -62,6 +62,50 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Mid-P3 rulings, 2026-08-05, on branch p3-tasks-core so they merge with the
+  package whose assertions they underwrite, the mid-P2 precedent. Three
+  questions from the tester session's final block, none of them a frozen
+  change and none of them changing a test.
+  - **A second DELETE on a task answers 404**, as AC-042's adversarial case
+    asserts. The apparent collision dissolves on reading: 7.0's idempotency
+    sentence is about effect, not status, and a second DELETE that changes
+    nothing is idempotent whatever it answers, while 8.3 speaks to the status
+    directly and says operations on deleted rows return 404. Frozen section 7
+    settles it twice over. It already contains a DELETE addressed by id that
+    answers 404 on absence, 7.3's DELETE /connections/:userId, "204; 404 if no
+    such connection", and where it wants a status on absence for a
+    sub-resource toggle it says so outright, 7.8's my-day "200 even when
+    absent" and 7.9's reminder "204, idempotent". The decisive ground is the
+    leak rule: 204 for a task that existed and was deleted, beside 404 for an
+    id that never existed, is an existence oracle, and 7.0 and AC-102 forbid
+    exactly that. Avoiding the leak under a 204 policy would mean answering
+    204 for every unknown id, including tasks in folders the caller cannot
+    see, which contradicts "inaccessible always reads as 404".
+  - **In a single-member folder the INV-5 forcing wins over the composite-FK
+    422**, on POST /tasks. Frozen 7.6 lists both rules and the case where they
+    meet is a caller naming a non-member assignee in a folder with one member.
+    "Ignoring the input" is the plain reading, and section 3 settles it: INV-5
+    names its enforcement as "create, move, unassign guard", so create and move
+    are transactions that make the value right and only the unassign case is a
+    guard that refuses. 7.6's own move rule shows the same pattern, an assignee
+    who is not a member of the target being repaired rather than refused. The
+    principle the contract draws is that repair applies where the right value
+    is determined, which in a single-member folder it is, and refusal applies
+    where it would be a guess, which is every folder with more than one member.
+    Scope is POST only: PATCH keeps 422 for a non-member and 409 for a null in
+    a single-member folder, which 7.6's PATCH bullet states and INV-5 calls the
+    unassign guard. No criterion moves; AC-026 pins the null case to forcing
+    already, and AC-033 stages a multi-member folder on purpose.
+  - **Ratified, the reading inside AC-039**: abandoning a task does not delete
+    the viewer's My Day entry. 5.1's abandon row lists its side effects and
+    entry deletion is not among them, 8.2 selects pending rows so the task
+    leaves the page by the status filter alone, and R-CLEAN deletes My Day
+    entries explicitly wherever the contract means deletion, so the silence is
+    a distinction the contract draws itself, the pattern the P2S merge used on
+    user_settings.updated_at. It also has a consequence worth naming: AC-097
+    has restore return an overdue assigned task to My Day immediately, and for
+    a task that was pulled rather than automatic that works only if the entry
+    survived, since 8.2 reads its added_on.
 - Kickoff rulings for package P3, 2026-08-05, landed on main ahead of the
   branch, the P2 precedent: a kickoff amends the plan, not the code, and
   `p3-tasks-core` is created by the package's first working session rather
