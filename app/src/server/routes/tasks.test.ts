@@ -42,7 +42,6 @@ import {
   deleteTask,
   dropFromMyDay,
   getTask,
-  myDayAddedOn,
   myDayRows,
   patchStep,
   patchTask,
@@ -154,6 +153,25 @@ interface Stage {
   outsiderId: string
 }
 let staged: Stage | undefined
+
+/*
+A My Day entry's date, read through to_char rather than through the driver:
+node-postgres parses a date column into a JS Date while PGlite hands back a
+string, so only the cast reads the same on both backends. The domain module
+serializes every floating date the same way and for the same reason.
+*/
+async function addedOn(
+  taskId: string,
+  userId: string,
+): Promise<string | undefined> {
+  const found = await rows(
+    app.db,
+    sql`SELECT to_char(added_on, 'YYYY-MM-DD') AS d FROM my_day_entries
+        WHERE task_id = ${taskId} AND user_id = ${userId}`,
+  )
+  const row = found[0]
+  return row === undefined ? undefined : String(row.d)
+}
 
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
@@ -638,8 +656,7 @@ describe('the tasks router, driven through the harness idiom', () => {
     )
 
     expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the pull answers 200 (7.8)')
-    const addedOn = await myDayAddedOn(app.db, created.id, owner.id)
-    expect(addedOn, 'the entry exists').toBeDefined()
+    expect(await addedOn(created.id, owner.id), 'the entry exists').toBeDefined()
     // A row as it would read after a pull made last week, which is what
     // 7.8's "keeping the original added_on" protects.
     await app.db.execute(sql`
@@ -648,7 +665,7 @@ describe('the tasks router, driven through the harness idiom', () => {
     `)
     expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the repeat is a no-op')
     expect(
-      await myDayAddedOn(app.db, created.id, owner.id),
+      await addedOn(created.id, owner.id),
       'an upsert would have moved it to today (spec 7.8, 8.2)',
     ).toBe('2026-07-01')
 
@@ -668,7 +685,7 @@ describe('the tasks router, driven through the harness idiom', () => {
       'and again with nothing to remove (spec 7.8, idempotent)',
     )
     expect(
-      await myDayAddedOn(app.db, created.id, helper.id),
+      await addedOn(created.id, helper.id),
       'the other member\'s entry is untouched',
     ).toBeDefined()
     expect((await readTask(owner, created.id)).pulled, 'the flag follows').toBe(false)
@@ -704,14 +721,18 @@ describe('the tasks router, driven through the harness idiom', () => {
           WHERE id = ${owner.id}::uuid`,
     )
     expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the pull succeeds')
+    // to_char rather than the raw column: node-postgres parses a date into a
+    // JS Date and PGlite hands back a string, so only the cast reads the same
+    // on both backends.
     const expected = await rows(
       app.db,
-      sql`SELECT (now() AT TIME ZONE 'Pacific/Kiritimati')::date AS d`,
+      sql`SELECT to_char((now() AT TIME ZONE 'Pacific/Kiritimati')::date,
+                         'YYYY-MM-DD') AS d`,
     )
     expect(
-      await myDayAddedOn(app.db, created.id, owner.id),
+      await addedOn(created.id, owner.id),
       'added_on is the adder\'s local date (spec 4.7, 7.8)',
-    ).toBe(String(expected[0]?.d).slice(0, 10))
+    ).toBe(String(expected[0]?.d))
     await app.db.execute(
       sql`UPDATE users SET timezone = ${'UTC'} WHERE id = ${owner.id}::uuid`,
     )
