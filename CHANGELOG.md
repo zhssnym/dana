@@ -62,6 +62,49 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Kickoff rulings for package P3, 2026-08-05, landed on main ahead of the
+  branch, the P2 precedent: a kickoff amends the plan, not the code, and
+  `p3-tasks-core` is created by the package's first working session rather
+  than by this one. The P3 row gains the traced session order that P1, P2,
+  and P2S carry, five sessions each naming what it opens against, every
+  named artifact verified present on main at 3306727. Three premises were
+  checked before tracing and one was wrong: the package's frozen surfaces
+  are 7.6, 7.7, and 7.8, not 7.5, which is the invite surface P5 delivers,
+  and the only reach AC-025 to AC-044 make into invites is AC-042's
+  task_id, a database cascade named in 5.1's delete row and present in
+  migration 0000 since P0. The other two hold with one correction: the 7.0
+  TaskCard and TaskDetail shapes are frozen and present, and
+  `folderMemberUser` already carries the person shape TaskCard's assignee
+  takes, but 11.3's middleware is a pair on main rather than a trio,
+  session resolution and CSRF, with rate limiting at P9, which
+  `auth/middleware.ts` and `routes/folders.ts` both already record. Two
+  arms of frozen 7.6 are recorded as deferring with the computations they
+  need rather than being half-built, the P1 row's stub precedent:
+  recurrence_rule waits for P6's 4.11 validator, since 4.11 itself requires
+  the subset revalidated server-side and a stored-but-unvalidated rule
+  would be a wrong implementation rather than an absent one, and reminder
+  waits for P7's 8.6 fire instant, which 4.8's NOT NULL fire_at column
+  leaves no way around. At P3 both fall to 7.0's tolerated-unknown rule and
+  become known when their owners' schemas declare them.
+- The real 8.10 account deletion transaction is placed in P5, ruled at the
+  P3 kickoff, 2026-08-05. The P1 row put the stub in the auth module until
+  "the Collaboration packages" land the transaction and the P2 merge carried
+  that forward without naming one; P3 and P5 are both Collaboration, so the
+  placement was open, and an unplaced obligation lands twice or not at all.
+  Steps 1 and 5, invalidating the user's pending sent invites and deleting
+  their connection rows, are the invites and connections surfaces P5
+  delivers and no earlier package owns. Every other step's machinery landed
+  at P2: `transferOwnership` for step 2, `deleteFolder` for step 3, and
+  `removeMembership` for step 4, whose R-CLEAN already unassigns tasks and
+  deletes My Day entries. P3 puts rows into tables those sweeps already
+  reach and adds no step to the transaction. No acceptance criterion covers
+  steps 1 to 6 in any package, AC-009 and AC-112 pinning the confirm string
+  and the session revocation the stub already satisfies, so an earlier
+  landing would buy a revisit at P5 rather than coverage. What stays open
+  until then is in the P5 row rather than in a session's memory: a deleted
+  account's folders and memberships have survived since P2 and its tasks and
+  My Day entries survive from P3. Section 8.10 is unchanged; this is a
+  build-plan placement, not a specification change.
 - Merge rulings at the P2S merge, 2026-08-05. By the human owner, pre-ruled on
   the shape review's routed finding: the malformed-body status turns on the
   content-type header rather than on whether the body parses, so identical
