@@ -133,9 +133,9 @@ describe('AC-040: restoring returns the task exactly as it was', () => {
     await transitionOk(author, taskId, 'restore', 'the restore is accepted')
     const after = await requireTaskRow(app.db, taskId)
     expect(
-      String(after.due_date).slice(0, 10),
+      after.due_date,
       '5.1: dates, due_time, reminder configuration untouched',
-    ).toBe(String(before.due_date).slice(0, 10))
+    ).toBe(before.due_date)
     expect(String(after.due_time), 'the time as it was').toBe(
       String(before.due_time),
     )

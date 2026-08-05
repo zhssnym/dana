@@ -187,9 +187,9 @@ describe('AC-036: completing records the acting user and time', () => {
       before.title,
     )
     expect(
-      String(after.due_date).slice(0, 10),
+      after.due_date,
       '5.1 lists the side effects of this transition, and dates are not among them',
-    ).toBe(String(before.due_date).slice(0, 10))
+    ).toBe(before.due_date)
     expect(after.important, 'importance survives completion').toBe(
       before.important,
     )

@@ -129,7 +129,7 @@ describe('AC-027: a due_time without a due_date is refused', () => {
       'the time is stored as sent, at 4.11 minute precision',
     ).toBe('09:30')
     const row = await requireTaskRow(app.db, body.id)
-    expect(String(row.due_date).slice(0, 10)).toBe('2026-08-20')
+    expect(row.due_date).toBe('2026-08-20')
   })
 
   test('AC-027 adversarial: PATCHing a due_time onto an undated task answers 422', async () => {

@@ -182,7 +182,7 @@ describe('AC-039: abandoning takes the task out of every open page', () => {
     await transitionOk(author, taskId, 'abandon', 'the abandon is accepted')
     const row = await requireTaskRow(app.db, taskId)
     expect(
-      String(row.due_date).slice(0, 10),
+      row.due_date,
       'abandoning is not a way of clearing a date; only 8.4 clears dates',
     ).toBe('2026-09-20')
     expect(row.due_time, 'and the time stands with it (INV-6)').not.toBeNull()

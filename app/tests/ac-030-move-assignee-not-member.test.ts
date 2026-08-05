@@ -170,9 +170,9 @@ describe('AC-030: a move past the assignee unassigns the task', () => {
     expect(after.notes, 'the notes survive the move').toBe(before.notes)
     expect(after.important, 'importance survives the move').toBe(before.important)
     expect(
-      String(after.due_date).slice(0, 10),
+      after.due_date,
       'the date survives the move: only 8.4 clears dates',
-    ).toBe(String(before.due_date).slice(0, 10))
+    ).toBe(before.due_date)
     expect(after.status, 'the status survives the move').toBe(before.status)
   })
 

@@ -186,7 +186,7 @@ describe('AC-028: clearing the due date clears its three dependents', () => {
     )
     const row = await requireTaskRow(app.db, taskId)
     expect(
-      row.due_date === null ? null : String(row.due_date).slice(0, 10),
+      row.due_date,
       'the refused PATCH left the date standing: the cascade is in the same transaction (spec 8.4)',
     ).toBe('2026-08-24')
     expect(row.due_time, 'the refused PATCH left due_time standing').not.toBeNull()

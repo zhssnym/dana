@@ -40,6 +40,7 @@ disagreement is attributable to the shape rather than to the behavior.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { expect } from 'vitest'
 
 import type { Db } from '../db/client.js'
@@ -517,6 +518,60 @@ export async function seedOffsetReminder(
  * Database truth, scoped to this suite's rows
  * ------------------------------------------------------------------ */
 
+/*
+Every temporal column below is rendered by the database, never handed over
+by the driver, and the readers in this section are the only place that
+choice has to be made.
+
+The two backends disagree about how a temporal column arrives in JS, and
+the disagreement is invisible until CI runs the postgres:18 leg, which
+11.10 makes the production-fidelity authority. PGlite hands back the string
+Postgres printed; node-postgres registers a parser for OID 1082 (date) and
+OID 1184 (timestamptz) and hands back a JS Date. Measured on the installed
+pg 8.22.0 and postgres-date 1.0.7 rather than recalled, by applying those
+parsers to the text a column puts on the wire:
+
+- String() of a parsed date is "Mon Aug 24 2026 00:00:00 GMT+0200 (...)",
+  so a reader taking its first ten characters gets "Mon Aug 24" and every
+  comparison against a 4.11 date fails on that leg alone.
+- String() of a parsed instant has one-second resolution, so two instants
+  inside the same second compare equal. That one is worse than a failure:
+  it would quietly retire every "a no-op wrote nothing" and "the refusal
+  touched nothing" assertion in this package, all of which compare an
+  updated_at across an operation that takes microseconds.
+
+to_char answers text (OID 25), which node-postgres passes through
+unchanged, so one format reaches the test on either leg and it is 4.11's
+own. This is what the domain module already does with every floating date
+it serializes, for the same reason.
+
+Formatting on the JS side was considered and rejected. postgres-date builds
+a date-only value at local midnight, so toISOString() on it prints the day
+before on every machine east of UTC, which is precisely the shift 4.11
+stores floating dates to avoid; a helper would have to remember to use the
+local getters instead, and remembering is what failed here the first time.
+*/
+const DATE_FORMAT = 'YYYY-MM-DD'
+const TIME_FORMAT = 'HH24:MI:SS'
+// Microseconds are kept: an assertion that a no-op wrote nothing is only
+// as sharp as the precision it compares at, and Postgres stores six digits.
+const INSTANT_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+
+// The column names are literals in this file, never anything a test supplies.
+function dateColumn(name: string): SQL {
+  return sql.raw(`to_char(${name}, '${DATE_FORMAT}') AS ${name}`)
+}
+
+function timeColumn(name: string): SQL {
+  return sql.raw(`to_char(${name}, '${TIME_FORMAT}') AS ${name}`)
+}
+
+function instantColumn(name: string): SQL {
+  return sql.raw(
+    `to_char(${name} AT TIME ZONE 'UTC', '${INSTANT_FORMAT}') AS ${name}`,
+  )
+}
+
 export interface TaskRow extends Record<string, unknown> {
   id: string
   folder_id: string
@@ -529,16 +584,35 @@ export interface TaskRow extends Record<string, unknown> {
   series_id: string | null
   completed_at: string | null
   completed_by: string | null
+  created_at: string
+  updated_at: string
   created_by: string
   important: boolean
   notes: string | null
 }
 
+/*
+Projected explicitly rather than SELECT *, because the point is that every
+temporal column is named and rendered. Section 4 is frozen, so the column
+list is stable, and a column added to tasks without amending it would be a
+change this suite should notice rather than absorb.
+*/
 export async function taskRow(
   db: Db,
   taskId: string,
 ): Promise<TaskRow | undefined> {
-  const found = await rows(db, sql`SELECT * FROM tasks WHERE id = ${taskId}`)
+  const found = await rows(
+    db,
+    sql`
+      SELECT id, folder_id, title, notes, status, important,
+             ${dateColumn('due_date')}, ${timeColumn('due_time')},
+             recurrence_rule, series_id, assignee_id, created_by, completed_by,
+             ${instantColumn('completed_at')},
+             ${instantColumn('created_at')},
+             ${instantColumn('updated_at')}
+        FROM tasks WHERE id = ${taskId}
+    `,
+  )
   return found[0] as TaskRow | undefined
 }
 
@@ -556,7 +630,12 @@ export async function reminderRow(
 ): Promise<Record<string, unknown> | undefined> {
   const found = await rows(
     db,
-    sql`SELECT * FROM reminders WHERE task_id = ${taskId}`,
+    sql`
+      SELECT task_id, offset_minutes, ${timeColumn('time_of_day')},
+             ${instantColumn('fire_at')}, state, ${instantColumn('fired_at')},
+             created_by
+        FROM reminders WHERE task_id = ${taskId}
+    `,
   )
   return found[0]
 }
@@ -567,7 +646,10 @@ export async function stepRows(
 ): Promise<Record<string, unknown>[]> {
   return rows(
     db,
-    sql`SELECT * FROM steps WHERE task_id = ${taskId} ORDER BY position, id`,
+    sql`
+      SELECT id, task_id, title, done, position, ${instantColumn('created_at')}
+        FROM steps WHERE task_id = ${taskId} ORDER BY position, id
+    `,
   )
 }
 
@@ -577,10 +659,15 @@ export async function myDayRows(
 ): Promise<Record<string, unknown>[]> {
   return rows(
     db,
-    sql`SELECT * FROM my_day_entries WHERE task_id = ${taskId} ORDER BY user_id`,
+    sql`
+      SELECT task_id, user_id, ${dateColumn('added_on')}
+        FROM my_day_entries WHERE task_id = ${taskId} ORDER BY user_id
+    `,
   )
 }
 
+/** The pull date, already in 4.11's format because the database printed it:
+ * no slicing, because there is nothing left on it to slice off. */
 export async function myDayAddedOn(
   db: Db,
   taskId: string,
@@ -588,11 +675,13 @@ export async function myDayAddedOn(
 ): Promise<string | undefined> {
   const found = await rows(
     db,
-    sql`SELECT added_on FROM my_day_entries
-         WHERE task_id = ${taskId} AND user_id = ${userId}`,
+    sql`
+      SELECT ${dateColumn('added_on')} FROM my_day_entries
+       WHERE task_id = ${taskId} AND user_id = ${userId}
+    `,
   )
   const first = found[0]
-  return first === undefined ? undefined : String(first.added_on).slice(0, 10)
+  return first === undefined ? undefined : String(first.added_on)
 }
 
 /** today in UTC, which is today(V) for every actor in this package: the

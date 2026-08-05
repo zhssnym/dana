@@ -127,7 +127,7 @@ the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
 asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
 and P7's reminders, and the task half of the invariant sweep, which
 delegates the folder half to `expectFolderInvariants` rather than restating
-it. Each file's header explains its own decisions; the seven below are worth
+it. Each file's header explains its own decisions; the eight below are worth
 knowing before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
@@ -180,6 +180,31 @@ rather than a key list, and TaskCard's pending_invite_email, whose
 derivation from `invites.task_id` belongs to P5, the package that creates
 those rows. Nothing in section 12 pins that derivation today, which is
 recorded here for P5's tester session rather than left to be noticed.
+
+**Temporal columns are rendered by the database, never handed over by the
+driver.** The two backends disagree about what a date or an instant column
+hands to JavaScript: PGlite returns the string Postgres printed, while
+node-postgres registers a parser for OID 1082 and OID 1184 and returns a JS
+`Date`. A reader that takes either straight from the driver therefore reads
+one thing on the default leg and another on the `postgres:18` leg that 11.10
+makes the production-fidelity authority. So the readers in `tasks-harness.ts`
+project every temporal column through `to_char`, which answers text on both
+backends, in 4.11's own format, exactly as the domain module serializes every
+floating date. Formatting on the JavaScript side was rejected: `postgres-date`
+builds a date-only value at local midnight, so `toISOString()` on it prints
+the previous day on any machine east of UTC, which is the shift 4.11 stores
+floating dates to avoid.
+
+Instants keep all six digits, which is the half that matters most. A
+`Date` stringifies at one-second resolution, so before this the package's
+"a no-op wrote nothing" and "the refusal touched nothing" assertions
+compared `updated_at` across operations that take microseconds and would
+have passed on that leg whatever was written. `tasks-harness.test.ts` is the
+guard: a unit test of these readers (protocol section 8, unit tests belong
+to the module's owner) that pins the three formats and proves one microsecond
+of movement still fails an equality. It runs on both legs, so a reader that
+regresses fails there once, attributably, instead of somewhere else twenty
+times or nowhere at all.
 
 ## What the tests need from outside `app/tests/`
 

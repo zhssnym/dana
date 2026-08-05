@@ -164,9 +164,9 @@ describe('AC-041: uncompleting clears both completion columns', () => {
     await transitionOk(owner, taskId, 'uncomplete', 'the uncomplete is accepted')
     const after = await requireTaskRow(app.db, taskId)
     expect(
-      String(after.due_date).slice(0, 10),
+      after.due_date,
       '5.1 gives this transition two side effects, and dates are not among them',
-    ).toBe(String(before.due_date).slice(0, 10))
+    ).toBe(before.due_date)
     expect(String(after.due_time), 'the time as it was').toBe(
       String(before.due_time),
     )

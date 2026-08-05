@@ -158,9 +158,9 @@ describe('AC-035: concurrent PATCHes of different fields both persist', () => {
       before.important,
     )
     expect(
-      String(after.due_date).slice(0, 10),
+      after.due_date,
       'the date is absent from the body',
-    ).toBe(String(before.due_date).slice(0, 10))
+    ).toBe(before.due_date)
     expect(
       after.assignee_id === null ? null : String(after.assignee_id),
       'the assignee is absent from the body',
