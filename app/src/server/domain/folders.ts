@@ -43,14 +43,18 @@ export interface FolderAccess {
 }
 
 /** Null means the folder does not exist or the viewer is not a member,
- * which 10.2 makes the same answer: 404, never 403. */
+ * which 10.2 makes the same answer: 404, never 403.
+ *
+ * The executor rather than the handle, so a caller inside a transaction
+ * resolves access against the same snapshot it will write in; P3's task
+ * moves need exactly that, and every Db is an Executor. */
 export async function accessOf(
-  db: Db,
+  executor: Executor,
   viewerId: string,
   folderId: string,
 ): Promise<FolderAccess | null> {
   const found = await rowsOf(
-    db,
+    executor,
     sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default
         FROM folders f
         JOIN folder_members m ON m.folder_id = f.id
