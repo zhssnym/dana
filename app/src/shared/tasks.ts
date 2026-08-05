@@ -22,10 +22,10 @@ shapes below carry them from this package on.
 Deliberately absent too, the way folders.ts left the P2 wrapper question to
 the shape review that followed it: the response bodies 7.7 and 7.8 leave
 open. Frozen 7.7 gives its three endpoints statuses and names no body, 7.8
-gives 200 twice and names none either, and 7.0 fixes only TaskCard,
-TaskDetail, and Folder. The schemas here stop where the frozen text stops, so
-the P3 endpoint shape review settles those once, with the implemented routes
-in front of it.
+answers 200 on both of its calls and names none either, and 7.0 fixes only
+TaskCard, TaskDetail, and Folder. The schemas here stop where the frozen text
+stops, so the P3 endpoint shape review settles those once, with the
+implemented routes in front of it.
 */
 import { z } from 'zod'
 
@@ -136,7 +136,9 @@ export const recurrenceRule = z
   .string({ error: 'must be a string' })
   .max(200, { error: 'must be at most 200 characters' })
 
-const taskId = z.uuid({ error: 'must be a uuid' })
+// Every id the bodies below carry is a uuid and nothing more: what it points
+// at, and whether V may point at it, are questions only the rows answer.
+const uuid = z.uuid({ error: 'must be a uuid' })
 
 /* ------------------------------------------------------------------ *
  * 7.6 request bodies
@@ -166,12 +168,12 @@ all need rows to answer, and 7.11 lists them as server-authoritative there.
 export const postTasksBody = z
   .object({
     title: taskTitle,
-    folder_id: taskId.optional(),
+    folder_id: uuid.optional(),
     notes: taskNotes.nullable().optional(),
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
-    assignee_id: taskId.nullable().optional(),
+    assignee_id: uuid.nullable().optional(),
     steps: z
       .array(stepTitle)
       .max(50, { error: 'must be at most 50 steps' })
@@ -223,8 +225,8 @@ export const patchTaskBody = z
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
-    folder_id: taskId.optional(),
-    assignee_id: taskId.nullable().optional(),
+    folder_id: uuid.optional(),
+    assignee_id: uuid.nullable().optional(),
   })
   /*
   The one INV-6 violation a PATCH body states without any help from the row:
@@ -322,7 +324,7 @@ enumerates both, and 7.0 is frozen, so the enumeration below is a
 transcription and every departure from it would be a change to section 7 in
 disguise.
 
-Six view endpoints of 7.10 answer TaskCard rows, and P4 fills them from this
+Every view endpoint of 7.10 answers TaskCard rows, and P4 fills them from this
 definition rather than from a per-endpoint variant, which is the drift this
 role exists to prevent.
 */
