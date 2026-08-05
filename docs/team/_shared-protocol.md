@@ -74,7 +74,7 @@ When you escalate, state the spec section, the exact problem, the options you co
 - Never use em dashes or double hyphens in any Dana document, comment, or commit message. Use commas, colons, or separate sentences. Markdown table delimiter rows use a single hyphen per column.
 - 24-hour time notation. Use "to" for ranges.
 - Comments explain why, not what. Match the density and idiom of surrounding code.
-- Commits: a short imperative subject line, a body explaining what changed and which acceptance criteria now pass, and the trailer `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+- Commits: a short imperative subject line, a body explaining what changed and which acceptance criteria now pass, and a `Co-Authored-By:` trailer naming the model the session actually ran on, at `<noreply@anthropic.com>`. The name is the session's own and is read from the session, never copied from this sentence: a fixed string here went stale the moment the model lineup changed, and a trailer that misnames its author is worse than no trailer, because attribution is the one thing it exists to carry. Commits already written stay as they are; this governs new ones.
 - Work on a branch named for your package, for example `p3-tasks-core`. Never commit directly to `main`; the Integration Steward merges.
 
 ## 8. Tests
