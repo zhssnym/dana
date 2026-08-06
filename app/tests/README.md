@@ -21,6 +21,7 @@ npx vitest run -t "AC-105"
 | P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
+| P3 gate | AC-124 | Covered, passing; it arrived green, see below |
 | P4 to P10 | AC-045 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -81,6 +82,25 @@ asserted rather than left to be rediscovered:
   and the insert are one locked decision. What the backend genuinely
   cannot express is anything needing two *connections* at once, which is a
   narrower set than it sounds.
+- **AC-124 is the one criterion here that arrived green.** It rides P3's
+  merge gate the way AC-116 to AC-118 rode P2's, and it measures three cap
+  repairs that had already landed on this branch, so it passed on arrival
+  instead of failing first. That inverts the order every other file in the
+  package ran in, and it costs the thing the order buys: a test that has
+  never failed has not been shown to discriminate. So the three arms were
+  red-proven out of band before the file was written, by reproducing the
+  unfixed shape, a count not tied to the write it admits, against the same
+  tables on the default backend. Two callers arriving together at the limit
+  minus one leave 51 steps, 26 members and 201 folders, where the three arms
+  now leave 50, 25 and 200 with one caller refused 422. What could not be
+  done is restoring the modules and running the file against them: the
+  implementation is not this role's to edit, even temporarily.
+
+  Its member arm carries one assertion the other two do not need. Two of
+  7.4's guards answer 422 on that endpoint, the cap and the missing roster
+  connection, so a refusal for the wrong reason would satisfy the statuses
+  and the count alike. The loser is re-offered once a slot frees, and being
+  admitted then is what proves the earlier refusal was the count.
 - **The settled 7.7 and 7.8 bodies are pinned by AC-043 and AC-044.** Both
   sections were silent on what their mutations answer when those files were
   written, so they asserted statuses alone; the P3 shape review settled it

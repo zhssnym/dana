@@ -146,11 +146,17 @@ export function expectStatus(
  * ------------------------------------------------------------------ */
 
 /** POST /folders, asserted: 7.4 answers 201 with the Folder object. */
+/** POST /folders, unjudged: the transport AC-124's raced pair needs, where
+ * one of the two creates is refused and the other is not. */
+export function postFolder(actor: Actor, name: string): Promise<RawResponse> {
+  return actor.browser.json('/folders', 'POST', { name })
+}
+
 export async function createFolder(
   actor: Actor,
   name: string,
 ): Promise<string> {
-  const response = await actor.browser.json('/folders', 'POST', { name })
+  const response = await postFolder(actor, name)
   expectStatus(
     response,
     201,
