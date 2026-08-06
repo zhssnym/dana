@@ -1,45 +1,15 @@
 # Dana
 
-Dana is a collaborative to-do web application, delivered as an installable PWA.
-Google sign-in, shareable folders as the single organizing primitive, and derived
-scheduling: a task with no due date lives on Tasks, a dated task lives on Planned,
-and My Day, Important, All, and Done are queries over the same rows. Version 1 is
-deliberately manual and boring: no AI, no integrations, no offline writes.
+Dana is a collaborative to-do web app, installable as a PWA. You sign in with Google. Once inside, it works like any normal to-do app (think Microsoft To Do): create tasks, create folders, put tasks in folders, complete them, and most importantly share them and assign people to it so you can collaborate with other people.
 
-The repository is specification-first. The product was fully specified before any
-code existed, and it is implemented by AI coding agents working in role-scoped
-sessions against that specification, which is the contract no session may
-contradict.
+Inside the app you have a few pages and the option to create folders, you can group folders too. You'll normally see the default pages: My Day, Planned, All Tasks. You have the option in settings to turn on or off extra pages like Important and Done.
 
-## Where things are
+**Stack:** The rest of the app is: Vite + React on the front end, Express API on the back end, both in one Node app. Postgres for the database, deployed on Render as a single always-on instance. Also no Docker is needed.
 
-| Path | What it is |
-| - | - |
-| `docs/spec/` | The contract, one file per numbered section. Start at `00-index.md` |
-| `docs/rfcs/` | Proposed changes; `0001-mvp.md` is the build plan and its package order |
-| `docs/team/` | The thirteen agent roles and the shared protocol that binds them |
-| `docs/operator/` | How the build is run rather than written |
-| `docs/design/` | The design brief, and the screens and notes as they land |
-| `CHANGELOG.md` | What the product became |
-| `SESSION-LOG.md` | How it was built: every session that has run, in order |
-| `app/` | The application |
+**To run the app:** run `npm ci` to install dependencies. `npm test` for unit + acceptance tests. `npm run dev` to run the API and the client.
 
-## Running it
+**Vision:** The long-term idea is to add AI and when you give it a goal, and it turns that into concrete to-do items. Beyond that we're still figuring things out to be honest, we just wanted to ship a usable thing, so a to-do app just felt like the most classic way to start.
 
-```bash
-cd app
-npm ci
-npm test        # against an embedded Postgres; no Docker needed
-npm run dev     # API server plus client dev server
-```
+**Team:** Hassan runs the project and handles the back end and infrastructure, built with Claude Code. Imran does UI and design.
 
-Specification section 11 records the stack and why each piece was chosen. The short
-version: a Vite React single-page app and an Express API in one Node deployable,
-Postgres 18, and a one-minute in-process reminder tick, hosted on Render as a single
-always-on instance.
-
-## Status
-
-Pre-release. RFC 0001's implementation plan is the build order and says which
-packages exist; `SESSION-LOG.md` records which have actually run, and `git log` is
-the authority over both.
+*Written with love by Hassan.*
