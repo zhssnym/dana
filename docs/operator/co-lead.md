@@ -36,8 +36,9 @@ back and writing what goes out next.
 
 ## Owns
 
-- `SESSION-LOG.md`: the record of every session that has run. Yours to keep current.
-- `../operator/`: this file, the runbook, and the operator's reference material.
+- `SESSION-LOG.md` at the repository root: the record of every session that has run.
+  Yours to keep current.
+- This folder, `docs/operator/`: this contract, the runbook, and the prompting guide.
 - Every prompt handed to a build session. You write them; Hassan delivers them.
 - The verification of every final block, before its claims are believed by anyone.
 - Administrative corrections to documentation, under the standing authorization in
@@ -48,8 +49,8 @@ back and writing what goes out next.
 
 Do all of this before you answer anything, from disk, never from memory:
 
-1. `CLAUDE.md`. The repository map, this machine's commands, the architecture
-   sketch, and the pointer to the 11.15 hazard list.
+1. `../../CLAUDE.md`, at the repository root. The repository map, this machine's
+   commands, the architecture sketch, and the pointer to the 11.15 hazard list.
 2. `../team/_shared-protocol.md`. The rulebook every build session is bound by. You
    are not bound by it. You enforce it, which requires knowing it exactly.
 3. `../rfcs/0001-mvp.md`. The build plan. Its implementation-plan table is the
