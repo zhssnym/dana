@@ -35,11 +35,13 @@ import {
 import type { Actor } from './folders-harness.js'
 import {
   addStep,
+  addStepOk,
   createTask,
   createTaskOk,
   deleteStep,
   expectSweptTasks,
   expectTaskInvariants,
+  patchStepOk,
   readTask,
   stepRows,
 } from './tasks-harness.js'
@@ -130,15 +132,82 @@ describe('AC-043: the fifty-first step is refused', () => {
       'a create carrying 49 steps must be accepted (spec 7.6)',
     )
     taskIds.push(created.id)
-    const response = await addStep(author, created.id, { title: 'the 50th' })
-    expectStatus(
-      response,
-      201,
-      'the cap is 50, so the 50th step is inside it (spec 7.7, 10.3)',
-    )
-    const detail = await readTask(author, created.id)
+    const detail = await addStepOk(author, created.id, 'the 50th')
     expect(detail.steps_total, 'TaskCard counts what the task holds').toBe(50)
     expect(detail.steps_done, 'and none of them is done').toBe(0)
+  })
+
+  /*
+  The response bodies frozen 7.7 now states. They were silent while this
+  file was written, so it asserted the statuses the criterion names and
+  nothing about what came back; the P3 shape review settled them and the
+  owner entered them, which makes them contract this surface must satisfy
+  and which no criterion pinned. Added here rather than left to the shape
+  review's own record, because a sentence in section 7 that no test reads
+  is a sentence the next implementation can quietly stop honoring.
+  */
+  test('AC-043 contract: the 7.7 mutations answer the affected TaskDetail', async () => {
+    const { author, folderId } = await stage()
+    const created = await createTaskOk(
+      author,
+      { title: 'p3 ac043 bodies', folder_id: folderId },
+      'a task with no steps must be creatable (spec 7.6)',
+    )
+    taskIds.push(created.id)
+
+    // POST answers 201 with the parent task, not with the step it created,
+    // and the created step rides in the steps array with the id and
+    // position the server assigned it. addStepOk judges all of that,
+    // including that the body equals a fresh GET.
+    const added = await addStepOk(author, created.id, 'the only step')
+    expect(
+      added.steps_total,
+      'a step add moves steps_total, which is a field of the task and of nothing else (spec 7.7)',
+    ).toBe(1)
+    const step = (added.steps as { id: string; position: number }[])[0]
+    expect(step, 'the created step is in the array').toBeDefined()
+    expect(
+      typeof (step as { id: string }).id,
+      'carrying the id the server assigned it (spec 7.7)',
+    ).toBe('string')
+    expect(
+      Number.isInteger((step as { position: number }).position),
+      'and the position it assigned it',
+    ).toBe(true)
+
+    // PATCH answers the same object, and checking a step moves steps_done,
+    // which is the reason the task rather than the step is the answer.
+    const patched = await patchStepOk(
+      author,
+      created.id,
+      (step as { id: string }).id,
+      { done: true },
+    )
+    expect(
+      patched.steps_done,
+      'checking a step moves steps_done on the task (spec 7.7)',
+    ).toBe(1)
+    expect(
+      (patched.steps as { done: boolean }[])[0]?.done,
+      'and the step itself reads done',
+    ).toBe(true)
+
+    // DELETE keeps 7.7's 204 and carries no body, which the same paragraph
+    // says outright: the one mutation here that answers nothing.
+    const deleted = await deleteStep(author, (step as { id: string }).id)
+    expectStatus(
+      deleted,
+      204,
+      'DELETE /steps/:id keeps its 204 (spec 7.7)',
+    )
+    expect(
+      deleted.body,
+      '7.7: the delete carries no body, unlike the two mutations above',
+    ).toBe('')
+    expect(
+      (await readTask(author, created.id)).steps_total,
+      'and the deletion really happened',
+    ).toBe(0)
   })
 
   test('AC-043 adversarial: a create carrying 51 steps leaves no task behind', async () => {
@@ -179,11 +248,9 @@ describe('AC-043: the fifty-first step is refused', () => {
       204,
       'a step may be deleted (spec 7.7)',
     )
-    expectStatus(
-      await addStep(author, taskId, { title: 'accepted at 50 again' }),
-      201,
-      'the cap is a live count of rows: deleting one makes room for one (spec 4.6, 10.3)',
-    )
+    // The cap is a live count of rows: deleting one makes room for one
+    // (spec 4.6, 10.3), and the add answers the affected task (spec 7.7).
+    await addStepOk(author, taskId, 'accepted at 50 again')
     expect(
       (await stepRows(app.db, taskId)).length,
       'and the task is back at the cap',
@@ -208,11 +275,8 @@ describe('AC-043: the fifty-first step is refused', () => {
       422,
       'a step title is 1 to 300 characters (spec 10.3, 4.6)',
     )
-    expectStatus(
-      await addStep(author, created.id, { title: 'y'.repeat(300) }),
-      201,
-      'exactly 300 characters is inside the limit',
-    )
+    // Exactly 300 characters is inside the limit (spec 10.3).
+    await addStepOk(author, created.id, 'y'.repeat(300))
     expect(
       (await stepRows(app.db, created.id)).length,
       'only the accepted one was written',

@@ -120,13 +120,19 @@ function expectDateOrNull(value: unknown, source: string): void {
   ).toBe(true)
 }
 
-/** 4.11 stores due_time as a floating wall-clock time at minute precision;
- * Postgres renders TIME with seconds, which is the same value. */
+/*
+4.11 stores due_time as a floating wall-clock time at minute precision, and
+7.0 now says how it rides the wire: HH:MM, never an instant, because an
+instant reintroduces the timezone the floating format exists to remove. The
+seconds Postgres renders TIME with were tolerated here while 7.0 was silent
+on the wire format; the P3 shape review closed that silence, so the
+assertion is the ruled format exactly.
+*/
 function expectTimeOrNull(value: unknown, source: string): void {
   if (value === null) return
   expect(
-    typeof value === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(value),
-    `${source} must be a floating wall-clock time, HH:MM (spec 4.11); got ${JSON.stringify(value)}`,
+    typeof value === 'string' && /^\d{2}:\d{2}$/.test(value),
+    `${source} must be a floating wall-clock time in 4.11's format, HH:MM (spec 7.0 as ruled at the P3 shape review); got ${JSON.stringify(value)}`,
   ).toBe(true)
 }
 
@@ -245,22 +251,26 @@ export function expectTaskDetailShape(
   ).toBe('string')
 
   /*
-  The one tolerated looseness. 7.0 writes the reminder as
-  "{offset_minutes or time_of_day} or null", which names a mode rather than
-  a key list (4.8 makes exactly one of the two columns non-null), so both a
-  one-key object and a two-key object with one null are faithful renderings.
-  Keys outside the pair are not.
+  This was the one tolerated looseness in the shape, and it is not open any
+  more. While 7.0 said only "{offset_minutes or time_of_day} or null", both
+  a one-key object and a two-key object with one null were faithful
+  renderings of a mode, so this admitted either. The P3 shape review settled
+  it and the owner entered it: the reminder carries both 4.8 columns with
+  exactly one of the two non-null, because a stable key set is what lets a
+  client read the mode off the values instead of narrowing a union to learn
+  which keys it holds. So the key set is exact now, like every other object
+  here, and the mode is asserted as 4.8's own exclusive-or.
   */
   if (detail.reminder !== null) {
     const reminder = asRecord(detail.reminder, `${source}.reminder`)
-    const keys = Object.keys(reminder).sort()
+    expectExactKeys(
+      reminder,
+      ['offset_minutes', 'time_of_day'],
+      `${source}.reminder`,
+    )
     expect(
-      keys.every((key) => key === 'offset_minutes' || key === 'time_of_day'),
-      `${source}.reminder may carry only offset_minutes and time_of_day (spec 7.0, 4.8); got ${JSON.stringify(keys)}`,
-    ).toBe(true)
-    expect(
-      reminder.offset_minutes !== undefined || reminder.time_of_day !== undefined,
-      `${source}.reminder must carry one of the two 4.8 modes`,
+      (reminder.offset_minutes === null) !== (reminder.time_of_day === null),
+      `${source}.reminder carries both 4.8 columns with exactly one non-null (spec 7.0 as ruled at the P3 shape review, 4.8's CHECK); got ${JSON.stringify(reminder)}`,
     ).toBe(true)
   }
 
@@ -426,16 +436,111 @@ export function addStep(
   return actor.browser.json(`/tasks/${taskId}/steps`, 'POST', body)
 }
 
+/*
+The ruled 7.7 and 7.8 response bodies are judged here, once each, the way
+patchSettingsOk in settings-harness.ts judges the ruled 7.2 body.
+
+Both sections were silent on what their mutations answer while these files
+were written, so nothing judged it and the criteria asserted statuses
+alone. The P3 shape review settled it and the owner entered it: a step and
+a My Day entry are not resources this contract shapes, 7.0 gives neither an
+object and section 7 offers no GET for either, while each mutation moves
+more of the task than the row it touches, steps moving steps_done and
+steps_total and a pull moving pulled. So the affected TaskDetail is the
+only object that reports what the call did, and every one of these answers
+it. POST /tasks/:id/steps answers 201 with that task rather than with the
+step it created, and the created step rides in the steps array.
+
+Each success is judged twice over, the fresh-GET convention this contract
+now carries in four places: the body is a whole TaskDetail, and it equals
+what a fresh GET /tasks/:id then answers. Refusals stay on the unjudged
+transports above, because a refusal answers the 7.0 envelope rather than a
+task; DELETE /steps/:id keeps 7.7's 204 and carries no body at all.
+*/
+async function expectAffectedTask(
+  actor: Actor,
+  taskId: string,
+  response: RawResponse,
+  expected: number,
+  why: string,
+): Promise<TaskDetailBody> {
+  expectStatus(response, expected, why)
+  const body = expectTaskDetailShape(response.json(), `the ${why} body`)
+  expect(
+    body.id,
+    'the affected TaskDetail is the parent task, not some other row (spec 7.7, 7.8)',
+  ).toBe(taskId)
+  expect(
+    body,
+    'a mutation answers what a fresh GET would (spec 7.7 and 7.8 as ruled at the P3 shape review)',
+  ).toEqual(await readTask(actor, taskId))
+  return body
+}
+
+/** POST /tasks/:id/steps asserted: 201, and the parent task rather than the
+ * created step, which rides in its steps array. */
 export async function addStepOk(
   actor: Actor,
   taskId: string,
   title: string,
-): Promise<void> {
-  const response = await addStep(actor, taskId, { title })
-  expectStatus(
-    response,
+): Promise<TaskDetailBody> {
+  const body = await expectAffectedTask(
+    actor,
+    taskId,
+    await addStep(actor, taskId, { title }),
     201,
-    `POST /tasks/${taskId}/steps must add a step and answer 201 (spec 7.7)`,
+    `POST /tasks/${taskId}/steps, which must add the step and answer the affected TaskDetail (spec 7.7)`,
+  )
+  expect(
+    (body.steps as { title: string }[]).map((step) => step.title),
+    'the created step rides in the steps array it just changed (spec 7.7)',
+  ).toContain(title)
+  return body
+}
+
+/** PATCH /steps/:id asserted: 200 and the affected TaskDetail. */
+export async function patchStepOk(
+  actor: Actor,
+  taskId: string,
+  stepId: string,
+  body: unknown,
+): Promise<TaskDetailBody> {
+  return expectAffectedTask(
+    actor,
+    taskId,
+    await patchStep(actor, stepId, body),
+    200,
+    `PATCH /steps/${stepId}, which must answer the affected TaskDetail (spec 7.7)`,
+  )
+}
+
+/** POST /tasks/:id/my-day asserted: 200 and the affected TaskDetail. */
+export async function pullIntoMyDayOk(
+  actor: Actor,
+  taskId: string,
+  why: string,
+): Promise<TaskDetailBody> {
+  return expectAffectedTask(
+    actor,
+    taskId,
+    await pullIntoMyDay(actor, taskId),
+    200,
+    `${why}, which must answer the affected TaskDetail (spec 7.8)`,
+  )
+}
+
+/** DELETE /tasks/:id/my-day asserted: 200 and the affected TaskDetail. */
+export async function dropFromMyDayOk(
+  actor: Actor,
+  taskId: string,
+  why: string,
+): Promise<TaskDetailBody> {
+  return expectAffectedTask(
+    actor,
+    taskId,
+    await dropFromMyDay(actor, taskId),
+    200,
+    `${why}, which must answer the affected TaskDetail (spec 7.8)`,
   )
 }
 

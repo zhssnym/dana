@@ -42,10 +42,12 @@ import type { Actor } from './folders-harness.js'
 import {
   createTaskOk,
   dropFromMyDay,
+  dropFromMyDayOk,
   expectTaskInvariants,
   myDayAddedOn,
   myDayRows,
   pullIntoMyDay,
+  pullIntoMyDayOk,
   readTask,
   todayInUtc,
   yesterdayInUtc,
@@ -240,6 +242,67 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
     expect(
       (await readTask(owner, taskId)).pulled,
       'dropping it takes the flag with it',
+    ).toBe(false)
+  })
+
+  /*
+  The response bodies frozen 7.8 now states. They were silent while this
+  file was written, so it asserted the four statuses the criterion names
+  and nothing about what came back; the P3 shape review settled them and
+  the owner entered them, which makes them contract this surface must
+  satisfy and which no criterion pinned. The sequence test above stays on
+  the raw transports deliberately: it is the criterion's own four calls in
+  the criterion's own order, and a fresh GET wedged between them would make
+  it a transcription of something else.
+
+  The sharp part is that both calls answer the task rather than the entry,
+  and that the flag they moved is already true in the body that answers,
+  not merely in the next GET. An implementation that writes the row and
+  serializes a task it read beforehand passes every assertion in this file
+  except this one.
+  */
+  test('AC-044 contract: both 7.8 calls answer the affected TaskDetail', async () => {
+    const { owner, second } = await stage()
+    const taskId = await pullable('bodies')
+
+    const pulled = await pullIntoMyDayOk(
+      owner,
+      taskId,
+      'the pull that creates the entry (spec 7.8)',
+    )
+    expect(
+      pulled.pulled,
+      'the body that answers the pull already reports it: pulled is a field of the task, which is why the task is the answer (spec 7.0, 7.8)',
+    ).toBe(true)
+
+    const repeat = await pullIntoMyDayOk(
+      owner,
+      taskId,
+      'the repeat pull, a 200 no-op (spec 7.8, INV-12)',
+    )
+    expect(
+      repeat.pulled,
+      'a no-op answers the same task, not a different one',
+    ).toBe(true)
+
+    const dropped = await dropFromMyDayOk(
+      owner,
+      taskId,
+      'the drop that removes the entry (spec 7.8)',
+    )
+    expect(
+      dropped.pulled,
+      'and the drop reports the flag it just cleared',
+    ).toBe(false)
+
+    const absent = await dropFromMyDayOk(
+      second,
+      taskId,
+      'a drop with no entry to remove, which 7.8 answers 200 anyway',
+    )
+    expect(
+      absent.pulled,
+      'the idempotent case answers the task too, with the flag it did not have',
     ).toBe(false)
   })
 

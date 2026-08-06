@@ -2,12 +2,16 @@
 AC-029: given a move whose target folder the caller is not a member of, then
 the request fails and nothing changes.
 
-The criterion names no status, and 7.6 admits two for this move ("V must be
-member of both source and target (404 or 422)"), so the assertion is
-membership in that pair rather than one number: pinning a single value would
-be inventing a rule the frozen text left open. What is not open is the
-failure itself and its emptiness, so both halves are asserted hard, and a
-500 fails the pair.
+The criterion names no status. Frozen 7.6 once admitted two for this move,
+"V must be member of both source and target (404 or 422)", and this file
+asserted membership in that pair rather than inventing a single value the
+text had left open. The P3 shape review closed it: the bullet now reads 404
+alone, on the ground that a 422 for a target folder the caller is not a
+member of confirms the folder exists, which is the existence leak 10.2 and
+this section's own 404 rule are built to prevent. So the assertion narrows
+with the contract. Nothing here changes meaning: the criterion still says
+only that the request fails, and 404 was always inside what this file
+admitted.
 
 Attacked beside the criterion: the mirror case, a move out of a folder the
 caller cannot see, which must read 404 and never 403 under the leak rule of
@@ -86,11 +90,13 @@ async function stage(): Promise<Stage> {
   return staged
 }
 
+/** One statement, since the P3 shape review narrowed 7.6's move refusal to
+ * 404: an inaccessible target must read exactly as a nonexistent one. */
 function expectRefused(status: number, why: string): void {
   expect(
-    [404, 422].includes(status),
-    `${why}; frozen 7.6 admits 404 or 422 for this move and answered ${String(status)}`,
-  ).toBe(true)
+    status,
+    `${why}; frozen 7.6 answers 404 for a target the caller is not a member of, narrowed from "404 or 422" at the P3 shape review because a 422 would confirm the folder exists`,
+  ).toBe(404)
 }
 
 function snapshot(row: TaskRow): Record<string, unknown> {

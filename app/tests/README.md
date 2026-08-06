@@ -20,7 +20,7 @@ npx vitest run -t "AC-105"
 | P2 | AC-011 to AC-024 | Covered, passing since the P2 merge |
 | P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
-| P3 | AC-025 to AC-044 | Covered, failing until P3 lands the 7.6, 7.7, and 7.8 endpoints |
+| P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P4 to P10 | AC-045 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -66,9 +66,33 @@ asserted rather than left to be rediscovered:
   than skipping the clause silently.
 - **Concurrency is asserted twice.** AC-035 runs its two PATCHes as a real
   race and again as a deterministic partial-write probe, because 11.15
-  records that PGlite is single-connection: under the default backend the
-  race may serialize completely, and a whole-row write would survive it by
-  luck.
+  records that PGlite is single-connection and a whole-row write could
+  otherwise survive the race by luck.
+
+  What single-connection does and does not cost the suite was measured at
+  the P3 merge review rather than assumed, because a package fix was
+  routed here on the belief that it costs everything. It does not: one
+  connection serializes *statements*, not handler logic, so two requests
+  in flight interleave their awaits and a read-then-write race is fully
+  expressible on the default backend. Measured both ways on PGlite, at the
+  domain level and through HTTP: two concurrent step adds against a task
+  holding 49 steps leave 51 under a count-then-insert with nothing tying
+  the two together, and answer 201 and 422 for a final 50 once the count
+  and the insert are one locked decision. What the backend genuinely
+  cannot express is anything needing two *connections* at once, which is a
+  narrower set than it sounds.
+- **The settled 7.7 and 7.8 bodies are pinned by AC-043 and AC-044.** Both
+  sections were silent on what their mutations answer when those files were
+  written, so they asserted statuses alone; the P3 shape review settled it
+  and the owner entered it on frozen 7.7 and 7.8. Both step mutations and
+  both My Day calls answer the affected TaskDetail, and POST
+  /tasks/:id/steps answers 201 with the parent task rather than the created
+  step, which rides in its steps array. Judged once each in the harness
+  (`addStepOk`, `patchStepOk`, `pullIntoMyDayOk`, `dropFromMyDayOk`), the
+  way `patchSettingsOk` judges the ruled 7.2 body: a whole TaskDetail, equal
+  to what a fresh GET then answers. AC-044's four-call sequence stays on the
+  raw transports, because it is the criterion's own calls in the criterion's
+  own order and a GET wedged between them would transcribe something else.
 
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
@@ -173,13 +197,24 @@ and TaskDetail each appear as a key list in the harness that reads them, by
 the standing Steward ruling: this suite measures `app/src/shared/` and
 cannot borrow its definition of correct. Exact because those shapes are
 enumerated in a frozen section, so a missing key breaks the client contract
-and an extra one is drift it cannot absorb. Two tolerances are deliberate
-and recorded at their assertions in `tasks-harness.ts`: TaskDetail's
-reminder object, whose "offset_minutes or time_of_day" names a 4.8 mode
-rather than a key list, and TaskCard's pending_invite_email, whose
-derivation from `invites.task_id` belongs to P5, the package that creates
-those rows. Nothing in section 12 pins that derivation today, which is
-recorded here for P5's tester session rather than left to be noticed.
+and an extra one is drift it cannot absorb.
+
+One tolerance is left, and it is not a shape: TaskCard's
+`pending_invite_email`, whose derivation from `invites.task_id` belongs to
+P5, the package that creates those rows. The key is asserted; the value is
+not. Nothing in section 12 pins that derivation today, which is recorded
+here for P5's tester session rather than left to be noticed.
+
+The other tolerance is gone, closed by the thing that created it. TaskDetail's
+reminder was read loosely here while 7.0 said only "{offset_minutes or
+time_of_day}", which names a 4.8 mode rather than a key list, so a one-key
+object and a two-key object with one null were both faithful. The P3 shape
+review settled it and the owner entered it on frozen 7.0: both columns
+always, exactly one non-null, because a stable key set is what lets a client
+read the mode off the values. The harness asserts that now, and the same
+paragraph settled the wire format of the floating values, so `due_time` is
+`HH:MM` exactly where the seconds Postgres renders `TIME` with used to be
+admitted.
 
 **Temporal columns are rendered by the database, never handed over by the
 driver.** The two backends disagree about what a date or an instant column
