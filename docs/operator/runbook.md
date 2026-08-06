@@ -23,24 +23,21 @@ of them, the pointed-at document wins, and the disagreement is a defect to fix h
 
 ## 2. Finding out where the project stands
 
-After any time away, derive state from artifacts, exactly as the agents must:
+Your co-lead does this before it answers anything, and section 13 says where its
+contract lives. When you want it yourself, derive it from artifacts exactly as the
+agents must:
 
 ```bash
 git log --oneline -15
-```
-
-```bash
 git branch --list --all
-```
-
-```bash
 cd app && npm test
 ```
 
-The branch list shows packages in flight (branches are named for packages, like
-`p3-tasks-core`). The log shows what landed. The test run shows what is true. If you
-want it computed for you, open a dispatcher session (section 5); its whole job is
-turning those artifacts into "startable, blocked, assigned".
+The branch list shows packages in flight, since branches are named for packages.
+The log shows what landed. The test run shows what is true. `SESSION-LOG.md` shows
+which sessions produced it. If you want the reasoning done for you and no co-lead is
+open, a dispatcher session (role 13) turns the same artifacts into "startable,
+blocked, assigned".
 
 Never trust a memory of where things stood, including your own.
 
@@ -154,136 +151,48 @@ repository's `CLAUDE.md` loads automatically; everything else the agent needs is
 the repository, so you never paste documents, you name them. One session, one
 persona, one assignment.
 
-**Before opening, know three things**, and RFC 0001's plan table has all three in the
-package's own row: which package, which persona owns it (its Owner column names the
-file; that persona's Owns section is the authority), and which branch (its Branch
-column, for example `p3-tasks-core`). Read the row, fill the blanks, open the session.
+**Writing the prompt is your co-lead's job**, and the skeleton it fills lives in
+`co-lead.md` rather than here, so that exactly one copy of it exists. What you
+contribute is everything around the prompt: the right chat, the right model, and the
+discipline below.
 
-**Which assignment line is yours** is decided by where the package is in its triple:
-tester, then implementer, then Steward, one package at a time, per section 3. P0 is
-the one package that inverts the first two, and section 7 says why. Dispatcher and
-Probe are optional sessions, opened only when you are unsure what is startable or
-suspicious of a green result; neither is part of the triple.
-
-**The opening prompt.** Copy this, fill the angle-bracket blanks, delete the
-assignment lines that do not apply:
-
-```text
-You are the <role name> for Dana. Before doing anything else, read in this order:
-
-1. docs/team/_shared-protocol.md, which binds you.
-2. docs/team/<NN-role-file>.md, which is you. Follow its First moves.
-
-Your assignment: <one of the lines below>.
-
-Tester:      Write the acceptance tests for package <PN> of RFC 0001
-             (docs/rfcs/0001-mvp.md) on branch <branch>. The implementation
-             does not exist yet; your tests must fail for the right reasons.
-Implementer: Implement package <PN> of RFC 0001 on branch <branch>. Its
-             acceptance tests are already on the branch and failing; make
-             them pass without editing them.
-Steward:     Review branch <branch> for merge into main, per your persona.
-Dispatcher:  Compute the startable set, the blocked set with reasons, and
-             the assignments, from your five artifacts.
-Probe:       Attack package <PN> beyond its numbered criteria; report every
-             break with the spec section it violates. Write nothing outside
-             app/tests/.
-
-Rules for this session:
-- Work only on branch <branch>; create it from main if it does not exist.
-- Commit as you go, per protocol section 7.
-- If you hit an escalation trigger (protocol section 6), stop and continue only
-  on what is unaffected.
-- End with a final block: branch state, which acceptance criteria pass, what
-  remains, and any escalations under the heading ESCALATION.
-```
+**Which chat.** Three per package, named for the branch: `<branch>-testers`,
+`<branch>-implementers`, `<branch>-steward`. Every session of a package returns into
+one of those three, and returning to a chat is normal. A specialist graded hard may
+earn a fourth of its own. A package kickoff opens the new package's steward chat,
+because a package boundary empties the working set.
 
 **What never goes into a session:** a second persona (an agent with two personas has
 no boundary); a summary of a previous session (state comes from artifacts, and
-summaries are how wrong beliefs survive); this runbook (its header means it: it
-describes you, not them); and secret values of any kind, which live in `.env` and
-the platform dashboards.
-
-**Two variations.** For P8 fidelity work, add one line: "The committed design
-artifacts are in docs/design/; section 9 wins over any image on structure and copy."
-For a resumed package, add one line: "Package <PN> is partially complete on
-<branch>; derive its state from the branch diff and the failing tests, not from any
-summary."
+summaries are how wrong beliefs survive); this runbook or `co-lead.md` (they describe
+the coordination around a session, not its scope); and secret values of any kind,
+which live in `.env` and the platform dashboards.
 
 **Then let it read.** A session that starts writing before it has read its two files
 is already off-protocol; say so once, and if it persists, close it and start over.
 Sessions are cheap. Wrong premises are not.
 
-**The very first session, filled in.** Every blank below came from RFC 0001's P0 row:
-the Owner column gave the persona file and the order, the Branch column gave the
-branch, and section 7 gave the assignment line, because P0 is the one package that
-starts with an implementer rather than a tester. Copy this one as it stands.
-
-```text
-You are the Platform Engineer for Dana. Before doing anything else, read in
-this order:
-
-1. docs/team/_shared-protocol.md, which binds you.
-2. docs/team/10-platform.md, which is you. Follow its First moves.
-
-Your assignment: implement your half of package P0 of RFC 0001
-(docs/rfcs/0001-mvp.md) on branch p0-scaffold: the repository scaffold, the
-tool configuration, CI, the boot file, and /api/health. The migrations, seed
-script, and database client seam are the Data and Invariants Engineer's half
-and follow in a separate session on this same branch; leave app/db/ alone.
-
-P0 runs before its tests exist, because the harness they need is part of what
-you are building; write no acceptance tests yourself.
-
-Rules for this session:
-- Work only on branch p0-scaffold; create it from main if it does not exist.
-- Commit as you go, per protocol section 7, and push the branch.
-- If you hit an escalation trigger (protocol section 6), stop and continue only
-  on what is unaffected.
-- End with a final block: branch state, which acceptance criteria pass, what
-  remains, and any escalations under the heading ESCALATION.
-```
-
-The three sessions after it, all on `p0-scaffold`, in order: the Data and Invariants
-Engineer (role 01) for migrations, seed, and the database seam; then the tester
-(role 11, "write the acceptance tests for package P0"); then the Steward (role 12,
-"review branch p0-scaffold for merge into main"). From P1 onward there is one
-implementer per package, the tester goes first, and every later package fills the
-same blanks from its own row.
-
 ## 6. Closing a session
 
-Four steps, every time, in order:
+**Read the final block before anything else.** An escalation you did not read is a
+decision you silently dropped. If the word ESCALATION appears, section 11 tells you
+what happens next.
 
-1. **Read the final block before anything else.** An escalation you did not read is
-   a decision you silently dropped. If the word ESCALATION appears, section 11 tells
-   you what happens next.
-2. **Run the gate yourself.** Do not take green on faith:
+**Then hand the block to your co-lead**, which verifies it against the repository
+rather than believing it: branch state, the boundary diff against the persona's owned
+paths, the full gate re-run, and the reported counts reconciled against real ones.
+That checklist lives in `co-lead.md`, because that is the role performing it.
 
-```bash
-cd app && npm run lint && npm run typecheck && npm test && npm run build
-```
+What stays in your own hands is one git write: if a session died with uncommitted
+work that compiles, commit it yourself with a `wip:` subject.
 
-3. **Check the boundary.** Compare what changed against the persona's Owns section:
-
-```bash
-git diff --stat main...HEAD
-```
-
-   Files outside the persona's paths (beyond sanctioned dependency additions) mean
-   section 10, not a merge.
-4. **Commit any leftovers.** If the session died with uncommitted work that
-   compiles, commit it yourself with a `wip:` subject. This is the one git write
-   this document asks of your own hands.
-
-**Resuming a package after a session runs out of context** (P3 and P8 will): open a
-fresh session, same persona, same branch, using the resumed-package variation from
-section 5. Continuity lives in the branch: commits state facts (which criteria pass,
-what remains), and micro-decisions worth keeping were recorded in their proper
-artifact (a why-comment, a spec deviation, a section 13 note) precisely because the
-next session will not read the old session's chat. A session running low should be
-told to commit what compiles and end cleanly; facts in a commit message are not a
-report, they are reproducible from the branch.
+**Resuming a package after a session runs out of context** (P8 will): open a fresh
+session, same persona, same branch, and say that the package is partially complete
+and its state comes from the branch diff and the failing tests, never from a summary.
+Continuity lives in the branch. Commits state facts, and micro-decisions worth
+keeping were recorded in their proper artifact, a why-comment, a spec deviation, a
+section 13 note, precisely because the next session will not read the old session's
+chat. A session running low should be told to commit what compiles and end cleanly.
 
 ## 7. Tests come first
 

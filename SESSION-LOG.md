@@ -15,7 +15,7 @@ A row is added when a session has been verified, not when it is planned. Inserte
 rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
 place rather than being renumbered, because the numbers are addresses.
 
-- [x]  p_minus_4 product definition to do:
+## P minus 4: product definition
 
 | # | Task | Status |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 6 | Fold every audit resolution into technical specification pdd v4 | Done |
 | 7 | Assemble the dev team: create 13 job personas for ai and create a shared protocol  | Done |
 
-- [x]  p_minus_3 documentation architecture to do:
+## P minus 3: documentation architecture
 
 | # | Task | Status |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 5 | Renumber acceptance criteria and open questions to sections 12 and 13 | Done |
 | 6 | Strip the `[ISSUE-NN]` and `[SPEC]` provenance tags | Done |
 
-- [x]  p_minus_2 four generation jobs to do:
+## P minus 2: the four generation jobs
 
 | # | Task | Status |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 6 | Job 4: write the runbook and CLAUDE.md | Done |
 | 7 | Record the amendments in the changelog | Done |
 
-- [x]  p_minus_1 execution readiness to do:
+## P minus 1: execution readiness
 
 | # | Task | Status |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 9 | Start working on P0's first session in full | Done |
 | 10 | Fix P0's owner: it spans Platform then Data, in that order | Done |
 
-- [x]  p0-scaffold to do:
+## P0: scaffold, migrations, and CI (`p0-scaffold`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
@@ -76,7 +76,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 4 | Return: fix the tester's findings on the boot path | 10 | Implementers | Done |
 | 5 | Review, record the merge decisions, merge to main | 12 | Steward | Done |
 
-- [x]  p1-auth to do:
+## P1: authentication and sessions (`p1-auth`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
@@ -94,7 +94,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 11 | Endpoint shape review | 04 | Implementers | Done |
 | 12 | Review the whole branch, merge to main | 12 | Steward | Done |
 
-- [x]  p2-folders to do:
+## P2: folders and membership (`p2-folders`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
@@ -112,7 +112,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 6c | Readers tightened | 11 | Testers | Done |
 | 7 | Merge, 7.4 transcribed, item 20, ledger ruling | 12 | Steward | Done |
 
-- [x]  p2s-settings to do:
+## P2S: the settings endpoints (`p2s-settings`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
@@ -124,7 +124,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 4 | Shape review, the content-type finding | 04 | Implementers | Done |
 | 5 | Merge: 7.0 scoped, AC-118 clarified, ratification | 12 | Steward | Done |
 
-- [ ]  p3-tasks-core to do:
+## P3: tasks core (`p3-tasks-core`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |

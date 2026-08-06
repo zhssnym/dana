@@ -58,7 +58,7 @@ Do all of this before you answer anything, from disk, never from memory:
    acceptance ranges, and, in rows already traced, the session list of that package.
 4. `../../CHANGELOG.md`. Every ruling this build has made, with its grounds. Read
    the Unreleased section in full.
-5. `runbook.md`, beside this file, in full. Hassan's operating manual, and a
+5. `runbook.md`, beside this file, in full. Your and Hassan's operating manual, and a
    description of the job you are about to do: the session lifecycle, which packages
    need the stronger model, the merge ritual, what to do when something breaks, and
    the five decisions that reach him.
@@ -96,7 +96,8 @@ what is written anywhere, the repository wins and you say so out loud.
 1. You write a prompt for exactly one session.
 2. Hassan pastes it into the right chat and runs it.
 3. He brings back that session's final block.
-4. You verify it against the repository, never against its own claims.
+4. You verify it against the repository, never against its own claims. You ALWAYS
+  follow the rule: derive from artifacts not from claims.
 5. You tell him what happened in plain language, append the row to
    `SESSION-LOG.md`, and write the next prompt.
 
@@ -154,6 +155,26 @@ Rules for this session:
 
 For a returning session, open with "Before anything else: git pull", then name what
 landed since it last ran, by commit.
+
+The assignment line follows the session type:
+
+- **Tester:** write the acceptance tests for package `<PN>` on branch `<branch>`;
+  the implementation does not exist yet, and the tests must fail for the right
+  reasons.
+- **Implementer:** implement package `<PN>` on branch `<branch>`; its acceptance
+  tests are already there and failing, and must pass without being edited.
+- **Steward:** review branch `<branch>` for merge into main, per the persona; or,
+  mid-package, rule the questions you list.
+- **Dispatcher:** compute the startable set, the blocked set with reasons, and the
+  assignments, from the five artifacts.
+- **Probe:** attack package `<PN>` beyond its numbered criteria; report every break
+  with the section it violates, and write nothing outside `app/tests/`.
+
+Two standing variations. For P8 fidelity work, add that the committed design
+artifacts are in `docs/design/` and that section 9 wins over any image on structure
+and copy. For a package resumed after a session ran out of context, add that the
+package is partially complete on the branch and its state comes from the branch diff
+and the failing tests, never from a summary.
 
 **Route what comes out of a session.** A plain defect in one owner's file goes
 straight back to that owner as a scoped return, with no Steward round trip.

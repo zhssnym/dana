@@ -6,49 +6,40 @@ scheduling: a task with no due date lives on Tasks, a dated task lives on Planne
 and My Day, Important, All, and Done are queries over the same rows. Version 1 is
 deliberately manual and boring: no AI, no integrations, no offline writes.
 
-This repository is specification-first. The product was fully specified before any
-code; implementation is performed by AI coding agents in role-scoped sessions, and
-the specification, not any agent's memory, is the contract.
+The repository is specification-first. The product was fully specified before any
+code existed, and it is implemented by AI coding agents working in role-scoped
+sessions against that specification, which is the contract no session may
+contradict.
 
-## Repository map
+## Where things are
 
 | Path | What it is |
 | - | - |
-| `docs/spec/` | The single source of truth, one file per numbered section: data model, invariants, state machines, queries, API, UI, architecture, acceptance criteria. Start at `00-index.md` |
-| `docs/rfcs/` | Numbered RFCs proposing changes; `0001-mvp.md` is the build plan (packages P0 to P10) |
-| `docs/team/` | The thirteen agent role definitions and the shared protocol every session loads |
-| `docs/design/` | The design brief for the designer, plus exported screens and notes as they land |
-| `docs/operator/runbook.md` | How the human operator drives agent sessions, merges, and releases |
-| `CHANGELOG.md` | Release history; empty until 1.0.0 |
-| `SESSION-LOG.md` | Every agent session that has run, in order, one table per package: how the build was actually executed |
-| `app/` | The application (arrives with package P0) |
-
-## How this gets built
-
-Work is broken into packages P0 to P10, executed in dependency order, one agent
-session per package. A separate session writes the acceptance tests (AC-001
-onward), and a third reviews and merges. The rules that make this safe live in
-`docs/team/_shared-protocol.md`: implement only from the numbered specification
-sections, never edit outside your owned paths, and never mark work done unless the
-tests, build, and typecheck all pass.
+| `docs/spec/` | The contract, one file per numbered section. Start at `00-index.md` |
+| `docs/rfcs/` | Proposed changes; `0001-mvp.md` is the build plan and its package order |
+| `docs/team/` | The thirteen agent roles and the shared protocol that binds them |
+| `docs/operator/` | How the build is run rather than written |
+| `docs/design/` | The design brief, and the screens and notes as they land |
+| `CHANGELOG.md` | What the product became |
+| `SESSION-LOG.md` | How it was built: every session that has run, in order |
+| `app/` | The application |
 
 ## Running it
-
-Until P0 lands there is nothing to run. Once `app/` exists:
 
 ```bash
 cd app
 npm ci
-npm test        # unit and acceptance tests against an embedded Postgres, no Docker needed
+npm test        # against an embedded Postgres; no Docker needed
 npm run dev     # API server plus client dev server
 ```
 
-The specification's section 11 records the stack and the reasons for it. The short
+Specification section 11 records the stack and why each piece was chosen. The short
 version: a Vite React single-page app and an Express API in one Node deployable,
-Postgres 18, and a one-minute in-process reminder tick, hosted on Render as a
-single always-on instance.
+Postgres 18, and a one-minute in-process reminder tick, hosted on Render as a single
+always-on instance.
 
 ## Status
 
-Pre-build. The specification is complete, the architecture is decided (section 11),
-and P0 is the next action.
+Pre-release. RFC 0001's implementation plan is the build order and says which
+packages exist; `SESSION-LOG.md` records which have actually run, and `git log` is
+the authority over both.
