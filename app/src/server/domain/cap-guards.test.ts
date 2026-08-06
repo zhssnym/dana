@@ -31,7 +31,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import type { Db, DbClient } from '../../../db/client.js'
 import { createTestDb, rows } from '../../../tests/helpers.js'
 import type { Executor } from './db.js'
-import { addMember } from './folders.js'
+import { addMember, createFolder } from './folders.js'
 import { addStep } from './tasks.js'
 
 let client: DbClient
@@ -246,6 +246,43 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       ).length,
       'and the membership the transaction wrote is really there',
     ).toBe(1)
+  })
+
+  test('createFolder locks the owner before it counts their folders (7.4, 10.3)', async () => {
+    const ownerId = await seedUser('folder-owner')
+    seededUsers.push(ownerId)
+
+    const log: string[] = []
+    const result = await createFolder(recording(db, log), ownerId, 'capped')
+    expect(result.kind, 'the create still succeeds: this changes when, not what').toBe(
+      'created',
+    )
+
+    expect(log[0], 'the guard and the two inserts are one transaction').toBe('begin')
+    expect(
+      log[1],
+      'and it opens by locking the account, the only row that names the set being counted',
+    ).toContain('for update')
+
+    const counted = indexOfStatement(
+      log,
+      (statement) => statement.includes('count(*)') && statement.includes('from folders'),
+      'the count that decides the 200 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into folders'),
+      'the insert the count admitted',
+    )
+    expect(
+      counted,
+      'the count must follow the lock, or two creates at 199 both read 199 and both insert (10.3)',
+    ).toBeGreaterThan(1)
+    expect(
+      inserted,
+      'and the insert must follow the count it was admitted by',
+    ).toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
   })
 
   test('the default-folder refusal still answers before any row is read (INV-3)', async () => {

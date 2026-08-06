@@ -131,49 +131,67 @@ export type CreateFolderResult =
   | { kind: 'created'; folder: Folder }
   | { kind: 'folder_cap' }
 
-/** The 10.3 cap counts custom folders only; the guard is an API guard, so
- * it reads before the transaction rather than locking anything. */
+/*
+The 10.3 cap counts custom folders only, the default one being INV-2's rather
+than the account's to spend.
+
+The count, the insert and the owner's membership row are one transaction
+behind a lock, for the reason the P3 shape review gave for the other two caps
+in this directory: nothing sits under this number either, so a count that is
+not tied to its insert is a suggestion. Two creates arriving together at 199
+both read 199 and both insert.
+
+The lock is the owner's user row, because the set being counted is "the
+folders this account owns" and the account is the only row that names it. The
+folders themselves cannot be locked: the row that would break the cap is the
+one neither caller has created yet. Nothing else in the system holds that row
+while waiting on a folder, so it queues rather than deadlocks: 7.1's
+provisioning inserts a user rather than locking one, PATCH /me takes it alone,
+and 8.10 takes it last, after it is done with folders and memberships.
+*/
 export async function createFolder(
   db: Db,
   viewerId: string,
   name: string,
 ): Promise<CreateFolderResult> {
-  const owned = await rowsOf(
-    db,
-    sql`SELECT count(*)::int AS n FROM folders
-        WHERE owner_id = ${viewerId} AND NOT is_default`,
-  )
-  if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' }
+  return inTransaction(db, async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
 
-  // 7.4: folder plus owner membership, one transaction.
-  const id = await inTransaction(db, async (tx) => {
+    const owned = await rowsOf(
+      tx,
+      sql`SELECT count(*)::int AS n FROM folders
+          WHERE owner_id = ${viewerId} AND NOT is_default`,
+    )
+    if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' }
+
+    // 7.4: folder plus owner membership, one transaction, which this now
+    // shares with the guard that admitted them.
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO folders (owner_id, name)
           VALUES (${viewerId}::uuid, ${name})
           RETURNING id`,
     )
-    const folderId = String(inserted[0]?.id)
+    const id = String(inserted[0]?.id)
     await tx.execute(
       sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${folderId}::uuid, ${viewerId}::uuid)`,
+          VALUES (${id}::uuid, ${viewerId}::uuid)`,
     )
-    return folderId
-  })
 
-  return {
-    kind: 'created',
-    folder: {
-      id,
-      name,
-      is_default: false,
-      is_owner: true,
-      member_count: 1,
-      counts: { pending: 0, completed: 0 },
-      my_label: null,
-      my_color: null,
-    },
-  }
+    return {
+      kind: 'created',
+      folder: {
+        id,
+        name,
+        is_default: false,
+        is_owner: true,
+        member_count: 1,
+        counts: { pending: 0, completed: 0 },
+        my_label: null,
+        my_color: null,
+      },
+    }
+  })
 }
 
 /* ------------------------------------------------------------------ *
