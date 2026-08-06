@@ -255,6 +255,12 @@ schema's failures are 422s through sendValidationError, and this one is a
 does not declare is stripped, and a stripped field would answer 200. The
 route asks this first, and answers the 409 itself.
 
+Asked before access resolves, too, which the P3 shape review checked on the
+wire rather than assumed: a task the caller owns, one they cannot see, and an
+id that names nothing all answer the same 409, so a refusal that reads no row
+tells a prober nothing about which rows exist. The same ordering already
+stands on 7.4, where a malformed body answers 422 ahead of the folder's 404.
+
 A JSON body cannot carry an undefined value, so the key's presence is the
 whole test.
 */

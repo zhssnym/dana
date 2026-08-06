@@ -295,6 +295,26 @@ describe('the 7.6 shapes against the mounted application', () => {
     ).toEqual([])
   })
 
+  /*
+  The fresh-GET convention read literally, which is the strongest form the
+  claim has: an empty partial changes nothing, so the body it answers and the
+  body a GET answers must be the same object, field for field. The P2 review's
+  tester pinned 7.4's mutations the same way, by deep equality rather than by
+  spot checks.
+  */
+  test('an empty PATCH answers exactly what a fresh GET answers', async () => {
+    const { owner, taskId } = await stage()
+    const patched = await api(owner, `/tasks/${taskId}`, jsonInit('PATCH', {}))
+    expect(
+      patched.status,
+      'an empty subset is a subset, the reading the P2S merge ratified for every section 7 PATCH',
+    ).toBe(200)
+    expect(
+      patched.json(),
+      'a PATCH answers what a fresh GET would, which for a no-op means the identical object',
+    ).toEqual((await api(owner, `/tasks/${taskId}`)).json())
+  })
+
   test('the floating values ride the wire in their 4.11 formats, never as instants', async () => {
     const { owner, taskId } = await stage()
     const body = (await api(owner, `/tasks/${taskId}`)).json() as Record<
@@ -641,6 +661,147 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
         `${what} on a task the caller cannot see must read as nonexistent, never 403 (10.2)`,
       ).toBe(404)
     }
+  })
+
+  /*
+  The 11.3 order on every mutation of the surface rather than on a sample of
+  it. A missing link is invisible from the endpoint beside it, and 7.0 makes
+  the session and CSRF requirements a property of the surface, not of a route.
+  AC-111 pins the 401-before-403 ordering itself, on 7.1; what is checked here
+  is that no endpoint of this package was left off the chain.
+  */
+  test('every mutation on the surface is behind a session and a CSRF token', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('middleware sweep')
+    const stepId = String(
+      (
+        (
+          await api(
+            owner,
+            `/tasks/${taskId}/steps`,
+            jsonInit('POST', { title: 'swept' }),
+          )
+        ).json() as { steps: { id: string }[] }
+      ).steps[0]?.id,
+    )
+
+    const mutations: readonly [string, Init][] = [
+      ['POST /tasks', jsonInit('POST', { title: 'no session' })],
+      [`PATCH /tasks/${taskId}`, jsonInit('PATCH', { title: 'no session' })],
+      [`DELETE /tasks/${taskId}`, { method: 'DELETE' }],
+      [`POST /tasks/${taskId}/complete`, { method: 'POST' }],
+      [`POST /tasks/${taskId}/uncomplete`, { method: 'POST' }],
+      [`POST /tasks/${taskId}/abandon`, { method: 'POST' }],
+      [`POST /tasks/${taskId}/restore`, { method: 'POST' }],
+      [`POST /tasks/${taskId}/steps`, jsonInit('POST', { title: 'no session' })],
+      [`PATCH /steps/${stepId}`, jsonInit('PATCH', { done: true })],
+      [`DELETE /steps/${stepId}`, { method: 'DELETE' }],
+      [`POST /tasks/${taskId}/my-day`, { method: 'POST' }],
+      [`DELETE /tasks/${taskId}/my-day`, { method: 'DELETE' }],
+    ]
+
+    for (const [what, init] of mutations) {
+      const path = what.slice(what.indexOf('/'))
+      const anonymous = await new TestBrowser(origin).request(
+        `${origin}/api/v1${path}`,
+        init,
+      )
+      expect(
+        anonymous.status,
+        `${what} with no session must answer 401, never the 403 that would tell a stranger a token was all they lacked`,
+      ).toBe(401)
+
+      const tokenless = await api(owner, path, { ...init, csrf: 'omit' })
+      expect(
+        tokenless.status,
+        `${what} with a session and no CSRF token must answer 403 (11.6)`,
+      ).toBe(403)
+    }
+
+    expect(
+      (await api(owner, `/tasks/${taskId}`)).status,
+      'and the safe read stays reachable, so the sweep refused mutations rather than the surface',
+    ).toBe(200)
+  })
+
+  /*
+  7.0's amended first bullet, on the one surface that carries both kinds of
+  endpoint: one that needs a body and several that need none. The ruling is
+  that a request claiming no JSON content type presents nothing to parse, so
+  the endpoint needing a body answers 422 for the body it did not receive.
+  The mirror half has no criterion anywhere, because 7.1 has no bodyless
+  mutation: an endpoint that needs no body has nothing to miss, and a bodyless
+  call to it is simply a legal call.
+  */
+  test('a missing JSON body is 422 where one is needed and no answer at all where none is', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('content type')
+
+    const needsOne = await api(owner, '/tasks', { method: 'POST' })
+    expect(
+      needsOne.status,
+      'POST /tasks needs a body, so a request that presents none answers 422 and not 400 (7.0)',
+    ).toBe(422)
+    expect(errorEnvelope.safeParse(needsOne.json()).success).toBe(true)
+
+    const needsNone = await api(owner, `/tasks/${taskId}/complete`, {
+      method: 'POST',
+    })
+    expect(
+      needsNone.status,
+      '7.6 names no body for a transition, so a bodyless call is the ordinary call',
+    ).toBe(200)
+
+    const pulled = await api(owner, `/tasks/${taskId}/my-day`, {
+      method: 'POST',
+    })
+    expect(
+      pulled.status,
+      'and the same for 7.8, whose two calls are the task and the session alone',
+    ).toBe(200)
+  })
+
+  test('unknown fields are tolerated and wrong-typed known ones are not (7.0)', async () => {
+    const { owner } = await stage()
+    const tolerated = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract tolerance',
+        nonsense: 'ignored',
+        recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+      }),
+    )
+    expect(
+      tolerated.status,
+      'an unknown field is ignored, which is also how the two arms P6 and P7 own read at P3',
+    ).toBe(201)
+    const body = expectTaskDetailExact(
+      tolerated.json(),
+      'the tolerant create body',
+    )
+    expect(
+      body.recurrence_rule,
+      'and ignored means stored nowhere: an unvalidated rule is not a rule (4.11)',
+    ).toBeNull()
+
+    const refused = await api(owner, '/tasks', jsonInit('POST', { title: 42 }))
+    expect(refused.status, 'a wrong-typed known field is 422').toBe(422)
+    expect(
+      refused.body.toLowerCase(),
+      '10.3: the 422 names the field it refused',
+    ).toContain('title')
+
+    const dependency = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', { title: 'contract dependency', due_time: '09:30' }),
+    )
+    expect(dependency.status, '7.6\'s dependency check answers 422').toBe(422)
+    expect(
+      dependency.body.toLowerCase(),
+      'and names the field the caller sent, or the one it needed',
+    ).toMatch(/due_time|due_date/)
   })
 
   test('a PATCH carrying status answers 409 for every id, so the refusal reads no row', async () => {
