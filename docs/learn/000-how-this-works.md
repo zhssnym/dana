@@ -104,7 +104,7 @@ Every concept file, and every subsection added later, answers in this order:
    drills, and reading a diff qualify; application code, acceptance tests, and
    specification edits never do, because those have owners. Omit this part
    rather than inventing a task: a concept with no safe hands-on version is
-   normal, and `docs/runbook.md` section 4 is the standing list of work that
+   normal, and `docs/operator/runbook.md` section 4 is the standing list of work that
    is already his.
 
 Close with one **check yourself** question the reader can answer in their own
@@ -121,7 +121,7 @@ agent ever invokes it or is invoked by it.
 
 - **Invocation is on demand.** It runs when Hassan is confused about something,
   and it never runs itself.
-- **It reads anything except `docs/runbook.md`**, whose header excludes every
+- **It reads anything except `docs/operator/`**, whose header excludes every
   agent, and it follows the confusion to its source: the diff, the folder, the
   spec section.
 - **It writes only inside `docs/learn/`.** Never code, never the spec, never

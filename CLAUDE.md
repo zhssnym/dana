@@ -35,7 +35,7 @@ handling, and PGlite's single connection.
 | `docs/team/` | The shared protocol and thirteen role personas. A persona's Owns section is the only statement of ownership |
 | `docs/design/` | Human-committed design material. Read it, never write it |
 | `docs/learn/` | The operator's personal learning material, written only by a tutor session he opens. Build sessions never read or write it |
-| `docs/runbook.md` | For the human operator. Do not load it into your reasoning |
+| `docs/operator/` | The human operator's own folder: `runbook.md` (tracked, so it survives losing his machine) plus his logbook and reference material (local, untracked, absent from a fresh clone). Do not load any of it into your reasoning |
 | `app/` | The application. Arrives with P0 |
 
 ## Commands and this machine

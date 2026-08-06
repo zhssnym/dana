@@ -18,7 +18,7 @@ the specification, not any agent's memory, is the contract.
 | `docs/rfcs/` | Numbered RFCs proposing changes; `0001-mvp.md` is the build plan (packages P0 to P10) |
 | `docs/team/` | The thirteen agent role definitions and the shared protocol every session loads |
 | `docs/design/` | The design brief for the designer, plus exported screens and notes as they land |
-| `docs/runbook.md` | How the human operator drives agent sessions, merges, and releases |
+| `docs/operator/runbook.md` | How the human operator drives agent sessions, merges, and releases |
 | `CHANGELOG.md` | Release history; empty until 1.0.0 |
 | `app/` | The application (arrives with package P0) |
 
