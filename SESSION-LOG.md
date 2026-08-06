@@ -1,12 +1,19 @@
-# Dana logbook
+# Dana session log
 
-The session-by-session record of the build, one table per package, one row per
-session that actually ran. Inserted rows (`1a`, `3a`, `6b`) are sessions the plan
-did not foresee; they are kept in place rather than renumbered, because the numbers
-are addresses.
+Every agent session that has run, in the order it ran, one table per package.
+`CHANGELOG.md` records what the product became; this records how it was built.
 
-This file is the operator's. It is not committed. `CHANGELOG.md` carries every
-ruling with its grounds; this carries the shape of the work.
+**This is a record, not a source of truth.** Protocol section 2 names the five
+sources project state comes from, and this file is not one of them: it is written
+after the fact by the operator's coordinating session, from final blocks that
+reach nobody else. Read it for context if you like. Never reason from it, never
+treat a row as evidence that something landed, and never read a planned row as an
+assignment. `git log`, the suite, `app/tests/`, the specification, and the active
+RFC's implementation plan are what bind you.
+
+A row is added when a session has been verified, not when it is planned. Inserted
+rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
+place rather than being renumbered, because the numbers are addresses.
 
 - [x]  p_minus_4 product definition to do:
 

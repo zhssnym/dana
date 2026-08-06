@@ -35,7 +35,8 @@ handling, and PGlite's single connection.
 | `docs/team/` | The shared protocol and thirteen role personas. A persona's Owns section is the only statement of ownership |
 | `docs/design/` | Human-committed design material. Read it, never write it |
 | `docs/learn/` | The operator's personal learning material, written only by a tutor session he opens. Build sessions never read or write it |
-| `docs/operator/` | The human operator's own material: his runbook, and the logbook recording every session that has run. Build sessions never read it; it describes his process, not the contract they are bound by |
+| `docs/operator/` | The human operator's runbook: how he drives sessions, merges, and releases. It describes his process, not the contract that binds you, so there is nothing in it to reason from |
+| `SESSION-LOG.md` | Every agent session that has run, in order, one table per package. A record written after the fact, and deliberately not one of the five state sources protocol section 2 names. Read it for context; never reason from it |
 | `app/` | The application. Arrives with P0 |
 
 ## Commands and this machine

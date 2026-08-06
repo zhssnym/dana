@@ -20,6 +20,7 @@ the specification, not any agent's memory, is the contract.
 | `docs/design/` | The design brief for the designer, plus exported screens and notes as they land |
 | `docs/operator/runbook.md` | How the human operator drives agent sessions, merges, and releases |
 | `CHANGELOG.md` | Release history; empty until 1.0.0 |
+| `SESSION-LOG.md` | Every agent session that has run, in order, one table per package: how the build was actually executed |
 | `app/` | The application (arrives with package P0) |
 
 ## How this gets built
