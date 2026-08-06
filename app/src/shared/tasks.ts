@@ -19,13 +19,11 @@ accepted here would be a row that cannot be written. The absence is from the
 request side only. Both are keys of frozen 7.0's TaskDetail, so the response
 shapes below carry them from this package on.
 
-Deliberately absent too, the way folders.ts left the P2 wrapper question to
-the shape review that followed it: the response bodies 7.7 and 7.8 leave
-open. Frozen 7.7 gives its three endpoints statuses and names no body, 7.8
-answers 200 on both of its calls and names none either, and 7.0 fixes only
-TaskCard, TaskDetail, and Folder. The schemas here stop where the frozen text
-stops, so the P3 endpoint shape review settles those once, with the
-implemented routes in front of it.
+The response bodies frozen 7.7 and 7.8 leave open are settled at the end of
+this file, at the P3 endpoint shape review, with the implemented routes in
+front of it and with the grounds beside the names. The schemas stopped where
+the frozen text stopped until that review, the way folders.ts left the P2
+wrapper question to the review that followed it.
 */
 import { z } from 'zod'
 
@@ -76,12 +74,18 @@ export const dueDate = z.iso.date({
 /*
 4.11 stores due_time as a floating wall-clock time at minute precision. The
 write form admits HH:MM, which is what a time input yields, and HH:MM:00,
-which is what a client echoes back from a response it just read, because
-Postgres renders TIME with a seconds field. A non-zero second is refused
-rather than truncated: the column cannot hold it, and a silent truncation
-returns a value the caller never sent. Written out rather than taken from
-z.iso.time({ precision: -1 }), which is the minute-precision form in the
-installed zod but refuses the echo.
+which is what a client that formats its own seconds field sends. A non-zero
+second is refused rather than truncated: the column cannot hold it, and a
+silent truncation returns a value the caller never sent. Written out rather
+than taken from z.iso.time({ precision: -1 }), which is the minute-precision
+form in the installed zod but refuses the trailing zeros.
+
+Checked again at the P3 shape review, because the tolerance was first written
+for an echo the responses no longer produce: the domain module renders every
+time through to_char(..., 'HH24:MI'), so a body read back from this API is
+always HH:MM and never carries seconds to echo. The tolerance stays anyway,
+now on its own footing rather than that one: HH:MM:00 names the same minute,
+and refusing it would be a rule about spelling rather than about time.
 */
 export const dueTime = z
   .string({ error: 'must be a string' })
@@ -288,14 +292,15 @@ export const patchStepBody = z.object({
 export type PatchStepBody = z.infer<typeof patchStepBody>
 
 /* ------------------------------------------------------------------ *
- * The bodyless endpoints: there are no schemas, and that is a decision
+ * The endpoints that take no request body, which is a decision
  * ------------------------------------------------------------------ */
 
 /*
-POST and DELETE /tasks/:id/my-day name no body in frozen 7.8, and neither do
-7.6's four transition endpoints or its DELETE: the task is the path, and the
-actor is the session. So no schema stands here, and the routes must not
-require one.
+POST and DELETE /tasks/:id/my-day take no request body in frozen 7.8, and
+neither do 7.6's four transition endpoints or its DELETE: the task is the
+path, and the actor is the session. So no schema stands here, and the routes
+must not require one. What those calls answer is a separate question, settled
+at the end of this file.
 
 The distinction matters because of the P2 ruling on 7.0's first bullet, which
 answers 422 for a body an endpoint needed and did not receive. An endpoint
@@ -453,3 +458,59 @@ export const taskTransitionResponse = z.object({
   deleted_successor_id: z.uuid().nullable(),
 })
 export type TaskTransitionResponse = z.infer<typeof taskTransitionResponse>
+
+/* ------------------------------------------------------------------ *
+ * What each endpoint answers
+ * ------------------------------------------------------------------ */
+
+/*
+The surface as a map, one name bound to one shape, the folders.ts idiom. Three
+of the seven are transcription: 7.6 writes "201 TaskDetail" on the create,
+"TaskDetail" on the read, and "200 TaskDetail" on the PATCH. The other four
+are what the P3 endpoint shape review settled, and the grounds are here
+because this file is where a reader looks for the shape of an answer.
+
+Frozen 7.7 gives its three endpoints statuses and names no body; frozen 7.8
+answers 200 on both of its calls and names none either. Read against the rest
+of section 7, that silence has one answer: a mutation answers what a fresh
+GET would. 7.1 states it outright for PATCH /me, and the owner has since
+entered it twice more, in 7.2's closing paragraph and in 7.4's. This is the
+same question a fourth time, and answering it differently here would make the
+convention a coincidence.
+
+Which fresh GET is not open either. Neither a step nor a My Day entry is a
+resource in this contract: 7.7 and 7.8 hang both off a task, 7.0 gives neither
+a shape of its own, and section 7 offers no GET for either. The only GET whose
+answer either mutation changes is GET /tasks/:id, and both change more of it
+than the row they touch. A step mutation moves steps_done and steps_total, the
+counts a card renders, as well as the steps array; a pull moves pulled, which
+7.0 makes a field of the task and not an entry. So the TaskDetail is not
+merely a defensible answer, it is the only object in the contract that reports
+what the call did.
+
+Two consequences, both places a reader might expect something else:
+
+- POST /tasks/:id/steps answers 201 with the parent task rather than with the
+  step it created, unlike 7.4's POST members, which answers the member element
+  by owner ruling. The difference is that a members element is a shape frozen
+  7.4 enumerates and the 9.x sharing panel renders on its own, while a step is
+  only ever seen inside its task, and the created step rides along in the
+  steps array with the id and position the server assigned it.
+- DELETE /steps/:id answers 204 and no body at all. Frozen 7.7 fixes that
+  status, and a 204 carrying a body is not a shape decision but a protocol
+  violation, so the asymmetry with the PATCH beside it is the contract's and
+  not this review's.
+
+Recommended to the Steward, and through them to the human owner, as the P2
+shape review's four sentences were: one closing paragraph on 7.7 and one on
+7.8 recording the settlement in the frozen text. Nothing here waits on that;
+the shapes are bound below and the wire is checked against them in
+src/server/http/tasks-contract.test.ts.
+*/
+export const postTasksResponse = taskDetail
+export const getTaskResponse = taskDetail
+export const patchTaskResponse = taskDetail
+export const postTaskStepsResponse = taskDetail
+export const patchStepResponse = taskDetail
+export const postTaskMyDayResponse = taskDetail
+export const deleteTaskMyDayResponse = taskDetail
