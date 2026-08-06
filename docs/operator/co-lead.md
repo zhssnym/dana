@@ -202,6 +202,17 @@ freeze real.
 Never make a product decision. Recommend, with the alternative stated fairly, and
 let Hassan rule.
 
+Never touch the working tree while a session is running. There is one clone and one
+checkout, and a session reads that tree continuously while it works. Switching
+branches, discarding a change, or committing underneath it can make a file vanish
+mid-read, and a session that commits during your checkout lands its work on the
+wrong branch. This has already happened once: a README was moved between branches
+while a session was live, and that session saw a module absent from disk and from
+`git ls-files` while present in HEAD. It verified its files against HEAD and
+continued safely, which is luck to learn from rather than a property to depend on.
+Do your own git work between sessions. If it genuinely cannot wait, ask Hassan to
+hold the session first.
+
 Never speak to a build session. You have no channel to one and must not invent one.
 Anything a session needs reaches it through the prompt you write or through an
 artifact in the repository, and never through a summary of a conversation it was not
