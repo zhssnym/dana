@@ -117,11 +117,22 @@ export async function accessibleTask(
   return row === undefined ? null : taskAccessFromRow(row)
 }
 
-/** The same resolution, holding the row for the rest of the transaction: a
- * PATCH reads the folder and assignee it is about to reason over, and a
- * transition arriving between that read and the write would otherwise decide
- * against a state that no longer exists. Only the task row is locked, never
- * the membership row it joins. */
+/*
+The same resolution, holding the row for the rest of the transaction. Two
+callers need it, for reasons of one shape:
+
+- A PATCH reads the folder and assignee it is about to reason over, and a
+  transition arriving between that read and the write would otherwise decide
+  against a state that no longer exists.
+- A step add reads a count it is about to act on, and 4.6 puts no constraint
+  behind the 50 cap, so the count and the insert have to be one decision or
+  the cap is advice rather than a limit.
+
+Decide from a row, then write: the lock is what keeps the decision true at the
+write. Only the task row is locked, never the membership row it joins, and
+both callers take it as their first statement, so two of them queue rather
+than deadlock.
+*/
 async function lockedTask(
   tx: Executor,
   viewerId: string,
@@ -669,9 +680,21 @@ export type AddStepResult =
   | { kind: 'not_found' }
   | { kind: 'step_cap' }
 
-/** 7.7's create. The cap is a live count of rows rather than a high-water
- * mark, because 4.6 makes it an API guard and a task whose steps have come
- * and gone over a year must still admit its fiftieth. */
+/*
+7.7's create. The cap is a live count of rows rather than a high-water mark,
+because 4.6 makes it an API guard and a task whose steps have come and gone
+over a year must still admit its fiftieth.
+
+That same sentence of 4.6, no constraint behind the cap, is why the access
+read here takes the row lock rather than the plain resolution its siblings
+use. Nothing under this function catches a miscount: two adds arriving
+together on a task holding 49 steps would both read 49, both pass the guard,
+and both insert, leaving 51 against a number 10.3 calls server-enforced. The
+lock makes the count and the insert one decision, so the second add reads 50
+and is refused. Found at the P3 shape review, which is also where the
+identical shape at the 25-member cap was found; PGlite is single-connection
+(11.15), so no run of this suite can ever show either.
+*/
 export async function addStep(
   db: Db,
   viewerId: string,
@@ -679,7 +702,7 @@ export async function addStep(
   body: PostTaskStepsBody,
 ): Promise<AddStepResult> {
   return inTransaction(db, async (tx) => {
-    if ((await accessibleTask(tx, viewerId, taskId)) === null) {
+    if ((await lockedTask(tx, viewerId, taskId)) === null) {
       return { kind: 'not_found' }
     }
     const counted = await rowsOf(

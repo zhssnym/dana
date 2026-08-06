@@ -17,13 +17,11 @@ a task or folder that does not exist, or that the viewer is not a member of,
 INV-5 unassign guard 409; limit and membership failures 422 through the
 shared schemas and the domain results.
 
-Two response shapes frozen 7.7 and 7.8 leave open are answered here as the
-affected TaskDetail: a step mutation and a My Day pull both change what a
-fresh GET /tasks/:id would say, and 7.1, 7.2 and 7.4 all answer a mutation
-with what a fresh GET would give. Recommended by the shared-schema session
-that precedes this one and provisional until the P3 endpoint shape review
-rules on it, which is why the shape lives in the handler rather than in
-src/shared.
+The step mutations and both My Day calls answer the affected TaskDetail, which
+frozen 7.7 and 7.8 now say themselves: the shape review settled it and the
+owner entered it, so what was provisional when this router landed is contract.
+The shapes carry their grounds and their names in src/shared/tasks.ts, and the
+handlers below answer them.
 */
 import { Router } from 'express'
 import type { NextFunction, Request, Response } from 'express'
@@ -216,8 +214,11 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       switch (result.kind) {
         case 'not_found':
         case 'target_not_found':
-          // 7.6 admits 404 or 422 for a target the caller is not in; 404 is
-          // the one the leak rule of 10.2 asks for everywhere else here.
+          // 7.6 reads 404 for a target the caller is not a member of, where
+          // it once admitted 404 or 422: narrowed by owner ruling at the P3
+          // shape review, because a 422 would confirm that a folder the
+          // caller cannot see exists, which is the leak 10.2 forbids. This
+          // line already answered the narrower of the two.
           notFound(res)
           return
         case 'assignee_not_member':
