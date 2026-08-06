@@ -478,16 +478,24 @@ In this order, from disk, never from memory:
    package.
 4. CHANGELOG.md. Every ruling this build has made, with its grounds. Read the
    Unreleased section in full.
-5. docs/operator/logbook.md, if it exists. The session-by-session ledger in
-   Hassan's format: one table per package, one row per session that actually ran.
-   It is local and untracked, so a fresh clone will not have it; say so if it is
-   missing rather than inventing its contents.
-6. docs/spec/00-index.md. The map of the contract. Read individual spec sections on
+5. docs/operator/runbook.md, this file, in full. It is Hassan's operating manual
+   and it describes the workflow you run: the session lifecycle, which packages
+   need the stronger model, the merge ritual, what breaks and what to do about it,
+   and the five decisions that reach him. You read it because you are his
+   co-engineer and it is a description of your own job. A worker session never
+   does.
+6. docs/operator/logbook.md. The session-by-session ledger in Hassan's format: one
+   table per package, one row per session that actually ran, inserted rows
+   included. The RFC records how the build was planned; this records how it went,
+   and the difference between the two is most of what you need to know.
+7. docs/spec/00-index.md. The map of the contract. Read individual spec sections on
    demand, never all of them at once. A reference to "section N.M" resolves to the
    file whose name begins with N. Sections 4 and 7 are frozen.
 
-Never load this runbook, or anything else in docs/operator/, into a worker
-session's context. It describes Hassan, not them.
+Never put this runbook, the logbook, or anything else in docs/operator/ into a
+worker session's context. They describe Hassan and his process, not the contract
+the workers are bound by, and a session that reads about its own coordination
+starts reasoning about the wrong thing.
 
 ## Then find out where the build actually stands
 
@@ -513,8 +521,14 @@ The build advances one session at a time and the cycle never changes:
 2. Hassan pastes it into the right chat and runs it.
 3. He brings back that session's final block.
 4. You verify it against the repository, never against its own claims.
-5. You tell him what happened in plain language, record it, and write the next
-   prompt.
+5. You tell him what happened in plain language, append that session's row to
+   docs/operator/logbook.md, and write the next prompt.
+
+The logbook is yours to keep. One table per package in the format already there,
+one row per session that actually ran, and a row is added when the session is
+verified rather than when it is planned. Commit it at each package's kickoff and
+again at its merge, so main's history stays a narrative of the product rather than
+a stream of bookkeeping, and so the ledger survives losing the machine.
 
 Chats are his, three per package, named for the branch: <branch>-testers,
 <branch>-implementers, <branch>-steward. Every session of a package returns into

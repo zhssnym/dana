@@ -1,0 +1,132 @@
+# Dana logbook
+
+The session-by-session record of the build, one table per package, one row per
+session that actually ran. Inserted rows (`1a`, `3a`, `6b`) are sessions the plan
+did not foresee; they are kept in place rather than renumbered, because the numbers
+are addresses.
+
+This file is the operator's. It is not committed. `CHANGELOG.md` carries every
+ruling with its grounds; this carries the shape of the work.
+
+- [x]  p_minus_4 product definition to do:
+
+| # | Task | Status |
+| --- | --- | --- |
+| 1 | Create a folder for dana: create `.gitignore`, `CLAUDE.md`, `README.md` | Done |
+| 2 | Rewrite Imran's bullet pointed product idea as pdd v1 | Done |
+| 3 | Rewrite v1 by hand into a structured pdd v2 | Done |
+| 4 | Heavily debate every feature with critic AI persona and as a result create a pdd v3 | Done |
+| 5 | Run an adversarial audit against v3 | Done |
+| 6 | Fold every audit resolution into technical specification pdd v4 | Done |
+| 7 | Assemble the dev team: create 13 job personas for ai and create a shared protocol  | Done |
+
+- [x]  p_minus_3 documentation architecture to do:
+
+| # | Task | Status |
+| --- | --- | --- |
+| 1 | Consolidate the drafts into one living `specification.md` | Done |
+| 2 | Give every kind of document one home: `rfcs/`, `runbook.md` | Done |
+| 3 | Delete the superseded drafts from the tree, keep them in git history | Done |
+| 4 | Move the build order out of the spec and into RFC 0001 | Done |
+| 5 | Renumber acceptance criteria and open questions to sections 12 and 13 | Done |
+| 6 | Strip the `[ISSUE-NN]` and `[SPEC]` provenance tags | Done |
+
+- [x]  p_minus_2 four generation jobs to do:
+
+| # | Task | Status |
+| --- | --- | --- |
+| 1 | Job 1: choose a teck stack and make section 11 normative | Done |
+| 2 | Add the auth security criteria AC-105 to AC-115 | Done |
+| 3 | Write a design brief for Imran so he can work on the UI and write the README | Done |
+| 4 | Job 2: rebuild the team files and close the ownership gaps | Done |
+| 5 | Job 3: write the RFC process and RFC 0001 in full | Done |
+| 6 | Job 4: write the runbook and CLAUDE.md | Done |
+| 7 | Record the amendments in the changelog | Done |
+
+- [x]  p_minus_1 execution readiness to do:
+
+| # | Task | Status |
+| --- | --- | --- |
+| 1 | Split the specification file into multiple files per numbered section | Done |
+| 2 | Drop the version labels from the scope headings | Done |
+| 3 | Rewrite the dev team job description so they are version free | Done |
+| 4 | Add the learn folder and its tutor contract so I can learn along the way | Done |
+| 5 | Make Imran to start working on the the design brief | Done |
+| 5a | Use the design brief and create the product UI with ai, just as an example for Imran  | Done |
+| 6 | Merge the generated `CLAUDE.md` with the hand-written one | Done |
+| 7 | Decide which agent role pushes, and let the tutor flag hands-on work for me | Done |
+| 8 | Grade which packages need the stronger model to avoid Claude usage limits on our 5x plan | Done |
+| 9 | Start working on P0's first session in full | Done |
+| 10 | Fix P0's owner: it spans Platform then Data, in that order | Done |
+
+- [x]  p0-scaffold to do:
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Scaffold, toolchain, CI, boot file, /api/health | 10 | Implementers | Done |
+| 2 | Section 4 migration `0000`, db seam, seed, AC-001 catalog + verifier | 01 | Implementers | Done |
+| 3 | AC-001 to AC-004 and the shared harness | 11 | Testers | Done |
+| 4 | Return: fix the tester's findings on the boot path | 10 | Implementers | Done |
+| 5 | Review, record the merge decisions, merge to main | 12 | Steward | Done |
+
+- [x]  p1-auth to do:
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Wrote AC-005 to AC-115, 15 of 17, harness, OIDC stub | 11 | Testers | Done |
+| 2 | Ruled the 5 escalations, amended the spec | 12 | Steward | Done |
+| 3 | AC-007, AC-113, released the held assertions | 11 | Testers | Done |
+| 4 | `createApp` seam, `.env.example`, build exclusion | 10 | Implementers | Done |
+| 5 | Sessions migration `0001` | 01 | Implementers | Done |
+| 6 | Shared zod schemas, envelope helpers | 04 | Implementers | Done |
+| 7 | Ruled the sessions key, resequenced P1 | 12 | Steward | Done |
+| 7a | Sign guard, AC-007 offsets, AC-113 fourth fact | 11 | Testers | Done |
+| 8 | Migration `0002`, the `token_hash` key | 01 | Implementers | Done |
+| 9 | The auth module itself | 06 | Implementers | Done |
+| 10 | Boot wiring by request | 10 | Implementers | Done |
+| 11 | Endpoint shape review | 04 | Implementers | Done |
+| 12 | Review the whole branch, merge to main | 12 | Steward | Done |
+
+- [x]  p2-folders to do:
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: 7.0 sentence, row P2S, P2 trace | 12 | Steward | Done |
+| 1 | AC-011 to AC-024, 87 tests | 11 | Testers | Done |
+| 1a | Sink ruled, AC-116 to AC-118 appended, retraced | 12 | Steward | Done |
+| 1b | The AC-116 to AC-118 files | 11 | Testers | Done |
+| 2 | Shared 7.4 schemas | 04 | Implementers | Done |
+| 3 | Notify module, sink, 400 mapping | 10 | Implementers | Done |
+| 4 | The folders package | 03 | Implementers | Done |
+| 5 | The mount, suite green | 10 | Implementers | Done |
+| 6 | Shape review, four rulings | 04 | Implementers | Done |
+| 6a | Email dropped, fallback hardened | 03 | Implementers | Done |
+| 6b | Key-exact probe | 04 | Implementers | Done |
+| 6c | Readers tightened | 11 | Testers | Done |
+| 7 | Merge, 7.4 transcribed, item 20, ledger ruling | 12 | Steward | Done |
+
+- [x]  p2s-settings to do:
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | AC-119 to AC-123 authored, red tests | 11 | Testers | Done |
+| 1a | Criteria landed, 7.2 sentence, retrace, protocol guard | 12 | Steward | Done |
+| 1b | The ruled body asserted, README wording | 11 | Testers | Done |
+| 2 | The PATCH body schema, the object it answers | 04 | Implementers | Done |
+| 3 | The routes, the convergence, green in full | 06 | Implementers | Done |
+| 4 | Shape review, the content-type finding | 04 | Implementers | Done |
+| 5 | Merge: 7.0 scoped, AC-118 clarified, ratification | 12 | Steward | Done |
+
+- [ ]  p3-tasks-core to do:
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, premise fixes, the 8.10 transaction placed in P5 | 12 | Steward | Done |
+| 1 | AC-025 to AC-044, 122 tests, the P2S README refresh | 11 | Testers | Done |
+| 1a | Second DELETE 404, INV-5 forcing, My Day reading, trailer fix | 12 | Steward | Done |
+| 2 | Shared schemas: tasks.ts, TaskCard, TaskDetail | 04 | Implementers | Done |
+| 3 | Tasks core: domain, routers, proof, wiring request | 03 | Implementers | Done |
+| 3a | Temporal readers repaired, a false green closed | 11 | Testers | Done |
+| 4 | The mount, the flip, live boot smoke, CI green on both legs | 10 | Implementers | Done |
+| 5 | Shape review: the 7.7 and 7.8 response bodies settled | 04 | Implementers | Done |
+| 6 | Review the whole branch, merge to main | 12 | Steward |  |
