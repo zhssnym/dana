@@ -158,7 +158,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 4a | Both fixtures ruled, AC-131 numbered, item 21, four disclosures settled | 12 | Steward | Done |
 | 4b | The two repairs, AC-131's own file, and the suite's timeout margin measured | 11 | Testers | Done |
 | 5 | The mount, `explain.ts` out of the build, a global test timeout | 10 | Implementers | Done |
-| 4c | AC-052's second case, which the mount showed was misdiagnosed | 11 | Testers | Not started |
+| 4c | AC-052's second case, and the branch's first green on both legs | 11 | Testers | Done |
 | 6 | Endpoint shape review, carrying the cursor question | 04 | Implementers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
 
