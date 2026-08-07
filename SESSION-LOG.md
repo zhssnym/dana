@@ -156,9 +156,10 @@ place rather than being renumbered, because the numbers are addresses.
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
 | 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Unattended | Done, escalated |
 | 4a | Both fixtures ruled, AC-131 numbered, item 21, four disclosures settled | 12 | Steward | Done |
-| 4b | The two repairs, and AC-131's three cases moved to their own file | 11 | Testers | Not started |
-| 5 | The mount, suite green, and `explain.ts` out of the build output | 10 | Implementers | Not started |
-| 6 | Endpoint shape review | 04 | Implementers | Not started |
+| 4b | The two repairs, AC-131's own file, and the suite's timeout margin measured | 11 | Testers | Done |
+| 5 | The mount, `explain.ts` out of the build, a global test timeout | 10 | Implementers | Done |
+| 4c | AC-052's second case, which the mount showed was misdiagnosed | 11 | Testers | Not started |
+| 6 | Endpoint shape review, carrying the cursor question | 04 | Implementers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
 
 Rows 2, 3 and 4 ran unattended on the night of 2026-08-07, the first use of
@@ -194,10 +195,36 @@ reported `Cannot find module`, and 127 tests silently did not run while the
 failure count stayed at exactly 140. Coverage vanished and the number a
 reader checks did not move.
 
-One claim the night could not check, and the morning still cannot: row 4
-reports 888 of 893 passing with the views router mounted, and the mount lives
-in Platform's boot file, so it exists in no commit. On the committed tree
-every P4 file answers 404. Row 5 is the first honest test of that number.
+One claim the night could not check, and the morning could not either: row 4
+reported 888 of 893 passing with the views router mounted, from a mount it
+made locally and correctly did not commit, because the boot file is
+Platform's. Row 5 measured it and **the number came back different**: 895 of
+896. Four of the five reds row 4 escalated were repaired and green; the
+fifth was misdiagnosed rather than repaired, and row 4c is its actual fix.
+AC-052's second case filters pending rows across the whole page and then
+asserts every all-day row precedes every timed one, while Q3 sorts due_date
+before it reaches the timed flag, so an all-day row two days out correctly
+lands after the shared date's timed rows. Its own title says "on the shared
+date" and its filter does not. The decisive check is that the first case in
+the same file asserts the whole sequence and passes, so both cannot be
+satisfied at once and the router is not what is wrong.
+
+That is what row 5 was for. Had nobody insisted the number be measured
+before the shape review, a wrong diagnosis would have travelled to the merge
+inside a repair that looked complete.
+
+Row 4b also measured what row 4a left open. It refuted the operator's
+suspect, AC-114, which carries its own 120 second override and whose line 74
+is the reason that override exists rather than an unhandled hazard. But the
+mechanism is real and wider: `vitest.config.ts` set no `testTimeout`, so 516
+of the suite's 522 cases ran under Vitest's 5000 ms default, and over five
+consecutive runs AC-114's slowest case measured between 1941 and 5811 ms
+while AC-070's ranged 1237 to 2784 ms with no override at all. A case that
+crosses its timeout reports as an Error rather than an assertion, so it never
+says what it was measuring and the run differs from the last by one failure
+with nothing naming what moved, which is the shape the operator saw. Row 5
+landed a global 30 second timeout. The specific non-deterministic test is
+still unidentified and the finding stays open.
 
 The rows are in execution order rather than numeric order, and 6a keeps its
 number while moving, because the numbers are addresses. It moved for a reason
