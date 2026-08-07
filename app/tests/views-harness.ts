@@ -984,6 +984,28 @@ export async function taskIdsInFolder(
   return found.map((row) => String(row.id))
 }
 
+/**
+ * A folder's completed tasks in Q6's order, read from the fixture rather
+ * than from the response. Ordered in SQL so that the id tie-break uses
+ * Postgres's own uuid comparison on both sides of the assertion; sorting
+ * uuids as JavaScript strings would be a second definition of the order and
+ * the wrong one to measure a response against.
+ */
+export async function completedOrderIn(
+  db: Db,
+  folderId: string,
+): Promise<string[]> {
+  const found = await rows(
+    db,
+    sql`
+      SELECT id FROM tasks
+       WHERE folder_id = ${folderId} AND status = 'completed'
+       ORDER BY completed_at DESC, id DESC
+    `,
+  )
+  return found.map((row) => String(row.id))
+}
+
 export async function countTasks(db: Db, folderId: string): Promise<number> {
   const found = await rows(
     db,
