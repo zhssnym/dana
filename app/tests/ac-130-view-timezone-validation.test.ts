@@ -1,15 +1,16 @@
 /*
-AC-130 (proposed): given any view endpoint called with a tz that is not a
-valid IANA identifier, then 422; given a valid one, then 200.
+AC-130: Given any view endpoint called with a tz that is not a valid IANA
+identifier, or with no tz at all, then 422 naming the field; given a valid
+one, then 200.
 
-The number is proposed, not assigned; numbering section 12 is the human
-owner's, and the criterion text above is the transcription an amendment would
-take. This one is not on the RFC 0001 P4 row's list of three, and it is
-offered under the sentence that made the list a floor. Frozen 7.0 states it
-of every endpoint this package delivers, "every view endpoint takes tz, an
-IANA identifier, 422 if invalid", 10.3 lists the timezone among the numbers
-it calls server-enforced, and 7.11 makes today evaluation given tz
-server-authoritative. Nothing asserts it. AC-007 pins the tz of 7.1, which is
+Numbered by the Integration Steward on 2026-08-07 and now section 12's own
+text; ac-125's header records why the numbering was the Steward's and not the
+owner's, this file having proposed the opposite. This one is not on the RFC
+0001 P4 row's list of three, and it was offered under the sentence that made
+the list a floor. Frozen 7.0 states it of every endpoint this package
+delivers, 10.3 lists the timezone among the numbers it calls server-enforced,
+and 7.11 makes today evaluation given tz server-authoritative. AC-007 pins
+the tz of 7.1, which is
 the opposite rule: an unparseable zone there is treated as absent rather than
 refused, a deviation 7.1 records deliberately so a stale zone database cannot
 lock anyone out of signing in. So the one place the suite does test a tz
@@ -28,12 +29,28 @@ exists to catch.
 Every endpoint is asserted rather than one, because 7.0 states the rule of
 every view endpoint and there are nine of them, each mounted by hand.
 
-One silence is recorded rather than pinned. 7.0 says what an invalid tz gets
-and not what an absent one gets, and 8.1 says every request that evaluates
-dates carries tz without saying what happens when one does not. Routed to the
-Integration Steward with this file; nothing here asserts the absent case.
+The silence this file routed is closed, and it is the reason the criterion
+grew rather than gained a neighbour. 7.0 said what an invalid tz gets and not
+what an absent one gets; the human owner ruled on 2026-08-07 that an absent
+tz answers 422 naming the field too, and 7.0 now says so. A view endpoint
+called without tz is missing a required parameter rather than accepting a
+default: 8.1 makes tz an input of every request that evaluates dates, and
+UTC, the only plausible default, would hand most of the world the wrong day
+with nothing on the wire to say it had been substituted.
 
-Spec: 7.0 (the rule), 10.3, 11.15 (the offset hole), 11.9, 7.11.
+The Steward widened AC-130 with the ruling instead of appending a number, and
+gave the reason this file must now act on: an implementation reading tz
+through a schema with a UTC default satisfies the invalid half exactly,
+because a present wrong value still reaches the validator while an absent one
+never does. So the defect the ruling exists to prevent was invisible to the
+criterion as first written, and to this file, which asserted the invalid half
+alone. The absent half is asserted below on every endpoint, and it is the
+sharper of the two: the wrong-value cases fail an implementation that has no
+validator, and the absent case fails one that has a good validator wired
+behind a default.
+
+Spec: 7.0 (the rule, both halves), 8.1, 10.3, 11.15 (the offset hole), 11.9,
+7.11.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -65,7 +82,10 @@ let endpoints: Endpoint[] = []
 Values that are not IANA names. The first two are the ECMA-402 offset
 identifiers 11.15 names, which bare Intl accepts and the shared validator
 refuses through its sign guard; the rest are the ordinary shapes a client
-sends when something upstream went wrong.
+sends when something upstream went wrong. The empty string was in this list
+and has a case of its own now, because what it discriminates is not whether a
+value is an IANA name but whether an implementation folds it into the absent
+path and defaults it.
 */
 const NOT_IANA = [
   '+05:30',
@@ -74,7 +94,6 @@ const NOT_IANA = [
   'Europe/Atlantis',
   'UTC+2',
   'Etc/GMT+99',
-  '',
 ]
 
 interface Stage {
@@ -126,7 +145,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-130: every view endpoint validates tz as an IANA identifier', () => {
+describe('AC-130: every view endpoint requires tz and validates it as IANA', () => {
   test('AC-130: every endpoint answers 200 to a valid zone', async () => {
     const { viewer } = await stage()
     const answered: Record<string, number> = {}
@@ -159,6 +178,43 @@ describe('AC-130: every view endpoint validates tz as an IANA identifier', () =>
       Object.values(answered).filter((status) => status !== 422),
       `11.15: Intl.DateTimeFormat accepts offset identifiers like +05:30 that are not IANA names and would break the 11.9 zone math, which is why every IANA validation goes through the shared validator and its sign guard. An endpoint validating with bare Intl answers 200 here: ${JSON.stringify(answered)}`,
     ).toEqual([])
+  })
+
+  test('AC-130: every endpoint answers 422 when tz is absent', async () => {
+    const { viewer } = await stage()
+    const answered: Record<string, number> = {}
+    for (const endpoint of endpoints) {
+      const response = await getView(viewer, endpoint.path, endpoint.query)
+      answered[`${endpoint.path} ${JSON.stringify(endpoint.query)}`] =
+        response.status
+    }
+    expect(
+      Object.values(answered).filter((status) => status !== 422),
+      `7.0 as ruled on 2026-08-07: a view endpoint called without tz answers 422 naming the field, the same as one called with a bad tz. This is the half the criterion gained and the sharper of the two: the wrong-value cases fail an implementation with no validator, while this one fails an implementation whose validator is correct and sits behind a schema default, since a present wrong value reaches it and an absent one never does. UTC is the only plausible default and would hand most of the world the wrong day with nothing on the wire to say so: ${JSON.stringify(answered)}`,
+    ).toEqual([])
+  })
+
+  test('AC-130: an absent tz is refused rather than defaulted, on the page that would hide it', async () => {
+    const { viewer } = await stage()
+    const bare = await getView(viewer, '/views/my-day', {})
+    expectStatus(
+      bare,
+      422,
+      'My Day is where a substituted zone does the most damage and shows the least: 8.2 groups on today(V), so a UTC default silently files a viewer\'s Carried rows under Today, or the reverse, on a page that looks entirely normal',
+    )
+    expect(
+      Object.keys(bare.json() as Record<string, unknown>),
+      'and it answers the envelope rather than a page computed in the substituted zone, which is what makes the refusal observable at all',
+    ).toEqual(['error'])
+  })
+
+  test('AC-130: an empty tz parameter is refused like an absent one', async () => {
+    const { viewer } = await stage()
+    expectStatus(
+      await getView(viewer, '/views/my-day', { tz: '' }),
+      422,
+      'tz= present and empty is neither a valid identifier nor an absent parameter, and both of 7.0\'s halves answer 422; an implementation treating the empty string as unset and defaulting it would pass the absent case by accident and fail here',
+    )
   })
 
   test('AC-130: every shape that is not an IANA name is refused, on one endpoint', async () => {

@@ -23,7 +23,7 @@ npx vitest run -t "AC-105"
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered, passing; it arrived green, see below |
 | P4 | AC-045 to AC-058, AC-070 | Covered, failing until the 7.10 routes land |
-| P4 proposed | AC-125 to AC-130 | Covered, failing; the numbers await the owner's amendment |
+| P4 gate | AC-125 to AC-130 | Covered, failing; numbered by the section 12 amendment of 2026-08-07 |
 | P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -145,13 +145,17 @@ Six things those files are written around.
   false red against half of the correct implementations. So the split is
   asserted with Pacific/Kiritimati and Pacific/Honolulu, whose offsets differ
   by exactly 24 hours with neither observing DST, making the ahead zone
-  exactly one calendar day ahead at every instant. Measured hourly across
-  2026 before being depended on, and at the criterion's own instant those two
-  zones read its own two local dates. Asia/Karachi and Europe/London are
-  asserted beside them, unconditionally in the direction that needs no clock.
+  exactly one calendar day ahead at every instant. Measured at every hour of
+  2026 before being depended on, 8760 samples with no exception, and at the
+  criterion's own instant those two zones read its own two local dates.
+  Asia/Karachi and Europe/London are asserted beside them, unconditionally in
+  the direction that needs no clock. The change control ruled this the closest
+  faithful test rather than a reinterpretation, and section 12 records the
+  ruling beside AC-046 and AC-050 without either criterion's text moving.
 - **Date-relative fixtures anchor on a zone near local midday.**
   `middayZone()` picks, from twenty-five zones measured DST-free with
-  whole-hour offsets, whichever is nearest 12:00 local now, so a fixture
+  whole-hour offsets at every hour of 2026, whichever is nearest 12:00 local
+  now, so a fixture
   cannot be seeded on one side of a local midnight and read on the other. It
   is a function of the instant and no assertion branches on it; the residual
   is caught by `expectStillSameDay` rather than tolerated.
@@ -166,10 +170,15 @@ Six things those files are written around.
   too, and its 8.11 ratio rides the merged 7.4 Folder object rather than any
   7.10 body.
 
-AC-125 to AC-130 are proposed rather than assigned. Numbering section 12 is
-the human owner's, as the AC-124 amendment records, so the tests carry the
-next additive numbers and each file's header holds the criterion text an
-amendment would transcribe. Three cover the surfaces the RFC 0001 P4 row
+AC-125 to AC-130 were proposed here with their tests and numbered by the
+Integration Steward's section 12 amendment on 2026-08-07. The proposal left
+the numbers open on the belief that numbering is the human owner's, cited to
+the AC-124 amendment, and the Steward corrected it: that amendment records
+only that AC-124 was appended additively, and AC-116 to AC-118, AC-119 to
+AC-123 and AC-124 were each numbered on the Steward's authority. An appended
+number changes no existing number and therefore invalidates no criterion,
+which is what places it there; what is the owner's is the frozen text of
+sections 4 and 7. Three of the six cover the surfaces the RFC 0001 P4 row
 names as uncovered: the calendar's 62-day refusal, search's keyset and page
 size of 20, and the 1000-row cap with its `truncated` flag. Three more come
 from that row's own sentence that its list is a floor: the calendar's real
@@ -178,21 +187,50 @@ otherwise carry no criterion at all; Q8's 2-to-100 query length; and the
 `tz` that frozen 7.0 gives every view endpoint, where 11.15's hole is live,
 since bare `Intl` accepts `+05:30`.
 
-Two readings are recorded because assertions rest on them, both routed to the
-Integration Steward. The 1000-row cap is per response rather than per array,
-because section 6 enumerates pages when it lists what is capped and every
-7.10 body carries exactly one `truncated` flag, which a per-array cap could
-not report. And Q3C's cell order leaves the position of a completed row
-undefined: the section 6 preamble ranks pending and abandoned only, and Q8
-extends the scale locally, so AC-126 orders the two ranks the preamble
-defines and asserts only presence for the third.
+**Every silence these files routed is now text, and the assertions moved with
+it.** Seven were carried out of the first session; four were section 6's and
+the Steward ruled them at the P4 change control, three were frozen section
+7's and the human owner ruled them, all on 2026-08-07.
 
-One tolerance is left in the P4 envelopes and it is the only one: the
-`folder` object inside a Tasks group, which 7.10 names as a key without
-spelling its shape. Both the 7.0 `Folder` schema and the `{id, name,
-is_default}` stub every `TaskCard` already carries satisfy the word, so
-`views-harness.ts` asserts their intersection plus the sharp half, that a
-group's folder is the folder its own rows are in.
+- `status_rank` gains its third rank, `completed = 2`, in the section 6
+  preamble rather than only in Q8. AC-126 asked whether a completed banner
+  was present in a calendar cell and now asks for the cell's whole sequence.
+- The 1000-row cap is per response, with the rows kept being the first 1000
+  in the order 7.10 enumerates that response's own sections. That allocation
+  is more than AC-129 routed for, so its fixture gained four undated rows in
+  a custom folder and two cases now assert where the cap bites: Tasks fills
+  `inbox` before `groups`, and All places `planned` before the Tasks half
+  takes the remainder. A total alone cannot see either.
+- Q3C refuses an inverted range with 422. AC-125 accepted either answer and
+  pins that one now.
+- Q8 escapes backslash, percent and underscore in `q`. The Steward routed
+  where to assert it; it is asserted in AC-057 as three adversarial cases
+  rather than under a seventh number, because it is a property of Q8's
+  predicate, which that file already measures, while each of the six numbered
+  criteria closes a *number* stated in the specification and asserted
+  nowhere. The three were measured against real Postgres before being
+  written: percent and underscore make an unescaped pattern return an extra
+  row, and an unescaped backslash swaps the answer, returning the row without
+  the backslash and missing the one the user typed.
+- The `folder` inside `groups`, and inside `tasks_groups` of GET /views/all,
+  is the `{id, name, is_default}` stub every `TaskCard` carries rather than
+  the 7.0 `Folder` object. `views-harness.ts` asserts it key-exact now
+  instead of at the intersection of the two readings.
+- An absent `tz` answers 422 naming the field, where 7.0 had named only an
+  invalid one. The Steward widened AC-130 rather than appending a number, on
+  the ground the test now acts on: an implementation reading `tz` through a
+  schema with a UTC default satisfies the invalid half exactly, a present
+  wrong value reaching the validator where an absent one never does. The
+  absent half is asserted on every endpoint, and it is the sharper of the
+  two.
+- `section` defaults to `open` on GET /folders/:id/tasks. AC-058 asserts it
+  by equality against the explicit request, so a default that answered some
+  other envelope fails.
+
+One reading is stated in AC-058 and is not itself ruled: a `section` outside
+the enumeration answers 422 rather than falling back to open, since absent
+means open by the ruling and a wrong value is not absent. If that is wrong
+the case is a false red and should be disputed rather than worked around.
 
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
