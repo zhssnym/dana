@@ -157,28 +157,13 @@ as an isolated sub-agent with no chat to return to.
 | 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Done |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
-| 4 | The views and search package, the EXPLAIN record, the wiring request; escalated AC-052 and AC-057 as tests contradicting their own fixtures, which halted the unattended run | 05 | Unattended | Done, escalated |
-| 4a | Both tests ruled wrong and both criteria right, each repair's direction named; AC-131 numbered, section 13 item 21, four disclosures ratified | 12 | Steward | Done |
-| 4b | The two repairs, AC-131 moved to its own file, and the suite's timeout margin measured over five runs: no global `testTimeout`, so 516 of 522 cases ran under Vitest's five second default. The non-deterministic test itself is still unidentified, recorded in `app/tests/README.md` | 11 | Testers | Done |
-| 5 | The mount, `explain.ts` out of the build output, a global 30 second `testTimeout`. First honest measurement of row 4's claim: 895 of 896 rather than the 888 of 893 it reported from an uncommitted mount, four of its five reds repaired and the fifth misdiagnosed | 10 | Implementers | Done |
-| 4c | AC-052's second case, which filtered pending rows page-wide where Q3 sorts `due_date` and `status_rank` above the timed flag. 896 of 896, and CI run 31218626628 green on PGlite and postgres:18, the package's first production-fidelity evidence | 11 | Testers | Done |
-| 6 | Endpoint shape review: nine bodies key for key against frozen 7.10 and section 6's orders including Q3C's inverted key, no defect found. The cursor's opacity settled in `src/shared/views.ts`, and two sentences routed to the owner, who ruled both on 2026-08-07 | 04 | Implementers | Done |
-| 7 | Merge review: the cursor contract and the wrong-value rule transcribed onto frozen 7.10; MERGE HELD on a red postgres:18 leg that reproduced on PGlite, the non-deterministic failure identified at last and escalated to the owner | 12 | Steward | Held |
-| 7a | The zone `added_on` is computed in, once the owner rules | 03 or 11 | Implementers | Not started |
+| 4 | The views package, the EXPLAIN record, the wiring request; two fixtures escalated as wrong | 05 | Unattended | Done, escalated |
+| 4a | Both fixtures ruled wrong, AC-131 numbered, item 21, four disclosures ratified | 12 | Steward | Done |
+| 4b | The two repairs, AC-131's own file, the suite's timeout margin measured | 11 | Testers | Done |
+| 5 | The mount, `explain.ts` out of the build, a global 30 second timeout | 10 | Implementers | Done |
+| 4c | AC-052's second case, and the first green on both CI legs | 11 | Testers | Done |
+| 6 | Shape review: no defect, the cursor settled, two sentences routed | 04 | Implementers | Done |
+| 7 | Merge review: both rulings onto 7.10, held on a red leg, the non-deterministic failure named | 12 | Steward | Held |
+| 7a | `tz` onto frozen 7.8 by owner ruling, and the repair traced | 12 | Steward | Not started |
+| 7b | The pull dated from the carried `tz` | 03 | Implementers | Not started |
 | 8 | Merge | 12 | Steward | Not started |
-
-P4's merge is held, and the reason is the finding four sessions carried
-forward as open. The suite's non-deterministic failure is identified: it is
-not load-dependent and not backend-dependent, it is time-of-day dependent.
-`POST /tasks/:id/my-day` writes `added_on` from `users.timezone`, which is UTC
-for every test account, while the My Day view computes today(V) from the
-request's `tz`, which the harness sets to whichever zone is nearest local
-midday. Those two dates differ for a large part of every UTC day, and when
-they do, AC-047 and AC-048 fail with the stored date one day behind. CI run
-31221724484 failed on postgres:18 at 22:00 UTC on a tree whose `app/` is
-byte-identical to run 31220851543, green on both legs fourteen minutes
-earlier; the rerun failed on the PGlite leg too, with the same assertion,
-which is what rules out the database and leaves the clock.
-
-Whether that is the implementation's defect or the specification's is the
-human owner's to say, because frozen 7.8 is where it bottoms out.
