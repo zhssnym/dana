@@ -147,6 +147,11 @@ place rather than being renumbered, because the numbers are addresses.
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, two premises corrected, a borrowed Scheduling session | 12 | Steward | Done |
+| 1 | AC-045 to AC-058 and AC-070, plus six criteria proposed | 11 | Testers | Done |
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
 | 0 | Kickoff: trace, two premises corrected, the calendar's virtual arm deferred to P6 | 12 | Steward | Done |
 | 1 | AC-045 to AC-058 and AC-070, tests first, the three uncovered surfaces | 11 | Testers | Not started |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Implementers | Not started |
