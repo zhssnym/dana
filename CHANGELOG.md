@@ -10,6 +10,76 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Three rulings of the human owner, Hassan, on 2026-08-07, closing the frozen
+  section 7 silences the P4 change control routed to him. He took all three
+  of the Steward's recommendations. They are transcribed onto frozen 7.0 and
+  7.10 on branch `p4-views`, so they merge with the package.
+  - **An absent tz answers 422 naming the field**, where 7.0 had named only
+    an invalid one. A view endpoint called without tz is missing a required
+    parameter rather than accepting a default: 8.1 makes tz an input of every
+    request that evaluates dates, and UTC, the only plausible default, would
+    hand most of the world the wrong day with nothing on the wire to say it
+    had been substituted. 7.1's opposite treatment of the same parameter,
+    where an unparseable zone is read as absent rather than refused, stays a
+    deviation scoped to sign-in and does not generalize.
+  - **The `folder` inside `groups: [{folder, rows}]` is the
+    `{id, name, is_default}` stub every TaskCard already carries**, not the
+    7.0 Folder object, and the `tasks_groups` of GET /views/all answers the
+    same shape. A group heading needs exactly what a card's folder label
+    needs: Folder's counts are the per-folder computation of 8.11 that no
+    grouped view asks for, and its `is_owner`, `member_count`, `my_label` and
+    `my_color` are 7.4's business.
+  - **`section` defaults to `open` on GET /folders/:id/tasks** when absent,
+    rather than being required. Q7 renders its completed section collapsed,
+    so open is the state the page opens in, and 7.10's own enumeration names
+    it first.
+- AC-130 widened with the first of those rulings rather than joined by a new
+  number: one rule of 7.0, two failures, now one answer, and no number moves.
+  The widening is not cosmetic. An implementation reading tz through a schema
+  with a UTC default satisfies the invalid half exactly, a present wrong
+  value reaching the validator where an absent one never does, so the defect
+  the ruling exists to prevent was invisible to the criterion as first
+  written. The test is the Adversarial Test role's and is routed to the
+  session already scheduled next.
+- P4 mid-package change control, 2026-08-07, the amendments on branch
+  `p4-views` so they merge with the package. One ruling was the human
+  owner's: frozen 7.10 named a response object for eight of its nine
+  endpoints, and GET /folders/:id/tasks now carries `scheduled`,
+  `unscheduled`, and `truncated` on section=open and `days` with
+  `next_cursor` on section=completed, the keys the other eight bodies
+  already use for the same things. Six acceptance criteria are appended as
+  AC-125 to AC-130, each closing a number the specification states and
+  nothing asserts: the calendar's 62-day refusal and its real rows, search's
+  page size of 20 and its 2-to-100 character bound, the 1000-row cap with
+  its flag, and 7.0's tz rule across every view endpoint. Four silences are
+  closed in section 6, which is the Steward's: `status_rank` gains
+  completed = 2 in the preamble rather than only inside Q8, which had left a
+  completed row's position in a calendar cell undefined; the 1000-row cap is
+  per response rather than per array, since section 6 enumerates pages and
+  each body carries one flag, with the kept rows a prefix of the order 7.10
+  enumerates that response's sections in; Q3C refuses an inverted range,
+  which its own arithmetic admits by accident, rather than answering it with
+  the bare grid an empty month gets; and Q8 escapes a backslash, percent, or
+  underscore the user typed, so a search for "50%" stops matching everything
+  containing "50". Three silences are frozen section 7's and are routed to
+  the owner with a recommendation each, blocking nothing: the shape of
+  `folder` inside `groups`, what an absent tz gets where 7.0 names only an
+  invalid one, and the default `section` of the folder page. And the tester's
+  report that one clause each of AC-046 and AC-050 cannot be tested as
+  written is ruled the closest faithful test rather than reinterpretation,
+  recorded beside both criteria: owning the clock would decide, for an
+  implementer who has not yet written a line, that today(V) comes from the
+  process clock rather than the database, which 8.1 admits either way.
+- A provenance defect and its repair, recorded because the record is the
+  point. `app/tests/ac-058-folder-sections.test.ts` asserts the 7.10 body
+  above as settled and states that the owner ruled it at the P4 kickoff. The
+  substance is right and the timing is not: the kickoff recommended, the
+  owner ruled on 2026-08-07, and the tester session ran in between on a
+  prompt the operator wrote with "the human owner has ruled" in it, expecting
+  the answer. The ruling is now transcribed, so the test cites text that
+  exists. The header itself is inside `app/tests/`, which the Adversarial
+  Test role owns exclusively, so its correction is a routed return rather
+  than a Steward edit, and the P4 row now carries that session.
 - P4's session order, traced into its RFC row at the package's kickoff on
   2026-08-07, with the premise check that preceded it. Two premises were
   wrong. The row named `05-query-and-read-path.md` as the only owner, and
