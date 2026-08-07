@@ -81,3 +81,44 @@ folders router claims, and no further wiring was owed. The suite runs 579 of
 579 on the PGlite leg, and the 11.11 release ritual passes against the real
 boot path, health and an auth round trip and one CRUD cycle over this
 surface.
+
+## views router (P4, Query and Read-Path)
+
+The 7.10 surface: the six view pages, the calendar, the folder page, and
+search. Requested wiring, one line in createApp, beside the tasks router's
+mount and ahead of the `/api` catch-all:
+
+```ts
+import { createViewsRouter } from './routes/views.js'
+
+app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient }))
+```
+
+Facts the wiring can rely on:
+
+- The factory is synchronous, performs no I/O, and opens no database, the
+  same 11.10 discipline the folders and tasks routers keep. With no
+  dbClient, every route answers the constructed-without-a-database 500.
+- It attaches its own session middleware and steps aside when another
+  router's already ran on the request, so it is order-tolerant; after the
+  auth router is still the order to prefer, because that resolves each
+  request's session exactly once.
+- Every endpoint on it is a GET, so it takes no CSRF link: 7.0 makes GETs
+  safe and requires the token on mutations, and this package has none.
+- It shares a path prefix with the folders router and no path with it.
+  `GET /folders/:id/tasks` is 7.10's endpoint and this role's file by the
+  P2 merge ruling that this directory is shared by file; the folders router
+  claims `/folders`, `/folders/:id`, `/folders/:id/members` and
+  `/folders/:id/my-membership`, none of which is `/folders/:id/tasks`.
+  Express matches on the whole path, so the two never see each other's
+  requests and mount in either order.
+- It reaches no module the boot file does not already construct: no notify
+  call site exists on a read surface.
+- Mounting this router is what turns AC-045 to AC-058, AC-070 and AC-125 to
+  AC-130 green. Verified before this request was written, by mounting the
+  line above locally and running the whole suite, with the mount reverted
+  before the commit so the tree this request describes is the tree the boot
+  file will meet: 873 of 878 tests across 108 files pass on PGlite, every
+  P4 file green except two cases in AC-052 and three in AC-057, which are
+  escalated as false reds (the fixtures contradict the criteria's own
+  expected sequences) and are not waiting on any wiring.
