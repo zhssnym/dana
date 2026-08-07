@@ -41,7 +41,8 @@ handling, and PGlite's single connection.
 
 ## Commands and this machine
 
-Nothing runs until P0 lands `app/`. After that, everything runs from `app/`:
+Everything runs from `app/`, never from the repository root, where there is no
+`package.json` and the suite dies before running anything:
 
 ```bash
 npm ci
@@ -58,6 +59,11 @@ protocol points here rather than repeating them.
   18 needing no setup, selected by the single seam in `app/db/client.ts`. Set
   `TEST_DATABASE_URL` to run against a real Postgres instead; CI runs both, with
   `postgres:18` as the production-fidelity authority (spec 11.10).
+- The GitHub CLI is installed and authenticated but is on no shell's PATH. Call it
+  by its full path, `"C:\Program Files\GitHub CLI\gh.exe"`, to read CI. The
+  repository is private, so the unauthenticated API answers 404 and this is the only
+  way to see a run. `gh run list --commit` returns nothing here; list runs with
+  `--json databaseId,headSha` and match the sha yourself.
 - `DANA_DEV_LOGIN=1` enables `POST /api/v1/auth/dev-login` for sessions without
   Google credentials. It is absent from production builds regardless of environment
   variables.
