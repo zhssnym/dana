@@ -150,7 +150,7 @@ place rather than being renumbered, because the numbers are addresses.
 | 0 | Kickoff: trace, two premises corrected, a borrowed Scheduling session | 12 | Steward | Done |
 | 1 | AC-045 to AC-058 and AC-070, tests first, plus six criteria proposed | 11 | Testers | Done |
 | 1a | Change control: six criteria numbered, four section 6 silences closed, three routed | 12 | Steward | Done |
-| 1b | The three ruled silences transcribed onto frozen 7.0 and 7.10 | 12 | Steward | Not started |
+| 1b | The three ruled silences transcribed onto frozen 7.0 and 7.10 | 12 | Steward | Done |
 | 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Not started |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Implementers | Not started |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Implementers | Not started |
@@ -177,9 +177,17 @@ owner took all three of the Steward's recommendations: the `folder` inside
 `groups` is the `{id, name, is_default}` stub each TaskCard already carries
 rather than the 7.0 Folder object, an absent `tz` answers 422 naming the
 field where 7.0 had named only an invalid one, and `section` defaults to
-`open` on GET /folders/:id/tasks. Session 1b transcribes them; until it does,
-the rulings exist only in this conversation and the frozen text is still
-silent.
+`open` on GET /folders/:id/tasks. Session 1b transcribed all three onto frozen
+7.0 and 7.10 on the branch, and recorded each in `CHANGELOG.md` with the owner
+named and the date, which is the second thing the unattended contract requires
+of a cited ruling. AC-130 was widened with the first of them rather than
+joined by a new number; its test is 6a's.
+
+That session also merged main into the branch, closing a second instance of
+the same halt condition that had nothing to do with any test header. The
+contract reads the frozen sections on the branch and `CHANGELOG.md` too, and
+the change control's record of the 7.10 ruling AC-058 cites had landed on main
+alone, so the branch answered the citation with silence. It no longer does.
 
 Session 6a exists because a prompt written before a ruling produced a test
 that cites it. AC-058's header says the owner ruled the ninth body at the

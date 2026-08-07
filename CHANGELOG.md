@@ -10,6 +10,37 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Three rulings of the human owner, Hassan, on 2026-08-07, closing the frozen
+  section 7 silences the P4 change control routed to him. He took all three
+  of the Steward's recommendations. They are transcribed onto frozen 7.0 and
+  7.10 on branch `p4-views`, so they merge with the package.
+  - **An absent tz answers 422 naming the field**, where 7.0 had named only
+    an invalid one. A view endpoint called without tz is missing a required
+    parameter rather than accepting a default: 8.1 makes tz an input of every
+    request that evaluates dates, and UTC, the only plausible default, would
+    hand most of the world the wrong day with nothing on the wire to say it
+    had been substituted. 7.1's opposite treatment of the same parameter,
+    where an unparseable zone is read as absent rather than refused, stays a
+    deviation scoped to sign-in and does not generalize.
+  - **The `folder` inside `groups: [{folder, rows}]` is the
+    `{id, name, is_default}` stub every TaskCard already carries**, not the
+    7.0 Folder object, and the `tasks_groups` of GET /views/all answers the
+    same shape. A group heading needs exactly what a card's folder label
+    needs: Folder's counts are the per-folder computation of 8.11 that no
+    grouped view asks for, and its `is_owner`, `member_count`, `my_label` and
+    `my_color` are 7.4's business.
+  - **`section` defaults to `open` on GET /folders/:id/tasks** when absent,
+    rather than being required. Q7 renders its completed section collapsed,
+    so open is the state the page opens in, and 7.10's own enumeration names
+    it first.
+- AC-130 widened with the first of those rulings rather than joined by a new
+  number: one rule of 7.0, two failures, now one answer, and no number moves.
+  The widening is not cosmetic. An implementation reading tz through a schema
+  with a UTC default satisfies the invalid half exactly, a present wrong
+  value reaching the validator where an absent one never does, so the defect
+  the ruling exists to prevent was invisible to the criterion as first
+  written. The test is the Adversarial Test role's and is routed to the
+  session already scheduled next.
 - P4 mid-package change control, 2026-08-07, the amendments on branch
   `p4-views` so they merge with the package. One ruling was the human
   owner's: frozen 7.10 named a response object for eight of its nine
