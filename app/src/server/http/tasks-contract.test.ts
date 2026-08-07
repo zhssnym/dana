@@ -462,7 +462,10 @@ describe('the 7.7 and 7.8 response bodies the review settled', () => {
     const { owner } = await stage()
     const taskId = await freshTask('my day')
 
-    const pulled = await api(owner, `/tasks/${taskId}/my-day`, {
+    // ?tz by the owner's ruling of 2026-08-08: the pull dates added_on from
+    // today(V), so it reads the zone the caller is in. The drop below takes
+    // none, evaluating no date, which is why only the POSTs carry it here.
+    const pulled = await api(owner, `/tasks/${taskId}/my-day?tz=UTC`, {
       method: 'POST',
     })
     expect(pulled.status, '7.8 makes the pull an insert-or-nothing at 200').toBe(
@@ -648,7 +651,14 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
       ],
       [
         'POST /tasks/:id/my-day',
-        await api(owner, `/tasks/${strangerTaskId}/my-day`, { method: 'POST' }),
+        // A valid tz, or this probe measures the 422 the ruling added rather
+        // than the 404 it is about: 7.8's parameter is validated before the
+        // task is resolved, which is the non-leaking order (the P4 views
+        // router does the same on the folder page) and is asserted on its own
+        // below rather than left to be discovered here.
+        await api(owner, `/tasks/${strangerTaskId}/my-day?tz=UTC`, {
+          method: 'POST',
+        }),
       ],
       [
         'DELETE /tasks/:id/my-day',
@@ -661,6 +671,46 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
         `${what} on a task the caller cannot see must read as nonexistent, never 403 (10.2)`,
       ).toBe(404)
     }
+  })
+
+  test("the pull's tz is judged before the task is, and leaks nothing by it", async () => {
+    /*
+    The ordering the probe above has to work around, asserted here so it is a
+    contract fact rather than something a reader infers from a ?tz=UTC in a
+    404 case. 7.8's parameter is validated first, which is the order the P4
+    views router already uses on the folder page.
+
+    What makes that the right order is the pair below rather than either half
+    alone: an accessible task and one the caller cannot see answer the *same*
+    422 when the zone is missing, so the refusal discriminates nothing about
+    existence. The reversed order would answer 404 here and 422 there, which
+    is a probe for whether a task id is real.
+    */
+    const { owner, strangerTaskId } = await stage()
+    const mine = await freshTask('tz before resolution')
+
+    const onMine = await api(owner, `/tasks/${mine}/my-day`, { method: 'POST' })
+    const onStranger = await api(owner, `/tasks/${strangerTaskId}/my-day`, {
+      method: 'POST',
+    })
+
+    expect(
+      [onMine.status, onStranger.status],
+      '7.8 as ruled 2026-08-08: an absent tz is 422 whoever owns the task',
+    ).toEqual([422, 422])
+    expect(
+      errorEnvelope.safeParse(onMine.json()).success,
+      'and it is the 7.0 envelope like every other refusal on this surface',
+    ).toBe(true)
+    expect(
+      JSON.stringify(onMine.json()),
+      'naming the field, which is what tells a client what to fix (7.0). The empty-path trap this avoids is real: a bare viewTz.safeParse would raise an issue sendValidationError drops, and the caller would read "A JSON object body is required." on a query parameter',
+    ).toMatch(/tz/)
+    expect(
+      (await api(owner, `/tasks/${mine}/my-day?tz=Mars/Olympus`, { method: 'POST' }))
+        .status,
+      'an invalid zone is refused like an absent one',
+    ).toBe(422)
   })
 
   /*
@@ -752,7 +802,11 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
       '7.6 names no body for a transition, so a bodyless call is the ordinary call',
     ).toBe(200)
 
-    const pulled = await api(owner, `/tasks/${taskId}/my-day`, {
+    // tz rides the query string, not a body, so this still measures what it
+    // is about: 7.8 names no body, and a bodyless call is the ordinary call.
+    // Without the parameter the probe would answer 422 for the missing zone
+    // and pass this describe block's subject for the wrong reason.
+    const pulled = await api(owner, `/tasks/${taskId}/my-day?tz=UTC`, {
       method: 'POST',
     })
     expect(

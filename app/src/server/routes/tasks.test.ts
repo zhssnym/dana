@@ -47,6 +47,7 @@ import {
   patchTask,
   patchTaskOk,
   pullIntoMyDay,
+  pullWithoutTz,
   readTask,
   reminderRow,
   requireTaskRow,
@@ -574,8 +575,8 @@ describe('the tasks router, driven through the harness idiom', () => {
       'the task to delete is creatable',
     )
     await addStep(owner, created.id, { title: 'a step' })
-    expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the pull succeeds')
-    expectStatus(await pullIntoMyDay(helper, created.id), 200, 'and the other member\'s')
+    expectStatus(await pullIntoMyDay(owner, created.id, 'UTC'), 200, 'the pull succeeds')
+    expectStatus(await pullIntoMyDay(helper, created.id, 'UTC'), 200, 'and the other member\'s')
     await seedOffsetReminder(app.db, created.id, owner.id, 60)
 
     expectStatus(
@@ -655,7 +656,7 @@ describe('the tasks router, driven through the harness idiom', () => {
       'the task to pull is creatable',
     )
 
-    expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the pull answers 200 (7.8)')
+    expectStatus(await pullIntoMyDay(owner, created.id, 'UTC'), 200, 'the pull answers 200 (7.8)')
     expect(await addedOn(created.id, owner.id), 'the entry exists').toBeDefined()
     // A row as it would read after a pull made last week, which is what
     // 7.8's "keeping the original added_on" protects.
@@ -663,13 +664,13 @@ describe('the tasks router, driven through the harness idiom', () => {
       UPDATE my_day_entries SET added_on = ${'2026-07-01'}::date
        WHERE task_id = ${created.id}::uuid AND user_id = ${owner.id}::uuid
     `)
-    expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the repeat is a no-op')
+    expectStatus(await pullIntoMyDay(owner, created.id, 'UTC'), 200, 'the repeat is a no-op')
     expect(
       await addedOn(created.id, owner.id),
       'an upsert would have moved it to today (spec 7.8, 8.2)',
     ).toBe('2026-07-01')
 
-    expectStatus(await pullIntoMyDay(helper, created.id), 200, 'the other member pulls')
+    expectStatus(await pullIntoMyDay(helper, created.id, 'UTC'), 200, 'the other member pulls')
     expect(
       (await myDayRows(app.db, created.id)).length,
       'INV-12 is keyed on (task, user)',
@@ -696,7 +697,7 @@ describe('the tasks router, driven through the harness idiom', () => {
       'the stranger\'s own task is creatable',
     )
     expectStatus(
-      await pullIntoMyDay(owner, outOfReach.id),
+      await pullIntoMyDay(owner, outOfReach.id, 'UTC'),
       404,
       '7.8 answers 404 when the task is not accessible (10.2)',
     )
@@ -706,35 +707,115 @@ describe('the tasks router, driven through the harness idiom', () => {
     ).toEqual([])
   })
 
-  test('added_on is today in the adder\'s own zone, not the server\'s (4.7)', async () => {
+  test('added_on is today in the request\'s tz, not the account\'s zone (7.8)', async () => {
+    /*
+    Rewritten for the owner's ruling of 2026-08-08, and it used to assert the
+    defect. The old version set the account zone and checked added_on against
+    it, which is what the endpoint did when it had no tz to read: 4.7 calls
+    added_on the adder's local date, and the account's zone was the only zone
+    in reach. But 8.1 reserves users.timezone for reminder fire instants, and
+    Q1 compares this row against today(V) from the request's tz, so the two
+    civil dates were computed from different inputs and disagreed for a large
+    part of every UTC day. That is the non-determinism four sessions carried.
+
+    The two zones are chosen so the case cannot pass by luck at any instant.
+    Kiritimati is UTC+14 and Midway is UTC-11, twenty-five hours apart, so
+    their civil dates always differ; a version of this test using zones that
+    merely usually differ would be green for most of the day under the old
+    implementation, which is precisely how the defect survived.
+
+    The second assertion is the discrimination evidence rather than a
+    restatement of the first: it names the account's date and requires
+    added_on not to be it, so the pre-ruling statement turns this red.
+    */
     const { owner, sharedId } = await stage()
     const created = await createTaskOk(
       owner,
       { title: 'proof zone', folder_id: sharedId },
       'the task to pull is creatable',
     )
-    // The account's zone is the only zone 7.8 can consult: the endpoint takes
-    // no tz, and 4.7 calls added_on the adder's local date. Kiritimati is
-    // UTC+14, so its date differs from the server's for ten hours of the day.
     await app.db.execute(
       sql`UPDATE users SET timezone = ${'Pacific/Kiritimati'}
           WHERE id = ${owner.id}::uuid`,
     )
-    expectStatus(await pullIntoMyDay(owner, created.id), 200, 'the pull succeeds')
+    expectStatus(
+      await pullIntoMyDay(owner, created.id, 'Pacific/Midway'),
+      200,
+      'the pull succeeds',
+    )
     // to_char rather than the raw column: node-postgres parses a date into a
     // JS Date and PGlite hands back a string, so only the cast reads the same
     // on both backends.
-    const expected = await rows(
+    const dates = await rows(
       app.db,
-      sql`SELECT to_char((now() AT TIME ZONE 'Pacific/Kiritimati')::date,
-                         'YYYY-MM-DD') AS d`,
+      sql`SELECT to_char((now() AT TIME ZONE 'Pacific/Midway')::date,
+                         'YYYY-MM-DD') AS requested,
+                 to_char((now() AT TIME ZONE 'Pacific/Kiritimati')::date,
+                         'YYYY-MM-DD') AS account`,
+    )
+    const requested = String(dates[0]?.requested)
+    const account = String(dates[0]?.account)
+    expect(
+      await addedOn(created.id, owner.id),
+      'added_on is today(V) from the tz the request carried (spec 7.8 as ruled 2026-08-08, 8.1)',
+    ).toBe(requested)
+    expect(
+      account,
+      'and the two zones really do disagree, or the assertion above discriminates nothing',
+    ).not.toBe(requested)
+    await app.db.execute(
+      sql`UPDATE users SET timezone = ${'UTC'} WHERE id = ${owner.id}::uuid`,
+    )
+  })
+
+  test('the pull refuses an absent or invalid tz, naming the field (7.8)', async () => {
+    /*
+    The other half of the ruling. An absent tz is not a request to default:
+    the only plausible default is UTC, which would silently stamp the wrong
+    civil date for most of the world, which is the defect this change exists
+    to remove rather than to relocate.
+    */
+    const { owner, sharedId } = await stage()
+    const created = await createTaskOk(
+      owner,
+      { title: 'proof tz refusal', folder_id: sharedId },
+      'the task to pull is creatable',
+    )
+    const absent = await pullWithoutTz(owner, created.id)
+    expectStatus(absent, 422, '7.8 as ruled 2026-08-08: an absent tz is refused')
+    expect(
+      JSON.stringify(absent.json()),
+      'the field is named, which is what tells a client what to fix (7.0)',
+    ).toMatch(/tz/)
+    expectStatus(
+      await pullIntoMyDay(owner, created.id, 'Mars/Olympus'),
+      422,
+      'and an invalid zone is refused the same way',
     )
     expect(
       await addedOn(created.id, owner.id),
-      'added_on is the adder\'s local date (spec 4.7, 7.8)',
-    ).toBe(String(expected[0]?.d))
-    await app.db.execute(
-      sql`UPDATE users SET timezone = ${'UTC'} WHERE id = ${owner.id}::uuid`,
+      'a refused pull writes nothing',
+    ).toBeUndefined()
+  })
+
+  test('the drop takes no tz, evaluating no date (7.8)', async () => {
+    // The ruling gives DELETE nothing, and a change that quietly required tz
+    // on both would be a widening nobody ruled.
+    const { owner, sharedId } = await stage()
+    const created = await createTaskOk(
+      owner,
+      { title: 'proof drop', folder_id: sharedId },
+      'the task to drop is creatable',
+    )
+    expectStatus(
+      await pullIntoMyDay(owner, created.id, 'UTC'),
+      200,
+      'the pull succeeds',
+    )
+    expectStatus(
+      await dropFromMyDay(owner, created.id),
+      200,
+      'and the drop needs no zone',
     )
   })
 })

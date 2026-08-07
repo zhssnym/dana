@@ -120,7 +120,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
     const { owner } = await stage()
     const taskId = await pullable('sequence')
 
-    const firstPull = await pullIntoMyDay(owner, taskId)
+    const firstPull = await pullIntoMyDay(owner, taskId, 'UTC')
     expectStatus(
       firstPull,
       200,
@@ -129,7 +129,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
     const addedOn = await myDayAddedOn(app.db, taskId, owner.id)
     expect(addedOn, 'the entry exists after the first pull').toBeDefined()
 
-    const secondPull = await pullIntoMyDay(owner, taskId)
+    const secondPull = await pullIntoMyDay(owner, taskId, 'UTC')
     expectStatus(
       secondPull,
       200,
@@ -166,7 +166,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
   test('AC-044: added_on is the pulling day in the adder\'s zone', async () => {
     const { owner } = await stage()
     const taskId = await pullable('added on')
-    await pullIntoMyDay(owner, taskId)
+    await pullIntoMyDay(owner, taskId, 'UTC')
     const addedOn = await myDayAddedOn(app.db, taskId, owner.id)
     // These actors sign in without the 7.1 tz parameter, so 7.1 provisions
     // UTC and today(V) is today in UTC. Yesterday is admitted because a pull
@@ -181,7 +181,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
   test('AC-044 adversarial: a repeat pull does not overwrite an older added_on', async () => {
     const { owner } = await stage()
     const taskId = await pullable('stale entry')
-    await pullIntoMyDay(owner, taskId)
+    await pullIntoMyDay(owner, taskId, 'UTC')
     // A row as it would read after a pull made last week. Written directly
     // because no endpoint can reach into the past, and the criterion's word
     // is original.
@@ -189,7 +189,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
       UPDATE my_day_entries SET added_on = ${'2026-07-01'}::date
        WHERE task_id = ${taskId}::uuid AND user_id = ${owner.id}::uuid
     `)
-    const response = await pullIntoMyDay(owner, taskId)
+    const response = await pullIntoMyDay(owner, taskId, 'UTC')
     expectStatus(response, 200, 'the repeat pull is a 200 no-op (spec 7.8)')
     expect(
       await myDayAddedOn(app.db, taskId, owner.id),
@@ -200,9 +200,9 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
   test('AC-044 adversarial: the pull is one viewer\'s, not the task\'s', async () => {
     const { owner, second } = await stage()
     const taskId = await pullable('per viewer')
-    expectStatus(await pullIntoMyDay(owner, taskId), 200, 'the owner pulls')
+    expectStatus(await pullIntoMyDay(owner, taskId, 'UTC'), 200, 'the owner pulls')
     expectStatus(
-      await pullIntoMyDay(second, taskId),
+      await pullIntoMyDay(second, taskId, 'UTC'),
       200,
       'the other member pulls the same task (spec 7.8, any member of an accessible folder)',
     )
@@ -229,7 +229,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
       (await readTask(owner, taskId)).pulled,
       'nothing is pulled yet (spec 7.0: pulled means the viewer has a My Day entry)',
     ).toBe(false)
-    await pullIntoMyDay(owner, taskId)
+    await pullIntoMyDay(owner, taskId, 'UTC')
     expect(
       (await readTask(owner, taskId)).pulled,
       'the viewer who pulled reads pulled true',
@@ -268,6 +268,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
     const pulled = await pullIntoMyDayOk(
       owner,
       taskId,
+      'UTC',
       'the pull that creates the entry (spec 7.8)',
     )
     expect(
@@ -278,6 +279,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
     const repeat = await pullIntoMyDayOk(
       owner,
       taskId,
+      'UTC',
       'the repeat pull, a 200 no-op (spec 7.8, INV-12)',
     )
     expect(
@@ -308,7 +310,7 @@ describe('AC-044: pulling and dropping My Day are idempotent', () => {
 
   test('AC-044 adversarial: pulling an inaccessible task answers 404 and writes nothing', async () => {
     const { owner, strangerTaskId } = await stage()
-    const response = await pullIntoMyDay(owner, strangerTaskId)
+    const response = await pullIntoMyDay(owner, strangerTaskId, 'UTC')
     expectStatus(
       response,
       404,

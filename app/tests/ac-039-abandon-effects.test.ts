@@ -78,7 +78,7 @@ async function stage(): Promise<Stage> {
     // The reminder is P7's surface, so it is seeded; 8.6's claim that it
     // survives abandonment is testable without the module that computes it.
     await seedOffsetReminder(app.db, created.id, author.id, 15)
-    const pull = await pullIntoMyDay(author, created.id)
+    const pull = await pullIntoMyDay(author, created.id, 'UTC')
     expectStatus(
       pull,
       200,

@@ -17,6 +17,7 @@ import type { NotificationSink } from './notify/index.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 import { createTasksRouter } from './routes/tasks.js'
+import { createViewsRouter } from './routes/views.js'
 
 export const logger = pino()
 
@@ -155,6 +156,13 @@ export function createApp(options: AppOptions = {}): express.Express {
   // and its paths (/tasks, /steps) meet nothing the folders router claims, so
   // the pair is order-independent between themselves.
   app.use('/api/v1', createTasksRouter({ dbClient: options.dbClient }))
+
+  // The P4 views router, by the third request in that same ledger: the 7.10
+  // read surface. Same position and the same reason. It shares the /folders
+  // prefix with the folders router but no whole path with it, and Express
+  // matches on the whole path, so that pair is order-independent too; every
+  // endpoint on it is a GET, which 7.0 makes safe, so it takes no CSRF link.
+  app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient }))
 
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))

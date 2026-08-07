@@ -116,12 +116,12 @@ async function loadedTask(label: string): Promise<Fixture> {
   await addStepOk(owner, created.id, 'first step')
   await addStepOk(owner, created.id, 'second step')
   expectStatus(
-    await pullIntoMyDay(owner, created.id),
+    await pullIntoMyDay(owner, created.id, 'UTC'),
     200,
     'the owner\'s pull must succeed (spec 7.8)',
   )
   expectStatus(
-    await pullIntoMyDay(second, created.id),
+    await pullIntoMyDay(second, created.id, 'UTC'),
     200,
     'the second member\'s pull must succeed (spec 7.8)',
   )

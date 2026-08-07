@@ -22,7 +22,10 @@ npx vitest run -t "AC-105"
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered, passing; it arrived green, see below |
-| P4 to P10 | AC-045 to AC-104 | Not yet written |
+| P4 | AC-045 to AC-058, AC-070 | Covered; AC-046 to AC-048 red on the 7.8 tz defect until the pull takes tz |
+| P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
+| P4 gate | AC-132 | Covered, red by design; the 7.8 tz ruling of 2026-08-08, implementer follows |
+| P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -114,6 +117,144 @@ asserted rather than left to be rediscovered:
   raw transports, because it is the criterion's own calls in the criterion's
   own order and a GET wedged between them would transcribe something else.
 
+P4's range, AC-045 to AC-058 and AC-070, covers frozen 7.10's nine endpoints
+and section 6's twelve queries less the four that are not this package's: Q9
+and Q10 already run on main, Q11 rides P7 and Q12 rides P5. Written before
+the implementation per the RFC 0001 P4 row, so every file failed on a 7.10
+route answering 404 until the views router was mounted, which is the designed
+order again; they pass since.
+
+Two of them were wrong when the router landed, and both were this suite's
+rather than the router's. Recorded because the way each was settled is worth
+more than the repair. AC-052 seeded its two tie rows with a clock read per
+row, so they differed by the milliseconds the first insert took, Q3 settled
+them on created_at, and the id tie-break the pair exists to reach was never
+reached. And AC-052's narrow case asserted the all-day clause across the
+whole page, which is not a stronger reading of the criterion but a false one:
+due_date and status_rank both outrank the timed flag, so an all-day row on a
+later date, and an abandoned all-day row on the same date, each correctly
+follow a timed row. What settled the second as the file's own defect before
+anything was edited is that the whole-sequence case above it passed against
+the same response; both could not hold at once, and the sequence is the one
+the file declares correct key by key. AC-126 asserts the same clause needing
+only the date narrowing, because 6 Q3C puts the timed flag above status_rank
+where Q3 puts it below, so the two files differ on purpose.
+
+Six things those files are written around.
+
+- **Nothing here writes.** Every earlier package set up through the
+  endpoints of the package under test. P4 has no create, so its fixtures are
+  inserted directly by `views-harness.ts`, and for a reason rather than for
+  convenience: Q2 sorts by `created_at`, Q6 pages by `completed_at`, and Q8
+  sorts by `updated_at`, and none of those columns can be dictated through
+  7.6, whose transitions stamp them with the clock. Each file sweeps section
+  3 over its own fixture, so a seed that violated an invariant fails as a bad
+  fixture rather than passing as a good result.
+- **`today(tz)` is computed in the harness and never imported.** The date
+  predicates of Q1 and Q3C live in `src/server/time/**`, which the Scheduling
+  engineer writes in the session after the tester's. Importing them would
+  borrow the definition of correct from the module under test, the same
+  standing ruling the timezone predicate already follows, and a wrong helper
+  would then agree with itself while every date criterion passed vacuously.
+- **AC-050 gives up its instant and keeps its content.** The criterion names
+  2026-07-23 20:30 UTC, and faking the clock would decide for the implementer
+  that `today(V)` comes from the process clock rather than from the database,
+  which 8.1's "the server computes it" leaves open; the test would then be a
+  false red against half of the correct implementations. So the split is
+  asserted with Pacific/Kiritimati and Pacific/Honolulu, whose offsets differ
+  by exactly 24 hours with neither observing DST, making the ahead zone
+  exactly one calendar day ahead at every instant. Measured at every hour of
+  2026 before being depended on, 8760 samples with no exception, and at the
+  criterion's own instant those two zones read its own two local dates.
+  Asia/Karachi and Europe/London are asserted beside them, unconditionally in
+  the direction that needs no clock. The change control ruled this the closest
+  faithful test rather than a reinterpretation, and section 12 records the
+  ruling beside AC-046 and AC-050 without either criterion's text moving.
+- **Date-relative fixtures anchor on a zone near local midday.**
+  `middayZone()` picks, from twenty-five zones measured DST-free with
+  whole-hour offsets at every hour of 2026, whichever is nearest 12:00 local
+  now, so a fixture
+  cannot be seeded on one side of a local midnight and read on the other. It
+  is a function of the instant and no assertion branches on it; the residual
+  is caught by `expectStillSameDay` rather than tolerated.
+- **Every refusal is asserted beside a success on the same URL.** While the
+  routes were unmounted every path answered 404, so a case asserting only a
+  404 or only a 422 passed without discriminating anything, and would have
+  gone on passing against an endpoint nobody mounted. The successes are
+  asserted first, and the pairing stays now that the routes are green: it is
+  what keeps a refusal case honest if a route is ever unmounted again.
+- **Two criteria are split across packages, and the files say so.** AC-048's
+  unassigned chip and AC-053's fading are section 9's and arrive with P8;
+  what P4 owes is the null assignee the first is drawn from and the presence
+  in Tasks and All that the second is drawn on. AC-058's "collapsed" is P8's
+  too, and its 8.11 ratio rides the merged 7.4 Folder object rather than any
+  7.10 body.
+
+AC-125 to AC-130 were proposed here with their tests and numbered by the
+Integration Steward's section 12 amendment on 2026-08-07. The proposal left
+the numbers open on the belief that numbering is the human owner's, cited to
+the AC-124 amendment, and the Steward corrected it: that amendment records
+only that AC-124 was appended additively, and AC-116 to AC-118, AC-119 to
+AC-123 and AC-124 were each numbered on the Steward's authority. An appended
+number changes no existing number and therefore invalidates no criterion,
+which is what places it there; what is the owner's is the frozen text of
+sections 4 and 7. Three of the six cover the surfaces the RFC 0001 P4 row
+names as uncovered: the calendar's 62-day refusal, search's keyset and page
+size of 20, and the 1000-row cap with its `truncated` flag. Three more come
+from that row's own sentence that its list is a floor: the calendar's real
+rows, which are the whole substance of the one 7.10 endpoint that would
+otherwise carry no criterion at all; Q8's 2-to-100 query length; and the
+`tz` that frozen 7.0 gives every view endpoint, where 11.15's hole is live,
+since bare `Intl` accepts `+05:30`.
+
+**Every silence these files routed is now text, and the assertions moved with
+it.** Seven were carried out of the first session; four were section 6's and
+the Steward ruled them at the P4 change control, three were frozen section
+7's and the human owner ruled them, all on 2026-08-07.
+
+- `status_rank` gains its third rank, `completed = 2`, in the section 6
+  preamble rather than only in Q8. AC-126 asked whether a completed banner
+  was present in a calendar cell and now asks for the cell's whole sequence.
+- The 1000-row cap is per response, with the rows kept being the first 1000
+  in the order 7.10 enumerates that response's own sections. That allocation
+  is more than AC-129 routed for, so its fixture gained four undated rows in
+  a custom folder and two cases now assert where the cap bites: Tasks fills
+  `inbox` before `groups`, and All places `planned` before the Tasks half
+  takes the remainder. A total alone cannot see either.
+- Q3C refuses an inverted range with 422. AC-125 accepted either answer and
+  pins that one now.
+- Q8 escapes backslash, percent and underscore in `q`. The three cases were
+  written inside AC-057 and are now `ac-131-search-literal-wildcards.test.ts`,
+  moved unchanged when the Steward numbered the rule. The judgment that put
+  them in AC-057, that escaping is a property of Q8's predicate which that
+  file already measures while each of the six numbered criteria closes a
+  *number* the specification states and nothing asserts, was right when it
+  was made and is superseded rather than contradicted: escaping was a silence
+  when those six were authored and became a rule the specification states
+  once the change control ruled it. The three were measured against real
+  Postgres before being written: percent and underscore make an unescaped
+  pattern return an extra row, and an unescaped backslash swaps the answer,
+  returning the row without the backslash and missing the one the user typed.
+- The `folder` inside `groups`, and inside `tasks_groups` of GET /views/all,
+  is the `{id, name, is_default}` stub every `TaskCard` carries rather than
+  the 7.0 `Folder` object. `views-harness.ts` asserts it key-exact now
+  instead of at the intersection of the two readings.
+- An absent `tz` answers 422 naming the field, where 7.0 had named only an
+  invalid one. The Steward widened AC-130 rather than appending a number, on
+  the ground the test now acts on: an implementation reading `tz` through a
+  schema with a UTC default satisfies the invalid half exactly, a present
+  wrong value reaching the validator where an absent one never does. The
+  absent half is asserted on every endpoint, and it is the sharper of the
+  two.
+- `section` defaults to `open` on GET /folders/:id/tasks. AC-058 asserts it
+  by equality against the explicit request, so a default that answered some
+  other envelope fails.
+
+One reading is stated in AC-058 and is not itself ruled: a `section` outside
+the enumeration answers 422 rather than falling back to open, since absent
+means open by the ruling and a wrong value is not absent. If that is wrong
+the case is a false red and should be disputed rather than worked around.
+
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
 judged none and held a place for the assertion; the owner ruled at the same
@@ -171,8 +312,13 @@ the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
 asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
 and P7's reminders, and the task half of the invariant sweep, which
 delegates the folder half to `expectFolderInvariants` rather than restating
-it. Each file's header explains its own decisions; the eight below are worth
-knowing before reading any test.
+it. `views-harness.ts` is the P4 layer over all of them: `today(tz)` computed
+through `Intl` rather than imported, calendar arithmetic on 4.11 date
+strings, the nine 7.10 response envelopes restated and asserted key-exact
+with every row parsed through the frozen `TaskCard` check, fixtures written
+directly with every column named, and cursor paging to exhaustion. Each
+file's header explains its own decisions; the eight below are worth knowing
+before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
@@ -301,3 +447,34 @@ specification rather than inferred:
   rather than guarded at runtime. 11.15 records why that is delicate: tsc emits
   a tsconfig-excluded file anyway if any resolvable import names it, a literal
   dynamic `import()` included.
+
+## One thing this suite needs from `vitest.config.ts`, and does not have
+
+A global `testTimeout`. The config sets `environment` and `include` and
+nothing else, so all but six of this suite's 522 cases run under Vitest's
+5000 ms default. The six that do not are AC-114's five and one of AC-109's,
+which name their own.
+
+That default is not a comfortable margin here, and the measurement is this
+suite's own rather than an argument from principle. Across five consecutive
+full runs on an otherwise idle machine, AC-114's slowest case ranged from
+1941 ms to 5811 ms. It crosses the five second line, and the only reason it
+is not a failure is the `MODULE_LOAD_TIMEOUT = 120_000` its author wrote for
+exactly this reason, recorded in that file's header. Nothing else in the
+suite has that protection: AC-070's slowest case measured 1237 ms to 2784 ms
+over the same five runs, a spread of more than two to one under a ceiling
+less than twice its own maximum, and several P2 cases sit in the same band.
+
+Why it matters more than the seconds suggest. A test that exceeds its
+timeout is reported as an Error rather than as an assertion failure, so it
+does not say what it was measuring, and a run that loses one this way differs
+from the previous run by exactly one failure with nothing in the output
+naming what moved. The operator measured two gate runs on a byte-identical
+tree at 141 failures and then 140, and the Steward two more at 140 and 140;
+this is the only mechanism found so far that produces that shape, and it is
+load-dependent, which is why nine clean runs in a row do not clear it.
+
+The change is one line in `vitest.config.ts`, which belongs to Platform, and
+is escalated rather than made here. Adding per-case timeouts to 516 cases
+instead would be the same fix written 516 times, and would leave the next
+file written without one exposed again.

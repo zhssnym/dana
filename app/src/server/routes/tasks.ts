@@ -36,6 +36,7 @@ import {
   postTasksBody,
 } from '../../shared/tasks.js'
 import type { TaskDetail } from '../../shared/tasks.js'
+import { viewTz } from '../../shared/views.js'
 import {
   attachSession,
   requireCsrf,
@@ -391,7 +392,21 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (db === null) return
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
-      const result = await pullIntoMyDay(db, viewer(req), taskId)
+      /*
+      7.8's tz, by owner ruling on 2026-08-08: an absent or invalid one is
+      422 naming the field, the treatment 7.0 gives the parameter on every
+      view endpoint. viewTz is imported rather than restated for that reason,
+      and wrapped in an object here so the issue carries path ['tz']: a bare
+      viewTz.safeParse would raise an issue with an empty path, which
+      sendValidationError drops, and the caller would read "A JSON object
+      body is required." on a query-parameter failure.
+      */
+      const zone = z.object({ tz: viewTz }).safeParse(req.query)
+      if (!zone.success) {
+        sendValidationError(res, zone.error)
+        return
+      }
+      const result = await pullIntoMyDay(db, viewer(req), taskId, zone.data.tz)
       if (result.kind === 'not_found') {
         notFound(res)
         return
