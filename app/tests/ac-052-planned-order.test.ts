@@ -23,6 +23,44 @@ overdue pending rows appear first naturally by date rather than by a rule of
 their own. The fixture opens with one, so an implementation filtering to
 today and later fails on the first element.
 
+And note what "the all-day row first" does not mean, because this file
+asserted the wrong thing for it and was the last red on the branch. It is a
+claim about one date and one status_rank, not about the page. The timed flag
+is Q3's third key: due_date ranks above it, so an all-day row on a later date
+correctly follows an earlier date's timed rows, and status_rank ranks above
+it too, so an abandoned all-day row correctly follows the same date's pending
+timed rows. The case below asserted "every all-day pending row precedes every
+timed pending row" across the whole page, which is not a stronger reading of
+the criterion but a false one, and Q3 never claimed it. This fixture proves
+it false twice over: laterPending is all-day at today plus two and lands
+after the shared date's timed rows, and sharedAbandonedAllDay is all-day on
+the shared date itself and lands after them for the other reason. So the case
+now narrows on both keys that outrank the flag, which is exactly the set the
+flag decides.
+
+A corrected case that has only ever been green has not been shown to
+discriminate, so this one was red-proven out of band before it was left
+standing: reversing its expected sequence to the timed rows first fails it,
+on that case alone, naming the clause. It would therefore catch the defect it
+exists for, an implementation ordering timed rows ahead of all-day ones
+inside a date, rather than merely agreeing with whatever arrived.
+
+What settled it as this file's defect rather than the router's is the case
+above it: the whole-sequence assertion passes against the same response.
+Both could not hold at once, and the sequence is the one this file declares
+correct, key by key, with a fixture built so each key is separable. The
+narrow case was wrong about the scope of a claim the wide case states in
+full. This is also why the two were not both escalated as one fault: the
+tie-row stamp defect repaired at fac1c70 was real and separate, and this
+one rode along with it.
+
+The same clause is asserted for the calendar in AC-126, where it needs only
+the date narrowing: 6 Q3C puts the timed flag above status_rank, the reverse
+of Q3, so within a cell every all-day row does precede every timed one
+whatever its status. The two files disagreeing about which narrowings are
+needed is the specification disagreeing with itself on purpose, and is worth
+knowing before either is edited.
+
 Spec: 6 Q3 (predicate, sort, what never appears), 8.1, 7.10.
 */
 import { randomUUID } from 'node:crypto'
@@ -54,6 +92,8 @@ interface Stage {
   viewer: Actor
   inboxId: string
   today: string
+  /** The date carrying the all-day and timed rows the criterion names. */
+  shared: string
   /** In the order Q3 must produce. */
   expected: string[]
   /** The two rows alike in every Q3 key but id, lower id first. */
@@ -180,6 +220,7 @@ async function stage(): Promise<Stage> {
       viewer,
       inboxId,
       today,
+      shared,
       expected: [
         overduePending,
         sharedAllDayOlder,
@@ -219,16 +260,26 @@ describe('AC-052: Planned lists by date, all-day before timed', () => {
     ).toEqual(expected)
   })
 
+  /*
+  The timed flag is Q3's third key, so the set it decides is one date and one
+  status_rank, never the page. Both narrowings below are load-bearing and
+  each is a key ranking above the flag, which is what this case got wrong
+  once: see the header.
+  */
   test('AC-052: on the shared date the all-day row precedes the timed one', async () => {
-    const { viewer } = await stage()
+    const { viewer, shared } = await stage()
     const body = await planned(viewer, tz)
-    const rows = body.rows.filter((row) => row.status === 'pending')
-    const firstTimed = rows.findIndex((row) => row.due_time !== null)
-    const lastAllDay = rows.map((row) => row.due_time).lastIndexOf(null)
+    const onShared = body.rows.filter(
+      (row) => row.due_date === shared && row.status === 'pending',
+    )
     expect(
-      firstTimed,
-      'the criterion\'s own clause, stated as an index: among pending rows every all-day row precedes every timed row, because due_time IS NOT NULL sorts after IS NULL (spec 6 Q3)',
-    ).toBeGreaterThan(lastAllDay)
+      onShared.length,
+      'the shared date must carry the pending rows the criterion is about, two all-day and three timed, or the sequence below is asserted over too few rows to mean anything',
+    ).toBe(5)
+    expect(
+      onShared.map((row) => row.due_time === null),
+      'the criterion\'s own clause: within one date and one status_rank, every all-day row precedes every timed row, because due_time IS NOT NULL sorts after IS NULL (spec 6 Q3). Asserted as the whole all-day-ness sequence rather than as a pair of indices, so a row out of place is named by its position instead of by an arithmetic comparison',
+    ).toEqual([true, true, false, false, false])
   })
 
   test('AC-052 adversarial: an overdue row opens the list rather than being filtered out', async () => {
