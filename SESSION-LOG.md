@@ -142,3 +142,22 @@ place rather than being renumbered, because the numbers are addresses.
 | 6c | AC-124 appended, 11.15's PGlite bullet corrected, held for the test | 12 | Steward | Done |
 | 6d | AC-124 asserted across all three caps | 11 | Testers | Done |
 | 6e | Merged to main at d43434d | 12 | Steward | Done |
+
+## P4: views and search (`p4-views`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, two premises corrected, the calendar's virtual arm deferred to P6 | 12 | Steward | Done |
+| 1 | AC-045 to AC-058 and AC-070, tests first, the three uncovered surfaces | 11 | Testers | Not started |
+| 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Implementers | Not started |
+| 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Implementers | Not started |
+| 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Implementers | Not started |
+| 5 | The mount, suite green | 10 | Implementers | Not started |
+| 6 | Endpoint shape review | 04 | Implementers | Not started |
+| 7 | Merge | 12 | Steward | Not started |
+
+One question is open ahead of session 1 and escalated to the owner: frozen
+7.10 enumerates a response object for eight of its nine endpoints, and GET
+/folders/:id/tasks is the ninth. Section 6 additionally requires a truncated
+flag on folder open sections that 7.10 does not name. The recommendation is
+in the P4 row.
