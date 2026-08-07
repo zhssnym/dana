@@ -164,6 +164,23 @@ as an isolated sub-agent with no chat to return to.
 | 4c | AC-052's second case, and the first green on both CI legs | 11 | Testers | Done |
 | 6 | Shape review: no defect, the cursor settled, two sentences routed | 04 | Implementers | Done |
 | 7 | Merge review: both rulings onto 7.10, held on a red leg, the non-deterministic failure named | 12 | Steward | Held |
-| 7a | `tz` onto frozen 7.8 by owner ruling, and the repair traced | 12 | Steward | Not started |
-| 7b | The pull dated from the carried `tz` | 03 | Implementers | Not started |
+| 7a | `tz` onto frozen 7.8 by owner ruling, 4.7 confirmed untouched, the repair traced | 12 | Steward | Done |
+| 7b | The harness carries `tz` on the pull, and a criterion proposed for the zone | 11 | Testers | Not started |
+| 7c | The pull dated from the carried `tz`, 422 when it is absent or invalid | 03 | Implementers | Not started |
 | 8 | Merge | 12 | Steward | Not started |
+
+The owner ruled the merge review's escalation on 2026-08-08: `tz` is added to
+frozen 7.8's pull, so it carries what 8.1 says every date-evaluating request
+carries. Frozen 4.7 is confirmed to need no amendment, which was checked
+rather than assumed: its "the adder's local date at pull time" names no zone
+source, and once the request carries the zone that phrase reads correctly and
+more accurately than a stored one can, since 8.1 has travel move today. The
+P3 implementer was following 4.7, not deviating from it.
+
+The repair is two sessions rather than the one provisionally logged, and the
+tester goes first. If the implementer went first the harness would still send
+no `tz`, so every pull would answer 422 and all three affected files would go
+red for a reason that hides whether the zone fix worked. With the tester
+first the red is the defect itself: `added_on` still dated in the account's
+zone. AC-044 is P3's and green on main, and its call sites move too, since
+the endpoint it exercises now takes a parameter.
