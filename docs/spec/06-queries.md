@@ -2,11 +2,12 @@
 
 Definitions used by every query:
 - ACCESSIBLE(V) = set of folder_id from folder_members where user_id = V.
-- open statuses = pending, abandoned. status_rank: pending = 0, abandoned = 1.
+- open statuses = pending, abandoned. status_rank: pending = 0, abandoned = 1, completed = 2. Ruled at P4 mid-package change control on 2026-08-07: this list defined two ranks while Q8 extended the scale locally to three and Q3C used status_rank bare over a result admitting all three, which left a completed row's position inside a calendar cell undefined. The third number is Q8's own, lifted here so one definition serves every query instead of one query carrying a rank the others also need. Queries whose predicate admits only the open statuses never reach it.
 - today = today(V), from the request's tz parameter.
 - All orders end in id (ascending unless stated) as the final tie-breaker, so any two agents produce byte-identical result sequences.
 - Every view returns rows already ordered; clients never re-sort.
 - List caps: My Day, Tasks, Planned list, Important, All, and folder open sections return at most 1000 rows and set truncated = true beyond it; the UI shows a notice. Done, folder completed sections, and search are keyset-paginated. Rationale: at v1 scale the caps are unreachable; cursors everywhere would be speculative complexity.
+- The cap is per response, not per array, ruled at P4 mid-package change control on 2026-08-07. Where a response carries several row arrays, My Day's three sections or All's two, the 1000 counts across all of them together. Two grounds: the sentence above enumerates pages rather than arrays, and each capped body of 7.10 carries exactly one truncated flag, which a per-array cap has no way to report. The per-array reading would let All answer three thousand rows under a single flag, which is the notice's whole purpose defeated. The rows kept are the first 1000 taken in the order 7.10 enumerates that response's own sections, so a capped response is a prefix of one determined sequence and two agents still produce byte-identical results.
 
 ### Q1: My Day, open list
 
@@ -41,7 +42,7 @@ Empty state: "Nothing scheduled. Give any task a due date and it moves here."
 
 ### Q3C: Planned, calendar mode
 
-Parameters: start and end dates, inclusive, with end minus start at most 62 days; zoom levels day, week, month. Year zoom is cut for v1 because projecting a daily rule at year scale produces hundreds of markers with no designed density rendering.
+Parameters: start and end dates, inclusive, with end minus start at most 62 days; zoom levels day, week, month. start must not be after end: an inverted range answers 422 naming the pair, ruled at P4 mid-package change control on 2026-08-07. The arithmetic above admits an inverted range by accident, a negative difference being at most 62, and the alternative reading answers it with the bare grid of the empty state. Refusing is chosen because a malformed request would otherwise be indistinguishable from a legitimately empty month, and because 7.0 already gives every endpoint 422 for a validation failure with the field named, so this adds no status to the frozen surface and states which failure it is. Year zoom is cut for v1 because projecting a daily rule at year scale produces hundreds of markers with no designed density rendering.
 Real rows: folder_id IN ACCESSIBLE(V) AND due_date BETWEEN start AND end, all three statuses. Pending renders normal (overdue styled on past dates), completed faded and checked, abandoned faded and struck: the calendar is a record.
 Virtual instances: for every accessible pending task with a recurrence_rule, the rule instances strictly after that task's due_date, intersected with [start, end] (section 8.5). Ghost style, click opens the current occurrence.
 Cell order: all-day banners first (status_rank, id), then timed rows (due_time, status_rank, id), then ghosts (date order, task id).
@@ -82,7 +83,8 @@ Empty states: sections 1 and 2 absent when empty with a single line "No tasks ye
 
 Input: q, trimmed, 2 to 100 characters, else 422.
 Predicate: folder_id IN ACCESSIBLE(V) AND (title ILIKE pattern OR notes ILIKE pattern), pattern = '%' q '%', backed by the trigram index. All three statuses.
-Sort: status_rank with completed = 2 (pending, abandoned, completed), updated_at descending, id descending. Keyset pagination, page size 20.
+The query's own wildcards are literal, ruled at P4 mid-package change control on 2026-08-07: a backslash, percent, or underscore inside q is escaped before it is interpolated, so a search for "50%" matches text containing those three characters rather than everything containing "50", and "a_b" matches that literal underscore rather than any character between a and b. Without the escape the pattern syntax leaks into the search box, where nothing tells a user it is there; escaping costs nothing at the index, which sees trigrams either way.
+Sort: status_rank over all three ranks the preamble defines (pending, abandoned, completed), updated_at descending, id descending. Keyset pagination, page size 20.
 Row: title, folder, status chip, due date if any.
 Empty state: "No matches for that search."
 
