@@ -14,5 +14,18 @@
   // literal dynamic import() included, so the loader must use a computed
   // specifier (spec 11.15). tsconfig.server.json carries no exclusion, so
   // the module still typechecks.
-  "exclude": ["**/*.test.ts", "src/server/auth/dev-login*"]
+  //
+  // src/server/views/explain.ts is the Query engineer's EXPLAIN recorder, run
+  // by hand against a scratch database to regenerate EXPLAIN.md beside it. It
+  // is a diagnostic tool rather than part of the running server, and shipping
+  // it would put a module that seeds fixtures and writes files into production
+  // output for no reason. Excluded on the same terms as dev-login, and the
+  // same condition holds: nothing imports it, so tsc has no reachable path by
+  // which to emit it regardless. If a future import names it, this line stops
+  // working silently, which is why the condition is written down here.
+  "exclude": [
+    "**/*.test.ts",
+    "src/server/auth/dev-login*",
+    "src/server/views/explain.ts"
+  ]
 }
