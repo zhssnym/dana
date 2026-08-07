@@ -185,7 +185,7 @@ describe('AC-046: an overdue assigned task is Carried, and stays there', () => {
 
   test('AC-046 adversarial: pulling an overdue task leaves it Carried', async () => {
     const { viewer, today, threeDaysOver } = await stage()
-    const response = await pullIntoMyDay(viewer, threeDaysOver)
+    const response = await pullIntoMyDay(viewer, threeDaysOver, tz)
     expectStatus(
       response,
       200,

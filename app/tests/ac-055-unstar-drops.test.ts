@@ -103,7 +103,7 @@ async function stage(): Promise<Stage> {
       title: 'p4 ac055 starred and undated',
     })
     // A pull, so the un-star has something else nearby it could disturb.
-    const pull = await pullIntoMyDay(viewer, dated)
+    const pull = await pullIntoMyDay(viewer, dated, tz)
     expectStatus(
       pull,
       200,

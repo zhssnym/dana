@@ -167,7 +167,7 @@ describe('AC-053: an abandoned task is visible in exactly two places', () => {
 
   test('AC-053 adversarial: not even a pull puts an abandoned task in My Day', async () => {
     const { viewer, abandonedUndated } = await stage()
-    const response = await pullIntoMyDay(viewer, abandonedUndated)
+    const response = await pullIntoMyDay(viewer, abandonedUndated, tz)
     expectStatus(
       response,
       200,

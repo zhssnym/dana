@@ -169,7 +169,7 @@ describe('AC-048: an unassigned dated task belongs to no one\'s day', () => {
 
   test('AC-048 adversarial: a pull puts it on the puller\'s page and no one else\'s', async () => {
     const { owner, member, today, unassigned } = await stage()
-    const response = await pullIntoMyDay(owner, unassigned)
+    const response = await pullIntoMyDay(owner, unassigned, tz)
     expectStatus(
       response,
       200,

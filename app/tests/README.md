@@ -22,8 +22,9 @@ npx vitest run -t "AC-105"
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered, passing; it arrived green, see below |
-| P4 | AC-045 to AC-058, AC-070 | Covered, passing since the views router was mounted |
+| P4 | AC-045 to AC-058, AC-070 | Covered; AC-046 to AC-048 red on the 7.8 tz defect until the pull takes tz |
 | P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
+| P4 gate | AC-132 | Covered, red by design; the 7.8 tz ruling of 2026-08-08, implementer follows |
 | P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,

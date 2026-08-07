@@ -94,7 +94,7 @@ async function stage(): Promise<Stage> {
     })
 
     for (const taskId of [pulled, pulledAndDue]) {
-      const response = await pullIntoMyDay(viewer, taskId)
+      const response = await pullIntoMyDay(viewer, taskId, tz)
       expectStatus(
         response,
         200,

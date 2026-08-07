@@ -521,12 +521,13 @@ export async function patchStepOk(
 export async function pullIntoMyDayOk(
   actor: Actor,
   taskId: string,
+  tz: string,
   why: string,
 ): Promise<TaskDetailBody> {
   return expectAffectedTask(
     actor,
     taskId,
-    await pullIntoMyDay(actor, taskId),
+    await pullIntoMyDay(actor, taskId, tz),
     200,
     `${why}, which must answer the affected TaskDetail (spec 7.8)`,
   )
@@ -559,7 +560,44 @@ export function deleteStep(actor: Actor, stepId: string): Promise<RawResponse> {
   return actor.browser.api(`/steps/${stepId}`, { method: 'DELETE' })
 }
 
+/*
+The pull takes tz, by owner ruling on 2026-08-08: frozen 7.8 reads POST
+/tasks/:id/my-day?tz, and an absent or invalid tz answers 422 naming the
+field. 7.8 states it rather than 7.0's sentence being widened, because that
+one is about view endpoints and this is a mutation. DELETE gains nothing and
+keeps its signature: it evaluates no date.
+
+Why this matters beyond a parameter: added_on is today(V), and until the
+ruling the pull read it from users.timezone while the My Day view computed
+today(V) from the request's tz. Those two civil dates differ for a large part
+of every UTC day, so a pulled task landed in Carried instead of Today, and
+that is the non-deterministic failure four sessions carried as open. It was
+never load-dependent or backend-dependent, only clock-dependent.
+
+tz is optional in this signature and never defaulted, which is a boundary
+decision rather than a design one. Required would have been better here,
+because the point of the parameter reaching this file is that every caller
+names the zone it means; but src/server/routes/tasks.test.ts imports this
+transport and belongs to the Collaboration engineer, so a required parameter
+would break a file outside this role's paths at the typecheck gate. Optional
+and never defaulted keeps the boundary and keeps the honesty: an omitted tz
+sends no tz, so it is a 422 once the ruling is implemented rather than a
+silent UTC. Every call site in app/tests/ names a zone; the four in that unit
+test do not yet, and that is routed rather than reached into.
+*/
 export function pullIntoMyDay(
+  actor: Actor,
+  taskId: string,
+  tz?: string,
+): Promise<RawResponse> {
+  const query = tz === undefined ? '' : `?tz=${encodeURIComponent(tz)}`
+  return actor.browser.json(`/tasks/${taskId}/my-day${query}`, 'POST', {})
+}
+
+/** The pull with no tz parameter at all, which 7.8 answers 422. Separate
+ * from the transport above so that omitting a zone is something a test says
+ * on purpose and never something a call site does by forgetting. */
+export function pullWithoutTz(
   actor: Actor,
   taskId: string,
 ): Promise<RawResponse> {
