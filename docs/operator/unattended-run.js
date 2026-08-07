@@ -13,7 +13,9 @@ export const meta = {
 
 const PKG = (args && args.package) || 'the package in flight'
 const BRANCH = (args && args.branch) || 'the package branch'
-const CAP = Math.min((args && args.steps) || 3, 6)
+// steps: 0 is a dry run. It preflights, reports what it found, and mutates
+// nothing, which is how you ask whether the ground is clean without betting on it.
+const CAP = Math.min(args && typeof args.steps === 'number' ? args.steps : 3, 6)
 
 const CONTRACT = `You are working inside Dana, at D:\\dana. Read these before anything else, from disk:
 docs/operator/co-lead.md, which is the coordinating role's contract, and
