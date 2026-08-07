@@ -10,6 +10,46 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- A second P4 change control, 2026-08-07, after the three implementing
+  sessions landed. Two acceptance tests are ruled wrong while the criteria
+  they carry stand, both verified from the fixtures rather than taken from
+  the sessions that reported them: AC-057's expected sequence has positions
+  two and three transposed against its own timestamps, and AC-052's two tie
+  rows never tie, because the helper that stamps them is called once per
+  loop iteration, so the created_at key resolves the pair before the id
+  tie-break the case exists to reach. The repairs are the Adversarial Test
+  role's, which is why the session that had to pass them escalated rather
+  than edited, and they move in opposite directions: AC-057's expected array
+  is the derived value, AC-052's fixture is the thing at fault.
+- AC-131, Q8's literal wildcards, numbered on the offer the Adversarial Test
+  role recorded when it asserted the rule as three adversarial cases inside
+  AC-057 instead. Its judgment was right when it was made and is superseded
+  rather than contradicted: escaping was a silence when AC-125 to AC-130
+  were authored and became a rule the specification states when the first
+  change control ruled it, which is the standard those six were admitted
+  under. Section 13 gains item 21, Q4's Important page having no index of
+  its own and that being adequate for v1, an accepted bet of item 6's kind
+  with a revisit trigger, recorded because an EXPLAIN record inside a
+  package cannot outlive it.
+- Ratified from the P4 sessions' disclosures: Luxon 3 at `^3.7.2` with its
+  types, the branch's only dependency addition, pre-authorized by the RFC
+  0001 P4 row and made normative for IANA timezone math by spec 11.9 (the
+  package entry at merge will carry it in P4's stack sentence, where every
+  package records its own); and the cursor's opaqueness left where the
+  session put it, carried to the endpoint shape review, since frozen 7.10
+  writes `?cursor` and `next_cursor` and says nothing about what a cursor
+  is. Routed rather than ratified: `tsconfig.build.json` needs
+  `src/server/views/explain.ts` excluded, because `npm run build` emits a
+  diagnostic module into production output today, and that file is
+  Platform's.
+- A hazard of how this build measures itself, recorded because it produced a
+  false signal inside the session that found it. Checking out another branch
+  while a suite run is still going makes test files vanish from collection:
+  six files under `src/` reported `Cannot find module` and 127 tests
+  silently did not run, while the failure count stayed at exactly the number
+  a reader checks. Coverage disappeared and the headline number did not
+  move. Two counts taken across a git operation are not two measurements of
+  one tree.
 - Three rulings of the human owner, Hassan, on 2026-08-07, closing the frozen
   section 7 silences the P4 change control routed to him. He took all three
   of the Steward's recommendations. They are transcribed onto frozen 7.0 and

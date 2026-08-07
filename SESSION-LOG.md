@@ -13,7 +13,10 @@ RFC's implementation plan are what bind you.
 
 A row is added when a session has been verified, not when it is planned. Inserted
 rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
-place rather than being renumbered, because the numbers are addresses.
+place rather than being renumbered, because the numbers are addresses. Rows are
+listed in the order they ran, so a number out of sequence means that session
+moved. Mode names the chat a session returned into, or Unattended where it ran
+as an isolated sub-agent with no chat to return to.
 
 ## P minus 4: product definition
 
@@ -154,64 +157,10 @@ place rather than being renumbered, because the numbers are addresses.
 | 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Done |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
-| 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Unattended | Done, escalated |
-| 4a | Rule the two disputed fixtures, AC-052's tie-break and AC-057's order | 12 | Steward | Not started |
-| 5 | The mount, suite green | 10 | Implementers | Not started |
-| 6 | Endpoint shape review | 04 | Implementers | Not started |
+| 4 | The views and search package, the EXPLAIN record, the wiring request; escalated AC-052 and AC-057 as tests contradicting their own fixtures, which halted the unattended run | 05 | Unattended | Done, escalated |
+| 4a | Both tests ruled wrong and both criteria right, each repair's direction named; AC-131 numbered, section 13 item 21, four disclosures ratified | 12 | Steward | Done |
+| 4b | The two repairs, AC-131 moved to its own file, and the suite's timeout margin measured over five runs: no global `testTimeout`, so 516 of 522 cases ran under Vitest's five second default. The non-deterministic test itself is still unidentified, recorded in `app/tests/README.md` | 11 | Testers | Done |
+| 5 | The mount, `explain.ts` out of the build output, a global 30 second `testTimeout`. First honest measurement of row 4's claim: 895 of 896 rather than the 888 of 893 it reported from an uncommitted mount, four of its five reds repaired and the fifth misdiagnosed | 10 | Implementers | Done |
+| 4c | AC-052's second case, which filtered pending rows page-wide where Q3 sorts `due_date` and `status_rank` above the timed flag. 896 of 896, and CI run 31218626628 green on PGlite and postgres:18, the package's first production-fidelity evidence | 11 | Testers | Done |
+| 6 | Endpoint shape review: nine bodies key for key against frozen 7.10 and section 6's orders including Q3C's inverted key, no defect found. The cursor's opacity settled in `src/shared/views.ts`, and two sentences routed to the owner, who ruled both on 2026-08-07 | 04 | Implementers | Done |
 | 7 | Merge | 12 | Steward | Not started |
-
-Rows 2, 3 and 4 ran unattended on the night of 2026-08-07, the first use of
-`docs/operator/unattended.md`, three worker sessions each followed by a
-separate verifier. Mode reads Unattended rather than a chat name because there
-is no chat to return to: each session was an isolated sub-agent, and the
-run's own record is where its prompt and block survive.
-
-The run halted on row 4, which is the halt list working. That session found
-two acceptance tests whose expected orders contradict their own fixtures,
-and protocol section 6 sends a disputed criterion to the Adversarial Test
-Engineer and then the Steward, so an unattended run may route none of it. The
-co-lead verified both claims independently from the fixtures rather than from
-the agents that agreed with each other, and both hold. Row 4a is the ruling
-that ends the dispute.
-
-One claim the night could not check, and the morning still cannot: row 4
-reports 888 of 893 passing with the views router mounted, and the mount lives
-in Platform's boot file, so it exists in no commit. On the committed tree
-every P4 file answers 404. Row 5 is the first honest test of that number.
-
-The rows are in execution order rather than numeric order, and 6a keeps its
-number while moving, because the numbers are addresses. It moved for a reason
-worth recording: `docs/operator/unattended.md` halts a run while any
-acceptance test cites a ruling the specification does not carry, and 6a is the
-session that clears exactly that. Left at the end it would have blocked every
-unattended pass; run early it clears the debt and tightens the tests against
-the shapes the owner has now ruled.
-
-The question this row opened with is closed. Frozen 7.10 enumerated a response
-object for eight of its nine endpoints and not for GET /folders/:id/tasks; the
-human owner ruled it on 2026-08-07, on the kickoff's recommendation, and the
-sentence is transcribed onto 7.10 on the branch.
-
-The three questions the change control routed are ruled. On 2026-08-07 the
-owner took all three of the Steward's recommendations: the `folder` inside
-`groups` is the `{id, name, is_default}` stub each TaskCard already carries
-rather than the 7.0 Folder object, an absent `tz` answers 422 naming the
-field where 7.0 had named only an invalid one, and `section` defaults to
-`open` on GET /folders/:id/tasks. Session 1b transcribed all three onto frozen
-7.0 and 7.10 on the branch, and recorded each in `CHANGELOG.md` with the owner
-named and the date, which is the second thing the unattended contract requires
-of a cited ruling. AC-130 was widened with the first of them rather than
-joined by a new number; its test is 6a's.
-
-That session also merged main into the branch, closing a second instance of
-the same halt condition that had nothing to do with any test header. The
-contract reads the frozen sections on the branch and `CHANGELOG.md` too, and
-the change control's record of the 7.10 ruling AC-058 cites had landed on main
-alone, so the branch answered the citation with silence. It no longer does.
-
-Session 6a exists because a prompt written before a ruling produced a test
-that cites it. AC-058's header says the owner ruled the ninth body at the
-kickoff; the substance is right and the timing is not, and the same session's
-headers and the suite README carry an unsupported claim that numbering section
-12 is the owner's. Both are inside `app/tests/`, so they are the Adversarial
-Test role's to correct rather than the Steward's to edit.
