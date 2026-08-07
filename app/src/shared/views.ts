@@ -165,6 +165,16 @@ point: a client that constructs a cursor by hand has taken a dependency on the
 sort keys, and every later change to an order becomes a compatibility problem.
 btoa and atob rather than Buffer, because this directory is compiled into the
 browser bundle too (tsconfig.client.json).
+
+One observation carried to this package's endpoint shape review rather than
+decided here, the P2 and P3 reviews being where an open shape gets settled with
+the implemented routes in front of it. Frozen 7.10 writes "?cursor" and
+next_cursor and says nothing about what a cursor is, which leaves opaqueness a
+property of this file rather than of the contract. The candidate sentence is
+that a cursor is opaque and is sent back exactly as it was received, which
+describes what is implemented here and adds no field to any frozen body; it is
+a recommendation for the Steward and through them the owner, not a change made
+by this session.
 */
 const CURSOR_VERSION = 1
 
