@@ -169,19 +169,3 @@ as an isolated sub-agent with no chat to return to.
 | 7c | The pull dated from the carried `tz` through the same `today()` the view reads | 03 | Implementers | Done |
 | 7d | `tz` carried into the contract probes | 04 | Implementers | Done |
 | 8 | Merged to main at a52081f; AC-132 appended, green on both legs inside the failing window | 12 | Steward | Done |
-
-The owner ruled the merge review's escalation on 2026-08-08: `tz` is added to
-frozen 7.8's pull, so it carries what 8.1 says every date-evaluating request
-carries. Frozen 4.7 is confirmed to need no amendment, which was checked
-rather than assumed: its "the adder's local date at pull time" names no zone
-source, and once the request carries the zone that phrase reads correctly and
-more accurately than a stored one can, since 8.1 has travel move today. The
-P3 implementer was following 4.7, not deviating from it.
-
-The repair is two sessions rather than the one provisionally logged, and the
-tester goes first. If the implementer went first the harness would still send
-no `tz`, so every pull would answer 422 and all three affected files would go
-red for a reason that hides whether the zone fix worked. With the tester
-first the red is the defect itself: `added_on` still dated in the account's
-zone. AC-044 is P3's and green on main, and its call sites move too, since
-the endpoint it exercises now takes a parameter.
