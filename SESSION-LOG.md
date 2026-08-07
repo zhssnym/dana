@@ -157,15 +157,15 @@ as an isolated sub-agent with no chat to return to.
 | 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Done |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
-| 4 | The views package, the EXPLAIN record, the wiring request; two fixtures escalated as wrong | 05 | Unattended | Done, escalated |
+| 4 | The views package, the EXPLAIN record, two fixtures escalated | 05 | Unattended | Done, escalated |
 | 4a | Both fixtures ruled wrong, AC-131 numbered, item 21, four disclosures ratified | 12 | Steward | Done |
 | 4b | The two repairs, AC-131's own file, the suite's timeout margin measured | 11 | Testers | Done |
 | 5 | The mount, `explain.ts` out of the build, a global 30 second timeout | 10 | Implementers | Done |
 | 4c | AC-052's second case, and the first green on both CI legs | 11 | Testers | Done |
 | 6 | Shape review: no defect, the cursor settled, two sentences routed | 04 | Implementers | Done |
-| 7 | Merge review: both rulings onto 7.10, held on a red leg, the non-deterministic failure named | 12 | Steward | Held |
+| 7 | Merge review: both rulings onto 7.10, held on a red leg | 12 | Steward | Held |
 | 7a | `tz` onto frozen 7.8 by owner ruling, 4.7 confirmed untouched, the repair traced | 12 | Steward | Done |
 | 7b | The harness carries `tz` on the pull, and AC-132 authored | 11 | Testers | Done |
 | 7c | The pull dated from the carried `tz` through the same `today()` the view reads | 03 | Implementers | Done |
 | 7d | `tz` carried into the contract probes | 04 | Implementers | Done |
-| 8 | Merged to main at a52081f; AC-132 appended, green on both legs inside the failing window | 12 | Steward | Done |
+| 8 | Merged at a52081f, AC-132 appended, green on both legs | 12 | Steward | Done |
