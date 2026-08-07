@@ -1,3 +1,13 @@
+// Reference implementation, not the authority. unattended.md is the procedure, and
+// where the two differ the document wins: it carries checks this file does not, and
+// an adversarial review of 2026-08-07 found four further defects here that are
+// recorded in that review rather than fixed, because the operator's native
+// orchestration generates its own script from the document.
+//
+// The one defect fixed rather than recorded is the sha carried between steps, below,
+// because it failed silently and reported clean, which is the defect class this whole
+// arrangement exists to catch.
+
 export const meta = {
   name: 'dana-unattended-body',
   description: 'Advance the body of a Dana package unattended: decide, work, verify, halt',
@@ -134,7 +144,12 @@ clean is true only if the boundary held, the gate is green or red for reasons th
 
   if (!verdict.clean) break
 
-  last = 'HEAD'
+  // Never 'HEAD'. After the session has run, HEAD is its own tip, so the verifier's
+  // git diff <base>..HEAD is empty and the boundary check answers clean without
+  // having checked anything, for every step after the first.
+  const moved = await agent(`Run git rev-parse HEAD in D:\\dana and return only the forty-character sha, nothing else. Write nothing.`,
+    { label: `sha-${n}`, agentType: 'general-purpose' })
+  last = String(moved).trim().slice(0, 40)
 }
 
 phase('Report')
