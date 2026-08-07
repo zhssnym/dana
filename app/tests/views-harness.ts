@@ -1028,6 +1028,38 @@ export async function completedOrderIn(
   return found.map((row) => String(row.id))
 }
 
+/**
+ * The Q3 keys above id, for named rows, in the id order Postgres itself
+ * produces. Two rows seeded to differ only in id have to be checked on both
+ * halves of that claim, and neither is checked by the response: a pair whose
+ * created_at differs by a millisecond is settled by created_at, so the
+ * assertion that looks like a tie-break tests the key above it and passes
+ * for the wrong reason; and a pair whose ids sort one way in JavaScript and
+ * the other in Postgres names its own expected order wrongly, the hazard
+ * completedOrderIn above records. Ordering here in SQL puts both questions
+ * to the comparator the response is judged by.
+ */
+export async function tieKeysOf(
+  db: Db,
+  ids: readonly string[],
+): Promise<{ id: string; keys: string }[]> {
+  const found = await rows(
+    db,
+    sql`
+      SELECT id,
+             due_date::text || ' ' || coalesce(due_time::text, 'all-day')
+               || ' ' || status || ' ' || created_at::text AS keys
+        FROM tasks
+       WHERE id IN (${sql.join(
+         ids.map((id) => sql`${id}::uuid`),
+         sql`, `,
+       )})
+       ORDER BY id
+    `,
+  )
+  return found.map((row) => ({ id: String(row.id), keys: String(row.keys) }))
+}
+
 export async function countTasks(db: Db, folderId: string): Promise<number> {
   const found = await rows(
     db,

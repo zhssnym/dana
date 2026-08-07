@@ -40,6 +40,7 @@ import {
   planned,
   seedViewTask,
   shiftDate,
+  tieKeysOf,
   todayIn,
 } from './views-harness.js'
 
@@ -55,6 +56,8 @@ interface Stage {
   today: string
   /** In the order Q3 must produce. */
   expected: string[]
+  /** The two rows alike in every Q3 key but id, lower id first. */
+  tiePair: [string, string]
   undated: string
   completedDated: string
 }
@@ -103,6 +106,14 @@ async function stage(): Promise<Stage> {
       string,
       string,
     ]
+    // One stamp for both rows, read before the loop rather than inside it.
+    // at() reads the clock, so a call per iteration made these two differ by
+    // the milliseconds the first insert took, and Q3 settles created_at
+    // before it reaches id: the pair sorted by the accident of insertion
+    // order and the tie-break this case exists to reach was never tested.
+    // Sharing one value is what makes them tie, and the higher id is seeded
+    // first so that insertion order and expected order disagree.
+    const tieCreatedAt = at(20)
     for (const id of [tieHigherId, tieLowerId]) {
       await seed({
         id,
@@ -111,7 +122,7 @@ async function stage(): Promise<Stage> {
         title: `p4 ac052 shared 09:00 tie ${id.slice(0, 8)}`,
         dueDate: shared,
         dueTime: '09:00',
-        createdAt: at(20),
+        createdAt: tieCreatedAt,
       })
     }
     const sharedTimedLate = await seed({
@@ -180,6 +191,7 @@ async function stage(): Promise<Stage> {
         sharedAbandonedTimed,
         laterPending,
       ],
+      tiePair: [tieLowerId, tieHigherId],
       undated,
       completedDated,
     }
@@ -254,6 +266,20 @@ describe('AC-052: Planned lists by date, all-day before timed', () => {
       body.truncated,
       'section 6 caps this list at 1000 rows and sets the flag beyond it',
     ).toBe(false)
+  })
+
+  test('AC-052: the tie rows really tie, and their ids sort as claimed', async () => {
+    const { tiePair } = await stage()
+    const found = await tieKeysOf(app.db, tiePair)
+    expect(found.length, 'both tie rows must exist').toBe(2)
+    expect(
+      found[0]?.keys,
+      'the two rows must agree on every Q3 key above id (due_date, the timed flag and due_time, status, created_at), or the sequence above is settled by the key they differ on and the id tie-break it exists to reach is never reached. This failed once: the fixture read the clock once per row, so the pair differed by the milliseconds the first insert took',
+    ).toBe(found[1]?.keys)
+    expect(
+      found.map((row) => row.id),
+      'and Postgres must order the pair the way the fixture named it, since the expected sequence is built from a JavaScript sort of the two uuids while the response is ordered by Postgres uuid comparison; the two agree on lowercase canonical text, and this is the assertion that says so rather than the assumption',
+    ).toEqual(tiePair)
   })
 
   test('AC-052: the fixture satisfies section 3', async () => {
