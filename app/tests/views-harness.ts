@@ -920,6 +920,18 @@ export function cardById(
   return cards.find((card) => card.id === id)
 }
 
+/** The group for a folder, asserted present: an order inside a heading
+ * cannot be read off a heading that is not there. */
+export function requireGroup(
+  groups: readonly Group[],
+  folderId: string,
+  why: string,
+): Group {
+  const group = groups.find((entry) => entry.folder.id === folderId)
+  expect(group, why).toBeDefined()
+  return group as Group
+}
+
 /** The row, asserted present: a criterion about what a card carries cannot
  * be read off a card a wrong implementation left out of the response. */
 export function requireCard(
