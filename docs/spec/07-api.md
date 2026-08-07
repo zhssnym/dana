@@ -20,6 +20,8 @@ Shared schemas:
 - TaskDetail: TaskCard plus { notes, recurrence_rule, series_id, reminder: {offset_minutes or time_of_day} or null, steps: [{id, title, done, position}], completed_at, completed_by, created_by }.
 - Folder: { id, name, is_default, is_owner: bool, member_count, counts: {pending, completed}, my_label, my_color }.
 
+Two readings of the shapes above, settled at the P3 shape review and entered by owner ruling. Floating values ride the wire in the 4.11 formats they are stored in: due_date as YYYY-MM-DD and due_time as HH:MM, never as instants, because an instant reintroduces the timezone the floating format exists to remove. TaskDetail's reminder carries both 4.8 columns, offset_minutes and time_of_day, with exactly one of the two non-null: "{offset_minutes or time_of_day}" above names the 4.8 mode rather than a key list, and a stable key set is what lets a client read the mode off the values instead of narrowing a union to learn which keys it holds.
+
 ### 7.1 Auth and account
 
 All 7.1 endpoints mount under the 7.0 base path like the rest of this section: GET /auth/google is GET /api/v1/auth/google, and likewise throughout. Recorded so the short spellings below cannot be read as root-mounted.
@@ -72,7 +74,7 @@ All five transition endpoints: 409 when the invite is not pending. Invariants: I
 - POST /tasks. Body { title required, folder_id default V's Inbox, notes, important default false, due_date, due_time, recurrence_rule, assignee_id default V, reminder {offset_minutes or time_of_day}, steps [titles] }. Guards: member of folder (404), title 1 to 300 (422), dependency checks (due_time, recurrence_rule, reminder require due_date; 422), recurrence_rule must parse within the 4.11 subset and gets a fresh series_id, assignee must be a member (composite FK, surfaced as 422), single-member folder forces assignee to that member ignoring the input (INV-5), steps at most 50 (422). 201 TaskDetail.
 - GET /tasks/:id. TaskDetail. 404 if folder not accessible.
 - PATCH /tasks/:id. Any member. Partial body; only present fields change (field-level last write wins). Special rules:
-  - folder_id change is a move: V must be member of both source and target (404 or 422); if the current assignee is not a member of the target, assignee becomes null; if the target has exactly one member, assignee becomes that member (INV-5).
+  - folder_id change is a move: V must be member of both source and target (404); if the current assignee is not a member of the target, assignee becomes null; if the target has exactly one member, assignee becomes that member (INV-5).
   - due_date set to null triggers the clear-date cascade (section 8.4): due_time null, recurrence_rule null, reminder row deleted, in the same transaction.
   - due_date changed (non-null): reminder fire_at recomputed; the series anchor moves with it (section 8.5).
   - recurrence_rule set on a task without one: requires due_date (422) and assigns a new series_id; changed on a current occurrence: replaces the rule from now on, past rows untouched; set null: series ends, row stays a normal task.
@@ -82,6 +84,8 @@ All five transition endpoints: 409 when the invite is not pending. Invariants: I
 - DELETE /tasks/:id. Any member. 204. Cascades per 5.1 delete row.
 - POST /tasks/:id/complete, /uncomplete, /abandon, /restore. Transitions per 5.1 with its guards and no-ops; complete and abandon run generation when a rule is present; uncomplete and restore apply G-SERIES. Responses: 200 { task: TaskDetail, generated_task: TaskCard or null, deleted_successor_id or null }.
 
+The move refusal above was narrowed at the P3 shape review and entered by owner ruling: it reads 404 where it read "404 or 422". A 422 for a target folder the caller is not a member of confirms that the folder exists, which is the existence leak this section's own 404 rule and the chokepoint of 10.2 are built to prevent, so the wider text admitted what the rest of the surface forbids. No response gains or loses a field; one of two admitted statuses is withdrawn.
+
 ### 7.7 Steps
 
 - POST /tasks/:id/steps. { title, position optional (defaults to max plus 1) }. 422 over 50. 201.
@@ -89,10 +93,14 @@ All five transition endpoints: 409 when the invite is not pending. Invariants: I
 - DELETE /steps/:id. 204.
 All require membership of the parent task's folder (404 otherwise). No effect on task status ever.
 
+Response bodies, settled at the P3 shape review and entered by owner ruling: POST /tasks/:id/steps and PATCH /steps/:id each answer the affected TaskDetail, which is what a fresh GET /tasks/:id would give, the same convention 7.1 carries on PATCH /me and 7.2 and 7.4 carry on each of their mutations. A step is not a resource this contract shapes: 7.0 gives it no object of its own and this section offers no GET for one, while a step mutation moves steps_done and steps_total as well as the steps array, so the parent task is the only object that reports what the call did. POST therefore answers 201 with that task rather than with the step it created, and the created step rides in the steps array carrying the id and position the server assigned it. DELETE /steps/:id keeps the 204 above and carries no body.
+
 ### 7.8 My Day membership
 
 - POST /tasks/:id/my-day. Inserts entry (task, V, added_on = today(V)); repeat calls are 200 no-ops keeping the original added_on (INV-12). 404 if not accessible.
 - DELETE /tasks/:id/my-day. Removes V's entry; 200 even when absent (idempotent). The task remains in My Day when it still qualifies automatically.
+
+Response bodies, settled at the same review and entered by the same ruling: both calls answer the affected TaskDetail. A My Day entry is no more a resource here than a step is, and a pull moves pulled, which 7.0 makes a field of the task rather than of the entry, so the task is again the only object that reports the change. The statuses above are unchanged, on the repeat no-op and the absent-entry delete alike.
 
 ### 7.9 Reminder
 

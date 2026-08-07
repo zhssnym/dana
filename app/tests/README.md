@@ -19,8 +19,10 @@ npx vitest run -t "AC-105"
 | P1 | AC-005 to AC-010, AC-105 to AC-115 | Covered, passing |
 | P2 | AC-011 to AC-024 | Covered, passing since the P2 merge |
 | P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
-| P2S | AC-119 to AC-123 | Covered, failing until P2S lands the 7.2 endpoints |
-| P3 to P10 | AC-025 to AC-104 | Not yet written |
+| P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
+| P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
+| P3 gate | AC-124 | Covered, passing; it arrived green, see below |
+| P4 to P10 | AC-045 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -40,8 +42,77 @@ PATCH /me/settings; the GET /me object's settings key was already pinned by
 AC-116. The criteria landed verbatim by section 12 amendment, carrying the
 two readings of frozen 7.2 they rest on: the empty subset is a subset, and
 null is a wrong-typed value rather than a clear, because 4.10's columns are
-NOT NULL booleans with defaults. The files fail today on the missing routes,
-the same designed order as P2.
+NOT NULL booleans with defaults. They failed on the missing routes until the
+package landed, the same designed order as P2, and pass since the P2S merge.
+
+P3's range, AC-025 to AC-044, covers frozen 7.6, 7.7, and 7.8 and the 7.0
+TaskCard and TaskDetail shapes those endpoints answer. Written before the
+implementation per the RFC 0001 P3 row, so the files fail today on the
+routes answering 404, which is again the designed order.
+
+Three things those files are written around, each recorded where it is
+asserted rather than left to be rediscovered:
+
+- **Two arms of 7.6's body are not P3's.** The P3 kickoff deferred
+  recurrence_rule to P6, which delivers the 4.11 subset validator that
+  section requires revalidated server-side, and reminder to P7, which
+  delivers the 8.6 fire instant 4.8's NOT NULL fire_at column demands. The
+  fixtures AC-028 and AC-040 turn on are therefore seeded directly, the
+  folders-harness precedent for surfaces later packages own. The response
+  side is not deferred: TaskDetail is 7.0's frozen shape and P3 answers it,
+  rule and reminder keys included.
+- **AC-039 spans two packages.** Its transition and the state every page
+  queries are asserted here; the faded rendering is section 9's and arrives
+  with P8, pinned by AC-053 at P4 and AC-097 at P8. The file says so rather
+  than skipping the clause silently.
+- **Concurrency is asserted twice.** AC-035 runs its two PATCHes as a real
+  race and again as a deterministic partial-write probe, because 11.15
+  records that PGlite is single-connection and a whole-row write could
+  otherwise survive the race by luck.
+
+  What single-connection does and does not cost the suite was measured at
+  the P3 merge review rather than assumed, because a package fix was
+  routed here on the belief that it costs everything. It does not: one
+  connection serializes *statements*, not handler logic, so two requests
+  in flight interleave their awaits and a read-then-write race is fully
+  expressible on the default backend. Measured both ways on PGlite, at the
+  domain level and through HTTP: two concurrent step adds against a task
+  holding 49 steps leave 51 under a count-then-insert with nothing tying
+  the two together, and answer 201 and 422 for a final 50 once the count
+  and the insert are one locked decision. What the backend genuinely
+  cannot express is anything needing two *connections* at once, which is a
+  narrower set than it sounds.
+- **AC-124 is the one criterion here that arrived green.** It rides P3's
+  merge gate the way AC-116 to AC-118 rode P2's, and it measures three cap
+  repairs that had already landed on this branch, so it passed on arrival
+  instead of failing first. That inverts the order every other file in the
+  package ran in, and it costs the thing the order buys: a test that has
+  never failed has not been shown to discriminate. So the three arms were
+  red-proven out of band before the file was written, by reproducing the
+  unfixed shape, a count not tied to the write it admits, against the same
+  tables on the default backend. Two callers arriving together at the limit
+  minus one leave 51 steps, 26 members and 201 folders, where the three arms
+  now leave 50, 25 and 200 with one caller refused 422. What could not be
+  done is restoring the modules and running the file against them: the
+  implementation is not this role's to edit, even temporarily.
+
+  Its member arm carries one assertion the other two do not need. Two of
+  7.4's guards answer 422 on that endpoint, the cap and the missing roster
+  connection, so a refusal for the wrong reason would satisfy the statuses
+  and the count alike. The loser is re-offered once a slot frees, and being
+  admitted then is what proves the earlier refusal was the count.
+- **The settled 7.7 and 7.8 bodies are pinned by AC-043 and AC-044.** Both
+  sections were silent on what their mutations answer when those files were
+  written, so they asserted statuses alone; the P3 shape review settled it
+  and the owner entered it on frozen 7.7 and 7.8. Both step mutations and
+  both My Day calls answer the affected TaskDetail, and POST
+  /tasks/:id/steps answers 201 with the parent task rather than the created
+  step, which rides in its steps array. Judged once each in the harness
+  (`addStepOk`, `patchStepOk`, `pullIntoMyDayOk`, `dropFromMyDayOk`), the
+  way `patchSettingsOk` judges the ruled 7.2 body: a whole TaskDetail, equal
+  to what a fresh GET then answers. AC-044's four-call sequence stays on the
+  raw transports, because it is the criterion's own calls in the criterion's
+  own order and a GET wedged between them would transcribe something else.
 
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
@@ -95,8 +166,13 @@ signed-in casts, setup through the package's own endpoints, direct seeding
 only for surfaces later packages own, and an invariant sweep scoped to named
 rows. `settings-harness.ts` is the thin P2S layer over both: the exact 7.2
 shape stated once, wire-beside-row state assertions, and the one place the
-ruled PATCH response body is judged. Each file's header explains its own
-decisions; five are worth knowing before reading any test.
+ruled PATCH response body is judged. `tasks-harness.ts` is the P3 layer over
+the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
+asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
+and P7's reminders, and the task half of the invariant sweep, which
+delegates the folder half to `expectFolderInvariants` rather than restating
+it. Each file's header explains its own decisions; the eight below are worth
+knowing before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
@@ -134,6 +210,56 @@ names. Importing the validator would be borrowing the definition of correct
 from the module under test, so a wrong validator would agree with itself; the
 two were checked once, off to the side, and agreed on offsets, aliases, case
 variants and malformed input alike.
+
+**Frozen response shapes are restated in the harness, never imported, and
+asserted key-exact.** The 7.1 object, the 7.2 booleans, and the 7.0 TaskCard
+and TaskDetail each appear as a key list in the harness that reads them, by
+the standing Steward ruling: this suite measures `app/src/shared/` and
+cannot borrow its definition of correct. Exact because those shapes are
+enumerated in a frozen section, so a missing key breaks the client contract
+and an extra one is drift it cannot absorb.
+
+One tolerance is left, and it is not a shape: TaskCard's
+`pending_invite_email`, whose derivation from `invites.task_id` belongs to
+P5, the package that creates those rows. The key is asserted; the value is
+not. Nothing in section 12 pins that derivation today, which is recorded
+here for P5's tester session rather than left to be noticed.
+
+The other tolerance is gone, closed by the thing that created it. TaskDetail's
+reminder was read loosely here while 7.0 said only "{offset_minutes or
+time_of_day}", which names a 4.8 mode rather than a key list, so a one-key
+object and a two-key object with one null were both faithful. The P3 shape
+review settled it and the owner entered it on frozen 7.0: both columns
+always, exactly one non-null, because a stable key set is what lets a client
+read the mode off the values. The harness asserts that now, and the same
+paragraph settled the wire format of the floating values, so `due_time` is
+`HH:MM` exactly where the seconds Postgres renders `TIME` with used to be
+admitted.
+
+**Temporal columns are rendered by the database, never handed over by the
+driver.** The two backends disagree about what a date or an instant column
+hands to JavaScript: PGlite returns the string Postgres printed, while
+node-postgres registers a parser for OID 1082 and OID 1184 and returns a JS
+`Date`. A reader that takes either straight from the driver therefore reads
+one thing on the default leg and another on the `postgres:18` leg that 11.10
+makes the production-fidelity authority. So the readers in `tasks-harness.ts`
+project every temporal column through `to_char`, which answers text on both
+backends, in 4.11's own format, exactly as the domain module serializes every
+floating date. Formatting on the JavaScript side was rejected: `postgres-date`
+builds a date-only value at local midnight, so `toISOString()` on it prints
+the previous day on any machine east of UTC, which is the shift 4.11 stores
+floating dates to avoid.
+
+Instants keep all six digits, which is the half that matters most. A
+`Date` stringifies at one-second resolution, so before this the package's
+"a no-op wrote nothing" and "the refusal touched nothing" assertions
+compared `updated_at` across operations that take microseconds and would
+have passed on that leg whatever was written. `tasks-harness.test.ts` is the
+guard: a unit test of these readers (protocol section 8, unit tests belong
+to the module's owner) that pins the three formats and proves one microsecond
+of movement still fails an equality. It runs on both legs, so a reader that
+regresses fails there once, attributably, instead of somewhere else twenty
+times or nowhere at all.
 
 ## What the tests need from outside `app/tests/`
 

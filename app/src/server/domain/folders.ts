@@ -43,14 +43,18 @@ export interface FolderAccess {
 }
 
 /** Null means the folder does not exist or the viewer is not a member,
- * which 10.2 makes the same answer: 404, never 403. */
+ * which 10.2 makes the same answer: 404, never 403.
+ *
+ * The executor rather than the handle, so a caller inside a transaction
+ * resolves access against the same snapshot it will write in; P3's task
+ * moves need exactly that, and every Db is an Executor. */
 export async function accessOf(
-  db: Db,
+  executor: Executor,
   viewerId: string,
   folderId: string,
 ): Promise<FolderAccess | null> {
   const found = await rowsOf(
-    db,
+    executor,
     sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default
         FROM folders f
         JOIN folder_members m ON m.folder_id = f.id
@@ -127,49 +131,67 @@ export type CreateFolderResult =
   | { kind: 'created'; folder: Folder }
   | { kind: 'folder_cap' }
 
-/** The 10.3 cap counts custom folders only; the guard is an API guard, so
- * it reads before the transaction rather than locking anything. */
+/*
+The 10.3 cap counts custom folders only, the default one being INV-2's rather
+than the account's to spend.
+
+The count, the insert and the owner's membership row are one transaction
+behind a lock, for the reason the P3 shape review gave for the other two caps
+in this directory: nothing sits under this number either, so a count that is
+not tied to its insert is a suggestion. Two creates arriving together at 199
+both read 199 and both insert.
+
+The lock is the owner's user row, because the set being counted is "the
+folders this account owns" and the account is the only row that names it. The
+folders themselves cannot be locked: the row that would break the cap is the
+one neither caller has created yet. Nothing else in the system holds that row
+while waiting on a folder, so it queues rather than deadlocks: 7.1's
+provisioning inserts a user rather than locking one, PATCH /me takes it alone,
+and 8.10 takes it last, after it is done with folders and memberships.
+*/
 export async function createFolder(
   db: Db,
   viewerId: string,
   name: string,
 ): Promise<CreateFolderResult> {
-  const owned = await rowsOf(
-    db,
-    sql`SELECT count(*)::int AS n FROM folders
-        WHERE owner_id = ${viewerId} AND NOT is_default`,
-  )
-  if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' }
+  return inTransaction(db, async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
 
-  // 7.4: folder plus owner membership, one transaction.
-  const id = await inTransaction(db, async (tx) => {
+    const owned = await rowsOf(
+      tx,
+      sql`SELECT count(*)::int AS n FROM folders
+          WHERE owner_id = ${viewerId} AND NOT is_default`,
+    )
+    if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' }
+
+    // 7.4: folder plus owner membership, one transaction, which this now
+    // shares with the guard that admitted them.
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO folders (owner_id, name)
           VALUES (${viewerId}::uuid, ${name})
           RETURNING id`,
     )
-    const folderId = String(inserted[0]?.id)
+    const id = String(inserted[0]?.id)
     await tx.execute(
       sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${folderId}::uuid, ${viewerId}::uuid)`,
+          VALUES (${id}::uuid, ${viewerId}::uuid)`,
     )
-    return folderId
-  })
 
-  return {
-    kind: 'created',
-    folder: {
-      id,
-      name,
-      is_default: false,
-      is_owner: true,
-      member_count: 1,
-      counts: { pending: 0, completed: 0 },
-      my_label: null,
-      my_color: null,
-    },
-  }
+    return {
+      kind: 'created',
+      folder: {
+        id,
+        name,
+        is_default: false,
+        is_owner: true,
+        member_count: 1,
+        counts: { pending: 0, completed: 0 },
+        my_label: null,
+        my_color: null,
+      },
+    }
+  })
 }
 
 /* ------------------------------------------------------------------ *
@@ -350,6 +372,27 @@ back means this caller lost and is told what the sequential caller would
 be told, already a member (INV-10). A nonexistent target holds no roster
 connection with anyone, so it answers through the connection guard, and
 nothing here leaks whether the id names a real account.
+
+The guards and the insert are one transaction behind a lock on the folder
+row, which they were not when this landed at P2. The P3 shape review found
+the 50-step cap counting without one and the Steward routed the same finding
+here, where it is the worse of the two: these statements were not in a
+transaction at all, so nothing tied the count to the insert, and the reason
+P2 went green anyway is that ON CONFLICT answers the only race the suite
+runs. AC-021 races two members adding the same person, and the primary key
+settles that one whatever the count said. Two members adding two different
+people to a folder holding 24 both read 24, both pass, and both insert,
+leaving 26 against a number 10.3 calls server-enforced, and no acceptance run
+can show it: PGlite is single-connection (11.15).
+
+The lock is the folder row, which is what "this folder's membership set" is
+named by, and it is taken as the first statement of the transaction. Removal
+does not take it, deliberately: the cap guards additions, a concurrent
+removal can only free a slot, and the drop-to-one sweep of R-CLEAN reasons
+about a folder that has fewer members rather than more. The one ordering that
+matters is against 8.9's transfer, which takes the same folder row before it
+touches any membership row, so the two agree on order and queue rather than
+deadlock.
 */
 export async function addMember(
   db: Db,
@@ -358,49 +401,58 @@ export async function addMember(
   targetId: string,
   access: FolderAccess,
 ): Promise<AddMemberResult> {
+  // The default-folder refusal reads no row: INV-2 fixes is_default at
+  // creation and no endpoint moves it, so this answer cannot go stale inside
+  // the transaction it precedes.
   if (access.isDefault) return { kind: 'default_folder' }
 
-  const already = await rowsOf(
-    db,
-    sql`SELECT 1 AS present FROM folder_members
-        WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
-  )
-  if (already.length > 0) return { kind: 'already_member' }
+  return inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
+    )
 
-  const connected = await rowsOf(
-    db,
-    sql`SELECT 1 AS present FROM connections
-        WHERE user_a_id = least(${actorId}::uuid, ${targetId}::uuid)
-          AND user_b_id = greatest(${actorId}::uuid, ${targetId}::uuid)`,
-  )
-  if (connected.length === 0) return { kind: 'not_connected' }
+    const already = await rowsOf(
+      tx,
+      sql`SELECT 1 AS present FROM folder_members
+          WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
+    )
+    if (already.length > 0) return { kind: 'already_member' }
 
-  const count = await rowsOf(
-    db,
-    sql`SELECT count(*)::int AS n FROM folder_members
-        WHERE folder_id = ${folderId}`,
-  )
-  if (Number(count[0]?.n ?? 0) >= 25) return { kind: 'member_cap' }
+    const connected = await rowsOf(
+      tx,
+      sql`SELECT 1 AS present FROM connections
+          WHERE user_a_id = least(${actorId}::uuid, ${targetId}::uuid)
+            AND user_b_id = greatest(${actorId}::uuid, ${targetId}::uuid)`,
+    )
+    if (connected.length === 0) return { kind: 'not_connected' }
 
-  const inserted = await rowsOf(
-    db,
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${folderId}::uuid, ${targetId}::uuid)
-        ON CONFLICT DO NOTHING
-        RETURNING user_id`,
-  )
-  if (inserted.length === 0) return { kind: 'already_member' }
+    const count = await rowsOf(
+      tx,
+      sql`SELECT count(*)::int AS n FROM folder_members
+          WHERE folder_id = ${folderId}`,
+    )
+    if (Number(count[0]?.n ?? 0) >= 25) return { kind: 'member_cap' }
 
-  // The share-grant email goes to the target's address (5.3). A null can
-  // only mean a soft-deleted account, whose connections 8.10 removes, so
-  // the row is a belt for a state that should not exist; the caller skips
-  // the send rather than mailing nobody.
-  const target = await rowsOf(
-    db,
-    sql`SELECT email FROM users
-        WHERE id = ${targetId} AND deleted_at IS NULL`,
-  )
-  return { kind: 'added', targetEmail: nullableString(target[0]?.email) }
+    const inserted = await rowsOf(
+      tx,
+      sql`INSERT INTO folder_members (folder_id, user_id)
+          VALUES (${folderId}::uuid, ${targetId}::uuid)
+          ON CONFLICT DO NOTHING
+          RETURNING user_id`,
+    )
+    if (inserted.length === 0) return { kind: 'already_member' }
+
+    // The share-grant email goes to the target's address (5.3). A null can
+    // only mean a soft-deleted account, whose connections 8.10 removes, so
+    // the row is a belt for a state that should not exist; the caller skips
+    // the send rather than mailing nobody.
+    const target = await rowsOf(
+      tx,
+      sql`SELECT email FROM users
+          WHERE id = ${targetId} AND deleted_at IS NULL`,
+    )
+    return { kind: 'added', targetEmail: nullableString(target[0]?.email) }
+  })
 }
 
 /* ------------------------------------------------------------------ *

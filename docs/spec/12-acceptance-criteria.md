@@ -158,3 +158,13 @@ Two readings of frozen 7.2 they rest on, both grounded in the P2 merge's ratifie
 - AC-121 Given PATCH /me/settings carrying a non-boolean value for any of the three fields, null included since 4.10 admits no null state, then 422 naming the field and no setting changes.
 - AC-122 Given two users, when one PATCHes their settings, then the other's stored settings and GET bodies are unchanged.
 - AC-123 Given tasks of every status with steps, My Day entries, and reminders in the viewer's folders, when the viewer PATCHes any of the three toggles, then no row outside user_settings changes: hidden pages are a navigation preference only.
+
+**Limit enforcement under concurrency (P3 gate; added by amendment on 2026-08-07, numbered additively so no existing number changes)**
+
+This rides package P3's merge gate beside AC-025 to AC-044, the way AC-116 to AC-118 rode P2's. It exists because the P3 merge review found one defect in three places: the guards for 10.3's step, member, and custom-folder caps each counted outside the write the count admitted, so two callers arriving together at the limit both passed and the stored count went one past it. Two of the three were in code merged at P2, and the repairs landed on P3's branch. Section 10.3 calls these numbers server-enforced, and a cap two callers walk through is not enforced.
+
+The criterion exists rather than the repairs standing alone because those repairs are otherwise proven only by a statement-order probe inside the implementing module, which is the implementer attesting to their own work: the arrangement protocol section 8 and the team's first structural rule exist to prevent. It is also backend-agnostic where that probe is not, and it would have caught all three defects.
+
+One reading it rests on, recorded because the test's shape turns on it: on a single-connection backend the interleaving that produces the breach is likely but not guaranteed, so the criterion asserts the outcome rather than asserting that a breach was attempted. A run in which the two requests serialize completely satisfies it for the same reason an interleaved run does, that the limit held and one caller was refused.
+
+- AC-124 Given two concurrent requests that would each take a 10.3 count from its limit to one past it, a 51st step, a 26th member, a 201st custom folder, then exactly one succeeds, the other is refused 422, and the stored count equals the limit.

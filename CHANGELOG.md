@@ -10,6 +10,23 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Package P3 of RFC 0001, tasks core: the frozen 7.6, 7.7, and 7.8 surfaces,
+  which is create with the 7.6 guards and the INV-5 forcing, PATCH with the
+  move rules and 8.4's clear-date cascade in one transaction, delete with its
+  5.1 cascades, steps under the 50 cap, the four 5.1 transitions written as
+  8.3's guarded single-row updates so a lost race is detectable and a repeat
+  is a 200 no-op, and the My Day pull endpoints with INV-12's idempotency.
+  Every one of them answers 7.0's TaskCard and TaskDetail, declared once in
+  the shared contract and bound to the wire by a contract test rather than
+  restated per route. Access is resolved through the P2 module's own accessOf,
+  widened to take an executor so a move decides inside the transaction it
+  writes in. Two arms of frozen 7.6 are deliberately absent and recorded as
+  such: recurrence_rule waits for P6's 4.11 validator and reminder for P7's
+  8.6 fire instant. And the three 10.3 caps in the domain directory, steps,
+  members, and custom folders, now count under a lock, two of them repairs to
+  code that merged at P2. The full gate is green at 604 tests across 83 files,
+  AC-025 to AC-044 and AC-124 passing by number beside the P0, P1, P2, and
+  P2S ranges.
 - Package P2S of RFC 0001, the settings surface: frozen 7.2's GET and PATCH
   /me/settings, mounted in the auth router beside the 7.1 account endpoints
   because they speak for one authenticated person and take no id at all, so
@@ -62,6 +79,104 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- Merge rulings at the P3 merge, 2026-08-07. By the human owner, accepting all
+  four recommendations of the endpoint shape review and transcribed onto
+  frozen section 7: closing paragraphs on 7.7 and 7.8 settling that each of
+  their mutations answers the affected TaskDetail, because neither a step nor
+  a My Day entry is a resource this contract shapes or offers a GET for and
+  each mutation moves more of the task than the row it touches, steps moving
+  steps_done and steps_total and a pull moving pulled; two sentences on 7.0
+  about shapes it already declares, that floating values ride the wire in
+  their 4.11 formats, YYYY-MM-DD and HH:MM and never instants, and that
+  TaskDetail's reminder carries both 4.8 columns with exactly one non-null
+  because "{offset_minutes or time_of_day}" names a mode and not a key list;
+  and 7.6's move refusal narrowed from "404 or 422" to 404, the recommendation
+  the review ranked lowest and the owner took anyway, since a 422 for a folder
+  the caller cannot see confirms the folder exists. Nothing went red on the
+  narrowing: the surface already answered 404 from the same leak rule, and
+  AC-029 admitted both, so the contract now says what the code did.
+- Section 12 gains AC-124 by amendment on branch p3-tasks-core, 2026-08-07,
+  riding P3's merge gate the way AC-116 to AC-118 rode P2's. The merge review
+  found one defect in three places: the guards for 10.3's step, member, and
+  custom-folder caps each counted outside the write the count admitted, so two
+  callers arriving together at the limit both passed and the stored count went
+  one past it. Two of the three were in code merged at P2, and the branch was
+  held twice, once to repair them and once for this criterion. It exists
+  because the repairs were otherwise proven only by a statement-order probe
+  inside the implementing module, which is the implementer attesting to their
+  own fix, the one arrangement this project calls its only source of
+  independent truth. Routing it to P9's limits sweep was the close alternative
+  and was declined: a sweep checks that limits exist, and what was missing is
+  independent evidence for a fix already made. Recorded with it, the reading
+  its test turns on: the criterion asserts the outcome rather than that a
+  breach was attempted, because on the default backend the two transactions
+  queue where on postgres:18 they overlap, and both satisfy it for the same
+  reason, that the limit held and one caller was refused.
+- 11.15's PGlite bullet is corrected against measurement, 2026-08-07. The
+  bullet was true and incomplete in the way a hazard list cannot afford: it
+  says PGlite is single-connection, which is a fact, and three sessions plus
+  the Steward's own merge-review ruling read that as meaning concurrency races
+  cannot be expressed locally, which is not. The Adversarial Test role
+  measured it, reproducing the 51-step breach on the default backend at the
+  domain level and through HTTP. One connection serializes statements, not
+  handler logic, so interleaved handlers race normally; what genuinely needs a
+  second connection is a second concurrent transaction. The Steward's ruling
+  that this branch could repair a cap merged at P2 stands on its other three
+  grounds, and the false one is withdrawn in the RFC row rather than left
+  standing. Section 11 is normative and not frozen, so this was change control
+  rather than an owner decision.
+- Ratified at the P3 merge, the disclosed-extension shape. The Collaboration
+  return fixed the two caps it was routed and found a third of the identical
+  shape in createFolder by applying the recorded grounds to the rest of its
+  own directory, disclosing it in a commit built to be dropped on its own. It
+  is accepted, and with it the general rule: carrying a recorded ruling's own
+  grounds to the identical defect inside your own paths is in scope when it
+  arrives separately revertible. A different defect class, or another role's
+  paths, is not, and the disclosure is what separates the two.
+- Mid-P3 rulings, 2026-08-05, on branch p3-tasks-core so they merge with the
+  package whose assertions they underwrite, the mid-P2 precedent. Three
+  questions from the tester session's final block, none of them a frozen
+  change and none of them changing a test.
+  - **A second DELETE on a task answers 404**, as AC-042's adversarial case
+    asserts. The apparent collision dissolves on reading: 7.0's idempotency
+    sentence is about effect, not status, and a second DELETE that changes
+    nothing is idempotent whatever it answers, while 8.3 speaks to the status
+    directly and says operations on deleted rows return 404. Frozen section 7
+    settles it twice over. It already contains a DELETE addressed by id that
+    answers 404 on absence, 7.3's DELETE /connections/:userId, "204; 404 if no
+    such connection", and where it wants a status on absence for a
+    sub-resource toggle it says so outright, 7.8's my-day "200 even when
+    absent" and 7.9's reminder "204, idempotent". The decisive ground is the
+    leak rule: 204 for a task that existed and was deleted, beside 404 for an
+    id that never existed, is an existence oracle, and 7.0 and AC-102 forbid
+    exactly that. Avoiding the leak under a 204 policy would mean answering
+    204 for every unknown id, including tasks in folders the caller cannot
+    see, which contradicts "inaccessible always reads as 404".
+  - **In a single-member folder the INV-5 forcing wins over the composite-FK
+    422**, on POST /tasks. Frozen 7.6 lists both rules and the case where they
+    meet is a caller naming a non-member assignee in a folder with one member.
+    "Ignoring the input" is the plain reading, and section 3 settles it: INV-5
+    names its enforcement as "create, move, unassign guard", so create and move
+    are transactions that make the value right and only the unassign case is a
+    guard that refuses. 7.6's own move rule shows the same pattern, an assignee
+    who is not a member of the target being repaired rather than refused. The
+    principle the contract draws is that repair applies where the right value
+    is determined, which in a single-member folder it is, and refusal applies
+    where it would be a guess, which is every folder with more than one member.
+    Scope is POST only: PATCH keeps 422 for a non-member and 409 for a null in
+    a single-member folder, which 7.6's PATCH bullet states and INV-5 calls the
+    unassign guard. No criterion moves; AC-026 pins the null case to forcing
+    already, and AC-033 stages a multi-member folder on purpose.
+  - **Ratified, the reading inside AC-039**: abandoning a task does not delete
+    the viewer's My Day entry. 5.1's abandon row lists its side effects and
+    entry deletion is not among them, 8.2 selects pending rows so the task
+    leaves the page by the status filter alone, and R-CLEAN deletes My Day
+    entries explicitly wherever the contract means deletion, so the silence is
+    a distinction the contract draws itself, the pattern the P2S merge used on
+    user_settings.updated_at. It also has a consequence worth naming: AC-097
+    has restore return an overdue assigned task to My Day immediately, and for
+    a task that was pulled rather than automatic that works only if the entry
+    survived, since 8.2 reads its added_on.
 - The commit trailer names the model that ran the session, by owner ruling on
   the P3 tester session's note, 2026-08-05. Protocol section 7 fixed the
   trailer to one literal model string, accurate when written and false from
