@@ -427,3 +427,34 @@ specification rather than inferred:
   rather than guarded at runtime. 11.15 records why that is delicate: tsc emits
   a tsconfig-excluded file anyway if any resolvable import names it, a literal
   dynamic `import()` included.
+
+## One thing this suite needs from `vitest.config.ts`, and does not have
+
+A global `testTimeout`. The config sets `environment` and `include` and
+nothing else, so all but six of this suite's 522 cases run under Vitest's
+5000 ms default. The six that do not are AC-114's five and one of AC-109's,
+which name their own.
+
+That default is not a comfortable margin here, and the measurement is this
+suite's own rather than an argument from principle. Across five consecutive
+full runs on an otherwise idle machine, AC-114's slowest case ranged from
+1941 ms to 5811 ms. It crosses the five second line, and the only reason it
+is not a failure is the `MODULE_LOAD_TIMEOUT = 120_000` its author wrote for
+exactly this reason, recorded in that file's header. Nothing else in the
+suite has that protection: AC-070's slowest case measured 1237 ms to 2784 ms
+over the same five runs, a spread of more than two to one under a ceiling
+less than twice its own maximum, and several P2 cases sit in the same band.
+
+Why it matters more than the seconds suggest. A test that exceeds its
+timeout is reported as an Error rather than as an assertion failure, so it
+does not say what it was measuring, and a run that loses one this way differs
+from the previous run by exactly one failure with nothing in the output
+naming what moved. The operator measured two gate runs on a byte-identical
+tree at 141 failures and then 140, and the Steward two more at 140 and 140;
+this is the only mechanism found so far that produces that shape, and it is
+load-dependent, which is why nine clean runs in a row do not clear it.
+
+The change is one line in `vitest.config.ts`, which belongs to Platform, and
+is escalated rather than made here. Adding per-case timeouts to 516 cases
+instead would be the same fix written 516 times, and would leave the next
+file written without one exposed again.
