@@ -1,13 +1,14 @@
 /*
-AC-127 (proposed): given more than 20 accessible tasks matching a query, then
-GET /search answers 20 rows with a next_cursor, and the cursor's page carries
-the rest in Q8's order with no overlap and no gap.
+AC-127: Given more than 20 accessible tasks matching a query, then GET
+/search answers 20 rows with a next_cursor, and the cursor's page carries the
+rest in Q8's order with no overlap and no gap.
 
-The number is proposed, not assigned; numbering section 12 is the human
-owner's, and the criterion text above is the transcription an amendment would
-take. The RFC 0001 P4 row names this surface as one of three the package
-delivers with no criterion in any range: search's keyset cursor and page size
-of 20. Section 6 sets both in Q8's last line, and nothing asserts either.
+Numbered by the Integration Steward on 2026-08-07 and now section 12's own
+text; ac-125's header records why the numbering was the Steward's and not the
+owner's, this file having proposed the opposite. The RFC 0001 P4 row names
+this surface as one of three the package delivers with no criterion in any
+range: search's keyset cursor and page size of 20. Section 6 sets both in
+Q8's last line, and nothing asserted either.
 
 Why it is not covered by AC-056. That criterion pins Done's keyset, and Done
 pages on (completed_at, id) over completed rows alone. Search pages on a

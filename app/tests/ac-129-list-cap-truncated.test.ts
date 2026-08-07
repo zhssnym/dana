@@ -1,23 +1,34 @@
 /*
-AC-129 (proposed): given more than 1000 rows qualifying for a capped list,
-then the response carries at most 1000 of them and truncated is true; given
-fewer, then every row is present and truncated is false.
+AC-129: Given more than 1000 rows qualifying for a capped list, then the
+response carries at most 1000 of them and truncated is true; given fewer,
+then every row is present and truncated is false.
 
-The number is proposed, not assigned; numbering section 12 is the human
-owner's, and the criterion text above is the transcription an amendment would
-take. The RFC 0001 P4 row names this surface as one of three the package
-delivers with no criterion in any range: the 1000-row cap with its truncated
-flag. Section 6's preamble states it, 10.3 lists it among the numbers it
-calls server-enforced, and six of the nine 7.10 bodies carry the flag.
+Numbered by the Integration Steward on 2026-08-07 and now section 12's own
+text; ac-125's header records why the numbering was the Steward's and not the
+owner's, this file having proposed the opposite. The RFC 0001 P4 row names
+this surface as one of three the package delivers with no criterion in any
+range: the 1000-row cap with its truncated flag. Section 6's preamble states
+it, 10.3 lists it among the numbers it calls server-enforced, and six of the
+nine 7.10 bodies carry the flag.
 
-One reading this file rests on, recorded because the shape of the assertion
-turns on it. The cap is per response, not per array. Section 6 enumerates
-pages rather than arrays when it lists what is capped, My Day and Tasks and
-All each holding several arrays; and every 7.10 body carries exactly one
-truncated flag, so a per-array cap could not be reported by the boolean the
-contract gives it. A per-array reading would let All answer three thousand
-rows under a single flag, which is the notice's whole purpose defeated. The
-reading is routed to the Integration Steward with this file.
+The reading this file rests on is ruled and is section 6's own text now. The
+cap is per response, not per array, ruled at the P4 change control on
+2026-08-07 on the two grounds this file routed: the preamble enumerates pages
+rather than arrays when it lists what is capped, My Day and Tasks and All
+each holding several, and every capped 7.10 body carries exactly one
+truncated flag, which a per-array cap has no way to report. A per-array
+reading would let All answer three thousand rows under one flag, which is the
+notice's whole purpose defeated.
+
+The ruling added something this file did not ask for and one case now
+asserts. The rows kept are the first 1000 taken in the order 7.10 enumerates
+that response's own sections, so a capped response is a prefix of one
+determined sequence rather than an arbitrary thousand, which is what the
+preamble's byte-identical guarantee needs once a cap can bite. For All that
+means planned fills first and the Tasks half takes what is left, and the
+fixture below is built so the two readings differ: 1001 undated rows and 5
+dated ones cannot both be a prefix unless the allocation is the enumerated
+one.
 
 The negative half is asserted on a second account rather than on a second
 page of the same one, because truncated false on an empty response would be
@@ -33,7 +44,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
-import { Cast, defaultFolderOf } from './folders-harness.js'
+import { Cast, createFolder, defaultFolderOf } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
 import {
   allRowsOf,
@@ -54,15 +65,28 @@ const tz = middayZone()
 const CAP = 1000
 const OVER_CAP = CAP + 1
 const FEW = 5
+/** Undated rows in a custom folder, so Tasks has a second section under the
+ * cap and the enumerated order is observable rather than merely counted. */
+const GROUPED = 4
 
 interface Stage {
   crowded: Actor
   sparse: Actor
   crowdedInboxId: string
+  crowdedGroupId: string
   sparseInboxId: string
 }
 let staged: Stage | undefined
 
+/*
+The fixture is built so the two allocations disagree observably. 7.10
+enumerates Tasks as inbox then groups, and All as planned then tasks_inbox
+then tasks_groups, so the ruled prefix rule gives the Inbox all 1000 of the
+Tasks page and gives All's five dated rows their place before the Tasks half
+takes the remaining 995. An implementation filling the later section first
+answers the same totals with different sections, which is exactly what a test
+asserting only a total cannot see.
+*/
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
     const [crowded, sparse] = await cast.of(app)
@@ -70,11 +94,10 @@ async function stage(): Promise<Stage> {
       throw new Error('cast must produce two actors')
     }
     const crowdedInboxId = await defaultFolderOf(app.db, crowded.id)
+    const crowdedGroupId = await createFolder(crowded, 'p4 ac129 overflow')
     const sparseInboxId = await defaultFolderOf(app.db, sparse.id)
     const today = todayIn(tz)
 
-    // Undated, so Tasks holds them; and a second batch dated, so Planned
-    // holds those and All must cap the two together rather than each.
     await seedManyTasks(app.db, {
       folderId: crowdedInboxId,
       createdBy: crowded.id,
@@ -82,6 +105,17 @@ async function stage(): Promise<Stage> {
       count: OVER_CAP,
       titlePrefix: 'p4 ac129 undated',
     })
+    // Undated too, but in a custom folder, so Tasks has a second section for
+    // the cap to reach and the enumeration order is observable.
+    await seedManyTasks(app.db, {
+      folderId: crowdedGroupId,
+      createdBy: crowded.id,
+      assigneeId: crowded.id,
+      count: GROUPED,
+      titlePrefix: 'p4 ac129 grouped undated',
+    })
+    // Dated, so Planned holds them and All must place them ahead of the
+    // Tasks half rather than merely counting them.
     await seedManyTasks(app.db, {
       folderId: crowdedInboxId,
       createdBy: crowded.id,
@@ -98,7 +132,13 @@ async function stage(): Promise<Stage> {
       titlePrefix: 'p4 ac129 sparse undated',
     })
 
-    staged = { crowded, sparse, crowdedInboxId, sparseInboxId }
+    staged = {
+      crowded,
+      sparse,
+      crowdedInboxId,
+      crowdedGroupId,
+      sparseInboxId,
+    }
   }
   return staged
 }
@@ -115,11 +155,14 @@ afterAll(async () => {
 
 describe('AC-129: a capped list stops at 1000 rows and says so', () => {
   test('AC-129: the fixture really does exceed the cap', async () => {
-    const { crowdedInboxId } = await stage()
+    const { crowdedInboxId, crowdedGroupId } = await stage()
     expect(
-      await countTasks(app.db, crowdedInboxId),
-      'the case below is about a list that has more rows than it may return, so the rows must exist before the response is judged',
-    ).toBe(OVER_CAP + FEW)
+      [
+        await countTasks(app.db, crowdedInboxId),
+        await countTasks(app.db, crowdedGroupId),
+      ],
+      'the cases below are about a list that has more rows than it may return, so the rows must exist before any response is judged, and the grouped ones must exist for the allocation to be observable',
+    ).toEqual([OVER_CAP + FEW, GROUPED])
   })
 
   test('AC-129: Tasks returns 1000 rows with truncated true', async () => {
@@ -136,6 +179,15 @@ describe('AC-129: a capped list stops at 1000 rows and says so', () => {
     ).toBe(true)
   })
 
+  test('AC-129: Tasks fills its sections in the order 7.10 enumerates them', async () => {
+    const { crowded } = await stage()
+    const body = await tasksView(crowded, tz)
+    expect(
+      [body.inbox.length, body.groups.flatMap((group) => group.rows).length],
+      'section 6 as ruled on 2026-08-07: the rows kept are the first 1000 taken in the order 7.10 enumerates that response\'s sections, so a capped response is a prefix of one determined sequence. 7.10 writes Tasks as inbox then groups, and the Inbox holds more than the whole cap, so the four grouped rows are what the cap drops. An implementation filling groups first answers the same total with a different page',
+    ).toEqual([CAP, 0])
+  })
+
   test('AC-129: All caps its two stacked sections together, not each', async () => {
     const { crowded } = await stage()
     const body = await allView(crowded, tz)
@@ -144,6 +196,15 @@ describe('AC-129: a capped list stops at 1000 rows and says so', () => {
       'All is one page with two stacked sections in one scroll (6 Q5), and section 6 caps the page. A per-array reading would let this answer over two thousand rows under a single flag, which defeats the notice the flag exists for',
     ).toBe(CAP)
     expect(body.truncated, 'and the flag is set').toBe(true)
+  })
+
+  test('AC-129: All places its planned section before the Tasks half takes the rest', async () => {
+    const { crowded } = await stage()
+    const body = await allView(crowded, tz)
+    expect(
+      [body.planned.length, tasksRowsOf(body).length],
+      '7.10 enumerates All as planned, then tasks_inbox, then tasks_groups, and the allocation ruled on 2026-08-07 follows that order. So the five dated rows all survive and the Tasks half takes the remaining 995; an implementation filling the Tasks half first answers 1000 rows with no Planned section at all, which is the same total and a different page',
+    ).toEqual([FEW, CAP - FEW])
   })
 
   test('AC-129: the rows returned are the first 1000 of the list\'s own order', async () => {

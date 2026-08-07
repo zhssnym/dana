@@ -39,10 +39,10 @@ are defensible readings of 8.1's "the server computes it", so the test would
 be a false red against half of them. The criterion's real content is that one
 instant is two different days for two zones, and it survives the loss of the
 instant intact if the zone pair is chosen so the split holds always. Measured
-rather than recalled, hourly across all of 2026: Pacific/Kiritimati (UTC+14,
-no DST) is exactly one calendar day ahead of Pacific/Honolulu (UTC-10, no
-DST) at all 8784 samples, because their offsets differ by exactly 24 hours
-and neither observes DST. At the criterion's own instant those two zones read
+rather than recalled, at every hour of 2026: Pacific/Kiritimati (UTC+14, no
+DST) is exactly one calendar day ahead of Pacific/Honolulu (UTC-10, no DST)
+at all 8760 samples, because their offsets differ by exactly 24 hours and
+neither observes DST. At the criterion's own instant those two zones read
 2026-07-24 and 2026-07-23, which are the criterion's own two local dates. The
 named pair is asserted too, in the one direction that is unconditional: each
 zone's own today is Today in that zone.
@@ -50,7 +50,8 @@ zone's own today is Today in that zone.
 **Fixtures anchor on a zone whose local time is near midday.** A date-relative
 fixture seeded moments before local midnight and read moments after is stale
 through nobody's fault. middayZone() picks, from twenty-five zones measured
-DST-free with whole-hour offsets, whichever is nearest 12:00 local right now,
+DST-free with whole-hour offsets at every hour of 2026, whichever is nearest
+12:00 local right now,
 which puts at least eleven hours between the fixture and either boundary. The
 choice is a function of the instant, not of any assertion: no case branches on
 it, and the residual is caught by expectStillSameDay rather than tolerated.
@@ -64,13 +65,17 @@ package necessarily writes a second producer of that frozen shape, because
 `taskView` in `domain/tasks.ts` produces one card at a time and no list
 endpoint can call it per row.
 
-One envelope is not enumerated in frozen 7.10 and is written here as ruled by
-the human owner at the P4 kickoff: GET /folders/:id/tasks answers scheduled,
+Three of those shapes were silences when this layer was written and are text
+now, all escalated from P4 and entered by owner ruling on 2026-08-07. Frozen
+7.10 enumerates its ninth body: GET /folders/:id/tasks answers scheduled,
 unscheduled and truncated on section=open, and days with next_cursor on
-section=completed. Those are the key names the section's other eight bodies
-already use for the same things. One tolerance is left and recorded at its
-assertion: the `folder` inside a Tasks group, which 7.10 names as a key
-without spelling its shape.
+section=completed, which are the key names the other eight bodies already use
+for the same things. The `folder` inside groups, and inside the tasks_groups
+of GET /views/all, is the {id, name, is_default} stub every TaskCard carries
+rather than the 7.0 Folder object, so expectGroups asserts it key-exact like
+every other shape here instead of at the intersection of two readings. And
+`section` defaults to open when absent, which AC-058 asserts and the typed
+readers below still send explicitly, each naming the section it is for.
 
 **Orders are asserted as whole sequences.** Section 6 ends every order in id
 so that any two agents produce byte-identical sequences, and a membership
@@ -370,12 +375,15 @@ export interface Group {
 }
 
 /*
-7.10 writes groups as [{folder, rows}] and does not say which object `folder`
-is: the 7.0 Folder schema and the {id, name, is_default} stub every TaskCard
-already carries both satisfy the word. Asserted at their intersection, which
-is what a group heading actually needs, and routed to the shape review rather
-than decided here. The sharp half is asserted in full: the group's folder is
-the folder its own rows are in.
+7.10 wrote groups as [{folder, rows}] without saying which object `folder`
+is, the 7.0 Folder schema and the {id, name, is_default} stub every TaskCard
+carries both satisfying the word. Escalated from P4 and ruled by the human
+owner on 2026-08-07: it is the stub, because a group heading needs exactly
+what a card's folder label needs, Folder's counts being the 8.11 computation
+no grouped view asks for and its ownership fields being 7.4's business. So
+the shape is key-exact here like every other one, rather than asserted at the
+intersection of two readings. The sharp half stands unchanged: the group's
+folder is the folder its own rows are in.
 */
 function expectGroups(value: unknown, source: string): Group[] {
   expect(Array.isArray(value), `${source} must be an array (spec 7.10)`).toBe(
@@ -387,6 +395,11 @@ function expectGroups(value: unknown, source: string): Group[] {
     const group = asRecord(entry, where)
     expectExactKeys(group, ['folder', 'rows'], where)
     const folder = asRecord(group.folder, `${where}.folder`)
+    expectExactKeys(
+      folder,
+      ['id', 'is_default', 'name'],
+      `${where}.folder, which 7.10 as ruled on 2026-08-07 makes the TaskCard stub rather than the 7.0 Folder object`,
+    )
     expect(
       typeof folder.id,
       `${where}.folder.id must be a string: a group heading names one folder (spec 6 Q2, 7.10)`,
@@ -395,6 +408,10 @@ function expectGroups(value: unknown, source: string): Group[] {
       typeof folder.name,
       `${where}.folder.name must be a string: Q2 orders groups by lower(folder name)`,
     ).toBe('string')
+    expect(
+      typeof folder.is_default,
+      `${where}.folder.is_default must be a boolean, the third key of the stub`,
+    ).toBe('boolean')
     const rows = expectCards(group.rows, `${where}.rows`)
     expect(
       rows.length,
@@ -649,10 +666,15 @@ export interface FolderOpenBody {
 }
 
 /*
-The one 7.10 body the frozen section leaves unenumerated, ruled by the human
-owner at the P4 kickoff on the kickoff's recommendation: the key names the
-other eight bodies already use for the same things. Written here as settled;
-the Steward transcribes the sentence onto 7.10 on this branch.
+The one body frozen 7.10 described in prose without naming its keys. The P4
+kickoff escalated the question with a recommendation; the human owner ruled
+it on 2026-08-07, and 7.10 now enumerates the body like its eight neighbours,
+with the key names they already use for the same things. Read from that text
+rather than from the recommendation that preceded it.
+
+`section` is sent explicitly by both readers below, each naming the section
+it is for, even though 7.10 now defaults it to open. The default is a
+behavior of the endpoint and is asserted where behaviors are, in AC-058.
 */
 export async function folderOpen(
   actor: Actor,
@@ -664,7 +686,7 @@ export async function folderOpen(
     `/folders/${folderId}/tasks`,
     { tz, section: 'open' },
     ['scheduled', 'truncated', 'unscheduled'],
-    `GET /folders/:id/tasks?section=open must answer Q7's first two sections (spec 7.10 as ruled at the P4 kickoff, 6 Q7)`,
+    `GET /folders/:id/tasks?section=open must answer Q7's first two sections (spec 7.10 as ruled on 2026-08-07, 6 Q7)`,
   )
   return {
     scheduled: expectCards(body.scheduled, 'folder scheduled'),
@@ -684,7 +706,7 @@ export async function folderCompleted(
     `/folders/${folderId}/tasks`,
     { tz, section: 'completed', cursor },
     ['days', 'next_cursor'],
-    `GET /folders/:id/tasks?section=completed must paginate like Done (spec 7.10 as ruled at the P4 kickoff, 6 Q7)`,
+    `GET /folders/:id/tasks?section=completed must paginate like Done (spec 7.10 as ruled on 2026-08-07, 6 Q7)`,
   )
   return {
     days: expectDays(body.days, 'folder completed days'),

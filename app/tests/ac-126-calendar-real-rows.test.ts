@@ -1,14 +1,15 @@
 /*
-AC-126 (proposed): given tasks due inside and outside an accepted calendar
-range in all three statuses, when GET /views/planned/calendar, then real
-carries exactly the accessible rows due within the inclusive bounds, in all
-three statuses, ordered all-day banners before timed rows within each date.
+AC-126: Given tasks due inside and outside an accepted calendar range in all
+three statuses, when GET /views/planned/calendar, then real carries exactly
+the accessible rows due within the inclusive bounds, in all three statuses,
+ordered all-day banners before timed rows within each date.
 
-The number is proposed, not assigned; numbering section 12 is the human
-owner's, and the criterion text above is the transcription an amendment would
-take. This one is not on the RFC 0001 P4 row's list of three, and it is
-offered under the same sentence that made the list a floor rather than a
-ceiling. The case for it is arithmetic: 7.10 has nine endpoints, and after
+Numbered by the Integration Steward on 2026-08-07 and now section 12's own
+text; ac-125's header records why the numbering was the Steward's and not the
+owner's, this file having proposed the opposite. This one is not on the RFC
+0001 P4 row's list of three, and it was offered under the same sentence that
+made the list a floor rather than a ceiling. The case for it is arithmetic:
+7.10 has nine endpoints, and after
 AC-045 to AC-058 eight of them have criteria. The calendar has none. AC-082
 draws ghosts on a July 2026 month view and belongs to P6, which delivers the
 projection; the real rows this package answers at P4 are asserted nowhere.
@@ -23,12 +24,16 @@ the cell order is Q3C's own, which is not Q3's: the list puts status_rank
 above the timed flag, the cell puts the timed flag above status_rank, so an
 implementation reusing the Planned comparator here orders a mixed date wrong.
 
-One silence is recorded rather than pinned, and routed with this file. The
-preamble of section 6 defines status_rank for pending and abandoned only, and
-Q8 extends it locally with completed = 2. Q3C uses status_rank bare while
-admitting all three statuses, so where a completed row sits among the all-day
-banners of one date is undefined. The assertions below order the two ranks
-the preamble defines and leave the third unconstrained.
+One silence this file routed is closed, and the assertion tightens with it.
+The section 6 preamble defined status_rank for pending and abandoned only,
+Q8 extended the scale locally to completed = 2, and Q3C used status_rank bare
+over a result admitting all three, which left a completed row's position
+inside a cell undefined; this file therefore ordered the two defined ranks
+and asserted only presence for the third. The Steward ruled at the P4 change
+control on 2026-08-07 and lifted Q8's number into the preamble, so one
+definition now serves every query. The all-day banners of a date are
+therefore a full sequence here, pending then abandoned then completed, which
+is what the file could not ask for before.
 
 The virtual arm is P6's. 7.10 enumerates the key, so this file asserts that
 the key is an array and nothing else about it, which is the treatment P3 gave
@@ -250,7 +255,7 @@ describe('AC-126: the calendar is a record of the range, inclusive and in every 
     ).toEqual([cellTimedEarly, cellTimedLate])
   })
 
-  test('AC-126: among all-day rows, pending precedes abandoned', async () => {
+  test('AC-126: all-day rows are ordered by all three status ranks', async () => {
     const { viewer, start, end, cellDate, cellPendingAllDay, cellAbandonedAllDay, cellCompletedAllDay } =
       await stage()
     const body = await calendar(viewer, tz, start, end)
@@ -260,13 +265,9 @@ describe('AC-126: the calendar is a record of the range, inclusive and in every 
       ),
     )
     expect(
-      allDay.indexOf(cellPendingAllDay),
-      '6 Q3C orders all-day banners by status_rank, and the preamble of section 6 defines that rank for pending = 0 and abandoned = 1',
-    ).toBeLessThan(allDay.indexOf(cellAbandonedAllDay))
-    expect(
       allDay,
-      'the completed banner is present; where it sits among the other two is not asserted, because the preamble defines no rank for completed and only Q8 extends the scale locally. That silence is routed to the Integration Steward with this file rather than pinned here',
-    ).toContain(cellCompletedAllDay)
+      '6 Q3C orders all-day banners by status_rank, id, and the section 6 preamble now defines that rank over all three statuses, pending = 0, abandoned = 1, completed = 2. The third number was Q8\'s alone when this file was written, which left a completed banner\'s position undefined and this assertion able to ask only whether it was present; the Steward lifted it into the preamble at the P4 change control on 2026-08-07, so the sequence is asked for in full',
+    ).toEqual([cellPendingAllDay, cellAbandonedAllDay, cellCompletedAllDay])
   })
 
   test('AC-126: rows are ordered by date across the whole range', async () => {

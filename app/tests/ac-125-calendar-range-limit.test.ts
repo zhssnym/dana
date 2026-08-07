@@ -1,15 +1,19 @@
 /*
-AC-125 (proposed): given GET /views/planned/calendar with end minus start
-greater than 62 days, then 422 naming the range; given exactly 62 days, then
-200.
+AC-125: Given GET /views/planned/calendar with end minus start greater than
+62 days, then 422 naming the range; given exactly 62 days, then 200.
 
-The number is proposed, not assigned. Numbering section 12 is the human
-owner's, as the AC-124 amendment records, so this file carries the next
-additive number and the criterion text above is the transcription the
-amendment would take. The RFC 0001 P4 row names this surface as one of three
-that the package delivers and no criterion in any range covers, and the P2
-and P2S precedent for an amendment appending to a package's range is what it
-points at.
+Numbered by the Integration Steward on 2026-08-07 and now section 12's own
+text. This file proposed it with the number left open on the belief that
+numbering is the human owner's, cited to the AC-124 amendment; the Steward
+ruled otherwise, and the correction is worth keeping rather than merely
+applying. That amendment records only that AC-124 was appended additively,
+and AC-116 to AC-118, AC-119 to AC-123 and AC-124 were each numbered on the
+Steward's authority. An appended number changes no existing number and so
+invalidates no criterion, which is what places it there; what is the owner's
+is the frozen text of sections 4 and 7, and none of these six moves any.
+
+The RFC 0001 P4 row names this surface as one of three the package delivers
+that no criterion in any range covered.
 
 The surface is real and it is numbered elsewhere. Frozen 7.10 states the
 refusal on the endpoint ("422 when the range exceeds 62 days"), 6 Q3C states
@@ -157,28 +161,30 @@ describe('AC-125: the calendar range stops at 62 days', () => {
 
   /*
   An inverted range satisfies "end minus start at most 62" arithmetically
-  while naming no dates at all, and section 6 does not say which of the two
-  defensible answers it gets: refuse it as invalid, or answer the bare grid
-  it describes. That silence is routed to the Integration Steward rather than
-  decided here, so this case asserts only what holds under both readings, and
-  asserts it without a branch: whatever the status, no row comes back, since
-  no date satisfies the bounds.
+  while naming no dates at all, and section 6 said nothing about it. This file
+  therefore asserted only what held under both available readings, refuse it
+  or answer the bare grid, and routed the silence. The Steward ruled at the P4
+  change control on 2026-08-07: Q3C now says start must not be after end and
+  an inverted range answers 422 naming the pair, chosen because a malformed
+  request would otherwise be indistinguishable from a legitimately empty
+  month. The case is pinned to that answer now.
   */
-  test('AC-125 adversarial: an inverted range answers no other range\'s rows', async () => {
+  test('AC-125: an inverted range is refused, not answered with an empty grid', async () => {
     const { viewer, start } = await stage()
     const response = await getView(viewer, '/views/planned/calendar', {
       tz,
       start: shiftDate(start, 10),
       end: start,
     })
+    expectStatus(
+      response,
+      422,
+      '6 Q3C as ruled on 2026-08-07: start must not be after end. The alternative reading answered the bare grid, which would make a malformed request indistinguishable from a legitimately empty month, and 7.0 already gives every endpoint 422 for a validation failure with the field named, so refusing adds no status to the frozen surface',
+    )
     const body = response.json() as { real?: { id?: string }[] }
     expect(
       (body.real ?? []).map((row) => row.id),
-      'no date satisfies start + 10 <= d <= start, so a 200 here is the empty grid and a 422 carries no rows at all; either way an implementation that fell back to some default window fails',
+      'and it carries no rows: an implementation that fell back to some default window would fail here even under the reading the ruling declined',
     ).toEqual([])
-    expect(
-      [200, 422],
-      'and the endpoint answers one of the two readings section 6 leaves open rather than erroring: this half is the record of which was taken, and it is routed for a ruling rather than pinned',
-    ).toContain(response.status)
   })
 })

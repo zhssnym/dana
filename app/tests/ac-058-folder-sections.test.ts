@@ -11,11 +11,29 @@ P8; what P4 owes is that the completed section is a separate, paginated
 request rather than rows folded into the open response, which is the shape
 that makes collapsing possible at all.
 
-This is the one 7.10 body frozen 7.10 does not enumerate. The human owner
-ruled it at the P4 kickoff on the kickoff's recommendation, the key names the
-section's other eight bodies already use for the same things: scheduled,
+This was the one body frozen 7.10 described in prose without naming its keys.
+The P4 kickoff escalated the question with a recommendation, the human owner
+ruled it on 2026-08-07, and 7.10 now enumerates the body: scheduled,
 unscheduled and truncated on section=open, days with next_cursor on
-section=completed. It is written here as settled.
+section=completed, the key names the other eight bodies already use for the
+same things. This file's first version said the kickoff had ruled it, which
+was the substance right and the provenance wrong; it is read from the frozen
+text now, which is the only place a session should be reading it from.
+
+Two further rulings of the same date are asserted here. `section` defaults to
+open when absent, because Q7 renders its completed section collapsed and open
+is the state the page opens in. And a group heading's folder is the TaskCard
+stub rather than the 7.0 Folder object, which is judged once in the harness
+and reaches this file through it.
+
+One reading is stated because a case rests on it and it is not itself ruled:
+a `section` outside the enumeration answers 422, not open. Absent means open
+by the ruling, and a wrong value is not absent; 7.0 answers a validation
+failure with 422 and the field named, which AC-130's tz is the same shape of.
+Extending the default to cover a wrong value would answer a question nobody
+asked and hide a client bug. If that reading is wrong the case is a false red
+and should be disputed rather than worked around, which is why it is here in
+words rather than only in an assertion message.
 
 Q7 defines its three sections by reference, and the references are the point:
 Scheduled is Q3's predicate and order narrowed to one folder, Unscheduled is
@@ -28,7 +46,7 @@ leak rule of 7.0: an inaccessible folder must be indistinguishable from a
 nonexistent one.
 
 Spec: 6 Q7 (its three sections and their references), 6 Q2, Q3, Q6, 8.11,
-7.4, 7.10 as ruled at the P4 kickoff, 10.2.
+7.4, 7.10 as ruled on 2026-08-07, 10.2.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -245,6 +263,37 @@ describe('AC-058: a folder page is three sections and a ratio', () => {
       completed.next_cursor,
       'three rows are one page, so there is nothing after it',
     ).toBeNull()
+  })
+
+  test('AC-058: section defaults to open when absent', async () => {
+    const { owner, folderId } = await stage()
+    const bare = await getView(owner, `/folders/${folderId}/tasks`, { tz })
+    expectStatus(
+      bare,
+      200,
+      '7.10 as ruled on 2026-08-07: section defaults to open rather than being required, because Q7 renders its completed section collapsed and open is the state the page opens in',
+    )
+    const explicit = await getView(owner, `/folders/${folderId}/tasks`, {
+      tz,
+      section: 'open',
+    })
+    expect(
+      bare.json(),
+      'the default is the open body itself, not a third shape: asserted as equality against the explicit request rather than as a key list, so an implementation answering open-ish content under some other envelope fails here',
+    ).toEqual(explicit.json())
+  })
+
+  test('AC-058 adversarial: a section that is neither value is refused', async () => {
+    const { owner, folderId } = await stage()
+    const response = await getView(owner, `/folders/${folderId}/tasks`, {
+      tz,
+      section: 'abandoned',
+    })
+    expectStatus(
+      response,
+      422,
+      '7.10 enumerates section as open or completed, and 7.0 answers a validation failure 422 with the field named. Absent means open by the ruling; a value outside the enumeration is not absent, and defaulting it to open would silently answer a question nobody asked',
+    )
   })
 
   test('AC-058: the 8.11 ratio is on the folder object, and abandoned counts on neither side', async () => {

@@ -1,14 +1,14 @@
 /*
-AC-128 (proposed): given a search query that is shorter than 2 or longer than
-100 characters after trimming, then 422 naming the field; given 2 and given
-100, then 200.
+AC-128: Given a search query that is shorter than 2 or longer than 100
+characters after trimming, then 422 naming the field; given 2 and given 100,
+then 200.
 
-The number is proposed, not assigned; numbering section 12 is the human
-owner's, and the criterion text above is the transcription an amendment would
-take. 6 Q8 opens with the rule, "Input: q, trimmed, 2 to 100 characters, else
-422", and 10.3 carries the same numbers in the table it calls server-enforced
-and returned as 422 with the field named. Nothing in section 12 asserts
-either bound.
+Numbered by the Integration Steward on 2026-08-07 and now section 12's own
+text; ac-125's header records why the numbering was the Steward's and not the
+owner's, this file having proposed the opposite. 6 Q8 opens with the rule,
+"Input: q, trimmed, 2 to 100 characters, else 422", and 10.3 carries the same
+numbers in the table it calls server-enforced and returned as 422 with the
+field named. Nothing in section 12 asserted either bound.
 
 The lower bound is not decoration. Q8's pattern is '%' q '%' over a trigram
 index, so a one-character query is a scan of every accessible task in the

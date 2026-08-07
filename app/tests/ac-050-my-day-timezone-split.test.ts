@@ -18,9 +18,14 @@ in the four-hour window each UTC day when Karachi and London happen to
 differ. Pacific/Kiritimati is UTC+14 and Pacific/Honolulu is UTC-10, neither
 observes DST, so their offsets differ by exactly 24 hours and the ahead zone
 is exactly one calendar day ahead of the behind zone always. Measured, not
-recalled: 8784 hourly samples across 2026, no exception. And at the
-criterion's own instant those two zones read 2026-07-24 and 2026-07-23, which
-are the criterion's own two local dates.
+recalled: every hour of 2026, 8760 samples, no exception. The count read 8784
+here until the Steward noticed that is a leap year's hours and 2026 has 8760;
+the sampling loop had run 366 days from 1 January and spilled one day into
+2027. Corrected by measuring the stated window rather than by restating the
+window, because a measured claim whose number does not match its window
+forfeits exactly the standing this paragraph asks for. And at the criterion's
+own instant those two zones read 2026-07-24 and 2026-07-23, which are the
+criterion's own two local dates.
 
 The named pair is asserted too, in both directions available without the
 clock. Unconditionally: a task due each zone's own today is in that zone's
