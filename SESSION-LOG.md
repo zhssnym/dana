@@ -13,7 +13,10 @@ RFC's implementation plan are what bind you.
 
 A row is added when a session has been verified, not when it is planned. Inserted
 rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
-place rather than being renumbered, because the numbers are addresses.
+place rather than being renumbered, because the numbers are addresses. Rows are
+listed in the order they ran, so a number out of sequence means that session
+moved. Mode names the chat a session returned into, or Unattended where it ran
+as an isolated sub-agent with no chat to return to.
 
 ## P minus 4: product definition
 
@@ -154,126 +157,10 @@ place rather than being renumbered, because the numbers are addresses.
 | 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Done |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
-| 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Unattended | Done, escalated |
-| 4a | Both fixtures ruled, AC-131 numbered, item 21, four disclosures settled | 12 | Steward | Done |
-| 4b | The two repairs, AC-131's own file, and the suite's timeout margin measured | 11 | Testers | Done |
-| 5 | The mount, `explain.ts` out of the build, a global test timeout | 10 | Implementers | Done |
-| 4c | AC-052's second case, and the branch's first green on both legs | 11 | Testers | Done |
+| 4 | The views and search package, the EXPLAIN record, the wiring request; escalated AC-052 and AC-057 as tests contradicting their own fixtures, which halted the unattended run | 05 | Unattended | Done, escalated |
+| 4a | Both tests ruled wrong and both criteria right, each repair's direction named; AC-131 numbered, section 13 item 21, four disclosures ratified | 12 | Steward | Done |
+| 4b | The two repairs, AC-131 moved to its own file, and the suite's timeout margin measured over five runs: no global `testTimeout`, so 516 of 522 cases ran under Vitest's five second default. The non-deterministic test itself is still unidentified, recorded in `app/tests/README.md` | 11 | Testers | Done |
+| 5 | The mount, `explain.ts` out of the build output, a global 30 second `testTimeout`. First honest measurement of row 4's claim: 895 of 896 rather than the 888 of 893 it reported from an uncommitted mount, four of its five reds repaired and the fifth misdiagnosed | 10 | Implementers | Done |
+| 4c | AC-052's second case, which filtered pending rows page-wide where Q3 sorts `due_date` and `status_rank` above the timed flag. 896 of 896, and CI run 31218626628 green on PGlite and postgres:18, the package's first production-fidelity evidence | 11 | Testers | Done |
 | 6 | Endpoint shape review, carrying the cursor question | 04 | Implementers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
-
-Rows 2, 3 and 4 ran unattended on the night of 2026-08-07, the first use of
-`docs/operator/unattended.md`, three worker sessions each followed by a
-separate verifier. Mode reads Unattended rather than a chat name because there
-is no chat to return to: each session was an isolated sub-agent, and the
-run's own record is where its prompt and block survive.
-
-The run halted on row 4, which is the halt list working. That session found
-two acceptance tests whose expected orders contradict their own fixtures,
-and protocol section 6 sends a disputed criterion to the Adversarial Test
-Engineer and then the Steward, so an unattended run may route none of it. The
-co-lead verified both claims independently from the fixtures rather than from
-the agents that agreed with each other, and both hold. Row 4a is the ruling
-that ends the dispute: it verified both a third time from the fixtures, ruled
-the tests wrong and the criteria right, and named the direction of each
-repair, which is not the same on both. AC-057's expected array moves, its
-timestamps carrying the fixture's design. AC-052's fixture moves, one stamp
-hoisted above the loop so the two rows genuinely tie, because there the
-expected order and the case's whole purpose fail together. Row 4b makes them,
-placed before the mount so the expectations are right before the flip that
-first makes them measurable.
-
-Row 4a also left one thing open rather than closed, which is worth a line
-because the suite is what this whole arrangement treats as the authority. The
-operator measured two gate runs on a byte-identical tree at 141 failures and
-then 140, so something in the suite is not deterministic. The Steward ran it
-twice on a quiescent tree and got byte-identical results both times, so it is
-not reproduced and not identified, and two runs prove little. What is worth
-carrying is how the first reproduction attempt failed: the tree was checked
-out to another branch while the run was still going, six files under `src/`
-reported `Cannot find module`, and 127 tests silently did not run while the
-failure count stayed at exactly 140. Coverage vanished and the number a
-reader checks did not move.
-
-One claim the night could not check, and the morning could not either: row 4
-reported 888 of 893 passing with the views router mounted, from a mount it
-made locally and correctly did not commit, because the boot file is
-Platform's. Row 5 measured it and **the number came back different**: 895 of
-896. Four of the five reds row 4 escalated were repaired and green; the
-fifth was misdiagnosed rather than repaired, and row 4c is its actual fix.
-AC-052's second case filters pending rows across the whole page and then
-asserts every all-day row precedes every timed one, while Q3 sorts due_date
-before it reaches the timed flag, so an all-day row two days out correctly
-lands after the shared date's timed rows. Its own title says "on the shared
-date" and its filter does not. The decisive check is that the first case in
-the same file asserts the whole sequence and passes, so both cannot be
-satisfied at once and the router is not what is wrong.
-
-Row 4c repaired it and the branch went green: 896 of 896 across 111 files,
-and CI run 31218626628 on tip 0adbb65 succeeded on every step with PGlite
-and postgres:18 both passing. That is the first production-fidelity evidence
-this package has had at any point in its life; every earlier run failed on
-the first leg and skipped the second behind it, so nothing had ever measured
-views and search against real Postgres in either direction.
-
-Its diagnosis was sharper than the one it was handed. The fixture falsifies
-the over-broad claim twice rather than once, by due_date and by status_rank,
-both of which outrank the timed flag in Q3, so both narrowings carry weight.
-And the same index-partition pattern in AC-126 is correctly scoped for a
-reason worth keeping: 6 Q3C puts the timed flag above status_rank where Q3
-puts it below, so those two files differ on purpose and neither should be
-edited to match the other.
-
-That is what row 5 was for. Had nobody insisted the number be measured
-before the shape review, a wrong diagnosis would have travelled to the merge
-inside a repair that looked complete.
-
-Row 4b also measured what row 4a left open. It refuted the operator's
-suspect, AC-114, which carries its own 120 second override and whose line 74
-is the reason that override exists rather than an unhandled hazard. But the
-mechanism is real and wider: `vitest.config.ts` set no `testTimeout`, so 516
-of the suite's 522 cases ran under Vitest's 5000 ms default, and over five
-consecutive runs AC-114's slowest case measured between 1941 and 5811 ms
-while AC-070's ranged 1237 to 2784 ms with no override at all. A case that
-crosses its timeout reports as an Error rather than an assertion, so it never
-says what it was measuring and the run differs from the last by one failure
-with nothing naming what moved, which is the shape the operator saw. Row 5
-landed a global 30 second timeout. The specific non-deterministic test is
-still unidentified and the finding stays open.
-
-The rows are in execution order rather than numeric order, and 6a keeps its
-number while moving, because the numbers are addresses. It moved for a reason
-worth recording: `docs/operator/unattended.md` halts a run while any
-acceptance test cites a ruling the specification does not carry, and 6a is the
-session that clears exactly that. Left at the end it would have blocked every
-unattended pass; run early it clears the debt and tightens the tests against
-the shapes the owner has now ruled.
-
-The question this row opened with is closed. Frozen 7.10 enumerated a response
-object for eight of its nine endpoints and not for GET /folders/:id/tasks; the
-human owner ruled it on 2026-08-07, on the kickoff's recommendation, and the
-sentence is transcribed onto 7.10 on the branch.
-
-The three questions the change control routed are ruled. On 2026-08-07 the
-owner took all three of the Steward's recommendations: the `folder` inside
-`groups` is the `{id, name, is_default}` stub each TaskCard already carries
-rather than the 7.0 Folder object, an absent `tz` answers 422 naming the
-field where 7.0 had named only an invalid one, and `section` defaults to
-`open` on GET /folders/:id/tasks. Session 1b transcribed all three onto frozen
-7.0 and 7.10 on the branch, and recorded each in `CHANGELOG.md` with the owner
-named and the date, which is the second thing the unattended contract requires
-of a cited ruling. AC-130 was widened with the first of them rather than
-joined by a new number; its test is 6a's.
-
-That session also merged main into the branch, closing a second instance of
-the same halt condition that had nothing to do with any test header. The
-contract reads the frozen sections on the branch and `CHANGELOG.md` too, and
-the change control's record of the 7.10 ruling AC-058 cites had landed on main
-alone, so the branch answered the citation with silence. It no longer does.
-
-Session 6a exists because a prompt written before a ruling produced a test
-that cites it. AC-058's header says the owner ruled the ninth body at the
-kickoff; the substance is right and the timing is not, and the same session's
-headers and the suite README carry an unsupported claim that numbering section
-12 is the owner's. Both are inside `app/tests/`, so they are the Adversarial
-Test role's to correct rather than the Steward's to edit.
