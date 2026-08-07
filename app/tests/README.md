@@ -22,8 +22,8 @@ npx vitest run -t "AC-105"
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered, passing; it arrived green, see below |
-| P4 | AC-045 to AC-058, AC-070 | Covered, failing until the 7.10 routes land |
-| P4 gate | AC-125 to AC-131 | Covered, failing; numbered by the section 12 amendments of 2026-08-07 |
+| P4 | AC-045 to AC-058, AC-070 | Covered, passing since the views router was mounted |
+| P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
 | P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -119,8 +119,25 @@ asserted rather than left to be rediscovered:
 P4's range, AC-045 to AC-058 and AC-070, covers frozen 7.10's nine endpoints
 and section 6's twelve queries less the four that are not this package's: Q9
 and Q10 already run on main, Q11 rides P7 and Q12 rides P5. Written before
-the implementation per the RFC 0001 P4 row, so every file fails today on a
-7.10 route answering 404, which is the designed order again.
+the implementation per the RFC 0001 P4 row, so every file failed on a 7.10
+route answering 404 until the views router was mounted, which is the designed
+order again; they pass since.
+
+Two of them were wrong when the router landed, and both were this suite's
+rather than the router's. Recorded because the way each was settled is worth
+more than the repair. AC-052 seeded its two tie rows with a clock read per
+row, so they differed by the milliseconds the first insert took, Q3 settled
+them on created_at, and the id tie-break the pair exists to reach was never
+reached. And AC-052's narrow case asserted the all-day clause across the
+whole page, which is not a stronger reading of the criterion but a false one:
+due_date and status_rank both outrank the timed flag, so an all-day row on a
+later date, and an abandoned all-day row on the same date, each correctly
+follow a timed row. What settled the second as the file's own defect before
+anything was edited is that the whole-sequence case above it passed against
+the same response; both could not hold at once, and the sequence is the one
+the file declares correct key by key. AC-126 asserts the same clause needing
+only the date narrowing, because 6 Q3C puts the timed flag above status_rank
+where Q3 puts it below, so the two files differ on purpose.
 
 Six things those files are written around.
 
@@ -159,10 +176,12 @@ Six things those files are written around.
   cannot be seeded on one side of a local midnight and read on the other. It
   is a function of the instant and no assertion branches on it; the residual
   is caught by `expectStillSameDay` rather than tolerated.
-- **Every refusal is asserted beside a success on the same URL.** Before the
-  routes land every path answers 404, so a case asserting only a 404 or only
-  a 422 passes today without discriminating anything, and would go on passing
-  against an endpoint nobody mounted. The successes are asserted first.
+- **Every refusal is asserted beside a success on the same URL.** While the
+  routes were unmounted every path answered 404, so a case asserting only a
+  404 or only a 422 passed without discriminating anything, and would have
+  gone on passing against an endpoint nobody mounted. The successes are
+  asserted first, and the pairing stays now that the routes are green: it is
+  what keeps a refusal case honest if a route is ever unmounted again.
 - **Two criteria are split across packages, and the files say so.** AC-048's
   unassigned chip and AC-053's fading are section 9's and arrive with P8;
   what P4 owes is the null assignee the first is drawn from and the presence
