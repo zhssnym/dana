@@ -23,7 +23,7 @@ npx vitest run -t "AC-105"
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered, passing; it arrived green, see below |
 | P4 | AC-045 to AC-058, AC-070 | Covered, failing until the 7.10 routes land |
-| P4 gate | AC-125 to AC-130 | Covered, failing; numbered by the section 12 amendment of 2026-08-07 |
+| P4 gate | AC-125 to AC-131 | Covered, failing; numbered by the section 12 amendments of 2026-08-07 |
 | P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -203,15 +203,18 @@ the Steward ruled them at the P4 change control, three were frozen section
   takes the remainder. A total alone cannot see either.
 - Q3C refuses an inverted range with 422. AC-125 accepted either answer and
   pins that one now.
-- Q8 escapes backslash, percent and underscore in `q`. The Steward routed
-  where to assert it; it is asserted in AC-057 as three adversarial cases
-  rather than under a seventh number, because it is a property of Q8's
-  predicate, which that file already measures, while each of the six numbered
-  criteria closes a *number* stated in the specification and asserted
-  nowhere. The three were measured against real Postgres before being
-  written: percent and underscore make an unescaped pattern return an extra
-  row, and an unescaped backslash swaps the answer, returning the row without
-  the backslash and missing the one the user typed.
+- Q8 escapes backslash, percent and underscore in `q`. The three cases were
+  written inside AC-057 and are now `ac-131-search-literal-wildcards.test.ts`,
+  moved unchanged when the Steward numbered the rule. The judgment that put
+  them in AC-057, that escaping is a property of Q8's predicate which that
+  file already measures while each of the six numbered criteria closes a
+  *number* the specification states and nothing asserts, was right when it
+  was made and is superseded rather than contradicted: escaping was a silence
+  when those six were authored and became a rule the specification states
+  once the change control ruled it. The three were measured against real
+  Postgres before being written: percent and underscore make an unescaped
+  pattern return an extra row, and an unescaped backslash swaps the answer,
+  returning the row without the backslash and missing the one the user typed.
 - The `folder` inside `groups`, and inside `tasks_groups` of GET /views/all,
   is the `{id, name, is_default}` stub every `TaskCard` carries rather than
   the 7.0 `Folder` object. `views-harness.ts` asserts it key-exact now
