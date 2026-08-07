@@ -10,6 +10,52 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- P4's session order, traced into its RFC row at the package's kickoff on
+  2026-08-07, with the premise check that preceded it. Two premises were
+  wrong. The row named `05-query-and-read-path.md` as the only owner, and
+  that role's own hard boundaries forbid it date arithmetic while the first
+  seam of the team README gives the date predicates inside Q1 and Q3C to
+  Scheduling; so P4 owes a `02-scheduling-and-time.md` session ahead of its
+  implementer, for the `app/src/server/time/**` helpers that role's Owns
+  section already names and that do not exist, and that session carries
+  Luxon 3, which 11.9 makes normative for all IANA timezone math and which
+  the package manifest does not have. And "every endpoint of 7.10" holds for
+  the endpoints while one arm of one of them defers: GET
+  /views/planned/calendar answers Q3C's real rows at P4, and its virtual
+  array is 8.5's rule projection over the 4.11 iterator that P6 delivers.
+  The plan's own evidence for that split is AC-082, the criterion that draws
+  ghosts on a month view, written into P6's range and not into P4's. Two
+  premises held, one of them for a reason unlike the one P3's kickoff
+  recorded: no Data session is owed, because this package writes no table at
+  all and every index of 4.12 landed in migration 0000, the pg_trgm
+  extension and the GIN trigram index included and the extension wired into
+  the PGlite client so both test legs carry it. Recorded rather than
+  smoothed over: 4.12 names an index for every query of section 6 except Q4,
+  there being none on `tasks.important`, and routing that gap to the Data
+  engineer with the query that justifies it is the only door by which this
+  package acquires a Data session.
+- The carried items placed against P4 at the same kickoff. Only one touches
+  it. The recurrence arm of the standing P6 list is the calendar's virtual
+  instances, deferred above with AC-082 as its criterion; TaskCard's
+  `is_recurring` is not part of it, being a read of a column P3 already
+  answers. The rest wait where they are, and why is recorded so the next
+  kickoff does not re-derive it: 7.6's fire_at recompute and the reminder
+  arm stay at P7 because 7.10 answers TaskCard and reminder is a TaskDetail
+  field, so no view carries it; the real 8.10 transaction and the 8.7 cap
+  question stay at P5 because this package writes nothing; and
+  pending_invite_email's unpinned derivation stays at P5 for the reason
+  already recorded there, that P4, like P3, carries the key and cannot
+  create an invite to fill it, so P5 remains the first package that can
+  cover it. The `domain/db.ts` consolidation stays at P9 and gains weight
+  rather than urgency: P4 imports its `rowsOf` rather than restating it and
+  becomes the third consumer. The sessions.user_id index is untouched by a
+  package that reads no session table. Section 13 item 20 was checked
+  against P4 specifically and asks nothing of it: it records GET /folders,
+  a 7.4 endpoint merged at P2, as deliberately outside the 1000-row caps
+  precisely because section 6 enumerates the capped lists and the folder
+  list is not among them. P4 is where the enumerated ones become code, so
+  what this package implements is item 6's accepted bet, not item 20's
+  exception.
 - Package P3 of RFC 0001, tasks core: the frozen 7.6, 7.7, and 7.8 surfaces,
   which is create with the 7.6 guards and the INV-5 forcing, PATCH with the
   move rules and 8.4's clear-date cascade in one transaction, delete with its
