@@ -150,24 +150,36 @@ place rather than being renumbered, because the numbers are addresses.
 | 0 | Kickoff: trace, two premises corrected, a borrowed Scheduling session | 12 | Steward | Done |
 | 1 | AC-045 to AC-058 and AC-070, tests first, plus six criteria proposed | 11 | Testers | Done |
 | 1a | Change control: six criteria numbered, four section 6 silences closed, three routed | 12 | Steward | Done |
+| 1b | The three ruled silences transcribed onto frozen 7.0 and 7.10 | 12 | Steward | Not started |
+| 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Not started |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Implementers | Not started |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Implementers | Not started |
 | 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Implementers | Not started |
 | 5 | The mount, suite green | 10 | Implementers | Not started |
 | 6 | Endpoint shape review | 04 | Implementers | Not started |
-| 6a | The routed return: AC-058's provenance, the assigned numbers, the README | 11 | Testers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
+
+The rows are in execution order rather than numeric order, and 6a keeps its
+number while moving, because the numbers are addresses. It moved for a reason
+worth recording: `docs/operator/unattended.md` halts a run while any
+acceptance test cites a ruling the specification does not carry, and 6a is the
+session that clears exactly that. Left at the end it would have blocked every
+unattended pass; run early it clears the debt and tightens the tests against
+the shapes the owner has now ruled.
 
 The question this row opened with is closed. Frozen 7.10 enumerated a response
 object for eight of its nine endpoints and not for GET /folders/:id/tasks; the
 human owner ruled it on 2026-08-07, on the kickoff's recommendation, and the
 sentence is transcribed onto 7.10 on the branch.
 
-Three new questions are open, all frozen section 7 and all routed to the owner
-with a recommendation, wanted before session 3 writes the envelopes and
-blocking nothing meanwhile: the shape of `folder` inside `groups`, an absent
-tz where 7.0 names only an invalid one, and the default `section` of GET
-/folders/:id/tasks. The recommendations are in the P4 row of RFC 0001.
+The three questions the change control routed are ruled. On 2026-08-07 the
+owner took all three of the Steward's recommendations: the `folder` inside
+`groups` is the `{id, name, is_default}` stub each TaskCard already carries
+rather than the 7.0 Folder object, an absent `tz` answers 422 naming the
+field where 7.0 had named only an invalid one, and `section` defaults to
+`open` on GET /folders/:id/tasks. Session 1b transcribes them; until it does,
+the rulings exist only in this conversation and the frozen text is still
+silent.
 
 Session 6a exists because a prompt written before a ruling produced a test
 that cites it. AC-058's header says the owner ruled the ninth body at the
