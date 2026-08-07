@@ -91,7 +91,10 @@ export const TASK_DETAIL_KEYS = [
 
 export const TASK_STATUSES = ['abandoned', 'completed', 'pending'] as const
 
-function asRecord(value: unknown, source: string): Record<string, unknown> {
+/** Exported for the P4 layer, which restates the nine 7.10 envelopes the
+ * same way this file restates the two 7.0 shapes, and judges them with the
+ * same two primitives rather than with a second copy of them. */
+export function asRecord(value: unknown, source: string): Record<string, unknown> {
   expect(
     typeof value === 'object' && value !== null && !Array.isArray(value),
     `${source} must be a JSON object (spec 7.0)`,
@@ -99,7 +102,7 @@ function asRecord(value: unknown, source: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function expectExactKeys(
+export function expectExactKeys(
   value: Record<string, unknown>,
   keys: readonly string[],
   source: string,
