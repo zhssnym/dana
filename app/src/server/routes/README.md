@@ -122,3 +122,23 @@ Facts the wiring can rely on:
   P4 file green except two cases in AC-052 and three in AC-057, which are
   escalated as false reds (both fixtures contradict their own criterion's
   expected sequence) and are not waiting on any wiring.
+
+Fulfilled as requested, the line verbatim, beside the tasks mount. Every fact
+above held: the factory took the same options, no path met one the folders
+router claims, no CSRF link was owed on an all-GET surface, and no further
+wiring was needed.
+
+The measurement, which is this file's reason for saying more than "fulfilled".
+The 888 of 893 above was taken against a mount its author could not commit,
+because this boot file is Platform's, so on the committed tree every one of the
+22 P4 files answered 404 and nobody had run that number. Mounted, the suite is
+895 of 896 across 111 files on PGlite. The three tests the difference names are
+AC-131's, added since; of the five reds that were escalated, four are repaired
+and green. The fifth is still red and was misdiagnosed rather than repaired:
+`AC-052: on the shared date the all-day row precedes the timed one` asserts
+across every pending row on the page rather than across the shared date, and
+Q3 sorts by due_date first, so the fixture's own later-dated all-day row sits
+after the shared date's timed rows exactly as the criterion requires. It
+contradicts the passing whole-sequence case in its own file, so it is a red in
+the assertion and not in this router. Routed to the suite's owner; no wiring
+is owed for it.
