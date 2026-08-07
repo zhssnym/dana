@@ -151,13 +151,33 @@ place rather than being renumbered, because the numbers are addresses.
 | 1 | AC-045 to AC-058 and AC-070, tests first, plus six criteria proposed | 11 | Testers | Done |
 | 1a | Change control: six criteria numbered, four section 6 silences closed, three routed | 12 | Steward | Done |
 | 1b | The three ruled silences transcribed onto frozen 7.0 and 7.10 | 12 | Steward | Done |
-| 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Not started |
-| 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Implementers | Not started |
-| 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Implementers | Not started |
-| 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Implementers | Not started |
+| 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Done |
+| 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
+| 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
+| 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Unattended | Done, escalated |
+| 4a | Rule the two disputed fixtures, AC-052's tie-break and AC-057's order | 12 | Steward | Not started |
 | 5 | The mount, suite green | 10 | Implementers | Not started |
 | 6 | Endpoint shape review | 04 | Implementers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
+
+Rows 2, 3 and 4 ran unattended on the night of 2026-08-07, the first use of
+`docs/operator/unattended.md`, three worker sessions each followed by a
+separate verifier. Mode reads Unattended rather than a chat name because there
+is no chat to return to: each session was an isolated sub-agent, and the
+run's own record is where its prompt and block survive.
+
+The run halted on row 4, which is the halt list working. That session found
+two acceptance tests whose expected orders contradict their own fixtures,
+and protocol section 6 sends a disputed criterion to the Adversarial Test
+Engineer and then the Steward, so an unattended run may route none of it. The
+co-lead verified both claims independently from the fixtures rather than from
+the agents that agreed with each other, and both hold. Row 4a is the ruling
+that ends the dispute.
+
+One claim the night could not check, and the morning still cannot: row 4
+reports 888 of 893 passing with the views router mounted, and the mount lives
+in Platform's boot file, so it exists in no commit. On the committed tree
+every P4 file answers 404. Row 5 is the first honest test of that number.
 
 The rows are in execution order rather than numeric order, and 6a keeps its
 number while moving, because the numbers are addresses. It moved for a reason
