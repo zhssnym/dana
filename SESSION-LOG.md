@@ -157,10 +157,30 @@ as an isolated sub-agent with no chat to return to.
 | 6a | The routed return, pulled forward: provenance, the numbers, the ruled shapes | 11 | Testers | Done |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
-| 4 | The views and search package, the EXPLAIN record, the wiring request; escalated AC-052 and AC-057 as tests contradicting their own fixtures, which halted the unattended run | 05 | Unattended | Done, escalated |
-| 4a | Both tests ruled wrong and both criteria right, each repair's direction named; AC-131 numbered, section 13 item 21, four disclosures ratified | 12 | Steward | Done |
-| 4b | The two repairs, AC-131 moved to its own file, and the suite's timeout margin measured over five runs: no global `testTimeout`, so 516 of 522 cases ran under Vitest's five second default. The non-deterministic test itself is still unidentified, recorded in `app/tests/README.md` | 11 | Testers | Done |
-| 5 | The mount, `explain.ts` out of the build output, a global 30 second `testTimeout`. First honest measurement of row 4's claim: 895 of 896 rather than the 888 of 893 it reported from an uncommitted mount, four of its five reds repaired and the fifth misdiagnosed | 10 | Implementers | Done |
-| 4c | AC-052's second case, which filtered pending rows page-wide where Q3 sorts `due_date` and `status_rank` above the timed flag. 896 of 896, and CI run 31218626628 green on PGlite and postgres:18, the package's first production-fidelity evidence | 11 | Testers | Done |
-| 6 | Endpoint shape review: nine bodies key for key against frozen 7.10 and section 6's orders including Q3C's inverted key, no defect found. The cursor's opacity settled in `src/shared/views.ts`, and two sentences routed to the owner, who ruled both on 2026-08-07 | 04 | Implementers | Done |
-| 7 | Merge | 12 | Steward | Not started |
+| 4 | The views package, the EXPLAIN record, the wiring request; two fixtures escalated as wrong | 05 | Unattended | Done, escalated |
+| 4a | Both fixtures ruled wrong, AC-131 numbered, item 21, four disclosures ratified | 12 | Steward | Done |
+| 4b | The two repairs, AC-131's own file, the suite's timeout margin measured | 11 | Testers | Done |
+| 5 | The mount, `explain.ts` out of the build, a global 30 second timeout | 10 | Implementers | Done |
+| 4c | AC-052's second case, and the first green on both CI legs | 11 | Testers | Done |
+| 6 | Shape review: no defect, the cursor settled, two sentences routed | 04 | Implementers | Done |
+| 7 | Merge review: both rulings onto 7.10, held on a red leg, the non-deterministic failure named | 12 | Steward | Held |
+| 7a | `tz` onto frozen 7.8 by owner ruling, 4.7 confirmed untouched, the repair traced | 12 | Steward | Done |
+| 7b | The harness carries `tz` on the pull, and a criterion proposed for the zone | 11 | Testers | Not started |
+| 7c | The pull dated from the carried `tz`, 422 when it is absent or invalid | 03 | Implementers | Not started |
+| 8 | Merge | 12 | Steward | Not started |
+
+The owner ruled the merge review's escalation on 2026-08-08: `tz` is added to
+frozen 7.8's pull, so it carries what 8.1 says every date-evaluating request
+carries. Frozen 4.7 is confirmed to need no amendment, which was checked
+rather than assumed: its "the adder's local date at pull time" names no zone
+source, and once the request carries the zone that phrase reads correctly and
+more accurately than a stored one can, since 8.1 has travel move today. The
+P3 implementer was following 4.7, not deviating from it.
+
+The repair is two sessions rather than the one provisionally logged, and the
+tester goes first. If the implementer went first the harness would still send
+no `tz`, so every pull would answer 422 and all three affected files would go
+red for a reason that hides whether the zone fix worked. With the tester
+first the red is the defect itself: `added_on` still dated in the account's
+zone. AC-044 is P3's and green on main, and its call sites move too, since
+the endpoint it exercises now takes a parameter.

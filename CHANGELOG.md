@@ -10,6 +10,33 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- A ruling of the human owner, Hassan, on 2026-08-08, on the escalation that
+  held P4's merge. **Frozen 7.8's pull now takes `tz`**: POST
+  /tasks/:id/my-day carries the zone, so it is given what 8.1 already says
+  every date-evaluating request carries, and an absent or invalid one
+  answers 422 naming the field. DELETE gains nothing, evaluating no date.
+  The endpoint had required `added_on = today(V)` while carrying nothing
+  from which today(V) could be computed, so the only zone within reach was
+  `users.timezone`, which 8.1 reserves for reminder fire instants. The cost
+  was not theoretical: the pull dated the entry in the account's zone while
+  My Day grouped it by the request's, so for a large part of every day a
+  task pulled now appeared under Carried rather than Today. The rejected
+  alternative, letting the pull keep the account's zone and saying so, does
+  not fix that defect but blesses it, and would have required weakening
+  AC-047 and AC-048 to stop asserting a behavior a user can see.
+- Frozen 4.7 confirmed to need no amendment, checked rather than assumed,
+  because it is frozen and amending it would be a second owner decision. Its
+  column note reads "the adder's local date at pull time" and names neither
+  a zone source nor a mechanism; once the request carries the zone, that
+  phrase reads correctly and more accurately than a stored zone can, since
+  8.1 has travel move today. INV-12's "the adder's timezone at insert time"
+  reads the same way. So the tension spanned two frozen sections and only
+  one of them was wrong, and the P3 implementer was following 4.7 rather
+  than deviating from it. Section 8.1 gains one sentence, not a restatement
+  of the rule but of its consequence: "every request that evaluates dates
+  carries tz" binds section 7 as much as the code, so an endpoint that
+  stores or filters by a date and takes no tz is an incomplete surface
+  rather than an invitation to substitute the stored zone.
 - A second P4 change control, 2026-08-07, after the three implementing
   sessions landed. Two acceptance tests are ruled wrong while the criteria
   they carry stand, both verified from the fixtures rather than taken from
