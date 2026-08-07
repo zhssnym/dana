@@ -165,9 +165,10 @@ as an isolated sub-agent with no chat to return to.
 | 6 | Shape review: no defect, the cursor settled, two sentences routed | 04 | Implementers | Done |
 | 7 | Merge review: both rulings onto 7.10, held on a red leg, the non-deterministic failure named | 12 | Steward | Held |
 | 7a | `tz` onto frozen 7.8 by owner ruling, 4.7 confirmed untouched, the repair traced | 12 | Steward | Done |
-| 7b | The harness carries `tz` on the pull, and a criterion proposed for the zone | 11 | Testers | Not started |
-| 7c | The pull dated from the carried `tz`, 422 when it is absent or invalid | 03 | Implementers | Not started |
-| 8 | Merge | 12 | Steward | Not started |
+| 7b | The harness carries `tz` on the pull, and AC-132 authored | 11 | Testers | Done |
+| 7c | The pull dated from the carried `tz` through the same `today()` the view reads | 03 | Implementers | Done |
+| 7d | `tz` carried into the contract probes | 04 | Implementers | Done |
+| 8 | Merged to main at a52081f; AC-132 appended, green on both legs inside the failing window | 12 | Steward | Done |
 
 The owner ruled the merge review's escalation on 2026-08-08: `tz` is added to
 frozen 7.8's pull, so it carries what 8.1 says every date-evaluating request

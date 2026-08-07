@@ -10,6 +10,33 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Package P4 of RFC 0001, views and search: every endpoint of frozen 7.10 and
+  the eight queries of section 6 this package owns, Q1 with Q1R, Q2, Q3 with
+  Q3C, Q4, Q5, Q6, Q7 and Q8, each answering rows the server has already
+  ordered, plus the 6.1 partition proof pinned as a property. The date
+  predicates behind them live in `src/server/time` on Luxon 3, read only in
+  the instant-to-local direction, where the math is total and none of 11.15's
+  DST hazard applies; the local-day window Q1R and Q6 need is derived by
+  binary search from that direction rather than by asking a library for a
+  midnight that twice a year does not exist or exists twice. The calendar's
+  virtual arm defers to P6 with the 4.11 iterator it needs. Search escapes
+  the wildcards a user types. Cursors are opaque, one per order rather than
+  one per endpoint, and a cursor nothing issued answers 422 rather than a
+  silent first page. The full gate is green at 908 tests across 112 files,
+  AC-045 to AC-058, AC-070 and AC-125 to AC-132 passing by number beside
+  every earlier range, on PGlite and on postgres:18.
+- The defect that held P4's merge, and the reason it is worth a changelog
+  entry rather than a commit message: `POST /tasks/:id/my-day` dated its
+  entry in the account's stored zone while My Day grouped by the request's,
+  so for a large part of every day a task pulled now appeared under Carried
+  rather than Today. Four sessions carried it as a non-deterministic test
+  failure. It was never load-dependent and never backend-dependent, only
+  clock-dependent, and it was found by holding a merge on a red postgres:18
+  leg rather than by any test written to look for it. The owner ruled `tz`
+  onto frozen 7.8; the pull now dates from it through the same `today()` the
+  view reads, so the two are one computation over one input rather than two
+  that had agreed by luck. AC-132 is the guard that would have named it on
+  the first run.
 - A ruling of the human owner, Hassan, on 2026-08-08, on the escalation that
   held P4's merge. **Frozen 7.8's pull now takes `tz`**: POST
   /tasks/:id/my-day carries the zone, so it is given what 8.1 already says
