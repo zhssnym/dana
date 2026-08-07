@@ -22,7 +22,9 @@ npx vitest run -t "AC-105"
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered, passing; it arrived green, see below |
-| P4 to P10 | AC-045 to AC-104 | Not yet written |
+| P4 | AC-045 to AC-058, AC-070 | Covered, failing until the 7.10 routes land |
+| P4 proposed | AC-125 to AC-130 | Covered, failing; the numbers await the owner's amendment |
+| P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -114,6 +116,84 @@ asserted rather than left to be rediscovered:
   raw transports, because it is the criterion's own calls in the criterion's
   own order and a GET wedged between them would transcribe something else.
 
+P4's range, AC-045 to AC-058 and AC-070, covers frozen 7.10's nine endpoints
+and section 6's twelve queries less the four that are not this package's: Q9
+and Q10 already run on main, Q11 rides P7 and Q12 rides P5. Written before
+the implementation per the RFC 0001 P4 row, so every file fails today on a
+7.10 route answering 404, which is the designed order again.
+
+Six things those files are written around.
+
+- **Nothing here writes.** Every earlier package set up through the
+  endpoints of the package under test. P4 has no create, so its fixtures are
+  inserted directly by `views-harness.ts`, and for a reason rather than for
+  convenience: Q2 sorts by `created_at`, Q6 pages by `completed_at`, and Q8
+  sorts by `updated_at`, and none of those columns can be dictated through
+  7.6, whose transitions stamp them with the clock. Each file sweeps section
+  3 over its own fixture, so a seed that violated an invariant fails as a bad
+  fixture rather than passing as a good result.
+- **`today(tz)` is computed in the harness and never imported.** The date
+  predicates of Q1 and Q3C live in `src/server/time/**`, which the Scheduling
+  engineer writes in the session after the tester's. Importing them would
+  borrow the definition of correct from the module under test, the same
+  standing ruling the timezone predicate already follows, and a wrong helper
+  would then agree with itself while every date criterion passed vacuously.
+- **AC-050 gives up its instant and keeps its content.** The criterion names
+  2026-07-23 20:30 UTC, and faking the clock would decide for the implementer
+  that `today(V)` comes from the process clock rather than from the database,
+  which 8.1's "the server computes it" leaves open; the test would then be a
+  false red against half of the correct implementations. So the split is
+  asserted with Pacific/Kiritimati and Pacific/Honolulu, whose offsets differ
+  by exactly 24 hours with neither observing DST, making the ahead zone
+  exactly one calendar day ahead at every instant. Measured hourly across
+  2026 before being depended on, and at the criterion's own instant those two
+  zones read its own two local dates. Asia/Karachi and Europe/London are
+  asserted beside them, unconditionally in the direction that needs no clock.
+- **Date-relative fixtures anchor on a zone near local midday.**
+  `middayZone()` picks, from twenty-five zones measured DST-free with
+  whole-hour offsets, whichever is nearest 12:00 local now, so a fixture
+  cannot be seeded on one side of a local midnight and read on the other. It
+  is a function of the instant and no assertion branches on it; the residual
+  is caught by `expectStillSameDay` rather than tolerated.
+- **Every refusal is asserted beside a success on the same URL.** Before the
+  routes land every path answers 404, so a case asserting only a 404 or only
+  a 422 passes today without discriminating anything, and would go on passing
+  against an endpoint nobody mounted. The successes are asserted first.
+- **Two criteria are split across packages, and the files say so.** AC-048's
+  unassigned chip and AC-053's fading are section 9's and arrive with P8;
+  what P4 owes is the null assignee the first is drawn from and the presence
+  in Tasks and All that the second is drawn on. AC-058's "collapsed" is P8's
+  too, and its 8.11 ratio rides the merged 7.4 Folder object rather than any
+  7.10 body.
+
+AC-125 to AC-130 are proposed rather than assigned. Numbering section 12 is
+the human owner's, as the AC-124 amendment records, so the tests carry the
+next additive numbers and each file's header holds the criterion text an
+amendment would transcribe. Three cover the surfaces the RFC 0001 P4 row
+names as uncovered: the calendar's 62-day refusal, search's keyset and page
+size of 20, and the 1000-row cap with its `truncated` flag. Three more come
+from that row's own sentence that its list is a floor: the calendar's real
+rows, which are the whole substance of the one 7.10 endpoint that would
+otherwise carry no criterion at all; Q8's 2-to-100 query length; and the
+`tz` that frozen 7.0 gives every view endpoint, where 11.15's hole is live,
+since bare `Intl` accepts `+05:30`.
+
+Two readings are recorded because assertions rest on them, both routed to the
+Integration Steward. The 1000-row cap is per response rather than per array,
+because section 6 enumerates pages when it lists what is capped and every
+7.10 body carries exactly one `truncated` flag, which a per-array cap could
+not report. And Q3C's cell order leaves the position of a completed row
+undefined: the section 6 preamble ranks pending and abandoned only, and Q8
+extends the scale locally, so AC-126 orders the two ranks the preamble
+defines and asserts only presence for the third.
+
+One tolerance is left in the P4 envelopes and it is the only one: the
+`folder` object inside a Tasks group, which 7.10 names as a key without
+spelling its shape. Both the 7.0 `Folder` schema and the `{id, name,
+is_default}` stub every `TaskCard` already carries satisfy the word, so
+`views-harness.ts` asserts their intersection plus the sharp half, that a
+group's folder is the folder its own rows are in.
+
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
 judged none and held a place for the assertion; the owner ruled at the same
@@ -171,8 +251,13 @@ the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
 asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
 and P7's reminders, and the task half of the invariant sweep, which
 delegates the folder half to `expectFolderInvariants` rather than restating
-it. Each file's header explains its own decisions; the eight below are worth
-knowing before reading any test.
+it. `views-harness.ts` is the P4 layer over all of them: `today(tz)` computed
+through `Intl` rather than imported, calendar arithmetic on 4.11 date
+strings, the nine 7.10 response envelopes restated and asserted key-exact
+with every row parsed through the frozen `TaskCard` check, fixtures written
+directly with every column named, and cursor paging to exhaustion. Each
+file's header explains its own decisions; the eight below are worth knowing
+before reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
