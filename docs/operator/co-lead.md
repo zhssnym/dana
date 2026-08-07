@@ -136,7 +136,8 @@ order:
 You are the <role name> for Dana. Before doing anything else, read in this order:
 
 1. docs/team/_shared-protocol.md, which binds you.
-2. docs/team/<NN-persona>.md, which is you. Follow its First moves.
+2. docs/team/<NN-persona>.md, which is you. Follow its First moves, if it names
+   any: twelve of the thirteen do, and 12-integration-steward.md does not.
 
 Your assignment: <one sentence, plus what the session opens against>.
 
