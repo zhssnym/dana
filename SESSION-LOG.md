@@ -163,4 +163,22 @@ as an isolated sub-agent with no chat to return to.
 | 5 | The mount, `explain.ts` out of the build output, a global 30 second `testTimeout`. First honest measurement of row 4's claim: 895 of 896 rather than the 888 of 893 it reported from an uncommitted mount, four of its five reds repaired and the fifth misdiagnosed | 10 | Implementers | Done |
 | 4c | AC-052's second case, which filtered pending rows page-wide where Q3 sorts `due_date` and `status_rank` above the timed flag. 896 of 896, and CI run 31218626628 green on PGlite and postgres:18, the package's first production-fidelity evidence | 11 | Testers | Done |
 | 6 | Endpoint shape review: nine bodies key for key against frozen 7.10 and section 6's orders including Q3C's inverted key, no defect found. The cursor's opacity settled in `src/shared/views.ts`, and two sentences routed to the owner, who ruled both on 2026-08-07 | 04 | Implementers | Done |
-| 7 | Merge | 12 | Steward | Not started |
+| 7 | Merge review: the cursor contract and the wrong-value rule transcribed onto frozen 7.10; MERGE HELD on a red postgres:18 leg that reproduced on PGlite, the non-deterministic failure identified at last and escalated to the owner | 12 | Steward | Held |
+| 7a | The zone `added_on` is computed in, once the owner rules | 03 or 11 | Implementers | Not started |
+| 8 | Merge | 12 | Steward | Not started |
+
+P4's merge is held, and the reason is the finding four sessions carried
+forward as open. The suite's non-deterministic failure is identified: it is
+not load-dependent and not backend-dependent, it is time-of-day dependent.
+`POST /tasks/:id/my-day` writes `added_on` from `users.timezone`, which is UTC
+for every test account, while the My Day view computes today(V) from the
+request's `tz`, which the harness sets to whichever zone is nearest local
+midday. Those two dates differ for a large part of every UTC day, and when
+they do, AC-047 and AC-048 fail with the stored date one day behind. CI run
+31221724484 failed on postgres:18 at 22:00 UTC on a tree whose `app/` is
+byte-identical to run 31220851543, green on both legs fourteen minutes
+earlier; the rerun failed on the PGlite leg too, with the same assertion,
+which is what rules out the database and leaves the clock.
+
+Whether that is the implementation's defect or the specification's is the
+human owner's to say, because frozen 7.8 is where it bottoms out.
