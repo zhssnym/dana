@@ -118,7 +118,7 @@ Facts the wiring can rely on:
   AC-130 green. Verified before this request was written, by mounting the
   line above locally and running the whole suite, with the mount reverted
   before the commit so the tree this request describes is the tree the boot
-  file will meet: 873 of 878 tests across 108 files pass on PGlite, every
+  file will meet: 888 of 893 tests across 110 files pass on PGlite, every
   P4 file green except two cases in AC-052 and three in AC-057, which are
-  escalated as false reds (the fixtures contradict the criteria's own
-  expected sequences) and are not waiting on any wiring.
+  escalated as false reds (both fixtures contradict their own criterion's
+  expected sequence) and are not waiting on any wiring.
