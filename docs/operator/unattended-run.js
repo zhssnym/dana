@@ -88,7 +88,7 @@ Establish, by running commands rather than by reading claims:
 Answer safe=false with a precise reason if any halt condition of unattended.md holds. Answer safe=true only if the tree is clean, the branch is pushed, the gate is green or red for reasons the row explains, CI has been read, no test cites an untranscribed ruling, and the next session is neither the merge review nor an owner decision. nextSession names the session the row puts next.`,
   { label: 'preflight', agentType: 'general-purpose', schema: PREFLIGHT })
 
-log(`preflight: ${pre.safe ? 'safe' : 'HALT'} — ${pre.reason}`)
+log(`preflight: ${pre.safe ? 'safe' : 'HALT'}, ${pre.reason}`)
 if (!pre.safe) return { halted: 'preflight', reason: pre.reason, steps: [] }
 
 log(`${pre.branch} at ${pre.tip}, suite ${pre.suite}, next: ${pre.nextSession}`)
@@ -112,7 +112,7 @@ Return the prompt verbatim in the prompt field, the persona file in persona, and
     { label: `decide-${n}`, agentType: 'general-purpose', schema: DECISION })
 
   if (decision.halt) {
-    log(`step ${n}: HALT before working — ${decision.reason}`)
+    log(`step ${n}: HALT before working, ${decision.reason}`)
     steps.push({ step: n, label: 'halt', verdict: { findings: decision.reason } })
     break
   }
@@ -140,7 +140,7 @@ clean is true only if the boundary held, the gate is green or red for reasons th
     { label: `verify-${n}`, agentType: 'general-purpose', schema: VERDICT })
 
   steps.push({ step: n, label: decision.label, persona: decision.persona, verdict })
-  log(`step ${n}: ${verdict.clean ? 'verified' : 'HALT'} — ${verdict.findings}`)
+  log(`step ${n}: ${verdict.clean ? 'verified' : 'HALT'}, ${verdict.findings}`)
 
   if (!verdict.clean) break
 
