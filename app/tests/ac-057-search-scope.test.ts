@@ -61,6 +61,7 @@ import { expectTaskInvariants } from './tasks-harness.js'
 import {
   idsOf,
   middayZone,
+  q8OrderOf,
   search,
   seedViewTask,
   titlesOf,
@@ -228,10 +229,15 @@ async function stage(): Promise<Stage> {
       stranger,
       mineId,
       theirsId,
+      // Q8 sorts updated_at descending inside each status_rank, so the four
+      // pending rows come out newest first: 40, 50, 60, 80 minutes, which is
+      // pendingNewer, notesOnly, mixedCase, pendingOlder. This array once
+      // held the middle two the other way round, which no assertion could
+      // catch while the route answered 404.
       expected: [
         pendingNewer,
-        mixedCase,
         notesOnly,
+        mixedCase,
         pendingOlder,
         abandonedRow,
         completedNewest,
@@ -394,6 +400,14 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
       idsOf(body.rows),
       'the row an unescaped backslash would have found instead',
     ).not.toContain(plainBackslash)
+  })
+
+  test('AC-057: the expected sequence is the one the fixture\'s own rows produce', async () => {
+    const { expected } = await stage()
+    expect(
+      await q8OrderOf(app.db, expected),
+      'the sequence every case above measures the response against is written by hand from seven rows\' statuses and minute offsets, and it was wrong: notesOnly at 50 minutes and mixedCase at 60 stood in each other\'s places, which no assertion could catch while the route answered 404. This asks the database to order the same rows by Q8\'s keys and compares. It touches no response, so it cannot make an implementation pass; it can only catch an expected array that disagrees with the rows it was written from',
+    ).toEqual(expected)
   })
 
   test('AC-057: the fixture satisfies section 3', async () => {

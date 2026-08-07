@@ -1029,6 +1029,41 @@ export async function completedOrderIn(
 }
 
 /**
+ * Named rows in Q8's order, computed by the database over the fixture.
+ *
+ * This is a second statement of an order the suite otherwise writes out by
+ * hand, and it is deliberately kept away from every response: it takes ids
+ * and returns ids, so it cannot make an implementation pass and cannot be
+ * asserted against one. What it checks is the hand-written array, which is
+ * the thing that was wrong. AC-057's expected sequence held two rows the
+ * wrong way round against its own timestamps for as long as the route
+ * answered 404, because ordering four minute offsets in your head is exactly
+ * the step a person gets wrong and no assertion was watching.
+ */
+export async function q8OrderOf(
+  db: Db,
+  ids: readonly string[],
+): Promise<string[]> {
+  const found = await rows(
+    db,
+    sql`
+      SELECT id FROM tasks
+       WHERE id IN (${sql.join(
+         ids.map((id) => sql`${id}::uuid`),
+         sql`, `,
+       )})
+       ORDER BY CASE status
+                  WHEN 'pending' THEN 0
+                  WHEN 'abandoned' THEN 1
+                  ELSE 2
+                END,
+                updated_at DESC, id DESC
+    `,
+  )
+  return found.map((row) => String(row.id))
+}
+
+/**
  * The Q3 keys above id, for named rows, in the id order Postgres itself
  * produces. Two rows seeded to differ only in id have to be checked on both
  * halves of that claim, and neither is checked by the response: a pair whose
