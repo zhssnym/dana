@@ -276,19 +276,21 @@ export function instantAtLocal(
 }
 
 /**
- * A zone that crossed local midnight between `at` and now, so `at` falls on
- * yesterday there and on today in a zone that did not. The hourly offsets of
- * the list guarantee one for any window of an hour or more; asserted rather
- * than assumed, because a tzdb without them would make the case vacuous.
+ * A zone that crossed local midnight strictly inside (from, to], so an
+ * instant at or before `from` falls on yesterday there while `to` and
+ * everything after it falls on today. Callers leave a margin at the `to` end
+ * so the roll is safely in the past by the time the case runs, and the
+ * hourly offsets of the list guarantee a zone for any window of an hour or
+ * more. Asserted rather than assumed: a tzdb without them would make the
+ * case vacuous instead of red.
  */
-export function zoneRolledSince(at: Date): string {
-  const now = new Date()
+export function zoneRolledBetween(from: Date, to: Date): string {
   const found = FIXED_OFFSET_ZONES.find(
-    (zone) => localDateIn(zone, at) !== localDateIn(zone, now),
+    (zone) => localDateIn(zone, from) !== localDateIn(zone, to),
   )
   expect(
     found,
-    `no zone in the measured list crossed local midnight since ${at.toISOString()}, so this case has nothing to compare`,
+    `no zone in the measured list crossed local midnight between ${from.toISOString()} and ${to.toISOString()}, so this case has nothing to compare`,
   ).toBeDefined()
   return found as string
 }
@@ -311,6 +313,10 @@ export function expectStillSameDay(
  * The rows and envelopes of frozen 7.10
  * ------------------------------------------------------------------ */
 
+/** The frozen 7.0 TaskCard, typed for the fields the P4 criteria read off a
+ * row. Every field here is checked at run time by expectCards, which applies
+ * the key-exact shape restated in tasks-harness.ts; the interface is for the
+ * reading, never for the judging. */
 export interface Card extends Record<string, unknown> {
   id: string
   title: string
@@ -318,6 +324,13 @@ export interface Card extends Record<string, unknown> {
   important: boolean
   due_date: string | null
   due_time: string | null
+  pulled: boolean
+  assignee: {
+    id: string
+    display_name: string | null
+    avatar_url: string | null
+  } | null
+  folder: { id: string; name: string; is_default: boolean }
 }
 
 /** Every row of every 7.10 body is a 7.0 TaskCard. This is the contract test
@@ -905,6 +918,18 @@ export function cardById(
   id: string,
 ): Card | undefined {
   return cards.find((card) => card.id === id)
+}
+
+/** The row, asserted present: a criterion about what a card carries cannot
+ * be read off a card a wrong implementation left out of the response. */
+export function requireCard(
+  cards: readonly Card[],
+  id: string,
+  why: string,
+): Card {
+  const card = cardById(cards, id)
+  expect(card, why).toBeDefined()
+  return card as Card
 }
 
 /** Every row of a Tasks or All response, whichever section it sits in. */
