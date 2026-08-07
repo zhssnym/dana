@@ -38,6 +38,7 @@ import type {
   TaskStatus,
   TaskStep,
 } from '../../shared/tasks.js'
+import { today } from '../time/index.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
 import { accessOf } from './folders.js'
@@ -802,15 +803,29 @@ Carried against Today, so an upsert would quietly move a task pulled last
 week into today's group. ON CONFLICT DO NOTHING is INV-12's primary key doing
 the work.
 
-added_on is today in the adder's own zone, which is what 4.7 calls it. The
-endpoint carries no tz parameter (7.8 names none; the view endpoints of 7.10
-are where 8.1's tz travels), so the zone is the account's, and the conversion
-is Postgres's own tzdb rather than any date arithmetic in this process.
+added_on is today(V), which 7.8 names outright and which the tz query
+parameter is what supplies, by owner ruling on 2026-08-08.
+
+This statement used to read (now() AT TIME ZONE u.timezone)::date, the
+account's stored zone, because the endpoint carried no tz and that was the
+only zone in reach. It was wrong in a way nothing local could show. 8.1
+reserves users.timezone for reminder fire instants, and Q1 computes today(V)
+from the request's tz, so the date this row was stamped with and the date the
+My Day view compared it against were two different civil dates for a large
+part of every UTC day. A task pulled in the afternoon in one zone landed in
+Carried rather than Today, and the failure moved with the clock: four
+sessions carried it as non-determinism before the zones were named.
+
+The repair is not merely to read tz but to date the row with the same
+function the view reads it with. today() from src/server/time is what Q1
+calls, so the two civil dates are now one computation with one input rather
+than two agreeing by luck.
 */
 export async function pullIntoMyDay(
   db: Db,
   viewerId: string,
   taskId: string,
+  tz: string,
 ): Promise<StepResult> {
   return inTransaction(db, async (tx) => {
     if ((await accessibleTask(tx, viewerId, taskId)) === null) {
@@ -818,8 +833,7 @@ export async function pullIntoMyDay(
     }
     await tx.execute(
       sql`INSERT INTO my_day_entries (task_id, user_id, added_on)
-          SELECT ${taskId}::uuid, u.id, (now() AT TIME ZONE u.timezone)::date
-          FROM users u WHERE u.id = ${viewerId}::uuid
+          VALUES (${taskId}::uuid, ${viewerId}::uuid, ${today(tz)}::date)
           ON CONFLICT DO NOTHING`,
     )
     return { kind: 'ok', task: await viewOrFail(tx, viewerId, taskId) }
