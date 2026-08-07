@@ -162,5 +162,5 @@ as an isolated sub-agent with no chat to return to.
 | 4b | The two repairs, AC-131 moved to its own file, and the suite's timeout margin measured over five runs: no global `testTimeout`, so 516 of 522 cases ran under Vitest's five second default. The non-deterministic test itself is still unidentified, recorded in `app/tests/README.md` | 11 | Testers | Done |
 | 5 | The mount, `explain.ts` out of the build output, a global 30 second `testTimeout`. First honest measurement of row 4's claim: 895 of 896 rather than the 888 of 893 it reported from an uncommitted mount, four of its five reds repaired and the fifth misdiagnosed | 10 | Implementers | Done |
 | 4c | AC-052's second case, which filtered pending rows page-wide where Q3 sorts `due_date` and `status_rank` above the timed flag. 896 of 896, and CI run 31218626628 green on PGlite and postgres:18, the package's first production-fidelity evidence | 11 | Testers | Done |
-| 6 | Endpoint shape review, carrying the cursor question | 04 | Implementers | Not started |
+| 6 | Endpoint shape review: nine bodies key for key against frozen 7.10 and section 6's orders including Q3C's inverted key, no defect found. The cursor's opacity settled in `src/shared/views.ts`, and two sentences routed to the owner, who ruled both on 2026-08-07 | 04 | Implementers | Done |
 | 7 | Merge | 12 | Steward | Not started |
