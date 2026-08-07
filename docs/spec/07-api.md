@@ -13,7 +13,9 @@ Error envelope: { "error": { "code": string, "message": string } }. Status usage
 - 422 validation failure (limits in section 10.3), with field errors.
 - 429 rate limited (limits in section 10.4), with Retry-After.
 
-Timezone: every view endpoint takes tz, an IANA identifier, 422 if invalid. Idempotency: GETs are safe; PUT and DELETE are idempotent; status transitions are idempotent by the no-op rows of 5.1; POST creations are not idempotent and clients must disable double submit.
+Timezone: every view endpoint takes tz, an IANA identifier, 422 naming the field if it is invalid or absent. Idempotency: GETs are safe; PUT and DELETE are idempotent; status transitions are idempotent by the no-op rows of 5.1; POST creations are not idempotent and clients must disable double submit.
+
+The absent half of that sentence was escalated at the P4 change control and entered by owner ruling on 2026-08-07; this section had named only the invalid one. A view endpoint called without tz is missing a required parameter rather than accepting a default: 8.1 makes tz an input of every request that evaluates dates, and the only plausible default, UTC, would hand most of the world the wrong day with nothing on the wire to say it had been substituted. 7.1's treatment of the same parameter is the opposite and stays so, an unparseable zone on GET /auth/google being read as absent rather than refused; that section records it as a deliberate deviation so a stale zone database cannot lock anyone out of signing in, and it does not generalize past sign-in.
 
 Shared schemas:
 - TaskCard: { id, title, status, important, due_date, due_time, folder: {id, name, is_default}, assignee: {id, display_name, avatar_url} or null, is_recurring: bool, steps_done: int, steps_total: int, pulled: bool (viewer has a My Day entry), pending_invite_email: string or null (from invites.task_id), created_at, updated_at }.
@@ -121,6 +123,8 @@ All take tz. All return rows fully ordered per section 6; ordering is server wor
 - GET /search?q&cursor. { rows: [TaskCard with status chip], next_cursor }.
 
 Response body, escalated at the P4 kickoff and entered by owner ruling on 2026-08-07: GET /folders/:id/tasks answers { scheduled: [TaskCard], unscheduled: [TaskCard], truncated } on section=open, and { days: [{date, rows: [TaskCard]}], next_cursor } on section=completed. This was the one body of the nine this section described without naming, and the keys are the ones the other eight already use for the same things: truncated because section 6's cap rule covers folder open sections and one flag is the only way this contract reports it, days and next_cursor because Q7's third section is Q6 entire and Q6 is what GET /views/done answers. Nothing here is new behavior; a body that was described in prose is now enumerated like its neighbors.
+
+Two further readings, escalated at the P4 change control and entered by owner ruling on the same date. The folder inside groups: [{folder, rows}], and inside the tasks_groups of GET /views/all, is the {id, name, is_default} stub 7.0 gives every TaskCard, not the Folder object of 7.0's third shared schema. A group heading needs exactly what a card's folder label needs and no more: Folder's counts are the per-folder computation of 8.11, which Q2 does not do and which no grouped view asks for, and its is_owner, member_count, my_label and my_color are 7.4's business, where a client that wants them already goes. The two keys spell one thing, so they answer one shape. And section on GET /folders/:id/tasks defaults to open when absent, rather than being required: Q7 renders its completed section collapsed, so open is the state the page opens in, and the enumeration above names it first.
 
 ### 7.11 Server-authoritative versus client convenience
 
