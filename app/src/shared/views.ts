@@ -308,9 +308,9 @@ function cursorParam<T>(kind: CursorKind, schema: z.ZodType<T>) {
  * ------------------------------------------------------------------ */
 
 /*
-The five shapes below are built by extension from the one every view shares,
-because 7.10's first line is "All take tz" and an extension cannot drift from
-it the way five transcriptions could.
+viewQuery is what 7.10's first line gives every endpoint, "All take tz", and
+the four shapes after it are extensions of it rather than transcriptions of
+its one field, because an extension cannot drift from what it extends.
 
 Values arrive from Express as strings, or as arrays when a parameter is
 repeated, or as objects under the extended parser. z.string refuses the last
