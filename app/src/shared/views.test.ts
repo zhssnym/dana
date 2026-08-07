@@ -467,6 +467,50 @@ describe('the cursor as a query parameter', () => {
     })
     expect(parsed).toEqual({ tz: 'UTC', section: 'completed', cursor: position })
   })
+
+  test("a cursor's kind names an order, so Done's cursor is the folder page's", () => {
+    /*
+    Asserted because the shape review recommends freezing it, and a
+    recommendation nothing measures is a sentence that can be wrong on its
+    first day. A cursor is portable between exactly the two endpoints that
+    share one order: 6 Q7's third section is "Q6 predicate, order, and
+    pagination, folder_id = F", so the position (completed_at, id) means the
+    same thing to both, and one cursor kind serves them for that reason rather
+    than by accident.
+
+    The second half is the bound on that portability, and it is what keeps the
+    claim from reading as "any cursor works anywhere": search keys a different
+    order, so its cursor names no position here. Deliberately not claimed as
+    red-proof of the kind stamp, which it is not: completedCursor requires a
+    completed_at that a search payload does not carry, so the payload schema
+    refuses this one on its own and dropping the kind comparison would leave
+    the case green. The kind's own discrimination is proven above, in "the kind
+    is what separates them", against a forged envelope built for that purpose.
+    */
+    const issuedByDone = doneQuery.parse({
+      tz: 'UTC',
+      cursor: encodeCompletedCursor(position),
+    }).cursor
+    const presentedToFolder = folderTasksQuery.parse({
+      tz: 'UTC',
+      section: 'completed',
+      cursor: encodeCompletedCursor(position),
+    }).cursor
+    expect(presentedToFolder).toEqual(issuedByDone)
+
+    expect(
+      folderTasksQuery.safeParse({
+        tz: 'UTC',
+        section: 'completed',
+        cursor: encodeSearchCursor({
+          status: 'completed',
+          updated_at: position.completed_at,
+          id: UUID,
+        }),
+      }).success,
+      "search keys a different order, so its cursor names no position here",
+    ).toBe(false)
+  })
 })
 
 describe('the 1000-row cap (6 preamble as ruled 2026-08-07, 10.3, AC-129)', () => {

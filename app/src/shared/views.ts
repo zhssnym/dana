@@ -166,15 +166,49 @@ sort keys, and every later change to an order becomes a compatibility problem.
 btoa and atob rather than Buffer, because this directory is compiled into the
 browser bundle too (tsconfig.client.json).
 
-One observation carried to this package's endpoint shape review rather than
-decided here, the P2 and P3 reviews being where an open shape gets settled with
-the implemented routes in front of it. Frozen 7.10 writes "?cursor" and
-next_cursor and says nothing about what a cursor is, which leaves opaqueness a
-property of this file rather than of the contract. The candidate sentence is
-that a cursor is opaque and is sent back exactly as it was received, which
-describes what is implemented here and adds no field to any frozen body; it is
-a recommendation for the Steward and through them the owner, not a change made
-by this session.
+Opaqueness was carried to this package's endpoint shape review and settled
+there on 2026-08-07, the P2 and P3 reviews being where an open shape gets
+decided with the implemented routes in front of it. What the review found, and
+the sentence it recommends to the Steward and through them the owner, is
+recorded here because this file is where the property lives; the frozen text
+carries it only if the owner rules it.
+
+Frozen 7.10 writes "?cursor" and next_cursor and says nothing about what a
+cursor is, which leaves opaqueness a property of this file rather than of the
+contract. Three things the review decided the sentence has to say, each because
+leaving it out permits a reading nobody wants:
+
+- **A cursor is opaque, and a client sends back the next_cursor it received
+  byte for byte.** Without that, the encoding below is a public shape: a client
+  that decodes it has taken a dependency on Q6's and Q8's sort keys, and
+  section 6 revised one of those orders at this package's own change control
+  when status_rank gained completed = 2. Freezing opaqueness is what keeps the
+  next such revision from being a compatibility problem instead of an edit.
+- **A null next_cursor is the end of the list**, which is what lets a client
+  stop rather than probe.
+- **A cursor an endpoint did not issue is 422 naming cursor, never a silent
+  first page.** Opaque alone does not say what happens to a cursor a client
+  made up, and the alternative reading turns a client bug into wrong data: the
+  caller is handed page one again while the rows it was paging toward never
+  arrive, with a 200 over it. 7.0 already answers a validation failure with 422
+  and the field named, so this adds no status to the frozen surface. It is the
+  same rule the section parameter got on 2026-08-07, absent being a default and
+  a present wrong value not being absent, which is an argument for the owner
+  settling both in one sentence.
+
+One accuracy the review insisted on rather than smoothing over. A cursor's kind
+names the *order* it belongs to, not the endpoint that issued it, so a
+completed cursor is portable between GET /views/done and the folder page's
+completed section and nowhere else. That is not an oversight: section 6 makes
+Q7's third section "Q6 predicate, order, and pagination, folder_id = F", one
+order with one page size, and the position is (completed_at, id) in that order.
+A recommendation reading "the endpoint that issued it" would be frozen text
+that disagrees with the code on its first day.
+
+Nothing here is a change to behavior: AC-056 and AC-127 already page Done and
+search by sending a received next_cursor back, AC-127 asserting no overlap and
+no gap, and the router's own proof asserts the 422 on a garbage cursor and on
+one issued for the other order. The sentence describes what this branch does.
 */
 const CURSOR_VERSION = 1
 
