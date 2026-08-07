@@ -136,4 +136,9 @@ place rather than being renumbered, because the numbers are addresses.
 | 3a | Temporal readers repaired, a false green closed | 11 | Testers | Done |
 | 4 | The mount, the flip, live boot smoke, CI green on both legs | 10 | Implementers | Done |
 | 5 | Shape review: the 7.7 and 7.8 response bodies settled | 04 | Implementers | Done |
-| 6 | Review the whole branch, merge to main | 12 | Steward |  |
+| 6 | Merge review: held for the cap race, three findings routed | 12 | Steward | Done |
+| 6a | The two routed caps put under locks, and a third found in createFolder | 03 | Implementers | Done |
+| 6b | The settled bodies pinned, 7.6's narrowed refusal followed | 11 | Testers | Done |
+| 6c | AC-124 appended, 11.15's PGlite bullet corrected, held for the test | 12 | Steward | Done |
+| 6d | AC-124 asserted across all three caps | 11 | Testers | Done |
+| 6e | Merged to main at d43434d | 12 | Steward | Done |
