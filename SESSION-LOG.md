@@ -209,6 +209,21 @@ date" and its filter does not. The decisive check is that the first case in
 the same file asserts the whole sequence and passes, so both cannot be
 satisfied at once and the router is not what is wrong.
 
+Row 4c repaired it and the branch went green: 896 of 896 across 111 files,
+and CI run 31218626628 on tip 0adbb65 succeeded on every step with PGlite
+and postgres:18 both passing. That is the first production-fidelity evidence
+this package has had at any point in its life; every earlier run failed on
+the first leg and skipped the second behind it, so nothing had ever measured
+views and search against real Postgres in either direction.
+
+Its diagnosis was sharper than the one it was handed. The fixture falsifies
+the over-broad claim twice rather than once, by due_date and by status_rank,
+both of which outrank the timed flag in Q3, so both narrowings carry weight.
+And the same index-partition pattern in AC-126 is correctly scoped for a
+reason worth keeping: 6 Q3C puts the timed flag above status_rank where Q3
+puts it below, so those two files differ on purpose and neither should be
+edited to match the other.
+
 That is what row 5 was for. Had nobody insisted the number be measured
 before the shape review, a wrong diagnosis would have travelled to the merge
 inside a repair that looked complete.
