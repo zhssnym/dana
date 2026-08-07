@@ -32,7 +32,7 @@ the preamble of `../rfcs/0000-template.md`.
 | 9 | [`09-ui.md`](09-ui.md) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional.md`](10-non-functional.md) | Auth, authorization, limits, rate limits, logging, PWA, email |
 | 11 | [`11-architecture.md`](11-architecture.md) | The stack, its constraints, rejected alternatives, and hazards |
-| 12 | [`12-acceptance-criteria.md`](12-acceptance-criteria.md) | AC-001 to AC-130, the definition of done |
+| 12 | [`12-acceptance-criteria.md`](12-acceptance-criteria.md) | AC-001 to AC-131, the definition of done |
 | 13 | [`13-open-questions.md`](13-open-questions.md) | Unresolved external facts and the assumptions this spec rests on |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by
