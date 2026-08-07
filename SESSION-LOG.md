@@ -148,21 +148,30 @@ place rather than being renumbered, because the numbers are addresses.
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: trace, two premises corrected, a borrowed Scheduling session | 12 | Steward | Done |
-| 1 | AC-045 to AC-058 and AC-070, plus six criteria proposed | 11 | Testers | Done |
-
-| # | Session | Role | Mode | Status |
-| --- | --- | --- | --- | --- |
-| 0 | Kickoff: trace, two premises corrected, the calendar's virtual arm deferred to P6 | 12 | Steward | Done |
-| 1 | AC-045 to AC-058 and AC-070, tests first, the three uncovered surfaces | 11 | Testers | Not started |
+| 1 | AC-045 to AC-058 and AC-070, tests first, plus six criteria proposed | 11 | Testers | Done |
+| 1a | Change control: six criteria numbered, four section 6 silences closed, three routed | 12 | Steward | Done |
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Implementers | Not started |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Implementers | Not started |
 | 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Implementers | Not started |
 | 5 | The mount, suite green | 10 | Implementers | Not started |
 | 6 | Endpoint shape review | 04 | Implementers | Not started |
+| 6a | The routed return: AC-058's provenance, the assigned numbers, the README | 11 | Testers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
 
-One question is open ahead of session 1 and escalated to the owner: frozen
-7.10 enumerates a response object for eight of its nine endpoints, and GET
-/folders/:id/tasks is the ninth. Section 6 additionally requires a truncated
-flag on folder open sections that 7.10 does not name. The recommendation is
-in the P4 row.
+The question this row opened with is closed. Frozen 7.10 enumerated a response
+object for eight of its nine endpoints and not for GET /folders/:id/tasks; the
+human owner ruled it on 2026-08-07, on the kickoff's recommendation, and the
+sentence is transcribed onto 7.10 on the branch.
+
+Three new questions are open, all frozen section 7 and all routed to the owner
+with a recommendation, wanted before session 3 writes the envelopes and
+blocking nothing meanwhile: the shape of `folder` inside `groups`, an absent
+tz where 7.0 names only an invalid one, and the default `section` of GET
+/folders/:id/tasks. The recommendations are in the P4 row of RFC 0001.
+
+Session 6a exists because a prompt written before a ruling produced a test
+that cites it. AC-058's header says the owner ruled the ninth body at the
+kickoff; the substance is right and the timing is not, and the same session's
+headers and the suite README carry an unsupported claim that numbering section
+12 is the owner's. Both are inside `app/tests/`, so they are the Adversarial
+Test role's to correct rather than the Steward's to edit.

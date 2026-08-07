@@ -10,6 +10,45 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- P4 mid-package change control, 2026-08-07, the amendments on branch
+  `p4-views` so they merge with the package. One ruling was the human
+  owner's: frozen 7.10 named a response object for eight of its nine
+  endpoints, and GET /folders/:id/tasks now carries `scheduled`,
+  `unscheduled`, and `truncated` on section=open and `days` with
+  `next_cursor` on section=completed, the keys the other eight bodies
+  already use for the same things. Six acceptance criteria are appended as
+  AC-125 to AC-130, each closing a number the specification states and
+  nothing asserts: the calendar's 62-day refusal and its real rows, search's
+  page size of 20 and its 2-to-100 character bound, the 1000-row cap with
+  its flag, and 7.0's tz rule across every view endpoint. Four silences are
+  closed in section 6, which is the Steward's: `status_rank` gains
+  completed = 2 in the preamble rather than only inside Q8, which had left a
+  completed row's position in a calendar cell undefined; the 1000-row cap is
+  per response rather than per array, since section 6 enumerates pages and
+  each body carries one flag, with the kept rows a prefix of the order 7.10
+  enumerates that response's sections in; Q3C refuses an inverted range,
+  which its own arithmetic admits by accident, rather than answering it with
+  the bare grid an empty month gets; and Q8 escapes a backslash, percent, or
+  underscore the user typed, so a search for "50%" stops matching everything
+  containing "50". Three silences are frozen section 7's and are routed to
+  the owner with a recommendation each, blocking nothing: the shape of
+  `folder` inside `groups`, what an absent tz gets where 7.0 names only an
+  invalid one, and the default `section` of the folder page. And the tester's
+  report that one clause each of AC-046 and AC-050 cannot be tested as
+  written is ruled the closest faithful test rather than reinterpretation,
+  recorded beside both criteria: owning the clock would decide, for an
+  implementer who has not yet written a line, that today(V) comes from the
+  process clock rather than the database, which 8.1 admits either way.
+- A provenance defect and its repair, recorded because the record is the
+  point. `app/tests/ac-058-folder-sections.test.ts` asserts the 7.10 body
+  above as settled and states that the owner ruled it at the P4 kickoff. The
+  substance is right and the timing is not: the kickoff recommended, the
+  owner ruled on 2026-08-07, and the tester session ran in between on a
+  prompt the operator wrote with "the human owner has ruled" in it, expecting
+  the answer. The ruling is now transcribed, so the test cites text that
+  exists. The header itself is inside `app/tests/`, which the Adversarial
+  Test role owns exclusively, so its correction is a routed return rather
+  than a Steward edit, and the P4 row now carries that session.
 - P4's session order, traced into its RFC row at the package's kickoff on
   2026-08-07, with the premise check that preceded it. Two premises were
   wrong. The row named `05-query-and-read-path.md` as the only owner, and
