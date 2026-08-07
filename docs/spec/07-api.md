@@ -120,6 +120,8 @@ All take tz. All return rows fully ordered per section 6; ordering is server wor
 - GET /folders/:id/tasks?section=open|completed&cursor. Open returns scheduled plus unscheduled arrays; completed is paginated like done.
 - GET /search?q&cursor. { rows: [TaskCard with status chip], next_cursor }.
 
+Response body, escalated at the P4 kickoff and entered by owner ruling on 2026-08-07: GET /folders/:id/tasks answers { scheduled: [TaskCard], unscheduled: [TaskCard], truncated } on section=open, and { days: [{date, rows: [TaskCard]}], next_cursor } on section=completed. This was the one body of the nine this section described without naming, and the keys are the ones the other eight already use for the same things: truncated because section 6's cap rule covers folder open sections and one flag is the only way this contract reports it, days and next_cursor because Q7's third section is Q6 entire and Q6 is what GET /views/done answers. Nothing here is new behavior; a body that was described in prose is now enumerated like its neighbors.
+
 ### 7.11 Server-authoritative versus client convenience
 
 Server-authoritative, always revalidated regardless of client behavior: every permission cell of 5.4; membership scope on every query; assignee membership and INV-5 forcing; the date-dependency rules and clear-date cascade; status transitions, G-SERIES, and generation; invite validations, matching, throttles, and rate limits; all input limits of 10.3; sort orders of section 6; today evaluation given tz; reminder computation and delivery decisions.
