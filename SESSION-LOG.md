@@ -155,8 +155,9 @@ place rather than being renumbered, because the numbers are addresses.
 | 2 | The date helpers of `src/server/time/**`, and Luxon 3 | 02 | Unattended | Done |
 | 3 | The 7.10 envelopes, parameters, and cursor encoding | 04 | Unattended | Done |
 | 4 | The views and search package, the EXPLAIN record, wiring request | 05 | Unattended | Done, escalated |
-| 4a | Rule the two disputed fixtures, AC-052's tie-break and AC-057's order | 12 | Steward | Not started |
-| 5 | The mount, suite green | 10 | Implementers | Not started |
+| 4a | Both fixtures ruled, AC-131 numbered, item 21, four disclosures settled | 12 | Steward | Done |
+| 4b | The two repairs, and AC-131's three cases moved to their own file | 11 | Testers | Not started |
+| 5 | The mount, suite green, and `explain.ts` out of the build output | 10 | Implementers | Not started |
 | 6 | Endpoint shape review | 04 | Implementers | Not started |
 | 7 | Merge | 12 | Steward | Not started |
 
@@ -172,7 +173,26 @@ and protocol section 6 sends a disputed criterion to the Adversarial Test
 Engineer and then the Steward, so an unattended run may route none of it. The
 co-lead verified both claims independently from the fixtures rather than from
 the agents that agreed with each other, and both hold. Row 4a is the ruling
-that ends the dispute.
+that ends the dispute: it verified both a third time from the fixtures, ruled
+the tests wrong and the criteria right, and named the direction of each
+repair, which is not the same on both. AC-057's expected array moves, its
+timestamps carrying the fixture's design. AC-052's fixture moves, one stamp
+hoisted above the loop so the two rows genuinely tie, because there the
+expected order and the case's whole purpose fail together. Row 4b makes them,
+placed before the mount so the expectations are right before the flip that
+first makes them measurable.
+
+Row 4a also left one thing open rather than closed, which is worth a line
+because the suite is what this whole arrangement treats as the authority. The
+operator measured two gate runs on a byte-identical tree at 141 failures and
+then 140, so something in the suite is not deterministic. The Steward ran it
+twice on a quiescent tree and got byte-identical results both times, so it is
+not reproduced and not identified, and two runs prove little. What is worth
+carrying is how the first reproduction attempt failed: the tree was checked
+out to another branch while the run was still going, six files under `src/`
+reported `Cannot find module`, and 127 tests silently did not run while the
+failure count stayed at exactly 140. Coverage vanished and the number a
+reader checks did not move.
 
 One claim the night could not check, and the morning still cannot: row 4
 reports 888 of 893 passing with the views router mounted, and the mount lives
