@@ -42,8 +42,13 @@ export function sendError(
  * received undefined" to a caller who never mentioned an object.
  */
 export function sendValidationError(res: Response, error: ZodError): void {
-  const fieldIssues = error.issues.filter((issue) => issue.path.length > 0)
-  if (fieldIssues.length === 0) {
+  const problems = error.issues
+    .filter((issue) => issue.path.length > 0)
+    .map((issue) => ({
+      field: issue.path.map(String).join('.'),
+      message: issue.message,
+    }))
+  if (problems.length === 0) {
     sendError(
       res,
       422,
@@ -52,8 +57,32 @@ export function sendValidationError(res: Response, error: ZodError): void {
     )
     return
   }
-  const problems = fieldIssues.map(
-    (issue) => `${issue.path.map(String).join('.')}: ${issue.message}`,
+  sendFieldValidationError(res, problems)
+}
+
+export interface FieldProblem {
+  field: string
+  message: string
+}
+
+/**
+ * The same 422, for the rules a schema cannot state.
+ *
+ * Some of 10.3's numbers are not properties of one value: Q3C's range is a
+ * relation between start and end and is measured by the calendar arithmetic of
+ * src/server/time, which decides which rule broke and says outright that
+ * naming the field and choosing the status belong to the route. That leaves
+ * one 422 built by a schema and another built by hand, and a caller should not
+ * be able to tell which validated it. This is the one formatter, so they read
+ * alike; sendValidationError above now goes through it too rather than
+ * carrying a second copy of the sentence.
+ */
+export function sendFieldValidationError(
+  res: Response,
+  problems: readonly FieldProblem[],
+): void {
+  const sentences = problems.map(
+    (problem) => `${problem.field}: ${problem.message}`,
   )
-  sendError(res, 422, 'validation_failed', `${problems.join('; ')}.`)
+  sendError(res, 422, 'validation_failed', `${sentences.join('; ')}.`)
 }
