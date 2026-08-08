@@ -54,24 +54,64 @@ make it impossible later (for example, do not bake text into images).
 
 ## 3. How we will work
 
-You design in Figma or any other software that you are comfortable with. 
-What reaches the build is only what gets exported into the project, so the 
-handback convention matters:
+Design wherever you are comfortable: Figma, paper, or straight into the code. But
+what you hand back is not a picture of the design. It is the design as a small
+running app.
 
-1. **Foundations first.** One page with the design tokens: color palette with names
-   and hex values, type scale, spacing scale, radius values, the folder swatch set.
-   These get transcribed into code on our side; after that, changing a token is a
-   small request, not a redesign.
-2. **One PNG per screen**, exported at two widths: phone (390 wide) and desktop
-   (1440 wide). File names follow the screen list in section 5, for example
-   `my-day-phone.png`, `my-day-desktop.png`. These go into the project folder
-   `docs/design/screens/` and are what the builders actually look at.
-3. **A short notes file** for anything a flat image cannot say: hover states,
-   what animates, what scrolls. Plain sentences are fine.
+The reason is accuracy, not preference. From an image, every value has to be
+measured by eye and retyped, and a good share of those measurements come out wrong:
+a padding that was 16 becomes 15, a grey that was warm becomes neutral, and nobody
+notices until the whole product looks slightly cheap. Code carries the exact number.
 
-Expect two rounds: a first pass over the core loop (My Day, Tasks, Planned list,
-task form, folder page), feedback, then the rest. Small corrections after that go
-through updated exports of single screens.
+So the handback is a **throwaway prototype**: a clickable, styled, fake-data version
+of Dana that we read, lift the design out of, and then delete. It is never merged
+and it is not the product. Nothing in it has to actually work.
+
+**The stack is fixed, because it is the stack Dana itself is built in:**
+
+- Vite, React, TypeScript
+- Tailwind CSS 4, configured in CSS through a single `@theme` block. Not Tailwind 3,
+  and no `tailwind.config.js`
+- shadcn/ui for components
+- Hardcoded fake data only. No backend, no data fetching, no login, no form logic,
+  and no routing beyond enough to click from screen to screen
+
+That last line is the boundary: you are designing the surface, we write everything
+underneath it. If your AI wants to add a database or an API layer, stop it.
+
+**Structure it like this**, because it is what makes the design readable to us:
+
+```
+src/
+  styles/tokens.css     every design token, as values
+  components/ui/        the shadcn components, including any you changed
+  components/           TaskRow, Sidebar, TopBar, and the rest
+  screens/              one file per screen in section 5
+  fixtures.ts           all the fake data, in one file
+  App.tsx               a plain list of links to every screen and the states page
+```
+
+`tokens.css` is the single most valuable thing you will hand over. In Tailwind 4 the
+design tokens are literally a CSS file, so your palette, type scale, spacing, radii,
+and folder swatches move into the product exactly as you wrote them, with nothing
+retyped in between. Give every token a real name and a real value, and put nothing
+raw anywhere else.
+
+**One warning worth more than the rest.** If you point an AI at this brief and say
+"build it with shadcn," you will get the default neutral-slate theme that ships on
+thousands of other sites, and Dana will have a template instead of a design. Decide
+the look yourself first, write it into `tokens.css`, and only then let the tool build
+screens against it.
+
+Also include a **states page**: one route that stacks the eleven task-row states from
+section 6, a skeleton list, the offline banner, an overdue row, and the empty states.
+That page replaces a pile of screenshots and it is where we will look most often.
+
+Check every screen at 390 wide and 1440 wide before you send it.
+
+Expect two rounds: a first pass over the core loop (My Day, Tasks, Planned list, task
+form, folder page), feedback, then the rest. Corrections after that are just edits to
+the prototype.
 
 ## 4. Platform constraints
 
@@ -330,12 +370,19 @@ levels beyond member, native app chrome, offline editing, dark mode, a stats pag
 
 ## 9. Deliverables checklist
 
-1. Foundations page: tokens with names and values, folder swatch set, app icon,
-   theme and background colors.
-2. Phone and desktop PNGs for: My Day, Tasks, Planned list, Planned calendar
-   (month and week at minimum), Important, All, Done, folder page, sharing panel,
-   task form (collapsed and expanded, plus the disabled-dependents state), Settings,
-   People, login surface with pending invites, search overlay, landing page.
-3. State examples: one screen showing skeleton loading, the offline banner over any
-   screen, the My Day and Tasks empty states, an overdue row, an abandoned row.
-4. The notes file.
+1. The prototype itself, as a zip or a repository, running on `npm install` then
+   `npm run dev` with no other setup.
+2. `src/styles/tokens.css`: every color, type size, spacing step, radius, and the
+   folder swatch set, each one named and valued, with no raw values left anywhere
+   else in the project.
+3. A screen file for each of: My Day, Tasks, Planned list, Planned calendar (month
+   and week at minimum), Important, All, Done, folder page, sharing panel, task form
+   (collapsed, expanded, and the disabled-dependents state), Settings, People, login
+   surface with pending invites, search overlay, landing page. Each one correct at
+   390 wide and at 1440 wide.
+4. The states page: the eleven task-row states from section 6, skeleton loading, the
+   offline banner, the My Day and Tasks empty states, an overdue row, an abandoned row.
+5. The app icon as real PNG files at 192 and 512, plus the theme color and background
+   color values for the installed shell.
+6. The notes file, for anything the code cannot say: what animates and how long,
+   what scrolls, and why you made a call that looks odd out of context.
