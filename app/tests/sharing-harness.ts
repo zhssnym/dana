@@ -113,11 +113,10 @@ export interface InviteBody {
   task_id?: string
 }
 
-/** The unjudged transport: refusals answer the 7.0 envelope, not an invite. */
-export function postInvite(
-  actor: Actor,
-  body: Record<string, unknown>,
-): Promise<RawResponse> {
+/** The unjudged transport: refusals answer the 7.0 envelope, not an invite.
+ * body is unknown, the tasks-harness convention, so adversarial callers can
+ * send malformed shapes without a cast standing in their way. */
+export function postInvite(actor: Actor, body: unknown): Promise<RawResponse> {
   return actor.browser.json('/invites', 'POST', body)
 }
 
@@ -132,7 +131,7 @@ export async function createInviteOk(
   body: InviteBody,
   why: string,
 ): Promise<{ id: string; invite: Record<string, unknown> }> {
-  const response = await postInvite(actor, body as Record<string, unknown>)
+  const response = await postInvite(actor, body)
   expectStatus(response, 201, why)
   const envelope = asRecord(response.json(), 'the POST /invites 201 body')
   expectExactKeys(

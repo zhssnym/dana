@@ -22,9 +22,9 @@ npx vitest run -t "AC-105"
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
 | P3 gate | AC-124 | Covered; three arms green since their repairs, the acceptance arm red until P5 mounts its surfaces (the kickoff ruling of 2026-08-09, see below) |
-| P4 | AC-045 to AC-058, AC-070 | Covered; AC-046 to AC-048 red on the 7.8 tz defect until the pull takes tz |
+| P4 | AC-045 to AC-058, AC-070 | Covered, passing since the 7.8 tz repair and the P4 merge |
 | P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
-| P4 gate | AC-132 | Covered, red by design; the 7.8 tz ruling of 2026-08-08, implementer follows |
+| P4 gate | AC-132 | Covered, passing since the same repair; written red by design, green once the implementer's session followed the tester's |
 | P5 | AC-059 to AC-069 | Covered, red on the unmounted 7.5 and 7.3 routes until the package lands, the designed order |
 | P5 proposals | AC-133 to AC-140, numbers proposed | Written with their tests for the mid-package change control to number, the P4 precedent; the six 8.10 files red against the P1 stub on its missing steps 1 to 6 |
 | P6 to P10 | AC-071 to AC-104 | Not yet written |
