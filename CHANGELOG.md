@@ -10,6 +10,35 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- A ruling of the human owner, Hassan, on 2026-08-09, closing the
+  escalation P5's mid-package change control routed to him the same day.
+  **A bare invite to an already-connected email answers 409.** He took
+  option (b), the Steward's recommendation, over the Adversarial Test
+  role's recommended (a), 200 with nothing created; the 201 fallthrough
+  was also before him and was not taken. Frozen 7.5 gains a paragraph
+  rather than a rewritten bullet, the shape 7.2 and 7.4 took, so the
+  bullet text that rulings and tests already quote stays byte-identical:
+  POST /invites answers 409 "already connected" when the email belongs to
+  a roster connection of V and no folder is attached, and creates
+  nothing. The conversion clause is folder-conditional and 8.7's V-INV
+  now says so in its own order, which is where the gap was: the arm
+  named its connected-email condition without naming a folder, while the
+  instant share it describes creates a membership and only a folder
+  defines one. Section 9.8 gains the People screen's copy, "You're
+  already connected to this person. They're in your People list.", beside
+  the remove-connection sentence already in that register. Recorded with
+  the ruling, because it is the reasoning a later reader will want and
+  not merely the outcome: the refusal is symmetrical with the 409 that
+  section enumerates one clause earlier for a folder invite to an
+  existing member, each answering a request whose whole purpose already
+  holds; a 200 with nothing created would have been a third outcome
+  where 5.2's create row parks an invite or refuses, and the one answer
+  the inviter cannot read, since nothing enters the pending list 8.7
+  makes visible and the roster already held the person; and the
+  principle separating this from the 10.3 cap ruled at the same
+  package's kickoff, where an invite against a full folder still parks,
+  is to refuse when the request can accomplish nothing and permit when
+  it can accomplish something later.
 - An escalation routed to the human owner at P5's mid-package change
   control, 2026-08-09, wanted before the Collaboration session writes POST
   /invites and blocking nothing meanwhile. **A bare invite to an
