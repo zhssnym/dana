@@ -215,8 +215,9 @@ export function expectTaskCardShape(value: unknown, source: string): void {
     `${source}.steps_total must be an integer; got ${JSON.stringify(card.steps_total)}`,
   ).toBe(true)
   expect(typeof card.pulled, `${source}.pulled must be a boolean`).toBe('boolean')
-  // The value is P5's: 7.0 derives it from invites.task_id, and no P3
-  // criterion reaches invite creation. The key is 7.0's and is asserted.
+  // The value is pinned by the proposed AC-139 in its own file, which
+  // creates the invites this derivation reads; a shape judge cannot know
+  // which email a particular card should carry, so this stays a type check.
   expectStringOrNull(card.pending_invite_email, `${source}.pending_invite_email`)
   expectInstantOrNull(card.created_at, `${source}.created_at`)
   expectInstantOrNull(card.updated_at, `${source}.updated_at`)
