@@ -47,7 +47,7 @@ Terminal states: accepted, declined, canceled, invalidated. A new invite to the 
 | Current | Event | Actor guard | State guard | Next | Side effects |
 | - | - | - | - | - | - |
 | non-member | add | any current member of the folder | target has a roster connection with the actor; folder not default; member count below cap | member | membership row created; share-grant email to target |
-| non-member | add via invite acceptance | system (section 8.7) | folder not default | member | membership row created |
+| non-member | add via invite acceptance | system (section 8.7) | folder not default; member count below cap | member | membership row created |
 | member (not owner) | remove | folder owner | none | non-member | R-CLEAN below |
 | member (not owner) | leave | the member themselves | none | non-member | R-CLEAN below |
 | member (owner) | leave | the owner | at least one other member exists, else 409 with copy: delete the folder instead | non-member | ownership transfers first (section 8.9), then R-CLEAN |

@@ -10,6 +10,39 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- A ruling of the Integration Steward at the P5 kickoff, 2026-08-09, closing
+  the question the AC-124 amendment parked in the P5 row: **the 10.3 member
+  cap binds every membership section 8.7 grants**. The acceptance transaction
+  and the instant-share conversion each lock the folder, count, and refuse
+  422 at 25, the corrected shape the P3 repairs gave POST /members; section
+  5.3's acceptance row gains the guard words its direct-add row always
+  carried, and 8.7 states the rule once with its reasoning. The exemption
+  reading, an accepted person joining a full folder rather than being turned
+  away at the door, lost on four grounds: 10.3 calls the number
+  server-enforced and records no exemption, where this specification
+  deviates it says so in place, 7.1's tz treatment being the model; AC-124's
+  own text names the counted value, a 26th member, never an endpoint, so an
+  exemption would have needed that criterion narrowed; the P3 merge review
+  accepted the addMember repair partly on the recorded ground that P5's
+  membership-granting path would read the corrected shape; and refusal is
+  the only outcome that preserves both the number and the invite, since the
+  all-or-nothing transaction leaves a refused invite pending and acceptable
+  once the folder has room, while an exemption makes 25 advisory and a
+  silent skip would consume the invite and grant nothing. Frozen sections 4
+  and 7 are untouched: 7.0's uniform status table and 10.3's blanket
+  sentence already carry the 422 on the wire, so the ruling is the
+  Steward's, not the owner's. The sequential refusal criteria arrive
+  tester-proposed at this package's change control; AC-124's member arm
+  gains the acceptance-path call site in its existing file with no text
+  change. Recorded with the same kickoff, in the RFC 0001 P5 row: the 8.10
+  deletion transaction's steps 1 to 6, covered by no criterion in any
+  package, get tester-proposed criteria at the same change control, the P4
+  precedent; the pending_invite_email derivation the suite README routes to
+  this package rides that proposal batch; and the co-lead's premise on
+  V-INV's closing pointer to 10.4 is answered in place, that arm being
+  P9's, where AC-101 already asserts the per-user limits by number behind
+  11.3's third middleware link, this package's only 429-shaped surface
+  being 5.2's resend guard, asserted as AC-068.
 - Package P4 of RFC 0001, views and search: every endpoint of frozen 7.10 and
   the eight queries of section 6 this package owns, Q1 with Q1R, Q2, Q3 with
   Q3C, Q4, Q5, Q6, Q7 and Q8, each answering rows the server has already

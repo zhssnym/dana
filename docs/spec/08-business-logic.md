@@ -146,7 +146,7 @@ Delivery is at-least-once: a crash between send and the state write can duplicat
 
 ### 8.7 Invites and sharing
 
-**V-INV validations on create**, in order: email syntactically valid and lowercased; not the inviter's own email; folder, when given, accessible to the inviter and not a default folder; task, when given, inside that folder; if the email belongs (case-insensitively) to an active user already connected to the inviter, convert to an instant share: create the membership immediately, send the share-grant email, create no invite row; if a pending invite by this inviter to this email for this folder exists, 409 pointing at it; rate limits per 10.4.
+**V-INV validations on create**, in order: email syntactically valid and lowercased; not the inviter's own email; folder, when given, accessible to the inviter and not a default folder; task, when given, inside that folder; if the email belongs (case-insensitively) to an active user already connected to the inviter, convert to an instant share, subject to the 10.3 member cap (a full folder refuses 422 and creates nothing, neither membership nor invite row): create the membership immediately, send the share-grant email, create no invite row; if a pending invite by this inviter to this email for this folder exists, 409 pointing at it; rate limits per 10.4.
 
 **Three entry paths, one mechanism**:
 1. Direct: enter an email in the sharing panel (folder attached) or in the People screen (bare).
@@ -160,6 +160,7 @@ def accept(invite, acceptor):
     assert lower(acceptor.email) == invite.email and invite.status == 'pending'
     upsert connection(minmax(invite.inviter_id, acceptor.id))          # INV-9, idempotent
     if invite.folder_id is not null and acceptor not member:
+        lock folder; refuse 422 if it already holds 25 members         # 10.3 cap, whole transaction rolls back
         insert folder_members(invite.folder_id, acceptor.id)           # INV-10
     if invite.task_id is not null:
         t = task(invite.task_id)
@@ -167,6 +168,8 @@ def accept(invite, acceptor):
             t.assignee_id = acceptor.id                                # else skip silently
     invite.status='accepted'; invite.accepted_by=acceptor.id; invite.responded_at=now()
 ```
+
+The 10.3 member cap binds every membership this section grants, ruled at the P5 kickoff on 2026-08-09. The instant-share conversion, with or without a task attached, and the acceptance transaction each check it the way POST /members does: lock the folder before counting, so the count and the insert are one decision, and refuse with 422 naming the cap when the folder already holds 25. Section 5.3 always wrote the guard on its direct-add row, and the acceptance row's silence was the fourth instance of the defect AC-124 names rather than an exemption: 10.3 calls the number server-enforced, a cap one path bypasses is not enforced, and the P3 repair of addMember was accepted partly on the recorded ground that this package's paths would read its corrected shape. A refused acceptance rolls back whole, per the all-or-nothing above, so the invite stays pending and can be accepted once the folder has room, which is also why refusal beats the silent skip the assignment arm uses: a skipped assignment loses a convenience, while a silently skipped membership would consume the invite and grant nothing. A refused conversion tells the inviter the folder is full now, rather than parking an invite whose acceptance the same cap would refuse.
 
 Matching is case-insensitive equality and nothing more; no Gmail dot or plus normalization. A stranded invite (address variant mismatch) is repaired by the inviter through the visible pending list with cancel and resend. Multiple pending invites to one email are all surfaced at login; each acceptance grants only its own folder; the connection is created once. Creating a new assignment-invite for a task clears task_id on any earlier pending invite for that task.
 
