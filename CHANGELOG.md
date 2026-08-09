@@ -10,6 +10,58 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- An escalation routed to the human owner at P5's mid-package change
+  control, 2026-08-09, wanted before the Collaboration session writes POST
+  /invites and blocking nothing meanwhile. **A bare invite to an
+  already-connected email has no specified outcome.** Section 8.7's V-INV
+  conversion arm fires when the invited email belongs to an active user
+  already connected to the inviter, conditioning on no folder being
+  present, and its consequent creates a membership, which only a folder can
+  define. It is routed rather than ruled because frozen 7.5 is silent on
+  the input and every candidate answer either spends a status that section
+  enumerates for a different outcome or invents one it does not: 7.5 writes
+  the conversion as "response 200 { converted_to_share: true, membership
+  created }", so answering 200 with no membership honors the status and not
+  the consequent. Ruling it on the Steward's own authority would also
+  contradict the ground recorded at this package's kickoff eight days of
+  commits earlier, where the cap ruling was taken precisely because frozen
+  4 and 7 were untouched by it. Three options, the second recommended:
+  - (a) 200 { converted_to_share: true }, nothing created and nothing sent,
+    reading the membership clause as folder-conditional the way the
+    acceptance transaction's own membership arm already is. The Adversarial
+    Test role recommends this: it keeps V-INV's order literal, invents no
+    refusal for frozen 7.5, and a roster already holding the pair leaves
+    nothing to create or send.
+  - (b) 409 naming the existing connection. The Steward recommends this,
+    departing from the proposing session. It is symmetrical with the 409
+    frozen 7.5 already enumerates, "already a member": each refuses when
+    what the request exists to create already holds, membership for a
+    folder invite and connection for a bare one. It keeps the endpoint's
+    outcome vocabulary, where 5.2's create row either produces a pending
+    invite with one email sent or is refused, while (a) introduces a third
+    outcome, a create that succeeds and makes nothing, which neither 5.2
+    nor 7.5 describes. And it is the answer 8.7's own design implies: that
+    section makes invite state visible to the inviter so a stranded invite
+    can be repaired from the pending list, and a 200 creating no visible
+    artifact is the one answer that defeats it, since nothing enters the
+    pending list, the roster already held the person, and the inviter
+    cannot tell a sent invite from a no-op. The principle that separates
+    this from the cap ruled at the kickoff, where refusing creation was
+    rejected: refuse when the request can accomplish nothing, permit when
+    it can accomplish something later. A parked invite at a full folder
+    becomes acceptable when a member leaves; a bare invite to a connected
+    person can never become anything, its acceptance being an idempotent
+    no-op on a connection that already exists. Its cost, stated plainly:
+    one sentence in frozen 7.5's enumeration, and normative copy in 9.8,
+    which the People screen needs under (a) as well.
+  - (c) The literal fallthrough, reading the conversion arm as inapplicable
+    where there is no share, so the endpoint answers its ordinary 201 {
+    invite }. Recorded because it is the only option needing no amendment
+    to frozen 7.5, so that leaving the text alone is seen to have a cost
+    rather than being free. Not recommended: it parks a row whose
+    acceptance is a pure no-op under INV-9's idempotent upsert, mails
+    "invited you to connect" to somebody already connected, and puts that
+    row on their login surface through Q12.
 - Section 12 gains AC-133 to AC-140 by P5's mid-package amendment on branch
   `p5-sharing`, the eight the Adversarial Test role authored with their tests
   and proposed by number in their file headers. Six close the account
