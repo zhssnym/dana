@@ -354,6 +354,43 @@ export function deleteConnection(
 }
 
 /* ------------------------------------------------------------------ *
+ * Account deletion, the 8.10 surface
+ * ------------------------------------------------------------------ */
+
+/** DELETE /me with the literal confirm string of 7.1. The route exists as
+ * the P1 stub (steps 7 and 8), which is why the 8.10 proposal files fail on
+ * their outcome assertions rather than on a missing route. */
+export function deleteAccount(actor: Actor): Promise<RawResponse> {
+  return actor.browser.json('/me', 'DELETE', { confirm: 'DELETE' })
+}
+
+export interface UserColumns extends Record<string, unknown> {
+  id: string
+  google_sub: string | null
+  email: string | null
+  display_name: string | null
+  avatar_url: string | null
+  deleted_at: string | null
+}
+
+/** The identity columns 8.10 step 7 scrubs, read by id: after the scrub the
+ * sub is null, so the auth harness's by-sub readers cannot find the row. */
+export async function userRowById(
+  db: Db,
+  id: string,
+): Promise<UserColumns | undefined> {
+  const found = await rows(
+    db,
+    sql`
+      SELECT id, google_sub, email, display_name, avatar_url,
+             ${instantColumn('deleted_at')}
+        FROM users WHERE id = ${id}
+    `,
+  )
+  return found[0] as UserColumns | undefined
+}
+
+/* ------------------------------------------------------------------ *
  * Outbound email, through the ratified sink
  * ------------------------------------------------------------------ */
 
