@@ -1,6 +1,6 @@
 /*
-Harness for the P5 sharing criteria (AC-059 to AC-069, plus the proposal
-batch this session routes to the mid-package change control), built on the
+Harness for the P5 sharing criteria (AC-059 to AC-069, plus AC-133 to
+AC-141, numbered by amendment on 2026-08-09), built on the
 P1 auth harness and the P2 and P3 layers: the same booted application, stub
 identity provider, cookie-jar browsers, lazily signed-in casts, and the
 scoped invariant sweeps, plus what frozen 7.5 and 7.3 and the amended 8.7
@@ -15,8 +15,9 @@ surfaces are P5's own: a broken create fails every file here on one
 attributable sentence. Folders, members, and tasks arrive through the merged
 P2 and P3 endpoints. Direct writes are kept for state no endpoint can
 produce (a last_sent_at 25 hours old, which is the only way to reach the far
-side of the resend window without waiting a day) and for the 8.10 proposal
-fixtures that need rows this package's surface does not mint on demand.
+side of the resend window without waiting a day) and for the 8.10 fixtures
+of AC-133 to AC-138, which need rows this package's surface does not mint
+on demand.
 
 **Recipients sign in with chosen identities.** Invite matching is 5.2's rule,
 the lowercased Google email equals invites.email, so the harness must be
@@ -357,8 +358,8 @@ export function deleteConnection(
  * ------------------------------------------------------------------ */
 
 /** DELETE /me with the literal confirm string of 7.1. The route exists as
- * the P1 stub (steps 7 and 8), which is why the 8.10 proposal files fail on
- * their outcome assertions rather than on a missing route. */
+ * the P1 stub (steps 7 and 8), which is why AC-133 to AC-138 fail on their
+ * outcome assertions rather than on a missing route. */
 export function deleteAccount(actor: Actor): Promise<RawResponse> {
   return actor.browser.json('/me', 'DELETE', { confirm: 'DELETE' })
 }

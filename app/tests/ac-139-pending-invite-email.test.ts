@@ -1,14 +1,14 @@
 /*
-AC-139 (proposed): given a pending invite carrying task_id, then every
-TaskCard of that task carries the invite's email as pending_invite_email;
-given a newer assignment-invite for the same task, then the older invite's
-task_id is cleared and the card carries the newest email; given no pending
-invite carries the task, then null.
+AC-139: Given a pending invite carrying task_id, then every TaskCard of that
+task carries the invite's email as pending_invite_email; given a newer
+assignment-invite for the same task, then the older invite's task_id is
+cleared and the card carries the newest email; given no pending invite
+carries the task, then null.
 
-The number is proposed, not assigned; numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent, and the text above is the transcription the amendment
-would take. Routed by the RFC 0001 P5 row: 7.0's TaskCard names
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text. This file proposed it, the AC-125 to AC-130 precedent for a batch
+authored with its tests and numbered additively at a mid-package change
+control. Routed by the RFC 0001 P5 row: 7.0's TaskCard names
 pending_invite_email as derived from invites.task_id and no criterion in any
 range pins the derivation. P3 asserted the key's presence and could do no
 more, creating no invites, and the tolerance the suite README records on

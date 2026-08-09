@@ -1,13 +1,13 @@
 /*
-AC-135 (proposed): given DELETE /me, then the default folder and every owned
-folder without other members are deleted with the full 8.8 cascade: their
-tasks of all statuses, steps, My Day entries, reminders, and pending invites
-carrying them are gone.
+AC-135: Given DELETE /me, then the default folder and every owned folder
+without other members are deleted with the full 8.8 cascade: their tasks of
+all statuses, steps, My Day entries, reminders, and pending invites carrying
+them are gone.
 
-The number is proposed, not assigned; numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent, and the text above is the transcription the amendment
-would take. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text. This file proposed it, the AC-125 to AC-130 precedent for a batch
+authored with its tests and numbered additively at a mid-package change
+control. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
 1 to 6, outcome by outcome, and this is step 3's.
 
 Step 3's scope is what the fixture spells out: the default folder always

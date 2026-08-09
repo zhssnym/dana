@@ -1,13 +1,13 @@
 /*
-AC-134 (proposed): given DELETE /me by the owner of shared folders, then
-each survives under the remaining member with the earliest join, ties to the
-lower user id, the new owner's membership row otherwise unchanged, and the
-deleted owner's membership and assignments in it are gone.
+AC-134: Given DELETE /me by the owner of shared folders, then each survives
+under the remaining member with the earliest join, ties to the lower user
+id, the new owner's membership row otherwise unchanged, and the deleted
+owner's membership and assignments in it are gone.
 
-The number is proposed, not assigned; numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent, and the text above is the transcription the amendment
-would take. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text. This file proposed it, the AC-125 to AC-130 precedent for a batch
+authored with its tests and numbered additively at a mid-package change
+control. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
 1 to 6, outcome by outcome, and this is step 2's, the 8.9 rule with its
 second caller (owner leave, its first, is AC-019's).
 

@@ -1,16 +1,19 @@
 /*
-AC-140 (proposed): given a folder holding 25 members, when an invite that
-would convert to an instant share is created, with or without a task
-attached, then 422 naming the cap and nothing is created, neither membership
-nor invite row nor assignment; when a pending folder invite for it is
-accepted, then 422, the whole acceptance rolls back leaving the invite
-pending with no connection made, and the same acceptance succeeds once the
-folder has room.
+AC-140: Given a folder holding 25 members, when an invite that would convert
+to an instant share is created, with or without a task attached, then 422
+naming the cap and nothing is created, neither membership nor invite row nor
+assignment; when a pending folder invite for it is accepted, then 422, the
+whole acceptance rolls back leaving the invite pending with no connection
+made, and the same acceptance succeeds once the folder has room.
 
-The number is proposed, not assigned; numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent, and the text above is the transcription the amendment
-would take. Routed by the kickoff ruling of 2026-08-09 (commit 139c5f5):
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text. This file proposed it, the AC-125 to AC-130 precedent for a batch
+authored with its tests and numbered additively at a mid-package change
+control. The amendment records one reading with it, that an invite created
+against a full folder is not itself refused, creation granting no
+membership, which is what leaves the parked invite for the cap to refuse at
+acceptance; the third case below is that invite.
+Routed by the kickoff ruling of 2026-08-09 (commit 139c5f5):
 the 10.3 member cap binds every membership 8.7 grants, the instant-share
 conversion and the acceptance transaction alike, the acceptance row's
 silence in 5.3 having been the fourth instance of the defect AC-124 names

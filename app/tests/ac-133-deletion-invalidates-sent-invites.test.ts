@@ -1,18 +1,17 @@
 /*
-AC-133 (proposed): given a user with pending sent invites, bare and folder
-alike, when DELETE /me completes, then each is invalidated and gone from its
-recipient's pending list, while the user's already-terminal invites and
-invites merely addressed to their email are untouched.
+AC-133: Given a user with pending sent invites, bare and folder alike, when
+DELETE /me completes, then each is invalidated and gone from its recipient's
+pending list, while the user's already-terminal invites and invites merely
+addressed to their email are untouched.
 
-The number is proposed, not assigned. Numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent; this file carries the next additive number and the text
-above is the transcription the amendment would take. The RFC 0001 P5 row
-routes it here: the kickoff of 2026-08-09 decided the tester session
-proposes criteria for 8.10's steps 1 to 6, observable outcome by outcome,
-because no criterion in any range covers them, AC-009 and AC-112 pinning
-only the confirm string and the session revocation the P1 stub already
-satisfies.
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text, with the seven below it. This file proposed it, the AC-125 to AC-130
+precedent for a batch authored with its tests and numbered additively at a
+mid-package change control. The RFC 0001 P5 row routed it here: the kickoff
+of 2026-08-09 decided the tester session proposes criteria for 8.10's steps
+1 to 6, observable outcome by outcome, because no criterion in any range
+covered them, AC-009 and AC-112 pinning only the confirm string and the
+session revocation the P1 stub already satisfies.
 
 This is step 1's outcome. Invalidated is 5.2's fourth terminal state and
 exists for exactly this transition, distinct from removal: the row survives

@@ -1,13 +1,13 @@
 /*
-AC-136 (proposed): given DELETE /me by a member of others' folders, then
-each membership is removed through R-CLEAN: their assigned tasks in the
-folder unassigned, their My Day entries for its tasks deleted, and a folder
-left with exactly one member has every task in it assigned to that member.
+AC-136: Given DELETE /me by a member of others' folders, then each
+membership is removed through R-CLEAN: their assigned tasks in the folder
+unassigned, their My Day entries for its tasks deleted, and a folder left
+with exactly one member has every task in it assigned to that member.
 
-The number is proposed, not assigned; numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent, and the text above is the transcription the amendment
-would take. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text. This file proposed it, the AC-125 to AC-130 precedent for a batch
+authored with its tests and numbered additively at a mid-package change
+control. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
 1 to 6, outcome by outcome, and this is step 4's.
 
 Step 4 is deliberately not new machinery: it is 5.3's R-CLEAN, the block

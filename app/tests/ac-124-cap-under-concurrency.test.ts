@@ -56,7 +56,7 @@ rolls back whole with its invite left pending, and the count holds at 25.
 Unlike the three original arms, this one arrives red, the designed order:
 its invites travel POST /invites and its race travels the acceptance
 endpoint, both P5's surfaces, unmounted until that package lands. The
-ruling's sequential refusals are the proposed AC-140's, in that file.
+ruling's sequential refusals are AC-140's, in that file.
 
 Spec: 10.3 (the three limits, server-enforced, 422 with the field named), 7.7
 (422 over 50 steps), 7.4 (422 member cap 25; 422 at 200 custom folders), 8.7

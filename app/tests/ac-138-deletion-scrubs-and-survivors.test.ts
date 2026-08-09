@@ -1,14 +1,16 @@
 /*
-AC-138 (proposed): given DELETE /me, then the user row survives scrubbed,
-google_sub, email, display_name, and avatar_url null with deleted_at set,
-and surviving tasks keep created_by and completed_by pointing at it,
-readable by remaining members with the assignee cleared; an accepted
-invite keeps its accepted_by.
+AC-138: Given DELETE /me, then the user row survives scrubbed, google_sub,
+email, display_name, and avatar_url null with deleted_at set, and surviving
+tasks keep created_by and completed_by pointing at it, readable by remaining
+members with the assignee cleared; an accepted invite keeps its accepted_by.
 
-The number is proposed, not assigned; numbering section 12 additively is the
-Integration Steward's at the mid-package change control, the AC-125 to
-AC-130 precedent, and the text above is the transcription the amendment
-would take. Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
+Numbered by the Integration Steward on 2026-08-09 and now section 12's own
+text. This file proposed it, the AC-125 to AC-130 precedent for a batch
+authored with its tests and numbered additively at a mid-package change
+control. The amendment records one reading with it, that this criterion is
+admitted although it reaches step 7: the scrub half arrives green against
+the P1 stub, and the surviving-reference half is what discriminates.
+Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
 1 to 6, outcome by outcome, and this is the outcome the whole ordering
 exists to protect, the survivors: history keeps its author while identity
 is gone, which is what 4.1 stores soft deletion for and what the client

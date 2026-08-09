@@ -26,7 +26,8 @@ npx vitest run -t "AC-105"
 | P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
 | P4 gate | AC-132 | Covered, passing since the same repair; written red by design, green once the implementer's session followed the tester's |
 | P5 | AC-059 to AC-069 | Covered, red on the unmounted 7.5 and 7.3 routes until the package lands, the designed order |
-| P5 proposals | AC-133 to AC-140, numbers proposed | Written with their tests for the mid-package change control to number, the P4 precedent; the six 8.10 files red against the P1 stub on its missing steps 1 to 6 |
+| P5 gate | AC-133 to AC-140 | Covered, red by design; proposed here with their tests and numbered by the section 12 amendment of 2026-08-09, the six 8.10 files failing against the P1 stub on its missing steps 1 to 6 |
+| P5 gate | AC-141 | Covered, red on the unmounted POST /invites; appended by the same date's amendment from the owner's ruling rather than proposed here |
 | P6 to P10 | AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -115,7 +116,7 @@ asserted rather than left to be rediscovered:
   value rather than an endpoint. That arm arrives red, its invites and its
   race both traveling P5's unmounted surfaces, which restores the designed
   order for exactly the path whose implementation does not exist yet; the
-  ruling's sequential refusals are the proposed AC-140's, in its own file.
+  ruling's sequential refusals are AC-140's, in its own file.
 - **The settled 7.7 and 7.8 bodies are pinned by AC-043 and AC-044.** Both
   sections were silent on what their mutations answer when those files were
   written, so they asserted statuses alone; the P3 shape review settled it
@@ -311,10 +312,11 @@ things those files are written around.
   sides of the 24 hours are asserted, 429 with Retry-After inside, 200
   with one more counted email beyond.
 
-The proposal batch, AC-133 to AC-140 with numbers proposed, rides the same
-branch for the mid-package change control to number, the P4 precedent, and
-its files carry their proposed texts verbatim so transcription is
-mechanical. AC-133 to AC-138 are 8.10's steps 1 to 6, outcome by outcome:
+AC-133 to AC-140 were proposed here with their tests and numbered by the
+Integration Steward's section 12 amendment on 2026-08-09, the AC-125 to
+AC-130 precedent for a batch authored on the branch and numbered at a
+mid-package change control. AC-133 to AC-138 are 8.10's steps 1 to 6,
+outcome by outcome:
 sent invites invalidated with the sweep scoped by inviter and pending
 status; transfer to the earliest join with the id tie-break, on seeded
 join instants per the AC-019 precedent; the default and sole-member
@@ -331,6 +333,19 @@ end to end through POST /invites, including 8.7's clearing sentence, and
 AC-140 is the kickoff ruling's sequential refusals: a full folder refuses
 the conversion with nothing created and refuses the acceptance whole, the
 invite left pending and acceptable once room opens.
+
+AC-141 did not come from here, and the difference is worth keeping. This
+session escalated the bare invite to an already-connected email as a
+genuine silence in 8.7's conversion arm and recommended 200 with nothing
+created; the Steward recommended 409, and the human owner ruled 409 on
+2026-08-09, so 7.5, 8.7 and 9.8 now carry the refusal and the Steward
+appended the criterion from the ruling, the AC-124 shape rather than the
+AC-125 one. Only its test is this role's, which is why its file states the
+criterion as settled text and records the recommendation it lost. The
+discriminator is what the file is built around: the same email answers 409
+bare and runs AC-061's conversion with a folder attached, so both arms are
+asserted in one file against one roster, and neither can be satisfied by an
+endpoint that simply refuses or simply converts everything.
 
 ## The two amendments these tests read closely
 
@@ -440,7 +455,7 @@ The tolerance this paragraph used to record is closed. TaskCard's
 `pending_invite_email` was the one value the shape check tolerated, its
 derivation from `invites.task_id` belonging to P5, the package that creates
 those rows, and nothing in section 12 pinning it. P5's tester session is
-this one, and the proposed AC-139 pins the derivation end to end, on the
+this one, and AC-139 pins the derivation end to end, on the
 detail read and on a view row, through the newest-invite-wins clearing rule
 of 8.7 and back to null on a terminal transition. The shape check in
 `tasks-harness.ts` stays value-tolerant on that one key, which is now a

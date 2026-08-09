@@ -13,9 +13,8 @@ that grants without assigning fails here.
 
 Until acceptance, the task's assignee stays unchanged, which is 8.7's own
 sentence for this path, and the parked intent is visible as the TaskCard's
-pending_invite_email; that derivation's value is pinned by the proposed
-criterion this session routes to the change control, and here it is read
-only as the premise chip the path describes.
+pending_invite_email; that derivation's value is pinned by AC-139, and here
+it is read only as the premise chip the path describes.
 
 The acceptance response carries assigned_task_id, frozen 7.5's third key,
 so the wire says what the transaction did; the stored truth is read from
