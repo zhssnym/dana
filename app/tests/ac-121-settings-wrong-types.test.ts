@@ -1,5 +1,5 @@
 /*
-AC-121 (proposed, P2S): given PATCH /me/settings carrying a non-boolean
+AC-121 (P2S): Given PATCH /me/settings carrying a non-boolean
 value for any of the three fields, null included since 4.10 admits no null
 state, then 422 naming the field and no setting changes.
 
@@ -15,10 +15,10 @@ The 400 half of the taxonomy (unparseable, non-object, over-limit) is
 deliberately not probed again: body parsing is one boot-level middleware
 and AC-118 pins it for the whole surface from the /me routes.
 
-This file is red until P2S lands the endpoint: the route answers 404 today.
+This file was red until P2S landed the endpoint; it passes since that merge.
 
-Spec: 7.2 (frozen), 7.0, 4.10, 10.3; RFC 0001 P2S row; criteria proposed to
-the Steward for the section 12 amendment.
+Spec: 7.2 (frozen), 7.0, 4.10, 10.3; RFC 0001 P2S row; proposed here and
+numbered by the Steward's section 12 amendment on 2026-08-04.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
