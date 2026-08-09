@@ -10,6 +10,32 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Section 12 gains AC-133 to AC-140 by P5's mid-package amendment on branch
+  `p5-sharing`, the eight the Adversarial Test role authored with their tests
+  and proposed by number in their file headers. Six close the account
+  deletion transaction of 8.10, whose steps AC-009 and AC-112 leave
+  uncovered, one step's observable outcome each with steps 5 and 6 taken
+  together: sent invites invalidated, ownership transferred by 8.9's rule,
+  the default and sole-member folders deleted with their 8.8 cascades,
+  remaining memberships removed through R-CLEAN including the drop-to-one
+  INV-5 sweep, connections and My Day entries gone, and the scrub with the
+  surviving references that the whole ordering exists to protect. AC-139
+  pins 7.0's pending_invite_email against invites.task_id, the derivation
+  P3 could only assert the presence of and the suite README has carried as
+  a tolerance since. AC-140 is the sequential half of the kickoff's cap
+  ruling, the concurrent half riding AC-124's member arm. Numbering
+  additively is the Steward's, the AC-116 to AC-118, AC-119 to AC-123,
+  AC-124, AC-125 to AC-131, and AC-132 precedent: an appended number moves
+  no existing number and so invalidates no criterion. Two things are
+  recorded with them rather than left in test headers. AC-138 reaches step
+  7, which the kickoff did not route, and is admitted because the scrub
+  alone would arrive green against the P1 stub while the surviving-reference
+  half fails and discriminates the two implementations that make deletion
+  easy by breaking it, hard-deleting the user row or nulling the history
+  columns 4.5 holds under RESTRICT. And AC-140 rests on one reading of the
+  kickoff ruling: an invite created against a full folder is not refused,
+  because creation grants no membership, and it is that parked invite whose
+  acceptance the cap then refuses until the folder has room.
 - A ruling of the Integration Steward at the P5 kickoff, 2026-08-09, closing
   the question the AC-124 amendment parked in the P5 row: **the 10.3 member
   cap binds every membership section 8.7 grants**. The acceptance transaction
