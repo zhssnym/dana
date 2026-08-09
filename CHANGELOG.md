@@ -10,6 +10,22 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Section 12 gains AC-141 with that ruling, the bare invite to an existing
+  connection answering 409 and creating nothing, the folder attached or
+  absent being what separates it from AC-061's conversion. The edge was
+  asserted by no numbered criterion in either direction, which is a good
+  part of why it stayed open long enough to need a ruling, and a rule the
+  specification states and nothing asserts is the standard AC-125 to
+  AC-131 were admitted under. Appended rather than folded into AC-061,
+  whose text does not move: AC-130 was widened for what can look like the
+  same reason, but its two inputs are one rule of 7.0 whose two failures
+  the owner made one answer, while these two inputs take different
+  answers, a conversion and a refusal. AC-061 is the folder arm and is
+  silent on the bare input rather than wrong about it, its consequent of
+  a membership and a share-grant email having only ever described a
+  folder. The test is routed to the Adversarial Test role, as AC-124's
+  was when the Steward appended a criterion from a ruling rather than
+  from a proposal, and P5's merge gate holds for it.
 - A ruling of the human owner, Hassan, on 2026-08-09, closing the
   escalation P5's mid-package change control routed to him the same day.
   **A bare invite to an already-connected email answers 409.** He took
