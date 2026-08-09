@@ -169,3 +169,9 @@ as an isolated sub-agent with no chat to return to.
 | 7c | The pull dated from the carried `tz` through the same `today()` the view reads | 03 | Implementers | Done |
 | 7d | `tz` carried into the contract probes | 04 | Implementers | Done |
 | 8 | Merged at a52081f, AC-132 appended, green on both legs | 12 | Steward | Done |
+
+## P5: sharing (`p5-sharing`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, the 8.7 cap ruled onto 8.7 and 5.3, the 8.10 criteria and two carried gaps routed to the tester, the 10.4 arm placed at P9 | 12 | Steward | Done |
