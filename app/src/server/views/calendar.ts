@@ -1,5 +1,6 @@
 /*
-Q3C: GET /views/planned/calendar, the real rows of the grid.
+Q3C: GET /views/planned/calendar, the real rows of the grid and the ghosts
+drawn beside them.
 
 Two things separate this from Q3, and an implementation that reuses the
 Planned comparator here gets both wrong.
@@ -16,11 +17,21 @@ Q3 puts status_rank above the timed flag; Q3C puts the timed flag above
 status_rank, and puts due_time above status_rank inside the timed run. The
 two orders disagree on any date carrying a mixed cell.
 
-The virtual arm is empty here and will not always be. It is 8.5's projection
-over the 4.11 iterator that 11.9 gives to the Scheduling engineer and P6
-delivers, and AC-082 pins it in P6's range rather than this one. The key is
-answered now because 7.10 enumerates it, the treatment P3 gave 7.0's
-recurrence_rule and reminder keys while their computations were deferred.
+The virtual arm is 8.5's projection over the 4.11 iterator, which 11.9 gives
+to the Scheduling engineer and P6 delivered; this file calls it and fetches
+what it projects from, which is the whole of the seam docs/team/README.md
+names. The arithmetic below the call is never restated here.
+
+**The two fetches are two queries on purpose, and this is the one thing about
+this file worth arguing with before changing it.** Q3C's virtual sentence
+scopes the projection by three things, accessible, pending and rule-carrying,
+and by nothing else; in particular not by the task's own due_date lying inside
+the requested range, which is the real-row predicate and belongs to the real
+rows alone. Projecting off the BETWEEN-bounded result set is one line shorter,
+passes AC-082 outright, whose current occurrence sits inside its own grid, and
+silently empties every month-ahead view of a series anchored before the range,
+which is the ordinary way a repeating task is looked at. AC-143 exists to fail
+against that implementation, and section 12 records the reading beside it.
 
 There is no cap and no truncated flag, which 7.10 shows by giving this body
 neither: the response is bounded by its 62 days instead, and the range check
@@ -29,10 +40,23 @@ route because naming the field and choosing the status are the route's.
 */
 import { sql } from 'drizzle-orm'
 
-import type { GetPlannedCalendarResponse } from '../../shared/views.js'
+import type {
+  GetPlannedCalendarResponse,
+  VirtualInstance,
+} from '../../shared/views.js'
+import { rowsOf } from '../domain/db.js'
 import type { Executor } from '../domain/db.js'
+import { compareDates, virtualInstances } from '../time/index.js'
+import type { CalendarDate } from '../time/index.js'
 
-import { STATUS_RANK, readCards } from './cards.js'
+import {
+  DUE_DATE,
+  DUE_TIME,
+  STATUS_RANK,
+  accessibleTasks,
+  nullableString,
+  readCards,
+} from './cards.js'
 
 /**
  * Q3C's cell order, flattened into one sequence across the range.
@@ -45,6 +69,79 @@ import { STATUS_RANK, readCards } from './cards.js'
 const Q3C_ORDER = sql`t.due_date ASC,
        (t.due_time IS NOT NULL) ASC, t.due_time ASC NULLS FIRST,
        ${STATUS_RANK} ASC, t.id ASC`
+
+/**
+ * Q3C's virtual sentence as a predicate: "for every accessible pending task
+ * with a recurrence_rule".
+ *
+ * Accessible is the membership join of accessibleTasks, so what is left here
+ * is the other two, and there is no third. The range is deliberately absent:
+ * see the header. 4.11's CHECK makes a rule-carrying row a dated row, so
+ * due_date is never null behind this predicate, and the projection re-tests
+ * both facts anyway rather than trusting the caller.
+ */
+const PROJECTED_SERIES = sql`t.status = 'pending'
+       AND t.recurrence_rule IS NOT NULL`
+
+/**
+ * Every series that could draw a ghost, in id order.
+ *
+ * Ordered so the ghosts are, and by the same comparison Q3C's real rows are
+ * ordered by: "ghosts (date order, task id)" is a date-major sort over this
+ * sequence, and a stable sort leaves the database's own uuid order intact
+ * inside a date rather than re-deriving it in JavaScript, where the two could
+ * disagree.
+ */
+async function projectionSources(
+  executor: Executor,
+  viewerId: string,
+): Promise<Record<string, unknown>[]> {
+  return rowsOf(
+    executor,
+    sql`SELECT t.id, t.title, t.status, t.folder_id, t.recurrence_rule,
+               ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time
+        ${accessibleTasks(viewerId)}
+        WHERE ${PROJECTED_SERIES}
+        ORDER BY t.id ASC`,
+  )
+}
+
+/**
+ * 7.10's virtual element, one per projected date.
+ *
+ * A ghost is not a card: 7.10 gives it five keys, and the three it takes from
+ * the row are the current occurrence's own, because "click opens the current
+ * occurrence" (Q3C) means the id it carries is that row's rather than a
+ * synthesized one.
+ */
+function ghostsOf(
+  rows: readonly Record<string, unknown>[],
+  start: CalendarDate,
+  end: CalendarDate,
+): VirtualInstance[] {
+  const ghosts: VirtualInstance[] = []
+  for (const row of rows) {
+    const dates = virtualInstances(
+      {
+        status: String(row.status),
+        dueDate: nullableString(row.due_date),
+        recurrenceRule: nullableString(row.recurrence_rule),
+      },
+      start,
+      end,
+    )
+    for (const date of dates) {
+      ghosts.push({
+        task_id: String(row.id),
+        title: String(row.title),
+        date,
+        due_time: nullableString(row.due_time),
+        folder_id: String(row.folder_id),
+      })
+    }
+  }
+  return ghosts.sort((a, b) => compareDates(a.date, b.date))
+}
 
 /**
  * GET /views/planned/calendar.
@@ -67,5 +164,9 @@ export async function plannedCalendarView(
     where: sql`t.due_date BETWEEN ${start}::date AND ${end}::date`,
     order: Q3C_ORDER,
   })
-  return { real: rows.map((row) => row.card), virtual: [] }
+  const series = await projectionSources(executor, viewerId)
+  return {
+    real: rows.map((row) => row.card),
+    virtual: ghostsOf(series, start, end),
+  }
 }
