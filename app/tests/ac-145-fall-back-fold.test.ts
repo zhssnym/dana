@@ -1,10 +1,15 @@
 /*
-AC-145 (proposed): given a reminder whose local fire time falls inside a
-fall-back overlap, then fire_at is the earlier of the two instants.
+AC-145: given a reminder whose local fire time falls inside a fall-back
+overlap, then fire_at is the earlier of the two instants, the choice Luxon
+documents as undefined.
 
-Proposed here with its test, and numbered by the Integration Steward at this
-package's change control like its sibling AC-144. The two are separate numbers
-rather than one because they are separate rules with separate failure modes:
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10 like its sibling AC-144, so the
+sentence above is section 12's own text now. The amendment carried one clause
+each file had left to its assertions, here that the chosen instant is the one
+Luxon leaves undefined; no assertion moved with it. The two are separate
+numbers rather than one because they are separate rules with separate failure
+modes:
 the gap has no answer and 8.6 invents one, the fold has two and 8.6 chooses,
 and a module can implement either correctly while getting the other wrong. 8.6
 writes them as two sentences and 11.9 records two distinct Luxon behaviors
@@ -118,7 +123,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-145 (proposed): an ambiguous local time resolves to the earlier instant', () => {
+describe('AC-145: an ambiguous local time resolves to the earlier instant', () => {
   test('AC-145: the fold is still a fold on this runtime', () => {
     expectFoldFixture()
   })

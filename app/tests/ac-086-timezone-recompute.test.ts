@@ -35,14 +35,17 @@ nothing moves anyway, so each one first shows the same fixture moving under a
 real change: without that control these cases would pass today and go on
 passing against an implementation that never recomputed at all.
 
-**One case is deliberately absent and is escalated instead.** Whether a
-reminder already in state = sent recomputes is not settled: 7.1 scopes the
-recompute to "scheduled reminders" and this criterion's own text says
-"scheduled fire_at values", while 8.6's trigger sentence resets state to
-scheduled whenever the new instant is in the future and names no state it
-starts from. Read the second way, a delivered reminder returns to scheduled
-and is delivered again. This file asserts neither reading; the question is
-routed to the Integration Steward with a recommendation.
+**One case is deliberately absent here and has a criterion of its own.**
+Whether a reminder already in state = sent recomputes was not settled when
+this file was written: 7.1 scopes the recompute to "scheduled reminders" and
+this criterion's own text says "scheduled fire_at values", while 8.6's trigger
+sentence resets state to scheduled whenever the new instant is in the future
+and names no state it starts from, so read the second way a delivered reminder
+returns to scheduled and is delivered again. The change control of 2026-08-10
+ruled the narrow reading into 8.6 and appended AC-154 for it. This file still
+asserts neither reading, deliberately and unchanged: one rule belongs in one
+place, and AC-154 owns it with both clauses, the sent row untouched and a
+scheduled row moving in the same sync to prove the trigger ran.
 
 Spec: 8.6 (the trigger list), 7.1 (the tz parameter, the callback's sync, and
 PATCH /me's recompute), 8.1 (users.timezone's one consumer, and the alias

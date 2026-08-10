@@ -1,15 +1,15 @@
 /*
-AC-146 (proposed): given DELETE /tasks/:id/reminder, then 204 with no body,
-the row is gone, the task is otherwise unchanged, and a repeat call answers
-204 again.
+AC-146: given DELETE /tasks/:id/reminder, then 204 with no body, the row is
+gone, the task is otherwise unchanged, and a repeat call answers 204 again.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. It is the first of the six surfaces the RFC
-0001 P7 row lists as unasserted and calls this session's floor rather than its
-ceiling.
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. It is the first of the six surfaces
+the RFC 0001 P7 row listed as unasserted and called that session's floor
+rather than its ceiling.
 
-**Half of frozen 7.9 has no criterion at all.** The section is two bullets and
-section 12 covers one of them: AC-090 tests a PUT refusal and a delivery
+**Half of frozen 7.9 had no criterion at all.** The section is two bullets and
+section 12 covered one of them: AC-090 tests a PUT refusal and a delivery
 recipient, and nothing anywhere names the DELETE. A route that answered 200,
 or that answered 204 without deleting anything, or that failed on the second
 call, would pass the entire acceptance suite. The bullet is one line and every
@@ -113,7 +113,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-146 (proposed): the reminder DELETE, which no criterion covers', () => {
+describe('AC-146: the reminder DELETE, which no criterion covered', () => {
   test('AC-146: the DELETE answers 204, removes the row, and the task reads reminder null', async () => {
     const { owner } = await stage()
     const taskId = await timedTask('deleted')

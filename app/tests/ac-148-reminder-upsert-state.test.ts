@@ -1,14 +1,24 @@
 /*
-AC-148 (proposed): given a second PUT /tasks/:id/reminder over an existing
-row, then the single row carries the new value with fire_at recomputed, state
-returns to scheduled from sent and from skipped, and the response is the
-affected TaskDetail reporting it.
+AC-148: given a second PUT /tasks/:id/reminder over an existing row whose new
+instant is in the future, then the single row carries the new value with
+fire_at recomputed, state returns to scheduled from sent and from skipped, and
+the response is the affected TaskDetail reporting it.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. It is the third of the six surfaces the RFC
-0001 P7 row names, and the row's phrasing is precise about what is missing:
-"PUT upserting over an existing row and resetting state to scheduled from sent
-or skipped, which 7.9 states and nothing checks".
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now. It is the third of the six surfaces the RFC 0001 P7 row
+named, and the row's phrasing is precise about what was missing: "PUT
+upserting over an existing row and resetting state to scheduled from sent or
+skipped, which 7.9 states and nothing checks".
+
+**The criterion gained "whose new instant is in the future" at the same change
+control, and it corrected nothing here.** Both cases below already used future
+instants, deliberately and for a reason the header stated: the past-instant
+case was a genuine disagreement between two texts and this file declined to
+assert either reading of it. The owner then qualified frozen 7.9's bullet on
+that escalation, so a PUT computing a past instant answers skipped, and the
+criterion states the condition its test already met. The two texts agree now
+rather than meeting later, and no fixture and no assertion moved.
 
 **Upsert is a word doing real work.** 4.8 makes task_id the primary key, so
 there is exactly one reminder per task and a second PUT has to update rather
@@ -19,11 +29,17 @@ range makes that call twice.
 
 **The state reset is the half with teeth.** A reminder that has already been
 sent, or that was skipped when its date moved backwards, is a row with a
-terminal state. 7.9 says a PUT resets it to scheduled, and without that a user
-who re-sets a reminder after the first one fired gets a row that will never
-fire again, silently, with the value they asked for sitting in it. Both
-terminal states are exercised, because an implementation resetting from one is
-no evidence about the other.
+terminal state. 7.9 says a PUT resets it to scheduled unless the new instant
+is already past, and without that reset a user who re-sets a reminder after
+the first one fired gets a row that will never fire again, silently, with the
+value they asked for sitting in it. Both terminal states are exercised,
+because an implementation resetting from one is no evidence about the other.
+
+That revival is also what makes AC-154 a narrower rule rather than a
+contradiction of this one. A PUT changes the reminder's own value or mode,
+which 8.6 counts as a new occasion and which returns a sent row to scheduled;
+a timezone change alters neither the deadline nor the recipient, and 8.6 as
+ruled at the same change control leaves a sent row alone for it.
 
 **The ruled response body is judged on every success**, in the harness, by the
 same helper as the ruled 7.7 and 7.8 bodies: a whole TaskDetail equal to what
@@ -32,15 +48,19 @@ make, which is that the body reports the reminder just written rather than the
 one it replaced. A route reading the row before its own update answers the old
 value with a 200 and looks entirely correct.
 
-**Every instant here is in the future, deliberately.** Whether a PUT computing
-an instant already past leaves the row scheduled or skipped is a genuine
-disagreement between frozen 7.9 and 8.6, escalated at this package's change
-control rather than asserted in either direction. Confining this file to
-future instants keeps it out of that argument: with the new instant ahead,
-both sentences say scheduled.
+**Every instant here is in the future, deliberately, and the reason has been
+settled rather than removed.** Whether a PUT computing an instant already past
+leaves the row scheduled or skipped was a genuine disagreement between frozen
+7.9 and 8.6, escalated at this package's change control rather than asserted
+in either direction. It is now 7.9's own qualifier, skipped, so confining this
+file to future instants is what isolates the revival the criterion is about
+from the refusal that shares its bullet. The past-instant answer has a
+criterion of its own nowhere and needs none: AC-085 pins the same rule where
+8.6 states it, on a recompute rather than on a write.
 
-Spec: 7.9 (upserts the single row, computes fire_at, state resets to
-scheduled; and the 2026-08-10 ruling on the response body), 4.8 (the primary
+Spec: 7.9 (upserts the single row, computes fire_at, state resets to scheduled
+unless that instant is already past; and the 2026-08-10 rulings on the
+response body and on that qualifier), 4.8 (the primary
 key, the mode columns, state and fired_at), 8.6 (the computation and the
 recompute trigger on the reminder's own value or mode).
 */
@@ -120,7 +140,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-148 (proposed): a second PUT replaces the row and revives it', () => {
+describe('AC-148: a second PUT replaces the row and revives it', () => {
   test('AC-148: the second PUT updates the single row rather than inserting a second', async () => {
     const { owner } = await stage()
     const { id, due } = await futureTask('upsert')
@@ -187,7 +207,7 @@ describe('AC-148 (proposed): a second PUT replaces the row and revives it', () =
     const row = await requireReminderRow(app.db, id, 'the row survives')
     expect(
       row.state,
-      '7.9: state resets to scheduled. Without it, a user who sets a new reminder after the first one fired gets a row that will never fire again, holding exactly the value they asked for',
+      '7.9: state resets to scheduled unless that instant is already past, and this instant is thirty days out. Without the reset, a user who sets a new reminder after the first one fired gets a row that will never fire again, holding exactly the value they asked for',
     ).toBe('scheduled')
     expectFireAt(
       row,
@@ -220,7 +240,7 @@ describe('AC-148 (proposed): a second PUT replaces the row and revives it', () =
     const row = await requireReminderRow(app.db, id, 'the row survives')
     expect(
       row.state,
-      '7.9 says state resets to scheduled and names no state it resets from, so an implementation reviving one of 4.8\'s two terminal states is no evidence at all about the other',
+      '7.9 says state resets to scheduled unless that instant is already past, and it names no state it resets from, so an implementation reviving one of 4.8\'s two terminal states is no evidence at all about the other',
     ).toBe('scheduled')
     expectFireAt(
       row,

@@ -32,9 +32,9 @@ against a task that already carries a reminder, the assertion is that the
 stored row is byte for byte what it was.
 
 The other 7.9 guards, the task with no due_date at all and the converse wrong
-mode, are not this criterion's. They are proposed as a number of their own in
-this package's change control, because 7.9 names the no-due_date refusal
-separately from the wrong-mode one and no number covers it.
+mode, are not this criterion's. They are AC-147, numbered at this package's
+change control on 2026-08-10, because 7.9 names the no-due_date refusal
+separately from the wrong-mode one and no number covered it.
 
 Spec: 7.9 (the mode rules, and the ruling of 2026-08-10 that PUT answers the
 affected TaskDetail), 4.8 (which mode is legal depends on the task's due_time,

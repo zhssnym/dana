@@ -1,25 +1,34 @@
 /*
-AC-144 (proposed): given a reminder whose local fire time falls inside a
-spring-forward gap, then fire_at is the first valid instant after the gap.
+AC-144: given a reminder whose local fire time falls inside a spring-forward
+gap, then fire_at is the first valid instant after the gap, and not the
+instant raw Luxon answers by advancing the gap's length.
 
-Proposed here with its test. The number is the Integration Steward's to assign
-at this package's change control, the AC-125, AC-133 and AC-142 precedent; the
-file spells AC-144 because a range has to be greppable and AC-143 is the last
-number section 12 carries. Numbering additively changes no existing number and
-so invalidates no criterion, which is what places it with the Steward rather
-than with the human owner, whose are the frozen texts of sections 4 and 7.
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now: the AC-125 to AC-130, AC-133 to AC-140 and AC-142 to
+AC-143 precedent for a batch authored on the branch and numbered additively so
+nothing moves. The amendment carried one clause this file had left to its
+assertions rather than to its sentence, that the answer is not the one raw
+Luxon gives. No assertion moved with it; `expectNotFireAt` has named that
+instant since the file was written, which is why the clause was available to
+be transcribed at all.
 
-**Why this is a number rather than a case inside AC-084.** 11.9 closes by
-saying AC-083 to AC-086 pin both DST rules of 8.6, and section 13 item 25
-records that none of the four instantiates either: AC-083 runs in Asia/Karachi,
-which has observed no DST since 2009, AC-084 names no zone, AC-085 moves a due
-date and AC-086 changes one. Those four now carry DST arithmetic, which is the
-tzdb half. This rule is the other half and is not arithmetic at all: a local
-time inside the gap exists on no instant, so there is no answer to compute and
-8.6 chooses one. Item 25 records the expectation that the two policy rules
-arrive as numbers of their own, because 11.9 points at numbers and a reader
-checking coverage by number finds nothing, and because a case buried inside
-another criterion is invisible to the grep this role's First moves prescribe.
+**Why this is a number rather than a case inside AC-084.** 11.9 used to close
+by saying AC-083 to AC-086 pin both DST rules of 8.6, and section 13 item 25
+recorded that none of the four instantiates either: AC-083 runs in
+Asia/Karachi, which has observed no DST since 2009, AC-084 names no zone,
+AC-085 moves a due date and AC-086 changes one. Those four now carry DST
+arithmetic, which is the tzdb half. This rule is the other half and is not
+arithmetic at all: a local time inside the gap exists on no instant, so there
+is no answer to compute and 8.6 chooses one. Item 25 recorded the expectation
+that the two policy rules arrive as numbers of their own, because 11.9 pointed
+at numbers and a reader checking coverage by number found nothing, and because
+a case buried inside another criterion is invisible to the grep this role's
+First moves prescribe. The change control took the split whole: 11.9 now names
+AC-144 and AC-145 for the two rules and AC-083 to AC-086 for the zone
+arithmetic they sit on, and item 25's coverage half is closed while its
+no-oracle reasoning, its fixture rule and its Luxon-upgrade revisit trigger
+stand unchanged.
 
 **There is no oracle, by construction, and this file does not pretend to be
 one.** Item 25 rules out every candidate: no library implements a policy
@@ -127,7 +136,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-144 (proposed): a nonexistent local time resolves forward', () => {
+describe('AC-144: a nonexistent local time resolves forward', () => {
   test('AC-144: the gap is still a gap on this runtime', () => {
     expectGapFixture()
   })

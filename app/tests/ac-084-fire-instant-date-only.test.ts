@@ -16,8 +16,10 @@ before the arithmetic leans on it.
 
 This is 11.9's Luxon half rather than its policy half. Nothing here is a gap
 or a fold: 09:00 exists exactly once on both dates. The two rules that have no
-correct answer are proposed as numbers of their own in this package's change
-control, which is what closes 11.9's claim that AC-083 to AC-086 pin them.
+correct answer are AC-144 and AC-145, numbered at this package's change
+control on 2026-08-10, which is what closed 11.9's claim that AC-083 to
+AC-086 pin them: that sentence now names those two for the rules and this
+range for the arithmetic.
 
 **Three further cases, each one an implementation that passes the first.**
 
@@ -32,8 +34,8 @@ control, which is what closes 11.9's claim that AC-083 to AC-086 pin them.
   reminder.created_by are different people, and 8.6 names the second.
 - The date-only arm requires the absence of due_time (4.8), so every task here
   carries a due_date and no due_time, which is also what makes the mode legal
-  at all. The wrong-mode refusals are AC-090's and the proposed guard
-  criterion's; this file only ever sends the mode the task admits.
+  at all. The wrong-mode refusals are AC-090's and AC-147's; this file only
+  ever sends the mode the task admits.
 
 Spec: 8.6 (the date-only arm, and the creator fallback as recorded at the P7
 kickoff), 7.9 as ruled on 2026-08-10, 4.8 (the mode columns and their

@@ -1,12 +1,13 @@
 /*
-AC-152 (proposed): given assignee_id changes, then fire_at is recomputed in
-the new assignee's zone, an unassigned task falls back to the reminder
-creator's zone, and a creator who travels moves nothing.
+AC-152: given assignee_id changes, then fire_at is recomputed in the new
+assignee's zone, an unassigned task falls back to the reminder creator's zone,
+and a creator who travels moves nothing.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. Like AC-151 it comes from the floor rather
-than from the list: assignee_id is the fourth of 8.6's five recompute triggers
-and no number asserts it.
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. Like AC-151 it comes from the floor
+rather than from the list: assignee_id is the fourth of 8.6's five recompute
+triggers and no number asserted it.
 
 **This trigger is the one that changes the zone, so getting it wrong is worth
 hours.** The other four move a local time inside one zone. This one moves the
@@ -138,7 +139,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-152 (proposed): assignee_id is the trigger that changes the zone', () => {
+describe('AC-152: assignee_id is the trigger that changes the zone', () => {
   test('AC-152: reassignment recomputes in the new assignee\'s zone', async () => {
     const { creator, first, second } = await stage()
     const { id, due } = await assignedTask('handed over', first.id)

@@ -1,14 +1,15 @@
 /*
-AC-153 (proposed): given a reminder the pass has already settled, then a later
-pass sends nothing more for it, while a reminder that becomes due between the
-two passes is sent by the second.
+AC-153: given a reminder the pass has already settled, then a later pass sends
+nothing more for it, while a reminder that becomes due between the two passes
+is sent by the second.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. Like AC-151 and AC-152 it comes from the
-floor rather than from the list, and it is the one with the worst consequence
-of the three.
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. Like AC-151 and AC-152 it comes from
+the floor rather than from the list, and it is the one with the worst
+consequence of the three.
 
-**8.6's poll is over state = 'scheduled' and nothing asserts the state half.**
+**8.6's poll is over state = 'scheduled' and nothing asserted the state half.**
 Every criterion in this range that runs a pass runs one pass. A loop that
 polls on `fire_at <= now()` alone, or that sends before it marks, or that
 marks in a transaction it then rolls back, sends the same reminder every sixty
@@ -116,7 +117,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-153 (proposed): a settled reminder is not reconsidered', () => {
+describe('AC-153: a settled reminder is not reconsidered', () => {
   test('AC-153: a sent reminder is not sent again by the next pass', async () => {
     const { owner } = await stage()
     const taskId = await dueReminder('sent once', minutesAgo(5))

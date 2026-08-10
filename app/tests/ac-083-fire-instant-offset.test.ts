@@ -16,11 +16,13 @@ constant.
 makes the arithmetic a single subtraction and this criterion the one place in
 the range where nothing about a transition is in play. That is also its
 limitation, recorded at the P7 kickoff as section 13 item 25 and closed
-elsewhere rather than here: 11.9 said AC-083 to AC-086 pin both DST rules of
-8.6, and this one instantiates neither. The gap and the fold are proposed as
-numbers of their own in this package's change control, and AC-084 to AC-086
-carry the ordinary DST arithmetic. The offset is asserted here rather than
-assumed, so a tzdb that moved Karachi fails as a fixture.
+elsewhere rather than here: 11.9 used to say AC-083 to AC-086 pin both DST
+rules of 8.6, and this one instantiates neither. The gap and the fold are
+AC-144 and AC-145, numbered at this package's change control on 2026-08-10,
+and 11.9 now names them for the two rules and this range for the zone
+arithmetic they sit on; AC-084 to AC-086 carry that arithmetic. The offset is
+asserted here rather than assumed, so a tzdb that moved Karachi fails as a
+fixture.
 
 **Four cases beyond the criterion's own, each an arithmetic an implementation
 can get wrong while passing the first.**

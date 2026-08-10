@@ -1,14 +1,15 @@
 /*
-AC-149 (proposed): given POST /tasks carrying a reminder, then the row is
-created with the 8.6 instant and the same guards the PUT enforces, a refused
-body creates no task at all, and the two write paths agree on the instant.
+AC-149: given POST /tasks carrying a reminder, then the row is created with
+the 8.6 instant and the same guards the PUT enforces, a refused body creates
+no task at all, and the two write paths agree on the instant.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. It is the fourth of the six surfaces the RFC
-0001 P7 row names, described there as "a second write path to the same row
-with the same guards".
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. It is the fourth of the six surfaces
+the RFC 0001 P7 row named, described there as "a second write path to the same
+row with the same guards".
 
-**This arm has been deferred since P3 and arrives with no criterion.** Frozen
+**This arm has been deferred since P3 and arrived with no criterion.** Frozen
 7.6's create body takes a reminder, the P3 kickoff deferred it to P7 with the
 8.6 instant that 4.8's NOT NULL fire_at demands, and the field fell to 7.0's
 tolerated-unknown rule meanwhile. So until this package lands, a client that
@@ -98,7 +99,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-149 (proposed): the reminder arm of the 7.6 create body', () => {
+describe('AC-149: the reminder arm of the 7.6 create body', () => {
   test('AC-149: a create carrying an offset reminder writes the row with its 8.6 instant', async () => {
     const { owner, folderId } = await stage()
     const due = shiftDate(todayIn(KARACHI), 30)

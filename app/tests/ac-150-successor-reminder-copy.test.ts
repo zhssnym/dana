@@ -1,14 +1,15 @@
 /*
-AC-150 (proposed): given a recurring occurrence carrying a reminder, when it
-generates a successor, then the successor carries a reminder of the same mode
-and value with fire_at recomputed for its own due date and state scheduled,
-and the closing row's reminder is untouched.
+AC-150: given a recurring occurrence carrying a reminder, when it generates a
+successor, then the successor carries a reminder of the same mode and value
+with fire_at recomputed for its own due date and state scheduled, and the
+closing row's reminder is untouched.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. It is the fifth of the six surfaces the RFC
-0001 P7 row names, and the only one that was recorded as uncovered by the
-package before this one: P6 left the reminder-copy arm of 8.5's generation as
-a comment in its own generation module, deferred with the computation it
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. It is the fifth of the six surfaces
+the RFC 0001 P7 row named, and the only one that was recorded as uncovered by
+the package before this one: P6 left the reminder-copy arm of 8.5's generation
+as a comment in its own generation module, deferred with the computation it
 requires, and its row states that no criterion in AC-071 to AC-082 asserts the
 copy and that none in this range did either.
 
@@ -106,7 +107,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-150 (proposed): generation copies the reminder and recomputes its instant', () => {
+describe('AC-150: generation copies the reminder and recomputes its instant', () => {
   test('AC-150: the successor carries the same mode and value at its own instant', async () => {
     const { owner, folderId } = await stage()
     const due = todayIn(KARACHI)

@@ -52,13 +52,17 @@ used since P2, matched by word (/remind/i) the way the share-grant convention
 matches its own template. No verified sending domain is involved anywhere, and
 none is needed: 11.8 forbids real sending under test.
 
-**The pass is reached through one assumed seam, and the assumption is stated
-once here.** 11.7 makes the delivery loop a plain callable rather than a
-route, and frozen section 7 offers no endpoint that runs one pass, so the
-acceptance suite cannot reach it over HTTP the way 11.10 reaches everything
-else. The seam below is this session's proposal, escalated to the Integration
-Steward for ratification into 11.7 exactly as options.notifications was
-escalated into 11.10 at P1. It is loaded through a computed specifier so that
+**The pass is reached through one seam, ratified into 11.7 and stated once
+here.** 11.7 makes the delivery loop a plain callable rather than a route, and
+frozen section 7 offers no endpoint that runs one pass, so the acceptance
+suite cannot reach it over HTTP the way 11.10 reaches everything else. The
+seam below was this file's proposal and is now that section's own text, taken
+whole at the P7 mid-package change control on 2026-08-10, exactly as
+options.notifications was ratified into 11.10 at P1: the module path and the
+two dependencies are fixed, the tolerance over the export name is kept
+deliberately so the choice stays the implementing session's, and nothing about
+the pass's internals is fixed by any of it. It is loaded through a computed
+specifier so that
 its absence is one named assertion failure rather than a module-load crash
 that would take a whole file's coverage with it, the loader shape 11.15
 records and src/server/auth/router.ts already uses.
@@ -639,7 +643,7 @@ export function reminderRecipients(app: AuthTestApp): string[] {
 }
 
 /* ------------------------------------------------------------------ *
- * The 11.7 pass: one assumed seam, stated once
+ * The 11.7 pass: one ratified seam, stated once
  * ------------------------------------------------------------------ */
 
 /*
@@ -649,15 +653,17 @@ this file typecheck and load while app/src/server/scheduler/ does not exist:
 specifier here would fail the typecheck gate for every session on this branch
 until Platform's session lands.
 
-What is assumed, precisely, so the escalation has something to accept or
-replace: a module at app/src/server/scheduler/index.ts exporting either
+What 11.7 now fixes, in the words this file proposed and that section took
+whole: a module at app/src/server/scheduler/index.ts exporting either
 createReminderPass(deps), a factory answering the callable, or
 runReminderPass(deps), the callable itself; deps being { dbClient,
 notifications } with the option names 11.10 already gives createApp, since the
 pass needs the same database handle and the same sink and 11.8 routes every
-send through the same module. One pass per call, no interval: 11.7's own
-sentence that the pass is a plain callable is what makes an acceptance test of
-the loop possible at all, and this is the shape that sentence implies.
+send through the same module. Either name, deliberately: the tolerance costs
+nothing because this loader accepts both, so no drift is possible in the suite
+and the choice belongs to the implementing session. One pass per call, no
+interval: 11.7's own sentence that the pass is a plain callable is what makes
+an acceptance test of the loop possible at all.
 */
 const SCHEDULER_MODULE = ['../src/server/schedu', 'ler/index.js'].join('')
 
@@ -683,7 +689,7 @@ async function loadPass(app: AuthTestApp): Promise<Pass> {
   }
   expect(
     failure,
-    `no reminder scheduler module could be loaded from app/src/server/scheduler/index.ts. 11.7 makes the 8.6 delivery loop a plain callable rather than a route, and frozen section 7 offers no endpoint that runs one pass, so this is the seam the acceptance suite reaches it through; it is proposed at P7 and escalated to the Integration Steward, the options.notifications precedent`,
+    `no reminder scheduler module could be loaded from app/src/server/scheduler/index.ts. 11.7 makes the 8.6 delivery loop a plain callable rather than a route, and frozen section 7 offers no endpoint that runs one pass, so that section names this module and these two dependencies as the acceptance suite's only way in, ratified at the P7 change control on the options.notifications precedent`,
   ).toBe('')
 
   const record = module ?? {}

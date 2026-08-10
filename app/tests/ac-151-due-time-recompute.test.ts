@@ -1,14 +1,15 @@
 /*
-AC-151 (proposed): given the due_time moves on a task carrying an offset
-reminder, then fire_at is recomputed from the new time.
+AC-151: given the due_time moves on a task carrying an offset reminder, then
+fire_at is recomputed from the new time.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. It is not one of the six surfaces the RFC
-0001 P7 row lists, and it is here because that list is a floor: 8.6 names five
-recompute triggers and section 12 asserts three of them. AC-085 has due_date,
-AC-086 has the assignee's timezone, and the reminder's own value rides the PUT
-that AC-148 proposes. due_time and assignee_id have no number at all, and
-assignee_id is AC-152's.
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. It is not one of the six surfaces
+the RFC 0001 P7 row listed, and it is here because that list is a floor: 8.6
+names five recompute triggers and section 12 asserted three of them. AC-085
+has due_date, AC-086 has the assignee's timezone, and the reminder's own value
+rides the PUT that AC-148 pins. due_time and assignee_id had no number at all,
+and assignee_id is AC-152's.
 
 **Missing this trigger is invisible in every other assertion.** The reminder
 keeps its offset, so the response reports exactly what the user asked for, the
@@ -123,7 +124,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-151 (proposed): due_time is a recompute trigger and nothing asserts it', () => {
+describe('AC-151: due_time is a recompute trigger and nothing asserted it', () => {
   test('AC-151: moving due_time moves the fire instant with it', async () => {
     const { karachi, karachiFolderId } = await stage()
     const due = shiftDate(todayIn(KARACHI), 30)

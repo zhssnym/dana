@@ -1,14 +1,14 @@
 /*
-AC-147 (proposed): given PUT /tasks/:id/reminder against a task with no
-due_date, or with a body carrying the wrong mode, both modes, neither mode, or
-an offset outside 4.8's range, then 422 naming the field and no row is written
-or changed.
+AC-147: given PUT /tasks/:id/reminder against a task with no due_date, or with
+a body carrying the wrong mode, both modes, neither mode, or an offset outside
+4.8's range, then 422 naming the field and no row is written or changed.
 
-Proposed here with its test; the number is the Integration Steward's to assign
-at this package's change control. It is the second of the six surfaces the RFC
-0001 P7 row names, and the row is explicit about why it is not AC-090's: 7.9
-names the no-due_date refusal separately from the wrong-mode one, and AC-090
-covers one arm of the second.
+Proposed here with its test and numbered by the Integration Steward at P7's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now, transcribed unchanged. It is the second of the six surfaces
+the RFC 0001 P7 row named, and the row is explicit about why it is not
+AC-090's: 7.9 names the no-due_date refusal separately from the wrong-mode
+one, and AC-090 covers one arm of the second.
 
 **The no-due_date refusal is INV-6 on the only path that can still violate
 it.** The invariant says due_time, a recurrence rule and a reminder row exist
@@ -119,7 +119,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-147 (proposed): the 7.9 write guards AC-090 does not cover', () => {
+describe('AC-147: the 7.9 write guards AC-090 does not cover', () => {
   test('AC-147: a task with no due_date refuses both modes, and INV-6 holds', async () => {
     const { owner } = await stage()
     const dateless = await task('no due date', {})
