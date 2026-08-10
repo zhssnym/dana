@@ -10,6 +10,49 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **The five P5 settlements are entered into the frozen text by owner ruling,
+  2026-08-10**, closing the escalation the pre-merge pass routed to him hours
+  earlier. He accepted the Steward's recommendation. The amendments ride the
+  branch so the transcription merges with the package it describes, the P1 and
+  P2 precedent. Frozen 7.5 gains a "Response shapes" block in the shape 7.4's
+  took at P2, carrying all four: the 201's object and the GET /invites/sent
+  element are one nine-field object; decline, cancel and resend answer that same
+  object in that same `{ invite }` wrapper; the conversion answers
+  `{ converted_to_share: true, membership }` with 7.4's member element; and the
+  acceptance response's folder is 7.0's full Folder object, with the reason it
+  is not the `{id, name, is_default}` stub of the 2026-08-07 ruling written out,
+  namely that a group heading and a just-acquired folder are different
+  questions and neither reading generalizes to the other surface. Frozen 7.3 and
+  7.1 each gain one paragraph for the email nullability asymmetry, each stating
+  its own side and naming the other, so a reader who finds one cannot mistake it
+  for a contradiction: 7.3's element is total because that section's own bullet
+  excludes soft-deleted users, and stating it in the shape is what makes a lost
+  `deleted_at` filter a failure rather than a null; 7.1's is nullable because
+  that section carries no equivalent exclusion and the response reports 4.1's
+  column. Every existing bullet in all three sections stays byte-identical; the
+  three additions are paragraphs. No acceptance criterion is invalidated and no
+  code changes, these being the shapes the routes already answer and the
+  contract tests already pin.
+- **`CLAUDE.md` is assigned to the Platform engineer by owner ruling,
+  2026-08-10.** One line in `docs/team/10-platform.md`, beside the repository
+  root's other operational files, closing the gap the pre-merge pass found when
+  the file was edited on this branch at `6ead08e` by a session with no claim to
+  it. Same shape as the ownership gaps the P0 merge closed for the Vitest
+  configuration and the root dotfiles.
+- **CI is green on the merge candidate, both database legs.** Run 31348592657
+  on `2f2b55e`: 137 files pass on PGlite and 137 pass again against the
+  `postgres:18` service (PostgreSQL 18.4), which 11.10 makes the
+  production-fidelity authority. Recorded because the pre-merge gate was run
+  locally and therefore saw only the embedded leg. The earlier red CI runs on
+  this branch are the designed red of tests-first and not damage: the first
+  green run is `1c649e1`, the mount, which is exactly where the suite first went
+  green locally too.
+- **One correction to the pre-merge report.** It observed that `main` is an
+  ancestor of the branch and described the merge as a fast-forward. The
+  ancestry is right and the framing is not: P0, P1, P2 and P4 each merged with
+  `--no-ff` under the message `merge <branch>: package <Pn> of RFC 0001`, and P5
+  follows them. A fast-forward would erase the package boundary from the first
+  parent's history, which is the thing that convention exists to keep.
 - **P5 prepared for merge, not merged.** The package is complete and the gate
   is green, measured by the Steward from `app/` in CI's order on branch tip
   `a4eebed`: lint clean, typecheck clean across all three projects, 1051 tests
