@@ -212,6 +212,7 @@ is what actually adjudicated the package.
 | 7 | Generation in the winning branch, the guard ahead of uncomplete and restore | 03 | Unattended | Done, escalated |
 | 8 | Q3C's virtual arm, fetched separately rather than filtered from the real rows | 05 | Unattended | Done, escalated |
 | 9 | Both escalated defects repaired, the count helper made to fail loudly, the coverage table refreshed | 11 | Testers | Done |
+| 10 | Shape review: the envelope companions and the ghost pinned on the wire, the bullet asymmetry escalated | 04 | Review | Done, escalated |
 
 Rows 6 to 8 ran as the first grouped run: one dispatching chat launched each
 as an isolated sub-agent in sequence, so each derived its state from the
