@@ -142,3 +142,75 @@ after the shared date's timed rows exactly as the criterion requires. It
 contradicts the passing whole-sequence case in its own file, so it is a red in
 the assertion and not in this router. Routed to the suite's owner; no wiring
 is owed for it.
+
+## invites and connections routers (P5, Collaboration and Permissions)
+
+The 7.5 and 7.3 surfaces: invites with their five transitions and two lists,
+and the roster with its one removal. Requested wiring, two lines in createApp,
+beside the views router's mount and ahead of the `/api` catch-all:
+
+```ts
+import { createConnectionsRouter } from './routes/connections.js'
+import { createInvitesRouter } from './routes/invites.js'
+
+app.use('/api/v1', createInvitesRouter({ dbClient: options.dbClient }))
+app.use('/api/v1', createConnectionsRouter({ dbClient: options.dbClient }))
+```
+
+Facts the wiring can rely on:
+
+- Both factories are synchronous, perform no I/O, and open no database, the
+  same 11.10 discipline the three merged routers keep. With no dbClient, every
+  data route answers the constructed-without-a-database 500.
+- Each attaches its own session middleware and steps aside when another
+  router's already ran on the request, so they are order-tolerant; after the
+  auth router is still the order to prefer, because that resolves each
+  request's session exactly once.
+- They share no path with each other or with the three merged routers
+  (`/invites`, `/invites/sent`, `/invites/pending`, `/invites/:id/accept`,
+  `/invites/:id/decline`, `/invites/:id/cancel`, `/invites/:id/resend`,
+  `/connections`, `/connections/:userId`), so all five mount in any order.
+  Express matches on the whole path, and nothing here is a prefix of
+  `/folders`, `/tasks`, `/steps` or `/views`.
+- Every mutation on them carries the CSRF link, and the two GETs do not, which
+  is 7.0's split and the arrangement the folders router already uses.
+- The invite and share-grant call sites reach the notify module through
+  `notifierOf(req.app)`, which createApp already attaches; no further wiring is
+  needed for them, as it was not for the P2 share grant.
+- Mounting these two is what turns AC-059 to AC-069, AC-139, AC-140, AC-141
+  and the acceptance-path arm of AC-124 green. It is not what turns AC-133 to
+  AC-138 green: those need the separate call swap named below, which is the
+  Security engineer's session, not this wiring.
+
+Measured before this request was written, by mounting both lines locally and
+running the whole suite with the account-deletion call swap in place, then
+reverting both so the tree this request describes is the tree the boot file
+will meet: 1025 of 1028 tests across 134 files pass on PGlite, against 949 of
+1028 on the committed tree. The three that remain are two escalated criteria
+and no wiring is owed for either; they are AC-060's leave-and-reinvite case
+and two of AC-138's five, both recorded in this session's final block.
+
+### Also owed, and not by the boot file: the 8.10 call swap
+
+`src/server/domain/accountDeletion.ts` now carries steps 1 to 6 of the account
+deletion transaction as `deleteAccountData(tx, userId)`. It opens no
+transaction and touches neither the sessions table nor the user row, because
+the seam `docs/team/README.md` fixes puts the DELETE /me route and steps 7 and
+8 in the auth module. The swap is one line inside the transaction
+`handleDeleteMe` already opens, ahead of the scrub:
+
+```ts
+import { deleteAccountData } from '../domain/accountDeletion.js'
+
+await inTransaction(db, async (tx) => {
+  await deleteAccountData(tx, userId)   // steps 1 to 6
+  // the existing scrub (step 7) and session destruction (step 8) follow
+})
+```
+
+That file is the Security engineer's, so this package does not make the edit;
+the RFC 0001 P5 row already schedules the session for it. Verified in exactly
+this shape during the measurement above: with the swap, AC-133 to AC-137 pass
+whole and AC-138 passes but for the two cases escalated in this session's final
+block. Until the swap lands, the function's only coverage is
+`src/server/domain/accountDeletion.test.ts`, which drives it directly.
