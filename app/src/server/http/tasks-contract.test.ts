@@ -208,6 +208,68 @@ function expectTaskDetailExact(body: unknown, where: string): Record<string, unk
   return record
 }
 
+/*
+The card, judged the same way. Nothing on this surface answered a TaskCard
+until P6: 7.6's generated_task has been null since the envelope first
+answered, so the 15 keys below were a promise no response on this router had
+ever been measured against. Generation is what makes them measurable, and a
+card is where a per-endpoint variant would appear first, being the one shape
+this file's own module builds twice (taskView's detail, less 7.0's eight).
+*/
+function expectTaskCardExact(body: unknown, where: string): Record<string, unknown> {
+  const record = body as Record<string, unknown>
+  expect(
+    Object.keys(record).sort(),
+    `${where} must carry exactly the 15 keys 7.0 gives TaskCard`,
+  ).toEqual(TASK_CARD_KEYS)
+  expect(
+    Object.keys(record.folder as Record<string, unknown>).sort(),
+    `${where}.folder is 7.0's three-field chip`,
+  ).toEqual(FOLDER_CHIP_KEYS)
+  if (record.assignee !== null) {
+    expect(
+      Object.keys(record.assignee as Record<string, unknown>).sort(),
+      `${where}.assignee is the person shape, the same one 7.4's members carry`,
+    ).toEqual(PERSON_KEYS)
+  }
+  return record
+}
+
+/** A TaskDetail with 7.0's eight detail keys dropped, which is 7.0's own
+ * definition of TaskCard read backwards. What it is for: comparing the card a
+ * transition answers against the detail a fresh GET of the same row answers,
+ * so "one object rather than a per-endpoint variant" is measured rather than
+ * asserted. */
+function cardPartOf(detail: Record<string, unknown>): Record<string, unknown> {
+  const card: Record<string, unknown> = {}
+  for (const key of TASK_CARD_KEYS) card[key] = detail[key]
+  return card
+}
+
+/**
+ * A calendar date a fixed number of days ahead of today, in UTC.
+ *
+ * Every generating probe below completes a task dated ahead of today, so
+ * 8.5's cutoff, max(due_date, current_date(tz)), is the due date itself and
+ * the successor's date is a fact about the rule rather than about the day the
+ * suite runs. A constant would be a date that stops being in the future,
+ * which is a false green with a fuse in it; the acceptance harness builds its
+ * dates this way for the same reason. Noon rather than midnight, so a host in
+ * a negative offset cannot move the day.
+ */
+function daysAhead(days: number): string {
+  const at = new Date()
+  at.setUTCHours(12, 0, 0, 0)
+  at.setUTCDate(at.getUTCDate() + days)
+  return at.toISOString().slice(0, 10)
+}
+
+/** RFC 5545's DATE form for UNTIL, YYYYMMDD, which 11.9 rules is the only
+ * spelling frozen 4.11 admits. */
+function untilStamp(date: string): string {
+  return date.replaceAll('-', '')
+}
+
 /* ------------------------------------------------------------------ *
  * The fixture
  * ------------------------------------------------------------------ */
@@ -400,6 +462,531 @@ describe('the 7.6 shapes against the mounted application', () => {
       Object.keys(repeat.json() as Record<string, unknown>).sort(),
       'and the no-op answers the same envelope as the transition',
     ).toEqual(TRANSITION_KEYS)
+  })
+})
+
+/*
+P6's three arms, which are the same surface answering something for the first
+time rather than a surface that grew.
+
+Nothing below is a new endpoint. The recurrence_rule arm of 7.6's two write
+bodies was deferred at P3 with the 4.11 validator it needs, and the two
+companions of the transition envelope have answered null since the envelope
+first answered, so what this block measures is whether the shapes those keys
+promised are the shapes now on the wire. That is exactly the class of drift a
+key list cannot catch while every value is null.
+
+The acceptance suite pins the behavior (AC-071 to AC-082, AC-142, AC-143) and
+restates the shapes rather than importing them, by the standing ruling that it
+cannot borrow its subject's definition of correct. Here the shared schemas are
+the judge, so the promise in src/shared/tasks.ts and the answer on the wire
+are compared directly, which is the one comparison neither side can make
+alone.
+*/
+describe('the P6 arms of 7.6, on the wire', () => {
+  test('the two write bodies take a 4.11 rule, and the response reports the series it joined', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const rule = 'FREQ=WEEKLY;BYDAY=MO,WE'
+
+    const created = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract rule create',
+        due_date: due,
+        recurrence_rule: rule,
+      }),
+    )
+    expect(
+      created.status,
+      '7.6 admits recurrence_rule on the create body, and P6 is where it stops being an ignored unknown field',
+    ).toBe(201)
+    expect(
+      issuesOf(postTasksResponse.safeParse(created.json())),
+      'the created body does not match the shared TaskDetail schema',
+    ).toEqual([])
+    const body = expectTaskDetailExact(created.json(), 'the recurring create')
+    expect(
+      body.recurrence_rule,
+      'the rule rides back byte for byte: 4.11 stores an RRULE value string, and a server that normalized one would answer a string the caller never sent',
+    ).toBe(rule)
+    expect(
+      typeof body.series_id === 'string' && body.series_id.length > 0,
+      '7.6: a created rule "gets a fresh series_id", which this response is the only way a client learns',
+    ).toBe(true)
+    expect(
+      body.is_recurring,
+      '7.0 makes is_recurring report the rule the row holds, so it and recurrence_rule agree on every body',
+    ).toBe(true)
+
+    /*
+    The three PATCH arms 7.6 spells out, each answering the same TaskDetail,
+    and the series identity is what tells them apart. Set on a task without a
+    rule mints one; changed on a current occurrence leaves it, because the
+    series is the one the row is already in; set null ends the series.
+    */
+    const plain = await freshTask('rule patch', { due_date: due })
+    const first = await api(
+      owner,
+      `/tasks/${plain}`,
+      jsonInit('PATCH', { recurrence_rule: rule }),
+    )
+    expect(first.status).toBe(200)
+    expect(issuesOf(patchTaskResponse.safeParse(first.json()))).toEqual([])
+    const firstBody = expectTaskDetailExact(first.json(), 'the rule-setting PATCH')
+    const seriesId = firstBody.series_id
+    expect(
+      typeof seriesId === 'string' && seriesId.length > 0,
+      '7.6: a rule set on a task without one "assigns a new series_id"',
+    ).toBe(true)
+    expect(
+      seriesId,
+      'and fresh means fresh: two tasks that each acquired a rule are two series',
+    ).not.toBe(body.series_id)
+
+    const changed = await api(
+      owner,
+      `/tasks/${plain}`,
+      jsonInit('PATCH', { recurrence_rule: 'FREQ=DAILY;INTERVAL=3' }),
+    )
+    expect(changed.status).toBe(200)
+    const changedBody = expectTaskDetailExact(
+      changed.json(),
+      'the rule-replacing PATCH',
+    )
+    expect(changedBody.recurrence_rule).toBe('FREQ=DAILY;INTERVAL=3')
+    expect(
+      changedBody.series_id,
+      '7.6 replaces the rule "from now on" on a current occurrence, which is the same series continuing rather than a new one',
+    ).toBe(seriesId)
+
+    /*
+    Setting the rule null, and the one shape question this arm leaves open.
+    7.6 says the series ends and the row stays a normal task, and says nothing
+    about series_id; the row keeps it. Ruled at this review and recorded in
+    src/shared/tasks.ts: series_id reports which series a row belongs to and
+    is_recurring reports whether the row is repeating now, so a settled or
+    ended row reads series_id non-null and is_recurring false. The same pair
+    is what every generation leaves behind on the completed row below, so one
+    reading serves both or the surface carries two.
+    */
+    const ended = await api(
+      owner,
+      `/tasks/${plain}`,
+      jsonInit('PATCH', { recurrence_rule: null }),
+    )
+    expect(ended.status).toBe(200)
+    const endedBody = expectTaskDetailExact(ended.json(), 'the rule-ending PATCH')
+    expect(endedBody.recurrence_rule).toBeNull()
+    expect(
+      endedBody.is_recurring,
+      'the row is a normal dated task again, and is_recurring is what says so',
+    ).toBe(false)
+    expect(
+      endedBody.series_id,
+      'while series_id stays: it names the series this row belonged to, which is history rather than a live rule',
+    ).toBe(seriesId)
+  })
+
+  test('the rule is refused by the schema and by the row, and a caller cannot tell which (10.3)', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const rule = 'FREQ=DAILY'
+
+    /*
+    The line the wiring session drew between the two layers, checked where it
+    is judged. A body that states its own contradiction is the schema's; a
+    body that is legal until a row is read is the domain's. Both answer 422
+    naming recurrence_rule, in one grammar, which is what makes the line an
+    implementation detail rather than something a client has to learn.
+    */
+    const undatedCreate = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', { title: 'contract undated rule', recurrence_rule: rule }),
+    )
+    const clearingPatch = await api(
+      owner,
+      `/tasks/${await freshTask('rule and clear', { due_date: due })}`,
+      jsonInit('PATCH', { due_date: null, recurrence_rule: rule }),
+    )
+    const undatedPatch = await api(
+      owner,
+      `/tasks/${await freshTask('undated patch')}`,
+      jsonInit('PATCH', { recurrence_rule: rule }),
+    )
+
+    const refusals: readonly [string, RawResponse][] = [
+      [
+        '7.6\'s dependency check on the create body, which a body answers alone',
+        undatedCreate,
+      ],
+      [
+        '8.4\'s cascade contradicted in one body, which a body also answers alone',
+        clearingPatch,
+      ],
+      [
+        '7.6\'s "requires due_date" on a PATCH, which only the row can answer',
+        undatedPatch,
+      ],
+    ]
+    for (const [what, response] of refusals) {
+      expect(response.status, `${what} must answer 422`).toBe(422)
+      expect(
+        issuesOf(errorEnvelope.safeParse(response.json())),
+        `${what} must carry the 7.0 envelope`,
+      ).toEqual([])
+      expect(
+        response.body,
+        `${what} must name the field the caller sent, in the one 10.3 grammar`,
+      ).toContain('recurrence_rule:')
+    }
+
+    /*
+    The two checks the recurrenceRule primitive holds, and neither replaces
+    the other: 4.11 bounds the grammar and 4.5 bounds the column at 200
+    characters. A rule can be grammatical and too long, because BYDAY admits a
+    repeated day list, so the long one below is inside the subset and outside
+    the column.
+    */
+    const grammatical = `FREQ=WEEKLY;BYDAY=${Array<string>(70).fill('MO').join(',')}`
+    expect(grammatical.length > 200).toBe(true)
+    const tooLong = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract long rule',
+        due_date: due,
+        recurrence_rule: grammatical,
+      }),
+    )
+    expect(
+      tooLong.status,
+      '4.5 bounds the column at 200 characters and 10.3 makes that server-enforced, so a grammatical rule that cannot be stored is a 422 and never a constraint error wearing a 500',
+    ).toBe(422)
+    expect(tooLong.body).toContain('recurrence_rule:')
+
+    const outsideSubset = await api(
+      owner,
+      `/tasks/${await freshTask('subset patch', { due_date: due })}`,
+      jsonInit('PATCH', { recurrence_rule: 'FREQ=WEEKLY;BYMONTHDAY=3' }),
+    )
+    expect(
+      outsideSubset.status,
+      '4.11 admits BYMONTHDAY only with FREQ=MONTHLY, and requires the subset revalidated server-side',
+    ).toBe(422)
+    expect(outsideSubset.body).toContain('recurrence_rule:')
+  })
+
+  test('generation fills generated_task with 7.0\'s TaskCard, and it is the successor\'s own object', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const taskId = await freshTask('generating complete', {
+      due_date: due,
+      due_time: '08:00',
+      recurrence_rule: 'FREQ=DAILY',
+    })
+
+    const done = await api(owner, `/tasks/${taskId}/complete?tz=UTC`, {
+      method: 'POST',
+    })
+    expect(done.status).toBe(200)
+    const envelope = done.json() as Record<string, unknown>
+    expect(
+      Object.keys(envelope).sort(),
+      'the envelope is the same three keys whether or not the companions carry values',
+    ).toEqual(TRANSITION_KEYS)
+    expect(
+      issuesOf(taskTransitionResponse.safeParse(envelope)),
+      'the first non-null generated_task this surface has ever answered must still parse with the shared envelope',
+    ).toEqual([])
+
+    const card = expectTaskCardExact(
+      envelope.generated_task,
+      'the generated_task',
+    )
+    expect(
+      card.due_date,
+      '8.5 anchors at the current occurrence and takes the first instance strictly after the cutoff, which for a future-dated daily rule is the next day',
+    ).toBe(daysAhead(31))
+    expect(
+      card.is_recurring,
+      '8.5 copies the rule onto the successor, which is the row the series now lives on',
+    ).toBe(true)
+    expect(
+      card.pulled,
+      '8.5: "My Day entries are never copied", and pulled is the viewer\'s own entry',
+    ).toBe(false)
+
+    /*
+    The strongest form of this role's own rule, that one object has one shape:
+    the card the transition answered and the card inside a fresh GET of the
+    same row must be equal field for field. A second producer that drifted by
+    a single value would pass every key check above and fail here.
+    */
+    const fresh = await api(owner, `/tasks/${String(card.id)}`)
+    expect(fresh.status).toBe(200)
+    expect(
+      card,
+      'generated_task is TaskDetail less 7.0\'s eight, not a per-endpoint variant of it',
+    ).toEqual(cardPartOf(fresh.json() as Record<string, unknown>))
+
+    const settled = expectTaskDetailExact(envelope.task, 'the completed row')
+    expect(
+      settled.recurrence_rule,
+      '8.5: "the rule lives only on the current occurrence", so the row that was completed no longer carries it',
+    ).toBeNull()
+    expect(settled.is_recurring).toBe(false)
+    expect(
+      settled.series_id,
+      'while both rows name one series, which is what series_id is for and why the completed row keeps it',
+    ).toBe((fresh.json() as Record<string, unknown>).series_id)
+    expect(envelope.deleted_successor_id).toBeNull()
+  })
+
+  test('the guard fills deleted_successor_id with the id generation answered', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+
+    /*
+    The two companions are one fact read twice, so they are checked against
+    each other rather than against a shape apiece: the id the guard reports
+    removing is the id generation reported creating. Both pairs of endpoints
+    are exercised, because 5.1 gives generation to complete and abandon and
+    the guard to uncomplete and restore, and a wiring that crossed them would
+    be invisible from either pair alone.
+    */
+    const pairs: readonly [string, string][] = [
+      ['complete', 'uncomplete'],
+      ['abandon', 'restore'],
+    ]
+    for (const [forward, back] of pairs) {
+      const taskId = await freshTask(`${forward} then ${back}`, {
+        due_date: due,
+        recurrence_rule: 'FREQ=DAILY',
+      })
+      const out = await api(owner, `/tasks/${taskId}/${forward}?tz=UTC`, {
+        method: 'POST',
+      })
+      expect(out.status, `${forward} on a repeating task must answer 200`).toBe(200)
+      const successorId = String(
+        (out.json() as { generated_task: { id: string } }).generated_task.id,
+      )
+
+      const returned = await api(owner, `/tasks/${taskId}/${back}`, {
+        method: 'POST',
+      })
+      expect(returned.status).toBe(200)
+      const body = returned.json() as Record<string, unknown>
+      expect(
+        issuesOf(taskTransitionResponse.safeParse(body)),
+        `the ${back} envelope does not match the shared schema`,
+      ).toEqual([])
+      expect(
+        body.deleted_successor_id,
+        `5.1's G-SERIES deletes the pending successor and reclaims the rule, and 7.6 makes deleted_successor_id what ${back} reports removing`,
+      ).toBe(successorId)
+      expect(
+        body.generated_task,
+        'and the two companions are never both filled: 5.1 puts generation on one pair of endpoints and the guard on the other',
+      ).toBeNull()
+      expect(
+        (await api(owner, `/tasks/${successorId}`)).status,
+        'the id is reported because the row is gone, which is the only reason a client needs it',
+      ).toBe(404)
+      expect(
+        expectTaskDetailExact(body.task, `the ${back} body's task`)
+          .recurrence_rule,
+        'and the rule came back to this row, which is what reclaiming means',
+      ).toBe('FREQ=DAILY')
+    }
+  })
+
+  /*
+  The tz ruling of 2026-08-10 on frozen 7.6, sentence by sentence, because it
+  is two rules rather than one and the difference between them is only visible
+  on the wire. The present-value half is the route's and holds whatever the
+  row is; the absent-value half is the row's and holds exactly where 8.5 would
+  evaluate a calendar date.
+  */
+  test('a present tz that is not a zone is 422 on both generating transitions, whatever the row holds', async () => {
+    const { owner, strangerTaskId } = await stage()
+    const due = daysAhead(30)
+    const repeating = await freshTask('bad zone repeating', {
+      due_date: due,
+      recurrence_rule: 'FREQ=DAILY',
+    })
+    const plain = await freshTask('bad zone plain')
+
+    const probes: readonly [string, string][] = [
+      ['a repeating task, where generation would read the zone', repeating],
+      ['a task with no rule, where nothing reads it at all', plain],
+      ['a task the caller cannot see, which must answer the same as the rest', strangerTaskId],
+    ]
+    for (const event of ['complete', 'abandon']) {
+      for (const [what, id] of probes) {
+        const response = await api(owner, `/tasks/${id}/${event}?tz=Mars/Olympus`, {
+          method: 'POST',
+        })
+        expect(
+          response.status,
+          `7.0 refuses a value outside what a parameter admits rather than narrowing it to a default, so ${event} on ${what} answers 422`,
+        ).toBe(422)
+        expect(
+          response.body,
+          'naming tz, which is what tells a client what to fix',
+        ).toContain('tz:')
+      }
+    }
+
+    /*
+    The inaccessible row is in that list on purpose. The refusal is judged
+    before the task is resolved, which is 7.8's ordering and the same reason:
+    an accessible task and one the caller cannot see answer the identical 422,
+    so the parameter check discriminates nothing about which rows exist. The
+    reversed order would answer 404 there and 422 here, which is an existence
+    probe (10.2).
+    */
+    expect(
+      (await api(owner, `/tasks/${strangerTaskId}/complete`, { method: 'POST' }))
+        .status,
+      'and with no parameter at all the same inaccessible task is 404, because then nothing was refused before the row was read',
+    ).toBe(404)
+  })
+
+  test('an absent tz refuses exactly the transition that would evaluate a date, and writes nothing', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const taskId = await freshTask('absent zone', {
+      due_date: due,
+      recurrence_rule: 'FREQ=DAILY',
+    })
+
+    const refused = await api(owner, `/tasks/${taskId}/complete`, {
+      method: 'POST',
+    })
+    expect(
+      refused.status,
+      'frozen 7.6 as ruled: the winning update would land on a pending row carrying a rule, which is exactly where 8.5 computes cutoff from current_date(actor.tz)',
+    ).toBe(422)
+    expect(refused.body).toContain('tz:')
+
+    const unmoved = expectTaskDetailExact(
+      (await api(owner, `/tasks/${taskId}`)).json(),
+      'the row the refusal did not move',
+    )
+    expect(
+      unmoved.status,
+      'the ruling\'s second sentence: the transaction changes nothing, so the row does not transition',
+    ).toBe('pending')
+    expect(
+      unmoved.recurrence_rule,
+      'and no successor was created, which is what leaving the rule here proves',
+    ).toBe('FREQ=DAILY')
+
+    const retried = await api(owner, `/tasks/${taskId}/complete?tz=UTC`, {
+      method: 'POST',
+    })
+    expect(
+      retried.status,
+      'and the same call retried with a zone gets the transition it asked for',
+    ).toBe(200)
+    expect(
+      (retried.json() as Record<string, unknown>).generated_task,
+      'which is the transition it always meant, successor and all',
+    ).not.toBeNull()
+
+    const plain = await freshTask('absent zone no rule')
+    expect(
+      (await api(owner, `/tasks/${plain}/complete`, { method: 'POST' })).status,
+      'a row with no rule evaluates no date, so every other call these two endpoints serve is untouched',
+    ).toBe(200)
+  })
+
+  test('a no-op and a conflict answer what they always answered, rule or no rule', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    /*
+    The ruling's third sentence needs the one row that is settled and still
+    carries a rule, which only an exhausted series produces: 8.5 returns null
+    when UNTIL bounds the next instance out, and the rule stays on the row
+    rather than moving to a successor that was never created. Without such a
+    fixture the sentence is unfalsifiable, because every other settled row
+    carries no rule and would pass whatever the condition was written as.
+    */
+    const exhausted = `FREQ=DAILY;UNTIL=${untilStamp(due)}`
+    const completedId = await freshTask('exhausted complete', {
+      due_date: due,
+      recurrence_rule: exhausted,
+    })
+    const first = await api(owner, `/tasks/${completedId}/complete?tz=UTC`, {
+      method: 'POST',
+    })
+    expect(first.status).toBe(200)
+    expect(
+      (first.json() as Record<string, unknown>).generated_task,
+      '8.5: UNTIL exhausted returns null, and the rule stays on the row it was completed from',
+    ).toBeNull()
+    expect(
+      expectTaskDetailExact(
+        (first.json() as Record<string, unknown>).task,
+        'the exhausted completion',
+      ).recurrence_rule,
+      'which is what makes the next two probes measure the condition rather than the absence of a rule',
+    ).toBe(exhausted)
+
+    const repeat = await api(owner, `/tasks/${completedId}/complete`, {
+      method: 'POST',
+    })
+    expect(
+      repeat.status,
+      '5.1\'s no-op is not a transition and evaluates no date, so a repeat complete on a settled row answers what it always answered, with no zone',
+    ).toBe(200)
+    expect(
+      Object.keys(repeat.json() as Record<string, unknown>).sort(),
+    ).toEqual(TRANSITION_KEYS)
+
+    const abandonedId = await freshTask('exhausted abandon', {
+      due_date: due,
+      recurrence_rule: exhausted,
+    })
+    expect(
+      (await api(owner, `/tasks/${abandonedId}/abandon?tz=UTC`, { method: 'POST' }))
+        .status,
+    ).toBe(200)
+    const conflict = await api(owner, `/tasks/${abandonedId}/complete`, {
+      method: 'POST',
+    })
+    expect(
+      conflict.status,
+      'and 5.1\'s conflict is not a transition either: a complete on an abandoned row is 409 whether or not it carries a rule, and never a 422 for a zone it would never have read',
+    ).toBe(409)
+  })
+
+  test('uncomplete and restore gain nothing from tz, so a wrong one is a tolerated unknown parameter', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const taskId = await freshTask('guard ignores tz', {
+      due_date: due,
+      recurrence_rule: 'FREQ=DAILY',
+    })
+    expect(
+      (await api(owner, `/tasks/${taskId}/complete?tz=UTC`, { method: 'POST' }))
+        .status,
+    ).toBe(200)
+
+    const back = await api(owner, `/tasks/${taskId}/uncomplete?tz=Mars/Olympus`, {
+      method: 'POST',
+    })
+    expect(
+      back.status,
+      'frozen 7.6 gives these two no parameter, because G-SERIES reads the shape of a series and evaluates no calendar date, so a tz here is an unknown query parameter and 7.0 tolerates it',
+    ).toBe(200)
+    expect(
+      issuesOf(taskTransitionResponse.safeParse(back.json())),
+      'and the call it tolerated is the ordinary one, envelope and all',
+    ).toEqual([])
   })
 })
 

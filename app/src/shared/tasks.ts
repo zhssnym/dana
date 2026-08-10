@@ -161,6 +161,22 @@ A wrong-typed value never reaches the grammar: z.string refuses it first with
 this file's phrasing, which is 7.0's rule that on a parsed object a wrong type
 is a 422 naming the field rather than a 400.
 
+**The rule is stored and answered byte for byte, and nothing here normalizes
+it.** Settled at the P6 endpoint shape review with the wired routes in front
+of it, and recorded because the question only becomes live now that a rule can
+be written: the grammar module parses without exporting a formatter, so a
+value that is inside the subset rides to the column as the caller spelled it
+and rides back the same way. Two things follow, and both are wanted. A client
+reading a task it just created sees the string it sent rather than one a
+parser chose, which is what 4.11 asks for by calling the column an RRULE value
+string rather than a set of parts. And the day the preset builder of 4.11's
+last sentence arrives with a serializer beside the parser, normalizing on
+write becomes a change to what stored rows say, visible and arguable, instead
+of a silent difference between two spellings of one rule. The grammar's own
+tolerances are its to state: part order is free, a repeated BYDAY token is
+dropped for evaluation while the stored string keeps it, and neither is a
+value this file may quietly rewrite.
+
 Also the read side, which is what one definition means. A stored rule is
 inside the subset by construction, because this primitive is the only door
 into the column that the API of 11.1 offers, so validating a response against
@@ -511,6 +527,23 @@ is completed; the invariant is the row's and the shape does not restate it,
 because a shape that refused a legal row would fail a truth rather than
 report it. created_by is NOT NULL in 4.5. Both people are bare ids, 7.0's own
 notation: it spells the assignee's person shape out and leaves these plain.
+
+**series_id and recurrence_rule are independent, and a row may carry the first
+without the second.** Settled at the P6 endpoint shape review, because P6 is
+where the pair first appears on the wire and because frozen 7.6 states one
+half of it and is silent on the other. The half it states is generation's:
+8.5 moves the rule onto the successor, so a completed occurrence reads
+recurrence_rule null and series_id set, and it must, since that id is the only
+thing linking a finished occurrence to the ones that follow it. The half it
+leaves open is the PATCH that ends a series, where 7.6 says the series ends and
+the row stays a normal task and says nothing about the id. It stays, which is
+the same pair meaning the same thing in both cases: series_id reports which
+series a row belongs to, including one that has stopped, and is_recurring
+reports whether the row is repeating now. Clearing it on the PATCH arm alone
+would make one shape answer two questions depending on how the series ended,
+and would erase a link 8.5 spends a column maintaining. A client that wants
+"is this task repeating" reads is_recurring, which 7.0 put on the card for
+exactly that, and never the presence of an id.
 */
 export const taskDetail = taskCard.extend({
   notes: taskNotes.nullable(),
@@ -531,9 +564,33 @@ deleted_successor_id or null }". One shape for the four, because complete,
 uncomplete, abandon, and restore differ in what they fill, never in what they
 answer.
 
-Both companions are null through P3: generation is 8.5's and G-SERIES is
-5.1's, and both arrive with P6's engine. The keys are 7.6's from the first
-transition that answers.
+Both companions were null through P3: generation is 8.5's and G-SERIES is
+5.1's, and both arrived with P6's engine. The keys are 7.6's from the first
+transition that answers, which is why nothing about this shape moved when the
+values did.
+
+P6 is the first package in which either is ever non-null, so it is the first
+in which the two key lists above are facts rather than promises, and the P6
+shape review measured them on the wire in src/server/http/tasks-contract.test.ts
+rather than reading them off this file. Three things it settled there, each
+recorded here because this is where a reader looks for the shape of an answer.
+
+- **generated_task is 7.0's TaskCard and is the successor's own object**, not
+  a card assembled for this response. The domain module derives it from the
+  TaskDetail it already read by dropping 7.0's eight detail keys, and the
+  review pinned that by comparing the card the transition answered against a
+  fresh GET of the same row, field for field. The alternative, a second SELECT
+  shaped for this endpoint, is the per-endpoint variant this role exists to
+  refuse, and it would have passed every key check while drifting on a value.
+- **The two are never both filled.** 5.1 gives generation to complete and
+  abandon and G-SERIES to uncomplete and restore, so one pair of endpoints can
+  fill the first and the other pair the second. They are one fact read twice:
+  the id deleted_successor_id reports removing is the id generated_task
+  reported creating, which is what the review asserted rather than checking
+  each against a shape of its own.
+- **A no-op fills neither**, whatever the row carries. 5.1's no-op writes
+  nothing, so there is nothing for either key to report, and the envelope is
+  the same three keys with the same nulls a P3 transition answered.
 */
 export const taskTransitionResponse = z.object({
   task: taskDetail,
