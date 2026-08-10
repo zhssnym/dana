@@ -8,8 +8,8 @@ This file is the runner and nothing else. Every spec and every harness it
 collects belongs to the Adversarial Test role under tests/e2e/, by the P8
 kickoff's ruling that split this seam by file. The two collectors are
 disjoint without either config knowing about the other: vitest.config.ts
-includes tests/**\/*.test.{ts,tsx}, this one collects *.spec.ts, so no file
-is ever run twice or claimed by both.
+includes the .test.ts and .test.tsx files under tests/, this one collects
+.spec.ts under tests/e2e/, so no file is ever run twice or claimed by both.
 
 The application under test is a real one, not a stub: the client as built,
 the API from source, and a database carrying db/seed.ts. Why those three
