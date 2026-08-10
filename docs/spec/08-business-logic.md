@@ -87,6 +87,8 @@ def generate_successor(t, actor):
     return s
 ```
 
+actor.tz is the tz of the request that made the transition, per 8.1, never the actor's stored users.timezone, which 8.1 reserves for reminder fire instants; frozen 7.6 carries the parameter on complete and abandon by owner ruling of 2026-08-10 and requires it exactly when this function runs. The name is bound here rather than left to 8.1's general rule because this is the only pseudocode in this section that reaches a zone through a record instead of taking one as a parameter, the way 8.2's my_day(V, tz) does, and the one wrong answer within reach is a column on the actor's row named timezone. Nothing else in this section needs it: G-SERIES below reads the shape of a series, and the projection reads stored dates against a requested range, so neither computes a current date at all.
+
 Worked consequences, with a weekly Monday rule:
 - On time: due 2026-07-20, completed 2026-07-20. cutoff 07-20, next 2026-07-27.
 - Late, slots skipped: due 2026-07-20, completed 2026-07-28. cutoff 07-28, next 2026-08-03; the 07-27 slot is skipped and the calendar shows an honest gap.

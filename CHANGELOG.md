@@ -13,8 +13,8 @@ Planning and design. No software has been released yet.
 - **Package P6 of RFC 0001, recurrence, kicked off on branch `p6-recurrence`
   on 2026-08-10.** The P6 row is traced into its session list in the form every
   package since P2 has carried, three kickoff questions are settled below, and
-  the fourth, the zone of generation's cutoff, is escalated to the human owner
-  because any answer that closes it touches frozen 7.6: 8.5 computes
+  the fourth, the zone of generation's cutoff, was escalated to the human owner
+  and is now ruled, any answer that closes it touching frozen 7.6: 8.5 computes
   cutoff = max(t.due_date, current_date(actor.tz)) and the four transition
   endpoints carry no parameter a zone could ride, which 8.1's first bullet
   calls an incomplete surface rather than an invitation to substitute the
@@ -36,6 +36,27 @@ Planning and design. No software has been released yet.
   P4 CI failure as its measured cost. State-conditional 422s are already this
   contract's shape, a due_time sent alone being legal against a dated row and
   refused against an undated one.
+- **The cutoff ruling, entered by the human owner on 2026-08-10.** He took the
+  recommendation above in full and in its own terms, so the rule the
+  specification now carries is exactly the one argued for above: the parameter
+  on complete and abandon only, invalid always refused, absent refused exactly
+  where generation would run, uncomplete and restore untouched. Frozen 7.6
+  gains three appended paragraphs in the form 7.8 and 7.5 carry, every existing
+  bullet byte-identical: what the two endpoints now take, then why it was
+  missing and what it cost, then what does not move. The middle paragraph is
+  deliberately not written as 7.8's was. The pull's cost was measured, an entry
+  dated in the account's zone while My Day grouped it by the request's, with a
+  CI failure at 22:00 UTC to date it; this one is prospective, because P3
+  deferred the recurrence_rule arm of 7.6's write bodies, so no row this API can
+  create carries a rule and no implementation has read a zone here yet. The same
+  defect is being closed before it is built rather than after it broke a suite,
+  and saying so is the point: a paragraph claiming a measured cost it does not
+  have would be the drift this role exists to catch. Section 8.5 gains one
+  sentence binding actor.tz to the request's zone, and the reason it is one
+  sentence rather than none is recorded with it. No acceptance criterion is
+  invalidated, verified rather than assumed: `seedRecurrence` has two callers in
+  the whole repository, AC-028's fixture and one 03 unit test, and both only
+  PATCH, so nothing that passes today transitions a row carrying a rule.
 - **Three P6 kickoff rulings, 2026-08-10, grounds recorded here.** The 4.11
   validator is one pure grammar module at `app/src/shared/recurrence.ts`,
   parse and validate only, authored and owned by the Scheduling role under a
