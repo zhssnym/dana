@@ -10,15 +10,19 @@ Results are discriminated unions rather than thrown statuses, the P2 module's
 convention, so the route layer owns the mapping onto 7.0's taxonomy and this
 file stays testable without HTTP.
 
-Two seams are deliberately empty here, both recorded in the RFC 0001 P3 row:
+One of the two seams this file opened at P3 is closed here, and one is not:
 
-- **Generation (8.5)** runs inside the winning complete or abandon
-  transition when the row carries a recurrence_rule, and **G-SERIES (5.1)**
-  guards uncomplete and restore on a row with a series_id. Both belong to
-  P6's engine, which the plan places after this package, and both are pinned
-  there by AC-079 and AC-080. The transition results below carry the two
-  companion fields the 7.6 envelope names so the shape is right from the
-  first transition that answers, and they are null until that engine lands.
+- **Generation (8.5) and G-SERIES (5.1)** are wired at P6. Neither is
+  implemented here: both are the Scheduling engineer's functions, taken from
+  src/server/time as transaction-taking black boxes per the transitions seam
+  of docs/team/README.md, and what this file owns is where they are called
+  from. Generation runs in the winning branch of the complete and abandon
+  updates, inside the same transaction, which is what makes it exactly-once
+  under any race (8.3); the guard runs ahead of the uncomplete and restore
+  updates, and only on a row still in the status the transition expects,
+  because a repeat call on an already-pending row is 5.1's no-op and must
+  write nothing. The two companion fields the 7.6 envelope names, null since
+  P3, are answered from those two calls.
 - **fire_at recomputation (8.6)** follows a due_date or assignee change.
   P7 delivers the computation, 4.8's NOT NULL fire_at means no row can be
   written without it, and at P3 a reminder row exists only where a test
@@ -34,11 +38,12 @@ import type {
   PatchTaskBody,
   PostTaskStepsBody,
   PostTasksBody,
+  TaskCard,
   TaskDetail,
   TaskStatus,
   TaskStep,
 } from '../../shared/tasks.js'
-import { today } from '../time/index.js'
+import { applySeriesGuard, generateSuccessor, today } from '../time/index.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
 import { accessOf } from './folders.js'
@@ -82,10 +87,17 @@ export interface TaskAccess {
   assigneeId: string | null
   dueDate: string | null
   dueTime: string | null
+  /** The rule the row holds, which two decisions read: whether a PATCH is
+   * setting a rule or changing one, 7.6 minting a series_id for the first and
+   * not the second, and whether a transition is one 8.5 generates from, which
+   * frozen 7.6 makes the condition of its tz rule. The series_id itself is
+   * not here: the guard that needs it reads it under its own lock. */
+  recurrenceRule: string | null
 }
 
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.status, t.assignee_id,
-       ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time`
+       ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
+       t.recurrence_rule`
 
 function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
   return {
@@ -95,6 +107,7 @@ function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
     assigneeId: nullableString(row.assignee_id),
     dueDate: nullableString(row.due_date),
     dueTime: nullableString(row.due_time),
+    recurrenceRule: nullableString(row.recurrence_rule),
   }
 }
 
@@ -294,6 +307,30 @@ export async function taskView(
   }
 }
 
+/*
+7.0's TaskCard, which is 7.0's TaskDetail less its eight, and the shape frozen
+7.6 gives generated_task. It is derived from the detail rather than read by a
+second query for the reason the detail's own comment gives: one read serves
+every endpoint here, and a card built from its own SELECT is the per-endpoint
+variant the contract exists to prevent. The views module answers cards from
+list queries, which is a different question (many rows, one statement) and not
+one this file can borrow an answer from for a single row it has already read.
+*/
+function cardOf(detail: TaskDetail): TaskCard {
+  const {
+    notes: _notes,
+    recurrence_rule: _rule,
+    series_id: _seriesId,
+    reminder: _reminder,
+    steps: _steps,
+    completed_at: _completedAt,
+    completed_by: _completedBy,
+    created_by: _createdBy,
+    ...card
+  } = detail
+  return card
+}
+
 /** 4.6's order, (position, id), which is the shape's to carry and the
  * query's to produce. */
 async function stepsOf(
@@ -352,6 +389,15 @@ a present one must be a member, which is the composite FK surfaced as a 422
 rather than left to answer as a constraint error (10.2 keeps constraints as
 the last line and never the first). An explicit null in a multi-member folder
 is an unassigned task, which that folder may hold.
+
+The rule is the P6 arm, and it is two columns rather than one. 7.6 gives a
+created rule a fresh series_id, and INV-13 is a CHECK, so a rule written
+without one is refused by the database rather than merely wrong. Freshness is
+gen_random_uuid() in the statement itself: a series identity minted in this
+process would be one more thing to agree with the row, and the create already
+lets the column defaults mint every other id here. The rule's dependency on a
+due_date is answered by the body alone (4.5 backs it with a CHECK) and the
+schema refuses it before this function is reached.
 */
 export async function createTask(
   db: Db,
@@ -377,14 +423,17 @@ export async function createTask(
       }
     }
 
+    const rule = body.recurrence_rule ?? null
+    const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
-                             due_time, assignee_id, created_by)
+                             due_time, recurrence_rule, series_id,
+                             assignee_id, created_by)
           VALUES (${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false}, ${body.due_date ?? null}::date,
-                  ${body.due_time ?? null}::time, ${assigneeId}::uuid,
-                  ${viewerId}::uuid)
+                  ${body.due_time ?? null}::time, ${rule}, ${seriesId},
+                  ${assigneeId}::uuid, ${viewerId}::uuid)
           RETURNING id`,
     )
     const taskId = String(inserted[0]?.id)
@@ -414,6 +463,7 @@ export type PatchTaskResult =
   | { kind: 'assignee_not_member' }
   | { kind: 'unassign_single_member' }
   | { kind: 'time_without_date' }
+  | { kind: 'rule_without_date' }
 
 /*
 7.6's PATCH, one transaction, and every refusal returns before the first
@@ -439,6 +489,20 @@ Three derived rules ride along:
 - **The clear-date cascade (8.4).** due_date set to null nulls due_time and
   recurrence_rule and deletes the reminder row, in this transaction. series_id
   stays: the series ends, its identity is history.
+- **The rule (7.6, 8.5).** A rule needs a date, which only the row can answer
+  here: a rule sent alone is legal against a dated task and refused against an
+  undated one, so the schema refuses the one contradiction a body states
+  alone (clearing the date while setting a rule) and this is the other half.
+  Which of 7.6's two edits a rule is, is read off the row as well. Set on a
+  task without one, it mints a fresh series_id; changed on a current
+  occurrence, it replaces the rule and the series is the one the row is
+  already in, past rows untouched. "Without one" is read as the row carrying
+  no rule now, which is 7.6's own phrasing and 8.5's "setting the rule to null
+  ends the series" read forward: a resumed repeat is a new series, and the
+  series_id 8.4 and 8.5 leave behind is the ended one's history rather than a
+  membership the row can be readmitted to. Setting it null ends the series
+  and writes nothing else, the date and the reminder staying, because 8.4's
+  cascade runs the other way round only.
 */
 export async function patchTask(
   db: Db,
@@ -497,6 +561,13 @@ export async function patchTask(
       // before the constraint speaks.
       return { kind: 'time_without_date' }
     }
+    // INV-6's other row-dependent half, the same shape at the other column:
+    // 7.6 makes a rule set on a task without a date a 422 naming the field.
+    const settingRule =
+      patch.recurrence_rule !== undefined && patch.recurrence_rule !== null
+    if (!clearing && settingRule && finalDueDate === null) {
+      return { kind: 'rule_without_date' }
+    }
 
     const sets: SQL[] = []
     if (patch.title !== undefined) sets.push(sql`title = ${patch.title}`)
@@ -518,6 +589,12 @@ export async function patchTask(
       }
       if (patch.due_time !== undefined) {
         sets.push(sql`due_time = ${patch.due_time}::time`)
+      }
+      if (patch.recurrence_rule !== undefined) {
+        sets.push(sql`recurrence_rule = ${patch.recurrence_rule}`)
+        if (settingRule && current.recurrenceRule === null) {
+          sets.push(sql`series_id = gen_random_uuid()`)
+        }
       }
     }
 
@@ -572,10 +649,23 @@ export async function deleteTask(
 export type TransitionEvent = 'complete' | 'uncomplete' | 'abandon' | 'restore'
 
 export type TransitionResult =
-  | { kind: 'transitioned'; task: TaskDetail }
+  | {
+      kind: 'transitioned'
+      task: TaskDetail
+      /** 7.6's generated_task: what 8.5 inserted, or null where nothing was
+       * generated, which includes an exhausted series and every row that
+       * carries no rule. */
+      generatedTask: TaskCard | null
+      /** 7.6's deleted_successor_id: the row G-SERIES removed, or null. */
+      deletedSuccessorId: string | null
+    }
   | { kind: 'noop'; task: TaskDetail }
   | { kind: 'conflict'; message: string }
   | { kind: 'not_found' }
+  /** Frozen 7.6 as ruled on 2026-08-10: the transition would run generation
+   * and the request named no zone. Nothing is written, so the same call
+   * retried with one gets the transition it asked for. */
+  | { kind: 'tz_required' }
 
 interface TransitionRule {
   /** The status the guarded update requires (8.3's expected-status
@@ -587,6 +677,11 @@ interface TransitionRule {
   /** 5.1's copy where it gives one, phrased to tell the caller what to do
    * instead. */
   conflict: string
+  /** 5.1: complete and abandon run generation (8.5) when the row carries a
+   * rule, which is also the pair frozen 7.6 gives the tz parameter. */
+  generates: boolean
+  /** 5.1: uncomplete and restore apply G-SERIES, and they alone. */
+  guarded: boolean
   /** The side effects 5.1 lists for this row, the actor being the only one
    * they need from outside the table. */
   set: (actorId: string) => SQL
@@ -603,6 +698,8 @@ const TRANSITIONS: Record<TransitionEvent, TransitionRule> = {
     from: 'pending',
     settled: 'completed',
     conflict: 'Restore the task first.',
+    generates: true,
+    guarded: false,
     set: (actorId) => sql`status = 'completed', completed_at = now(),
              completed_by = ${actorId}::uuid, updated_at = now()`,
   },
@@ -610,6 +707,8 @@ const TRANSITIONS: Record<TransitionEvent, TransitionRule> = {
     from: 'completed',
     settled: 'pending',
     conflict: 'An abandoned task returns to pending through restore.',
+    generates: false,
+    guarded: true,
     set: () => sql`status = 'pending', completed_at = NULL,
              completed_by = NULL, updated_at = now()`,
   },
@@ -617,12 +716,16 @@ const TRANSITIONS: Record<TransitionEvent, TransitionRule> = {
     from: 'pending',
     settled: 'abandoned',
     conflict: 'Complete tasks cannot be abandoned; un-complete first.',
+    generates: true,
+    guarded: false,
     set: () => sql`status = 'abandoned', updated_at = now()`,
   },
   restore: {
     from: 'abandoned',
     settled: 'pending',
     conflict: 'A completed task returns to pending through uncomplete.',
+    generates: false,
+    guarded: true,
     set: () => sql`status = 'pending', updated_at = now()`,
   },
 }
@@ -634,20 +737,71 @@ zero rows means this caller did not perform the transition, and the row is
 re-read to classify. A no-op writes nothing at all, which is what "200
 without side effects" means for updated_at as much as for the status.
 
-The generation of 8.5 belongs in the winning branch, inside this same
-transaction so it is exactly-once under any race, and G-SERIES belongs ahead
-of the uncomplete and restore updates. Both arrive with P6; the seam is here.
+P6 fills the two seams this function was left with, and both are calls into
+the Scheduling engineer's module rather than anything computed here.
+
+**The resolution takes the row lock now.** It has to, because two of the
+three things this function decides are read before the update rather than
+after it, and a decision read outside the lock is a decision a concurrent
+transition can invalidate between the read and the write. Under the lock,
+"the guarded update is about to win" is knowable from the status the read
+returned, which is what lets a refusal happen before anything moves. The
+guarded update stays the authority on what actually happened: it is still the
+UPDATE's own row count that classifies the outcome, so the shape 8.3
+specifies is untouched and a lost race still reads as a no-op.
+
+**Generation (8.5), in the winning branch of complete and abandon.** It runs
+after the status write and inside this transaction, which is what makes it
+exactly-once under any race: only the caller whose guarded update changed a
+row reaches it. The row is re-read for the response afterwards, because
+generation moves the rule onto the successor and the envelope's task must say
+so.
+
+**The zone, per frozen 7.6 as ruled on 2026-08-10.** It arrives as a
+parameter, never from users.timezone, which 8.1 reserves for reminder fire
+instants, and the route validates a present one before this function is
+reached. An absent one is refused here, and only here: the condition is the
+ruling's own, the winning guarded update landing on a pending row that carries
+a rule, which is exactly the call that would evaluate a calendar date. The
+refusal returns before the update, so the transaction changes nothing, which
+is the ruling's second sentence and not an implementation detail.
+
+**G-SERIES (5.1), ahead of the uncomplete and restore updates.** It runs only
+when the row is still in the status the transition expects: a repeat call on
+an already-pending row is 5.1's no-op, which writes nothing at all, and a
+guard that ran there would delete a successor for a call that is meant to have
+no side effects. The guard changes no status itself, so the update below is
+still the one door onto that column.
 */
 export async function transitionTask(
   db: Db,
   viewerId: string,
   taskId: string,
   event: TransitionEvent,
+  tz?: string,
 ): Promise<TransitionResult> {
   const rule = TRANSITIONS[event]
   return inTransaction(db, async (tx) => {
-    if ((await accessibleTask(tx, viewerId, taskId)) === null) {
-      return { kind: 'not_found' }
+    const current = await lockedTask(tx, viewerId, taskId)
+    if (current === null) return { kind: 'not_found' }
+
+    // 8.3's expected-status predicate, read once under the lock: the update
+    // below carries it too, and these two cannot disagree while the lock is
+    // held.
+    const winning = current.status === rule.from
+    const generating =
+      winning && rule.generates && current.recurrenceRule !== null
+    if (generating && tz === undefined) return { kind: 'tz_required' }
+
+    let deletedSuccessorId: string | null = null
+    if (winning && rule.guarded) {
+      const guard = await applySeriesGuard(tx, taskId)
+      if (guard.kind === 'refused') {
+        return { kind: 'conflict', message: guard.message }
+      }
+      if (guard.kind === 'reclaimed') {
+        deletedSuccessorId = guard.deletedSuccessorId
+      }
     }
 
     const updated = await rowsOf(
@@ -657,9 +811,23 @@ export async function transitionTask(
           RETURNING id`,
     )
     if (updated.length === 1) {
+      let generatedTask: TaskCard | null = null
+      // The second half of the condition is true wherever the first is, the
+      // refusal above being the only other way out of a generating call; it
+      // is written out because that is what makes the zone a string here.
+      if (generating && tz !== undefined) {
+        const outcome = await generateSuccessor(tx, { taskId, tz })
+        if (outcome.kind === 'generated') {
+          generatedTask = cardOf(
+            await viewOrFail(tx, viewerId, outcome.successorId),
+          )
+        }
+      }
       return {
         kind: 'transitioned',
         task: await viewOrFail(tx, viewerId, taskId),
+        generatedTask,
+        deletedSuccessorId,
       }
     }
 

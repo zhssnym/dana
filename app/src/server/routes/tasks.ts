@@ -35,7 +35,7 @@ import {
   postTaskStepsBody,
   postTasksBody,
 } from '../../shared/tasks.js'
-import type { TaskDetail } from '../../shared/tasks.js'
+import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { viewTz } from '../../shared/views.js'
 import {
   attachSession,
@@ -92,12 +92,22 @@ function fieldError(res: Response, field: string, problem: string): void {
 /*
 7.6's transition envelope, one shape for all four endpoints: the task, the
 successor a recurring completion generates, and the successor a G-SERIES
-uncomplete deletes. Both companions are null until P6 lands 8.5 and the
-G-SERIES branch, and the keys are answered from the first transition so the
-client contract never changes shape under it.
+uncomplete deletes. The keys have been answered from the first transition so
+the client contract never changes shape under it, and P6 is where the two
+companions start carrying values. Which of them a call fills is the domain
+module's answer and not this function's: 5.1 puts generation on two of the
+four endpoints and the guard on the other two, and a no-op fills neither.
 */
-function transitionBody(task: TaskDetail): Record<string, unknown> {
-  return { task, generated_task: null, deleted_successor_id: null }
+function transitionBody(
+  task: TaskDetail,
+  generated: TaskCard | null = null,
+  deletedSuccessorId: string | null = null,
+): Record<string, unknown> {
+  return {
+    task,
+    generated_task: generated,
+    deleted_successor_id: deletedSuccessorId,
+  }
 }
 
 export function createTasksRouter(options: TasksRouterOptions = {}): Router {
@@ -240,6 +250,12 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         case 'time_without_date':
           fieldError(res, 'due_time', 'requires a due_date')
           return
+        case 'rule_without_date':
+          // 7.6's dependency check on the arm only the row can answer: the
+          // body-level half is in the shared schema, which refuses a rule
+          // sent in the same breath as a cleared date.
+          fieldError(res, 'recurrence_rule', 'requires a due_date')
+          return
         case 'patched':
           res.status(200).json(result.task)
           return
@@ -269,6 +285,38 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
    * The 5.1 transitions
    * ---------------------------------------------------------------- */
 
+  /*
+  The tz of frozen 7.6's two generating transitions, by owner ruling on
+  2026-08-10, and it is two rules rather than one.
+
+  This is the present-value half, which is the half a route can answer alone:
+  a value that is not an IANA identifier is 422 naming tz, always, on either
+  endpoint and whatever the row holds, because 7.0 refuses a value outside
+  what a parameter admits rather than narrowing it to a default. The absent
+  half is the domain module's, because only the rows can say whether the
+  transition would evaluate a date, and it comes back as a result rather than
+  as a value missing here.
+
+  Undefined means the parameter was not sent. viewTz is imported rather than
+  restated, the 7.8 pull's reason: it carries the 11.15 sign guard that closes
+  Intl's offset-identifier hole, and a second validator on this surface would
+  be a second answer to one of 10.3's rows. It is wrapped in an object so the
+  issue carries path ['tz'] rather than the empty path sendValidationError
+  reads as a body-shaped failure.
+
+  Uncomplete and restore never reach this: 7.6 gives them no parameter, so a
+  tz sent to one of them is an unknown query parameter and 7.0 tolerates it.
+  */
+  const zoneOf = (req: Request, res: Response): string | null | undefined => {
+    if (!('tz' in req.query)) return undefined
+    const zone = z.object({ tz: viewTz }).safeParse(req.query)
+    if (!zone.success) {
+      sendValidationError(res, zone.error)
+      return null
+    }
+    return zone.data.tz
+  }
+
   /** One handler for the four endpoints, because 7.6 gives them one response
    * and 5.1 one table; the event is the only thing that differs. */
   const transition =
@@ -277,7 +325,13 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (db === null) return
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
-      const result = await transitionTask(db, viewer(req), taskId, event)
+      let tz: string | undefined
+      if (event === 'complete' || event === 'abandon') {
+        const zone = zoneOf(req, res)
+        if (zone === null) return
+        tz = zone
+      }
+      const result = await transitionTask(db, viewer(req), taskId, event, tz)
       switch (result.kind) {
         case 'not_found':
           notFound(res)
@@ -285,9 +339,29 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         case 'conflict':
           sendError(res, 409, 'conflict', result.message)
           return
+        case 'tz_required':
+          // 7.6 as ruled: the transition would run generation and no zone was
+          // named, so nothing happened and the same call retried with one
+          // gets the transition it asked for.
+          fieldError(
+            res,
+            'tz',
+            'must be supplied, as an IANA timezone identifier, on a repeating task',
+          )
+          return
         case 'noop':
-        case 'transitioned':
           res.status(200).json(transitionBody(result.task))
+          return
+        case 'transitioned':
+          res
+            .status(200)
+            .json(
+              transitionBody(
+                result.task,
+                result.generatedTask,
+                result.deletedSuccessorId,
+              ),
+            )
           return
       }
     }
