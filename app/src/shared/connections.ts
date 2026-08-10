@@ -26,6 +26,27 @@ one would be failing a truth rather than reporting it. Not nullable, although
 4.1's column is: 8.10's scrub is what empties that column, and this list
 excludes soft-deleted users outright.
 
+That last sentence disagrees with me.ts, which types the same person's email
+nullable from the same fact about the same column, and the P5 shape review
+settled the pair rather than flattening it. The difference is in the frozen
+text, not in two authors' taste. 7.3's own sentence carries the exclusion,
+"excluding soft-deleted users", so non-nullable here is that clause
+transcribed: it is what makes a contract test notice a roster query that lost
+its deleted_at filter, which is the regression the clause exists to forbid.
+Frozen 7.1 carries no equivalent clause, so me.ts reports the column instead,
+and it is right to. The two schemas describe what their endpoint promises,
+which is the level a response shape works at, rather than agreeing about a
+column neither of them is.
+
+The asymmetry is not free and is recorded so a later reader does not read it
+as drift. What it costs is that one field name carries two types across two
+surfaces; what flattening would cost is more. Making both nullable would drop
+7.3's only testable guarantee. Making both non-nullable does not merely
+weaken a test: MeResponse's inferred type is the auth module's own return
+type, so it fails the build at src/server/auth/account.ts, where the /me
+handler reads the nullable column and reports what it read. Measured, not
+inferred, during the review.
+
 connected_at is 4.2's created_at under the name 7.3 gives it on the wire; the
 column is NOT NULL, so the field never is. Ordering is the query's, 7.3's
 display_name ascending then id, never the shape's.

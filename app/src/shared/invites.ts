@@ -8,26 +8,26 @@ for method and route, its inferred PascalCase type beside it, and per-field
 messages phrased without the field name, because sendValidationError prefixes
 the path when it builds the 422 (10.3).
 
-Deliberately incomplete, recorded here so the next session reads the
-disposition rather than rediscovering the gap. Frozen 7.5 enumerates the
-pending-list element, the acceptance response's three outer keys, and the
-201's outer key; it enumerates nothing inside the created invite, nothing
-inside the acceptance response's folder, nothing at all for the sent list,
-and one key of the conversion answer. RFC 0001's P5 row already places an
-endpoint shape review after this package's routes and carries the conversion
-response's wire shape into it, and the tester left the same inner shapes
-tolerant in app/tests/sharing-harness.ts for the same reason. So the schemas
-below stop where the frozen text stops, which is the precedent this file's
-neighbour records: folders.ts left the GET /folders wrapper and the detail's
-invite key open at P2, and the shape review settled both with the implemented
-routes in front of it. Where a key is frozen and its object is not, the
-object is written as a floor, loose and carrying only what every candidate
-reading shares, so a route has something to build against and the review has
-nothing to undo.
+Complete as of the P5 endpoint shape review, the one RFC 0001's P5 row places
+after this package's routes. Through the schema session this file stopped
+where frozen 7.5 stops: that section enumerates the pending-list element, the
+acceptance response's three outer keys and the 201's wrapper, and enumerated
+nothing inside the created invite, nothing inside the acceptance response's
+folder, nothing at all for the sent list, and one key of the conversion
+answer. Four shapes were therefore written as floors, loose and carrying only
+what every candidate reading shared, so a route had something to build against
+and the review had nothing to undo.
+
+All four are settled below, each against the route that answers rather than
+against a reading of the text alone, and each with its grounds in the block
+introducing the response shapes. The precedent is this file's neighbour:
+folders.ts left the GET /folders wrapper and the detail's invite key open at
+P2, and the shape review settled both with the implemented routes in front of
+it.
 */
 import { z } from 'zod'
 
-import { folderName } from './folders.js'
+import { folder, folderMember, folderName } from './folders.js'
 
 /*
 10.3's email row, the one limit this surface carries: up to 320 characters,
@@ -127,34 +127,118 @@ export const inviteStatus = z.enum([
 export type InviteStatus = z.infer<typeof inviteStatus>
 
 /*
-The object inside 201 { invite }. Frozen 7.5 writes the wrapper key and
-nothing within it, so this is a floor rather than a shape: an id, because the
-five transition endpoints address the row by one and both lists that
-enumerate an invite element carry it (7.4's pending_invites, 7.5's pending
-list below), and loose, so the fields the shape review settles ride through
-rather than being stripped by a schema that predates the decision.
-*/
-export const createdInvite = z.looseObject({ id: uuid })
-export type CreatedInvite = z.infer<typeof createdInvite>
+The response side of 7.5, settled at this role's P5 shape review with the
+routes mounted and answering. Frozen 7.5 fixes the pending element field for
+field, the acceptance response's three outer keys, and the 201's wrapper; the
+four decisions below are the ones it leaves open. Each is a candidate for a
+one-sentence recording in the frozen text through the Steward, the shape 7.2,
+7.4 and 7.10 each took for the same reason.
 
-export const postInvitesResponse = z.object({ invite: createdInvite })
+- The object inside 201 { invite } and the GET /invites/sent element are one
+  object, the nine-field invite below. This file already carried that as the
+  strongest candidate, and the routes confirm it rather than merely permitting
+  it: both bodies come from one serializer over one column list in the domain
+  module, so there was no second shape to choose between. What makes it right
+  rather than convenient is 7.5's own sentence for the sent list, "V's
+  invites, newest first, any status". The rows it lists are the rows POST
+  /invites creates, "any status" is only meaningful if status is a field of
+  them, and AC-067's inviter who sees a declined invite reads it here.
+  The element is wider than 7.4's pending_invites element, which carries five
+  of these nine, and that is not drift. The folder detail's list is scoped to
+  one folder and to pending rows, so folder_id, folder_name, status and
+  responded_at would each be constant there; this list spans every folder and
+  every state, and needs all four to say which invite it is showing.
+
+- The conversion answers { converted_to_share: true, membership }, the
+  membership being the 7.4 member element. Frozen 7.5 writes "response 200
+  { converted_to_share: true, membership created }", and the second half of
+  that is prose about an effect; membership is that prose transcribed as the
+  key. The element is 7.4's own rather than a new one because the conversion
+  is 8.7's grant, the same grant POST /folders/:id/members performs, and
+  7.4's ruled convention is that it answers the member element it created.
+  One concept, one object.
+
+- The acceptance response's folder is the full 7.0 Folder object, what a fresh
+  GET would give. This is the reading 7.4 takes and not the {id, name,
+  is_default} stub the owner ruled for 7.10's grouped views on 2026-08-07, and
+  the two do not conflict because they answer different questions. 7.10's stub
+  is a group heading, and that ruling said outright why: a heading needs what a
+  card's folder label needs, while Folder's counts, is_owner, member_count,
+  my_label and my_color are 7.4's business, where a client that wants them
+  already goes. An acceptance is not a heading. It is the moment a client
+  acquires a folder it did not have, and every one of those five fields is
+  something it needs and has no other way to learn here: whether it now owns
+  the folder, how many members it has, the 8.11 counts the sidebar renders
+  next to it. The stub would force a second request for a folder the client
+  learned about one line earlier, which is the round trip the
+  mutation-answers-a-fresh-GET convention of 7.1, 7.2 and 7.4 exists to
+  avoid.
+
+- decline, cancel and resend answer { invite }, the same wrapper and the same
+  object the 201 carries. Frozen 7.5 gives each of them "200." and no body, so
+  the convention decides rather than the text: a mutation answers what a fresh
+  GET would, which is 7.1's PATCH /me, 7.2's PATCH /me/settings and 7.4's four
+  mutations, and the fresh read of a settled invite is the sent-list element.
+  The wrapper is the 201's rather than a bare object, so one endpoint family
+  speaks one way and a client parses every invite body the same.
+*/
+
+/*
+The invite as 7.5 reports it, the object POST /invites' 201 wraps, GET
+/invites/sent lists, and decline, cancel and resend each answer.
+
+Field by field against 4.9's columns. email is a plain string rather than the
+write primitive above, the me.ts and folders.ts precedent for an address on
+the reading side: a stored address passed V-INV on the way in, and a response
+schema that refused one would be failing a truth rather than reporting it.
+folder_id and folder_name are both null for a bare invite and both set for a
+folder one, the name riding along because the pending list frozen 7.5 does
+enumerate carries a name rather than an id, and the inviter's own list renders
+the same sentence about the same folder; folder_name reuses the 7.4 primitive,
+as pendingInvite below does. task_id is 4.9's optional assignment intent.
+created_at and last_sent_at are NOT NULL columns, the second stamped by the
+insert and moved by resend, which is what lets a client show the 5.2 window
+rather than discovering it as a 429. responded_at is null for a pending invite
+and set by every terminal transition.
+
+accepted_by is deliberately absent, and this is the one place the settled
+shape withholds a column: it is a bare user id, and this surface offers no
+person shape to render it with. A client that needs the acceptor has 7.4's
+members list, where the same person arrives as 7.0's person object.
+*/
+export const invite = z.object({
+  id: uuid,
+  email: z.string().min(1),
+  folder_id: uuid.nullable(),
+  folder_name: folderName.nullable(),
+  task_id: uuid.nullable(),
+  status: inviteStatus,
+  created_at: z.iso.datetime(),
+  last_sent_at: z.iso.datetime(),
+  responded_at: z.iso.datetime().nullable(),
+})
+export type Invite = z.infer<typeof invite>
+
+export const postInvitesResponse = z.object({ invite })
 export type PostInvitesResponse = z.infer<typeof postInvitesResponse>
 
 /*
-The other answer POST /invites can give, 7.5's instant share: "response 200
-{ converted_to_share: true, membership created }". The first key is written
-out and its value is the literal true, since a body reporting false would be
-reporting the 201 case, which has its own status. The second half of that
-sentence is prose about an effect that may or may not be a key on the wire,
-and it is exactly the question RFC 0001's P5 row routes to the endpoint shape
-review, so this stays loose until the review says what rides beside it.
-
-The status separates the two answers, 201 for a created invite and 200 for a
-conversion, so a client picks the shape by status rather than narrowing a
-union by key.
+GET /invites/sent: the same element, newest first, any status. The order is
+the query's, never the shape's, and 7.5 fixes it. A bare array with no
+wrapper, the notation 7.5 writes for both of its lists.
 */
-export const postInvitesConversionResponse = z.looseObject({
+export const getInvitesSentResponse = z.array(invite)
+export type GetInvitesSentResponse = z.infer<typeof getInvitesSentResponse>
+
+/*
+The other answer POST /invites can give, 7.5's instant share. converted_to_share
+is the literal true, since a body reporting false would be reporting the 201
+case, which has its own status; the status is what separates the two answers,
+so a client picks the shape by status rather than narrowing a union by key.
+*/
+export const postInvitesConversionResponse = z.object({
   converted_to_share: z.literal(true),
+  membership: folderMember,
 })
 export type PostInvitesConversionResponse = z.infer<
   typeof postInvitesConversionResponse
@@ -196,25 +280,6 @@ export type GetInvitesPendingResponse = z.infer<
 >
 
 /*
-GET /invites/sent has no schema here, deliberately. Frozen 7.5 gives it one
-sentence, "V's invites, newest first, any status", which fixes the order and
-the status filter and enumerates no element at all, so there is nothing to
-transcribe and any element written here would be this session inventing the
-contract rather than recording it. It rides the endpoint shape review with
-the two loose objects above; the tester made the same call and reads the
-elements as records in app/tests/sharing-harness.ts.
-
-One reading is recorded for that review rather than settled now, because it
-is the reason the gap is narrow: "V's invites" is the same row POST /invites
-answers with, so the strongest candidate is that this list's element and the
-created invite are one object, which would make inviteStatus above a field of
-both and AC-067's "the inviter sees declined" a sentence the shape satisfies
-outright. What it costs is that the sent list is the inviter's own view and
-may want what the created invite does not carry, the recipient's response
-among it.
-*/
-
-/*
 POST /invites/:id/accept, frozen 7.5's three outer keys: 200
 { connection_created, folder or null, assigned_task_id or null }.
 
@@ -228,23 +293,26 @@ assigned_task_id is null unless the conditional assignment applied, which 8.7
 skips silently when the task moved out of the folder or already has an
 assignee (AC-066).
 
-Which object rides in folder is the one shape 7.5 names without enumerating,
-and it is a real question rather than an obvious one: 7.4 answers with the
-full Folder object of 7.0 while 7.10's grouped views answer a folder key with
-the {id, name, is_default} stub, and the owner ruled that second reading at
-P4 rather than leaving an implementation to pick. So this stops at what both
-readings share, an object carrying the granted folder's id, and the review
-takes the rest.
-
-decline, cancel and resend answer 200 and no body this section names, so they
-get no schema, for the reason their request side gets none.
+Which object rides in folder was the one shape 7.5 names without enumerating,
+and it was a real question rather than an obvious one, 7.4 and 7.10 answering
+a folder key two different ways. The review settled it as 7.0's full Folder
+object, for the reasons the settlement block above gives.
 */
-export const acceptedFolder = z.looseObject({ id: uuid })
-export type AcceptedFolder = z.infer<typeof acceptedFolder>
-
 export const acceptInviteResponse = z.object({
   connection_created: z.boolean(),
-  folder: acceptedFolder.nullable(),
+  folder: folder.nullable(),
   assigned_task_id: uuid.nullable(),
 })
 export type AcceptInviteResponse = z.infer<typeof acceptInviteResponse>
+
+/*
+decline, cancel and resend, each 7.5's bare "200." and each answering the
+invite the transition settled, in the 201's wrapper. Three names for one
+schema rather than one name used three times, the folders.ts precedent where
+patchFolderResponse and patchFolderMyMembershipResponse are both the Folder
+object: an endpoint's response is its own promise, and naming them apart is
+what lets one of the three move later without dragging the others.
+*/
+export const declineInviteResponse = postInvitesResponse
+export const cancelInviteResponse = postInvitesResponse
+export const resendInviteResponse = postInvitesResponse

@@ -2,19 +2,57 @@ import { describe, expect, test } from 'vitest'
 
 import {
   acceptInviteResponse,
-  acceptedFolder,
-  createdInvite,
+  cancelInviteResponse,
+  declineInviteResponse,
   emailAddress,
   getInvitesPendingResponse,
+  getInvitesSentResponse,
+  invite,
   inviteStatus,
   pendingInvite,
   postInvitesBody,
   postInvitesConversionResponse,
   postInvitesResponse,
+  resendInviteResponse,
 } from './invites.js'
 
 const ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_ID = '22222222-2222-4222-8222-222222222222'
+const THIRD_ID = '33333333-3333-4333-8333-333333333333'
+const WHEN = '2026-08-09T10:00:00.000Z'
+
+/** The settled 7.5 element, in its folder-invite form. */
+const INVITE = {
+  id: ID,
+  email: 'someone@example.test',
+  folder_id: OTHER_ID,
+  folder_name: 'Shared',
+  task_id: null,
+  status: 'pending',
+  created_at: WHEN,
+  last_sent_at: WHEN,
+  responded_at: null,
+}
+
+/** The 7.0 Folder object, the settled acceptance response's folder. */
+const FOLDER = {
+  id: OTHER_ID,
+  name: 'Shared',
+  is_default: false,
+  is_owner: false,
+  member_count: 2,
+  counts: { pending: 1, completed: 0 },
+  my_label: null,
+  my_color: null,
+}
+
+/** The 7.4 member element, the settled conversion response's membership. */
+const MEMBERSHIP = {
+  user: { id: THIRD_ID, display_name: 'Ada', avatar_url: null },
+  role: 'member',
+  joined_at: WHEN,
+  is_owner: false,
+}
 
 // 320 characters exactly, the 10.3 ceiling, with a domain the format accepts.
 const AT_LIMIT = `${'a'.repeat(314)}@e.com`
@@ -152,36 +190,93 @@ describe('the 7.5 response shapes', () => {
     )
   })
 
-  test('201 { invite } carries an id and keeps the fields the review adds', () => {
-    const result = postInvitesResponse.safeParse({
-      invite: { id: ID, email: 'a@b.test', status: 'pending' },
-    })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(
-        result.data.invite.status,
-        'the loose floor passes unsettled fields through rather than stripping them',
-      ).toBe('pending')
-    }
+  test('the settled element parses, and a bare invite nulls both folder fields', () => {
+    expect(invite.safeParse(INVITE).success, 'the folder invite').toBe(true)
     expect(
-      postInvitesResponse.safeParse({ invite: {} }).success,
-      'the id is the floor',
-    ).toBe(false)
+      invite.safeParse({ ...INVITE, folder_id: null, folder_name: null })
+        .success,
+      'the bare invite, which has no folder to name',
+    ).toBe(true)
     expect(
-      createdInvite.safeParse({ id: 'not-a-uuid' }).success,
-      'and it is a uuid',
-    ).toBe(false)
+      invite.safeParse({
+        ...INVITE,
+        status: 'declined',
+        responded_at: WHEN,
+      }).success,
+      'a terminal invite, which is what "any status" admits to the sent list',
+    ).toBe(true)
   })
 
-  test('the conversion answer fixes converted_to_share true', () => {
+  test('the settled element refuses what 4.9 cannot store', () => {
+    for (const [patch, why] of [
+      [{ id: 'not-a-uuid' }, 'the id is a uuid'],
+      [{ status: 'expired' }, 'status is 4.9\'s vocabulary'],
+      [{ created_at: null }, 'created_at is NOT NULL'],
+      [{ last_sent_at: null }, 'last_sent_at is NOT NULL, moved by resend'],
+      [{ email: null }, 'an invite is addressed to an address'],
+    ] as const) {
+      expect(
+        invite.safeParse({ ...INVITE, ...patch }).success,
+        why,
+      ).toBe(false)
+    }
+  })
+
+  test('201 { invite } and the sent list carry that one settled object', () => {
+    expect(postInvitesResponse.safeParse({ invite: INVITE }).success).toBe(true)
+    expect(
+      postInvitesResponse.safeParse({ invite: { id: ID } }).success,
+      'the floor is gone: a lone id is no longer the whole element',
+    ).toBe(false)
+    expect(
+      getInvitesSentResponse.safeParse([INVITE]).success,
+      'the sent list is the bare array of that same element',
+    ).toBe(true)
+  })
+
+  test('decline, cancel and resend answer the 201\'s wrapper', () => {
+    for (const [schema, name] of [
+      [declineInviteResponse, 'decline'],
+      [cancelInviteResponse, 'cancel'],
+      [resendInviteResponse, 'resend'],
+    ] as const) {
+      expect(
+        schema.safeParse({ invite: { ...INVITE, status: 'declined', responded_at: WHEN } })
+          .success,
+        `${name} answers { invite }`,
+      ).toBe(true)
+      expect(
+        schema.safeParse({ id: ID }).success,
+        `${name} wraps the invite rather than answering it bare`,
+      ).toBe(false)
+    }
+  })
+
+  test('the conversion answers converted_to_share true and the 7.4 membership', () => {
+    expect(
+      postInvitesConversionResponse.safeParse({
+        converted_to_share: true,
+        membership: MEMBERSHIP,
+      }).success,
+    ).toBe(true)
+    expect(
+      postInvitesConversionResponse.safeParse({
+        converted_to_share: false,
+        membership: MEMBERSHIP,
+      }).success,
+      'false would report the 201 case, which has its own status',
+    ).toBe(false)
     expect(
       postInvitesConversionResponse.safeParse({ converted_to_share: true })
         .success,
-    ).toBe(true)
+      'the membership is the effect 7.5 promises, so the key is required',
+    ).toBe(false)
     expect(
-      postInvitesConversionResponse.safeParse({ converted_to_share: false })
-        .success,
-      'false would report the 201 case, which has its own status',
+      postInvitesConversionResponse.safeParse({
+        converted_to_share: true,
+        membership: { ...MEMBERSHIP, role: 'owner' },
+      }).success,
+      '4.4 admits only member in v1; ownership is the folder column (8.9)',
     ).toBe(false)
   })
 
@@ -231,7 +326,7 @@ describe('the 7.5 response shapes', () => {
     expect(
       acceptInviteResponse.safeParse({
         connection_created: false,
-        folder: { id: ID, name: 'Shared' },
+        folder: FOLDER,
         assigned_task_id: OTHER_ID,
       }).success,
       'the folder acceptance that assigned a task',
@@ -246,13 +341,32 @@ describe('the 7.5 response shapes', () => {
     ).toBe(false)
   })
 
-  test('the acceptance folder is a floor: an id, and the rest rides the review', () => {
-    expect(acceptedFolder.safeParse({ id: ID }).success, 'the id alone').toBe(
-      true,
-    )
+  test('the acceptance folder is the settled 7.0 Folder, not 7.10\'s stub', () => {
     expect(
-      acceptedFolder.safeParse({ name: 'Shared' }).success,
-      'without an id it names no folder',
+      acceptInviteResponse.safeParse({
+        connection_created: true,
+        folder: { id: OTHER_ID, name: 'Shared', is_default: false },
+        assigned_task_id: null,
+      }).success,
+      'the {id, name, is_default} stub the owner ruled for 7.10 is not this shape',
     ).toBe(false)
+    for (const key of [
+      'is_owner',
+      'member_count',
+      'counts',
+      'my_label',
+      'my_color',
+    ] as const) {
+      const partial: Record<string, unknown> = { ...FOLDER }
+      delete partial[key]
+      expect(
+        acceptInviteResponse.safeParse({
+          connection_created: true,
+          folder: partial,
+          assigned_task_id: null,
+        }).success,
+        `${key} is one of the five a client acquiring a folder cannot learn elsewhere here`,
+      ).toBe(false)
+    }
   })
 })
