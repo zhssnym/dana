@@ -262,6 +262,12 @@ function planFrom(source: ComputationSource, at: Date): ReminderPlan {
  * and the caller writing values this function returned is not restating any
  * arithmetic: it is writing the answer, in the statement it owns.
  *
+ * Write all three of fireAt, state and firedAt, on the insert and on the
+ * conflict branch alike. An upsert that carried the instant across and left
+ * the other two is the case frozen 7.9 states and AC-148 pins: a row that
+ * already fired keeps its terminal state and its old fired_at, holding exactly
+ * the value the user asked for and never firing again.
+ *
  * The caller is expected to have raised frozen 7.9's two 422s already, for a
  * task with no due_date and for a body carrying the wrong mode. Those are
  * validation, they answer a status code, and this function throws rather than
