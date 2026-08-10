@@ -220,8 +220,8 @@ function writeComputed(
  * 8.6's computation over one row's columns, plus the state its instant earns.
  *
  * The zone arrives already resolved because the two arms of 8.6's first line,
- * the assignee's zone and the creator's fallback, are decided by the SQL
- * below: COALESCE(assignee_id, created_by) is that sentence, and reading it in
+ * the assignee's zone and the creator's fallback, are decided in SQL:
+ * COALESCE(assignee_id, created_by) above is that sentence, and reading it in
  * the statement keeps the two arms from being re-derived per call site.
  */
 function planFrom(source: ComputationSource, at: Date): ReminderPlan {
@@ -361,6 +361,13 @@ async function recomputeForTask(
  * caller cannot hand over the value it just replaced, and the UPDATE repeats
  * the state predicate the SELECT used so a delivery landing between the two
  * wins rather than being overwritten back to scheduled.
+ *
+ * One UPDATE per row rather than one statement with the arithmetic pushed into
+ * SQL, which is the trade this module exists to make: 8.6's two DST rules are
+ * policy chosen where the standard is silent and no database expresses them.
+ * The cost is bounded twice over, by how many reminders one account holds and
+ * by 8.1's rule that a login carrying the same zone, alias included, writes
+ * nothing and recomputes nothing, so this loop runs when somebody travels.
  *
  * A row this trigger cannot compute is reported rather than thrown. The other
  * four fire on the very write that produced the shape, so a throw there points
