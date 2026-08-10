@@ -158,6 +158,29 @@ async function successorsOf(occurrence: Occurrence): Promise<TaskRow[]> {
   return all
 }
 
+interface ReminderRow {
+  offset_minutes: number | null
+  time_of_day: string | null
+  state: string
+  fired_at: string | null
+  created_by: string
+  /** Rendered in UTC rather than compared as a driver value: one backend
+   * answers a Date here and the other a string, and the session timezone is
+   * not this file's to assume. */
+  fire_at_utc: string
+}
+
+async function readReminders(taskId: string): Promise<ReminderRow[]> {
+  const found = await rows(
+    db,
+    sql`SELECT offset_minutes, to_char(time_of_day, 'HH24:MI') AS time_of_day,
+               state, fired_at, created_by,
+               to_char(fire_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS fire_at_utc
+          FROM reminders WHERE task_id = ${taskId}::uuid`,
+  )
+  return found as unknown as ReminderRow[]
+}
+
 async function generate(
   occurrence: Occurrence,
   tz: string = TZ,
@@ -330,11 +353,11 @@ describe('what the successor carries', () => {
     ).toEqual([])
   })
 
-  test('the reminder is not copied, which is P7\'s seam rather than a rule', async () => {
-    // 8.5 does copy a reminder, with a fire_at recomputed per 8.6, and RFC
-    // 0001's P6 row defers that arm to P7 with the computation it needs:
-    // 4.8 makes fire_at NOT NULL, so there is no half of the row to write.
-    // This expectation is the deferral, and P7 replaces it with its opposite.
+  test('the reminder is copied with its mode and value, at its own instant', async () => {
+    // The arm P6 deferred with the computation it needed and P7 closed. The
+    // seeded fire_at is the source occurrence's own and is deliberately not
+    // the successor's: 8.5 says fire_at recomputed, not copied, and a copy
+    // would put the successor's reminder at a moment already past.
     const occurrence = await seedOccurrence({
       dueDate: '2026-07-27',
       rule: 'FREQ=WEEKLY;BYDAY=MO',
@@ -349,11 +372,51 @@ describe('what the successor carries', () => {
     await generate(occurrence)
     const [successor] = await successorsOf(occurrence)
     if (successor === undefined) throw new Error('no successor')
+
+    const [copied] = await readReminders(successor.id)
     expect(
-      await rows(
-        db,
-        sql`SELECT task_id FROM reminders WHERE task_id = ${successor.id}::uuid`,
-      ),
+      copied,
+      '8.5: if reminder exists on t, insert reminder on s with the same mode and value',
+    ).toBeDefined()
+    expect({
+      offset_minutes: copied?.offset_minutes,
+      time_of_day: copied?.time_of_day,
+      state: copied?.state,
+      fired_at: copied?.fired_at,
+      created_by: copied?.created_by,
+    }).toEqual({
+      offset_minutes: 30,
+      time_of_day: null,
+      state: 'scheduled',
+      fired_at: null,
+      // The creator comes across with the row, the way created_by does on the
+      // task itself: a generation is not a person setting a reminder.
+      created_by: occurrence.ownerId,
+    })
+    expect(
+      copied?.fire_at_utc,
+      "8.6 over the successor's own due date: 08:15 minus 30 minutes is 07:45 on 2026-08-03, and the seeded user's zone is 4.1's UTC default",
+    ).toBe('2026-08-03 07:45')
+
+    const [source] = await readReminders(occurrence.taskId)
+    expect(
+      source?.fire_at_utc,
+      "the closing occurrence keeps its own reminder untouched; 8.5 inserts a row and rewrites nothing",
+    ).toBe('2026-07-27 06:45')
+  })
+
+  test('a successor generated from a task with no reminder gets none', async () => {
+    const occurrence = await seedOccurrence({
+      dueDate: '2026-07-27',
+      rule: 'FREQ=WEEKLY;BYDAY=MO',
+      dueTime: '08:15',
+    })
+    await generate(occurrence)
+    const [successor] = await successorsOf(occurrence)
+    if (successor === undefined) throw new Error('no successor')
+    expect(
+      await readReminders(successor.id),
+      '8.5 guards the arm with "if reminder exists on t", and 4.8 has no row shape for a reminder nobody asked for',
     ).toEqual([])
   })
 })

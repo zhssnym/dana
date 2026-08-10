@@ -30,9 +30,10 @@ What the successor carries is 8.5's list and is copied from the row itself
 rather than from a serialization of it, so a column added later cannot be
 silently dropped by this file: folder, title, notes, assignee, importance,
 due_time, the rule, the series, and created_by, which stays the original
-creator rather than becoming the actor. Status is pending. My Day entries are
-never copied, which 8.5 states and 8.2 explains: a pull is one decision about
-one occurrence.
+creator rather than becoming the actor. Status is pending. The steps come
+across unticked, and so does the reminder, whose instant is recomputed for the
+successor's own due date rather than copied. My Day entries are never copied,
+which 8.5 states and 8.2 explains: a pull is one decision about one occurrence.
 */
 import { sql } from 'drizzle-orm'
 
@@ -41,6 +42,7 @@ import type { CalendarDate } from './calendarDate.js'
 import { rowsOf } from './executor.js'
 import type { Executor } from './executor.js'
 import { nextInstance } from './recurrence.js'
+import { copyReminderToSuccessor } from './reminderRecompute.js'
 import { today } from './today.js'
 
 /** What generation did, for the caller that has to answer 7.6's envelope. */
@@ -146,17 +148,19 @@ export async function generateSuccessor(
   )
 
   /*
-  The reminder arm of 8.5 is deliberately absent, and closes at P7 rather
-  than here. 8.5 copies a reminder onto the successor with its mode and
-  value and a fire_at recomputed per 8.6; 4.8 makes fire_at NOT NULL, so
-  there is no half of that row to write without the computation, and 11.9
-  makes both DST rules explicit obligations of the fire-instant module that
-  AC-083 to AC-086 pin in P7's range. RFC 0001's P6 row records the deferral
-  with its grounds, the P3 row's precedent for exactly this shape. When the
-  computation lands, the copy goes here, between the step copy above and the
-  rule handover below, and it reads the assignee's zone rather than the
-  request's, which is 8.6's rule and not this function's.
+  8.5's reminder arm, deferred at P6 with the computation it needed and
+  closed here at P7: "if reminder exists on t, insert reminder on s with same
+  mode and value, fire_at recomputed per 8.6, state='scheduled'". It sits
+  between the step copy above and the rule handover below, where the P6
+  comment said it would, and it reads the assignee's zone rather than the
+  request's, which is 8.6's rule and not this function's. The successor row
+  already carries the assignee and the due_time it was copied with, so the
+  computation is over the successor and needs nothing passed to it: the whole
+  of it, including which of 8.6's two zone arms applies, is
+  copyReminderToSuccessor's.
   */
+  await copyReminderToSuccessor(tx, request.taskId, successorId)
+
 
   // 8.5: the rule lives only on the current occurrence, and the current
   // occurrence is now the successor. Last, because the insert above reads
