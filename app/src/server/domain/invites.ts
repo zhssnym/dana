@@ -1,0 +1,705 @@
+/*
+The P5 domain module: invites per spec 7.5, the 5.2 lifecycle table, V-INV
+and the instant-share conversion of 8.7, and the acceptance transaction.
+Routes validate and serialize; every decision that touches rows is here,
+behind the 10.2 rule that nothing leaves this file without being scoped to
+the viewer or to a folder the caller has already resolved access on.
+
+Results are discriminated unions rather than thrown statuses, the P2 module's
+convention, so the route layer owns the mapping onto 7.0's taxonomy and this
+file stays testable without HTTP.
+
+Two rulings are load-bearing here and are named where they act rather than
+only in this header: the 10.3 member cap binds every membership 8.7 grants
+(the Steward's kickoff ruling of 2026-08-09), and a bare invite to an email
+already on the inviter's roster answers 409 (the owner's ruling of the same
+day, now frozen 7.5's appended paragraph).
+*/
+import { sql } from 'drizzle-orm'
+
+import type { Db } from '../../../db/client.js'
+import { accessOf } from './folders.js'
+import { inTransaction, rowsOf } from './db.js'
+import type { Executor } from './db.js'
+
+/** 10.3's members-per-folder limit, the number every 8.7 grant checks. It is
+ * spelled here as well as in folders.ts because the two modules grant
+ * membership by different paths and a constant imported across them would
+ * still be two call sites; what must not differ is the number, and both
+ * name 10.3. */
+const MEMBER_CAP = 25
+
+/** 5.2's resend guard, one resend per invite per 24 hours, anchored on
+ * last_sent_at (10.4's per-invite line, which is a state guard rather than
+ * the middleware rate limiting P9 owns). */
+const RESEND_WINDOW_HOURS = 24
+
+/* ------------------------------------------------------------------ *
+ * Serialization
+ * ------------------------------------------------------------------ */
+
+function toIso(value: unknown): string {
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(String(value)).toISOString()
+}
+
+function nullableString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value)
+}
+
+/*
+The invite as this surface reports it. Frozen 7.5 enumerates no element for
+POST /invites' 201 body or for GET /invites/sent, and src/shared/invites.ts
+stopped there deliberately, recording that the strongest candidate reading
+is that the two are one object. This is that object, so the endpoint shape
+review the RFC 0001 P5 row places after this package meets one shape rather
+than two: it satisfies the shared floor (an id) and carries the columns of
+4.9 a client can act on.
+
+folder_name rides beside folder_id because the pending list frozen 7.5 does
+enumerate carries the name rather than the id, and the inviter's own list
+renders the same sentence about the same folder. accepted_by is deliberately
+absent: it is a bare user id this surface offers no person shape for.
+*/
+export interface InviteElement {
+  id: string
+  email: string
+  folder_id: string | null
+  folder_name: string | null
+  task_id: string | null
+  status: string
+  created_at: string
+  last_sent_at: string
+  responded_at: string | null
+}
+
+function inviteFromRow(row: Record<string, unknown>): InviteElement {
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    folder_id: nullableString(row.folder_id),
+    folder_name: nullableString(row.folder_name),
+    task_id: nullableString(row.task_id),
+    status: String(row.status),
+    created_at: toIso(row.created_at),
+    last_sent_at: toIso(row.last_sent_at),
+    responded_at: row.responded_at === null ? null : toIso(row.responded_at),
+  }
+}
+
+const INVITE_COLUMNS = sql`i.id, i.email, i.folder_id, f.name AS folder_name,
+                           i.task_id, i.status, i.created_at, i.last_sent_at,
+                           i.responded_at`
+
+async function inviteElementById(
+  executor: Executor,
+  inviteId: string,
+): Promise<InviteElement> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT ${INVITE_COLUMNS}
+        FROM invites i
+        LEFT JOIN folders f ON f.id = i.folder_id
+        WHERE i.id = ${inviteId}`,
+  )
+  const row = found[0]
+  if (row === undefined) {
+    // The row was written in this transaction; not finding it is a state the
+    // contract has no shape for, and the P2 precedent (the vanished
+    // membership) is to fail loudly rather than answer a degenerate body.
+    throw new Error(`invite ${inviteId} vanished between insert and read`)
+  }
+  return inviteFromRow(row)
+}
+
+/** One invite, by id, in the element shape above. The route reads it after a
+ * transition so a 200 answers what a fresh read would, the convention 7.1,
+ * 7.2 and 7.4 each carry on their mutations; frozen 7.5 names no body for
+ * decline, cancel and resend, so this is a candidate the endpoint shape
+ * review meets rather than a shape this package fixes. */
+export async function inviteById(
+  db: Db,
+  inviteId: string,
+): Promise<InviteElement> {
+  return inviteElementById(db, inviteId)
+}
+
+/* ------------------------------------------------------------------ *
+ * GET /invites/sent and GET /invites/pending
+ * ------------------------------------------------------------------ */
+
+/** 7.5: V's invites, newest first, any status. The order is the row's own
+ * (created_at DESC, id DESC), the tie-break convention section 6 uses
+ * everywhere a sequence must be total. */
+export async function sentInvites(
+  db: Db,
+  inviterId: string,
+): Promise<InviteElement[]> {
+  const found = await rowsOf(
+    db,
+    sql`SELECT ${INVITE_COLUMNS}
+        FROM invites i
+        LEFT JOIN folders f ON f.id = i.folder_id
+        WHERE i.inviter_id = ${inviterId}
+        ORDER BY i.created_at DESC, i.id DESC`,
+  )
+  return found.map(inviteFromRow)
+}
+
+export interface PendingInviteForRecipient {
+  id: string
+  inviter: { display_name: string | null; avatar_url: string | null }
+  folder_name: string | null
+  created_at: string
+}
+
+/*
+Q12, the login surface: invites addressed to the viewer's lowercased email
+with status pending. The element is frozen 7.5's, and its inviter person
+carries exactly display_name and avatar_url: a recipient has no claim on the
+inviter's id, which addresses nothing they may call.
+
+Scoped by the viewer's own address rather than by an id, because that is what
+an invite names (4.9 stores an email, not a user), and it is why an account
+whose address differs by one dot sees nothing: 8.7 makes matching equality
+and nothing more.
+
+Newest first, the sent list's order, so the two 7.5 lists read alike; frozen
+7.5 fixes an order for neither.
+*/
+export async function pendingInvitesFor(
+  db: Db,
+  viewerId: string,
+): Promise<PendingInviteForRecipient[]> {
+  const found = await rowsOf(
+    db,
+    sql`SELECT i.id, i.created_at, f.name AS folder_name,
+               u.display_name, u.avatar_url
+        FROM invites i
+        JOIN users me ON me.id = ${viewerId}
+        JOIN users u ON u.id = i.inviter_id
+        LEFT JOIN folders f ON f.id = i.folder_id
+        WHERE i.status = 'pending'
+          AND me.deleted_at IS NULL
+          AND i.email = lower(me.email)
+        ORDER BY i.created_at DESC, i.id DESC`,
+  )
+  return found.map((row) => ({
+    id: String(row.id),
+    inviter: {
+      display_name: nullableString(row.display_name),
+      avatar_url: nullableString(row.avatar_url),
+    },
+    folder_name: nullableString(row.folder_name),
+    created_at: toIso(row.created_at),
+  }))
+}
+
+/* ------------------------------------------------------------------ *
+ * POST /invites: V-INV (8.7) and the conversion
+ * ------------------------------------------------------------------ */
+
+export interface CreateInviteInput {
+  email: string
+  folder_id?: string
+  task_id?: string
+}
+
+export type CreateInviteResult =
+  /** Parked: 201 { invite }, and one invite email rides it (5.2). */
+  | { kind: 'created'; invite: InviteElement }
+  /** The instant share of 8.7: 200, a membership now, no invite row, and a
+   * share-grant email to the target. */
+  | {
+      kind: 'converted'
+      folderId: string
+      targetId: string
+      targetEmail: string | null
+      assignedTaskId: string | null
+    }
+  | { kind: 'own_email' }
+  | { kind: 'folder_not_found' }
+  | { kind: 'default_folder' }
+  | { kind: 'already_member' }
+  | { kind: 'task_not_in_folder' }
+  | { kind: 'already_connected' }
+  | { kind: 'duplicate'; existingId: string }
+  | { kind: 'member_cap' }
+
+/** The active account holding an address, if any. Soft-deleted rows are not
+ * accounts: 4.1 scrubs the email at deletion, and 8.7 says "active user". */
+async function activeUserByEmail(
+  executor: Executor,
+  email: string,
+): Promise<{ id: string; email: string } | undefined> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT id, email FROM users
+        WHERE lower(email) = ${email} AND deleted_at IS NULL`,
+  )
+  const row = found[0]
+  return row === undefined
+    ? undefined
+    : { id: String(row.id), email: String(row.email) }
+}
+
+async function areConnected(
+  executor: Executor,
+  a: string,
+  b: string,
+): Promise<boolean> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT 1 AS present FROM connections
+        WHERE user_a_id = least(${a}::uuid, ${b}::uuid)
+          AND user_b_id = greatest(${a}::uuid, ${b}::uuid)`,
+  )
+  return found.length > 0
+}
+
+/** INV-11's scope, exactly: one pending invite per (inviter, email, folder),
+ * the no-folder case counting as its own folder value, which is what the
+ * partial unique index of 4.9 expresses with COALESCE. */
+async function pendingDuplicateId(
+  executor: Executor,
+  inviterId: string,
+  email: string,
+  folderId: string | null,
+): Promise<string | undefined> {
+  const scope =
+    folderId === null
+      ? sql`folder_id IS NULL`
+      : sql`folder_id = ${folderId}::uuid`
+  const found = await rowsOf(
+    executor,
+    sql`SELECT id FROM invites
+        WHERE inviter_id = ${inviterId} AND email = ${email}
+          AND status = 'pending' AND ${scope}`,
+  )
+  const row = found[0]
+  return row === undefined ? undefined : String(row.id)
+}
+
+/*
+V-INV on create, in the order the two frozen texts give it when they are read
+together: 8.7 lists the sequence and 7.5's bullet carries the already-member
+refusal 8.7's list does not repeat. So: email syntax and lowercasing (the
+shared schema, before this module is reached), own email, the folder's
+accessibility and its default flag, the target's current membership, the
+task's presence inside the folder, the roster conversion or its bare
+refusal, then INV-11's dedupe. Rate limits are 10.4's and P9's middleware,
+not this function's.
+
+The order is not decoration. AC-059 sends a self-invite naming a default
+folder and requires the 422, so the own-email check must outrank the folder's
+409; AC-060 sends a member's address against a folder the caller cannot see
+and requires 404, so access outranks the membership conflict and nothing
+confirms the folder exists.
+
+One transaction covers the lot, because two of the outcomes write: the
+conversion grants a membership under the cap, and the parked path inserts an
+invite against a uniqueness INV-11 shares with a concurrent caller. Sends are
+deliberately not here; the route sends after the commit, the P2 share-grant
+convention, so a rolled-back transaction can never have mailed anybody.
+*/
+export async function createInvite(
+  db: Db,
+  inviterId: string,
+  input: CreateInviteInput,
+): Promise<CreateInviteResult> {
+  const email = input.email
+  const folderId = input.folder_id ?? null
+  const taskId = input.task_id ?? null
+
+  return inTransaction(db, async (tx) => {
+    const inviter = await rowsOf(
+      tx,
+      sql`SELECT email FROM users WHERE id = ${inviterId}`,
+    )
+    const inviterEmail = nullableString(inviter[0]?.email)
+    if (inviterEmail !== null && inviterEmail.toLowerCase() === email) {
+      return { kind: 'own_email' }
+    }
+
+    if (folderId !== null) {
+      const access = await accessOf(tx, inviterId, folderId)
+      // 10.2: a folder the inviter is not a member of reads as nonexistent,
+      // never as a status that confirms it exists.
+      if (access === null) return { kind: 'folder_not_found' }
+      // INV-3: a default folder is never shared, so it refuses every invite.
+      if (access.isDefault) return { kind: 'default_folder' }
+    }
+
+    const target = await activeUserByEmail(tx, email)
+
+    if (folderId !== null && target !== undefined) {
+      const member = await rowsOf(
+        tx,
+        sql`SELECT 1 AS present FROM folder_members
+            WHERE folder_id = ${folderId} AND user_id = ${target.id}`,
+      )
+      if (member.length > 0) return { kind: 'already_member' }
+    }
+
+    if (taskId !== null) {
+      // The other half of 4.9's CHECK: a task_id with no folder_id is the
+      // shared schema's 422, and a task outside the named folder is this
+      // one. Both name a field, because both are the request's own shape.
+      const inFolder = await rowsOf(
+        tx,
+        sql`SELECT 1 AS present FROM tasks
+            WHERE id = ${taskId} AND folder_id = ${folderId}`,
+      )
+      if (inFolder.length === 0) return { kind: 'task_not_in_folder' }
+    }
+
+    if (target !== undefined && (await areConnected(tx, inviterId, target.id))) {
+      /*
+      The conversion arm, folder-conditional since the owner's ruling of
+      2026-08-09: the instant share creates a membership and only a folder
+      defines one, so a bare invite to a connected person answers 409 and
+      creates nothing (AC-141). What separates the two answers is the folder
+      and nothing else.
+      */
+      if (folderId === null) return { kind: 'already_connected' }
+
+      // The cap the kickoff ruling put on every 8.7 grant: lock the folder,
+      // then count, so the count and the insert are one decision (AC-124's
+      // acceptance arm races exactly this shape on the other grant path).
+      await tx.execute(
+        sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
+      )
+      const count = await rowsOf(
+        tx,
+        sql`SELECT count(*)::int AS n FROM folder_members
+            WHERE folder_id = ${folderId}`,
+      )
+      if (Number(count[0]?.n ?? 0) >= MEMBER_CAP) return { kind: 'member_cap' }
+
+      await tx.execute(
+        sql`INSERT INTO folder_members (folder_id, user_id)
+            VALUES (${folderId}::uuid, ${target.id}::uuid)`,
+      )
+
+      /*
+      8.7's third entry path: membership first, then the assignment applies,
+      one transaction. The order is what INV-4's composite FK requires, and
+      the assignment is unconditional here where the acceptance transaction's
+      is conditional: nothing has had time to overtake a request that grants
+      and assigns in the same statement pair, and the task was checked into
+      this folder three statements ago.
+      */
+      if (taskId !== null) {
+        await tx.execute(
+          sql`UPDATE tasks SET assignee_id = ${target.id}, updated_at = now()
+              WHERE id = ${taskId}`,
+        )
+      }
+
+      return {
+        kind: 'converted',
+        folderId,
+        targetId: target.id,
+        targetEmail: target.email,
+        assignedTaskId: taskId,
+      }
+    }
+
+    const duplicate = await pendingDuplicateId(tx, inviterId, email, folderId)
+    if (duplicate !== undefined) {
+      return { kind: 'duplicate', existingId: duplicate }
+    }
+
+    /*
+    8.7's closing sentence: creating a new assignment-invite for a task
+    clears task_id on any earlier pending invite for that task, which is what
+    keeps 7.0's pending_invite_email single-valued (AC-139). The older row
+    stays pending and can still grant its folder; only its assignment intent
+    is superseded.
+    */
+    if (taskId !== null) {
+      await tx.execute(
+        sql`UPDATE invites SET task_id = NULL
+            WHERE task_id = ${taskId} AND status = 'pending'`,
+      )
+    }
+
+    const inserted = await rowsOf(
+      tx,
+      sql`INSERT INTO invites (inviter_id, email, folder_id, task_id)
+          VALUES (${inviterId}::uuid, ${email}, ${folderId}::uuid,
+                  ${taskId}::uuid)
+          ON CONFLICT DO NOTHING
+          RETURNING id`,
+    )
+    const insertedId = inserted[0]?.id
+    if (insertedId === undefined) {
+      // The partial unique index of 4.9 caught a duplicate this transaction
+      // did not see when it looked: a concurrent create won the race, and
+      // the loser is told what the sequential caller would be told.
+      const raced = await pendingDuplicateId(tx, inviterId, email, folderId)
+      if (raced !== undefined) return { kind: 'duplicate', existingId: raced }
+      throw new Error('the invite insert wrote nothing and no duplicate exists')
+    }
+
+    return {
+      kind: 'created',
+      invite: await inviteElementById(tx, String(insertedId)),
+    }
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The 7.5 transition endpoints
+ * ------------------------------------------------------------------ */
+
+/**
+ * What a transition endpoint needs to know before it acts: the invite's own
+ * state, whether the caller is the inviter, whether the caller is the
+ * matched recipient (5.2's lowercased-email equality), and whether the
+ * caller owns or can see the attached folder. Undefined means no such
+ * invite.
+ *
+ * One read answers all four, so no endpoint resolves the actor twice and
+ * none of them can disagree about who the caller is.
+ */
+export interface InviteActorFacts {
+  id: string
+  status: string
+  folderId: string | null
+  isInviter: boolean
+  isRecipient: boolean
+  isFolderOwner: boolean
+  isFolderMember: boolean
+  lastSentAt: Date
+}
+
+export async function inviteFactsFor(
+  executor: Executor,
+  viewerId: string,
+  inviteId: string,
+): Promise<InviteActorFacts | undefined> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT i.id, i.status, i.folder_id, i.last_sent_at,
+               (i.inviter_id = ${viewerId}) AS is_inviter,
+               (me.deleted_at IS NULL AND i.email = lower(me.email))
+                 AS is_recipient,
+               (f.owner_id = ${viewerId}) AS is_folder_owner,
+               (m.user_id IS NOT NULL) AS is_folder_member
+        FROM invites i
+        JOIN users me ON me.id = ${viewerId}
+        LEFT JOIN folders f ON f.id = i.folder_id
+        LEFT JOIN folder_members m
+          ON m.folder_id = i.folder_id AND m.user_id = ${viewerId}
+        WHERE i.id = ${inviteId}`,
+  )
+  const row = found[0]
+  if (row === undefined) return undefined
+  return {
+    id: String(row.id),
+    status: String(row.status),
+    folderId: nullableString(row.folder_id),
+    isInviter: row.is_inviter === true,
+    isRecipient: row.is_recipient === true,
+    isFolderOwner: row.is_folder_owner === true,
+    isFolderMember: row.is_folder_member === true,
+    lastSentAt:
+      row.last_sent_at instanceof Date
+        ? row.last_sent_at
+        : new Date(String(row.last_sent_at)),
+  }
+}
+
+export type AcceptInviteResult =
+  | {
+      kind: 'accepted'
+      connectionCreated: boolean
+      folderId: string | null
+      assignedTaskId: string | null
+    }
+  | { kind: 'not_pending' }
+  | { kind: 'member_cap' }
+
+/*
+The acceptance transaction of 8.7, in its order, all or nothing:
+
+  connection upsert (INV-9, idempotent)
+  membership grant when a folder is attached and the acceptor is not already
+    a member, under the 10.3 cap the kickoff ruling binds to every 8.7 grant
+  conditional assignment when a task is attached
+  the invite itself moves to accepted
+
+The status guard rides the same transaction as a guarded UPDATE rather than
+being read first and trusted: two acceptances of one invite would otherwise
+both pass a read and both grant. Zero rows updated means the invite was not
+pending when this transaction reached it, which is 5.2's 409.
+
+A refused acceptance rolls back whole, so the invite stays pending and can be
+accepted once the folder has room (the ruling's closing clause, AC-140). The
+refusal is expressed by throwing a private marker rather than by returning,
+because a return value commits the transaction and everything this function
+has written by then, the connection row included, has to go with it.
+*/
+const CAP_ROLLBACK = Symbol('member cap refusal, rolling the acceptance back')
+
+export async function acceptInvite(
+  db: Db,
+  acceptorId: string,
+  inviteId: string,
+): Promise<AcceptInviteResult> {
+  try {
+    return await inTransaction(db, async (tx) => {
+      const claimed = await rowsOf(
+        tx,
+        sql`UPDATE invites
+               SET status = 'accepted', accepted_by = ${acceptorId}::uuid,
+                   responded_at = now()
+             WHERE id = ${inviteId} AND status = 'pending'
+             RETURNING inviter_id, folder_id, task_id`,
+      )
+      const invite = claimed[0]
+      if (invite === undefined) return { kind: 'not_pending' }
+
+      const inviterId = String(invite.inviter_id)
+      const folderId = nullableString(invite.folder_id)
+      const taskId = nullableString(invite.task_id)
+
+      // INV-9's canonical pair, upserted: the connection is created once
+      // however many invites the same two people exchange, and the returned
+      // rows are what connection_created reports.
+      const minted = await rowsOf(
+        tx,
+        sql`INSERT INTO connections (user_a_id, user_b_id)
+            VALUES (least(${inviterId}::uuid, ${acceptorId}::uuid),
+                    greatest(${inviterId}::uuid, ${acceptorId}::uuid))
+            ON CONFLICT DO NOTHING
+            RETURNING user_a_id`,
+      )
+
+      if (folderId !== null) {
+        const already = await rowsOf(
+          tx,
+          sql`SELECT 1 AS present FROM folder_members
+              WHERE folder_id = ${folderId} AND user_id = ${acceptorId}`,
+        )
+        if (already.length === 0) {
+          await tx.execute(
+            sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
+          )
+          const count = await rowsOf(
+            tx,
+            sql`SELECT count(*)::int AS n FROM folder_members
+                WHERE folder_id = ${folderId}`,
+          )
+          if (Number(count[0]?.n ?? 0) >= MEMBER_CAP) throw CAP_ROLLBACK
+          await tx.execute(
+            sql`INSERT INTO folder_members (folder_id, user_id)
+                VALUES (${folderId}::uuid, ${acceptorId}::uuid)`,
+          )
+        }
+      }
+
+      /*
+      The conditional assignment, its three conditions read as one guarded
+      UPDATE: the task exists, it is still in the invite's folder, and it is
+      still unassigned. Anything else is skipped silently (8.7), because a
+      skipped assignment loses a convenience while a refusal would consume
+      the recipient's one chance at the folder over a task that moved on.
+      */
+      let assignedTaskId: string | null = null
+      if (taskId !== null && folderId !== null) {
+        const assigned = await rowsOf(
+          tx,
+          sql`UPDATE tasks SET assignee_id = ${acceptorId}::uuid,
+                               updated_at = now()
+               WHERE id = ${taskId} AND folder_id = ${folderId}::uuid
+                 AND assignee_id IS NULL
+               RETURNING id`,
+        )
+        assignedTaskId = nullableString(assigned[0]?.id)
+      }
+
+      return {
+        kind: 'accepted',
+        connectionCreated: minted.length > 0,
+        folderId,
+        assignedTaskId,
+      }
+    })
+  } catch (error) {
+    if (error === CAP_ROLLBACK) return { kind: 'member_cap' }
+    throw error
+  }
+}
+
+/** decline and cancel: one guarded UPDATE each, the actor guard having been
+ * resolved by the route. Zero rows means the invite was not pending, which
+ * is 5.2's 409 for every terminal state. */
+export async function settleInvite(
+  db: Db,
+  inviteId: string,
+  status: 'declined' | 'canceled',
+): Promise<boolean> {
+  const moved = await rowsOf(
+    db,
+    sql`UPDATE invites SET status = ${status}, responded_at = now()
+         WHERE id = ${inviteId} AND status = 'pending'
+         RETURNING id`,
+  )
+  return moved.length > 0
+}
+
+export type ResendResult =
+  | { kind: 'resent'; email: string }
+  | { kind: 'not_pending' }
+  | { kind: 'throttled'; retryAfterSeconds: number }
+
+/*
+5.2's resend row: the inviter alone (the route's guard), pending alone, and
+at least 24 hours since last_sent_at. Terminal outranks the window, so the
+status is guarded first and a canceled invite answers 409 however old its
+anchor (AC-068).
+
+The window is evaluated by the database against the stored instant, in the
+same statement that re-stamps it: a refusal must leave the anchor untouched,
+or a client that retries in a loop would push the window ahead of itself
+forever. Zero rows back with a pending row still there is therefore the
+throttle, and the Retry-After the route needs is computed from the anchor
+this function reads back.
+*/
+export async function resendInvite(
+  db: Db,
+  inviteId: string,
+): Promise<ResendResult> {
+  const resent = await rowsOf(
+    db,
+    sql`UPDATE invites SET last_sent_at = now()
+         WHERE id = ${inviteId} AND status = 'pending'
+           AND now() - last_sent_at >= ${`${String(RESEND_WINDOW_HOURS)} hours`}::interval
+         RETURNING email`,
+  )
+  const row = resent[0]
+  if (row !== undefined) return { kind: 'resent', email: String(row.email) }
+
+  const current = await rowsOf(
+    db,
+    sql`SELECT status,
+               ceil(extract(epoch from
+                 (last_sent_at + ${`${String(RESEND_WINDOW_HOURS)} hours`}::interval - now())
+               ))::int AS retry_after
+        FROM invites WHERE id = ${inviteId}`,
+  )
+  const state = current[0]
+  if (state === undefined || String(state.status) !== 'pending') {
+    return { kind: 'not_pending' }
+  }
+  return {
+    kind: 'throttled',
+    // A window that has just closed rounds to zero or below between the two
+    // statements; 7.0 wants a usable Retry-After, and one second is the
+    // smallest honest one.
+    retryAfterSeconds: Math.max(1, Number(state.retry_after ?? 1)),
+  }
+}

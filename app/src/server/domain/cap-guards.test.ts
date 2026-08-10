@@ -32,6 +32,7 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { createTestDb, rows } from '../../../tests/helpers.js'
 import type { Executor } from './db.js'
 import { addMember, createFolder } from './folders.js'
+import { acceptInvite, createInvite } from './invites.js'
 import { addStep } from './tasks.js'
 
 let client: DbClient
@@ -278,6 +279,122 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       counted,
       'the count must follow the lock, or two creates at 199 both read 199 and both insert (10.3)',
     ).toBeGreaterThan(1)
+    expect(
+      inserted,
+      'and the insert must follow the count it was admitted by',
+    ).toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
+  })
+
+  /*
+  The two grant paths P5 adds. The kickoff ruling of 2026-08-09 binds the
+  25-member cap to every membership 8.7 creates, "the way POST /members does:
+  lock the folder before counting, so the count and the insert are one
+  decision", which is the shape the three tests above already check for the
+  three P2 and P3 guards. AC-124's acceptance arm races the second of them and
+  AC-140 refuses both sequentially, but neither run can see a missing lock:
+  PGlite serializes, so the race the lock exists for is unobservable on both
+  legs of CI. This is where it is observable.
+  */
+  test('the instant-share conversion locks the folder before it counts (8.7, 10.3)', async () => {
+    const inviterId = await seedUser('convert-inviter')
+    const targetId = await seedUser('convert-target')
+    seededUsers.push(inviterId, targetId)
+    const folderId = await seedFolder(inviterId)
+    await db.execute(sql`
+      INSERT INTO connections (user_a_id, user_b_id)
+      VALUES (least(${inviterId}::uuid, ${targetId}::uuid),
+              greatest(${inviterId}::uuid, ${targetId}::uuid))
+    `)
+    const targetEmail = (
+      await rows(db, sql`SELECT email FROM users WHERE id = ${targetId}`)
+    )[0]?.email
+
+    const log: string[] = []
+    const result = await createInvite(recording(db, log), inviterId, {
+      email: String(targetEmail),
+      folder_id: folderId,
+    })
+    expect(
+      result.kind,
+      'the connected email converts rather than parking (spec 8.7)',
+    ).toBe('converted')
+
+    expect(log[0], 'V-INV and the grant are one transaction').toBe('begin')
+    const locked = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('for update') && statement.includes('from folders'),
+      'the folder lock the ruling requires of every 8.7 grant',
+    )
+    const counted = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('count(*)') && statement.includes('from folder_members'),
+      'the count that decides the 25 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into folder_members'),
+      'the membership the count admitted',
+    )
+    expect(
+      counted,
+      'the count must follow the lock, or two conversions at 24 both read 24 and the folder ends at 26 (10.3)',
+    ).toBeGreaterThan(locked)
+    expect(
+      inserted,
+      'and the insert must follow the count it was admitted by',
+    ).toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
+  })
+
+  test('the acceptance transaction locks the folder before it counts (8.7, 10.3)', async () => {
+    const inviterId = await seedUser('accept-inviter')
+    const acceptorId = await seedUser('accept-acceptor')
+    seededUsers.push(inviterId, acceptorId)
+    const folderId = await seedFolder(inviterId)
+    const acceptorEmail = String(
+      (await rows(db, sql`SELECT email FROM users WHERE id = ${acceptorId}`))[0]
+        ?.email,
+    )
+    const inviteId = String(
+      (
+        await rows(
+          db,
+          sql`INSERT INTO invites (inviter_id, email, folder_id)
+              VALUES (${inviterId}::uuid, ${acceptorEmail}, ${folderId}::uuid)
+              RETURNING id`,
+        )
+      )[0]?.id,
+    )
+
+    const log: string[] = []
+    const result = await acceptInvite(recording(db, log), acceptorId, inviteId)
+    expect(result.kind, 'the acceptance succeeds below the cap').toBe('accepted')
+
+    expect(log[0], '8.7: one transaction, all or nothing').toBe('begin')
+    const locked = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('for update') && statement.includes('from folders'),
+      'the folder lock the ruling requires of this grant too',
+    )
+    const counted = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('count(*)') && statement.includes('from folder_members'),
+      'the count that decides the 25 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into folder_members'),
+      'the membership the count admitted',
+    )
+    expect(
+      counted,
+      'the count must follow the lock, which is what makes AC-124\'s two racing acceptances split 200 and 422 on a backend that can run them at once',
+    ).toBeGreaterThan(locked)
     expect(
       inserted,
       'and the insert must follow the count it was admitted by',
