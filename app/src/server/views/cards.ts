@@ -168,8 +168,7 @@ export function accessibleTasks(viewerId: string): SQL {
  * primary key makes it at most one row.
  */
 export function cardSource(viewerId: string): SQL {
-  return sql`
-    ${accessibleTasks(viewerId)}
+  return sql`${accessibleTasks(viewerId)}
     JOIN folders f ON f.id = t.folder_id
     LEFT JOIN users a ON a.id = t.assignee_id
     LEFT JOIN my_day_entries e

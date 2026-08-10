@@ -155,11 +155,18 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
   row in forty so search has something selective to find. The hidden half is
   the same size as the visible one, so a query that forgot ACCESSIBLE(V)
   would show up in the plan as twice the rows rather than as nothing.
+
+  One row in ten carries a 4.11 rule, which lands on the dated rows because
+  i % 10 = 0 is even and 4.11's CHECK admits no rule without a date, and each
+  gets its own series_id because INV-7 allows one pending row per series.
+  Q3C's projection fetch would otherwise plan against an empty predicate and
+  the record would say nothing about the statement P6 added.
   */
   const fill = async (folderId: string, owner: string): Promise<void> => {
     await db.execute(sql`
       INSERT INTO tasks (folder_id, title, notes, status, important, due_date,
-                         due_time, assignee_id, created_by, completed_at,
+                         due_time, recurrence_rule, series_id, assignee_id,
+                         created_by, completed_at,
                          completed_by, created_at, updated_at)
       SELECT ${folderId}::uuid,
              CASE WHEN i % 40 = 0 THEN 'quarterly needle ' || i::text
@@ -171,6 +178,8 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
              CASE WHEN i % 2 = 0
                   THEN CURRENT_DATE + ((i % 120) - 60) ELSE NULL END,
              CASE WHEN i % 4 = 0 THEN time '09:30' ELSE NULL END,
+             CASE WHEN i % 10 = 0 THEN 'FREQ=WEEKLY;BYDAY=MO' ELSE NULL END,
+             CASE WHEN i % 10 = 0 THEN gen_random_uuid() ELSE NULL END,
              ${owner}::uuid, ${owner}::uuid,
              CASE WHEN i % 3 = 0
                   THEN now() - (i * interval '7 minute') ELSE NULL END,
@@ -238,6 +247,13 @@ function predicateProbes(
       label: 'Q3C: the folder scope with a date range over all three statuses',
       where: sql`t.folder_id = ${folder}::uuid
                  AND t.due_date BETWEEN CURRENT_DATE - 30 AND CURRENT_DATE + 30`,
+      expect: 'tasks_folder_status_due_idx',
+    },
+    {
+      label:
+        "Q3C's projection: the folder scope with pending and a rule, and no date at all",
+      where: sql`t.folder_id = ${folder}::uuid AND t.status = 'pending'
+                 AND t.recurrence_rule IS NOT NULL`,
       expect: 'tasks_folder_status_due_idx',
     },
     {
@@ -329,8 +345,8 @@ function render(
     '1. **Every 4.12 index that section 6 names is reachable by the predicate',
     '   it was created for.** The probes at the end show each one chosen: the',
     '   assignee index for Q1, the folder index for the folder-scoped',
-    '   predicates of Q3C and Q7, the partial completed index for Q6, and the',
-    '   GIN trigram index for Q8.',
+    '   predicates of Q3C, its projection, and Q7, the partial completed index',
+    '   for Q6, and the GIN trigram index for Q8.',
     '2. **At page scope the folder is not a constant, and the plan says so.**',
     '   4.12 justifies `tasks_folder_status_due_idx` by "Q2, Q3, Q5, Q7 home',
     '   and view scans within accessible folders", and Q7 is where that reads',
@@ -373,6 +389,20 @@ function render(
     '   to shrink, the shape is a two-stage query, ids in order first and the',
     '   projection joined onto the page, which is a change inside this',
     '   directory and needs nobody.',
+    '6. **Q3C is the one endpoint that issues two statements, and the second',
+    '   is deliberately not bounded by the range.** Q3C scopes its ghosts by',
+    '   accessible, pending and rule-carrying and by nothing else, so the rows',
+    '   8.5 projects from are not the rows the calendar draws: a series whose',
+    '   current occurrence precedes the requested range still projects into',
+    '   it, which AC-143 pins. The second plan below reaches tasks by the',
+    '   status bound alone, the same skip scan finding 2 describes, and',
+    '   applies the rule as a filter. 4.12 names no index for a rule-carrying',
+    '   predicate and none is asked for: the fetch is already bounded by the',
+    '   accessible-folder scope and one status, and a partial index on',
+    '   (recurrence_rule) WHERE recurrence_rule IS NOT NULL would pay only',
+    '   once one account held tens of thousands of open series. Recorded',
+    '   rather than requested, like the star in finding 3, and the route to',
+    '   `01-data-and-invariants.md` stays open with this query.',
     '',
     '## The statements the router issues',
     '',
