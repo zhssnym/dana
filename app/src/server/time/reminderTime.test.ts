@@ -578,10 +578,14 @@ describe('inputs 8.6 cannot compute from', () => {
     ).toBe('2026-07-28T09:30:00.000Z')
   })
 
-  test('a zone the runtime does not know', () => {
+  test('a zone the runtime does not know, and an offset identifier that is not one', () => {
     expect(() =>
       computeFireAt({ ...base, zone: 'Mars/Olympus_Mons', offsetMinutes: 30, timeOfDay: null }),
-    ).toThrow()
+    ).toThrow(/valid IANA timezone/)
+    expect(
+      () => computeFireAt({ ...base, zone: '+05:00', offsetMinutes: 30, timeOfDay: null }),
+      "11.15: Intl accepts ECMA-402 offset identifiers that are not IANA names, and the shared validator's sign guard is what closes that hole",
+    ).toThrow(/valid IANA timezone/)
   })
 })
 

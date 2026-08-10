@@ -47,6 +47,7 @@ import { DateTime } from 'luxon'
 
 import { assertCalendarDate, civilMillis, DAY_MS } from './calendarDate.js'
 import type { CalendarDate } from './calendarDate.js'
+import { assertIanaZone } from './today.js'
 
 /** Which of the three cases a local time fell into. Exported because the two
  * policy rules are worth naming at a call site and worth asserting by name:
@@ -153,6 +154,12 @@ function millisIntoDay(time: string, label: string): number {
  * historical one of some other width needs no special case.
  */
 function resolveWallMillis(wallMillis: number, zone: string): LocalResolution {
+  // 11.15 makes app/src/shared/timezone.ts the single IANA validation, and the
+  // guard matters here rather than only at the write path that stored the
+  // zone: an identifier Luxon cannot use answers NaN for its offset, and NaN
+  // arithmetic would reach the bisection below and fail describing something
+  // else. The cache behind it is today.ts's, so the two share one.
+  assertIanaZone(zone)
   const early = wallMillis - offsetMinutesAt(wallMillis - PROBE_SPAN_MS, zone) * 60_000
   const late = wallMillis - offsetMinutesAt(wallMillis + PROBE_SPAN_MS, zone) * 60_000
 
