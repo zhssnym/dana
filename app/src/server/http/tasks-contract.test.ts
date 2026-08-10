@@ -823,21 +823,47 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
       jsonInit('POST', {
         title: 'contract tolerance',
         nonsense: 'ignored',
-        recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+        reminder: { offset_minutes: 30 },
       }),
     )
     expect(
       tolerated.status,
-      'an unknown field is ignored, which is also how the two arms P6 and P7 own read at P3',
+      'an unknown field is ignored, which is also how the one arm P7 still owns reads',
     ).toBe(201)
     const body = expectTaskDetailExact(
       tolerated.json(),
       'the tolerant create body',
     )
     expect(
-      body.recurrence_rule,
-      'and ignored means stored nowhere: an unvalidated rule is not a rule (4.11)',
+      body.reminder,
+      'and ignored means stored nowhere: a reminder needs the 8.6 fire instant 4.8 makes NOT NULL',
     ).toBeNull()
+
+    /*
+    recurrence_rule was in the tolerated list until P6, and this file's own
+    comment named the package that would move it. It has moved: 4.11 requires
+    the subset revalidated server-side, so the field is a field of the body
+    now and a rule outside the subset is a 422 naming it rather than an
+    unknown key answering 201.
+    */
+    const refusedRule = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract rule',
+        due_date: '2026-08-20',
+        recurrence_rule: 'FREQ=DAILY;COUNT=5',
+      }),
+    )
+    expect(
+      refusedRule.status,
+      '4.11 excludes COUNT, and 10.3 answers 422 with the field named (AC-071)',
+    ).toBe(422)
+    expect(errorEnvelope.safeParse(refusedRule.json()).success).toBe(true)
+    expect(
+      refusedRule.body.toLowerCase(),
+      'and the message names the field the caller sent',
+    ).toContain('recurrence_rule')
 
     const refused = await api(owner, '/tasks', jsonInit('POST', { title: 42 }))
     expect(refused.status, 'a wrong-typed known field is 422').toBe(422)

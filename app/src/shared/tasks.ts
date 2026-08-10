@@ -8,16 +8,21 @@ named for method and route, its inferred PascalCase type beside it, and
 per-field messages phrased without the field name, because
 sendValidationError prefixes the path when it builds the 422 (10.3).
 
-Two arms of frozen 7.6's body are deliberately absent from the request
+Two arms of frozen 7.6's body were deliberately absent from the request
 schemas, by the P3 kickoff ruling the RFC 0001 row records: recurrence_rule
-needs the 4.11 subset validator that 4.11 itself requires revalidated
+needed the 4.11 subset validator that 4.11 itself requires revalidated
 server-side, which P6 delivers, and reminder needs the 8.6 fire instant that
-4.8's NOT NULL fire_at demands, which P7 delivers. At P3 both fall to 7.0's
-tolerated-unknown rule, so a body carrying either parses and the field is
-stripped: a rule accepted here would be an unvalidated rule, and a reminder
-accepted here would be a row that cannot be written. The absence is from the
-request side only. Both are keys of frozen 7.0's TaskDetail, so the response
-shapes below carry them from this package on.
+4.8's NOT NULL fire_at demands, which P7 delivers. At P3 both fell to 7.0's
+tolerated-unknown rule, so a body carrying either parsed and the field was
+stripped: a rule accepted then would have been an unvalidated rule, and a
+reminder accepted now would be a row that cannot be written.
+
+P6 closes the first of the two. shared/recurrence.js carries the 4.11 grammar,
+so the recurrence_rule primitive below states both checks 4.11 and 4.5
+between them require, and both write bodies carry the field. One arm is left,
+reminder, and its absence is unchanged. The absence was ever from the request
+side only: both are keys of frozen 7.0's TaskDetail, so the response shapes
+below have carried them since P3.
 
 The response bodies frozen 7.7 and 7.8 leave open are settled at the end of
 this file, at the P3 endpoint shape review, with the implemented routes in
@@ -28,6 +33,7 @@ wrapper question to the review that followed it.
 import { z } from 'zod'
 
 import { folderMemberUser, folderName } from './folders.js'
+import { parseRecurrenceRule } from './recurrence.js'
 
 /*
 Present-and-not-null, the test both dependency rules below are phrased with.
@@ -131,14 +137,44 @@ export const reminderOffsetMinutes = z
   .max(10080, { error: 'must be 0 to 10080 minutes' })
 
 /*
-A response field for the same reason: the 4.11 subset is P6's to validate,
-and this pins only what 4.5 pins, a string of at most 200 characters. When
-P6's validator lands it belongs here, in front of this primitive, so the
-write path and the read path keep one definition.
+The 4.11 rule string, and the one definition the write path, the read path and
+the client's convenience validation all read. P3 pinned only what 4.5 pins, a
+string of at most 200 characters, and recorded that P6's validator belonged
+here in front of it; this is that.
+
+Two checks, and neither replaces the other. 4.5 bounds the column at 200
+characters and 10.3 makes that a server-enforced limit; 4.11 bounds the
+grammar and requires the subset revalidated server-side. A rule can be
+grammatical and still too long, because BYDAY admits a repeated day list, so a
+validator holding either check alone lets one of the two failures through: the
+grammar-only one reaches the column and fails there as a 500, and the
+length-only one stores free-form input 4.11's last sentence rejects. Both fire
+when both are broken, which is 10.3's one-answer rule in errors.ts.
+
+The grammar itself is shared/recurrence.js and deliberately not restated here.
+Its refusal reason is written in 4.11's terms for exactly this use, so the
+message on the wire says which part of the subset the caller left rather than
+naming the subset again; sendValidationError prefixes the field, as it does
+for every other 10.3 message in this file.
+
+A wrong-typed value never reaches the grammar: z.string refuses it first with
+this file's phrasing, which is 7.0's rule that on a parsed object a wrong type
+is a 422 naming the field rather than a 400.
+
+Also the read side, which is what one definition means. A stored rule is
+inside the subset by construction, because this primitive is the only door
+into the column that the API of 11.1 offers, so validating a response against
+it asserts that and costs nothing.
 */
 export const recurrenceRule = z
   .string({ error: 'must be a string' })
   .max(200, { error: 'must be at most 200 characters' })
+  .superRefine((value, ctx) => {
+    const parsed = parseRecurrenceRule(value)
+    if (!parsed.ok) {
+      ctx.addIssue({ code: 'custom', message: parsed.reason })
+    }
+  })
 
 // Every id the bodies below carry is a uuid and nothing more: what it points
 // at, and whether V may point at it, are questions only the rows answer.
@@ -149,7 +185,7 @@ const uuid = z.uuid({ error: 'must be a uuid' })
  * ------------------------------------------------------------------ */
 
 /*
-POST /tasks, frozen 7.6's body less the two deferred arms.
+POST /tasks, frozen 7.6's body less the one arm P7 still owns.
 
 The three defaults 7.6 names, folder_id to V's Inbox, assignee_id to V, and
 important to false, are resolved where V is known rather than here. Two of
@@ -177,6 +213,7 @@ export const postTasksBody = z
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
+    recurrence_rule: recurrenceRule.nullable().optional(),
     assignee_id: uuid.nullable().optional(),
     steps: z
       .array(stepTitle)
@@ -193,6 +230,22 @@ export const postTasksBody = z
   .refine((body) => !isSet(body.due_time) || isSet(body.due_date), {
     error: 'requires a due_date',
     path: ['due_time'],
+  })
+  /*
+  The same check on the other dependent field 7.6 names, and a create body
+  answers this one whole too: nothing in it is state, because a create has no
+  prior row to carry a date. 4.5's CHECK (recurrence_rule IS NULL OR due_date
+  IS NOT NULL) is the same rule at the column, and the refusal is here for the
+  same reason the one above it is, so a caller reads a 422 naming the field
+  rather than a constraint violation wearing a 500.
+
+  Null is not a rule, which isSet is exactly the test for: a create carrying
+  recurrence_rule null and no date sets neither and is the ordinary undated
+  create.
+  */
+  .refine((body) => !isSet(body.recurrence_rule) || isSet(body.due_date), {
+    error: 'requires a due_date',
+    path: ['recurrence_rule'],
   })
 export type PostTasksBody = z.infer<typeof postTasksBody>
 
@@ -216,11 +269,21 @@ and only the rows can tell them apart (AC-032).
 due_date null is the clear-date cascade of 8.4, not merely a null write; the
 cascade itself is the domain module's, inside the PATCH transaction.
 
+recurrence_rule carries the same nullability for the same reason, 4.5 making
+the column nullable, and 7.6 gives each of its two values a meaning: a rule
+sets or replaces the series rule, and null ends the series while the row stays
+a normal task. Which of the two happened is the domain module's to act on;
+what this schema settles is that both are legal bodies and that the string is
+inside the 4.11 subset before either can be.
+
 Absent from the shape: status, which 7.6 refuses with 409 rather than 422.
 See carriesStatus below. Absent too, the state-dependent half of INV-6: a
 due_time sent alone is legal against a dated task and refused against an
 undated one, which needs the row and so belongs to the domain module (7.11
-lists the date-dependency rules as always revalidated).
+lists the date-dependency rules as always revalidated). 7.6's "requires
+due_date" on a rule set against a task without one is the same shape of rule
+and lands the same way: a rule sent alone is legal against a dated task, and
+only the row can say which this is.
 */
 export const patchTaskBody = z
   .object({
@@ -229,6 +292,7 @@ export const patchTaskBody = z
     important: z.boolean({ error: 'must be a boolean' }).optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
+    recurrence_rule: recurrenceRule.nullable().optional(),
     folder_id: uuid.optional(),
     assignee_id: uuid.nullable().optional(),
   })
@@ -240,6 +304,18 @@ export const patchTaskBody = z
   .refine((body) => !(body.due_date === null && isSet(body.due_time)), {
     error: 'cannot be set in a body that clears due_date',
     path: ['due_time'],
+  })
+  /*
+  And its twin, for the third field 8.4's cascade nulls. The cascade is what
+  makes this a contradiction rather than an ordering: a body that clears the
+  date and sets a rule asks for a row 4.5's CHECK forbids, and honoring it in
+  either order would drop one of the two fields the caller sent rather than
+  telling them so. The rule-and-date pair sent together stays legal, and is
+  how 7.6's dependency is satisfied on a task that had no date.
+  */
+  .refine((body) => !(body.due_date === null && isSet(body.recurrence_rule)), {
+    error: 'cannot be set in a body that clears due_date',
+    path: ['recurrence_rule'],
   })
 export type PatchTaskBody = z.infer<typeof patchTaskBody>
 
@@ -424,10 +500,11 @@ TaskDetail, TaskCard plus 7.0's eight. Built by extension rather than by
 restatement, because 7.0 defines it that way and because a card that drifts
 from the detail is the per-endpoint variant this role refuses.
 
-recurrence_rule and reminder are here while their request arms are not: the
-keys are frozen 7.0's, and a response that omitted them would be a shape the
-client cannot rely on. At P3 the rule is null unless a row was seeded, and
-the reminder is read from the 4.8 table.
+recurrence_rule and reminder were both here while their request arms were
+not: the keys are frozen 7.0's, and a response that omitted them would be a
+shape the client cannot rely on. recurrence_rule's request arm lands at P6 and
+reads the same primitive as this one, so the two sides cannot drift; reminder
+waits for P7 and is read from the 4.8 table meanwhile.
 
 completed_at and completed_by are INV-8's pair, set exactly when the status
 is completed; the invariant is the row's and the shape does not restate it,
