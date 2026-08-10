@@ -204,3 +204,4 @@ is what actually adjudicated the package.
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: trace, the 4.11 grammar placed in `src/shared` by file, the reminder-copy arm deferred to P7, the July 2026 examples ruled asserted by content, the cutoff zone escalated | 12 | Steward | Done, escalated |
 | 1 | The cutoff ruled by the owner and transcribed onto frozen 7.6, `actor.tz` bound in 8.5 | 12 | Steward | Done |
+| 2 | AC-071 to AC-082 tests-first, two absence criteria made to discriminate, AC-142 and AC-143 proposed, two spec silences escalated | 11 | Testers | Done, escalated |
