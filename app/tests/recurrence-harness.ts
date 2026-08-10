@@ -312,6 +312,22 @@ export function requireGenerated(
   return body.generated as Record<string, unknown>
 }
 
+/**
+ * A series_id on a row that carries no rule: the shape every closed
+ * occurrence has once generation moved the rule on. seedRecurrence writes
+ * both columns together, correctly, because a rule without a series breaks
+ * INV-13; history needs the other half on its own.
+ */
+export async function seedSeriesMembership(
+  db: Db,
+  taskId: string,
+  seriesId: string,
+): Promise<void> {
+  await db.execute(sql`
+    UPDATE tasks SET series_id = ${seriesId}::uuid WHERE id = ${taskId}::uuid
+  `)
+}
+
 /* ------------------------------------------------------------------ *
  * Reading a series
  * ------------------------------------------------------------------ */

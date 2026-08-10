@@ -30,20 +30,17 @@ AC-080 is the third. It is asserted here as an adversarial arm rather than
 proposed as a criterion, because it is the same sentence of 8.5 that this
 criterion's second clause comes from.
 
-**Four of this file's cases pass before the implementation exists, and that
-is worth saying here rather than leaving it to be noticed.** Every other file
-in the range asserts that something happens, so all of them are red against a
-tree where generation does not exist yet. This criterion asserts that nothing
-happens, and nothing is what an absent engine does. The two arms that do
-discriminate today are the inclusive bound, which requires a successor, and
-the resume, which requires the guard to admit the newest row. The other four
-become discriminating the moment generation lands and not before: the first
-fails an engine that ignores UNTIL, the second an engine that clears the rule
-before testing for exhaustion, which is the likeliest defect on this path and
-the reason the clause is in the criterion at all, and the fourth an engine
-that strips the rule when reopening the last row. A reader comparing this
-file's result against its neighbours should read the green as "not yet
-under test" rather than as "already satisfied".
+**Every case here runs a positive control first, and the reason is the shape
+of the criterion.** This is the one criterion in the range whose outcome is
+that nothing happens, and nothing is also what a tree with no engine does, so
+each of these cases would have passed against the merged P3 surface while
+asserting nothing whatsoever about the engine that replaces it. The control
+is an unbounded occurrence of the same shape, completed by the same call in
+the same case: it must generate. What each case then asserts is the
+difference the bound makes, which is the criterion, rather than the absence
+of a feature, which is the state of the branch. Without it the file would go
+green on arrival and stay green through an engine that ignored UNTIL
+entirely.
 
 Spec: 8.5 (nextInstance and UNTIL, the null return, "rule stays on t; series
 may resume via restore"), 4.11 (UNTIL optional, a date, inclusive per RFC
@@ -69,6 +66,7 @@ import {
   successorsOf,
   transitionRecurringOk,
   transitionSeriesOk,
+  weeklyRuleOn,
   weeklyRuleUntil,
 } from './recurrence-harness.js'
 import type { RecurringFixture } from './recurrence-harness.js'
@@ -113,6 +111,45 @@ async function occurrence(
   return fixture
 }
 
+/**
+ * The positive control: the same occurrence with no UNTIL at all, completed
+ * by the same call. It must generate, or the absence the case then asserts
+ * is the absence of an engine rather than the effect of a bound.
+ */
+async function expectUnboundedGenerates(label: string): Promise<void> {
+  const { owner, folderId } = await stage()
+  const dueDate = todayIn(tz)
+  const control = await seedRecurringTask(app.db, owner, {
+    folderId,
+    title: `p6 ac078 control for ${label}`,
+    dueDate,
+    rule: weeklyRuleOn(dueDate),
+  })
+  taskIds.push(control.taskId)
+  const body = await transitionRecurringOk(
+    owner,
+    control.taskId,
+    'complete',
+    tz,
+    'the control occurrence is completed by the same call the case under test uses',
+  )
+  requireGenerated(
+    body,
+    `the control must generate, or this case asserts the absence of an engine rather than the effect of UNTIL (${label})`,
+  )
+  const successor = await requireOneSuccessor(
+    app.db,
+    control.seriesId,
+    control.taskId,
+    'the control generated its successor',
+  )
+  taskIds.push(successor.id)
+  expect(
+    successor.recurrence_rule,
+    'and the control moved its rule forward, which is what the bounded case must not do',
+  ).toBe(control.rule)
+}
+
 beforeAll(async () => {
   app = await startAuthTestApp()
 }, 60_000)
@@ -126,6 +163,7 @@ afterAll(async () => {
 describe('AC-078: an exhausted series generates nothing and keeps its rule', () => {
   test('AC-078: UNTIL on the due date generates no successor', async () => {
     const { owner } = await stage()
+    await expectUnboundedGenerates('no successor')
     const fixture = await occurrence('no successor', 0)
     const body = await transitionRecurringOk(
       owner,
@@ -146,6 +184,10 @@ describe('AC-078: an exhausted series generates nothing and keeps its rule', () 
 
   test('AC-078: the rule remains on the closing row', async () => {
     const { owner } = await stage()
+    // The control also closes the other half of this assertion: it moved its
+    // rule to a successor, so "the rule is still here" below is the bound's
+    // doing rather than an engine that never touches the column.
+    await expectUnboundedGenerates('rule remains')
     const fixture = await occurrence('rule remains', 0)
     const body = await transitionRecurringOk(
       owner,
@@ -228,6 +270,7 @@ describe('AC-078: an exhausted series generates nothing and keeps its rule', () 
 
   test('AC-078: a bound short of the next instance ends the series too', async () => {
     const { owner } = await stage()
+    await expectUnboundedGenerates('short bound')
     // UNTIL six days out on a weekly rule: the next instance is the seventh
     // day, so the bound is real rather than merely inclusive.
     const fixture = await occurrence('short bound', 6)
@@ -250,6 +293,10 @@ describe('AC-078: an exhausted series generates nothing and keeps its rule', () 
 
   test('AC-078 adversarial: an exhausted series resumes on un-complete', async () => {
     const { owner } = await stage()
+    // The control makes "exhausted" mean something: without it, a series
+    // that generated nothing because nothing generates is indistinguishable
+    // from one bounded out, and the resume below would prove neither.
+    await expectUnboundedGenerates('resume')
     const fixture = await occurrence('resume', 0)
     await transitionRecurringOk(
       owner,
