@@ -10,6 +10,59 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **A PATCH that invalidates the reminder's mode deletes the reminder, both
+  arms, 2026-08-10.** The first arm is the human owner's ruling on the P7
+  engine session's escalation: clearing due_time on a task carrying an offset
+  reminder clears the time and deletes the reminder. It is the one live route
+  to a shape 8.6 cannot compute, the offset arm reading the task's due_time
+  and there being none left to read. His grounds are the engine's own. 8.4
+  already deletes the reminder when the date is cleared, so clearing the time
+  is that action's smaller sibling and the two read as one policy rather than
+  two; refusing with 422 blocks an edit the user is entitled to make over a row
+  they may have forgotten; and converting the mode is the only option that
+  silently changes when a reminder fires, by inventing a time of day nobody
+  chose. 8.4 carries the substance, that section's subject being the cascade
+  itself, with both arms written as code beside the clear-date one. Frozen 7.6
+  carries the clause a client reads, appended with no bullet moved: those
+  bullets name a consequence for due_date in both directions and say nothing
+  at all about due_time, which is a silence and not a falsehood, so the form is
+  the 7.9-response-body one rather than the `d7c81eb` one that qualified 7.9's
+  PUT on this same branch.
+- **The mirror arm is ruled with it, at the P7 change control rather than left
+  for the session that would meet it next.** Setting due_time on a date-only
+  task carrying a time_of_day reminder deletes that reminder too. It differs in
+  one way, stated rather than hidden: this shape computes, 8.6's date-only arm
+  reading the reminder's own time_of_day and never the task's, so the row would
+  go on firing correctly and only 4.8's cross-table mode rule makes the pair
+  illegal. It cascades anyway, for three reasons. The pair is one 4.8 says the
+  API must not permit, and a task write that creates a shape the schema section
+  forbids is incoherent whether or not the arithmetic survives it. 9.3 switches
+  the reminder control's mode with due_time, so the form would show an offset
+  picker over a row holding a wall time, a reminder the interface can neither
+  render nor edit. And both alternatives here are the ones already rejected on
+  the other arm. Ruling the two together is what makes this one rule rather
+  than three, covering the date clear, the time clear and the time set. Only
+  8.4 carries the mirror; its frozen 7.6 clause is escalated with a
+  recommendation rather than written on the Steward's authority, this branch's
+  standing limit on frozen sections 4 and 7. Two consequences are recorded for
+  the call site so it does not derive them: the delete precedes any recompute,
+  the callable throwing on a shape it cannot compute being correct as a
+  backstop and wrong as a live path, verified in the engine's committed module
+  rather than assumed; and a due_time moving between two non-null values
+  cascades nothing and is the ordinary trigger AC-151 pins.
+- **A criterion is owed for the cascade and its number is deliberately
+  withheld.** Both arms belong to one criterion, being one policy over one
+  field. Nothing today asserts any of it: AC-028 covers the date clear and
+  stops there, so an implementation that refuses the edit with 422, or leaves
+  an uncomputable row standing, or reaches the recompute and throws, passes
+  every existing number. The number is not assignable on this branch, because
+  package P8 is live in a second working tree and its tester session is
+  proposing criteria from AC-155 onward, having been told P7 took AC-144 to
+  AC-154, and neither branch can see the other; guessing here is how two ranges
+  collide. Section 12 records it as owed with the number pending, which is
+  where a reader checks whether a ruled behavior has one. The coordinating
+  session assigns it before P7's merge review, and the tester return that
+  writes the test is gated on that.
 - **8.6's fired_at consequence is widened from the sent case to both terminal
   states, 2026-08-10, on the tester return's routing.** The ruling of the
   mid-package change control recorded that where one of the four non-timezone
