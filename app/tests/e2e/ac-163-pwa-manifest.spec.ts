@@ -62,7 +62,13 @@ test.describe('AC-163 (proposed): the PWA manifest of 10.6', () => {
   }) => {
     await page.goto(routes.myDay)
 
-    const href = await page.locator('link[rel="manifest"]').first().getAttribute('href')
+    const link = page.locator('link[rel="manifest"]')
+    await expect(
+      link,
+      'spec 10.6: an installable application links its manifest from the document, and there is ' +
+        'exactly one to link',
+    ).toHaveCount(1)
+    const href = await link.first().getAttribute('href')
     expect(
       href,
       'spec 10.6: an installable application links its manifest from the document. There is ' +
@@ -104,7 +110,13 @@ test.describe('AC-163 (proposed): the PWA manifest of 10.6', () => {
 
   test('AC-163: the 192 and 512 icons exist and are fetchable', async ({ page }) => {
     await page.goto(routes.myDay)
-    const href = await page.locator('link[rel="manifest"]').first().getAttribute('href')
+    const link = page.locator('link[rel="manifest"]')
+    await expect(
+      link,
+      'spec 10.6: the manifest is linked from the document, which is where its icons are read ' +
+        'from',
+    ).toHaveCount(1)
+    const href = await link.first().getAttribute('href')
     const manifestUrl = new URL(href ?? '/manifest.webmanifest', page.url()).toString()
     const manifest = (await (await page.request.get(manifestUrl)).json()) as Manifest
     const icons = manifest.icons ?? []

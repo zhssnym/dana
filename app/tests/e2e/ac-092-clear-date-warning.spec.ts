@@ -276,7 +276,11 @@ test.describe('AC-092: clearing the date in the task form', () => {
     })
 
     await page.goto(routes.planned)
-    await page.getByText(title).click()
+    await clickControl(
+      page.getByText(title),
+      'spec 9.5: a click on any row opens the task, which is how edit mode is reached; the row ' +
+        'is on Planned because 6 Q3 admits dated pending rows',
+    )
     await clickControl(
       page.getByRole('button', { name: 'More options' }),
       "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "

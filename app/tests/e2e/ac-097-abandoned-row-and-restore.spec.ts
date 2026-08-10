@@ -149,9 +149,11 @@ test.describe('AC-097: the abandoned row and its restore', () => {
     ).toHaveCount(0)
 
     await page.goto(routes.planned)
-    await taskRow(page, 'ac-097 restore returns to my day')
-      .getByRole('button', { name: 'Restore' })
-      .click()
+    await clickControl(
+      taskRow(page, 'ac-097 restore returns to my day').getByRole('button', { name: 'Restore' }),
+      'spec 9.5: an abandoned row carries a Restore control, which is what the second half of ' +
+        'this criterion is performed with',
+    )
 
     // A route change inside the running application, not a fresh load: 8.3
     // makes refetch after an own mutation the whole invalidation strategy,

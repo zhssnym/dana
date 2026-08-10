@@ -73,7 +73,10 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
 
     await page.goto(routes.important)
     const star = taskRow(page, DATED).getByRole('button', { name: /star|important/i })
-    const tip = await tooltipText(star)
+    const tip = await tooltipText(
+      star,
+      'spec 9.4 and 6 Q4: every row carries a star, which is the control the tooltip belongs to',
+    )
 
     expect(
       tip,
@@ -96,7 +99,10 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
 
     await page.goto(routes.important)
     const star = taskRow(page, UNDATED).getByRole('button', { name: /star|important/i })
-    const tip = await tooltipText(star)
+    const tip = await tooltipText(
+      star,
+      'spec 9.4 and 6 Q4: every row carries a star, which is the control the tooltip belongs to',
+    )
 
     expect(
       tip,
@@ -122,7 +128,10 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
 
     await page.goto(routes.planned)
     const star = taskRow(page, DATED).getByRole('button', { name: /star|important/i })
-    const tip = await tooltipText(star)
+    const tip = await tooltipText(
+      star,
+      'spec 9.4 and 6 Q4: every row carries a star, which is the control the tooltip belongs to',
+    )
 
     expect(
       tip,

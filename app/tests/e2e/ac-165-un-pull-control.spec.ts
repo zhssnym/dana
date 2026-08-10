@@ -37,6 +37,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  clickControl,
   copy,
   createTask,
   csrfToken,
@@ -118,7 +119,11 @@ test.describe('AC-165 (proposed): the un-pull control', () => {
     })
 
     await page.goto(routes.myDay)
-    await taskRow(page, PULLED_ONLY).getByRole('button', { name: copy.removeFromMyDay }).click()
+    await clickControl(
+      taskRow(page, PULLED_ONLY).getByRole('button', { name: copy.removeFromMyDay }),
+      'spec 9.4: the un-pull control is on a row whose inclusion came from an entry, which is ' +
+        'the control this case performs',
+    )
 
     await expect(
       taskRow(page, PULLED_ONLY),

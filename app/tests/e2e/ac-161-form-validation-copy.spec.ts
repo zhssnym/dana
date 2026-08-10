@@ -154,7 +154,10 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
     }
 
     await page.goto(routes.tasks)
-    await page.getByText('ac-161 task below the step cap').click()
+    await clickControl(
+      page.getByText('ac-161 task below the step cap'),
+      'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
+    )
     await clickControl(
       page.getByRole('button', { name: 'More options' }),
       "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
@@ -168,7 +171,10 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
     ).toHaveCount(0)
 
     await page.goto(routes.tasks)
-    await page.getByText('ac-161 task at the step cap').click()
+    await clickControl(
+      page.getByText('ac-161 task at the step cap'),
+      'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
+    )
     await clickControl(
       page.getByRole('button', { name: 'More options' }),
       "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "

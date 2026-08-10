@@ -132,7 +132,11 @@ test.describe('AC-098: clicking a calendar ghost', () => {
       .getByRole('gridcell')
       .filter({ hasText: new RegExp(`\\b${anchorDay}\\b`) })
       .first()
-    await realCell.getByText(TITLE).click()
+    await clickControl(
+      realCell.getByText(TITLE),
+      "spec 6 Q3C: the current occurrence draws a real row on its own date, which is the row " +
+        'this case opens instead of a ghost',
+    )
 
     await expect(
       page.getByText('Upcoming occurrence of a repeating task'),

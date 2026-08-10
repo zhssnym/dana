@@ -125,7 +125,11 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
     await page.goto(routes.tasks)
-    await page.getByText(title).click()
+    await clickControl(
+      page.getByText(title),
+      "spec 9.5: a click on any row opens the task, and 9.3 puts delete in that form's " +
+        'overflow menu',
+    )
     // 9.3: delete lives in the form's overflow menu.
     await clickControl(
       page.getByRole('button', { name: /more|overflow|options/i }).last(),
@@ -229,7 +233,11 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     await transition(page, task.id, 'complete', 'UTC')
 
     await page.goto(routes.done)
-    await taskRow(page, title).getByRole('button', { name: 'Mark as not done' }).click()
+    await clickControl(
+      taskRow(page, title).getByRole('button', { name: 'Mark as not done' }),
+      'spec 9.5: each Done row has "Mark as not done", which runs uncomplete and, on the ' +
+        'G-SERIES successor branch, confirms first',
+    )
 
     await expect(
       page.getByText(copy.uncompleteSeriesConfirm),

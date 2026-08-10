@@ -614,7 +614,8 @@ export async function computedStyle(
  * assertion here pins the copy rather than the mechanism. Hover first: two
  * of the three only exist while the pointer is over the control.
  */
-export async function tooltipText(locator: Locator): Promise<string> {
+export async function tooltipText(locator: Locator, why: string): Promise<string> {
+  await expect(locator, why).toBeVisible()
   await locator.hover()
   return locator.evaluate((element) => {
     const el = element as unknown as {

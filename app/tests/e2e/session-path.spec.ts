@@ -48,6 +48,7 @@ import { expect, test } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   checkControl,
+  clickControl,
   fillControl,
   routes,
   seedIds,
@@ -91,7 +92,11 @@ test.describe('The signed-in path', () => {
       if (stop.link === 'Done') {
         await page.goto(routes.done)
       } else {
-        await sidebarLink(page, stop.link).click()
+        await clickControl(
+          sidebarLink(page, stop.link),
+          `spec 9.1: the sidebar lists ${stop.link} in its fixed order, and walking it is what ` +
+            'makes these six pages one session rather than six loads',
+        )
       }
       await expect(
         page.getByText(stop.row),
@@ -109,7 +114,11 @@ test.describe('The signed-in path', () => {
 
     // The search overlay of 9.9, opened by the shortcut 9.1 gives it.
     await page.keyboard.press('Control+k')
-    await page.getByRole('searchbox').or(page.getByRole('textbox')).first().fill('milk')
+    await fillControl(
+      page.getByRole('searchbox').or(page.getByRole('textbox')).first(),
+      'milk',
+      'spec 9.9: the overlay the shortcut opened carries the input its results come from',
+    )
     await expect(
       page.getByText('Buy milk'),
       'spec 9.9: the overlay searches every folder the viewer can access',

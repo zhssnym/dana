@@ -107,6 +107,11 @@ test.describe('AC-156 (proposed): the search overlay', () => {
 
     // Typed with no delay between characters, which is what a debounce is
     // for and what a person does.
+    await expect(
+      searchInput(page),
+      'spec 9.9: the overlay carries the input a search is typed into, so there is something ' +
+        'to type a burst of characters into',
+    ).toBeVisible()
     await searchInput(page).pressSequentially('plumber', { delay: 0 })
     await page.waitForTimeout(1_000)
 
