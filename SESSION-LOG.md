@@ -231,6 +231,7 @@ isolation was real.
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: tests-first held, mocks kept out of `app/tests/`, section 9 given its routes and its addressing rule, the Playwright seam split by file, the end-to-end obligation itemized | 12 | Steward | Done |
+| 1 | The Playwright runner and the Tailwind 4 toolchain, the fifth CI leg armed without turning it red empty | 10 | Implementers | Done, escalated |
 
 This package runs in the second working tree at `D:\dana-client`, beside P7 in
 `D:\dana`, the two-tree arrangement runbook section 5 records. It merges second,
