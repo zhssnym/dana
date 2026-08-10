@@ -232,3 +232,4 @@ isolation was real.
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: trace, the timezone-change trigger given to Security and named in the seam list, the DST arithmetic ruled to have no oracle and item 25 recorded, the 7.9 response body escalated | 12 | Steward | Done, escalated |
 | 1 | The 7.9 response body ruled by the owner and transcribed, the conditional session closed | 12 | Steward | Done |
+| 2 | AC-083 to AC-090 with the reminders harness, the DST claim split into arithmetic and policy, AC-144 to AC-153 proposed, four findings raised | 11 | Testers | Done, escalated |
