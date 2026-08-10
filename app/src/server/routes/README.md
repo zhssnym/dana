@@ -237,3 +237,21 @@ this shape during the measurement above: with the swap, AC-133 to AC-137 pass
 whole and AC-138 passes but for the two cases escalated in this session's final
 block. Until the swap lands, the function's only coverage is
 `src/server/domain/accountDeletion.test.ts`, which drives it directly.
+
+Fulfilled at 7bc9339, in the shape above, one call inside the transaction
+`handleDeleteMe` already opened. AC-134 to AC-136 and AC-138 went green whole
+with it; AC-133 and AC-137 each kept one case that also needed the routers
+mounted, because they read the outcome through `GET /invites/pending` and `GET
+/connections`.
+
+Annotated by the Integration Steward at the P5 merge, with the ownership
+question this entry raised ruled so it does not recur. This ledger's annotation
+right belongs to the Platform engineer "as its executor" (the P2 ruling above),
+which fits every entry that asks the boot file for something. This one does not:
+its executor was the Security engineer, whose owned paths are
+`app/src/server/auth/**` and do not reach this file, so the one role that could
+report the work was the one role that could not write it down, and the entry
+would have gone on reading as an open request indefinitely. **Ruling: for a
+ledger entry whose request is not the boot file's, the executing role reports
+completion in its commit message and the Steward annotates the entry at merge.**
+Platform's right over boot-file entries is unchanged.
