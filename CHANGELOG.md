@@ -10,6 +10,40 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- Package P5 of RFC 0001, sharing: the whole of frozen 7.5 and 7.3, invites
+  with their five transitions and two lists and the roster with its one
+  removal, plus the account deletion transaction of 8.10 landing whole for the
+  first time. The 10.3 member cap now binds every membership 8.7 grants,
+  conversion and acceptance alike. A bare invite to an existing connection is
+  refused rather than parked, by owner ruling, the folder being what separates
+  a conversion from a refusal. The deletion transaction runs its eight steps in
+  one transaction across the seam that puts steps 1 to 6 in a domain module and
+  the scrub and session destruction in the auth module, so an account cannot be
+  scrubbed while its folders are still owned or its sessions still authenticate.
+  Merged at `11d83fe`. The full gate is green at 1051 tests across 137 files,
+  AC-059 to AC-069, AC-124, and AC-133 to AC-141 passing by number beside every
+  earlier range, on PGlite and on postgres:18, verified on the merge commit
+  itself and not only on its parents.
+- **How P5's last four sessions ran, recorded because it changes what the
+  review is worth.** The call swap, the boot wiring, the shape review and the
+  pre-merge pass ran as four personas inside one unattended chat rather than as
+  four separate sessions. The file-write boundaries held: each phase wrote only
+  what its Owns section claims, Phase 2 declined to annotate a ledger entry that
+  was not its to annotate and handed it on, and Phase 1 left a prose defect in
+  another role's file untouched and recorded it instead. What did not hold is
+  the independence the Steward exists for. Protocol section 3's second
+  structural rule says an integrator reviewing their own work is not an
+  integrator, and a Steward pass over three phases produced in the same context
+  is exactly that: when it confirmed the shape reasoning and the two test
+  repairs, it was the same reasoning agreeing with itself. The independent
+  check that did hold is the acceptance suite, authored by earlier sessions with
+  no knowledge of how the implementation would work, which is what the 66 reds
+  turning green actually measures. The four settled wire shapes are the weakest
+  point for the same reason: the suite deliberately does not pin those inner
+  objects, so the only things checking them are the schema and the contract test
+  that agree by construction. That is why they were routed to the owner rather
+  than ratified silently, and it is the argument for running the remaining
+  packages' review passes in their own contexts.
 - **The five P5 settlements are entered into the frozen text by owner ruling,
   2026-08-10**, closing the escalation the pre-merge pass routed to him hours
   earlier. He accepted the Steward's recommendation. The amendments ride the
@@ -53,7 +87,9 @@ Planning and design. No software has been released yet.
   `--no-ff` under the message `merge <branch>: package <Pn> of RFC 0001`, and P5
   follows them. A fast-forward would erase the package boundary from the first
   parent's history, which is the thing that convention exists to keep.
-- **P5 prepared for merge, not merged.** The package is complete and the gate
+- **P5's pre-merge pass, which prepared the package without merging it.** The
+  merge followed hours later, once the owner had ruled on both routed items, and
+  is recorded above; this entry is the state that verdict rested on. The gate
   is green, measured by the Steward from `app/` in CI's order on branch tip
   `a4eebed`: lint clean, typecheck clean across all three projects, 1051 tests
   across 137 files with 1051 passing and none failing, build clean. All 21
