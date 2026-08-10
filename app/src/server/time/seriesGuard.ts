@@ -102,6 +102,16 @@ export async function applySeriesGuard(
            AND status = 'pending'
          FOR UPDATE`,
   )
+  if (siblings.length > 1) {
+    // Section 3 names generation and these guards as what enforces INV-7, so
+    // this function is one of the two places the invariant lives rather than
+    // a consumer of it. Two pending rows mean it has already been broken
+    // somewhere, and quietly deleting one of them would leave the series
+    // wrong and the cause invisible.
+    throw new TypeError(
+      `series ${seriesId} holds ${String(siblings.length)} pending rows, which INV-7 forbids`,
+    )
+  }
   const successor = siblings[0]
   if (successor !== undefined) {
     const deletedSuccessorId = String(successor.id)
@@ -109,8 +119,9 @@ export async function applySeriesGuard(
       successor.recurrence_rule === null
         ? null
         : String(successor.recurrence_rule)
-    // The row goes, and 4.5's cascades take its steps, My Day entries and
-    // reminder with it. 5.1 says destroy rather than fold back, and the
+    // The row goes, and the ON DELETE CASCADE of 4.6, 4.7 and 4.8 takes its
+    // steps, My Day entries and reminder with it; 4.9 sets invites.task_id
+    // null. 5.1 says destroy rather than fold back, and the
     // confirmation dialog it specifies warned that the next occurrence is
     // removed including any edits made to it.
     await tx.execute(sql`DELETE FROM tasks WHERE id = ${deletedSuccessorId}::uuid`)

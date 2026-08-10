@@ -331,4 +331,18 @@ describe('a row with no series is not guarded at all', () => {
   test('a task that does not exist is a fault rather than a refusal', async () => {
     await expect(guard(randomUUID())).rejects.toThrow(TypeError)
   })
+
+  test('two pending rows in one series are reported, not quietly halved', async () => {
+    // Section 3 makes generation and this guard what enforces INV-7, so this
+    // is one of the places the invariant lives. The state is seeded directly
+    // because no path through the engine can produce it.
+    const series = await seedSeries()
+    const closed = await seedRow(series, {
+      dueDate: '2026-07-13',
+      status: 'completed',
+    })
+    await seedRow(series, { dueDate: '2026-07-20', status: 'pending', rule: RULE })
+    await seedRow(series, { dueDate: '2026-07-27', status: 'pending', rule: RULE })
+    await expect(guard(closed)).rejects.toThrow(/INV-7/)
+  })
 })
