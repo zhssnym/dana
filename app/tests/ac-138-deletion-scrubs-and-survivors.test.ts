@@ -26,6 +26,31 @@ be orphaned, still name the scrubbed row. An implementation that
 hard-deletes the user, or nulls the history columns to make deletion easy,
 fails here on the columns; one that skips R-CLEAN fails on the assignee.
 
+The folder carries three members, and the third exists for a reason worth
+stating because the file was written with two and could not pass. R-CLEAN's
+third clause assigns every unassigned task to the remaining member when the
+count drops to exactly one, which is INV-5, so with two members the
+departed assignment was cleared by the first clause and immediately swept
+to the keeper by the third. The two assertions below that the assignee ends
+null then contradicted this file's own invariant sweep, which asserts INV-5
+over the same folder, and the Collaboration engineer escalated it after the
+package landed rather than editing either side. A third member is the
+repair because it is a fixture change and not a reading change: with two
+members remaining, the first clause clears the assignment and no sweep
+fires, so section 12's "readable by remaining members with the assignee
+cleared" is literally what happens, plural included. The alternative,
+expecting the keeper, would have contradicted that sentence and needed a
+Steward amendment to the criterion itself.
+
+Nothing is given up by the count. What this criterion discriminates is
+untouched by it, an implementation that hard-deletes the user row or nulls
+the history columns failing on the columns either way, and the interaction
+the two-member fixture would have exercised belongs to AC-136, whose
+sentence names the drop-to-one sweep outright and whose own fixture holds a
+folder that drops to one for exactly that purpose. AC-134 keeps two members
+for the same reason. Moving coverage here would have duplicated that file,
+not strengthened this one.
+
 Spec: 8.10 step 7 and its surviving-references sentence, 4.1 (soft
 deletion's rationale), 4.5 (created_by RESTRICT, completed_by, the
 composite FK), 4.9 (accepted_by), 5.3, 7.6 (the survivor's read), 10.2.
@@ -44,6 +69,7 @@ import {
   createFolder,
   expectFolderInvariants,
   expectStatus,
+  membershipUserIds,
 } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
 import { deleteAccount, userRowById } from './sharing-harness.js'
@@ -56,11 +82,12 @@ import {
 import { rows } from './helpers.js'
 
 let app: AuthTestApp
-const cast = new Cast(['departing', 'keeper'], 'p5')
+const cast = new Cast(['departing', 'keeper', 'witness'], 'p5')
 
 interface Stage {
   departing: Actor
   keeper: Actor
+  witness: Actor
   folderId: string
   createdTaskId: string
   completedTaskId: string
@@ -70,15 +97,22 @@ let staged: Stage | undefined
 
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
-    const [departing, keeper] = await cast.of(app)
-    if (departing === undefined || keeper === undefined) {
-      throw new Error('cast must produce two actors')
+    const [departing, keeper, witness] = await cast.of(app)
+    if (departing === undefined || keeper === undefined || witness === undefined) {
+      throw new Error('cast must produce three actors')
     }
     // The keeper owns the folder, so nothing here rides transfer: the
     // survivors' half of 8.10 is this file's whole subject.
     await connect(app.db, keeper.id, departing.id)
     const folderId = await createFolder(keeper, 'p5 ac138 keeps history')
     await addMemberOk(keeper, folderId, departing.id)
+    // The third member, so the departure leaves two behind and R-CLEAN's
+    // INV-5 sweep does not fire over the assignment the first clause just
+    // cleared. A signed-in actor rather than a seeded row, because the
+    // invariant sweep below reads INV-2 over every id it is given and a
+    // seeded user has no default folder to find.
+    await connect(app.db, keeper.id, witness.id)
+    await addMemberOk(keeper, folderId, witness.id)
 
     const created = await createTaskOk(
       departing,
@@ -119,6 +153,7 @@ async function stage(): Promise<Stage> {
     staged = {
       departing,
       keeper,
+      witness,
       folderId,
       createdTaskId: created.id,
       completedTaskId: completed.id,
@@ -156,7 +191,13 @@ describe('AC-138: the account dissolves, its history does not', () => {
   })
 
   test('AC-138: history still names the scrubbed row, the assignment does not', async () => {
-    const { departing, keeper, createdTaskId, completedTaskId } = await stage()
+    const { departing, keeper, witness, folderId, createdTaskId, completedTaskId } =
+      await stage()
+    expect(
+      [...(await membershipUserIds(app.db, folderId))].sort(),
+      'the premise the cleared assignment rests on: two members remain, so R-CLEAN clears the departed assignment and its INV-5 sweep does not fire (spec 5.3)',
+    ).toEqual([keeper.id, witness.id].sort())
+
     const created = await requireTaskRow(app.db, createdTaskId)
     expect(
       created.created_by,
@@ -212,7 +253,10 @@ describe('AC-138: the account dissolves, its history does not', () => {
   })
 
   test('AC-138: invariants hold afterwards', async () => {
-    const { keeper, folderId } = await stage()
-    await expectFolderInvariants(app.db, [folderId], [keeper.id])
+    const { keeper, witness, folderId } = await stage()
+    // Two members remain, so INV-5 has nothing to say about the cleared
+    // assignment and the sweep measures what it is here to measure: INV-4
+    // over a null assignee, and INV-10 over the memberships that survived.
+    await expectFolderInvariants(app.db, [folderId], [keeper.id, witness.id])
   })
 })
