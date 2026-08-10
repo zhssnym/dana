@@ -10,6 +10,89 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **Package P8 of RFC 0001, the web client, kicked off on branch `p8-client`
+  on 2026-08-10.** The P8 row is traced into its session list in the form
+  every package since P2 has carried, and with one thing no earlier list
+  needed: every session is marked blocked or not against the committed 11.13
+  artifacts. The plan already drew that line, structure does not wait for
+  them and fidelity does, and no session list expressed it, so the operator
+  could not tell which work was startable with `docs/design/` holding
+  `brief.md` and nothing else. It is now two sessions that are blocked and no
+  others: the Component role's fidelity pass, which transcribes the
+  foundations page into `tokens.css` and restyles every state against the
+  screens, and a small Frontend Architect return carrying the manifest's 192
+  and 512 icons with the theme and background colors of 10.6 and the landing
+  copy that closes section 13 item 14. The Complex Interaction role is not
+  blocked at all, its four criteria being 9.3's dependency table, its six
+  entry-point default sets and the ghost banner, none of which an image
+  decides. Both blocked sessions are separated from the unblocked work rather
+  than folded into it, so that a missing PNG does not hold the PWA layer, and
+  the fidelity pass is a required session rather than a follow-up, because a
+  provisional token file that no session is scheduled to revisit is how
+  placeholder values ship.
+- **Five P8 kickoff rulings, 2026-08-10, grounds recorded here.** *Tests
+  first holds as written.* The tension the kickoff was asked to settle, this
+  row's permission to start page structure against the frozen contract with
+  mocked data against the standing rule that the tester precedes the
+  implementer, is not a conflict once each sentence is read against what it
+  contrasts: the permission contrasts P8 with the packages it integrates
+  against and with the 11.13 artifacts and is about package dependencies,
+  while tests before implementation is about session order inside a package
+  and binds through protocol section 8 and the first structural rule of
+  `docs/team/README.md`. One consequence is a rule rather than a preference,
+  and it is the hole the permission would otherwise open: *no acceptance test
+  runs against mocked data*, 11.10 putting end to end tests on the seed
+  dataset and the development login endpoint, and a criterion satisfied
+  against a fixture the client itself supplied asserting nothing about the
+  contract it exists to measure. What tests first needed to become executable
+  is in section 9 rather than in this entry, because every earlier tester
+  wrote against a frozen section 7 whose paths and keys were text while
+  section 9 named neither a URL nor any way to address a control: 9.1 now
+  carries the route table AC-095 asserts and the sentence that every control
+  the section names is reachable by its accessible role and its normative
+  name, both landed before any test asserts either, the P4 session 1b order
+  and its reason. *One inversion, bounded.* P0 inverted tester and
+  implementer once because the scaffold its tester needed was part of P0, and
+  that ground reaches exactly one session here: a Playwright run needs a
+  configuration, a browser and a server to point at. What bounds it is what
+  makes it safe, that the session writes no test, asserts no criterion, and
+  encodes no sentence of section 9, so it anchors nothing. *The Playwright
+  seam splits by file*, the P2 routes-directory precedent and the P6 one for
+  `src/shared/recurrence.ts`: `app/playwright.config.ts` with the dependency,
+  the browser install and the npm script are Platform's, a runner
+  configuration of the kind persona 10 enumerates beside Vitest's, whose
+  consuming CI step is Platform's and has existed since P0 keyed on that
+  exact path; every end to end test and every harness it needs is the
+  Adversarial Test role's under `app/tests/e2e/`. The two collectors are
+  disjoint without touching `vitest.config.ts`, whose include takes
+  `*.test.ts` while Playwright's specs take `*.spec.ts`. Two consequences
+  bite at a gate rather than at a keyboard: the P8 gate is five commands, not
+  protocol section 4's four, since AC-091 to AC-100 pass in the Playwright
+  leg alone; and that leg self-activates on the first push carrying the
+  config, so it can turn red having never run. *What "exercised end to end"
+  obliges.* Ten criteria for the largest package is a floor by construction,
+  the sentence P4's row carried and which produced AC-125 to AC-131, and the
+  obligation is already itemized in the repository rather than something the
+  plan must invent: every clause a P0 to P7 test file or the suite's own
+  `README.md` recorded as P8's half is P8's to close, AC-039's faded home,
+  AC-048's unassigned chip, AC-053's fading in Tasks and All, AC-058's
+  collapsed section. It is not renumbering those criteria, whose server
+  halves stay green where they are, and it is not re-asserting server
+  behavior through a browser, which buys latency rather than truth; it is the
+  clause each states about what the viewer sees, asserted once against the
+  rendered page, plus at least one whole path through the development login
+  against the seed dataset. The tester's judgment on further numbers works as
+  it did at P4, P5 and P6, authored with their tests on the branch and
+  numbered by a mid-package change control from AC-144 onward on the
+  Steward's authority. *And 9.1's sidebar grouping is presentation rather
+  than a rule 7.11 forbids*, settled at the kickoff because 7.11's closing
+  sentence, that any rule found only in the client is a specification
+  violation and as specified there are none, would otherwise make a session
+  either escalate the regrouping or answer it by asking the server for an
+  order frozen 7.4 does not name. 7.11 divides rules by authority and both of
+  its lists are decisions the server also makes; a grouping the server never
+  makes and cannot be wrong about is a rendering of fields the Folder object
+  already carries, in the section that owns rendering.
 - **Package P6 of RFC 0001, recurrence, kicked off on branch `p6-recurrence`
   on 2026-08-10.** The P6 row is traced into its session list in the form every
   package since P2 has carried, three kickoff questions are settled below, and
