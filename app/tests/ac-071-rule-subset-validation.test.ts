@@ -163,10 +163,13 @@ describe('AC-071: a rule outside the 4.11 subset is refused', () => {
       if (response.status !== 422) {
         answered.push(`${JSON.stringify(rule)} answered ${String(response.status)}, expected 422 because ${why}`)
       }
-      if (response.status === 201) {
+      const created = (response.json() as { id?: unknown }).id
+      if (response.status === 201 && typeof created === 'string') {
         // Track it so the sweep and the cleanup see a row that should not
-        // exist; the assertion below is what reports it.
-        taskIds.push(String((response.json() as { id?: unknown }).id))
+        // exist; the assertion above is what reports it. Guarded on the type
+        // because a non-string id would reach the sweep as a literal
+        // "undefined" and fail there on a uuid cast rather than here.
+        taskIds.push(created)
       }
     }
     expect(
@@ -262,7 +265,11 @@ describe('AC-071: a rule outside the 4.11 subset is refused', () => {
         refused.push(`${JSON.stringify(rule)} answered ${String(response.status)}, expected 201: ${why}`)
         continue
       }
-      const body = response.json() as { id: string; recurrence_rule: unknown }
+      const body = response.json() as { id: unknown; recurrence_rule: unknown }
+      if (typeof body.id !== 'string') {
+        refused.push(`${JSON.stringify(rule)} answered 201 with no id`)
+        continue
+      }
       taskIds.push(body.id)
       if (body.recurrence_rule !== rule) {
         refused.push(

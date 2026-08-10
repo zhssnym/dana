@@ -28,7 +28,9 @@ npx vitest run -t "AC-105"
 | P5 | AC-059 to AC-069 | Covered, red on the unmounted 7.5 and 7.3 routes until the package lands, the designed order |
 | P5 gate | AC-133 to AC-140 | Covered, red by design; proposed here with their tests and numbered by the section 12 amendment of 2026-08-09, the six 8.10 files failing against the P1 stub on its missing steps 1 to 6 |
 | P5 gate | AC-141 | Covered, red on the unmounted POST /invites; appended by the same date's amendment from the owner's ruling rather than proposed here |
-| P6 to P10 | AC-071 to AC-104 | Not yet written |
+| P6 | AC-071 to AC-082 | Covered, red by design: nothing attaches a rule through an API and no transition generates, so every failure is an assertion naming a missing behavior |
+| P6 gate | AC-142, AC-143 | Covered, red by design; proposed here with their tests, for the Integration Steward to number by amendment |
+| P7 to P10 | AC-083 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -346,6 +348,61 @@ discriminator is what the file is built around: the same email answers 409
 bare and runs AC-061's conversion with a folder attached, so both arms are
 asserted in one file against one roster, and neither can be satisfied by an
 endpoint that simply refuses or simply converts everything.
+
+P6's range, AC-071 to AC-082, covers the 4.11 subset on frozen 7.6's two
+write bodies, 8.5's generation and projection, and 5.1's G-SERIES guard,
+written before the implementation per the RFC 0001 P6 row. Its layer is
+`recurrence-harness.ts`. Five things those files are written around.
+
+- **Rules are seeded and transitions are requested.** No API attaches a
+  recurrence_rule until this package's schema arm lands, so every fixture
+  creates its task through POST /tasks and then writes the rule with the P3
+  harness's `seedRecurrence`. Without that split each generation criterion
+  would fail on a validator rather than on the engine it is about. AC-071 is
+  the exception and the reason the exception is safe: it is the criterion
+  that asserts the write path, so it sends rules through both bodies.
+- **Four criteria are asserted by their content, not at their dates.** The
+  section 12 ruling of 2026-08-10 covers AC-072 to AC-075, the AC-046 and
+  AC-050 treatment from P4: each computes today in the midday zone, dates its
+  occurrence relative to it, and builds a weekly rule on that date's own
+  weekday. That mapping is one function in the harness with a unit test of
+  its own, because a wrong weekday would fail four criteria in the engine's
+  name. AC-082 is outside the ruling and runs literally at July 2026.
+- **UNTIL is written in RFC 5545's DATE form, YYYYMMDD.** 4.11 calls the
+  column an RFC 5545 RRULE value string and UNTIL "a date, inclusive per RFC
+  5545", and that value type's DATE form has no separators. It is the one
+  piece of the 4.11 grammar this suite spells rather than quotes, so it is
+  stated in the harness header and here; the grammar module must agree with
+  it or one of the two is wrong.
+- **The criteria that assert an absence run a positive control first.**
+  AC-078 and AC-082 both assert that something does not happen, and nothing
+  happening is also what a branch with no engine does: the 7.10 virtual array
+  has answered empty since P4. Eight of AC-082's ten cases and four of
+  AC-078's six passed on arrival for that reason. AC-082 now requires the
+  2026-08-03 ghost in the same response before asserting any date is empty,
+  and AC-078 completes an unbounded occurrence through the same call, which
+  must generate and must move its rule.
+- **AC-077 is a real race, and its header says what each leg proves.** Both
+  completes are issued under Promise.all. Each transition is one transaction,
+  so on PGlite the pair queues and on CI's postgres:18 leg it overlaps; the
+  assertions are the criterion's own outcome, one successor and one
+  completed_by, which both legs satisfy identically. Asserting that an
+  overlap was observed would be a false red about the backend.
+
+AC-142 and AC-143 are proposed here with their tests, for the Steward to
+number by amendment, the AC-125 and AC-133 precedent. AC-142 pins the cutoff's
+zone: the owner ruled on 2026-08-10 that complete and abandon take tz and
+frozen 7.6 carries it, and nothing in section 12 asserts any of it, which is
+AC-132's hole one package later and with worse arithmetic, since every
+criterion in this range is satisfiable from the wrong zone for part of every
+day. Its discriminator is AC-132's, two zones exactly a day apart, and no
+single stored or process or database clock can date both successors. AC-143 is
+the surface the RFC 0001 P6 row routed to this session to judge: Q3C projects
+for every accessible pending rule-carrying series, including one whose current
+occurrence falls before the range, and no criterion asserts that scope while
+AC-082's own series sits inside its range, so an implementation projecting off
+the range-bounded real rows passes the whole existing suite and empties every
+month-ahead view.
 
 ## The two amendments these tests read closely
 
