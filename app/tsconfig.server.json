@@ -6,5 +6,15 @@
     "lib": ["es2023"],
     "types": ["node"]
   },
-  "include": ["src/server/**/*", "src/shared/**/*", "db/**/*", "tests/**/*"]
+  "include": ["src/server/**/*", "src/shared/**/*", "db/**/*", "tests/**/*"],
+  // The acceptance suite's component leg is .tsx under tests/ and belongs to
+  // tsconfig.client.json, which has the jsx setting, the dom lib, and the
+  // bundler resolution it needs and this project deliberately has none of.
+  // Without this line those files would be typechecked here too, under node
+  // types and no jsx, and would fail on their first element.
+  //
+  // tests/e2e/**/*.spec.ts, the Playwright leg, is not excluded: those files
+  // run in node exactly as the rest of tests/ does, so this project is their
+  // home and they need nothing this one lacks.
+  "exclude": ["tests/**/*.tsx"]
 }
