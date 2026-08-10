@@ -190,6 +190,29 @@ will meet: 1025 of 1028 tests across 134 files pass on PGlite, against 949 of
 and no wiring is owed for either; they are AC-060's leave-and-reinvite case
 and two of AC-138's five, both recorded in this session's final block.
 
+Fulfilled as requested, both lines verbatim, beside the views mount. Every fact
+above held, each checked against the two route files rather than taken from the
+request: both factories are synchronous and take the same options object, both
+step aside when `sessionOf(req)` is already set, and the nine paths they claim
+meet no whole path of the three routers above or of each other. The snippet
+typechecked unaltered, across all three projects.
+
+The measurement, which is this file's reason for saying more than "fulfilled".
+On the committed tree, with the 8.10 call swap already landed at 7bc9339 but
+these two lines absent, the suite was 975 of 1041 across 136 files. Mounted, it
+is 1041 of 1041: the whole suite green, every one of the 66 reds retired and
+nothing sent red. The three reds the request expected to remain are gone
+because the suite's owner repaired both criteria at c76687b, after this request
+was written.
+
+One correction to the split this request drew, and it is the request's only
+inexact sentence. It says mounting these two is not what turns AC-133 to AC-138
+green. Four of those six were indeed the swap's alone, but AC-133 and AC-137
+each kept one case that the swap could not reach, because they confirm the
+outcome through `GET /invites/pending` and `GET /connections`. Those two cases
+needed both changes, so neither the swap nor this mount could have shown them
+green on its own.
+
 ### Also owed, and not by the boot file: the 8.10 call swap
 
 `src/server/domain/accountDeletion.ts` now carries steps 1 to 6 of the account
