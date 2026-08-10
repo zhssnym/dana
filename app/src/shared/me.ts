@@ -108,6 +108,13 @@ avatar_url are genuinely absent when Google reports no name or picture. email
 is nullable in the column because 8.10's scrub empties it, though a live
 account always has one, since /me answers only for rows with deleted_at null
 and provisioning always writes an address.
+
+connections.ts types the same person's email non-nullable from that same fact,
+and the P5 shape review settled the pair as a deliberate asymmetry rather than
+flattening it. The short of it: frozen 7.3 carries an exclusion clause for its
+list and frozen 7.1 carries none for this row, so that schema transcribes a
+promise while this one reports a column. The grounds are recorded once, in
+connections.ts, rather than twice here.
 */
 export const meResponse = z.object({
   user: z.object({

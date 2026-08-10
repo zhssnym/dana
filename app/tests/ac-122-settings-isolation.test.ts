@@ -1,5 +1,5 @@
 /*
-AC-122 (proposed, P2S): given two users, when one PATCHes their settings,
+AC-122 (P2S): Given two users, when one PATCHes their settings,
 then the other's stored settings and GET bodies are unchanged.
 
 Settings are a per-user row keyed by user_id (4.10), and the endpoint takes
@@ -9,10 +9,10 @@ and a read resolving some other row than the session's. Both directions are
 asserted, the ac-023 pattern, and the stored rows are read beside the wire
 so a bleed in either layer fails on the half that lied.
 
-This file is red until P2S lands the endpoint: the route answers 404 today.
+This file was red until P2S landed the endpoint; it passes since that merge.
 
-Spec: 7.2 (frozen), 4.10, 10.2; RFC 0001 P2S row; criteria proposed to the
-Steward for the section 12 amendment.
+Spec: 7.2 (frozen), 4.10, 10.2; RFC 0001 P2S row; proposed here and
+numbered by the Steward's section 12 amendment on 2026-08-04.
 */
 import { afterAll, beforeAll, describe, test } from 'vitest'
 

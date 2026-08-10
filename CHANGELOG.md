@@ -10,6 +10,321 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **The five P5 settlements are entered into the frozen text by owner ruling,
+  2026-08-10**, closing the escalation the pre-merge pass routed to him hours
+  earlier. He accepted the Steward's recommendation. The amendments ride the
+  branch so the transcription merges with the package it describes, the P1 and
+  P2 precedent. Frozen 7.5 gains a "Response shapes" block in the shape 7.4's
+  took at P2, carrying all four: the 201's object and the GET /invites/sent
+  element are one nine-field object; decline, cancel and resend answer that same
+  object in that same `{ invite }` wrapper; the conversion answers
+  `{ converted_to_share: true, membership }` with 7.4's member element; and the
+  acceptance response's folder is 7.0's full Folder object, with the reason it
+  is not the `{id, name, is_default}` stub of the 2026-08-07 ruling written out,
+  namely that a group heading and a just-acquired folder are different
+  questions and neither reading generalizes to the other surface. Frozen 7.3 and
+  7.1 each gain one paragraph for the email nullability asymmetry, each stating
+  its own side and naming the other, so a reader who finds one cannot mistake it
+  for a contradiction: 7.3's element is total because that section's own bullet
+  excludes soft-deleted users, and stating it in the shape is what makes a lost
+  `deleted_at` filter a failure rather than a null; 7.1's is nullable because
+  that section carries no equivalent exclusion and the response reports 4.1's
+  column. Every existing bullet in all three sections stays byte-identical; the
+  three additions are paragraphs. No acceptance criterion is invalidated and no
+  code changes, these being the shapes the routes already answer and the
+  contract tests already pin.
+- **`CLAUDE.md` is assigned to the Platform engineer by owner ruling,
+  2026-08-10.** One line in `docs/team/10-platform.md`, beside the repository
+  root's other operational files, closing the gap the pre-merge pass found when
+  the file was edited on this branch at `6ead08e` by a session with no claim to
+  it. Same shape as the ownership gaps the P0 merge closed for the Vitest
+  configuration and the root dotfiles.
+- **CI is green on the merge candidate, both database legs.** Run 31348592657
+  on `2f2b55e`: 137 files pass on PGlite and 137 pass again against the
+  `postgres:18` service (PostgreSQL 18.4), which 11.10 makes the
+  production-fidelity authority. Recorded because the pre-merge gate was run
+  locally and therefore saw only the embedded leg. The earlier red CI runs on
+  this branch are the designed red of tests-first and not damage: the first
+  green run is `1c649e1`, the mount, which is exactly where the suite first went
+  green locally too.
+- **One correction to the pre-merge report.** It observed that `main` is an
+  ancestor of the branch and described the merge as a fast-forward. The
+  ancestry is right and the framing is not: P0, P1, P2 and P4 each merged with
+  `--no-ff` under the message `merge <branch>: package <Pn> of RFC 0001`, and P5
+  follows them. A fast-forward would erase the package boundary from the first
+  parent's history, which is the thing that convention exists to keep.
+- **P5 prepared for merge, not merged.** The package is complete and the gate
+  is green, measured by the Steward from `app/` in CI's order on branch tip
+  `a4eebed`: lint clean, typecheck clean across all three projects, 1051 tests
+  across 137 files with 1051 passing and none failing, build clean. All 21
+  criteria the branch claims exist as tests by their numbers and pass: AC-059
+  to AC-069, AC-124's acceptance arm, and AC-133 to AC-141. The verdict is
+  READY. The merge itself is deliberately left to the human owner rather than
+  taken on the Steward's authority, because P5 carries frozen-interface
+  questions that are his and are recorded below, and because a merge is the one
+  step in this package that cannot be undone by a further commit.
+  Three sessions closed the package on the branch. The 8.10 call swap
+  (`7bc9339`), which retires the P1 deletion stub and turns AC-134 to AC-136
+  and AC-138 green whole. The boot wiring (`1c649e1`), mounting the invites and
+  connections routers, which turns the rest of the range green. And the
+  endpoint shape review (`a4eebed`). No owned-path violation occurred in any of
+  the three, no dependency was added by any of them, and `app/tests/` was
+  untouched after `c76687b`.
+- **The four P5 wire shapes are ratified from disclosure**, the way 7.4's four
+  shape sentences were at the P2 merge. Frozen 7.5 named four objects without
+  enumerating them and the schema session left all four as loose floors; the
+  shape review settled each against the route that answers, with its grounds in
+  `app/src/shared/invites.ts` and a contract test in
+  `app/src/server/http/invites-contract.test.ts` that parses the real
+  `createApp`'s bodies and then checks them key-exact on the raw response. The
+  201's object and the GET /invites/sent element are one nine-field invite; the
+  conversion answers `{ converted_to_share: true, membership }` with 7.4's
+  member element; decline, cancel and resend answer that same `{ invite }`
+  wrapper; and the acceptance response's folder is 7.0's full Folder object.
+  The third is ratified with the most attention, because it takes the opposite
+  reading to the owner's ruling of 2026-08-07 for 7.10's grouped views, which
+  gave that surface the `{id, name, is_default}` stub. The two do not conflict
+  and the review argued why rather than asserting it: 7.10's ruling reasoned
+  that a group heading needs what a card's folder label needs, and that
+  Folder's counts, `is_owner`, `member_count`, `my_label` and `my_color` are
+  7.4's business where a client that wants them already goes. An acceptance is
+  not a heading. It is the moment a client acquires a folder it did not have,
+  and those five are exactly what it then needs and cannot reach from this
+  response, so the stub would force a second request for a folder the client
+  learned about one line earlier, which is the round trip the
+  mutation-answers-a-fresh-GET convention exists to prevent.
+- **The email nullability divergence is ratified as a deliberate asymmetry**,
+  not flattened. `src/shared/connections.ts` types the roster email
+  non-nullable and `src/shared/me.ts` types the same person's email nullable,
+  both citing the same fact, that 4.1's column is nullable only because 8.10's
+  scrub empties it. The difference is in the frozen text rather than in two
+  authors' taste, which is what makes it a decision instead of drift: frozen
+  7.3's own sentence carries "excluding soft-deleted users", so non-nullable
+  there transcribes a promise and is what makes a contract test notice a roster
+  query that lost its `deleted_at` filter, while frozen 7.1 carries no
+  equivalent clause, so `me.ts` reports the column. Each schema states what its
+  endpoint promises, which is the level a response shape works at. One
+  correction to the framing the divergence arrived with, and the reason the
+  ratification is firm: `me.ts`'s schema is not test-only. Its inferred
+  `MeResponse` is the auth module's return type, so flattening it to
+  non-nullable does not weaken a test, it fails the build at
+  `app/src/server/auth/account.ts:67`. Measured by making the change and
+  running typecheck, then reverting, rather than reasoned about.
+- **Routed to the human owner, blocking nothing.** Whether the four shapes
+  above and the nullability asymmetry get their sentences in frozen 7.5, 7.3
+  and 7.1, as every prior shape review's results were entered by owner ruling
+  (7.2's PATCH body, 7.4's four sentences, 7.10's nine bodies and its stub
+  reading). The Steward recommends recording them, and the reason is narrower
+  than precedent: a reader who finds the 2026-08-07 stub ruling in frozen 7.10
+  and no counterpart in frozen 7.5 will read the acceptance response's full
+  Folder object as a defect rather than as the settled reading it is. Nothing
+  in the code changes either way, which is why this does not block the merge.
+- **Section 8.7's V-INV list gains the already-a-member clause**, closing a
+  documentation asymmetry the Adversarial Test role observed while repairing
+  AC-060 and recorded rather than escalated. Frozen 7.5's bullet has always
+  enumerated that 409 and 5.3's add row and AC-060 both fix the behavior, but
+  8.7's expansion of the same rule omitted it, so the list read as though a
+  folder invite to a current member fell through to the conversion arm. The
+  clause is transcribed from the frozen text into the position 7.5 gives it,
+  between the folder guards and the task guard, which was verified to be where
+  `createInvite` already checks it. No behavior changes and no criterion is
+  invalidated. It goes in 8.7 and not in 7.5 because 8.7 is not frozen.
+- **Ledger annotation, ruled so it does not recur.** The wiring ledger at
+  `app/src/server/routes/README.md` is annotated by the Platform engineer "as
+  its executor" under the P2 ruling, which fits every entry that asks the boot
+  file for something. The 8.10 call swap entry was not one: its executor was
+  the Security engineer, whose owned paths do not reach that file, so the only
+  role that could report the work was the only role that could not write it
+  down, and the entry read as an open request after the work had landed. Ruled:
+  for a ledger entry whose request is not the boot file's, the executing role
+  reports completion in its commit message and the Steward annotates the entry
+  at merge. Platform's right over boot-file entries is unchanged, and the P5
+  entry it did execute carries its own annotation and measurement.
+- **The AC-060 and AC-138 repairs of `c76687b` are confirmed to have weakened
+  nothing**, checked at this merge against what each criterion discriminates
+  rather than against the repair's own account of itself. AC-060's release case
+  moved from expecting a parked 201 to expecting the instant-share conversion,
+  and it now asserts strictly more: the premise that the leave removed the
+  membership, the conversion firing, the membership actually granted, and zero
+  invite rows parked. What the case exists to prove, that the guard reads
+  current membership rather than history, is sharpened rather than preserved,
+  because a 200 there is the membership clause releasing and the clause behind
+  it in V-INV's order running. It also pins the converse of AC-069, that
+  leaving a folder leaves the roster connection intact, which nothing else in
+  the suite asserts. AC-138 gained a third member so that the departure leaves
+  two behind and R-CLEAN's INV-5 sweep does not fire over the assignment its
+  first clause just cleared, which is a fixture change rather than a reading
+  change: section 12's "readable by remaining members with the assignee
+  cleared" is now literally what happens, plural included, and the file's own
+  invariant sweep covers two members instead of one. The drop-to-one
+  interaction the two-member fixture would have exercised belongs to AC-136,
+  whose sentence names that sweep outright and whose fixture holds a folder
+  that drops to one for it. Section 12 words AC-060 as the 409 alone, so no
+  numbered criterion moved for either repair.
+- **The P1 deletion stub is gone from the code**, confirmed by sweep across
+  `app/src/` and `docs/`. `app/src/server/auth/account.ts` carried the only
+  prose describing DELETE /me as carrying steps 7 and 8 alone, and the swap
+  rewrote it. Two stale statements remain and are recorded rather than fixed,
+  both in `app/src/server/domain/accountDeletion.test.ts`, which is the
+  Collaboration engineer's file and not the Steward's to edit: its header says
+  the route "still runs the P1 stub's steps 7 and 8 alone" and that the
+  function "is reachable from no acceptance test at all", both true when
+  written at `b43d9ec` and both false since `7bc9339`. Recorded for that role's
+  next touch of the file. Section 12's own stale present tense, that AC-138's
+  surviving-references half "fails today", was the Steward's and is fixed here.
+- **One prose overstatement recorded, in the same file's neighbour.** The
+  header of `app/src/server/domain/accountDeletion.ts`, and one sentence of its
+  test, explain the step ordering as keeping `folders.owner_id`'s RESTRICT from
+  firing "on step 7's scrub". It cannot fire there: RESTRICT guards a DELETE of
+  the referenced row and 8.10 never hard-deletes the user row, which is the
+  whole reason `tasks.created_by` survives. The ordering within steps 2 to 4 is
+  correct and load-bearing for the reason the spec gives, that a folder with
+  other members must be handed on before the folder rows are taken; only the
+  clause naming the scrub as the thing at risk overstates it. No behavior is
+  affected and the code is right. Recorded for the Collaboration engineer,
+  alongside the item above, since both live in that role's two files.
+- **An ownership gap, recorded rather than closed.** The repository root
+  `CLAUDE.md` was edited on this branch at `6ead08e` to record the suite
+  timings and two Vitest 4 flag traps, and no persona's Owns section names that
+  file. The change is plainly right and sits where the file itself says such
+  facts belong, so nothing is reverted. The gap is the same kind the P0 merge
+  closed for the Vitest configuration and the root `.gitignore` and `.nvmrc`,
+  and the natural home is Platform, whose Owns already carries the tool
+  configuration files and the repository root's other operational files.
+  Assigning it is a persona edit, which no session on a package branch should
+  make casually, so it is routed to the human owner as a one-line addition to
+  `docs/team/10-platform.md`, blocking nothing.
+- **Carried forward from the P2 merge and still open**, both confirmed at this
+  merge as untouched by P5 and blocking nothing: `app/src/server/domain/db.ts`
+  remains the third private copy of the row and transaction adapters, for the
+  P9 consolidation sweep, and `sessions.user_id`'s index still waits at the
+  Data engineer on P9 evidence. P5 added no fourth copy; the two shapes it
+  needed across the account-deletion seam are structurally identical, which is
+  what let the transaction pass between the auth and domain modules without a
+  cast.
+- Section 12 gains AC-141 with that ruling, the bare invite to an existing
+  connection answering 409 and creating nothing, the folder attached or
+  absent being what separates it from AC-061's conversion. The edge was
+  asserted by no numbered criterion in either direction, which is a good
+  part of why it stayed open long enough to need a ruling, and a rule the
+  specification states and nothing asserts is the standard AC-125 to
+  AC-131 were admitted under. Appended rather than folded into AC-061,
+  whose text does not move: AC-130 was widened for what can look like the
+  same reason, but its two inputs are one rule of 7.0 whose two failures
+  the owner made one answer, while these two inputs take different
+  answers, a conversion and a refusal. AC-061 is the folder arm and is
+  silent on the bare input rather than wrong about it, its consequent of
+  a membership and a share-grant email having only ever described a
+  folder. The test is routed to the Adversarial Test role, as AC-124's
+  was when the Steward appended a criterion from a ruling rather than
+  from a proposal, and P5's merge gate holds for it.
+- A ruling of the human owner, Hassan, on 2026-08-09, closing the
+  escalation P5's mid-package change control routed to him the same day.
+  **A bare invite to an already-connected email answers 409.** He took
+  option (b), the Steward's recommendation, over the Adversarial Test
+  role's recommended (a), 200 with nothing created; the 201 fallthrough
+  was also before him and was not taken. Frozen 7.5 gains a paragraph
+  rather than a rewritten bullet, the shape 7.2 and 7.4 took, so the
+  bullet text that rulings and tests already quote stays byte-identical:
+  POST /invites answers 409 "already connected" when the email belongs to
+  a roster connection of V and no folder is attached, and creates
+  nothing. The conversion clause is folder-conditional and 8.7's V-INV
+  now says so in its own order, which is where the gap was: the arm
+  named its connected-email condition without naming a folder, while the
+  instant share it describes creates a membership and only a folder
+  defines one. Section 9.8 gains the People screen's copy, "You're
+  already connected to this person. They're in your People list.", beside
+  the remove-connection sentence already in that register. Recorded with
+  the ruling, because it is the reasoning a later reader will want and
+  not merely the outcome: the refusal is symmetrical with the 409 that
+  section enumerates one clause earlier for a folder invite to an
+  existing member, each answering a request whose whole purpose already
+  holds; a 200 with nothing created would have been a third outcome
+  where 5.2's create row parks an invite or refuses, and the one answer
+  the inviter cannot read, since nothing enters the pending list 8.7
+  makes visible and the roster already held the person; and the
+  principle separating this from the 10.3 cap ruled at the same
+  package's kickoff, where an invite against a full folder still parks,
+  is to refuse when the request can accomplish nothing and permit when
+  it can accomplish something later.
+- An escalation routed to the human owner at P5's mid-package change
+  control, 2026-08-09, wanted before the Collaboration session writes POST
+  /invites and blocking nothing meanwhile. **A bare invite to an
+  already-connected email has no specified outcome.** Section 8.7's V-INV
+  conversion arm fires when the invited email belongs to an active user
+  already connected to the inviter, conditioning on no folder being
+  present, and its consequent creates a membership, which only a folder can
+  define. It is routed rather than ruled because frozen 7.5 is silent on
+  the input and every candidate answer either spends a status that section
+  enumerates for a different outcome or invents one it does not: 7.5 writes
+  the conversion as "response 200 { converted_to_share: true, membership
+  created }", so answering 200 with no membership honors the status and not
+  the consequent. Ruling it on the Steward's own authority would also
+  contradict the ground recorded at this package's kickoff eight days of
+  commits earlier, where the cap ruling was taken precisely because frozen
+  4 and 7 were untouched by it. Three options, the second recommended:
+  - (a) 200 { converted_to_share: true }, nothing created and nothing sent,
+    reading the membership clause as folder-conditional the way the
+    acceptance transaction's own membership arm already is. The Adversarial
+    Test role recommends this: it keeps V-INV's order literal, invents no
+    refusal for frozen 7.5, and a roster already holding the pair leaves
+    nothing to create or send.
+  - (b) 409 naming the existing connection. The Steward recommends this,
+    departing from the proposing session. It is symmetrical with the 409
+    frozen 7.5 already enumerates, "already a member": each refuses when
+    what the request exists to create already holds, membership for a
+    folder invite and connection for a bare one. It keeps the endpoint's
+    outcome vocabulary, where 5.2's create row either produces a pending
+    invite with one email sent or is refused, while (a) introduces a third
+    outcome, a create that succeeds and makes nothing, which neither 5.2
+    nor 7.5 describes. And it is the answer 8.7's own design implies: that
+    section makes invite state visible to the inviter so a stranded invite
+    can be repaired from the pending list, and a 200 creating no visible
+    artifact is the one answer that defeats it, since nothing enters the
+    pending list, the roster already held the person, and the inviter
+    cannot tell a sent invite from a no-op. The principle that separates
+    this from the cap ruled at the kickoff, where refusing creation was
+    rejected: refuse when the request can accomplish nothing, permit when
+    it can accomplish something later. A parked invite at a full folder
+    becomes acceptable when a member leaves; a bare invite to a connected
+    person can never become anything, its acceptance being an idempotent
+    no-op on a connection that already exists. Its cost, stated plainly:
+    one sentence in frozen 7.5's enumeration, and normative copy in 9.8,
+    which the People screen needs under (a) as well.
+  - (c) The literal fallthrough, reading the conversion arm as inapplicable
+    where there is no share, so the endpoint answers its ordinary 201 {
+    invite }. Recorded because it is the only option needing no amendment
+    to frozen 7.5, so that leaving the text alone is seen to have a cost
+    rather than being free. Not recommended: it parks a row whose
+    acceptance is a pure no-op under INV-9's idempotent upsert, mails
+    "invited you to connect" to somebody already connected, and puts that
+    row on their login surface through Q12.
+- Section 12 gains AC-133 to AC-140 by P5's mid-package amendment on branch
+  `p5-sharing`, the eight the Adversarial Test role authored with their tests
+  and proposed by number in their file headers. Six close the account
+  deletion transaction of 8.10, whose steps AC-009 and AC-112 leave
+  uncovered, one step's observable outcome each with steps 5 and 6 taken
+  together: sent invites invalidated, ownership transferred by 8.9's rule,
+  the default and sole-member folders deleted with their 8.8 cascades,
+  remaining memberships removed through R-CLEAN including the drop-to-one
+  INV-5 sweep, connections and My Day entries gone, and the scrub with the
+  surviving references that the whole ordering exists to protect. AC-139
+  pins 7.0's pending_invite_email against invites.task_id, the derivation
+  P3 could only assert the presence of and the suite README has carried as
+  a tolerance since. AC-140 is the sequential half of the kickoff's cap
+  ruling, the concurrent half riding AC-124's member arm. Numbering
+  additively is the Steward's, the AC-116 to AC-118, AC-119 to AC-123,
+  AC-124, AC-125 to AC-131, and AC-132 precedent: an appended number moves
+  no existing number and so invalidates no criterion. Two things are
+  recorded with them rather than left in test headers. AC-138 reaches step
+  7, which the kickoff did not route, and is admitted because the scrub
+  alone would arrive green against the P1 stub while the surviving-reference
+  half fails and discriminates the two implementations that make deletion
+  easy by breaking it, hard-deleting the user row or nulling the history
+  columns 4.5 holds under RESTRICT. And AC-140 rests on one reading of the
+  kickoff ruling: an invite created against a full folder is not refused,
+  because creation grants no membership, and it is that parked invite whose
+  acceptance the cap then refuses until the folder has room.
 - A ruling of the Integration Steward at the P5 kickoff, 2026-08-09, closing
   the question the AC-124 amendment parked in the P5 row: **the 10.3 member
   cap binds every membership section 8.7 grants**. The acceptance transaction

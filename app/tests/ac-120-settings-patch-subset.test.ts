@@ -1,5 +1,5 @@
 /*
-AC-120 (proposed, P2S): given PATCH /me/settings with any subset of the
+AC-120 (P2S): Given PATCH /me/settings with any subset of the
 three booleans, the empty subset included, then 200, present fields take the
 sent values, absent fields keep theirs, and both GET /me/settings and the
 settings key of GET /me read the new values afterwards.
@@ -24,11 +24,11 @@ here judges the PATCH response body beyond its status: frozen 7.2 names
 none, and the gap rides to the Steward as this session's escalation (see
 settings-harness.ts).
 
-This file is red until P2S lands the endpoint: the route answers 404 today.
+This file was red until P2S landed the endpoint; it passes since that merge.
 
 Spec: 7.2 (frozen), 7.0, 4.10, 11.6, 11.10; the P2 merge's ratified
-any-subset reading; RFC 0001 P2S row; criteria proposed to the Steward for
-the section 12 amendment.
+any-subset reading; RFC 0001 P2S row; proposed here and numbered by
+the Steward's section 12 amendment on 2026-08-04.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 

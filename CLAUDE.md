@@ -49,12 +49,25 @@ npm ci
 npm run lint && npm run typecheck && npm test && npm run build   # the gate, in CI's order
 npm run dev                                # API server plus client dev server
 npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
+npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # one package's range
 npx vitest run -t "AC-042"                 # one acceptance criterion by number
 ```
 
 Environment specifics, hard-won and non-obvious. This file is their home; the
 protocol points here rather than repeating them.
 
+- Scope the suite while you iterate and run it whole before you report. Measured at
+  134 files: the full run is about 190 seconds, one package's range about 33. The
+  full run is not ceremony, it is the only one that sees a cross-package
+  regression, and a change under `app/src/shared/**` or `app/src/server/domain/**`
+  reaches criteria in packages nobody was thinking about. Both scoped forms cost
+  the same wall clock: naming files imports only those, while `-t` imports all 134
+  and skips execution in the rest.
+- Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
+  arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
+  matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
+  removed; it dies with `ERR_LOAD_URL` while trying to load `basic` as a custom
+  reporter module.
 - There is no Docker on this machine. Tests default to PGlite, an embedded Postgres
   18 needing no setup, selected by the single seam in `app/db/client.ts`. Set
   `TEST_DATABASE_URL` to run against a real Postgres instead; CI runs both, with

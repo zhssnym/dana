@@ -14,8 +14,10 @@ import type { AuthConfig } from './auth/index.js'
 import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
+import { createConnectionsRouter } from './routes/connections.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
+import { createInvitesRouter } from './routes/invites.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createViewsRouter } from './routes/views.js'
 
@@ -163,6 +165,17 @@ export function createApp(options: AppOptions = {}): express.Express {
   // matches on the whole path, so that pair is order-independent too; every
   // endpoint on it is a GET, which 7.0 makes safe, so it takes no CSRF link.
   app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient }))
+
+  // The P5 invites and connections routers, by the fourth request in that same
+  // ledger: the 7.5 invite surface with its five transitions and two lists, and
+  // 7.3's roster with its one removal. Same position and the same reason. Their
+  // paths (/invites, /invites/:id/..., /connections, /connections/:userId) meet
+  // nothing the three routers above claim and nothing each other claims, so all
+  // five are order-independent among themselves; their mutations carry the CSRF
+  // link and their two GETs do not, which is 7.0's split. Both reach the notify
+  // module through notifierOf(app), already attached above.
+  app.use('/api/v1', createInvitesRouter({ dbClient: options.dbClient }))
+  app.use('/api/v1', createConnectionsRouter({ dbClient: options.dbClient }))
 
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))

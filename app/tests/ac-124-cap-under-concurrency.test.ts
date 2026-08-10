@@ -45,8 +45,22 @@ backend rather than a finding about the code.
 at the limit minus one at the moment of the race, and a premise asserted in a
 separate test is a premise that can drift before the race reads it.
 
+The member arm carries a fourth call site since the P5 kickoff ruling of
+2026-08-09 (commit 139c5f5): the 10.3 member cap binds every membership 8.7
+grants, and 5.3's acceptance row was the fourth instance of the defect this
+criterion names rather than an exemption. The criterion's text already
+names the counted value rather than an endpoint, so the acceptance race
+joins this file with no text change: two acceptances of two parked invites
+racing at 24 members split into one 200 and one 422, the refused acceptance
+rolls back whole with its invite left pending, and the count holds at 25.
+Unlike the three original arms, this one arrives red, the designed order:
+its invites travel POST /invites and its race travels the acceptance
+endpoint, both P5's surfaces, unmounted until that package lands. The
+ruling's sequential refusals are AC-140's, in that file.
+
 Spec: 10.3 (the three limits, server-enforced, 422 with the field named), 7.7
-(422 over 50 steps), 7.4 (422 member cap 25; 422 at 200 custom folders), 4.6
+(422 over 50 steps), 7.4 (422 member cap 25; 422 at 200 custom folders), 8.7
+as amended at the P5 kickoff (the acceptance-path cap), 5.3 rows 1 and 2, 4.6
 (the step cap is an API guard, not a constraint), 11.15 (what one connection
 costs), AC-021 for the contrast, which races two adds of the same person and
 is settled by the primary key whatever the count said.
@@ -73,6 +87,14 @@ import {
   seedUser,
 } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
+import {
+  acceptInvite,
+  connectionPair,
+  createInviteOk,
+  freshEmail,
+  requireInviteRow,
+  signInActorWithEmail,
+} from './sharing-harness.js'
 import { addStep, createTaskOk, stepRows } from './tasks-harness.js'
 
 /** The three numbers of 10.3 this criterion is about. */
@@ -234,6 +256,97 @@ describe('AC-124: two callers cannot walk a 10.3 cap past its limit', () => {
       (await addMember(loser, folderId, loserTarget)).status,
       'the loser is admitted below the cap, so its 422 was the count and not the roster connection (spec 7.4)',
     ).toBe(201)
+    expect(
+      (await membershipUserIds(app.db, folderId)).length,
+      'and the folder is back at its limit, never past it',
+    ).toBe(MEMBER_CAP)
+  })
+
+  test('AC-124: two acceptances racing at 24 members admit exactly one', async () => {
+    const { owner } = await stage()
+    const folderId = await createFolder(owner, 'p3 ac124 acceptances')
+
+    // 23 seeded rows beside the owner: the cap counts rows, the AC-124
+    // seeding rule, and the racers are the acceptances rather than the
+    // sessions that placed the members.
+    for (let index = 0; index < MEMBER_CAP - 2; index += 1) {
+      const filler = await seedUser(app.db, `ac124-accept-${String(index)}`)
+      cast.trackUser(filler)
+      await seedMembership(app.db, folderId, filler)
+    }
+
+    /*
+    Two parked invites to two different emails, so nothing but the ruled
+    guard can settle the race: INV-11 keeps them apart and INV-10's primary
+    key never sees the same pair twice, the same reason the direct arm adds
+    two different people. They travel POST /invites, this criterion's
+    fourth call site being P5's surface, which is also why this arm is red
+    until that package lands.
+    */
+    const emailA = freshEmail('ac124-accept-a')
+    const emailB = freshEmail('ac124-accept-b')
+    const inviteA = await createInviteOk(
+      owner,
+      { email: emailA, folder_id: folderId },
+      'the first invite parks against the almost-full folder: creation grants nothing and is uncapped (spec 8.7)',
+    )
+    const inviteB = await createInviteOk(
+      owner,
+      { email: emailB, folder_id: folderId },
+      'and the second beside it (INV-11: different emails, no duplicate)',
+    )
+    const recipientA = await signInActorWithEmail(app, 'ac124-accept-a', emailA)
+    const recipientB = await signInActorWithEmail(app, 'ac124-accept-b', emailB)
+    cast.trackUser(recipientA.id)
+    cast.trackUser(recipientB.id)
+
+    expect(
+      (await membershipUserIds(app.db, folderId)).length,
+      'the premise: the folder holds one short of the cap when the race starts',
+    ).toBe(MEMBER_CAP - 1)
+
+    const [byA, byB] = await Promise.all([
+      acceptInvite(recipientA, inviteA.id),
+      acceptInvite(recipientB, inviteB.id),
+    ])
+
+    expect(
+      racedStatuses(byA.status, byB.status),
+      `two acceptances racing at ${String(MEMBER_CAP - 1)} members must split into one 200 and one 422: the acceptance transaction locks the folder, counts, and refuses at 25 (spec 8.7 as ruled at the P5 kickoff, 5.3's acceptance row, 10.3); answered ${String(byA.status)} and ${String(byB.status)}`,
+    ).toEqual([200, 422])
+    expect(
+      (await membershipUserIds(app.db, folderId)).length,
+      'the stored count equals the limit: the fourth grant path enforces the same number as the other three',
+    ).toBe(MEMBER_CAP)
+
+    /*
+    The loser's whole acceptance rolled back, the ruling's all-or-nothing:
+    invite still pending, no connection row, nothing recorded. Then the
+    re-offer discipline of the direct arm: a slot frees and the same
+    acceptance succeeds, which is what proves the 422 was the count.
+    */
+    const aLost = byA.status === 422
+    const loser = aLost ? recipientA : recipientB
+    const loserInviteId = aLost ? inviteA.id : inviteB.id
+    const winnerId = aLost ? recipientB.id : recipientA.id
+    const loserRow = await requireInviteRow(app.db, loserInviteId)
+    expect(
+      loserRow.status,
+      'the refused acceptance rolls back whole and its invite stays pending (the kickoff ruling)',
+    ).toBe('pending')
+    expect(
+      await connectionPair(app.db, owner.id, loser.id),
+      'no connection survives the rollback: all or nothing includes the upsert (spec 8.7)',
+    ).toEqual([])
+
+    expect(
+      (await removeMember(owner, folderId, winnerId)).status,
+      'the owner removes the winner, freeing one slot (spec 5.3)',
+    ).toBe(204)
+    expect(
+      (await acceptInvite(loser, loserInviteId)).status,
+      'the loser\'s same acceptance succeeds below the cap, so its 422 was the count and nothing else',
+    ).toBe(200)
     expect(
       (await membershipUserIds(app.db, folderId)).length,
       'and the folder is back at its limit, never past it',

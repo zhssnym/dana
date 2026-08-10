@@ -21,11 +21,14 @@ npx vitest run -t "AC-105"
 | P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
-| P3 gate | AC-124 | Covered, passing; it arrived green, see below |
-| P4 | AC-045 to AC-058, AC-070 | Covered; AC-046 to AC-048 red on the 7.8 tz defect until the pull takes tz |
+| P3 gate | AC-124 | Covered; three arms green since their repairs, the acceptance arm red until P5 mounts its surfaces (the kickoff ruling of 2026-08-09, see below) |
+| P4 | AC-045 to AC-058, AC-070 | Covered, passing since the 7.8 tz repair and the P4 merge |
 | P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
-| P4 gate | AC-132 | Covered, red by design; the 7.8 tz ruling of 2026-08-08, implementer follows |
-| P5 to P10 | AC-059 to AC-069, AC-071 to AC-104 | Not yet written |
+| P4 gate | AC-132 | Covered, passing since the same repair; written red by design, green once the implementer's session followed the tester's |
+| P5 | AC-059 to AC-069 | Covered, red on the unmounted 7.5 and 7.3 routes until the package lands, the designed order |
+| P5 gate | AC-133 to AC-140 | Covered, red by design; proposed here with their tests and numbered by the section 12 amendment of 2026-08-09, the six 8.10 files failing against the P1 stub on its missing steps 1 to 6 |
+| P5 gate | AC-141 | Covered, red on the unmounted POST /invites; appended by the same date's amendment from the owner's ruling rather than proposed here |
+| P6 to P10 | AC-071 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -104,6 +107,16 @@ asserted rather than left to be rediscovered:
   connection, so a refusal for the wrong reason would satisfy the statuses
   and the count alike. The loser is re-offered once a slot frees, and being
   admitted then is what proves the earlier refusal was the count.
+
+  Since the P5 kickoff ruling of 2026-08-09 the member arm carries a fourth
+  call site in the same file: two acceptances of two parked invites racing
+  at 24 members, because the 10.3 cap binds every membership 8.7 grants and
+  5.3's acceptance row was the fourth instance of this criterion's defect,
+  not an exemption. No criterion text moves, the text naming the counted
+  value rather than an endpoint. That arm arrives red, its invites and its
+  race both traveling P5's unmounted surfaces, which restores the designed
+  order for exactly the path whose implementation does not exist yet; the
+  ruling's sequential refusals are AC-140's, in its own file.
 - **The settled 7.7 and 7.8 bodies are pinned by AC-043 and AC-044.** Both
   sections were silent on what their mutations answer when those files were
   written, so they asserted statuses alone; the P3 shape review settled it
@@ -267,6 +280,73 @@ and AC-120's raced pair cannot assert the fresh-GET half at all, since each
 response is the truth at its own commit while a GET after both reflects
 both.
 
+P5's range, AC-059 to AC-069, covers frozen 7.5 and 7.3 and the 8.7 flows
+as amended at the package kickoff of 2026-08-09, written before the
+implementation per the RFC 0001 P5 row, so every file fails today on the
+invite and connection routes answering 404, the designed order. Five
+things those files are written around.
+
+- **Two kickoff readings are load-bearing.** The indirect path's wire
+  surface is POST /invites carrying folder_id and task_id, V-INV's
+  conversion arm when the email is connected (AC-061's adversarial case),
+  the parked invite otherwise (AC-065, AC-066); frozen 7.6's PATCH sentence
+  stays exactly true. And this package's only 429 is 5.2's per-invite
+  resend guard, asserted in AC-068: 10.4's per-user limits are P9's arm,
+  AC-101. Beyond not asserting them, every file keeps each actor's POST
+  /invites at five or fewer, so the limiter P9 adds ahead of the handlers
+  (11.3) cannot trip a P5 file after the fact.
+- **Sends are counted through the ratified sink**, the mid-P2 ruling: the
+  share grant on conversion, the invite email on create and on resend, and
+  the quiet transitions, decline and cancel sending nothing. Invite
+  templates are matched by word, /invite/i, the share-grant convention.
+- **Matching is equality and nothing more.** AC-064 attacks 8.7's sentence
+  from both sides: case folds before comparing, a Gmail dot variant does
+  not, and the variant's acceptance attempt answers the leak rule's 404.
+- **Three inner shapes ride the endpoint shape review**, recorded at their
+  judges in sharing-harness.ts: the object inside 201 { invite }, the
+  acceptance response's folder object, and the sent-list element, each of
+  which frozen 7.5 names without enumerating. The outer keys it does
+  enumerate are asserted key-exact, the house rule.
+- **The resend window is crossed by moving last_sent_at**, the AC-113
+  precedent for reaching a timed boundary without waiting at it; both
+  sides of the 24 hours are asserted, 429 with Retry-After inside, 200
+  with one more counted email beyond.
+
+AC-133 to AC-140 were proposed here with their tests and numbered by the
+Integration Steward's section 12 amendment on 2026-08-09, the AC-125 to
+AC-130 precedent for a batch authored on the branch and numbered at a
+mid-package change control. AC-133 to AC-138 are 8.10's steps 1 to 6,
+outcome by outcome:
+sent invites invalidated with the sweep scoped by inviter and pending
+status; transfer to the earliest join with the id tie-break, on seeded
+join instants per the AC-019 precedent; the default and sole-member
+folders deleted with the whole 8.8 cascade, where a dying folder's invite
+is removed by FK while a surviving folder's is invalidated; R-CLEAN per
+remaining membership including the drop-to-one INV-5 sweep; connections
+deleted outright and My Day emptied, with a bystander pair as the control;
+and the scrub with its survivors, created_by, completed_by, and
+accepted_by still naming the scrubbed row while the assignment clears.
+All six fail today on the P1 stub's missing steps 1 to 6, wrong behavior
+rather than absence, their invite and connection fixtures seeded directly
+so the red is 8.10's own. AC-139 pins the pending_invite_email derivation
+end to end through POST /invites, including 8.7's clearing sentence, and
+AC-140 is the kickoff ruling's sequential refusals: a full folder refuses
+the conversion with nothing created and refuses the acceptance whole, the
+invite left pending and acceptable once room opens.
+
+AC-141 did not come from here, and the difference is worth keeping. This
+session escalated the bare invite to an already-connected email as a
+genuine silence in 8.7's conversion arm and recommended 200 with nothing
+created; the Steward recommended 409, and the human owner ruled 409 on
+2026-08-09, so 7.5, 8.7 and 9.8 now carry the refusal and the Steward
+appended the criterion from the ruling, the AC-124 shape rather than the
+AC-125 one. Only its test is this role's, which is why its file states the
+criterion as settled text and records the recommendation it lost. The
+discriminator is what the file is built around: the same email answers 409
+bare and runs AC-061's conversion with a folder attached, so both arms are
+asserted in one file against one roster, and neither can be satisfied by an
+endpoint that simply refuses or simply converts everything.
+
 ## The two amendments these tests read closely
 
 **7.1's tz parameter.** `GET /api/v1/auth/google` takes an optional `tz`. The
@@ -316,9 +396,15 @@ it. `views-harness.ts` is the P4 layer over all of them: `today(tz)` computed
 through `Intl` rather than imported, calendar arithmetic on 4.11 date
 strings, the nine 7.10 response envelopes restated and asserted key-exact
 with every row parsed through the frozen `TaskCard` check, fixtures written
-directly with every column named, and cursor paging to exhaustion. Each
-file's header explains its own decisions; the eight below are worth knowing
-before reading any test.
+directly with every column named, and cursor paging to exhaustion.
+`sharing-harness.ts` is the P5 layer: the 7.5 and 7.3 transports and their
+frozen shapes restated key-exact where the text enumerates and no further
+where it does not, actors signed in with chosen emails for 5.2's matching
+rule, invite emails counted by word through the ratified sink, the
+last_sent_at backdater, and the DELETE /me transport with the by-id user
+reader the 8.10 files inspect the scrub through. Each file's header
+explains its own decisions; the eight below are worth knowing before
+reading any test.
 
 **Outbound email is observed through an injected recorder.** 11.8's
 notification module logs instead of sending under test, and AC-024 counts
@@ -365,11 +451,16 @@ cannot borrow its definition of correct. Exact because those shapes are
 enumerated in a frozen section, so a missing key breaks the client contract
 and an extra one is drift it cannot absorb.
 
-One tolerance is left, and it is not a shape: TaskCard's
-`pending_invite_email`, whose derivation from `invites.task_id` belongs to
-P5, the package that creates those rows. The key is asserted; the value is
-not. Nothing in section 12 pins that derivation today, which is recorded
-here for P5's tester session rather than left to be noticed.
+The tolerance this paragraph used to record is closed. TaskCard's
+`pending_invite_email` was the one value the shape check tolerated, its
+derivation from `invites.task_id` belonging to P5, the package that creates
+those rows, and nothing in section 12 pinning it. P5's tester session is
+this one, and AC-139 pins the derivation end to end, on the
+detail read and on a view row, through the newest-invite-wins clearing rule
+of 8.7 and back to null on a terminal transition. The shape check in
+`tasks-harness.ts` stays value-tolerant on that one key, which is now a
+division of labor rather than a gap: a shape judge cannot know which email
+a particular card should carry, and the criterion's own file asserts it.
 
 The other tolerance is gone, closed by the thing that created it. TaskDetail's
 reminder was read loosely here while 7.0 said only "{offset_minutes or

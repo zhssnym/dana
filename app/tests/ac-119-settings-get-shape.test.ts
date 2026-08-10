@@ -1,5 +1,5 @@
 /*
-AC-119 (proposed, P2S): given a fresh account, when GET /me/settings, then
+AC-119 (P2S): Given a fresh account, when GET /me/settings, then
 200 and the body is exactly the three 7.2 booleans at their 4.10 defaults:
 show_important true, show_all true, show_done false, nothing extra, nothing
 missing.
@@ -16,11 +16,11 @@ rather than through PATCH /me/settings is deliberate: this file is the GET
 criterion, and setup through the sibling endpoint under test in ac-120 would
 let one defect fail both files in a shape neither names.
 
-This file is red until P2S lands the endpoint: every case below currently
-answers 404 on the route.
+This file was red until P2S landed the endpoint, every case answering 404
+on the route; it passes since that merge.
 
-Spec: 7.2 (frozen), 4.10, 7.0, 7.1; RFC 0001 P2S row; criteria proposed to
-the Steward for the section 12 amendment.
+Spec: 7.2 (frozen), 4.10, 7.0, 7.1; RFC 0001 P2S row; proposed here and
+numbered by the Steward's section 12 amendment on 2026-08-04.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'

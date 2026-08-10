@@ -1,5 +1,5 @@
 /*
-AC-123 (proposed, P2S): given tasks of every status with steps, My Day
+AC-123 (P2S): Given tasks of every status with steps, My Day
 entries, and reminders in the viewer's folders, when the viewer PATCHes any
 of the three toggles, then no row outside user_settings changes: hidden
 pages are a navigation preference only.
@@ -19,10 +19,10 @@ Tasks, steps, My Day entries, and reminders are later packages' surfaces,
 seeded directly per the folders-harness rule; the folder arrives through
 P2's own POST /folders.
 
-This file is red until P2S lands the endpoint: the route answers 404 today.
+This file was red until P2S landed the endpoint; it passes since that merge.
 
-Spec: 7.2 (frozen), 9.7, 4.10; RFC 0001 P2S row; criteria proposed to the
-Steward for the section 12 amendment.
+Spec: 7.2 (frozen), 9.7, 4.10; RFC 0001 P2S row; proposed here and
+numbered by the Steward's section 12 amendment on 2026-08-04.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'

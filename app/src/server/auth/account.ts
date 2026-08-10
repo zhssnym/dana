@@ -13,6 +13,7 @@ import type { Request, Response } from 'express'
 import type { Db } from '../../../db/client.js'
 import { patchMeBody } from '../../shared/me.js'
 import type { MeResponse } from '../../shared/me.js'
+import { deleteAccountData } from '../domain/accountDeletion.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
 import { inTransaction, rowsOf } from './provisioning.js'
@@ -134,29 +135,40 @@ export async function handlePatchMe(
 }
 
 /*
-DELETE /me runs the section 8.10 transaction. Steps 1 to 6 (invalidating sent
-invites, transferring or deleting owned folders, cleaning memberships,
-connections, and My Day entries) belong to the Collaboration engineer's module
-and land with the packages that create those rows; per the RFC 0001 P1 row,
-this stub carries only the two steps that exist at P1, and they are the two
-this role owns outright:
+DELETE /me runs the section 8.10 transaction, and from P5 it runs all of it.
+Steps 1 to 6 (invalidating sent invites, transferring or deleting owned
+folders, cleaning memberships, clearing connections, sweeping My Day) are the
+Collaboration engineer's module, src/server/domain/accountDeletion.ts, called
+below with this transaction's executor. The last two are this role's and stay
+here:
 
   7  scrub the user row: google_sub, email, display_name, avatar_url set null,
      deleted_at = now()
   8  destroy all sessions of the user
 
+That split is the seam docs/team/README.md fixes, and it is why
+deleteAccountData takes an executor rather than a handle. One transaction, not
+two: 8.10's first words are "One transaction", and eight steps across two of
+them would be two failure modes, one of them a scrubbed account whose folders
+were never handed on. Through P4 only steps 7 and 8 existed here, the RFC 0001
+P1 row having scheduled the rest with the packages that create those rows; the
+call below is what retires that stub.
+
+The call goes ahead of the scrub because 8.10 numbers it there, and the order
+within those six steps is the module's own header to explain: it exists so the
+RESTRICT on folders.owner_id (4.3) can never fire. It cannot fire from here in
+any case, because step 7 scrubs the user row rather than deleting it, which is
+also what lets tasks.created_by and friends keep pointing at it.
+
 The scrub is what makes the account gone: it releases the unique google_sub so
 a future sign-in provisions a fresh account, and it empties the personal data
-while leaving the row for tasks.created_by and friends to point at, which is
-what 8.10 means by rendering as "Deleted user". No row is hard-deleted here,
-so the RESTRICT tripwire on folders.owner_id that step ordering exists to
-avoid cannot fire against this stub.
+while leaving the row for those surviving references to render as "Deleted
+user" (AC-138).
 
-Both steps run inside one transaction, because 8.10's first words are "One
-transaction" and the pair is exactly where that matters: a failure between a
-committed scrub and an uncommitted revocation would leave a deleted account
-whose every session still authenticates. Sessions are destroyed immediately
-and all of them (11.6: revocation never waits for the pruning pass).
+Sessions are destroyed immediately and all of them (11.6: revocation never
+waits for the pruning pass). A failure between a committed scrub and an
+uncommitted revocation would leave a deleted account whose every session still
+authenticates, which is the one-transaction argument seen from the near end.
 */
 export async function handleDeleteMe(
   db: Db,
@@ -164,6 +176,7 @@ export async function handleDeleteMe(
   res: Response,
 ): Promise<void> {
   await inTransaction(db, async (tx) => {
+    await deleteAccountData(tx, userId)
     await tx.execute(
       sql`UPDATE users
           SET google_sub = NULL,
