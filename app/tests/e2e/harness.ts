@@ -343,6 +343,114 @@ export function textInputs(page: Page): Locator {
   return page.getByRole('textbox').filter({ hasNotText: /search/i })
 }
 
+/**
+ * A field of the 9.3 task form, addressed by the name that section gives it.
+ *
+ * By accessible name across roles rather than by role plus name, because
+ * 9.3's ten fields are ten different roles: title is a text box, important a
+ * switch, folder and assignee combo boxes, steps a group. What 9.1's
+ * addressing sentence fixes is that the name announces and the name
+ * addresses, and a label is exactly that binding.
+ *
+ * Matched case-insensitively and anchored. 9.3 writes its field names in
+ * running prose ("due date", "due time"), where a rendered label is
+ * capitalized, and a capital letter is not a rewording; anchoring keeps
+ * "due date" from also matching "due date reminder" if an implementation
+ * ever spells one that way.
+ */
+export function formField(page: Page, name: string): Locator {
+  return page.getByLabel(new RegExp(`^\\s*${name}\\s*$`, 'i'))
+}
+
+/**
+ * What a control currently holds, whatever kind of control it is.
+ *
+ * `inputValue()` would be enough for the text fields and throws on the
+ * others, and 9.3's "empty" covers all ten. So the value is read where a
+ * control has one and its rendered text where it does not, which is what a
+ * person reading the form would call its contents.
+ */
+export async function fieldValue(locator: Locator): Promise<string> {
+  return locator.evaluate((element) => {
+    const el = element as unknown as { value?: unknown; textContent: string | null }
+    if (typeof el.value === 'string') return el.value
+    return (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+  })
+}
+
+/**
+ * What a person reads in a control, where `fieldValue` reads what the form
+ * would submit. A folder select holds a uuid and shows a folder name, and
+ * 9.3's entry-point table names folders.
+ */
+export async function fieldDisplay(locator: Locator): Promise<string> {
+  return locator.evaluate((element) => {
+    const el = element as unknown as {
+      selectedOptions?: Iterable<{ textContent: string | null }>
+      value?: unknown
+      textContent: string | null
+    }
+    if (el.selectedOptions !== undefined) {
+      const labels: string[] = []
+      for (const option of el.selectedOptions) labels.push((option.textContent ?? '').trim())
+      return labels.join(', ')
+    }
+    if (typeof el.value === 'string' && el.value !== '') return el.value
+    return (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+  })
+}
+
+/**
+ * Picks a named option from one of 9.3's preset-driven controls.
+ *
+ * 9.1's addressing sentence fixes how a control is identified and says
+ * nothing about how it is built, which is deliberate: section 9 specifies
+ * structure, states and copy, not widgets. So this dispatches on what the
+ * element turned out to be rather than assuming a native select or assuming
+ * a listbox, and a spec above stays a statement about the option's name.
+ */
+export async function chooseOption(page: Page, field: Locator, label: string): Promise<void> {
+  const tag = await field.evaluate((element) =>
+    String((element as unknown as { tagName?: string }).tagName ?? '').toLowerCase(),
+  )
+  if (tag === 'select') {
+    await field.selectOption({ label })
+    return
+  }
+  await field.click()
+  await page.getByRole('option', { name: label, exact: true }).click()
+}
+
+/**
+ * Waits for the 10.6 service worker to be controlling this page, which is
+ * the state AC-091's "one prior online load" describes.
+ *
+ * A timeout here is converted into a named assertion rather than left as a
+ * Playwright error, because an error says only that five seconds passed
+ * while the assertion says which sentence of 10.6 went unmet.
+ */
+export async function expectServiceWorkerControl(page: Page): Promise<void> {
+  const controlled = await page
+    .waitForFunction(
+      () => {
+        const view = globalThis as unknown as {
+          navigator?: { serviceWorker?: { controller: unknown } }
+        }
+        return (view.navigator?.serviceWorker?.controller ?? null) !== null
+      },
+      undefined,
+      { timeout: 20_000 },
+    )
+    .then(() => true)
+    .catch(() => false)
+  expect(
+    controlled,
+    'spec 10.6: the service worker precaches the versioned application shell, and nothing ' +
+      'below can be asked of a page no service worker controls. Twenty seconds after an ' +
+      'online load of this page, navigator.serviceWorker.controller was still null',
+  ).toBe(true)
+}
+
 /* ------------------------------------------------------------------ *
  * Reading what the browser computed
  * ------------------------------------------------------------------ */
