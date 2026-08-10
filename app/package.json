@@ -14,7 +14,10 @@
     "start": "node dist/src/server/index.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.client.json && tsc -p tsconfig.node.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:app": "vite build && tsx db/seed.ts && tsx src/server/index.ts",
+    "e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
