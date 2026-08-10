@@ -131,6 +131,8 @@ def compute_fire_at(task, reminder):
 
 **Recompute triggers.** fire_at is recomputed, and state reset to scheduled when the new instant is in the future, whenever any of these change: due_date, due_time, the reminder's own value or mode, assignee_id, or the assignee's users.timezone. When the recomputed instant is already past, the row is set state = skipped, never fired retroactively. The reminder row is deleted by: reminder removal, the clear-date cascade, task deletion. It survives completion and abandonment untouched, but delivery requires a pending task, so it silently never fires; un-completing before the instant lets it fire normally.
 
+The creator's zone is a fallback for the computation and not a sixth trigger, and the asymmetry is deliberate rather than an omission from the list above. A reminder on an unassigned task is computed from its creator's zone because 4.8's NOT NULL fire_at admits no row without an instant, not because that instant is ever delivered: the loop below skips an unassigned task at fire time, and assignee_id is itself a trigger, so such a row either never fires or is recomputed in the new assignee's zone before it does. A creator who travels therefore moves nothing any user can observe, and following them would add a write path with no reachable effect. Recorded at the P7 kickoff on 2026-08-10, because the computation's two arms and the trigger list's one are read by three separate sessions of that package and could be reconciled three ways.
+
 **Delivery loop**, the only background execution in v1, an operational burden named plainly: a scheduler ticks every minute.
 
 ```
