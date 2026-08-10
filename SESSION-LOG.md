@@ -208,3 +208,16 @@ is what actually adjudicated the package.
 | 3 | Change control: AC-142 and AC-143 numbered, UNTIL read onto 11.9 as frozen 4.11 permits, the month zoom fixed at six weeks in 9.5 | 12 | Steward | Done |
 | 4 | The proposal wording retired, and the week-start reasoning in AC-082 corrected in prose | 11 | Testers | Done |
 | 5 | The engine: the 4.11 grammar, the iterator pinned against the rrule oracle, 8.5 generation and projection, 5.1 G-SERIES | 02 | Implementers | Done, escalated |
+| 6 | The 4.11 grammar wired into the two write bodies of 7.6 | 04 | Unattended | Done |
+| 7 | Generation in the winning branch, the guard ahead of uncomplete and restore | 03 | Unattended | Done, escalated |
+| 8 | Q3C's virtual arm, fetched separately rather than filtered from the real rows | 05 | Unattended | Done, escalated |
+
+Rows 6 to 8 ran as the first grouped run: one dispatching chat launched each
+as an isolated sub-agent in sequence, so each derived its state from the
+repository rather than from the one before it and no context held two
+personas. The dispatcher verified each phase committed, pushed and left the
+tree building before starting the next. The endpoint shape review was kept
+out of the group deliberately, because reviewing those three is its work.
+Rows 7 and 8 each raised the same two findings independently, in different
+personas, which is the strongest evidence the run produced that its
+isolation was real.
