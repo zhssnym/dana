@@ -10,6 +10,114 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **Package P7 of RFC 0001, reminders, kicked off on branch `p7-reminders` on
+  2026-08-10.** The P7 row is traced into its session list in the form every
+  package since P2 has carried, two kickoff questions are settled below, and
+  the third is escalated to the human owner because any answer that closes it
+  touches frozen 7.9. The row named two owners and the work needs six roles.
+  Four of 8.6's five recompute triggers fire inside
+  `03-collaboration-and-permissions.md`'s own endpoints, due_date, due_time and
+  assignee_id through PATCH /tasks/:id and the reminder's own value and mode
+  through the endpoint its Owns section already names, and the fifth, the
+  assignee's users.timezone, fires inside `06-security-and-privacy.md`'s auth
+  module at the login sync and at PATCH /me. That role's persona mentions
+  reminders nowhere, and what makes the call site its own rather than a
+  widening of its mandate is that frozen 7.1 already charges PATCH /me with the
+  recompute in its own text; AC-086 asserts the trigger by number. The
+  tiebreaker is the P6 generation hook's, so `02-scheduling-and-time.md` owns
+  the recompute as one transaction-taking callable and every caller invokes it
+  inside its own transaction rather than restating arithmetic, and the
+  reminders seam of `docs/team/README.md` now names where each trigger fires,
+  that having been the one seam of this package that no file named. Two things
+  the row did not name ride it, both deferrals with their computation attached:
+  the reminder arm of frozen 7.6's two write bodies, the last of the two arms
+  `app/src/shared/tasks.ts` has carried a comment for since P3, and the
+  reminder-copy arm of 8.5's generation that P6 left as a comment in its own
+  module. No Data session is owed, migration 0000 carrying every table and
+  4.8's partial index, and the one access path this package adds that is not
+  the poll already leads with `tasks_assignee_status_due_idx`'s first column.
+  No Query session is owed for Q11: it is one predicate with no ordering, cap
+  or cursor, its home is Platform's scheduler pass, and 11.7 rather than
+  section 6 specifies how it claims rows, which makes it the fourth internal
+  query implemented by whoever owns the path it lives in, after Q9 and Q10 at
+  P2 and Q12 at P5.
+- **What checks the DST arithmetic, ruled at the P7 kickoff and recorded as
+  section 13 item 25.** Item 4's P6 strategy does not carry over and no oracle
+  should be sought, which is worth stating because the absence would otherwise
+  read as an omission. An oracle adjudicates where two implementations of one
+  standard should agree; 8.6's two rules are policy chosen where the standard
+  is silent, a nonexistent local time having no correct answer and an ambiguous
+  one having two, so no library implements them. Luxon is worse than absent,
+  being an anti-oracle for exactly these two cases per 11.9, and 11.15
+  forecloses the cheapest substitute, Intl.DateTimeFormat being Luxon's own
+  engine rather than an independent one, so that comparison would be circular.
+  A second date library was considered and rejected: it would agree with Luxon
+  on the offsets, disagree with the module on the policy, and re-report what
+  11.9 already records, at the cost of a dependency. Three things are owed
+  instead. The fire-instant module's own unit tests assert raw Luxon and the
+  module in the same test, so each override is proven necessary rather than
+  assumed, on the shape of items 16 to 18 and with a Luxon upgrade as the
+  revisit trigger; protocol section 8 puts them there rather than in the
+  acceptance range, which is where P6's oracle suite sat for the same reason.
+  The acceptance range must instantiate both rules, which today it does not
+  require: 11.9 closes by saying AC-083 to AC-086 pin both, and none of the
+  four names a gap or a fold, AC-083 running in Asia/Karachi which has observed
+  no DST since 2009, AC-084 naming no zone, AC-085 moving a due date and AC-086
+  changing one. Two of them can carry a DST fixture without straining their
+  text, so the coverage is possible and optional at once and that sentence in
+  11.9 over-claims until the tester closes it; whether the cases arrive as
+  numbers of their own is that session's proposal at a change control, and the
+  recorded expectation is that they should, because 11.9 points at numbers and
+  a reader checking coverage by number finds nothing. And every fixture on both
+  sides uses historical transition dates in zones stable for decades, never a
+  future date and never a recently changed zone, because the Node runtime and
+  the embedded engine of 11.10 carry tzdb copies that can move independently
+  under a CI runner.
+- **8.6 gains one paragraph: the creator's zone is a fallback for the
+  computation and not a sixth recompute trigger.** An unassigned task's
+  reminder is computed from its creator only because 4.8's NOT NULL fire_at
+  admits no row without an instant; the delivery loop skips an unassigned task
+  at fire time, and assignee_id is itself a trigger, so such a row either never
+  fires or is recomputed in the new assignee's zone before it does. A creator
+  who travels moves nothing any user can observe, and following them would add
+  a write path with no reachable effect. Recorded because three sessions of
+  this package read the computation's two arms against the trigger list's one
+  and could reconcile them three ways.
+- **Open, routed to the human owner at the P7 kickoff on 2026-08-10, and
+  blocking the tester session alone.** Frozen 7.9's PUT /tasks/:id/reminder
+  names no response body: it says "200" and stops, while its DELETE says 204
+  and carries none. This is the silence frozen 7.2 carried for PATCH
+  /me/settings, escalated at P2S and ruled by the owner, and every comparable
+  surface has since been settled the same way: 7.1's PATCH answers the /me
+  object, 7.2's answers the settings object, 7.4's mutations answer Folder, and
+  7.7 and 7.8 each answer the affected TaskDetail by the ruling at the P3 shape
+  review. The Steward's recommendation is 7.7's answer rather than 7.4's: PUT
+  answers 200 with the affected TaskDetail. 7.0 gives the reminder no object of
+  its own, 7.9 offers no GET for one, and TaskDetail already carries a reminder
+  field, so the parent task is the only object in the frozen catalogue that
+  reports what the call did, and it reports the write's whole effect rather
+  than a fragment of it. The two alternatives, stated fairly. A bare reminder
+  object is the narrower answer and the one an implementer reaches for first,
+  but the frozen catalogue holds no such object, so it would either echo the
+  request, TaskDetail's reminder carrying exactly the two 4.8 mode columns the
+  request sent and nothing else, or invent a wider shape carrying fire_at and
+  state, two columns no frozen response exposes anywhere in section 7. The
+  first is worthless and the second is a new object in a frozen catalogue,
+  which is the per-endpoint variant the API role exists to prevent. Leaving the
+  silence as it stands is not free: the route must return something, and an
+  unstated something is chosen twice, once by the schema session and once by
+  the routes session, which is the drift the freeze exists to stop, while the
+  tester can assert no body at all. The one honest argument for it is that
+  DELETE's 204 sits beside PUT's 200 in the same two-line section, so the
+  asymmetry may be deliberate rather than an omission; against that, 7.2 read
+  the same way at P2S and was ruled an omission, and a 200 that carries nothing
+  is spelled 204 everywhere else in this contract. Whatever is ruled is
+  transcribed onto frozen 7.9 as an appended paragraph leaving both existing
+  bullets byte-identical, the form 7.5, 7.6, 7.8 and 7.10 all carry, and it
+  lands before the tester writes for the P4 and P6 reason: an acceptance test
+  citing a ruling the specification does not carry is a debt every later
+  session inherits. No criterion is invalidated by any of the three answers;
+  nothing in the repository calls this endpoint.
 - **Package P6 of RFC 0001, recurrence, kicked off on branch `p6-recurrence`
   on 2026-08-10.** The P6 row is traced into its session list in the form every
   package since P2 has carried, three kickoff questions are settled below, and

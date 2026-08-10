@@ -225,3 +225,9 @@ out of the group deliberately, because reviewing those three is its work.
 Rows 7 and 8 each raised the same two findings independently, in different
 personas, which is the strongest evidence the run produced that its
 isolation was real.
+
+## P7: reminders (`p7-reminders`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, the timezone-change trigger given to Security and named in the seam list, the DST arithmetic ruled to have no oracle and item 25 recorded, the 7.9 response body escalated | 12 | Steward | Done, escalated |
