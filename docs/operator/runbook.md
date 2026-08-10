@@ -209,6 +209,33 @@ that consume it puts its first independent reader downstream of its own mistakes
 by phase, a commit per phase so CI attributes a failure to the session that caused
 it, and a full stop before anything irreversible, which always includes the merge.
 
+### Two working trees
+
+One clone holds one checkout, so two packages in flight at once need a second
+working tree rather than a second clone. `git worktree add ../dana-client -b
+p8-client main` makes one; `git worktree remove ../dana-client` takes it away.
+Each tree carries its own `node_modules` and its own `.data`, both gitignored,
+so `npm ci` runs once per tree.
+
+Use it when two packages are genuinely parallel and touch disjoint paths. The
+case it was made for is P8: its structural half depends only on the scaffold and
+the frozen contract, so it runs beside a backend package instead of after it.
+
+Four rules, and the first is the one that prevents a lost afternoon:
+
+- **Every prompt names its tree in its first line**, and a session never switches
+  branches. Git already refuses to check out one branch in two trees at once,
+  which catches the clumsy version of this mistake but not a session committing
+  correct work to the wrong package.
+- **Run the suite in one tree at a time.** Two full runs compete for the same
+  cores, and the suite carries a 30-second per-test timeout, so the second run
+  reports failures that describe the machine rather than the code.
+- **`main` is checked out in neither tree while both are working.** Coordinating
+  commits, the session log and this folder, are made by switching one tree to
+  `main` between sessions and switching back, never while a session is live.
+- **Merges stay serial.** Two branches touching adjacent seams still merge one at
+  a time with the full suite between them, exactly as section 8 says.
+
 ## 6. Closing a session
 
 **Read the final block before anything else.** An escalation you did not read is a
