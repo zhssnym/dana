@@ -24,16 +24,23 @@ conflict under 7.0, so nothing may move: both rows keep their status and
 their completion columns, no row is deleted, and no rule is handed anywhere.
 A 409 that half-ran is worse than a 200.
 
-Two adversarial companions. The newest row of the same exhausted series may
-be un-completed, which proves the refusal is about position in the series
-rather than about un-complete being broken on bounded rules. And the same
-guard on the other transition, an abandoned row restored while the row after
-it is abandoned too, because 5.1 puts G-SERIES on restore in the same table
-and 7.6's ruling of 2026-08-10 gives restore no zone either.
+Two adversarial companions. The first walks one series through all three
+branches in order, which is what proves the refusal is about the series as it
+stands rather than about bounded rules or about un-complete being broken: the
+older row refused, the newest row reopened, and then the older row admitted,
+because reopening the newest one put a pending sibling back into the series.
+That last step asserted 409 when this file was written, contradicting this
+header's own reasoning above, and it is corrected: the P6 implementers
+escalated it rather than editing it. The second companion is the same guard on
+the other transition, an abandoned row restored while the row after it is
+abandoned too, because 5.1 puts G-SERIES on restore in the same table and
+7.6's ruling of 2026-08-10 gives restore no zone either.
 
-Spec: 5.1 (G-SERIES, third branch, and its copy; the restore row), 8.5
-(un-complete and restore apply the guard, "otherwise 409"), 7.6, 7.0 (409 is
-a state conflict), INV-7, INV-8.
+Spec: 5.1 (G-SERIES, all three branches, and the third's copy; the restore
+row), 8.5 (un-complete and restore apply the guard, "delete the pending
+successor and reclaim the rule, or, when this row is the newest of its
+series, reopen it as the current occurrence; otherwise 409"), 7.6, 7.0 (409
+is a state conflict), INV-7, INV-8.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -45,6 +52,7 @@ import {
   expectSweptTasks,
   expectTaskInvariants,
   requireTaskRow,
+  taskRow,
 } from './tasks-harness.js'
 import {
   requireGenerated,
@@ -209,14 +217,23 @@ describe('AC-080: un-completing behind a closed successor is refused', () => {
     ).not.toBeNull()
   })
 
-  test('AC-080 adversarial: the newest row of the same series may be un-completed', async () => {
+  test('AC-080 adversarial: the guard reads the series as it stands, all three branches on one series', async () => {
     const { owner } = await stage()
-    const series = await movedOnSeries('newest row', 'complete')
+    const series = await movedOnSeries('all three branches', 'complete')
 
-    // Same series, same exhausted bound, same absent S: the only thing that
-    // differs is which row is asked. If this were refused too, the 409 above
-    // would be about bounded rules or about un-complete itself rather than
-    // about position, and the criterion would be asserting the wrong thing.
+    // Third branch, the criterion's own: S is absent and this row is not the
+    // newest, so it is refused. Asserted here as well as in its own case so
+    // the contrast below is local.
+    expectStatus(
+      await transitionWithoutTz(owner, series.firstId, 'uncomplete'),
+      409,
+      '5.1 G-SERIES third branch, with the series exhausted and nothing pending in it',
+    )
+
+    // Second branch: same series, same exhausted bound, same absent S, and
+    // the only thing that differs is which row is asked. If this were refused
+    // too, the 409 above would be about bounded rules or about un-complete
+    // itself rather than about the row's place in its series.
     await transitionSeriesOk(
       owner,
       series.secondId,
@@ -232,13 +249,47 @@ describe('AC-080: un-completing behind a closed successor is refused', () => {
       '8.5: an exhausted series keeps its rule on the last row and simply resumes',
     ).toBe(series.rule)
 
-    // And now the first row is refused for a second reason as well as the
-    // first, a pending sibling having appeared. Still 409, still positional.
-    expectStatus(
-      await transitionWithoutTz(owner, series.firstId, 'uncomplete'),
-      409,
-      'with the newest row pending again, the older completed row is still not the one restore may touch',
+    /*
+    First branch, and the same row that was refused a moment ago. This file
+    asserted 409 here and was wrong, against its own header's reasoning; the
+    P6 implementers escalated it rather than editing it, which is the boundary
+    working. The reopen changed the guard state: a pending sibling now exists,
+    and 5.1 answers "S exists: allowed" with no positional condition attached,
+    so a sibling appearing is what admits the un-complete rather than a second
+    reason to refuse it. The older row is reopened, the pending sibling is
+    deleted, and its rule comes back here, reaching across the completed
+    middle row to do it. No other file reaches this state: AC-079's first
+    branch has no completed row between the two.
+    */
+    const admitted = await transitionSeriesOk(
+      owner,
+      series.firstId,
+      'uncomplete',
+      '5.1 G-SERIES first branch: a pending row of this series exists, so the un-complete is allowed',
     )
+    expect(
+      admitted.deletedSuccessorId,
+      '7.6: deleted_successor_id names the pending row the guard removed',
+    ).toBe(series.secondId)
+    expect(
+      await taskRow(app.db, series.secondId),
+      '5.1: delete S, even though a completed row sits between it and the row being reopened',
+    ).toBeUndefined()
+
+    const reclaimed = await requireTaskRow(app.db, series.firstId)
+    expect(String(reclaimed.status), 'and this row is pending again').toBe(
+      'pending',
+    )
+    expect(
+      reclaimed.recurrence_rule,
+      '5.1: copy S.recurrence_rule back onto this row',
+    ).toBe(series.rule)
+    expect(
+      (await seriesRows(app.db, series.seriesId)).filter(
+        (row) => row.status === 'pending',
+      ),
+      'INV-7 holds under either reading of this guard, and it holds here: one pending row in the series',
+    ).toHaveLength(1)
   })
 
   test('AC-080 adversarial: restore is refused by the same guard', async () => {

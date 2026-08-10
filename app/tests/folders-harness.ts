@@ -439,9 +439,35 @@ export async function taskAssignee(
   return first.assignee_id === null ? null : String(first.assignee_id)
 }
 
+/*
+The count contract, asserted rather than trusted since the P6 implementer
+review. This helper reads one column named n from one row, and every caller
+writes count(*)::int AS n. A query that answers anything else used to produce
+NaN: not zero, not an error, but a value that compares equal to itself under
+Object.is, which toBe uses. Three P6 call sites passed SELECT id instead. One
+met .toBe(0) and failed visibly; the other two compared a count before an
+operation against the count after, NaN on both sides, so "a refused create
+writes no task at all" passed while asserting nothing whatever. That is the
+vacuous green this role exists to prevent, and it is worse than the red beside
+it because nothing reports it.
+
+The call sites are repaired. This guard is what makes the next one fail
+loudly, and it changes nothing for a correct caller: count(*) answers exactly
+one row even when it counts to zero, so every existing caller satisfies it.
+*/
 export async function countRows(db: Db, query: ReturnType<typeof sql>): Promise<number> {
   const found = await rows(db, query)
-  return Number(found[0]?.n ?? Number.NaN)
+  const first = found[0]
+  expect(
+    first !== undefined && first.n !== undefined && first.n !== null,
+    `countRows needs a query answering one row with one column named n, as in count(*)::int AS n. This is a harness misuse rather than a finding about the application; got ${JSON.stringify(found[0] ?? null)}`,
+  ).toBe(true)
+  const value = Number((first as Record<string, unknown>).n)
+  expect(
+    Number.isFinite(value),
+    `countRows read a non-numeric n (${JSON.stringify((first as Record<string, unknown>).n)}); a NaN compares equal to itself and would make the assertion reading it vacuous`,
+  ).toBe(true)
+  return value
 }
 
 /*

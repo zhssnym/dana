@@ -182,7 +182,7 @@ describe('AC-073: completing late skips the slots that passed', () => {
     expect(
       await countRows(
         app.db,
-        sql`SELECT id FROM tasks
+        sql`SELECT count(*)::int AS n FROM tasks
              WHERE folder_id = ${folderId}::uuid AND due_date = ${skipped}::date`,
       ),
       'and no row outside the series was written on that date either',

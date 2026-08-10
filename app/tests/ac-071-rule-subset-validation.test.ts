@@ -220,7 +220,7 @@ describe('AC-071: a rule outside the 4.11 subset is refused', () => {
     const { author, folderId, dueDate } = await stage()
     const before = await countRows(
       app.db,
-      sql`SELECT id FROM tasks WHERE folder_id = ${folderId}::uuid`,
+      sql`SELECT count(*)::int AS n FROM tasks WHERE folder_id = ${folderId}::uuid`,
     )
     const response = await createTask(author, {
       title: 'p6 ac071 named field',
@@ -244,9 +244,9 @@ describe('AC-071: a rule outside the 4.11 subset is refused', () => {
     expect(
       await countRows(
         app.db,
-        sql`SELECT id FROM tasks WHERE folder_id = ${folderId}::uuid`,
+        sql`SELECT count(*)::int AS n FROM tasks WHERE folder_id = ${folderId}::uuid`,
       ),
-      'a refused create writes no task at all',
+      'a refused create writes no task at all: 7.0 makes 422 a validation failure, so the row must not exist and be reported missing but never exist and be reported refused',
     ).toBe(before)
   })
 
