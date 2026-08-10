@@ -213,6 +213,8 @@ is what actually adjudicated the package.
 | 8 | Q3C's virtual arm, fetched separately rather than filtered from the real rows | 05 | Unattended | Done, escalated |
 | 9 | Both escalated defects repaired, the count helper made to fail loudly, the coverage table refreshed | 11 | Testers | Done |
 | 10 | Shape review: the envelope companions and the ghost pinned on the wire, the bullet asymmetry escalated | 04 | Review | Done, escalated |
+| 11 | Merge review: the owner's bullet ruling onto frozen 7.6, items 22 to 24, both disclosures ratified, verdict READY and held | 12 | Steward | Done |
+| 12 | Merged at 02f467f, green on both legs on the merge commit itself | 12 | Steward | Done |
 
 Rows 6 to 8 ran as the first grouped run: one dispatching chat launched each
 as an isolated sub-agent in sequence, so each derived its state from the
