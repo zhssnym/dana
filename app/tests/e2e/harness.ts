@@ -77,9 +77,9 @@ export const seedSubs = {
  * cookies in the browser context, so the page under test is authenticated
  * before its first load.
  */
-export async function signIn(page: Page, sub: string): Promise<void> {
+export async function signIn(page: Page, sub: string, name?: string): Promise<void> {
   const response = await page.request.post('/api/v1/auth/dev-login', {
-    data: { sub },
+    data: name === undefined ? { sub } : { sub, name },
   })
   expect(
     response.status(),
@@ -341,6 +341,45 @@ export function floatingAddButton(page: Page): Locator {
  */
 export function textInputs(page: Page): Locator {
   return page.getByRole('textbox').filter({ hasNotText: /search/i })
+}
+
+/**
+ * One task row, addressed by the accessible grouping role a list of rows
+ * carries and by the title it shows.
+ *
+ * Section 9 calls these rows and enumerates what is in one (9.4's row
+ * elements), so a row is a real thing in the specification rather than a
+ * div this suite is guessing at; what section 9 leaves free is whether the
+ * page builds its list as a list or as a grid, so both accessible shapes
+ * are admitted and nothing else is. The title is content, not markup.
+ */
+export function taskRow(page: Page, title: string): Locator {
+  return page.getByRole('listitem').or(page.getByRole('row')).filter({ hasText: title })
+}
+
+/**
+ * The names of the options one of 9.3's pickers offers, whatever it is
+ * built from. Dispatches on the element for the reason `chooseOption` does.
+ */
+export async function optionLabels(page: Page, field: Locator): Promise<string[]> {
+  const tag = await field.evaluate((element) =>
+    String((element as unknown as { tagName?: string }).tagName ?? '').toLowerCase(),
+  )
+  if (tag === 'select') {
+    return field.evaluate((element) => {
+      const select = element as unknown as {
+        options: Iterable<{ textContent: string | null }>
+      }
+      const out: string[] = []
+      for (const option of select.options) {
+        out.push((option.textContent ?? '').replace(/\s+/g, ' ').trim())
+      }
+      return out
+    })
+  }
+  await field.click()
+  const texts = await page.getByRole('option').allTextContents()
+  return texts.map((text) => text.replace(/\s+/g, ' ').trim())
 }
 
 /**
