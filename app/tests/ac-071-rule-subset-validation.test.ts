@@ -202,7 +202,7 @@ describe('AC-071: a rule outside the 4.11 subset is refused', () => {
     }
     expect(
       answered,
-      '7.6 gives PATCH the same rule as the create body: a rule set on a task must parse within the 4.11 subset',
+      '4.11 requires the subset revalidated server-side and scopes that to no single endpoint, and 7.11 makes every 10.3 input limit server-authoritative. A PATCH that stored what the create body refuses would put a rule in the column by the back door',
     ).toEqual([])
 
     const row = await requireTaskRow(app.db, task.id)
