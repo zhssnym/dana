@@ -62,6 +62,24 @@ def clear_due_date(task):                 # inside PATCH when due_date := null
 
 One transaction with the PATCH itself. The client shows a warning first when a rule or reminder exists: "Clearing the date also ends the repeat and removes the reminder." The database checks of 4.5 make the ordering unskippable.
 
+**The same cascade, one size down: a PATCH that invalidates the reminder's mode deletes the reminder.** 4.8 makes which mode is legal depend on the task's due_time, offset requiring it and time_of_day requiring its absence, and calls that rule cross-table and enforced by the API. Two PATCH edits move due_time across that line and each leaves a pair 4.8 calls illegal, so both delete the row, in the same transaction as the edit and by the rule this section already states one size up:
+
+```
+def clear_due_time(task):                 # inside PATCH when due_time := null
+    task.due_time = null
+    delete reminder where task_id = task.id and offset_minutes is not null
+
+def set_due_time(task, t):                # inside PATCH when due_time := non-null from null
+    task.due_time = t
+    delete reminder where task_id = task.id and time_of_day is not null
+```
+
+The first arm was escalated by the P7 engine session, which found it the one live route to a shape 8.6 cannot compute at all: the offset arm reads `datetime(task.due_date, task.due_time)` and there is no due_time to read. The human owner ruled it on 2026-08-10, taking the cascade over the two alternatives on grounds this section is the natural home for. Clearing the date already deletes the reminder, so clearing the time is that action's smaller sibling and the two read as one policy rather than two. Refusing with 422 would block an edit the user is entitled to make, over a row they may have forgotten setting. And converting the mode is the only option that silently changes when a reminder fires, by inventing a time of day nobody chose.
+
+The second arm is the mirror and is ruled here, at the P7 change control of 2026-08-10, on the same grounds turned around. It differs in one way that is worth stating rather than hiding: this shape computes. 8.6's date-only arm reads the reminder's own time_of_day and never touches the task's, so the row would go on firing correctly, and only 4.8's mode rule makes the pair illegal. It cascades anyway, for three reasons. The pair is one 4.8 says the API must not permit, and a task write that creates a shape the schema section forbids is incoherent whether or not the arithmetic survives it. 9.3 switches the reminder control's mode with due_time, so the form would show an offset picker over a row holding a wall time, a reminder the interface cannot render or edit. And every alternative here is the one already rejected on the other arm: refusing blocks a legitimate edit, and converting invents an offset nobody chose. Ruling both together is what makes this one rule rather than three, covering the date clear above, the time clear, and the time set.
+
+Two consequences for the implementing call site, recorded so it does not derive them. The delete precedes any recompute rather than following it: the recompute callable throws on a shape it cannot compute, which is correct as a backstop and wrong as a live path, and after the delete there is no row to recompute. And a due_time that moves from one time to another, rather than across the null boundary, invalidates no mode and cascades nothing; it is the ordinary recompute trigger 8.6 lists and AC-151 pins.
+
 ### 8.5 Recurrence
 
 **Evaluation.** A rule string is always evaluated with DTSTART = the current occurrence's due_date (at due_time or 00:00). nextInstance(rule, anchor, after) returns the earliest rule instance whose date is strictly after the date "after", or null when UNTIL bounds it out. UNTIL is inclusive per RFC 5545: an instance equal to UNTIL is valid; the next one is not.
