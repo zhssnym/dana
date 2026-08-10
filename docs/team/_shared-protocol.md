@@ -42,7 +42,7 @@ Work is done when all of the following hold. Not four of five.
 
 1. The behavior matches the numbered spec sections you own.
 2. The acceptance criteria assigned to your package pass, by their numbers, in `app/tests/`.
-3. `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all pass, in that order, the same order CI runs them.
+3. Every step CI runs passes, in CI's order, and CI's workflow is the authority on what that set is rather than this list. Four of them have held for every package written so far: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. A package whose acceptance criteria run in a leg those four never reach owes that leg too, and P8's browser criteria are the first, because a session that runs four commands, sees green and reports done while numbered criteria sit unrun in a leg it never invoked has produced exactly the false green point 4 below forbids.
 4. Nothing outside your owned paths changed, except sanctioned dependency additions.
 5. Any deviation from the spec is recorded in the specification with its reasoning.
 
