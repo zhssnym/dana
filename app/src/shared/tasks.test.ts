@@ -75,7 +75,7 @@ describe('postTasksBody (7.6: the create body, 10.3: the limits)', () => {
     }
   })
 
-  test('strips the two arms P6 and P7 own rather than refusing them', () => {
+  test('keeps the rule P6 validates and still strips the arm P7 owns', () => {
     const result = postTasksBody.safeParse({
       title: 'Water the plants',
       due_date: '2026-08-20',
@@ -84,12 +84,16 @@ describe('postTasksBody (7.6: the create body, 10.3: the limits)', () => {
     })
     expect(
       result.success,
-      'at P3 both fall to 7.0\'s tolerated-unknown rule (RFC 0001 P3 row)',
+      'P6 delivers the 4.11 validator, so the rule is a field of the body rather than an unknown one',
     ).toBe(true)
     if (result.success) {
-      expect(result.data).toEqual({
+      expect(
+        result.data,
+        'reminder still falls to 7.0\'s tolerated-unknown rule, waiting on the 8.6 fire instant (RFC 0001 P7 row)',
+      ).toEqual({
         title: 'Water the plants',
         due_date: '2026-08-20',
+        recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
       })
     }
   })
@@ -195,6 +199,33 @@ describe('postTasksBody (7.6: the create body, 10.3: the limits)', () => {
     }
   })
 
+  test('refuses a recurrence_rule with no due_date, naming the field', () => {
+    const result = postTasksBody.safeParse({
+      title: 'Repeating and undated',
+      recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+    })
+    expect(
+      result.success,
+      '7.6 lists recurrence_rule among the fields that require due_date, and 4.5 backs it with a CHECK',
+    ).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['recurrence_rule'])
+      expect(result.error.issues[0]?.message).toContain('due_date')
+    }
+    expect(
+      postTasksBody.safeParse({
+        title: 'Cleared and repeating',
+        due_date: null,
+        recurrence_rule: 'FREQ=DAILY',
+      }).success,
+      'a null date sets no date, so it cannot carry a rule either',
+    ).toBe(false)
+    expect(
+      postTasksBody.safeParse({ title: 'Plain', recurrence_rule: null }).success,
+      'a null rule demands nothing of the date',
+    ).toBe(true)
+  })
+
   test('caps steps at 10.3\'s fifty and checks each title (AC-043)', () => {
     const titles = (count: number): string[] =>
       Array.from({ length: count }, (_unused, index) => `step ${String(index)}`)
@@ -289,6 +320,7 @@ describe('patchTaskBody (7.6: only present fields change)', () => {
       { notes: null },
       { due_date: null },
       { due_time: null },
+      { recurrence_rule: null },
       { assignee_id: null },
     ]) {
       expect(
@@ -328,6 +360,39 @@ describe('patchTaskBody (7.6: only present fields change)', () => {
       patchTaskBody.safeParse({ due_time: '08:00' }).success,
       'legal against a dated task and refused against an undated one, which needs the row (7.11)',
     ).toBe(true)
+    expect(
+      patchTaskBody.safeParse({ recurrence_rule: 'FREQ=DAILY' }).success,
+      '7.6\'s "requires due_date" on a rule is the same shape of rule, and only the row can say which case this is',
+    ).toBe(true)
+  })
+
+  test('refuses a body that clears the date and sets a rule', () => {
+    const result = patchTaskBody.safeParse({
+      due_date: null,
+      recurrence_rule: 'FREQ=DAILY',
+    })
+    expect(
+      result.success,
+      '8.4 nulls recurrence_rule on the clear, and 4.5\'s CHECK forbids the row this body asks for',
+    ).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['recurrence_rule'])
+    }
+    expect(
+      patchTaskBody.safeParse({ due_date: null, recurrence_rule: null }).success,
+      'clearing both is the cascade stated twice, not a contradiction',
+    ).toBe(true)
+    expect(
+      patchTaskBody.safeParse({
+        due_date: '2026-08-20',
+        recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+      }).success,
+      '7.6: a date and a rule together are how the dependency is satisfied on a task that had no date',
+    ).toBe(true)
+    expect(
+      patchTaskBody.safeParse({ recurrence_rule: null }).success,
+      '7.6: setting the rule null ends the series and the row stays a normal task',
+    ).toBe(true)
   })
 
   test('strips status, which is why carriesStatus exists (AC-034)', () => {
@@ -346,6 +411,124 @@ describe('patchTaskBody (7.6: only present fields change)', () => {
     expect(patchTaskBody.safeParse({ assignee_id: someUuid }).success).toBe(true)
     expect(patchTaskBody.safeParse({ folder_id: 'f1' }).success).toBe(false)
     expect(patchTaskBody.safeParse({ assignee_id: 42 }).success).toBe(false)
+  })
+})
+
+/*
+The recurrence_rule arm, on both write bodies at once, because 4.11 requires
+the subset revalidated server-side and scopes that to no single endpoint: a
+PATCH that stored what the create refuses would put free-form input in the
+column by the back door.
+
+The grammar itself is shared/recurrence.test.ts's subject and is not restated
+here. What these check is the wiring: that the primitive holds both of the two
+bounds 4.5 and 4.11 state, that the 4.11 refusal reaches a caller as a field
+error rather than as a type error, and that the accepted subset is accepted,
+which is the half a validator written only to the refusals passes while being
+useless.
+*/
+describe('recurrenceRule on both 7.6 write bodies (4.11, 4.5, 10.3)', () => {
+  const dated = (recurrence_rule: unknown): unknown => ({
+    title: 'Repeating',
+    due_date: '2026-08-20',
+    recurrence_rule,
+  })
+
+  test('accepts the 4.11 subset unchanged, on create and on PATCH', () => {
+    for (const rule of [
+      'FREQ=DAILY',
+      'FREQ=DAILY;INTERVAL=99',
+      'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+      'FREQ=WEEKLY;INTERVAL=2;BYDAY=WE',
+      'FREQ=MONTHLY;BYMONTHDAY=28',
+      'FREQ=YEARLY',
+      'FREQ=WEEKLY;BYDAY=MO;UNTIL=20260831',
+    ]) {
+      const created = postTasksBody.safeParse(dated(rule))
+      expect(created.success, `${rule} is inside the 4.11 subset`).toBe(true)
+      if (created.success) {
+        expect(
+          created.data.recurrence_rule,
+          '4.11 admits only preset-builder strings, so an accepted rule is already canonical and nothing normalizes it',
+        ).toBe(rule)
+      }
+      expect(
+        patchTaskBody.safeParse({ recurrence_rule: rule }).success,
+        `${rule} is the same subset on the PATCH body`,
+      ).toBe(true)
+    }
+  })
+
+  test('refuses what 4.11 excludes, on create and on PATCH alike', () => {
+    for (const rule of [
+      'FREQ=DAILY;COUNT=5',
+      'FREQ=MONTHLY;BYMONTHDAY=29',
+      'FREQ=MONTHLY;BYMONTHDAY=31',
+      'FREQ=HOURLY',
+      'FREQ=WEEKLY;INTERVAL=0',
+      'FREQ=WEEKLY;INTERVAL=100',
+      'FREQ=DAILY;BYDAY=MO',
+      'FREQ=WEEKLY;BYMONTHDAY=5',
+      'FREQ=WEEKLY;BYDAY=XX',
+      'FREQ=WEEKLY;BYDAY=MO;BYSETPOS=1',
+      'FREQ=WEEKLY;BYDAY=MO;UNTIL=2026-08-31',
+      'BYDAY=MO',
+      'every monday',
+      '',
+    ]) {
+      expect(
+        postTasksBody.safeParse(dated(rule)).success,
+        `${JSON.stringify(rule)} is outside the 4.11 subset (AC-071)`,
+      ).toBe(false)
+      expect(
+        patchTaskBody.safeParse({ recurrence_rule: rule }).success,
+        `${JSON.stringify(rule)} is outside it on the PATCH body too`,
+      ).toBe(false)
+    }
+  })
+
+  test('names the field and says which part of the subset was left', () => {
+    const result = postTasksBody.safeParse(dated('FREQ=DAILY;COUNT=5'))
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues[0]?.path,
+        '10.3: the 422 names the field it refused',
+      ).toEqual(['recurrence_rule'])
+      expect(
+        result.error.issues[0]?.message,
+        'the grammar\'s reason is written in 4.11\'s terms for exactly this body',
+      ).toContain('COUNT')
+    }
+  })
+
+  test('holds 4.5\'s 200 characters as well as the grammar', () => {
+    // Legal in grammar, illegal in length: BYDAY is a list, so a rule can
+    // repeat days until it outgrows the column while still parsing.
+    const long = `FREQ=WEEKLY;BYDAY=${'MO,TU,WE,TH,FR,SA,SU,'.repeat(12)}MO`
+    expect(long.length).toBeGreaterThan(200)
+    const result = postTasksBody.safeParse(dated(long))
+    expect(
+      result.success,
+      '4.5 bounds the column at 200 and 10.3 makes it a server-enforced limit, so the grammar alone is not enough',
+    ).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['recurrence_rule'])
+      expect(result.error.issues[0]?.message).toContain('200')
+    }
+  })
+
+  test('answers a wrong-typed rule as a field error, never as a body error', () => {
+    for (const value of [5, true, ['FREQ=DAILY'], { freq: 'DAILY' }]) {
+      const result = postTasksBody.safeParse(dated(value))
+      expect(
+        result.success,
+        `7.0: on a parsed object a wrong type is a validation failure naming the field; sent ${JSON.stringify(value)}`,
+      ).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.path).toEqual(['recurrence_rule'])
+      }
+    }
   })
 })
 

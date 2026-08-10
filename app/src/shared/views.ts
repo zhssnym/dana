@@ -496,16 +496,41 @@ export const completedDay = z.object({
 export type CompletedDay = z.infer<typeof completedDay>
 
 /*
-Q3C's ghosts, the five fields 7.10 enumerates. The array is empty through P4:
-what draws in it is 8.5's projection over the 4.11 iterator that 11.9 gives to
-02-scheduling-and-time.md and P6 delivers, and AC-082 pins it in P6's range.
-The shape is declared now for the reason P3 declared recurrence_rule and
-reminder while their computations were deferred: the key is frozen 7.10's, so
-a client can rely on it, and P6 fills a shape rather than inventing one.
+Q3C's ghosts, the five fields 7.10 enumerates. The array was empty from P4
+until P6: what draws in it is 8.5's projection over the 4.11 iterator that
+11.9 gives to 02-scheduling-and-time.md and P6 delivered, and AC-082 pins it
+in P6's range. The shape was declared ahead of that for the reason P3 declared
+recurrence_rule and reminder while their computations were deferred: the key
+is frozen 7.10's, so a client can rely on it, and P6 filled a shape rather
+than inventing one.
 
 A ghost is not a TaskCard and 7.10 does not make it one: it carries no status,
 no counts and no assignee, because an instance that does not exist yet has
 none of them. due_time is the parent's and is null for an all-day rule.
+
+The P6 shape review measured the filled array against this element on the
+wire, in src/server/http/views-contract.test.ts, which is the first time these
+five keys were anything but a promise: a key list nothing has ever filled
+cannot drift, and the moment it fills is the moment the check is worth
+running. What it confirmed, beyond the keys and their order-free equality, is
+the one value a reader might expect to be synthesized: task_id is the current
+occurrence's own row id, because Q3C says clicking a ghost opens that
+occurrence, so an id minted per instance would name nothing this API can
+answer for.
+
+One property of this body changed in fact at P6 and is disclosed rather than
+fixed, because fixing it would mean changing frozen 7.10. The response is
+bounded by its 62 days and by nothing else: 7.10 gives it neither a cap nor
+the truncated flag every capped body carries, which is the P4 reading recorded
+at the top of this file, and the ghosts multiply that bound by the number of
+accessible pending rule-carrying tasks rather than adding to it. While the
+array answered empty the bound was the real rows alone; it is now up to 62
+elements per series. Nothing in 10.3 is violated, its list cap being the rule
+this body was read as standing outside, and no shape here can report a
+truncation the frozen body has no key for. It is named here so the next reader
+of this file finds the property stated rather than deducing it from an
+unbounded array, and so a decision to bound it is taken as an amendment to
+7.10 rather than as an implementation detail.
 */
 export const virtualInstance = z.object({
   task_id: z.uuid(),

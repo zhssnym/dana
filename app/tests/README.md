@@ -21,14 +21,16 @@ npx vitest run -t "AC-105"
 | P2 gate | AC-116 to AC-118 | Covered, passing since the P2 merge |
 | P2S | AC-119 to AC-123 | Covered, passing since the P2S merge |
 | P3 | AC-025 to AC-044 | Covered, passing since the tasks router was mounted |
-| P3 gate | AC-124 | Covered; three arms green since their repairs, the acceptance arm red until P5 mounts its surfaces (the kickoff ruling of 2026-08-09, see below) |
+| P3 gate | AC-124 | Covered, passing; three arms green since their repairs and the fourth, the 8.7 acceptance arm of the 2026-08-09 kickoff ruling, since P5 mounted its surfaces |
 | P4 | AC-045 to AC-058, AC-070 | Covered, passing since the 7.8 tz repair and the P4 merge |
 | P4 gate | AC-125 to AC-131 | Covered, passing; numbered by the section 12 amendments of 2026-08-07 |
 | P4 gate | AC-132 | Covered, passing since the same repair; written red by design, green once the implementer's session followed the tester's |
-| P5 | AC-059 to AC-069 | Covered, red on the unmounted 7.5 and 7.3 routes until the package lands, the designed order |
-| P5 gate | AC-133 to AC-140 | Covered, red by design; proposed here with their tests and numbered by the section 12 amendment of 2026-08-09, the six 8.10 files failing against the P1 stub on its missing steps 1 to 6 |
-| P5 gate | AC-141 | Covered, red on the unmounted POST /invites; appended by the same date's amendment from the owner's ruling rather than proposed here |
-| P6 to P10 | AC-071 to AC-104 | Not yet written |
+| P5 | AC-059 to AC-069 | Covered, passing since the P5 merge; written red against the unmounted 7.5 and 7.3 routes, the designed order |
+| P5 gate | AC-133 to AC-140 | Covered, passing since the P5 merge; proposed here with their tests and numbered by the section 12 amendment of 2026-08-09, written red against the P1 stub's missing 8.10 steps 1 to 6 |
+| P5 gate | AC-141 | Covered, passing since the P5 merge; appended by the same date's amendment from the owner's ruling rather than proposed here |
+| P6 | AC-071 to AC-082 | Covered, passing since the grammar reached 7.6's write bodies, generation and G-SERIES reached the transition seams, and Q3C's virtual arm got its own fetch; written red before any of it existed |
+| P6 gate | AC-142, AC-143 | Covered, passing since the same four commits; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
+| P7 to P10 | AC-083 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -282,9 +284,9 @@ both.
 
 P5's range, AC-059 to AC-069, covers frozen 7.5 and 7.3 and the 8.7 flows
 as amended at the package kickoff of 2026-08-09, written before the
-implementation per the RFC 0001 P5 row, so every file fails today on the
-invite and connection routes answering 404, the designed order. Five
-things those files are written around.
+implementation per the RFC 0001 P5 row, so every file failed on the invite
+and connection routes answering 404 until the package landed, the designed
+order. Five things those files are written around.
 
 - **Two kickoff readings are load-bearing.** The indirect path's wire
   surface is POST /invites carrying folder_id and task_id, V-INV's
@@ -346,6 +348,97 @@ discriminator is what the file is built around: the same email answers 409
 bare and runs AC-061's conversion with a folder attached, so both arms are
 asserted in one file against one roster, and neither can be satisfied by an
 endpoint that simply refuses or simply converts everything.
+
+P6's range, AC-071 to AC-082, covers the 4.11 subset on frozen 7.6's two
+write bodies, 8.5's generation and projection, and 5.1's G-SERIES guard,
+written before the implementation per the RFC 0001 P6 row and passing since
+it landed. Its layer is `recurrence-harness.ts`. Five things those files are
+written around.
+
+- **Rules are seeded and transitions are requested.** No API attached a
+  recurrence_rule until this package's schema arm landed, so every fixture
+  creates its task through POST /tasks and then writes the rule with the P3
+  harness's `seedRecurrence`. Without that split each generation criterion
+  would have failed on a validator rather than on the engine it is about, and
+  the split still earns its keep now that both exist: a generation failure
+  stays attributable to generation. AC-071 is the exception and the reason
+  the exception is safe: it is the criterion that asserts the write path, so
+  it sends rules through both bodies.
+- **Four criteria are asserted by their content, not at their dates.** The
+  section 12 ruling of 2026-08-10 covers AC-072 to AC-075, the AC-046 and
+  AC-050 treatment from P4: each computes today in the midday zone, dates its
+  occurrence relative to it, and builds a weekly rule on that date's own
+  weekday. That mapping is one function in the harness with a unit test of
+  its own, because a wrong weekday would fail four criteria in the engine's
+  name. AC-082 is outside the ruling and runs literally at July 2026, on the
+  six-week grid 9.5 fixed at the same change control after this range
+  escalated the silence; its range constants already spelled those six weeks.
+- **UNTIL is written in RFC 5545's DATE form, YYYYMMDD.** These files derived
+  it from frozen 4.11, which calls the column an RFC 5545 RRULE value string
+  and UNTIL "a date, inclusive per RFC 5545", and escalated it as the one
+  piece of the grammar the suite spells rather than quotes, since the grammar
+  module would otherwise derive it separately and could derive it
+  differently. 11.9 records the reading at the P6 change control of
+  2026-08-10, as a reading of frozen 4.11 rather than a change to it, and it
+  is the form these files already used.
+- **The criteria that assert an absence run a positive control first.**
+  AC-078 and AC-082 both assert that something does not happen, and nothing
+  happening was also what a branch with no engine did: the 7.10 virtual array
+  answered empty from P4 until this package filled it. Eight of AC-082's ten
+  cases and four of AC-078's six passed on arrival for that reason, which is
+  why the controls are there and why they stay: they are what makes each of
+  those cases discriminate now. AC-082 requires the
+  2026-08-03 ghost in the same response before asserting any date is empty,
+  and AC-078 completes an unbounded occurrence through the same call, which
+  must generate and must move its rule.
+- **AC-077 is a real race, and its header says what each leg proves.** Both
+  completes are issued under Promise.all. Each transition is one transaction,
+  so on PGlite the pair queues and on CI's postgres:18 leg it overlaps; the
+  assertions are the criterion's own outcome, one successor and one
+  completed_by, which both legs satisfy identically. Asserting that an
+  overlap was observed would be a false red about the backend.
+
+Two defects in these files were found by the implementer sessions rather than
+by the suite, escalated rather than edited, and repaired here. Both are worth
+keeping because neither was a wrong expectation about the specification.
+
+- **A shared helper answered NaN and nobody saw it.** `countRows` reads one
+  column named n, the `count(*)::int AS n` contract all forty-six call sites
+  in the suite were written to, and three P6 sites passed `SELECT id`
+  instead. One met `.toBe(0)` and failed visibly. The other two compared a
+  count before an operation against the count after: NaN on both sides,
+  `toBe` uses `Object.is`, and `Object.is(NaN, NaN)` is true, so AC-071's "a
+  refused create writes no task at all" passed while reading no count at all.
+  A vacuous green is worse than a red because nothing reports it. The call
+  sites carry the contract now, `countRows` asserts it rather than returning
+  NaN, and `folders-harness.test.ts` guards both halves.
+- **AC-080's third companion asserted the wrong outcome.** It expected 409
+  where 5.1's first branch requires 200. Reopening the newest row of a series
+  puts a pending sibling back into it, and "S exists: allowed" carries no
+  positional condition, so the sibling is what admits the older row's
+  un-complete rather than a second reason to refuse it. That file's own
+  header had already reasoned exactly this, three paragraphs above the
+  assertion contradicting it. The companion now walks one series through all
+  three branches in order, refused, reopened, then admitted, and asserts the
+  first branch's full effect: S deleted, its rule copied back, the older row
+  pending again, reaching across the completed middle row to do it.
+
+AC-142 and AC-143 were proposed here with their tests and numbered by the
+Steward's section 12 amendment of 2026-08-10, the AC-125 and AC-133
+precedent; both criteria are section 12's own text now, taken whole from
+these two file headers, so no assertion in either file moved when they were
+numbered. AC-142 pins the cutoff's zone: the owner ruled on 2026-08-10 that
+complete and abandon take tz and frozen 7.6 carries it, and nothing numbered
+touched any of it, which was AC-132's hole one package later and with worse
+arithmetic, since every criterion in this range is satisfiable from the wrong
+zone for part of every day. Its discriminator is AC-132's, two zones exactly
+a day apart, and no single stored or process or database clock can date both
+successors. AC-143 is the surface the RFC 0001 P6 row routed to this session
+to judge: Q3C projects for every accessible pending rule-carrying series,
+including one whose current occurrence falls before the range, and nothing
+asserted that scope while AC-082's own series sits inside its range, so an
+implementation projecting off the range-bounded real rows passed the whole
+existing suite and emptied every month-ahead view.
 
 ## The two amendments these tests read closely
 

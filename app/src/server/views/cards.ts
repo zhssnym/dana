@@ -41,7 +41,10 @@ import type { Executor } from '../domain/db.js'
  * Serialization
  * ------------------------------------------------------------------ */
 
-function nullableString(value: unknown): string | null {
+/** A nullable text column as 7.0 puts it on the wire. Exported because Q3C's
+ * ghosts carry three of the same values a card carries and must read them the
+ * same way; a second copy is a second answer for an empty string. */
+export function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
@@ -52,8 +55,8 @@ string while node-postgres parses OID 1082 into a JS Date, which would
 serialize as an instant and reintroduce the timezone 4.11's floating format
 exists to remove.
 */
-const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
-const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
+export const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
+export const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
 /**
  * An instant rendered in UTC at the precision Postgres stores it, which is
@@ -136,12 +139,28 @@ const CARD_COLUMNS = sql`
     t.created_at, t.updated_at`
 
 /**
- * The FROM clause of every query in this package.
+ * ACCESSIBLE(V) as a FROM clause, and the 10.2 chokepoint of this package.
  *
- * The join on folder_members is ACCESSIBLE(V) and is the 10.2 chokepoint:
- * it is not a condition a query adds but the table it reads through, so a
+ * It is not a condition a query adds but the table it reads through, so a
  * query written here cannot forget it. domain/folders.ts's accessOf answers
  * the same question for one folder, and the folder page asks it there.
+ *
+ * Separate from cardSource below because Q3C's projection fetch reads the
+ * same accessible rows and needs none of the card's five joins: it wants six
+ * columns of `tasks` for 8.5 to evaluate, and paying for a lateral step count
+ * per series to throw it away would be a cost with no reader. Written once so
+ * the second query cannot scope itself differently from the first.
+ */
+export function accessibleTasks(viewerId: string): SQL {
+  return sql`
+    FROM tasks t
+    JOIN folder_members m
+      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}`
+}
+
+/**
+ * The FROM clause of every card query in this package, the chokepoint above
+ * plus the four joins a 7.0 card is assembled from.
  *
  * The My Day entry is joined rather than probed by EXISTS because two things
  * need it: pulled, which 7.0 makes a field of the card, and added_on, which
@@ -149,10 +168,7 @@ const CARD_COLUMNS = sql`
  * primary key makes it at most one row.
  */
 export function cardSource(viewerId: string): SQL {
-  return sql`
-    FROM tasks t
-    JOIN folder_members m
-      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+  return sql`${accessibleTasks(viewerId)}
     JOIN folders f ON f.id = t.folder_id
     LEFT JOIN users a ON a.id = t.assignee_id
     LEFT JOIN my_day_entries e
