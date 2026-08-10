@@ -50,9 +50,13 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  TEST_TIMEOUT_MS,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** The fifteenth of next month, the empty cell the calendar case clicks. */
 const CELL_DATE = `${firstOfMonth(1).slice(0, 8)}15`

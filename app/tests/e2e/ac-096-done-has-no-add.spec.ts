@@ -37,11 +37,21 @@ Spec: 9.1 (the floating add button and the quick-add row), 9.5 (Done), 6 Q6,
 */
 import { expect, test } from '@playwright/test'
 
-import { floatingAddButton, routes, seedSubs, signIn, textInputs } from './harness.js'
+import {
+  floatingAddButton,
+  routes,
+  seedSubs,
+  signIn,
+  TEST_TIMEOUT_MS,
+  textInputs,
+} from './harness.js'
 
 // The seed's dated rows are UTC dates and the client reports the browser's
 // zone as tz; Done reads completed_at in that zone (Q6).
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)

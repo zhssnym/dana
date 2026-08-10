@@ -42,11 +42,15 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  TEST_TIMEOUT_MS,
   textInputs,
   transition,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
   test('AC-157: completing a task another member abandoned shows 5.1\'s copy', async ({
@@ -99,7 +103,11 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
     await page.goto(routes.tasks)
-    await expect(taskRow(page, title)).toBeVisible()
+    await expect(
+      taskRow(page, title),
+      'the row is on the page and pending, which is the state this client still believes in ' +
+        'when it sends the request below',
+    ).toBeVisible()
 
     const otherContext = await browser.newContext()
     const otherPage = await otherContext.newPage()

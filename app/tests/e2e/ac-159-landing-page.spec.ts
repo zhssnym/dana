@@ -32,9 +32,15 @@ section 13 item 14, 11.1 (the server serves the landing page).
 */
 import { expect, test } from '@playwright/test'
 
-import { routes } from './harness.js'
+import {
+  routes,
+  TEST_TIMEOUT_MS,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /**
  * The claim 9.2 forbids, in the spellings a marketing sentence makes it in.

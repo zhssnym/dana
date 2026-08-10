@@ -37,9 +37,17 @@ Q8, 9.1's route table, 11.10.
 */
 import { expect, test } from '@playwright/test'
 
-import { emptyState, routes, signIn } from './harness.js'
+import {
+  emptyState,
+  routes,
+  signIn,
+  TEST_TIMEOUT_MS,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const EMPTY_SUB = 'ac-158-account-with-nothing-in-it'
 

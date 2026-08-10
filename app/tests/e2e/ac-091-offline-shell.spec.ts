@@ -48,10 +48,14 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  TEST_TIMEOUT_MS,
   textInputs,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 // Unique to this file, so "nothing queued" cannot be satisfied by a row
 // another spec happened not to create.

@@ -40,10 +40,14 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  TEST_TIMEOUT_MS,
   textInputs,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 interface Card {
   title: string
@@ -117,7 +121,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     const quickAdd = textInputs(page).first()
     await quickAdd.fill(title)
     await quickAdd.press('Enter')
-    await expect(taskRow(page, title)).toBeVisible()
+    await expect(
+      taskRow(page, title),
+      'spec 9.1: enter saves immediately, and 6 Q3 keeps the row on Planned only if it was ' +
+        'dated, which is what the assertion below reads from the server',
+    ).toBeVisible()
 
     const rows = await stored(page, title)
     const card = rows[0]

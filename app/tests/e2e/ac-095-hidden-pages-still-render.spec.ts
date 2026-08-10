@@ -35,9 +35,19 @@ fixed order and its route table), 7.2, 4.10, 6 Q4, Q5, Q6.
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
-import { csrfToken, routes, seedSubs, sidebarLink, signIn } from './harness.js'
+import {
+  csrfToken,
+  routes,
+  seedSubs,
+  sidebarLink,
+  signIn,
+  TEST_TIMEOUT_MS,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** The three pages 9.7 makes toggleable, with the row each one must show. */
 const TOGGLEABLE = [
@@ -130,7 +140,11 @@ test.describe('AC-095: hidden pages are a navigation preference', () => {
   test('AC-095: toggling a page back on returns it to the sidebar', async ({ page }) => {
     await setPages(page, { show_important: false, show_all: false, show_done: false })
     await page.goto(routes.myDay)
-    await expect(sidebarLink(page, 'Important')).toHaveCount(0)
+    await expect(
+      sidebarLink(page, 'Important'),
+      'spec 9.7: the page starts hidden here, which is the state the restoration below is ' +
+        'measured against',
+    ).toHaveCount(0)
 
     await setPages(page, { show_important: true, show_all: true, show_done: true })
     await page.goto(routes.myDay)

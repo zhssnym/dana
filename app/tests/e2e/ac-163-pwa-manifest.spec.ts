@@ -36,9 +36,15 @@ agree), 11.13 (the icons as committed artifacts), 11.4.
 */
 import { expect, test } from '@playwright/test'
 
-import { routes } from './harness.js'
+import {
+  routes,
+  TEST_TIMEOUT_MS,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 interface Manifest {
   name?: string

@@ -42,11 +42,15 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  TEST_TIMEOUT_MS,
   transition,
   watchWire,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const TOKEN = 'ac156token'
 const PENDING = `${TOKEN} pending row`
@@ -166,7 +170,11 @@ test.describe('AC-156 (proposed): the search overlay', () => {
     await page.goto(routes.myDay)
     await page.keyboard.press('Control+k')
     await searchInput(page).fill(TOKEN)
-    await expect(page.getByText(PENDING)).toBeVisible()
+    await expect(
+      page.getByText(PENDING),
+      'spec 9.9: the results are on screen before enter is pressed, so what enter opens is a ' +
+        'result rather than nothing',
+    ).toBeVisible()
     await page.keyboard.press('Enter')
 
     // Q8 sorts by status_rank first, so the pending row is the first result

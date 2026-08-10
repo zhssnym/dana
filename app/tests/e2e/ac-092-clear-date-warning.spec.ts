@@ -53,9 +53,13 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  TEST_TIMEOUT_MS,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const DEPENDENTS = ['due time', 'reminder', 'repeat'] as const
 
@@ -145,7 +149,10 @@ test.describe('AC-092: clearing the date in the task form', () => {
     await chooseOption(page, formField(page, 'repeat'), 'Daily')
 
     await dueDate.fill('')
-    await expect(page.getByText(copy.clearDateWarning)).toBeVisible()
+    await expect(
+      page.getByText(copy.clearDateWarning),
+      'spec 9.3: the warning precedes the clearing, so it is on the page to be declined',
+    ).toBeVisible()
     await page.getByRole('button', { name: /^(cancel|keep|no)$/i }).click()
 
     expect(

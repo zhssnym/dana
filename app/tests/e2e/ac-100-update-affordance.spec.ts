@@ -43,9 +43,13 @@ import {
   routes,
   seedSubs,
   signIn,
+  TEST_TIMEOUT_MS,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const MARK = 'ac-100 session mark'
 

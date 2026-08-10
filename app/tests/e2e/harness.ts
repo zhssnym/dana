@@ -51,6 +51,30 @@ import { seedIds } from '../../db/seed.js'
 
 export { seedIds }
 
+/**
+ * The per-test budget every spec in this leg declares, raised from
+ * Playwright's 30 second default in the spec files rather than in
+ * `playwright.config.ts`, which is Platform's.
+ *
+ * It is a property of the window this leg was written in, and it was
+ * measured rather than guessed: on the first whole run, 43 of 79 cases were
+ * reported as "Test timeout of 30000ms exceeded" and named nothing. Against
+ * a client that renders nothing, every locator assertion waits its full
+ * expect timeout before failing, so a case making several of them exhausts
+ * thirty seconds partway through and the report names the clock instead of
+ * the sentence. That is the same defect this suite's README records against
+ * the vitest leg's missing global timeout, and it costs the same thing: a
+ * red that does not say what it was measuring, arriving at the sessions
+ * whose job is to make it green.
+ *
+ * Raising the budget rather than shortening the per-assertion wait is
+ * deliberate. A shorter wait buys the same reports today and pays for them
+ * with a false red later, on a page that legitimately takes its time; a
+ * longer budget costs only wall clock, and only while the pages are
+ * missing, because a case that passes never approaches it.
+ */
+export const TEST_TIMEOUT_MS = 120_000
+
 /* ------------------------------------------------------------------ *
  * Sign-in (spec 11.10, 11.6)
  * ------------------------------------------------------------------ */

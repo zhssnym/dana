@@ -41,10 +41,14 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  TEST_TIMEOUT_MS,
   watchWire,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const PLAIN = 'ac-164 due today and not important'
 const STARRED = 'ac-164 due today and important'
@@ -69,8 +73,15 @@ test.describe('AC-164 (proposed): the important-only toggle is local', () => {
     })
 
     await page.goto(routes.myDay)
-    await expect(taskRow(page, PLAIN)).toBeVisible()
-    await expect(taskRow(page, STARRED)).toBeVisible()
+    await expect(
+      taskRow(page, PLAIN),
+      'spec 6 Q1: an unimportant task due today and assigned to the viewer is in the Today ' +
+        'group, which is the row the filter has to remove',
+    ).toBeVisible()
+    await expect(
+      taskRow(page, STARRED),
+      'spec 6 Q1: the important row is there too, which is the row the filter has to keep',
+    ).toBeVisible()
 
     const before = wire.viewCalls().length
     expect(
@@ -113,11 +124,17 @@ test.describe('AC-164 (proposed): the important-only toggle is local', () => {
     })
 
     await page.goto(routes.myDay)
-    await expect(taskRow(page, PLAIN)).toBeVisible()
+    await expect(
+      taskRow(page, PLAIN),
+      'spec 6 Q1: the row is on My Day before the filter hides it',
+    ).toBeVisible()
 
     const toggle = page.getByRole('switch', { name: /important/i })
     await toggle.click()
-    await expect(taskRow(page, PLAIN)).toHaveCount(0)
+    await expect(
+      taskRow(page, PLAIN),
+      'spec 6 Q1: the filter hid it, which is the state the restoration below is measured from',
+    ).toHaveCount(0)
 
     const before = wire.viewCalls().length
     await toggle.click()

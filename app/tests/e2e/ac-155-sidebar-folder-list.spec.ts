@@ -37,9 +37,18 @@ alone), 7.4 (the frozen order this one deliberately is not), 6 Q9.
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
-import { csrfToken, routes, seedSubs, signIn } from './harness.js'
+import {
+  csrfToken,
+  routes,
+  seedSubs,
+  signIn,
+  TEST_TIMEOUT_MS,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
+// Raised from Playwright's 30 second default so a red names its assertion
+// rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
+test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const LABELED = 'ac-155 labeled folder'
 const UNLABELED_EARLY = 'ac-155 alpha unlabeled'
