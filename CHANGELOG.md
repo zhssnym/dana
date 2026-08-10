@@ -10,6 +10,113 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **P7's mid-package change control, 2026-08-10, after the tester session.**
+  Six items, opened by the four findings that session raised. State re-derived
+  on this tree before ruling any of them: 179 files, 1341 tests, 68 failures,
+  every failure an assertion in the eighteen files the tester added, which
+  matches its own report exactly. Its four commits touched twenty-three files
+  and every one is under `app/tests/`.
+- **Frozen 7.9's PUT bullet takes a past-instant qualifier, by owner ruling of
+  2026-08-10 on the tester's finding.** The bullet said "state resets to
+  scheduled" without condition while 8.6 sets state = skipped when a recompute
+  lands in the past and never fires retroactively, and a PUT is a recompute
+  trigger by 8.6's own list, so both sentences governed the same call and
+  answered differently. Skipped wins and 7.9 takes the qualifier rather than
+  8.6 being amended. The grounds, verified through 8.6's loop rather than
+  reasoned from the two sentences: the poll selects state = 'scheduled' and
+  fire_at <= now() and skips only beyond six hours stale, so a scheduled row
+  with a past instant inside that window is delivered on the very next tick,
+  which is exactly the retroactive fire the same section forbids. Reading the
+  bullet literally does not merely disagree with 8.6, it makes 8.6's own rule
+  unreachable, and that is what settles which of the two texts is wrong. The
+  form is `d7c81eb`'s and not 7.5's, the distinction the P6 merge review
+  recorded: appending beside a bullet governs one that is already true, and
+  this one was not, so the changed span is exactly the untrue clause and
+  everything before it, "computes fire_at (section 8.6)" included, is
+  byte-identical. The DELETE bullet is untouched. One check the P6 precedent
+  requires comes out differently here and is recorded rather than waved past:
+  the old phrasing is quoted twice, in assertion messages in
+  `ac-148-reminder-upsert-state.test.ts`, where 7.6's bullet phrasing had
+  occurred exactly once. Both cases use future instants and stay correct, so
+  nothing goes red, and the quotations ride the tester return.
+- **AC-144 to AC-153 numbered, all ten taken whole and none declined, and
+  AC-154 added from this change control's own ruling.** They change no existing
+  number and so invalidate no criterion, which is what placed them with the
+  Steward rather than the human owner; AC-125, AC-133 and AC-142 are the
+  precedent for a batch authored on the branch and numbered additively.
+  AC-144 and AC-145 close section 13 item 25 the way its expectation named,
+  splitting AC-083 to AC-086's tzdb arithmetic from the two rules where the
+  standard has no answer. AC-146 to AC-150 close five of the six floor
+  surfaces the P7 row listed, the sixth being inside AC-089 where its own text
+  puts it. AC-151 to AC-153 come from the sentence that made that list a floor.
+  One wording change on transcription and only one: AC-148's instant is stated
+  as future, because the same change control qualified frozen 7.9 and an
+  unqualified "state returns to scheduled" would now be wrong for a past
+  instant; its test already uses future instants in both cases, so no
+  assertion moves and the two texts agree on arrival rather than meeting later.
+- **A delivered reminder is not revived by a timezone change, ruled into 8.6
+  and numbered AC-154.** The tester escalated the silence and asserted neither
+  reading: frozen 7.1 scopes PATCH /me's recompute to "scheduled reminders on
+  tasks assigned to V" and AC-086 says "scheduled fire_at values", while 8.6's
+  reset clause names no state it resets from, so a delivered row read the
+  second way returns to scheduled and the loop mails it again. The timezone
+  trigger takes the narrow reading and no frozen text moves, 7.1 having said
+  so all along where 8.6 merely did not restate it. The tester's recommended
+  ground, that a sent reminder is history, is deliberately not the ruling's,
+  because generalized to all five triggers it is wrong: the other four change
+  the occasion the reminder is about, its deadline through due_date or
+  due_time, its lead time through the reminder's own value or mode, or the
+  person owed it through assignee_id, and a user who pushes a deadline out a
+  week and then hears nothing has lost a reminder they can still see
+  configured on the task, which is why the reset names no starting state and
+  why frozen 7.7 scopes its due_date recompute to none either. A zone change
+  alters neither the deadline nor the recipient; it re-expresses an unchanged
+  occasion on a different wall clock, so reviving for it sends one person the
+  same reminder about the same deadline twice, which 8.6's at-least-once
+  tolerance covers as a crash artifact and never licenses as a design. Two
+  consequences are recorded rather than left to be re-derived three times:
+  skipped rows are outside the timezone trigger too, 7.1's scope taken at its
+  word and a narrow loss since a skipped instant is already past and the row
+  is recomputed by the next change to the task's own dates; and where one of
+  the other four does return a sent row to scheduled, fired_at is cleared with
+  the reset, so frozen 4.8's note that fired_at is set when state leaves
+  scheduled stays true of every row rather than of most of them. AC-154 is the
+  AC-124 and AC-141 shape, settled text quoted with only its test routed to
+  the Adversarial Test role, and it is worth a number because the wrong
+  implementation is the shorter one, is invisible in every other criterion,
+  and fails by mailing a real person a duplicate about a deadline that did not
+  move.
+- **The scheduler's test seam is ratified into 11.7 rather than routed to the
+  Platform session that has not yet run.** 11.7 makes the pass a plain
+  callable and frozen section 7 offers no endpoint that runs one, so it is the
+  acceptance suite's only way in and the delivery criteria could not otherwise
+  be written at all. Three things decide it. Section 11's text is the
+  Steward's change control and not Platform's, which that persona's own Owns
+  section states. The precedent is exact: 11.10 ratified options.notifications
+  when the same need appeared for observing sends. And routing it does not
+  defer the decision, it defers it to a session with more sunk cost, since
+  eighteen files already load the module and a different name makes every one
+  of them fail on a module-load assertion. What is fixed is only what the
+  suite must know in advance, the module path and deps of { dbClient,
+  notifications } reusing 11.10's own option names, both already determined by
+  that seam and by the scheduler directory Platform owns; the pass's
+  internals, transaction shape and return value stay that session's. The name
+  tolerance the tester wrote, `createReminderPass` or `runReminderPass`, is
+  kept rather than narrowed, because the harness accepts both so no drift is
+  possible in the suite and the choice is properly the implementer's. Recorded
+  with it: the seam is not an HTTP endpoint, which would widen frozen section
+  7 and which 11.7 contemplates only if hosting moves, and it is not a second
+  production path.
+- **11.9's closing DST sentence repaired, and item 25's coverage half closed.**
+  It said AC-083 to AC-086 pin both DST rules of 8.6. Before the tester session
+  that over-claimed, which item 25 recorded at the kickoff; after it, those
+  four pin the zone arithmetic and AC-144 and AC-145 pin the two policy rules,
+  one each and by name against the raw Luxon behaviors the same bullet
+  describes. The sentence now says so and keeps the history rather than
+  dropping it. Item 25 is marked closed on its coverage half alone: the
+  anti-oracle unit tests, the fixture rule and the Luxon-upgrade revisit
+  trigger are standing obligations, and the reason no oracle exists has not
+  altered.
 - **Package P7 of RFC 0001, reminders, kicked off on branch `p7-reminders` on
   2026-08-10.** The P7 row is traced into its session list in the form every
   package since P2 has carried, two kickoff questions are settled below, and
