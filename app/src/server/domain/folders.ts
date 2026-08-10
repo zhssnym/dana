@@ -237,13 +237,29 @@ export async function deleteFolder(
             FROM tasks WHERE folder_id = ${folderId}`,
       )
     )[0]
-    await tx.execute(sql`DELETE FROM folders WHERE id = ${folderId}`)
+    await deleteFolderRow(tx, folderId)
     return {
       tasks_open: Number(counts?.open ?? 0),
       tasks_completed: Number(counts?.completed ?? 0),
       tasks_abandoned: Number(counts?.abandoned ?? 0),
     }
   })
+}
+
+/** The whole of 8.8's deletion once the counts are taken: one statement, and
+ * the database's named cascades take memberships, tasks, and through tasks
+ * the steps, My Day entries, reminders, and the pending invites carrying the
+ * folder (5.2's folder-deleted row). It is a function rather than a line
+ * inside deleteFolder because 8.10 step 3 deletes folders too, and one
+ * sentence about what a folder deletion is should have one home.
+ *
+ * The executor rather than the handle: both callers already hold a
+ * transaction, and 8.8 and 8.10 alike are all-or-nothing. */
+export async function deleteFolderRow(
+  tx: Executor,
+  folderId: string,
+): Promise<void> {
+  await tx.execute(sql`DELETE FROM folders WHERE id = ${folderId}`)
 }
 
 /* ------------------------------------------------------------------ *
@@ -515,39 +531,58 @@ export async function removeMembership(
     if (options.transferOwnership) {
       await transferOwnership(tx, folderId, leaverId)
     }
-
-    await tx.execute(
-      sql`UPDATE tasks SET assignee_id = NULL, updated_at = now()
-          WHERE folder_id = ${folderId} AND assignee_id = ${leaverId}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM my_day_entries
-          WHERE user_id = ${leaverId}
-            AND task_id IN (SELECT id FROM tasks WHERE folder_id = ${folderId})`,
-    )
-    await tx.execute(
-      sql`DELETE FROM folder_members
-          WHERE folder_id = ${folderId} AND user_id = ${leaverId}`,
-    )
-
-    const remaining = await rowsOf(
-      tx,
-      sql`SELECT user_id FROM folder_members WHERE folder_id = ${folderId}`,
-    )
-    const only = remaining.length === 1 ? remaining[0] : undefined
-    if (only !== undefined) {
-      await tx.execute(
-        sql`UPDATE tasks SET assignee_id = ${String(only.user_id)}, updated_at = now()
-            WHERE folder_id = ${folderId} AND assignee_id IS NULL`,
-      )
-    }
+    await runRClean(tx, folderId, leaverId)
   })
+}
+
+/*
+R-CLEAN itself, taking the executor so its three callers share one
+implementation: member removal, leave, and 8.10 step 4, which the P5
+amendment records as "not new machinery but 5.3's R-CLEAN, run once per
+remaining membership by the deletion transaction". A second copy inside the
+account deletion module would be the thing AC-136 exists to catch, an
+implementation that revokes memberships without the cleanup, or sweeps My Day
+entries by user rather than by the folder's tasks.
+*/
+export async function runRClean(
+  tx: Executor,
+  folderId: string,
+  leaverId: string,
+): Promise<void> {
+  await tx.execute(
+    sql`UPDATE tasks SET assignee_id = NULL, updated_at = now()
+        WHERE folder_id = ${folderId} AND assignee_id = ${leaverId}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM my_day_entries
+        WHERE user_id = ${leaverId}
+          AND task_id IN (SELECT id FROM tasks WHERE folder_id = ${folderId})`,
+  )
+  await tx.execute(
+    sql`DELETE FROM folder_members
+        WHERE folder_id = ${folderId} AND user_id = ${leaverId}`,
+  )
+
+  const remaining = await rowsOf(
+    tx,
+    sql`SELECT user_id FROM folder_members WHERE folder_id = ${folderId}`,
+  )
+  const only = remaining.length === 1 ? remaining[0] : undefined
+  if (only !== undefined) {
+    await tx.execute(
+      sql`UPDATE tasks SET assignee_id = ${String(only.user_id)}, updated_at = now()
+          WHERE folder_id = ${folderId} AND assignee_id IS NULL`,
+    )
+  }
 }
 
 /** 8.9, both callers' rule: earliest folder_members.created_at, ties to
  * the lower user id; owner_id is the one thing that changes, the new
- * owner's membership row is untouched and role stays 'member'. */
-async function transferOwnership(
+ * owner's membership row is untouched and role stays 'member'.
+ *
+ * Exported for the second caller 8.9 names, the account deletion transaction
+ * of 8.10 step 2, which runs it inside the one transaction it owns. */
+export async function transferOwnership(
   tx: Executor,
   folderId: string,
   departingOwnerId: string,
