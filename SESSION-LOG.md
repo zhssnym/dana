@@ -197,3 +197,8 @@ ledger entry that was not its to annotate rather than reaching across. The
 Steward pass of row 12 was not independent of the three it reviewed, which the
 changelog records in full; the acceptance suite, authored earlier and elsewhere,
 is what actually adjudicated the package.
+
+## P6: recurrence engine (`p6-recurrence`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
