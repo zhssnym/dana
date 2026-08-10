@@ -35,8 +35,11 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   createTask,
   fieldValue,
+  fillControl,
   formField,
   routes,
   seedIds,
@@ -47,7 +50,7 @@ import {
   watchWire,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -86,7 +89,10 @@ test.describe('AC-156 (proposed): the search overlay', () => {
     ).toBeFocused()
     await page.keyboard.press('Escape')
 
-    await page.getByRole('button', { name: /search/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /search/i }),
+      'spec 9.1: the top bar carries a global search control, which 9.9 says opens the overlay',
+    )
     await expect(
       searchInput(page),
       'spec 9.1: the top-bar control opens it too, which is the path for a person who does ' +
@@ -137,7 +143,11 @@ test.describe('AC-156 (proposed): the search overlay', () => {
 
     await page.goto(routes.myDay)
     await page.keyboard.press('Control+k')
-    await searchInput(page).fill(TOKEN)
+    await fillControl(
+      searchInput(page),
+      TOKEN,
+      'spec 9.9: the overlay carries the input its results are typed into',
+    )
 
     for (const [heading, row] of [
       ['Pending', PENDING],
@@ -169,7 +179,11 @@ test.describe('AC-156 (proposed): the search overlay', () => {
 
     await page.goto(routes.myDay)
     await page.keyboard.press('Control+k')
-    await searchInput(page).fill(TOKEN)
+    await fillControl(
+      searchInput(page),
+      TOKEN,
+      'spec 9.9: the overlay carries the input its results are typed into',
+    )
     await expect(
       page.getByText(PENDING),
       'spec 9.9: the results are on screen before enter is pressed, so what enter opens is a ' +

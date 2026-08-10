@@ -37,6 +37,8 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   computedStyle,
   createTask,
   fieldValue,
@@ -49,7 +51,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -64,12 +66,18 @@ async function openNextMonthCalendar(page: Page): Promise<void> {
   await page.goto(routes.planned)
   // 9.5's mode toggle. The mode persists per user client-side, so this is
   // asserted into a known state rather than assumed to start in one.
-  await page.getByRole('button', { name: /^calendar$/i }).click()
+  await clickControl(
+    page.getByRole('button', { name: /^calendar$/i }),
+    'spec 9.5: Planned carries a mode toggle between list and calendar',
+  )
   await expect(
     page.getByRole('button', { name: /^next$/i }),
     'spec 9.5: the calendar carries previous, next and today controls',
   ).toBeVisible()
-  await page.getByRole('button', { name: /^next$/i }).click()
+  await clickControl(
+    page.getByRole('button', { name: /^next$/i }),
+    'spec 9.5: the calendar carries previous, next and today controls',
+  )
 }
 
 test.beforeEach(async ({ page }) => {
@@ -103,7 +111,11 @@ test.describe('AC-098: clicking a calendar ghost', () => {
         'copy is normative like all copy in section 9',
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
     expect(
       await fieldValue(formField(page, 'due date')),
       'spec 6 Q3C: a ghost is a projection and not a row, so what opens is the series\' ' +
@@ -129,7 +141,11 @@ test.describe('AC-098: clicking a calendar ghost', () => {
         'about it. A client showing the banner for every repeat passes AC-098 as written',
     ).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
     expect(
       await fieldValue(formField(page, 'due date')),
       'the same task opens either way, which is what makes the banner the only difference',

@@ -38,13 +38,15 @@ Q8, 9.1's route table, 11.10.
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   emptyState,
   routes,
   signIn,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -116,7 +118,10 @@ test.describe('AC-158 (proposed): the empty state of every page', () => {
     ).toHaveCount(0)
 
     await page.goto(routes.planned)
-    await page.getByRole('button', { name: /^calendar$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^calendar$/i }),
+      'spec 9.5: Planned carries a mode toggle between list and calendar',
+    )
     await expect(
       page.getByRole('gridcell').first(),
       'spec 6 Q3C: the empty state is the bare grid, so the grid is drawn',

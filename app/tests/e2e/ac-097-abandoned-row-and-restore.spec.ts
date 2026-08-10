@@ -42,6 +42,8 @@ My Day groups), 5.1 (abandon and restore), 6 Q1 and Q3, 8.3, 7.6.
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   computedStyle,
   createTask,
   routes,
@@ -55,7 +57,7 @@ import {
   transition,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -154,7 +156,10 @@ test.describe('AC-097: the abandoned row and its restore', () => {
     // A route change inside the running application, not a fresh load: 8.3
     // makes refetch after an own mutation the whole invalidation strategy,
     // and "immediately" is that policy observed.
-    await sidebarLink(page, 'My Day').click()
+    await clickControl(
+      sidebarLink(page, 'My Day'),
+      'spec 9.1: the sidebar lists My Day, and reaching it through the link is what makes this a route change inside the running application rather than a fresh load',
+    )
     await expect(
       page.getByRole('heading', { name: 'Carried over' }),
       'spec 9.4: My Day carries a group headed "Carried over", and 6 Q1 puts a pending task ' +

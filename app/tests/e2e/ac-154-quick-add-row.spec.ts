@@ -34,6 +34,8 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  fillControl,
   routes,
   seedDate,
   seedIds,
@@ -44,7 +46,7 @@ import {
   textInputs,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -81,7 +83,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     await page.goto(routes.tasks)
 
     const quickAdd = textInputs(page).first()
-    await quickAdd.fill(title)
+    await fillControl(
+      quickAdd,
+      title,
+      'spec 9.1: the inline quick-add row is a single title input',
+    )
     await quickAdd.press('Enter')
 
     await expect(
@@ -119,7 +125,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     await page.goto(routes.planned)
 
     const quickAdd = textInputs(page).first()
-    await quickAdd.fill(title)
+    await fillControl(
+      quickAdd,
+      title,
+      'spec 9.1: the inline quick-add row is a single title input',
+    )
     await quickAdd.press('Enter')
     await expect(
       taskRow(page, title),
@@ -145,7 +155,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     await page.goto(routes.tasks)
 
     const quickAdd = textInputs(page).first()
-    await quickAdd.fill(title)
+    await fillControl(
+      quickAdd,
+      title,
+      'spec 9.1: the inline quick-add row is a single title input',
+    )
     await quickAdd.press('Escape')
 
     await expect(
@@ -169,7 +183,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     // this is. The due date differs between them and is the cell escalated
     // at AC-093, so it is not asserted here.
     const quickAdd = textInputs(page).first()
-    await quickAdd.fill(title)
+    await fillControl(
+      quickAdd,
+      title,
+      'spec 9.1: the inline quick-add row is a single title input',
+    )
     await quickAdd.press('Enter')
 
     const rows = await stored(page, title)

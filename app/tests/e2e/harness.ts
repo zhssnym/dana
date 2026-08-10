@@ -75,6 +75,54 @@ export { seedIds }
  */
 export const TEST_TIMEOUT_MS = 120_000
 
+/**
+ * The per-action budget every spec declares beside the one above, and the
+ * half of this that actually decides what a red says.
+ *
+ * Playwright gives a click, a fill or an evaluate no timeout of its own: it
+ * waits out the whole test budget for an element that never appears. So a
+ * case whose first action reaches for a control that does not exist yet
+ * spends its entire budget inside that one call and is reported as a test
+ * timeout, and raising the test budget alone makes that worse rather than
+ * better, which is what the second whole run showed. Bounded here, an action
+ * on a missing control fails while there is budget left for the assertions
+ * after it, and the report names the role and the name it was reaching for.
+ *
+ * Fifteen seconds rather than something tighter because these actions drive
+ * a real build against a real server on a machine that may be sharing its
+ * cores, and a false red is worse than a slow one.
+ */
+export const ACTION_TIMEOUT_MS = 15_000
+
+/**
+ * Asserts a control is on the page, in the words of the section that puts it
+ * there, and then acts on it.
+ *
+ * An action is not an assertion and can carry no message of its own, so a
+ * click on a control that does not exist reports a locator and a timeout
+ * where every other failure in this leg reports a sentence of the
+ * specification. These two put the sentence back: the assertion is what
+ * fails, and it fails saying which rule went unmet.
+ */
+export async function clickControl(locator: Locator, why: string): Promise<void> {
+  await expect(locator, why).toBeVisible()
+  await locator.click()
+}
+
+export async function fillControl(
+  locator: Locator,
+  value: string,
+  why: string,
+): Promise<void> {
+  await expect(locator, why).toBeVisible()
+  await locator.fill(value)
+}
+
+export async function checkControl(locator: Locator, why: string): Promise<void> {
+  await expect(locator, why).toBeVisible()
+  await locator.check()
+}
+
 /* ------------------------------------------------------------------ *
  * Sign-in (spec 11.10, 11.6)
  * ------------------------------------------------------------------ */

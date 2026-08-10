@@ -38,6 +38,8 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   copy,
   createTask,
   csrfToken,
@@ -51,7 +53,7 @@ import {
   transition,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -88,8 +90,15 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     })
 
     await page.goto(routes.myDay)
-    await taskRow(page, title).getByRole('button', { name: /more|overflow|options/i }).click()
-    await page.getByRole('menuitem', { name: /abandon/i }).click()
+    await clickControl(
+      taskRow(page, title).getByRole('button', { name: /more|overflow|options/i }),
+      'spec 9.4: a row carries an overflow menu',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: /abandon/i }),
+
+      "spec 9.4: the row's overflow menu carries edit, abandon and delete",
+    )
 
     await expect(
       page.getByText(copy.abandonConfirm),
@@ -97,7 +106,10 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
         'person the task stays everywhere else. Copy in section 9 is normative',
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^(cancel|keep|no)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
+    )
     expect(
       await statusOf(page, task.id),
       'spec 5.1: a declined confirm runs no transition. A dialog that acts anyway shows the ' +
@@ -115,8 +127,14 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     await page.goto(routes.tasks)
     await page.getByText(title).click()
     // 9.3: delete lives in the form's overflow menu.
-    await page.getByRole('button', { name: /more|overflow|options/i }).last().click()
-    await page.getByRole('menuitem', { name: /delete/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /more|overflow|options/i }).last(),
+      'spec 9.3: the task form carries an overflow menu, which is where delete lives',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: /delete/i }),
+      'spec 9.3 and 9.6: delete lives in the overflow menu of the form and of the folder header',
+    )
 
     await expect(
       page.getByText(copy.deleteTaskConfirm),
@@ -124,7 +142,10 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
         'makes that literally true, the row and its steps, entries and reminder going together',
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^(cancel|keep|no)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
+    )
     expect(
       await statusOf(page, task.id),
       'spec 5.1: the task is still there after a declined delete',
@@ -162,8 +183,14 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     }
 
     await page.goto(routes.folder(folder.id))
-    await page.getByRole('button', { name: /more|overflow|options/i }).first().click()
-    await page.getByRole('menuitem', { name: /delete/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /more|overflow|options/i }).first(),
+      'spec 9.6: the folder header carries an overflow menu with rename, label, leave and delete',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: /delete/i }),
+      'spec 9.3 and 9.6: delete lives in the overflow menu of the form and of the folder header',
+    )
 
     await expect(
       page.getByText(
@@ -177,7 +204,10 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
         'separately, cannot pass by looking numeric',
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^(cancel|keep|no)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
+    )
     const after = await page.request.get(`/api/v1/folders/${folder.id}`)
     expect(
       after.status(),
@@ -208,7 +238,10 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
         'the person cannot see: any edits already made to the next occurrence go with it',
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^(cancel|keep|no)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
+    )
     expect(
       await statusOf(page, task.id),
       'spec 5.1: the declined un-complete left the completed row completed, so the successor ' +

@@ -36,9 +36,12 @@ copy reports), 7.11 (why a client-side rule still needs measuring), 7.6.
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   copy,
   createTask,
   csrfToken,
+  fillControl,
   floatingAddButton,
   formField,
   routes,
@@ -48,7 +51,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -69,9 +72,16 @@ test.beforeEach(async ({ page }) => {
 test.describe('AC-161 (proposed): the form says why it will not save', () => {
   test('AC-161: an empty title shows the copy of 9.3', async ({ page }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
 
-    await page.getByRole('button', { name: /^(save|add|create|done)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(save|add|create|done)$/i }),
+      'spec 9.3: the form is committed by a control, which is what its validation copy answers',
+    )
 
     await expect(
       page.getByText(copy.titleRequired),
@@ -88,10 +98,21 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
 
   test('AC-161: an over-limit title names the limit', async ({ page }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
 
-    await formField(page, 'title').fill('x'.repeat(TITLE_LIMIT + 1))
-    await page.getByRole('button', { name: /^(save|add|create|done)$/i }).click()
+    await fillControl(
+      formField(page, 'title'),
+      'x'.repeat(TITLE_LIMIT + 1),
+      'spec 9.3: title is always visible on the form',
+    )
+    await clickControl(
+      page.getByRole('button', { name: /^(save|add|create|done)$/i }),
+      'spec 9.3: the form is committed by a control, which is what its validation copy answers',
+    )
 
     await expect(
       page.getByText(`Too long: limit ${TITLE_LIMIT} characters`),
@@ -134,7 +155,11 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
 
     await page.goto(routes.tasks)
     await page.getByText('ac-161 task below the step cap').click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
     await expect(
       page.getByText(new RegExp(`\\b${STEP_CAP}\\b`)),
       `spec 9.3: the cap notice is at fifty, so a task holding ${STEP_CAP - 1} steps does not ` +
@@ -144,7 +169,11 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
 
     await page.goto(routes.tasks)
     await page.getByText('ac-161 task at the step cap').click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
     await expect(
       page.getByText(new RegExp(`\\b${STEP_CAP}\\b`)),
       'spec 9.3: the steps editor shows a cap notice at fifty. The section requires the ' +

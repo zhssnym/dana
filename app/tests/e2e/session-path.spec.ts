@@ -46,6 +46,9 @@ sidebar and the route table), 8.3.
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  checkControl,
+  fillControl,
   routes,
   seedIds,
   seedSubs,
@@ -58,7 +61,7 @@ import {
   watchWire,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -140,7 +143,11 @@ test.describe('The signed-in path', () => {
     const title = 'session path completes this one'
     await page.goto(routes.tasks)
     const quickAdd = textInputs(page).first()
-    await quickAdd.fill(title)
+    await fillControl(
+      quickAdd,
+      title,
+      'spec 9.1: the inline quick-add row is a single title input',
+    )
     await quickAdd.press('Enter')
     await expect(
       taskRow(page, title),
@@ -148,7 +155,10 @@ test.describe('The signed-in path', () => {
         'after an own mutation, so the row is on the page without a reload',
     ).toBeVisible()
 
-    await taskRow(page, title).getByRole('checkbox').check()
+    await checkControl(
+      taskRow(page, title).getByRole('checkbox'),
+      'spec 9.4: a row carries a complete checkbox',
+    )
     await expect(
       page.getByText(title),
       'spec 5.1: a completed task leaves Q2, so the row goes from Tasks. 8.3\'s refetch is ' +

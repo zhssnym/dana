@@ -40,6 +40,8 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   fieldDisplay,
   fieldValue,
   firstOfMonth,
@@ -53,7 +55,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -75,7 +77,11 @@ async function expectDefaults(
   // Folder and assignee live behind the expander (9.3), so it is opened
   // before the folder column is read. The other two columns are always
   // visible fields and are read either way.
-  await page.getByRole('button', { name: 'More options' }).click()
+  await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
   expect(
     await fieldValue(formField(page, 'due date')),
@@ -125,14 +131,22 @@ test.describe('AC-093: the six entry points of 9.3', () => {
       ['All', routes.all],
     ] as const) {
       await page.goto(path)
-      await floatingAddButton(page).click()
+      await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
       await expectDefaults(page, where, { dueDate: '', important: false, folder: 'Inbox' })
     }
   })
 
   test('AC-093: My Day opens with today', async ({ page }) => {
     await page.goto(routes.myDay)
-    await floatingAddButton(page).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
     await expectDefaults(page, 'My Day', {
       dueDate: seedDate(0),
       important: false,
@@ -142,7 +156,11 @@ test.describe('AC-093: the six entry points of 9.3', () => {
 
   test('AC-093: the Planned list opens with today', async ({ page }) => {
     await page.goto(routes.planned)
-    await floatingAddButton(page).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
     await expectDefaults(page, 'the Planned list', {
       dueDate: seedDate(0),
       important: false,
@@ -155,8 +173,14 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     // 9.5's mode toggle. The mode is persisted per user client-side, so this
     // click may be a no-op on a later run and the assertion below is what
     // makes the state definite either way.
-    await page.getByRole('button', { name: /^calendar$/i }).click()
-    await page.getByRole('button', { name: /^next$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^calendar$/i }),
+      'spec 9.5: Planned carries a mode toggle between list and calendar',
+    )
+    await clickControl(
+      page.getByRole('button', { name: /^next$/i }),
+      'spec 9.5: the calendar carries previous, next and today controls',
+    )
 
     const cell = page.getByRole('gridcell').filter({ hasText: /\b15\b/ }).first()
     await expect(
@@ -164,7 +188,10 @@ test.describe('AC-093: the six entry points of 9.3', () => {
       'spec 9.5: the calendar draws day cells, and the fifteenth of next month is one of ' +
         'them at every zoom this test uses',
     ).toBeVisible()
-    await cell.click()
+    await clickControl(
+      cell,
+      'spec 9.5: the calendar draws day cells, and a click on an empty one opens the form with that date',
+    )
 
     await expectDefaults(page, 'a Planned calendar cell', {
       dueDate: CELL_DATE,
@@ -175,7 +202,11 @@ test.describe('AC-093: the six entry points of 9.3', () => {
 
   test('AC-093: Important opens with important on and no date', async ({ page }) => {
     await page.goto(routes.important)
-    await floatingAddButton(page).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
     // The one row of the table whose important column is on, and the one
     // that discriminates an implementation reading the flag from anywhere
     // but the entry point.
@@ -188,8 +219,16 @@ test.describe('AC-093: the six entry points of 9.3', () => {
 
   test('AC-093: a folder page opens with that folder', async ({ page }) => {
     await page.goto(routes.folder(seedIds.groceries))
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     expect(
       await fieldDisplay(formField(page, 'folder')),

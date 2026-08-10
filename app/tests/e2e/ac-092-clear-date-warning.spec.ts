@@ -41,11 +41,14 @@ edit mode), 8.4 (the clear-date cascade the warning describes), 7.6, 10.3.
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
   chooseOption,
+  clickControl,
   copy,
   createTask,
   fieldDisplay,
   fieldValue,
+  fillControl,
   floatingAddButton,
   formField,
   routes,
@@ -56,7 +59,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -72,22 +75,42 @@ test.describe('AC-092: clearing the date in the task form', () => {
     page,
   }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
 
     // 9.3 puts seven of the ten fields behind one expander, and names it.
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     const dueDate = formField(page, 'due date')
-    await dueDate.fill(seedDate(3))
+    await fillControl(
+      dueDate,
+      seedDate(3),
+      'spec 9.3: due date is always visible on the form',
+    )
 
     // A preset, never a raw RRULE box (9.3). "Daily" is the first preset
     // that section enumerates.
     await chooseOption(page, formField(page, 'repeat'), 'Daily')
     // Without a due time the reminder control is a time-of-day picker (9.3),
     // which is what makes this reachable with no due time set.
-    await formField(page, 'reminder').fill('09:00')
+    await fillControl(
+      formField(page, 'reminder'),
+      '09:00',
+      'spec 9.3: the reminder is visible when expanded and enabled once a date is set',
+    )
 
-    await dueDate.fill('')
+    await fillControl(
+      dueDate,
+      '',
+      'spec 9.3: due date is always visible on the form',
+    )
 
     await expect(
       page.getByText(copy.clearDateWarning),
@@ -98,7 +121,10 @@ test.describe('AC-092: clearing the date in the task form', () => {
     // The confirming control of a warning has no name in section 9. Matched
     // by the two words a confirm is spelled with, and the silence is
     // escalated rather than closed with an invented string.
-    await page.getByRole('button', { name: /^(continue|clear|confirm|ok)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(continue|clear|confirm|ok)$/i }),
+      'spec 9.3: the 8.4 warning is confirmed before it acts, so it offers a control that proceeds',
+    )
 
     for (const field of DEPENDENTS) {
       const control = formField(page, field)
@@ -140,20 +166,39 @@ test.describe('AC-092: clearing the date in the task form', () => {
 
   test('AC-092: declining the warning changes nothing', async ({ page }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     const dueDate = formField(page, 'due date')
     const chosen = seedDate(3)
-    await dueDate.fill(chosen)
+    await fillControl(
+      dueDate,
+      chosen,
+      'spec 9.3: due date is always visible on the form',
+    )
     await chooseOption(page, formField(page, 'repeat'), 'Daily')
 
-    await dueDate.fill('')
+    await fillControl(
+      dueDate,
+      '',
+      'spec 9.3: due date is always visible on the form',
+    )
     await expect(
       page.getByText(copy.clearDateWarning),
       'spec 9.3: the warning precedes the clearing, so it is on the page to be declined',
     ).toBeVisible()
-    await page.getByRole('button', { name: /^(cancel|keep|no)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
+    )
 
     expect(
       await fieldValue(dueDate),
@@ -175,8 +220,16 @@ test.describe('AC-092: clearing the date in the task form', () => {
     page,
   }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     for (const field of DEPENDENTS) {
       await expect(
@@ -186,7 +239,11 @@ test.describe('AC-092: clearing the date in the task form', () => {
       ).toBeDisabled()
     }
 
-    await formField(page, 'due date').fill(seedDate(1))
+    await fillControl(
+      formField(page, 'due date'),
+      seedDate(1),
+      'spec 9.3: due date is always visible on the form',
+    )
 
     for (const field of DEPENDENTS) {
       // No blur, no submit, no reopen. 9.3 fixes the moment of enablement at
@@ -220,7 +277,11 @@ test.describe('AC-092: clearing the date in the task form', () => {
 
     await page.goto(routes.planned)
     await page.getByText(title).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     const preFilled = await fieldDisplay(formField(page, 'repeat'))
     expect(
@@ -229,14 +290,21 @@ test.describe('AC-092: clearing the date in the task form', () => {
         'opens with that rule showing in the repeat control',
     ).not.toBe('')
 
-    await formField(page, 'due date').fill('')
+    await fillControl(
+      formField(page, 'due date'),
+      '',
+      'spec 9.3: due date is always visible on the form',
+    )
     await expect(
       page.getByText(copy.clearDateWarning),
       'spec 9.3: the warning is a property of clearing the date, not of the create form, so ' +
         'the pre-filled edit path shows the same copy',
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^(continue|clear|confirm|ok)$/i }).click()
+    await clickControl(
+      page.getByRole('button', { name: /^(continue|clear|confirm|ok)$/i }),
+      'spec 9.3: the 8.4 warning is confirmed before it acts, so it offers a control that proceeds',
+    )
     for (const field of DEPENDENTS) {
       await expect(
         formField(page, field),

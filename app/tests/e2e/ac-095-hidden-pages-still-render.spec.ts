@@ -36,6 +36,8 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   csrfToken,
   routes,
   seedSubs,
@@ -44,7 +46,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -164,7 +166,10 @@ test.describe('AC-095: hidden pages are a navigation preference', () => {
     // the control, so the two halves of the surface fail separately and each
     // red names one of them.
     await page.goto(routes.settings)
-    await page.getByRole('switch', { name: 'Important' }).click()
+    await clickControl(
+      page.getByRole('switch', { name: 'Important' }),
+      'spec 9.7: the Pages section carries three toggles, one per hideable page',
+    )
     await page.goto(routes.myDay)
     await expect(
       sidebarLink(page, 'Important'),

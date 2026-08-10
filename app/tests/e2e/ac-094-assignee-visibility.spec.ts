@@ -40,7 +40,9 @@ acceptance), 7.4.
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
   chooseOption,
+  clickControl,
   csrfToken,
   fieldDisplay,
   floatingAddButton,
@@ -53,7 +55,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -71,8 +73,16 @@ test.describe('AC-094: the assignee field follows the folder', () => {
     page,
   }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     // The form opened from Tasks defaults to Inbox (9.3), which is 4.3's
     // default folder and has one member by construction: defaults are never
@@ -93,8 +103,16 @@ test.describe('AC-094: the assignee field follows the folder', () => {
     page,
   }) => {
     await page.goto(routes.folder(seedIds.groceries))
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     const assignee = formField(page, 'assignee')
     await expect(
@@ -128,8 +146,16 @@ test.describe('AC-094: the assignee field follows the folder', () => {
     page,
   }) => {
     await page.goto(routes.tasks)
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     await expect(
       formField(page, 'assignee'),
@@ -188,8 +214,16 @@ test.describe('AC-094: the assignee field follows the folder', () => {
     await otherContext.close()
 
     await page.goto(routes.folder(seedIds.groceries))
-    await floatingAddButton(page).click()
-    await page.getByRole('button', { name: 'More options' }).click()
+    await clickControl(
+      floatingAddButton(page),
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
+        + 'of 9.3, and it is on every page except Done',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'More options' }),
+      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
+        + 'names it "More options"',
+    )
 
     const labels = await optionLabels(page, formField(page, 'assignee'))
     expect(

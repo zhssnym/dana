@@ -34,6 +34,8 @@ Spec: 6 Q1 (the toggle is a client-side filter and changes no query), 9.4
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   createTask,
   routes,
   seedDate,
@@ -45,7 +47,7 @@ import {
   watchWire,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -89,7 +91,10 @@ test.describe('AC-164 (proposed): the important-only toggle is local', () => {
       'the page fetched My Day, so the count below is a comparison rather than two zeros',
     ).toBeGreaterThan(0)
 
-    await page.getByRole('switch', { name: /important/i }).click()
+    await clickControl(
+      page.getByRole('switch', { name: /important/i }),
+      'spec 9.4: My Day carries an important-only toggle switch',
+    )
 
     await expect(
       taskRow(page, PLAIN),
@@ -130,14 +135,20 @@ test.describe('AC-164 (proposed): the important-only toggle is local', () => {
     ).toBeVisible()
 
     const toggle = page.getByRole('switch', { name: /important/i })
-    await toggle.click()
+    await clickControl(
+      toggle,
+      'spec 9.4: My Day carries an important-only toggle switch',
+    )
     await expect(
       taskRow(page, PLAIN),
       'spec 6 Q1: the filter hid it, which is the state the restoration below is measured from',
     ).toHaveCount(0)
 
     const before = wire.viewCalls().length
-    await toggle.click()
+    await clickControl(
+      toggle,
+      'spec 9.4: My Day carries an important-only toggle switch',
+    )
 
     await expect(
       taskRow(page, PLAIN),

@@ -34,9 +34,13 @@ Spec: 9.1 (both toasts and the 409 rule), 5.1 (the copy, verbatim), 8.3
 import { expect, test } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  checkControl,
+  clickControl,
   conflictCopy,
   copy,
   createTask,
+  fillControl,
   routes,
   seedIds,
   seedSubs,
@@ -47,7 +51,7 @@ import {
   transition,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -77,7 +81,10 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
     await transition(otherPage, task.id, 'abandon', 'UTC')
     await otherContext.close()
 
-    await taskRow(page, title).getByRole('checkbox').check()
+    await checkControl(
+      taskRow(page, title).getByRole('checkbox'),
+      'spec 9.4: a row carries a complete checkbox',
+    )
 
     await expect(
       page.getByText(conflictCopy.abandonedComplete),
@@ -116,9 +123,19 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
     await otherContext.close()
 
     // 9.4's overflow menu carries abandon, with the confirm of that section.
-    await taskRow(page, title).getByRole('button', { name: /more|overflow|options/i }).click()
-    await page.getByRole('menuitem', { name: /abandon/i }).click()
-    await page.getByRole('button', { name: /^(abandon|continue|confirm|ok)$/i }).click()
+    await clickControl(
+      taskRow(page, title).getByRole('button', { name: /more|overflow|options/i }),
+      'spec 9.4: a row carries an overflow menu',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: /abandon/i }),
+
+      "spec 9.4: the row's overflow menu carries edit, abandon and delete",
+    )
+    await clickControl(
+      page.getByRole('button', { name: /^(abandon|continue|confirm|ok)$/i }),
+      'spec 9.4: abandoning confirms first, so the dialog offers a control that proceeds',
+    )
 
     await expect(
       page.getByText(conflictCopy.completedAbandon),
@@ -153,7 +170,11 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
     })
 
     const quickAdd = textInputs(page).first()
-    await quickAdd.fill('ac-157 a request that fails')
+    await fillControl(
+      quickAdd,
+      'ac-157 a request that fails',
+      'spec 9.1: the inline quick-add row is a single title input',
+    )
     await quickAdd.press('Enter')
 
     await expect(

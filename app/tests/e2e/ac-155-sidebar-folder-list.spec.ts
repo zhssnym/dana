@@ -38,6 +38,8 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
+  ACTION_TIMEOUT_MS,
+  clickControl,
   csrfToken,
   routes,
   seedSubs,
@@ -45,7 +47,7 @@ import {
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
-test.use({ timezoneId: 'UTC' })
+test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -197,7 +199,10 @@ test.describe('AC-155 (proposed): the sidebar folder list', () => {
       'the labeled folder is listed under its label while the group is open',
     ).toBeVisible()
 
-    await group.click()
+    await clickControl(
+      group,
+      'spec 9.1: per-member label groups are collapsible, so the label is a control',
+    )
     await expect(
       page.getByRole('link', { name: /Groceries/ }),
       'spec 9.1: collapsing a label group hides the folders inside it, which is the whole of ' +
