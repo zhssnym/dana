@@ -225,3 +225,14 @@ out of the group deliberately, because reviewing those three is its work.
 Rows 7 and 8 each raised the same two findings independently, in different
 personas, which is the strongest evidence the run produced that its
 isolation was real.
+
+## P8: the web client (`p8-client`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: tests-first held, mocks kept out of `app/tests/`, section 9 given its routes and its addressing rule, the Playwright seam split by file, the end-to-end obligation itemized | 12 | Steward | Done |
+
+This package runs in the second working tree at `D:\dana-client`, beside P7 in
+`D:\dana`, the two-tree arrangement runbook section 5 records. It merges second,
+after P7, because 9.3's reminder control has no endpoint behind it until frozen
+7.9 lands.
