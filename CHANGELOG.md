@@ -57,6 +57,60 @@ Planning and design. No software has been released yet.
   invalidated, verified rather than assumed: `seedRecurrence` has two callers in
   the whole repository, AC-028's fixture and one 03 unit test, and both only
   PATCH, so nothing that passes today transitions a row carrying a rule.
+- **P6's mid-package change control, 2026-08-10, after the tester session.**
+  Three things settled, one of which the engine session was waiting on.
+  **AC-142 and AC-143 are numbered** from the tester's proposals, taken whole
+  the way AC-125 to AC-130 and AC-133 to AC-140 were, and the specification
+  index now reads AC-001 to AC-143. AC-142 asserts the cutoff-zone ruling the
+  owner entered earlier the same day, which no number touched: every criterion
+  in the existing P6 range is satisfiable from the wrong zone for most of any
+  day, because a due date dominates the max in AC-072 and AC-075 and a cutoff
+  one day early still lands on the same instance in AC-073 and AC-074, so an
+  engine reading users.timezone passes the whole range and fails inside it only
+  when a run crosses the window where the two zones disagree. That is AC-132's
+  hole one package on, and the P4 sessions that chased it before the pull's
+  zone was ruled are what it costs. AC-143 asserts that a series anchored
+  before the requested range still projects into it, the surface the kickoff
+  routed to the tester to judge rather than pre-deciding; AC-082 cannot catch
+  the violation because its own current occurrence sits inside its grid, the
+  wrong implementation is one line shorter than the right one since the
+  endpoint already fetches real rows bounded by the range, and the failure is
+  silent, emptying every month-ahead view while nothing errors.
+- **UNTIL is the RFC 5545 DATE form, YYYYMMDD, recorded in 11.9 as a reading
+  of frozen 4.11.** 4.11 defines recurrence_rule as an RFC 5545 RRULE value
+  string, and within an RRULE that value's DATE form carries no separators, so
+  the extended spelling is not a valid value string of the RFC the frozen text
+  names: admitting it would widen 4.11 rather than read it, which is why this
+  did not need to reach the human owner. Two grounds beyond the tester's.
+  4.11's own "only strings the preset builder can produce are valid"
+  forecloses accepting both spellings independently, a builder emitting one,
+  and two spellings of one rule would put two representations of one series in
+  one column. And the index's conventions line governs the dates this
+  specification writes and its wire fields carry, both of which stay extended
+  and both of which are ISO 8601 either way; the interior of a value string
+  another standard defines belongs to that standard. It is recorded in 11.9
+  rather than section 12 because 11.9 is what the Scheduling persona is
+  instructed to open before writing the iterator, and stating it in both places
+  is how the two would eventually disagree.
+- **A month zoom requests six whole weeks, recorded in 9.5 with a pointer from
+  Q3C.** The range is the client's to request and Q3C answers whatever range it
+  receives, so the query specification gains a pointer rather than a rule: a
+  padding rule inside section 6 would be a viewport decision sitting in a
+  section whose every other sentence the server enforces, and the server cannot
+  distinguish a padded grid from any other 42-day range. What is genuinely owed
+  is in section 9, where page structure lives. The count is fixed at six
+  because AC-082's third clause is positively observable only on a grid
+  reaching past the month end, and this was re-derived here rather than taken
+  from the report: for July 2026 the next instance after the 27th is
+  2026-08-03, which the Sunday and Monday five-week grids (ending 2026-08-01
+  and 2026-08-02) both miss and the six-week grids (ending 2026-08-08 and
+  2026-08-09) both reach. The week count decides assertability and the week
+  start does not, correcting the reasoning the proposal carried while leaving
+  its recommendation standing. The product wants the same grid the criterion
+  does, since a month view stopping at the month end hides the next occurrence
+  of every series whose successor falls in the first days of the next month,
+  which is what a ghost exists to show. The week start is left to the designer
+  and the 11.13 screens, because nothing in the specification turns on it.
 - **Three P6 kickoff rulings, 2026-08-10, grounds recorded here.** The 4.11
   validator is one pure grammar module at `app/src/shared/recurrence.ts`,
   parse and validate only, authored and owned by the Scheduling role under a
