@@ -207,3 +207,4 @@ is what actually adjudicated the package.
 | 2 | AC-071 to AC-082 tests-first, two absence criteria made to discriminate, AC-142 and AC-143 proposed, two spec silences escalated | 11 | Testers | Done, escalated |
 | 3 | Change control: AC-142 and AC-143 numbered, UNTIL read onto 11.9 as frozen 4.11 permits, the month zoom fixed at six weeks in 9.5 | 12 | Steward | Done |
 | 4 | The proposal wording retired, and the week-start reasoning in AC-082 corrected in prose | 11 | Testers | Done |
+| 5 | The engine: the 4.11 grammar, the iterator pinned against the rrule oracle, 8.5 generation and projection, 5.1 G-SERIES | 02 | Implementers | Done, escalated |
