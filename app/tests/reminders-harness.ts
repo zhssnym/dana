@@ -559,6 +559,26 @@ export async function setFireAt(
   `)
 }
 
+/**
+ * Moves a reminder into a terminal 4.8 state without running a pass, which is
+ * how a case reaches "this row has already been delivered" as a precondition
+ * rather than as an outcome. fired_at follows the state, since 4.8 sets it
+ * whenever state leaves scheduled and a seed that ignored it would be a row
+ * the loop could never have produced.
+ */
+export async function setReminderState(
+  db: Db,
+  taskId: string,
+  state: 'scheduled' | 'sent' | 'skipped',
+): Promise<void> {
+  await db.execute(sql`
+    UPDATE reminders
+       SET state = ${state},
+           fired_at = ${state === 'scheduled' ? null : new Date().toISOString()}::timestamptz
+     WHERE task_id = ${taskId}::uuid
+  `)
+}
+
 export function minutesAgo(minutes: number): Date {
   return new Date(Date.now() - minutes * 60_000)
 }
