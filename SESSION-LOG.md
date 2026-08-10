@@ -202,3 +202,4 @@ is what actually adjudicated the package.
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, the 4.11 grammar placed in `src/shared` by file, the reminder-copy arm deferred to P7, the July 2026 examples ruled asserted by content, the cutoff zone escalated | 12 | Steward | Done, escalated |

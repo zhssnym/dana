@@ -172,6 +172,43 @@ which live in `.env` and the platform dashboards.
 is already off-protocol; say so once, and if it persists, close it and start over.
 Sessions are cheap. Wrong premises are not.
 
+### Grouping consecutive sessions
+
+A group is one prompt you paste once that runs several sessions back to back with
+nobody in between. It buys round trips and costs the verification that would have
+happened between them, so the rule is about which sessions may share a run, never
+about how many.
+
+**The key is the review relationship, not the chat name.** Two sessions may share a
+run only when neither reviews, verifies, or tests the other's output. "Implementers"
+is a chat and not a role: it hosts the API role's endpoint shape review directly
+after the Collaboration role's package, and those two must never share a run,
+because the review's whole value is that it reads the package cold. The same bar
+excludes a tester from the group that implements what it tested, and excludes a
+Steward review from the group it reviews. What passes the bar is a producer-consumer
+chain running one way (shared schemas, then the code importing them, then the query
+embedding it) and a Steward pair that rules and then transcribes.
+
+**Prefer a fresh context per session inside the group.** The grouped prompt's parent
+launches each session as its own isolated sub-agent, in sequence: it derives state
+from the repository per protocol section 2, writes only inside its persona's paths,
+commits, pushes, appends to the run's one report file, and ends. No context then
+holds two personas, which is the rule above and the reason for it. Running the
+personas inside a single context does work, and P5's last four sessions did exactly
+that, but the recorded cost is that the Steward pass reviewing three same-context
+phases was one line of reasoning agreeing with itself. Reach for it with a reason,
+not by default.
+
+**A hard package's algorithm session runs alone.** Section 3 grades every package,
+and where the grade is hard, the session carrying the algorithm is grouped with
+nothing. P6's engine is the case in point: the recurrence iterator is the one
+algorithm this build writes rather than installs, and grouping it with the sessions
+that consume it puts its first independent reader downstream of its own mistakes.
+
+**What a group owes you:** one report file naming every problem and every escalation
+by phase, a commit per phase so CI attributes a failure to the session that caused
+it, and a full stop before anything irreversible, which always includes the merge.
+
 ## 6. Closing a session
 
 **Read the final block before anything else.** An escalation you did not read is a
