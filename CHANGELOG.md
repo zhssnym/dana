@@ -57,6 +57,73 @@ Planning and design. No software has been released yet.
   invalidated, verified rather than assumed: `seedRecurrence` has two callers in
   the whole repository, AC-028's fixture and one 03 unit test, and both only
   PATCH, so nothing that passes today transitions a row carrying a rule.
+- **Package P6 of RFC 0001, recurrence: the 4.11 iterator and validator, 8.5's
+  generation, 5.1's G-SERIES guard, and the calendar's ghost projection.** The
+  grammar is one pure module in `app/src/shared/recurrence.ts`, parse and
+  validate with no evaluation, so the write path's 422 and the iterator's
+  evaluation read one definition of the subset; the iterator beside it in
+  `app/src/server/time/` evaluates floating civil dates and touches no clock
+  and no zone. Generation runs inside the winning transition's own
+  transaction, which is what makes it exactly-once under a race, and the
+  G-SERIES guard runs ahead of un-complete and restore. The calendar's virtual
+  array, which has answered empty since P4, is filled from its own fetch
+  rather than from the range-bounded real rows, because a series anchored
+  before the requested range still projects into it. Frozen 7.6's two deferred
+  write arms are wired, so a recurrence_rule now reaches the database
+  validated, and the transition envelope's `generated_task` and
+  `deleted_successor_id` answer non-null for the first time since P3 froze
+  their keys. AC-071 to AC-082 and AC-142 and AC-143 pass by number beside
+  every earlier range: 1240 tests across 160 files, the whole gate green in
+  CI's order, on PGlite and on postgres:18.
+- **Frozen 7.6's transition bullet carries the parameter, by owner ruling of
+  2026-08-10 on the endpoint shape review.** It reads
+  `POST /tasks/:id/complete?tz, /uncomplete, /abandon?tz, /restore`, and
+  nothing else in the bullet or in the three paragraphs appended earlier that
+  day moves. The shape is deliberately not this branch's other frozen edits:
+  the convention of leaving bullets byte-identical governs appending a
+  behavior paragraph beside a bullet that is already true, and a bullet that
+  omits a parameter the endpoint now requires is not true. The precedent is
+  exact, `d7c81eb`, where the same owner ruling on the same parameter changed
+  7.8's pull bullet and appended its paragraphs beside it. Grounds: 7.8's
+  bullet carries the parameter and 7.6's did not, every other query parameter
+  in section 7 appears either in its bullet or in a sentence governing it, and
+  the bullet's phrasing occurs exactly once across all of `app/` and `docs/`,
+  the bullet itself, so no test or comment quotes it and no criterion moves.
+- **Three accepted bets recorded in section 13, items 22 to 24.** A bare
+  FREQ=MONTHLY anchored on the 29th to 31st skips the months too short to hold
+  it rather than clamping, which is item 15's choice one frequency down and
+  falls out of the same existence check; 4.11's exclusion of BYMONTHDAY 29 to
+  31 never reaches it, because the anchor comes from due_date rather than from
+  the rule. The calendar response is bounded by its 62 days and nothing else,
+  and ghosts multiply that bound by the number of accessible rule-carrying
+  series rather than adding to it, which was theoretical while the array
+  answered empty and is real from this package; the owner ruled to record the
+  bet rather than amend 7.10, since no shape can report a truncation the
+  frozen body has no key for. And Q3C's second statement applies the
+  recurrence rule as a filter over a predicate 4.12 names no index for, which
+  is item 21's situation again and went through the same two doors, justified
+  on the EXPLAIN record rather than routed to Data. Each carries its revisit
+  trigger, and items 15 and 22 now point at each other so the one-sentence
+  amendment to 4.11 they are both waiting for carries both.
+- **Two disclosures ratified at the P6 merge review, both recorded in the code
+  with their reasoning before they were routed.** `app/src/server/time/executor.ts`
+  is a fourth private copy of the row and transaction adapters, and it is
+  accepted on the argument it was disclosed with: importing `domain/db.ts`
+  would point the engine module at the module that calls it, and structural
+  typing makes the duplication cost nothing at the call site, since the
+  executor a caller already holds satisfies the interface without an adapter.
+  The fix is a shared home none of these roles owns, so it stays the P9
+  consolidation the other three already carry, and the P9 row now names all
+  four rather than leaving the count in a comment. And the acceptance
+  harness's `countRows` now asserts its contract instead of returning NaN.
+  That helper is shared with more than forty callers across four packages,
+  which is a wide blast radius taken deliberately and the right trade: three
+  P6 call sites had passed a query that could not answer it, and in one of
+  them both sides of a before-and-after comparison were NaN, which `Object.is`
+  makes equal, so an assertion that a refused create writes no task passed
+  while reading no count at all. A test that cannot fail is the failure this
+  suite exists to prevent, and the repair was verified by scanning all 46 call
+  sites rather than by trusting the report.
 - **P6's mid-package change control, 2026-08-10, after the tester session.**
   Three things settled, one of which the engine session was waiting on.
   **AC-142 and AC-143 are numbered** from the tester's proposals, taken whole

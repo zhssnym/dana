@@ -102,7 +102,7 @@ The folder inside the acceptance response is the full Folder object of 7.0, what
   - status is not accepted here (409 if present): transitions have their own endpoints.
   200 TaskDetail.
 - DELETE /tasks/:id. Any member. 204. Cascades per 5.1 delete row.
-- POST /tasks/:id/complete, /uncomplete, /abandon, /restore. Transitions per 5.1 with its guards and no-ops; complete and abandon run generation when a rule is present; uncomplete and restore apply G-SERIES. Responses: 200 { task: TaskDetail, generated_task: TaskCard or null, deleted_successor_id or null }.
+- POST /tasks/:id/complete?tz, /uncomplete, /abandon?tz, /restore. Transitions per 5.1 with its guards and no-ops; complete and abandon run generation when a rule is present; uncomplete and restore apply G-SERIES. Responses: 200 { task: TaskDetail, generated_task: TaskCard or null, deleted_successor_id or null }.
 
 The move refusal above was narrowed at the P3 shape review and entered by owner ruling: it reads 404 where it read "404 or 422". A 422 for a target folder the caller is not a member of confirms that the folder exists, which is the existence leak this section's own 404 rule and the chokepoint of 10.2 are built to prevent, so the wider text admitted what the rest of the surface forbids. No response gains or loses a field; one of two admitted statuses is withdrawn.
 
