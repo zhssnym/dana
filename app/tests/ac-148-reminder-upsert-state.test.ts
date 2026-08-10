@@ -41,6 +41,19 @@ which 8.6 counts as a new occasion and which returns a sent row to scheduled;
 a timezone change alters neither the deadline nor the recipient, and 8.6 as
 ruled at the same change control leaves a sent row alone for it.
 
+**The revival clears fired_at, and that is asserted where the ruling states
+it.** 8.6 as ruled records the consequence in its own words: where one of the
+other four triggers returns a sent row to scheduled, fired_at is cleared with
+it, so frozen 4.8's note that the column is set when state leaves scheduled
+stays true of every row. The sent case below asserts it. The skipped case
+deliberately does not, and the difference is a reading rather than an
+oversight: the ruling names a sent row, 4.8 says only when the column is set
+and never when it clears, and a skipped row revived with a stale fired_at
+would leave that note untrue of exactly one row shape. It is routed to the
+Integration Steward rather than asserted here, because asserting past the
+words of a ruling this file also cites is the reinterpretation this role is
+forbidden.
+
 **The ruled response body is judged on every success**, in the harness, by the
 same helper as the ruled 7.7 and 7.8 bodies: a whole TaskDetail equal to what
 a fresh GET then answers. This file adds the value assertion the helper cannot
@@ -193,10 +206,15 @@ describe('AC-148: a second PUT replaces the row and revives it', () => {
       'the first PUT (spec 7.9)',
     )
     await setReminderState(app.db, id, 'sent')
+    const delivered = await requireReminderRow(app.db, id, 'the row exists')
     expect(
-      (await requireReminderRow(app.db, id, 'the row exists')).state,
+      delivered.state,
       'the positive control for this case: the row really is terminal before the second PUT',
     ).toBe('sent')
+    expect(
+      delivered.fired_at,
+      'and it carries the fired_at 4.8 sets when state leaves scheduled, which is what the revival below has to undo',
+    ).not.toBeNull()
 
     await putReminderOk(
       owner,
@@ -209,6 +227,10 @@ describe('AC-148: a second PUT replaces the row and revives it', () => {
       row.state,
       '7.9: state resets to scheduled unless that instant is already past, and this instant is thirty days out. Without the reset, a user who sets a new reminder after the first one fired gets a row that will never fire again, holding exactly the value they asked for',
     ).toBe('scheduled')
+    expect(
+      row.fired_at,
+      '8.6 as ruled on 2026-08-10 records this consequence in its own words: where one of the other four triggers returns a sent row to scheduled, fired_at is cleared with it, so frozen 4.8\'s note that the column is set when state leaves scheduled stays true of every row rather than of most of them. A revival that moved the state and the instant and left the old fired_at standing reads as a reminder delivered at a moment it was never scheduled for',
+    ).toBeNull()
     expectFireAt(
       row,
       offsetFireInstant(KARACHI, due, DUE_TIME, 60),
