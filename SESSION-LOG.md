@@ -176,6 +176,7 @@ as an isolated sub-agent with no chat to return to.
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: trace, the 8.7 cap ruled onto 8.7 and 5.3, the 8.10 criteria and two carried gaps routed to the tester, the 10.4 arm placed at P9 | 12 | Steward | Done |
 | 1 | AC-059 to AC-069 against frozen 7.5 and 7.3, AC-133 to AC-140 proposed, AC-124's acceptance arm raced | 11 | Unattended | Done |
+| 1a | The invite transport retyped, a false green closed, the stale P4 coverage rows refreshed | 11 | Testers | Done |
 | 2 | AC-133 to AC-140 numbered, the bare-invite edge routed to the owner | 12 | Steward | Done, escalated |
 | 3 | The bare invite to a connection answered 409 by owner ruling, AC-141 appended | 12 | Steward | Done |
 | 4 | AC-141 asserted, the proposal wording retired | 11 | Testers | Done |
