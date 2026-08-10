@@ -10,6 +10,55 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **Package P6 of RFC 0001, recurrence, kicked off on branch `p6-recurrence`
+  on 2026-08-10.** The P6 row is traced into its session list in the form every
+  package since P2 has carried, three kickoff questions are settled below, and
+  the fourth, the zone of generation's cutoff, is escalated to the human owner
+  because any answer that closes it touches frozen 7.6: 8.5 computes
+  cutoff = max(t.due_date, current_date(actor.tz)) and the four transition
+  endpoints carry no parameter a zone could ride, which 8.1's first bullet
+  calls an incomplete surface rather than an invitation to substitute the
+  stored zone, and 8.1's second bullet reserves users.timezone for reminder
+  computation alone. The Steward's recommendation, carried with the
+  escalation: complete and abandon gain an optional tz query parameter, an
+  IANA identifier through the shared validator, the shape frozen 7.8's pull
+  took by the 2026-08-08 ruling; a present invalid value answers 422 naming tz
+  always, per 7.0's parameter rule; an absent one answers 422, and the
+  transaction changes nothing, exactly when the transition would run
+  generation, the winning update on a pending row carrying a recurrence_rule.
+  Uncomplete and restore gain nothing, the shape of 7.8's DELETE, because
+  G-SERIES reads series shape and evaluates no calendar date. The
+  required-always scope was not recommended because it refuses requests that
+  evaluate nothing and turns every existing tz-less transition call red,
+  including P3's passing files, buying no correctness on rule-less rows; the
+  stored-zone reading was not recommended because 7.8's appended paragraphs
+  record precisely that alternative rejected as blessing the defect, with the
+  P4 CI failure as its measured cost. State-conditional 422s are already this
+  contract's shape, a due_time sent alone being legal against a dated row and
+  refused against an undated one.
+- **Three P6 kickoff rulings, 2026-08-10, grounds recorded here.** The 4.11
+  validator is one pure grammar module at `app/src/shared/recurrence.ts`,
+  parse and validate only, authored and owned by the Scheduling role under a
+  by-file ruling, the P2 routes-directory precedent applied to `src/shared`:
+  the format semantics are that role's own by the three-owner 4.11 seam, one
+  grammar must serve the write-path validator and the iterator's evaluation or
+  the split re-creates the drift the shared-schema comment exists to prevent,
+  and `src/shared` is the one directory the schema arm, the iterator, and the
+  client's convenience validation all import; the API role wires it into its
+  own `tasks.ts` in front of the recurrenceRule primitive, so the deep 422
+  arises in the schema layer where every other 10.3 field error does. The
+  reminder-copy arm of 8.5's generation defers to P7 with the 8.6 computation
+  it requires, the P3 row's deferral precedent: no reminder row exists without
+  a computed fire_at, both DST rules are P7's explicit obligations pinned by
+  AC-083 to AC-086, no P6 surface can attach a reminder, and no criterion in
+  AC-071 to AC-082 asserts the copy, so a provisional instant would half-build
+  the next package's module in the same seat that delivers it properly one
+  package later. And AC-072 to AC-075 are asserted by their content on the run
+  date rather than at the July 2026 dates they quote, the P4 closest-faithful
+  ruling on AC-046 and AC-050 applied again and recorded in section 12 beside
+  the range, with AC-082 deliberately outside it, seeded history evaluating no
+  today, plus the two fixture facts a padded month grid and the projection
+  fetch scope depend on.
 - Package P5 of RFC 0001, sharing: the whole of frozen 7.5 and 7.3, invites
   with their five transitions and two lists and the roster with its one
   removal, plus the account deletion transaction of 8.10 landing whole for the
