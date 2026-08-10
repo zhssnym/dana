@@ -83,8 +83,21 @@ Planning and design. No software has been released yet.
   a write path with no reachable effect. Recorded because three sessions of
   this package read the computation's two arms against the trigger list's one
   and could reconcile them three ways.
-- **Open, routed to the human owner at the P7 kickoff on 2026-08-10, and
-  blocking the tester session alone.** Frozen 7.9's PUT /tasks/:id/reminder
+- **The 7.9 response-body ruling, entered by the human owner on 2026-08-10.**
+  He took the recommendation below in full and in its own terms, declining both
+  alternatives on the grounds it carried: PUT /tasks/:id/reminder answers 200
+  with the affected TaskDetail, it is 7.7's case rather than 7.4's, and a bare
+  reminder object would either echo the request or widen to expose fire_at and
+  state, which no frozen response carries anywhere in section 7. It is
+  transcribed onto frozen 7.9 as one appended paragraph, both existing bullets
+  byte-identical, the form 7.5, 7.6, 7.8 and 7.10 all carry. Nothing else in
+  section 7 moved, and the DELETE is untouched and still answers no body. No
+  acceptance criterion is invalidated: nothing in the repository calls this
+  endpoint, and AC-090's PUT clause asserts a 422 that no answer to this
+  question reaches. The conditional Steward session in the P7 trace is done,
+  and the tester session it gated is now startable.
+- **Escalated at the P7 kickoff on 2026-08-10, and ruled the same day by the
+  entry above.** Frozen 7.9's PUT /tasks/:id/reminder
   names no response body: it says "200" and stops, while its DELETE says 204
   and carries none. This is the silence frozen 7.2 carried for PATCH
   /me/settings, escalated at P2S and ruled by the owner, and every comparable
