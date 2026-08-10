@@ -10,6 +10,28 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **8.6's fired_at consequence is widened from the sent case to both terminal
+  states, 2026-08-10, on the tester return's routing.** The ruling of the
+  mid-package change control recorded that where one of the four non-timezone
+  triggers returns a sent row to scheduled, fired_at is cleared with it, so
+  frozen 4.8's note that the column is set when state leaves scheduled stays
+  true of every row rather than of most of them. The tester return observed
+  that a skipped row revived by those same triggers falls outside those words
+  and keeps a stale fired_at, so the narrow wording did not merely omit a case,
+  it defeated its own reason: it left exactly one row shape uncovered, a
+  scheduled row holding a fired_at, which is the shape the sentence exists to
+  rule out. The recommendation is taken in full. A skipped row carries a
+  fired_at like a sent one, set by the delivery loop when it skips and required
+  by 4.8's note when a recompute skips, and neither terminal state is a
+  delivery that happened, so nothing distinguishes them at this point; the
+  distinction the ruling does draw, between the timezone trigger and the other
+  four, is a separate sentence and is untouched. It is ruled now rather than at
+  the merge because the Scheduling engineer implements the five-trigger
+  callable next and would otherwise decide it alone or stop and ask. The
+  routing itself is worth recording: the return asserted the sent case, where
+  the ruling's words reached, and declined to assert the skipped case rather
+  than read one step past a ruling its own file cites, which is the separation
+  role 11 exists to hold.
 - **P7's mid-package change control, 2026-08-10, after the tester session.**
   Six items, opened by the four findings that session raised. State re-derived
   on this tree before ruling any of them: 179 files, 1341 tests, 68 failures,
