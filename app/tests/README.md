@@ -29,7 +29,7 @@ npx vitest run -t "AC-105"
 | P5 gate | AC-133 to AC-140 | Covered, red by design; proposed here with their tests and numbered by the section 12 amendment of 2026-08-09, the six 8.10 files failing against the P1 stub on its missing steps 1 to 6 |
 | P5 gate | AC-141 | Covered, red on the unmounted POST /invites; appended by the same date's amendment from the owner's ruling rather than proposed here |
 | P6 | AC-071 to AC-082 | Covered, red by design: nothing attaches a rule through an API and no transition generates, so every failure is an assertion naming a missing behavior |
-| P6 gate | AC-142, AC-143 | Covered, red by design; proposed here with their tests, for the Integration Steward to number by amendment |
+| P6 gate | AC-142, AC-143 | Covered, red by design; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
 | P7 to P10 | AC-083 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -367,13 +367,17 @@ written before the implementation per the RFC 0001 P6 row. Its layer is
   occurrence relative to it, and builds a weekly rule on that date's own
   weekday. That mapping is one function in the harness with a unit test of
   its own, because a wrong weekday would fail four criteria in the engine's
-  name. AC-082 is outside the ruling and runs literally at July 2026.
-- **UNTIL is written in RFC 5545's DATE form, YYYYMMDD.** 4.11 calls the
-  column an RFC 5545 RRULE value string and UNTIL "a date, inclusive per RFC
-  5545", and that value type's DATE form has no separators. It is the one
-  piece of the 4.11 grammar this suite spells rather than quotes, so it is
-  stated in the harness header and here; the grammar module must agree with
-  it or one of the two is wrong.
+  name. AC-082 is outside the ruling and runs literally at July 2026, on the
+  six-week grid 9.5 fixed at the same change control after this range
+  escalated the silence; its range constants already spelled those six weeks.
+- **UNTIL is written in RFC 5545's DATE form, YYYYMMDD.** These files derived
+  it from frozen 4.11, which calls the column an RFC 5545 RRULE value string
+  and UNTIL "a date, inclusive per RFC 5545", and escalated it as the one
+  piece of the grammar the suite spells rather than quotes, since the grammar
+  module would otherwise derive it separately and could derive it
+  differently. 11.9 records the reading at the P6 change control of
+  2026-08-10, as a reading of frozen 4.11 rather than a change to it, and it
+  is the form these files already used.
 - **The criteria that assert an absence run a positive control first.**
   AC-078 and AC-082 both assert that something does not happen, and nothing
   happening is also what a branch with no engine does: the 7.10 virtual array
@@ -389,20 +393,22 @@ written before the implementation per the RFC 0001 P6 row. Its layer is
   completed_by, which both legs satisfy identically. Asserting that an
   overlap was observed would be a false red about the backend.
 
-AC-142 and AC-143 are proposed here with their tests, for the Steward to
-number by amendment, the AC-125 and AC-133 precedent. AC-142 pins the cutoff's
-zone: the owner ruled on 2026-08-10 that complete and abandon take tz and
-frozen 7.6 carries it, and nothing in section 12 asserts any of it, which is
-AC-132's hole one package later and with worse arithmetic, since every
-criterion in this range is satisfiable from the wrong zone for part of every
-day. Its discriminator is AC-132's, two zones exactly a day apart, and no
-single stored or process or database clock can date both successors. AC-143 is
-the surface the RFC 0001 P6 row routed to this session to judge: Q3C projects
-for every accessible pending rule-carrying series, including one whose current
-occurrence falls before the range, and no criterion asserts that scope while
-AC-082's own series sits inside its range, so an implementation projecting off
-the range-bounded real rows passes the whole existing suite and empties every
-month-ahead view.
+AC-142 and AC-143 were proposed here with their tests and numbered by the
+Steward's section 12 amendment of 2026-08-10, the AC-125 and AC-133
+precedent; both criteria are section 12's own text now, taken whole from
+these two file headers, so no assertion in either file moved when they were
+numbered. AC-142 pins the cutoff's zone: the owner ruled on 2026-08-10 that
+complete and abandon take tz and frozen 7.6 carries it, and nothing numbered
+touched any of it, which was AC-132's hole one package later and with worse
+arithmetic, since every criterion in this range is satisfiable from the wrong
+zone for part of every day. Its discriminator is AC-132's, two zones exactly
+a day apart, and no single stored or process or database clock can date both
+successors. AC-143 is the surface the RFC 0001 P6 row routed to this session
+to judge: Q3C projects for every accessible pending rule-carrying series,
+including one whose current occurrence falls before the range, and nothing
+asserted that scope while AC-082's own series sits inside its range, so an
+implementation projecting off the range-bounded real rows passed the whole
+existing suite and emptied every month-ahead view.
 
 ## The two amendments these tests read closely
 

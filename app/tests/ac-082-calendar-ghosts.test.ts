@@ -20,12 +20,21 @@ shape review would not be where they were first noticed, and the first is
 this one: within a range of exactly 2026-07-01 to 2026-07-31 the series
 projects nothing, because the first instance after the 27th is 2026-08-03 and
 that is outside it. The ghost clause therefore bites only on the grid a month
-zoom draws, which pads to whole weeks. 2026-06-28 to 2026-08-08 is that grid
-with weeks starting on Sunday, 42 days, inside the 62 of 10.3. The week start
-is named nowhere in the specification, so this range is stated as the request
-under test rather than derived from a convention this suite would then be
-depending on; what the criterion needs of it is only that it reaches past the
-27th, and the exactly-July range is asserted beside it as its own case.
+zoom draws. What that grid is was named nowhere when this file was written,
+so the range below was stated as the request under test rather than derived
+from a convention the suite would then depend on, and the silence was
+escalated. 9.5 settled it at the P6 change control on 2026-08-10: a month
+zoom requests six whole weeks, 42 days, never near Q3C's 62, and the week the
+grid starts on is deliberately left to the designer.
+
+The week count is what the criterion turns on and the week start is not, which
+is worth stating because this header first had it the other way round. For
+July 2026 the next instance falls on 2026-08-03: neither five-week grid
+reaches it and both six-week grids do, whichever day they start on. The
+constants below are the Sunday-start six weeks, 2026-06-28 to 2026-08-08; the
+Monday-start six weeks, 2026-06-29 to 2026-08-09, carries the same ghost, so
+nothing here depends on the half 9.5 left open. The exactly-July range is
+asserted beside it as its own case.
 
 **Three properties, one fixture.** 8.5's closing sentences are the reason the
 criterion names three dates rather than one. Real rows draw on their own

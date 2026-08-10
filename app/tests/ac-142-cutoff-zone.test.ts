@@ -1,21 +1,22 @@
 /*
-AC-142 (proposed): Given two identical overdue recurring occurrences
-completed at one instant with tz values a calendar day apart, then their
-successors are dated exactly a day apart; given a present tz that is not an
-IANA identifier on complete or abandon, then 422 naming tz whatever the row
-holds; given an absent tz where the transition would run generation, then 422
-naming tz with the row unchanged and no successor, and the same call with a
-zone transitions.
+AC-142: Given two identical overdue recurring occurrences completed at one
+instant with tz values a calendar day apart, then their successors are dated
+exactly a day apart; given a present tz that is not an IANA identifier on
+complete or abandon, then 422 naming tz whatever the row holds; given an
+absent tz where the transition would run generation, then 422 naming tz with
+the row unchanged and no successor, and the same call with a zone
+transitions.
 
-Proposed here with its test, for the Integration Steward to number by
-amendment as the next additive number so nothing moves, the P4 and P5
-precedent that AC-125 to AC-130 and AC-133 to AC-140 carry. The number in
-this file is that next number and is not this role's to assign.
+Proposed here with its test and numbered by the Integration Steward at P6's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now; it is transcribed unchanged, the AC-125 to AC-130 and
+AC-133 to AC-140 precedent for a batch authored on the branch and numbered
+additively so nothing moves.
 
-**Why it needs a number rather than an assertion inside AC-072.** The human
+**Why it is a number rather than an assertion inside AC-072.** The human
 owner ruled on 2026-08-10 that POST /tasks/:id/complete and
 /tasks/:id/abandon take tz, and frozen 7.6 carries the ruling in three
-appended paragraphs. Nothing in section 12 asserts any of it. That is the
+appended paragraphs. Nothing numbered touched any of it. That was the
 same hole AC-132 was written to close one package earlier, and its header
 records what the hole cost: the pull's zone went unpinned for three packages,
 the implementation read users.timezone because no criterion could tell the

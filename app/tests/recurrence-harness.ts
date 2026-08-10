@@ -44,14 +44,17 @@ wrong relationship while still passing or failing for reasons that look like
 the engine's. The mapping is one function here, and recurrence-harness.test.ts
 pins it against dates whose weekdays are facts.
 
-**UNTIL is written in RFC 5545's DATE form, YYYYMMDD.** 4.11 calls
-recurrence_rule an RFC 5545 RRULE value string and calls UNTIL "a date,
-inclusive per RFC 5545", and within an RRULE that value type is a DATE or
-DATE-TIME, whose DATE form is the basic ISO format with no separators. The
-derivation has no gap in it, but it is the one piece of the 4.11 grammar this
-suite spells rather than quotes, so it is stated here rather than left in a
-test to be discovered as a disagreement with the grammar module the
-Scheduling session writes.
+**UNTIL is written in RFC 5545's DATE form, YYYYMMDD**, which 11.9 records
+as a reading of frozen 4.11 rather than a change to it, ruled at the P6
+mid-package change control on 2026-08-10. This file derived it before that
+ruling and escalated it: 4.11 calls recurrence_rule an RFC 5545 RRULE value
+string and calls UNTIL "a date, inclusive per RFC 5545", and within an RRULE
+that value type is a DATE or DATE-TIME whose DATE form carries no separators,
+while the extended spelling every other date on this contract uses had a
+convention line of its own to point at. The derivation had no gap in it, but
+it was the one piece of the 4.11 grammar this suite spells rather than quotes,
+and the grammar module would have derived it separately. It is settled text
+now, and it is the form these builders already emitted.
 */
 import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'

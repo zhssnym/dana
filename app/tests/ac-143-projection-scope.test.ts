@@ -1,21 +1,21 @@
 /*
-AC-143 (proposed): Given an accessible pending rule-carrying task whose
-current occurrence is due before the requested calendar range, then its
-instances inside the range are projected even though the task itself draws no
-real row there; given one whose current occurrence is due after the range,
-then nothing is projected.
+AC-143: Given an accessible pending rule-carrying task whose current
+occurrence is due before the requested calendar range, then its instances
+inside the range are projected even though the task itself draws no real row
+there; given one whose current occurrence is due after the range, then
+nothing is projected.
 
-Proposed here with its test, for the Integration Steward to number by
-amendment as the next additive number so nothing moves, the P4 and P5
-precedent. The number in this file is that next number and is not this role's
-to assign.
+Proposed here with its test and numbered by the Integration Steward at P6's
+mid-package change control on 2026-08-10, so the sentence above is section
+12's own text now; it is transcribed unchanged, the P4 and P5 precedent.
 
 **This is the surface the RFC 0001 P6 row routed to this session to judge.**
 Q3C's virtual sentence scopes projection by three things, accessible, pending
 and rule-carrying, and by nothing else. In particular it does not scope by
 the task's own due_date lying inside the range, and section 12 records that
 reading beside AC-082 as the second of its two fixture facts. No criterion in
-any range asserts it. The judgment is that it needs one, for three reasons.
+any range asserted it. The judgment returned was that it needed one, for
+three reasons, and the change control took them as this criterion's grounds.
 
 It is reachable and ordinary rather than exotic. A weekly chore whose current
 occurrence is due on the 28th of a month, viewed on the next month's grid, is

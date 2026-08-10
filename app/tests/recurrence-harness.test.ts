@@ -73,9 +73,10 @@ describe('the P6 rule builders', () => {
   })
 
   test('untilStamp writes RFC 5545\'s DATE form', () => {
-    // YYYYMMDD, no separators: 4.11 calls the column an RFC 5545 RRULE value
-    // string and UNTIL "a date, inclusive per RFC 5545", and the DATE value
-    // type of that RFC is the basic ISO format.
+    // YYYYMMDD, no separators, which 11.9 records as the reading of frozen
+    // 4.11: the column is an RFC 5545 RRULE value string, UNTIL is "a date,
+    // inclusive per RFC 5545", and that RFC's DATE value type is the basic
+    // ISO format. Any other spelling is outside the subset and answers 422.
     expect(untilStamp('2026-07-27')).toBe('20260727')
     expect(untilStamp('2024-02-29')).toBe('20240229')
     expect(weeklyRuleUntil('2026-07-20', '2026-07-20')).toBe(
