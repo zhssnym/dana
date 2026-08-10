@@ -11,6 +11,16 @@ file name:
 npx vitest run -t "AC-105"
 ```
 
+Two runners collect this directory and they never overlap. Vitest takes
+`tests/**/*.test.{ts,tsx}`; Playwright takes `tests/e2e/**/*.spec.ts`, which is
+P8's browser leg and the only place AC-091 to AC-100 run. Its own by-number
+form is `-g` rather than `-t`, and it needs no file naming because the runner
+builds the client and boots the server itself:
+
+```bash
+npx playwright test -g "AC-095"
+```
+
 ## Coverage
 
 | Package | Criteria | State |
@@ -30,7 +40,10 @@ npx vitest run -t "AC-105"
 | P5 gate | AC-141 | Covered, passing since the P5 merge; appended by the same date's amendment from the owner's ruling rather than proposed here |
 | P6 | AC-071 to AC-082 | Covered, passing since the grammar reached 7.6's write bodies, generation and G-SERIES reached the transition seams, and Q3C's virtual arm got its own fetch; written red before any of it existed |
 | P6 gate | AC-142, AC-143 | Covered, passing since the same four commits; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
-| P7 to P10 | AC-083 to AC-104 | Not yet written |
+| P7 to P10 | AC-083 to AC-090, AC-101 to AC-104 | Not yet written |
+| P8 | AC-091 to AC-100 | Covered in the Playwright leg, every case red: `app/src/client` is P0's nineteen-line placeholder until this package's three implementing sessions run, which is the designed order |
+| P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered in the Playwright leg, red on the same ground. Those criteria stay in their own packages with their server halves green where they are |
+| P8 gate | AC-154 to AC-165 | Proposed here with their tests; the numbers are provisional until the mid-package change control assigns them |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -440,6 +453,112 @@ asserted that scope while AC-082's own series sits inside its range, so an
 implementation projecting off the range-bounded real rows passed the whole
 existing suite and emptied every month-ahead view.
 
+P8's range, AC-091 to AC-100, is the first that runs in a browser, and it runs
+in the Playwright leg alone: protocol section 4's gate does not name Playwright
+and 11.11's CI order does, so a P8 session reporting the four-command gate
+green has not shown its criteria pass. The seam splits by file. The
+configuration, `@playwright/test`, the browser install and the npm script are
+Platform's; every spec and every harness under `tests/e2e/` is this role's, by
+its Owns section. `vitest.config.ts` includes `tests/**/*.test.{ts,tsx}` and
+`playwright.config.ts` collects `tests/e2e/**/*.spec.ts`, so no file is claimed
+by both and neither config knows about the other.
+
+Written before the implementation per the RFC 0001 P8 row, so every case fails
+today against P0's placeholder client. That is the designed order again, and it
+costs more here than in any earlier package: a page that renders nothing
+satisfies every assertion of an absence, so **every absence in this leg is
+paired with the same locator finding the thing on a page that must have it**.
+AC-096 finds the floating add button on Tasks before asserting it is not on
+Done; AC-157 asserts the general error toast on an ordinary failure so that its
+two "not the general toast" cases are not vacuous; AC-161 reads the step cap
+notice at forty-nine steps before asserting it at fifty. This is the P4
+discipline of asserting every refusal beside a success on the same URL, applied
+to a leg where the whole application is the thing that does not exist yet.
+
+Six things these files are written around.
+
+- **`tests/e2e/harness.ts` is the P8 layer**, the analogue of
+  `views-harness.ts`: 11.10's development login, the CSRF token, fixtures
+  through section 7, section 9's copy, 9.1's route table, and the addressing
+  helpers. Sign-in is keyed by `google_sub` and never by email, measured by the
+  Platform session that landed the runner: the endpoint provisions a fresh sub
+  for an email it does not know, so posting a seeded address collides on 4.1's
+  unique email and answers 500, where posting the sub finds the seeded user
+  through the same uniqueness 7.1's transaction is idempotent under.
+- **Controls are addressed by accessible role and normative name**, which is
+  9.1's addressing sentence, landed at the P8 kickoff so that this suite could
+  ask for a control without reaching for a test identifier. No selector in these
+  files names a class or a DOM shape. What the sentence fixes is
+  identification, not construction: section 9 specifies structure, states and
+  copy rather than widgets, so the two helpers that operate a picker dispatch on
+  what the element turned out to be instead of assuming a native select.
+- **Section 9's copy is restated in the harness, never imported from
+  `src/client`.** The standing Steward ruling for the frozen response shapes,
+  applied where it bites hardest: a suite that reads the string it asserts out
+  of the code under test asserts that the code equals itself.
+- **No acceptance test runs against mocked data.** The P8 kickoff's ruling: the
+  RFC row's permission to build page structure against mocks is about package
+  dependencies, and 11.10 puts these tests on the seed dataset and the
+  development login. Every fixture here is a real row created through section 7
+  with the session the spec already holds.
+- **One worker, one seeded database, no retries, and specs are not isolated
+  from each other.** So the rule these files run under is that a spec never
+  transitions, edits or deletes a seeded row: it creates its own, titled for its
+  own file. Reads of seed rows are free, and the two specs that must change
+  shared state put it back, AC-095 restoring the 4.10 settings defaults through
+  7.2. Counts are compared against what the API reports at that moment rather
+  than against constants, which is why AC-155 reads the Inbox badge against GET
+  /folders instead of expecting an integer.
+- **The browser's zone is pinned to UTC.** `db/seed.ts` dates its rows with
+  `toISOString().slice(0, 10)` and the client reports the browser's zone as `tz`
+  on every view request, so the specs declare `timezoneId: 'UTC'` and the
+  harness computes the same dates the same way. The residual is a run crossing
+  a UTC midnight in the seconds between the seed and the spec, which
+  `middayZone()` avoids in the vitest leg and this one cannot, the seed's dates
+  not being ours to choose.
+
+Two things this leg asserts that no single criterion could. `session-path.spec.ts`
+walks the sidebar through six pages, a folder and the search overlay and then
+asserts over everything the client sent that every view request carried `tz`
+and every mutation carried `X-CSRF-Token`. AC-130 and AC-111 pin the server's
+two refusals; nothing pinned that the client sends either, and a client can
+carry `tz` on the one endpoint a criterion happens to read and omit it
+everywhere else while every criterion passes. Its third case is 10.2 from the
+client side, on the other seeded user's Inbox, which exists.
+
+And `rendered-halves.spec.ts` closes the clauses earlier packages recorded as
+P8's half, found by the grep those records were left for. AC-047's assignee
+chip, AC-048's unassigned chip, AC-058's collapsed Completed section and
+AC-141's People screen copy are there; AC-039's faded home and AC-053's fading
+in Tasks and All are in the AC-097 file, which is where the fixture for them
+already was. None of this renumbers or re-owns those criteria, and none of it
+re-asserts server behavior through a browser, which buys latency rather than
+truth.
+
+**One recorded half is not closed, and is escalated rather than skipped.**
+AC-138's file records that a scrubbed user's surviving history "renders as
+Deleted user" and calls that P8's half of 8.10's sentence. Section 9 names no
+surface that displays `created_by`, `completed_by` or `accepted_by`: the
+assignee clears at step 4, the membership goes with it, and 7.3 excludes
+soft-deleted users from the roster, so the sentence has nowhere in this
+specification to be asserted against. Closing it would mean this suite
+inventing a page for the implementer, which is the one thing the separation
+exists to prevent. Escalated to the Integration Steward with a recommendation.
+
+AC-154 to AC-165 were authored here with their tests for the mid-package change
+control to number, the AC-125, AC-133 and AC-142 precedent, and every file says
+its own number is provisional. They begin at AC-154 rather than AC-144 because
+package P7 is concurrently proposing AC-144 to AC-153 on its own branch and
+merges first; P7's numbering is not final either, so the Steward reconciles
+both. The standard is the one those batches were admitted under, a rule the
+specification states that no numbered criterion asserts, and section 9 is thick
+with them: the quick-add row's enter and escape, the sidebar's folder ordering
+against a frozen 7.4 order it deliberately is not, the search overlay's
+debounce and its two shortcuts, a 409 showing 5.1's copy verbatim, the eight
+empty states, the landing page, the shell fallback's scope, the form's
+validation copy, the four destructive confirms, the manifest half of 10.6,
+Q1's important toggle changing no query, and the un-pull control's absent half.
+
 ## The two amendments these tests read closely
 
 **7.1's tz parameter.** `GET /api/v1/auth/google` takes an optional `tz`. The
@@ -490,6 +609,9 @@ through `Intl` rather than imported, calendar arithmetic on 4.11 date
 strings, the nine 7.10 response envelopes restated and asserted key-exact
 with every row parsed through the frozen `TaskCard` check, fixtures written
 directly with every column named, and cursor paging to exhaustion.
+`e2e/harness.ts` is the P8 layer and the only one that never opens a database:
+it reaches the application through a browser and a running server instead, so
+its own section above rather than this list is where its decisions are.
 `sharing-harness.ts` is the P5 layer: the 7.5 and 7.3 transports and their
 frozen shapes restated key-exact where the text enumerates and no further
 where it does not, actors signed in with chosen emails for 5.2's matching
