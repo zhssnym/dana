@@ -106,12 +106,19 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     page,
   }) => {
     // Row one of the table names three openings and gives them one set of
-    // defaults, so all three are asserted: an implementation keying the
-    // defaults off the page rather than off the row would pass one of them.
+    // defaults, so both addressable ones are asserted: an implementation
+    // keying the defaults off the page rather than off the row would pass
+    // one of them.
+    //
+    // The third, "bare button", is asserted through these two rather than on
+    // a page of its own. 9.1 puts the floating add button on every page
+    // except Done, and every page that carries it either has its own row in
+    // this table or is one of these two, so there is no opening the phrase
+    // names that is distinct from what is asserted here. Guessing at one,
+    // Settings say, would assert a control 9.1 does not clearly put there.
     for (const [where, path] of [
       ['Tasks', routes.tasks],
       ['All', routes.all],
-      ['the bare button on Settings', routes.settings],
     ] as const) {
       await page.goto(path)
       await floatingAddButton(page).click()

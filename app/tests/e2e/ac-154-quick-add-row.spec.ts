@@ -33,7 +33,15 @@ Spec: 9.1 (the quick-add row), 9.3 (the entry-point defaults it commits),
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
-import { routes, seedDate, seedIds, seedSubs, signIn, taskRow } from './harness.js'
+import {
+  routes,
+  seedDate,
+  seedIds,
+  seedSubs,
+  signIn,
+  taskRow,
+  textInputs,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC' })
 
@@ -68,7 +76,7 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     const title = 'ac-154 tasks quick add'
     await page.goto(routes.tasks)
 
-    const quickAdd = page.getByRole('textbox').first()
+    const quickAdd = textInputs(page).first()
     await quickAdd.fill(title)
     await quickAdd.press('Enter')
 
@@ -106,7 +114,7 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     const title = 'ac-154 planned quick add'
     await page.goto(routes.planned)
 
-    const quickAdd = page.getByRole('textbox').first()
+    const quickAdd = textInputs(page).first()
     await quickAdd.fill(title)
     await quickAdd.press('Enter')
     await expect(taskRow(page, title)).toBeVisible()
@@ -128,7 +136,7 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     const title = 'ac-154 escaped and never created'
     await page.goto(routes.tasks)
 
-    const quickAdd = page.getByRole('textbox').first()
+    const quickAdd = textInputs(page).first()
     await quickAdd.fill(title)
     await quickAdd.press('Escape')
 
@@ -152,7 +160,7 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     // folder, so the folder column of 9.3's table holds for whichever row
     // this is. The due date differs between them and is the cell escalated
     // at AC-093, so it is not asserted here.
-    const quickAdd = page.getByRole('textbox').first()
+    const quickAdd = textInputs(page).first()
     await quickAdd.fill(title)
     await quickAdd.press('Enter')
 

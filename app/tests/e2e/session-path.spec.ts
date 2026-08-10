@@ -52,6 +52,7 @@ import {
   sidebarLink,
   signIn,
   taskRow,
+  textInputs,
   tzOf,
   watchWire,
 } from './harness.js'
@@ -131,7 +132,7 @@ test.describe('The signed-in path', () => {
     // This file's own row, so nothing seeded transitions.
     const title = 'session path completes this one'
     await page.goto(routes.tasks)
-    const quickAdd = page.getByRole('textbox').first()
+    const quickAdd = textInputs(page).first()
     await quickAdd.fill(title)
     await quickAdd.press('Enter')
     await expect(

@@ -330,17 +330,27 @@ export function sidebarLink(page: Page, name: string): Locator {
  * about this control's absence is paired with the same matcher finding it
  * on a page that must have it, so a matcher that finds nothing anywhere
  * fails loudly instead of passing as an absence.
+ *
+ * Narrowed to the first match rather than left plural, so that a page
+ * carrying both this control and a named "Add" button inside a quick-add row
+ * is a page this helper can still click. Counting is unaffected: the first
+ * match of nothing is nothing, so an absence still reads as zero.
  */
 export function floatingAddButton(page: Page): Locator {
-  return page.getByRole('button', { name: /add/i })
+  return page.getByRole('button', { name: /add/i }).first()
 }
 
 /**
  * Any text entry on the page other than the global search control of 9.1,
  * which every page carries and which is therefore never the quick-add row.
+ *
+ * Excluded by accessible name, which is the only thing that distinguishes
+ * them: an input element has no text content, so filtering on text would
+ * exclude nothing at all and the search box would count as a quick-add row
+ * on every page.
  */
 export function textInputs(page: Page): Locator {
-  return page.getByRole('textbox').filter({ hasNotText: /search/i })
+  return page.getByRole('textbox', { name: /^(?!.*search).*$/is })
 }
 
 /**

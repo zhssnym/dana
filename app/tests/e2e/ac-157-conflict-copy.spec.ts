@@ -42,6 +42,7 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  textInputs,
   transition,
 } from './harness.js'
 
@@ -143,7 +144,7 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
       })
     })
 
-    const quickAdd = page.getByRole('textbox').first()
+    const quickAdd = textInputs(page).first()
     await quickAdd.fill('ac-157 a request that fails')
     await quickAdd.press('Enter')
 
