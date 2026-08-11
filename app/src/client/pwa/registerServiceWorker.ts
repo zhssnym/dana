@@ -63,8 +63,21 @@ export async function registerServiceWorker(
     return noop
   }
 
+  /*
+  Whether the person has asked for the update yet.
+
+  This flag is the whole of "no forced reload" on this side. The worker claims
+  its clients on activation, so `controllerchange` fires on an ordinary first
+  visit as well as after an update, and a reload bound to that event alone
+  would reload every first visit and would do it without being asked. So the
+  reload below is bound to the click and merely waits for the controller,
+  which is the order 10.6 describes: the person chooses, then the new version
+  takes over, then the page swaps.
+  */
+  let asked = false
   const handle: ServiceWorkerHandle = {
     applyUpdate: () => {
+      asked = true
       const waiting = registration.waiting
       if (waiting === null) {
         window.location.reload()
@@ -76,12 +89,9 @@ export async function registerServiceWorker(
     },
   }
 
-  // A reload is bound to the controller changing rather than to the click, so
-  // the page swaps only once the new worker is actually in charge. Guarded
-  // against the first controller a page ever gets, which is not an update.
   let reloading = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return
+    if (!asked || reloading) return
     reloading = true
     window.location.reload()
   })

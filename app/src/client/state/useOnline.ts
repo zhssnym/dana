@@ -1,30 +1,15 @@
 /*
-Whether this browser believes it has a connection.
+Whether Dana can reach its server, as a hook.
 
-The banner of 9.1 is global and persistent while offline, so exactly one thing
-in this client subscribes to this and it is the layout. A page that asked
-would be a page with its own offline treatment, which is the thing the shared
-states exist to prevent.
-
-`navigator.onLine` is trusted in one direction only, which is the direction
-that matters here: false means offline, true means "no reason to think
-otherwise". A write that fails anyway is caught by `http.ts`, and a read that
-fails anyway is an error state.
+The judgment lives in `connectivity.ts`, which says why `navigator.onLine`
+cannot answer this on its own. Exactly one thing in this client subscribes,
+and it is the layout: 9.1's banner is global and persistent while offline, so
+a page that asked would be a page with its own offline treatment, which is the
+thing the shared states exist to prevent.
 */
 import { useSyncExternalStore } from 'react'
 
-function subscribe(onChange: () => void): () => void {
-  window.addEventListener('online', onChange)
-  window.addEventListener('offline', onChange)
-  return () => {
-    window.removeEventListener('online', onChange)
-    window.removeEventListener('offline', onChange)
-  }
-}
-
-function snapshot(): boolean {
-  return navigator.onLine
-}
+import { isOnline, subscribeToConnectivity } from './connectivity.js'
 
 /** Server snapshot: this client never renders anywhere but a browser. */
 function serverSnapshot(): boolean {
@@ -32,5 +17,5 @@ function serverSnapshot(): boolean {
 }
 
 export function useOnline(): boolean {
-  return useSyncExternalStore(subscribe, snapshot, serverSnapshot)
+  return useSyncExternalStore(subscribeToConnectivity, isOnline, serverSnapshot)
 }

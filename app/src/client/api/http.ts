@@ -31,6 +31,8 @@ decided once, in `queryClient.ts`, off these three types.
 import { errorEnvelope } from '../../shared/error-envelope.js'
 import type { z } from 'zod'
 
+import { isOnline, reportReachable, reportUnreachable } from '../state/connectivity.js'
+
 import { csrfToken } from './csrf.js'
 import { browserTimezone } from './tz.js'
 
@@ -95,13 +97,12 @@ function urlOf(path: string, params: QueryParams | undefined): string {
 }
 
 async function send(options: RequestOptions): Promise<unknown> {
-  // The fail-fast check of 10.6. navigator.onLine is a false negative never
-  // and a false positive sometimes, which is the right way round here: a
-  // browser that says it is offline is, and one that says otherwise still
-  // reaches the catch below when the fetch fails.
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    throw new OfflineError()
-  }
+  // The fail-fast check of 10.6: a write attempted with no connection does
+  // not enter a queue, a retry or a background sync, and the shortest way to
+  // guarantee that is not to make the request at all. What "no connection"
+  // means is state/connectivity.ts's judgment rather than navigator.onLine's,
+  // for the reason recorded there.
+  if (!isOnline()) throw new OfflineError()
 
   const headers: Record<string, string> = {}
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
@@ -122,14 +123,15 @@ async function send(options: RequestOptions): Promise<unknown> {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
   } catch {
-    // fetch rejects for exactly one class of reason: the request did not
-    // complete. Offline is the case section 9 gives copy for, and a browser
-    // that dropped its connection mid-request is the same thing to a person.
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      throw new OfflineError()
-    }
-    throw new ApiError(0, 'network_error', 'The request did not reach Dana.')
+    // fetch rejects for exactly one class of reason on a same-origin request
+    // that nobody aborted: it did not complete. That is the offline condition
+    // itself, whatever the platform's flag says, and it is the sharpest
+    // evidence the client ever gets, so the banner is told here.
+    reportUnreachable()
+    throw new OfflineError()
   }
+  // Any status at all is the server answering, which is a connection.
+  reportReachable()
 
   if (response.status === 204) return undefined
   const text = await response.text()
