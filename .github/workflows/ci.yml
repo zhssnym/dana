@@ -1,11 +1,21 @@
 name: CI
 
-# The step order is normative: spec 11.11 fixes it as npm ci, lint, typecheck,
-# test on PGlite, test on postgres:18, build, Playwright. Changing order or
-# steps is an Integration Steward escalation, not an edit.
+# The seven steps and their order are normative: spec 11.11 fixes them as npm ci,
+# lint, typecheck, test on PGlite, test on a real Postgres 18, build, Playwright.
+# Changing the set or the order is an Integration Steward escalation, not an edit.
+# Where the job runs, and where the postgres leg's database comes from, are job
+# configuration: they move without amending 11.11, exactly as the service block
+# they replaced always was.
 on:
   push:
   workflow_dispatch:
+
+# One machine serves every branch, so a second push to a branch supersedes the
+# first rather than queueing behind it. main is exempt: its run is the verdict a
+# merge is checked against, and a cancelled verdict is not a verdict.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 defaults:
   run:
@@ -13,22 +23,8 @@ defaults:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows, x64]
     timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: dana_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,14 +40,17 @@ jobs:
         run: npm run typecheck
       - name: Test on PGlite
         run: npm test
-      - name: Test on postgres 18
+      # TEST_DATABASE_URL arrives from the runner installation's own .env file,
+      # never from a repository secret and never from this file: 11.11's Secrets
+      # bullet rules that a credential for a resource GitHub cannot reach is not
+      # stored at GitHub. The database it names is the one 11.10's CREATE
+      # DATABASE statement fixes to the builtin C.UTF-8 locale.
+      - name: Test on a real Postgres 18
         run: npm test
-        env:
-          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dana_test
       - name: Build
         run: npm run build
       # Self-activates when P8 lands the Playwright configuration; until then
       # the step is skipped, keeping the 11.11 order in place from P0 on.
       - name: Playwright
         if: hashFiles('app/playwright.config.ts') != ''
-        run: npx playwright install --with-deps && npx playwright test
+        run: npx playwright install && npx playwright test
