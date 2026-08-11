@@ -125,7 +125,7 @@ not when its package needs it.
 | Send Imran the design brief (`design/brief.md`) and agree the two review rounds | P8 fidelity work | the day P0 starts | he confirms scope and a first-pass date |
 | Google OAuth client: Cloud project, consent screen (External, publish to production; openid, email, profile only, so no verification review), client id and secret, localhost redirect URI | P1 manual verification; production later | while P0 runs | id and secret in your local `.env`; sign-in round trip works once P1 lands |
 | Domain registration | Resend DNS records, the production URL, the OAuth production redirect | while P0 runs (everything DNS hangs off it) | domain resolves at the registrar |
-| GitHub branch protection: require green CI to merge into main | every merge from P0 onward | the day P0's CI lands | a red branch cannot be merged, even by you |
+| Local CI on this machine: register the runner, create the `dana_ci` role and the `dana_test` database, write the runner's `.env`. Steps below, under "Standing up local CI" | every merge from P0 onward, hosted runs having stopped on 2026-08-11 | now: until it is done a pushed branch has no verdict at all | a pushed branch gets a green run again, both database legs included |
 | Render account: web service plus Postgres 18 (paid tier from day one, spec 11.11), GitHub connected, environment variables set | first deploy; deploy problems surface early only if this exists early | when P1 merges | `/api/health` returns 200 at the Render URL |
 | Resend account, domain authenticated: SPF, DKIM, DMARC records at your DNS; propagation can take up to 48 hours | P7 delivery | when P3 starts | Resend dashboard shows the domain verified; API key in Render and `.env` |
 | Better Stack account: uptime monitor on `/api/health` plus one heartbeat (its URL is an environment variable the scheduler pass pings) | P7 delivery | when P6 starts | a test ping shows green in the dashboard |
@@ -143,6 +143,181 @@ transcribes them into the tokens file during P8. Agents read `docs/design/` and 
 write it. Round two is feedback on the built pages against his screens; disagreements
 about structure or copy are not design questions, they go to the Steward, because
 section 9 wins.
+
+### Standing up local CI
+
+Hosted GitHub runs stopped starting at 18:46 UTC on 2026-08-11 on an account
+billing failure, and you chose not to buy hosted minutes. Spec 11.11 now admits a
+second form of the same gate: the same workflow, the same seven steps in the same
+order, executed by a runner service on this machine, with the postgres leg pointed
+at the PostgreSQL 18 already installed here instead of at a container. The steps
+below are the part no session can do for you, because every one of them either
+needs a credential or is a credential.
+
+Do them in this order. Steps 2 and 3 must not swap: the collation ruling in 11.10
+is worthless if `dana_test` is created by inheriting the cluster default, and this
+cluster's default is `French_France.1252`.
+
+Two rules that hold throughout. The runner installation lives at
+`C:\actions-runner`, outside the repository and outside every working tree, and
+nothing in it is ever committed. And no password, registration token or connection
+string goes into a repository file, a commit, a GitHub secret, or an agent session.
+
+**1. Register the runner, and prove GitHub will dispatch to it.**
+
+This is the assumption everything else rests on. GitHub does not bill minutes for
+self-hosted runners, so a self-hosted job should start where a hosted one will not,
+but nothing has proven that while the account is in payment failure. Prove it
+before building on it.
+
+The runner is already downloaded, checksum-verified against the release's published
+SHA-256, and extracted to `C:\actions-runner` (version 2.336.0, win-x64). Get a
+registration token: on GitHub, open **Settings > Actions > Runners > New self-hosted
+runner** for `zhssnym/dana`, at
+`https://github.com/zhssnym/dana/settings/actions/runners/new`. The token shown
+there expires in one hour and is single use. Do not paste it anywhere but the
+command below.
+
+```powershell
+Set-Location C:\actions-runner
+.\config.cmd --url https://github.com/zhssnym/dana --token PASTE_TOKEN_HERE --unattended --runasservice --replace
+```
+
+No labels are passed, because `config.cmd` applies `self-hosted`, `Windows` and
+`X64` automatically and those three are exactly what `runs-on` in
+`.github/workflows/ci.yml` matches. The service is installed and started by that
+one command, under `NT AUTHORITY\NETWORK SERVICE`. Confirm it, and note the name,
+which you need again in step 3:
+
+```powershell
+Get-Service actions.runner.* | Select-Object Name, Status, StartType
+```
+
+Then the smoke test, which is the actual point of this step. Create a throwaway
+branch, put this file at `.github/workflows/smoke.yml`, push the branch:
+
+```yaml
+name: runner smoke
+on: workflow_dispatch
+jobs:
+  smoke:
+    runs-on: [self-hosted, windows, x64]
+    steps:
+      - run: echo ok
+```
+
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" workflow run smoke.yml --ref NAME_OF_THROWAWAY_BRANCH
+& "C:\Program Files\GitHub CLI\gh.exe" run list --workflow smoke.yml --limit 5
+```
+
+If it runs, the plan is viable and everything below is worth doing. If it also dies
+in a few seconds with no runner assigned, Actions is disabled at the account level,
+no workflow change can fix it, and the choice is yours and not an agent's: restore
+billing, or replace green CI as the merge gate with a locally run gate the
+Integration Steward records. The second changes 11.11's opening clause, so it is a
+change control, not a decision made in passing. Delete the throwaway branch either
+way.
+
+**2. Create the CI role and the test database.**
+
+The role is a plain login role with `CREATEDB`, never the superuser. That is all
+the migrations need: `pg_trgm` has been a trusted extension since Postgres 13, so
+a database owner can run the one `CREATE EXTENSION` in `0000_core_schema.sql`
+without superuser rights. Choose a password for `dana_ci` yourself; it is not the
+superuser's, and it is not written down anywhere in this repository.
+
+`psql` is not on any PATH here, so call it by full path. It prompts for the
+superuser password, which is the one command in this section that needs it.
+
+```powershell
+$psql = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "CREATE ROLE dana_ci LOGIN CREATEDB PASSWORD 'PASSWORD_YOU_CHOOSE'"
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "CREATE DATABASE dana_test OWNER dana_ci TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8' LC_COLLATE 'C' LC_CTYPE 'C'"
+```
+
+That `CREATE DATABASE` statement is normative: spec 11.10 carries it verbatim and
+the reasoning with it. The builtin provider is the only one Postgres guarantees
+identical on every platform and version, and it is measurably what PGlite already
+does, so a disagreement between the two legs can only be an engine difference,
+which is the only thing the second leg exists to find.
+
+Then the two checks 11.10 records, run as `dana_ci` against the new database. Set
+the client encoding first: the Postgres tooling here answers in French under a
+1252 console, and the second check carries accented characters.
+
+```powershell
+$env:PGCLIENTENCODING = 'UTF8'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+& $psql -h 127.0.0.1 -p 5432 -U dana_ci -d dana_test -c "SELECT datlocprovider, datlocale, pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database()"
+& $psql -h 127.0.0.1 -p 5432 -U dana_ci -d dana_test -c "SELECT string_agg(v, '|' ORDER BY v) FROM (VALUES ('Zebra'),('apple'),('Apple'),('a-b'),('ab'),('cot'||chr(233)),('c'||chr(244)||'te'),('_x')) AS s(v)"
+```
+
+The first must answer `b | C.UTF-8 | UTF8`. The second must answer
+`Apple|Zebra|_x|a-b|ab|apple|coté|côte`, which is what PGlite answers here, measured
+2026-08-11 against the installed PGlite at server 18.3. The `chr()` calls build the
+accented characters inside the server so that nothing depends on what your console
+encodes; 11.10 writes the same probe with the characters inline and the two are the
+same query. If either answer differs, stop: the database was created wrong, and the
+repair is to drop it and rerun the `CREATE DATABASE` above rather than to adjust
+anything downstream.
+
+**3. Give the runner the connection string.**
+
+It lives in the runner installation's own `.env` file, which the runner reads into
+every job's environment. Not a GitHub repository secret, which every workflow on
+every branch can read and which would put a credential for a machine GitHub cannot
+reach into GitHub's hands for nothing. Not a machine-wide environment variable,
+which is the same plaintext at a wider blast radius. Spec 11.11's Secrets bullet
+rules this and says why.
+
+One variable, `TEST_DATABASE_URL`, whose value is
+`postgres://dana_ci:THE_PASSWORD_YOU_CHOSE@127.0.0.1:5432/dana_test`. Write it with
+the call below rather than with `Set-Content` or `Out-File`: those write a
+byte-order mark in PowerShell 5.1, and a mark at the start of the file becomes part
+of the first variable's name, which fails silently by leaving the variable unset.
+
+```powershell
+$line = 'TEST_DATABASE_URL=postgres://dana_ci:THE_PASSWORD_YOU_CHOSE@127.0.0.1:5432/dana_test'
+[System.IO.File]::WriteAllLines('C:\actions-runner\.env', @($line), (New-Object System.Text.UTF8Encoding($false)))
+Restart-Service actions.runner.zhssnym-dana.HASSAN-PC
+```
+
+Use the service name step 1 printed if it differs. The restart is not optional: the
+runner reads that file when the service starts, so an edit without one leaves every
+job running on the old environment.
+
+Know the failure mode this creates, because it is silent. If the file is missing,
+misnamed, or the variable is misspelled, the database seam falls back to PGlite and
+the workflow's fifth step runs the PGlite suite a second time and reports green. The
+gate then looks perfect while the postgres leg has never run. There is a definitive
+check, and it costs one command. After the first real CI run, ask the database
+whether it was ever touched:
+
+```powershell
+& $psql -h 127.0.0.1 -p 5432 -U dana_ci -d dana_test -c "\dt"
+```
+
+A migrated schema means the leg reached it. "No relations found" means it did not,
+whatever the run's colour said.
+
+Keep the same variable in a gitignored `app/.env` for your own hand runs, and
+remember that nothing loads that file for a test run, only the server boot does.
+A hand run needs the variable exported in the shell:
+
+```powershell
+$env:TEST_DATABASE_URL = 'postgres://dana_ci:THE_PASSWORD_YOU_CHOSE@127.0.0.1:5432/dana_test'
+Set-Location D:\dana\app ; npm test
+```
+
+**4. What CI now costs you.** It exists only while this machine is powered and the
+runner service is up. A job queued against an absent runner waits rather than
+failing, so a pushed branch has no verdict rather than a red one, and that is the
+release ritual paying a cost rather than a defect to debug. And the runner executes
+whatever a workflow on any pushed branch tells it to, on the machine holding your
+own data. That is acceptable exactly while this repository is private and every
+writer is you or a session you opened. Making it public, or admitting an outside
+collaborator, revokes it; spec 11.11 records that as the revisit trigger.
 
 ## 5. Opening a session
 
@@ -291,8 +466,11 @@ Open a Steward session with the template. What it checks is its persona's busine
 (match to claimed sections, boundary compliance, conflicts, the gate in CI order,
 dependency-addition review); what you enforce around it:
 
-- A branch merges only through a Steward session. You never merge by hand, and
-  branch protection (section 4) means a red branch cannot merge at all.
+- A branch merges only through a Steward session, and you never merge by hand.
+  Nothing at GitHub enforces that: checked 2026-08-11, this repository is private
+  on a plan offering neither branch protection nor rulesets, and both endpoints
+  answer 403. Spec 11.11 records it. The rule is the protocol's, which means the
+  only thing standing between a red branch and main is you reading the run.
 - **Who pushes:** a working session pushes its own branch, because CI runs on push
   and an unpushed branch is a branch the gate has never seen. The Steward pushes
   `main` after it merges. Neither is your hands, and neither is optional: an
