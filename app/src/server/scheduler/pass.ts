@@ -1,0 +1,343 @@
+/*
+The 11.7 delivery pass: one cycle of 8.6's reminder loop, as a plain callable.
+
+**Why a callable and not a route.** 11.7 requires the pass to stay one, so
+that if hosting ever moves somewhere without an always-on process the
+replacement is an external per-minute trigger hitting an authenticated
+endpoint that runs one pass, rather than a rewrite. The 60-second interval and
+its in-flight guard therefore live next door in ./interval.ts, and nothing
+below knows a timer exists. The acceptance suite reaches exactly this
+function, through the module path and the two dependency names 11.7 ratified
+at the P7 mid-package change control; production composes the same callable at
+boot.
+
+**One transaction, claim then classify then send then mark.** The poll runs
+inside the transaction and claims its rows with SELECT ... FOR UPDATE SKIP
+LOCKED, which is what makes two ticks safe rather than merely unlikely: the
+deploy overlap window can run two instances for about ninety seconds (11.7),
+and a second tick meeting a claimed row skips it instead of sending a second
+copy. The lock is held across the send for the same reason. A crash between
+the send and the mark can duplicate at most one batch, which 8.6 accepts by
+name, and the alternative (mark first, then send) trades a duplicate for a
+silent non-delivery, which it does not.
+
+**Nothing here computes a fire instant.** 8.6's arithmetic is the Scheduling
+engineer's and this role's persona forbids restating it; the pass reads
+fire_at as stored and compares it to the database's own now(), never to a
+clock in this process. That also settles which clock decides staleness when
+the two disagree.
+
+**The stale window is evaluated in SQL, in 8.6's own direction.** now() minus
+fire_at greater than six hours, computed by the same statement that selects
+the row, so the comparison cannot be written the wrong way round in one place
+and right in another, and so a row does not age between the poll and the
+branch.
+
+**Two duties, and that is the ceiling.** 8.6 calls this loop the only
+background execution in v1, so pruning expired sessions rides here rather than
+in a second scheduled process (11.7). It runs after the reminder work, on the
+handle rather than inside the delivery transaction, because it is hygiene and
+never revocation (11.6): its failure must not roll back a delivery that
+already happened.
+*/
+import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import { pino } from 'pino'
+
+import type { Db, DbClient } from '../../../db/client.js'
+import { pruneExpiredSessions } from '../auth/index.js'
+import { createNotifier } from '../notify/index.js'
+import type { NotificationSink, Notifier, OutboundMessage } from '../notify/index.js'
+import { recordSchedulerPass } from '../routes/health.js'
+
+/**
+ * The log surface this module needs. Structural, so the boot file's own pino
+ * instance satisfies it and a unit test can capture emission without one.
+ *
+ * 10.5 puts reminder sends and skips on the logged list, so this is not
+ * optional decoration; what may appear in a line is the task id and a
+ * machine-readable reason and nothing else. The recipient address never
+ * reaches it, which is 10.5's never-log list, and neither does the title,
+ * which the email carries and the log does not.
+ */
+export interface SchedulerLogger {
+  info(fields: Record<string, unknown>, message: string): void
+  warn(fields: Record<string, unknown>, message: string): void
+  error(fields: Record<string, unknown>, message: string): void
+}
+
+export interface ReminderPassDeps {
+  /** The one database handle (app/db/client.ts), already opened. */
+  dbClient: DbClient
+  /**
+   * The 11.10 sink. Present under test, where it is the only way a send is
+   * observable; in production the boot file passes the application's own
+   * notifier, which carries the 11.8 transport. Absent, every send logs its
+   * suppression and no email leaves, which is 11.8's development behavior.
+   */
+  notifications?: NotificationSink
+  /**
+   * Defaulted rather than required because 11.7 fixes this function's
+   * dependencies at two, so the acceptance suite passes no logger and a
+   * required one would make the ratified seam unusable. The default is a pino
+   * instance of this module's own, the shape src/server/security/log.ts uses
+   * and for its reason: importing the boot file's logger would point a module
+   * the boot file composes back at the entrypoint that runs main(). Silence
+   * was the alternative and was refused: a pass that delivers mail while
+   * logging nothing is the hazard this role exists to prevent, and 10.5
+   * requires the lines.
+   */
+  logger?: SchedulerLogger
+  /**
+   * 11.12's heartbeat, pinged after each successful cycle so that a dead tick
+   * inside a live server is visible to something other than an uptime check.
+   * Absent everywhere but production, where the boot file reads it from the
+   * environment.
+   */
+  heartbeatUrl?: string
+}
+
+export interface ReminderPassOutcome {
+  /** Rows delivered and marked sent. */
+  sent: number
+  /** Rows marked skipped by one of 8.6's three rules. */
+  skipped: number
+  /** Rows whose send was refused, left scheduled for the next tick. */
+  failed: number
+  /** Expired session rows the second duty removed (11.6, 11.7). */
+  prunedSessions: number
+}
+
+export type ReminderPass = () => Promise<ReminderPassOutcome>
+
+/** 8.6: skipped when now() minus fire_at exceeds this. Written once, in the
+ * statement below, rather than compared here. */
+const STALE_WINDOW = '6 hours'
+
+/*
+Q11, plus everything classifying the row needs, in one statement.
+
+The reminder poll is section 6's Q11 ("reminders where state = 'scheduled' and
+fire_at <= now()"), which the RFC's P7 row places here rather than in a query
+session: it has no ordering, no cap and no cursor, and 11.7 rather than
+section 6 specifies how it claims rows. The 4.8 partial index on (fire_at)
+WHERE state = 'scheduled' is what it reads.
+
+FOR UPDATE OF r locks the reminder rows alone. The task join is what 8.6's
+first two skips read, and the user join is left outer because an unassigned
+task is one of those skips rather than an error; locking either would be
+wrong, and Postgres refuses a lock on the nullable side of an outer join in
+any case.
+
+ORDER BY fire_at so a batch that cannot be delivered whole delivers the
+longest-waiting reminders first.
+*/
+const claimDueReminders = sql`
+  SELECT r.task_id,
+         t.status,
+         t.assignee_id,
+         t.title,
+         to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
+         to_char(t.due_time, 'HH24:MI') AS due_time,
+         u.email AS assignee_email,
+         now() - r.fire_at > ${STALE_WINDOW}::interval AS stale
+    FROM reminders r
+    JOIN tasks t ON t.id = r.task_id
+    LEFT JOIN users u ON u.id = t.assignee_id
+   WHERE r.state = 'scheduled'
+     AND r.fire_at <= now()
+   ORDER BY r.fire_at
+     FOR UPDATE OF r SKIP LOCKED`
+
+/** Whatever the caller is running inside. The fifth structural copy of this
+ * pair in the tree, deliberately not imported from src/server/domain/db.ts,
+ * which declares its scope as the modules in that directory; the note there
+ * names folding them into a shared home as a P9 consolidation candidate, and
+ * this is one more for that list. */
+interface Executor {
+  execute(statement: SQL): Promise<unknown>
+}
+
+interface Transactional {
+  transaction<T>(run: (tx: Executor) => Promise<T>): Promise<T>
+}
+
+function inTransaction<T>(
+  db: Db,
+  run: (tx: Executor) => Promise<T>,
+): Promise<T> {
+  return (db as unknown as Transactional).transaction(run)
+}
+
+async function rowsOf(
+  executor: Executor,
+  statement: SQL,
+): Promise<Record<string, unknown>[]> {
+  const result = (await executor.execute(statement)) as unknown as {
+    rows: Record<string, unknown>[]
+  }
+  return result.rows
+}
+
+/** The two drivers of 11.10 render a boolean column differently often enough
+ * that reading it by identity is a bug waiting for the postgres:18 leg. */
+function isTrue(value: unknown): boolean {
+  return value === true || value === 't' || value === 'true'
+}
+
+function text(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value)
+}
+
+/** 8.6's three skip rules, in the order that section writes them, plus the
+ * one operational case it cannot have meant to leave undecided. */
+type SkipReason =
+  | 'task_not_pending'
+  | 'unassigned'
+  | 'stale'
+  | 'no_recipient_address'
+
+function skipReasonFor(row: Record<string, unknown>): SkipReason | null {
+  if (text(row.status) !== 'pending') return 'task_not_pending'
+  if (text(row.assignee_id) === null) return 'unassigned'
+  if (isTrue(row.stale)) return 'stale'
+  // Not a fourth rule of this role's invention: 4.1 makes users.email
+  // nullable only for a scrubbed row (8.10 step 7), and R-CLEAN unassigns
+  // that user's tasks before the scrub, so this is unreachable in a tree
+  // where account deletion ran whole. It is treated as the unassigned skip
+  // for the reason 8.6 gives that one, which is that there is no one person
+  // to deliver to; the alternative, throwing, would take down every other
+  // reminder in the batch for one unreachable row.
+  if (text(row.assignee_email) === null) return 'no_recipient_address'
+  return null
+}
+
+function reminderMessage(row: Record<string, unknown>): OutboundMessage {
+  return {
+    template: 'reminder',
+    to: String(row.assignee_email),
+    reminder: {
+      taskId: String(row.task_id),
+      title: String(row.title),
+      dueDate: String(row.due_date),
+      dueTime: text(row.due_time),
+    },
+  }
+}
+
+function markSent(tx: Executor, taskId: string): Promise<unknown> {
+  return tx.execute(
+    sql`UPDATE reminders SET state = 'sent', fired_at = now()
+         WHERE task_id = ${taskId}::uuid`,
+  )
+}
+
+function markSkipped(tx: Executor, taskId: string): Promise<unknown> {
+  return tx.execute(
+    sql`UPDATE reminders SET state = 'skipped', fired_at = now()
+         WHERE task_id = ${taskId}::uuid`,
+  )
+}
+
+/*
+11.12's heartbeat. A failure to reach the monitor is logged and swallowed:
+the monitor's own contract is that silence alerts, so a ping that could not
+be delivered produces the alert it should, and letting it fail the pass would
+turn a monitoring outage into a delivery outage.
+
+The URL is a credential in URL form and is never logged, only its outcome.
+*/
+async function pingHeartbeat(
+  url: string,
+  logger: SchedulerLogger,
+): Promise<void> {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status },
+        'scheduler heartbeat refused (spec 11.12)',
+      )
+    }
+  } catch (err: unknown) {
+    logger.warn(
+      { reason: err instanceof Error ? err.name : 'unknown' },
+      'scheduler heartbeat unreachable (spec 11.12)',
+    )
+  }
+}
+
+/**
+ * One pass, awaited to completion.
+ *
+ * Returns counts rather than rows: the caller that runs this on a timer has
+ * nothing to do with the rows, and a unit test asserting counts cannot depend
+ * on an ordering the specification does not fix.
+ */
+export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
+  const logger = deps.logger ?? pino()
+  const notifier: Notifier = createNotifier({
+    sink: deps.notifications,
+    logger,
+  })
+  const db = deps.dbClient.db
+
+  return async function runPass(): Promise<ReminderPassOutcome> {
+    let sent = 0
+    let skipped = 0
+    let failed = 0
+
+    await inTransaction(db, async (tx) => {
+      const due = await rowsOf(tx, claimDueReminders)
+      for (const row of due) {
+        const taskId = String(row.task_id)
+        const reason = skipReasonFor(row)
+        if (reason !== null) {
+          await markSkipped(tx, taskId)
+          skipped += 1
+          logger.info(
+            { event: 'reminder_skipped', task_id: taskId, reason },
+            'reminder skipped',
+          )
+          continue
+        }
+        try {
+          await notifier.send(reminderMessage(row))
+        } catch (err: unknown) {
+          // The row stays scheduled, so the next tick retries it until it
+          // crosses the stale window and is skipped honestly. Rolling the
+          // whole transaction back instead would re-send every reminder this
+          // batch already delivered.
+          failed += 1
+          logger.error(
+            {
+              event: 'reminder_send_failed',
+              task_id: taskId,
+              reason: err instanceof Error ? err.message : 'unknown',
+            },
+            'reminder send failed',
+          )
+          continue
+        }
+        await markSent(tx, taskId)
+        sent += 1
+        logger.info({ event: 'reminder_sent', task_id: taskId }, 'reminder sent')
+      }
+    })
+
+    const prunedSessions = await pruneExpiredSessions(db)
+
+    // Both liveness signals, after the work and only on a cycle that
+    // completed: /api/health's age since P0 (11.12), and the heartbeat whose
+    // silence alerts.
+    recordSchedulerPass()
+    if (deps.heartbeatUrl !== undefined && deps.heartbeatUrl !== '') {
+      await pingHeartbeat(deps.heartbeatUrl, logger)
+    }
+
+    return { sent, skipped, failed, prunedSessions }
+  }
+}
