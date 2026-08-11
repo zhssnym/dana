@@ -132,9 +132,17 @@ test.describe('AC-162: the four confirms of section 9', () => {
       "spec 9.5: a click on any row opens the task, and 9.3 puts delete in that form's " +
         'overflow menu',
     )
-    // 9.3: delete lives in the form's overflow menu.
+    // 9.3: delete lives in the form's overflow menu. Scoped to the open form
+    // rather than taken as the last match on the page, because 9.1's control
+    // table gives the form's overflow menu and a task row's the same name,
+    // "More actions", deliberately: they do the same thing to different
+    // objects. So position is the wrong way to tell them apart and the
+    // containing dialog is the right one. Reaching for the last match worked
+    // only while the row count happened to leave the form's button last, and
+    // it stopped working the moment this file's neighbours created different
+    // rows: the click landed on a row's menu behind the form's own scrim.
     await clickControl(
-      page.getByRole('button', { name: 'More actions', exact: true }).last(),
+      page.getByRole('dialog').getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.3: the task form carries an overflow menu, which is where delete lives',
     )
     await clickControl(
