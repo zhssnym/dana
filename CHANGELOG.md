@@ -93,6 +93,91 @@ Planning and design. No software has been released yet.
   its lists are decisions the server also makes; a grouping the server never
   makes and cannot be wrong about is a rendering of fields the Folder object
   already carries, in the section that owns rendering.
+- **P8's mid-package change control, 2026-08-11.** Twelve criteria numbered,
+  four silences ruled, two properties recorded in section 13, one CI edit
+  routed to Platform, and a tester return declared owed. *The numbering
+  crossed two trees, which is new.* Every earlier batch was numbered by one
+  Steward reading one section 12; this one was authored while package P7 was
+  numbering its own batch in a second working tree, so the proposing session
+  numbered from AC-154 on a brief already stale when written and two of its
+  twelve collided with numbers P7 had since assigned. The coordinating
+  session holds the ledger across both trees and ruled the allocation, which
+  is recorded rather than merely applied: ten stand exactly as authored, the
+  file claiming AC-154 becomes AC-166 and the one claiming AC-164 becomes
+  AC-167, and section 12 says why the range has gaps at those two. Appending
+  is safe precisely because these are identifiers rather than a sequence, and
+  renumbering something another branch has already assigned is the one move
+  that would make it unsafe. The same arithmetic reaches section 13, whose
+  new items are 26 and 27 because P7 holds 25; that gap is deliberately not
+  explained in section 13 itself, since it closes at P7's merge, where
+  section 12's two do not and are explained there.
+- **The four P8 silences, ruled 2026-08-11, three closed and one recorded.**
+  All four were routed by the tester rather than guessed at, and section 9
+  not being frozen is what let three of them be answered here. *The
+  entry-point table's folder-page cell* stated no due date, its value being
+  "per that folder's section context" while the floating add button belongs
+  to no section. 9.6's two open sections are now the context, Scheduled
+  opening with today and Unscheduled with empty, and the button opens empty,
+  which is what having no section context means in every other row of that
+  table. The reason is that a folder is not a dated page: My Day, the Planned
+  list and a calendar cell default to a date because the page is about that
+  date, Tasks and All default to none because they are not, and a folder
+  holds both kinds at once, so a defaulted today files a task into a section
+  nobody aimed at. *The star's inward tooltip* had no string at all, so
+  AC-099 could assert only that it did not point outward. It is now the
+  star's own state, "Important" filled and "Mark as important" not, both
+  states rather than one because the star is an icon-only toggle that owes a
+  screen reader something true in each, and because AC-055's un-star needs a
+  control it can ask for by name. *Eight controls this section described
+  without naming* are named, and this is the largest of the four and the
+  cheapest. The addressing sentence added at the kickoff reaches only named
+  controls, so the suite had been matching descriptions and escalating each
+  gap; a description matched loosely is a locator that finds the wrong
+  control the day a second one resembles it. Every name is lifted or
+  minimal: "Add a task" is the brief's own words for the quick-add row, "Add
+  task" separates the floating button from it on a page carrying both, the
+  two overflow menus take "More actions" because 9.3 spends "More options" on
+  the form's expander, and every confirmation offers "Continue" and "Cancel",
+  "Continue" being this section's own word in 9.5's un-complete confirm and
+  uniform because the destructive verb already sits in the normative message
+  above the buttons. These are accessible names, so nothing visual moves: an
+  icon-only control still shows an icon, and design may restyle and may not
+  rename, exactly as it may restyle and not reword. *And AC-138's "Deleted
+  user" clause is neither closed nor deleted.* The P5 row routed the
+  rendering half of 8.10's surviving-references sentence here, and section 9
+  names no page that displays created_by, completed_by or accepted_by. That
+  is not section 9's omission: 8.10's own ordering empties every path a page
+  renders a display_name through, clearing the assignment at step 4, dropping
+  the membership with it, and 7.3 excluding soft-deleted users from the
+  roster. The clause in frozen 4.1 and in 8.10 is correct and dormant, AC-138
+  pins the server half unchanged, and the obligation lifts from this package
+  as section 13 item 27, recorded as a reading of frozen text rather than a
+  change to it, the shape 11.9 took for UNTIL at P6.
+- **The Playwright leg's CI guard and its twenty-minute ceiling, both routed
+  to Platform on 2026-08-11.** The step's second condition, a matching spec
+  beside the config, is removed and the first is kept. The window it covered
+  opened at the Platform session's own commit and closed at `1a79a9b`, and it
+  cannot reopen: specs are only ever added, and a branch deleting every spec
+  while keeping the config is a branch deleting ten acceptance criteria,
+  which is what this leg exists to turn red for. Platform's own reason for
+  rejecting a no-tests-found flag, that it makes an empty collection
+  permanently indistinguishable from a passing one, applies verbatim to the
+  condition it kept instead, a skipped step being green. Riding the same
+  request is a fact measured from the runs rather than inferred: the first
+  two to reach this leg, on `5d46ce0` and `89d7470`, were both cancelled at
+  the job's `timeout-minutes: 20`, with lint, typecheck, both vitest legs and
+  build green in each. The cause is not the browser leg alone. The four legs
+  ahead of it spent 13 minutes 59 seconds and 14 minutes 28 seconds of the
+  twenty, the PGlite vitest leg about ten on its own, so the browser leg was
+  handed under six minutes and was cut off rather than concluding, and that
+  does not self-resolve when the pages render, since the fourteen minutes
+  ahead of it do not shrink while P9 and P10 add cases to the legs spending
+  them. It is a note to Platform and not a section 13 item, that section
+  holding unresolved external facts and assumptions the specification rests
+  on, and a job's ceiling being neither. It is not nothing either: a
+  cancelled run is worse than a failed one, branch protection reading it as
+  not green while the report names no assertion, so a session reading CI to
+  learn whether its own work passed learns nothing.
 - **Package P6 of RFC 0001, recurrence, kicked off on branch `p6-recurrence`
   on 2026-08-10.** The P6 row is traced into its session list in the form every
   package since P2 has carried, three kickoff questions are settled below, and
