@@ -295,10 +295,12 @@ goes the other way, the swap is that one file.
 
 - The infinite arm of Done and of a folder's Completed section. Both render
   their first page. 7.10's cursor is opaque and is handed back byte for byte.
-- 9.4's un-pull marker is shown whenever a row is pulled. Its "absent when the
-  row also qualifies automatically" clause needs to know whether the row would
-  be in My Day without the entry, which is a server evaluation of today given
-  tz and is not on the wire. Escalated.
+- 9.4's un-pull marker hides itself when the row also qualifies
+  automatically, and that condition is **derived** in `parts/TaskRow.tsx` from
+  Q1's automatic disjunct, because nothing on the wire reports why a row is on
+  a page. It is the one date comparison in this client outside an entry-point
+  default; the argument for why it is safe is at the call site. Escalated as a
+  reading, with the recommendation that the card carry the reason.
 - 9.5's abandoned row is struck (the `s` element, which computes a
   line-through with no stylesheet) and not faded. Fading is a token.
 - Q4's outward star tooltip ("Also in Planned, due ..."), the row overflow menu

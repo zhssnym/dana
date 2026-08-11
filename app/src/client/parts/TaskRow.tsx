@@ -25,10 +25,11 @@ What is not done here and is owed, recorded in README.md as well:
 - 9.5's faded-and-struck rendering of an abandoned row is half done. The
   strike is the `s` element, which computes a line-through with no stylesheet
   at all; the fading is a token and belongs to the file that owns tokens.
-- 9.4's un-pull marker is "absent when the row also qualifies automatically".
-  That clause needs to know whether the row would be in My Day without the
-  entry, which is a server evaluation of today given tz (8.1) and is not on
-  the wire. Escalated; the control is shown whenever the row is pulled.
+- 9.4's un-pull marker is "absent when the row also qualifies automatically",
+  and the condition is derived here from Q1's automatic disjunct because
+  nothing on the wire reports it. The derivation is argued at the call site.
+  Escalated as a reading; a field on the card saying why a row is on this page
+  would remove the derivation.
 - The overflow menu ("More actions", 9.1's control table) opens the task form
   and the abandon and delete confirms, all of which are the Complex
   Interaction engineer's.
@@ -36,6 +37,7 @@ What is not done here and is owed, recorded in README.md as well:
 import { useState } from 'react'
 
 import type { TaskCard } from '../../shared/tasks.js'
+import { todayInBrowserZone } from '../api/tz.js'
 
 export interface TaskRowProps {
   readonly task: TaskCard
@@ -66,6 +68,31 @@ export function TaskRow({
     task.assignee !== null && task.assignee.id !== viewerId ? task.assignee : null
   const unassigned =
     task.assignee === null && multiMemberFolders?.has(task.folder.id) === true
+  /*
+  9.4's parenthesis: the un-pull marker is "absent when the row also qualifies
+  automatically". 7.8 says why it has to be. DELETE removes the viewer's entry
+  and the task stays in My Day while it still qualifies, so a control offered
+  on such a row promises a removal it cannot perform, and the person presses
+  it and watches nothing happen.
+
+  Q1's automatic disjunct is the whole condition: assigned to the viewer, with
+  a due date, on or before today. Nothing on the wire reports it, because 7.0's
+  TaskCard carries the row rather than the reason it is on this page, so the
+  client evaluates it. That is the one date comparison in this client outside
+  an entry-point default, and it is safe for a reason worth stating: today here
+  comes from the same zone identifier the request that fetched this row
+  carried, so the two agree by construction rather than by luck. The residual
+  is a midnight crossed between the fetch and the render, which the next
+  refetch corrects.
+
+  Recorded as a reading rather than a rule, and escalated: a field on the card
+  saying why a row is here would let the client stop deriving this.
+  */
+  const qualifiesAutomatically =
+    task.assignee?.id === viewerId &&
+    viewerId !== null &&
+    task.due_date !== null &&
+    task.due_date <= todayInBrowserZone()
   /*
   What the box shows between the click and the refetch.
 
@@ -116,7 +143,7 @@ export function TaskRow({
           </button>
         </>
       ) : null}
-      {showPullMarker && task.pulled ? (
+      {showPullMarker && task.pulled && !qualifiesAutomatically ? (
         <button type="button" onClick={() => onRemoveFromMyDay?.(task)}>
           Remove from My Day
         </button>
