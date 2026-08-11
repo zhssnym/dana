@@ -237,10 +237,20 @@ superuser password, which is the one command in this section that needs it.
 $psql = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "CREATE ROLE dana_ci LOGIN CREATEDB PASSWORD 'PASSWORD_YOU_CHOOSE'"
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "CREATE DATABASE dana_test OWNER dana_ci TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8' LC_COLLATE 'C' LC_CTYPE 'C'"
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "ALTER DATABASE dana_test SET lc_messages = 'C'"
 ```
 
-That `CREATE DATABASE` statement is normative: spec 11.10 carries it verbatim and
-the reasoning with it. The builtin provider is the only one Postgres guarantees
+Both statements are normative and 11.10 carries both verbatim. The second one is
+easy to read as optional and is not. `CREATE DATABASE` pins how text sorts and how
+it case-folds, and message language is a separate setting it does not reach, so a
+database created by the first statement alone answers its errors in whatever
+language the cluster was initialised with. This one was initialised
+`French_France.1252`. Exactly one assertion in the suite reads message prose rather
+than an identifier, AC-001's null-violation case, and it went red on the first
+postgres leg ever run here for precisely that reason; every other rejection test
+asserts a constraint or index name, which appears verbatim in a French message too.
+Omitting the `ALTER` reintroduces that failure, and it will look like a code defect
+rather than a locale one. The builtin provider is the only one Postgres guarantees
 identical on every platform and version, and it is measurably what PGlite already
 does, so a disagreement between the two legs can only be an engine difference,
 which is the only thing the second leg exists to find.
