@@ -1472,6 +1472,27 @@ Planning and design. No software has been released yet.
     may rewrite any of the wording; what it must not do is drop the guard, the
     ceiling, or the declared shells. Recorded beside the other two so the count
     reads three rather than two.
+  - **11.10 gains a second normative statement, `ALTER DATABASE dana_test SET
+    lc_messages = 'C'`, because the first execution of this leg turned up what
+    the ruling had missed.** The locale a database is created with fixes how it
+    sorts and folds text. It does not fix the language the server writes its
+    error messages in, which is a separate GUC, inherited from the cluster and
+    superuser-context so the owning role cannot set it. The cluster here is
+    French, and the leg came back red on exactly one of 1476 tests: AC-001's
+    adversarial NOT NULL case, which asserts that the rejection contains `null
+    value in column "folder_id"`. That assertion reads the server's own prose on
+    purpose, because the bare column name also appears in the statement it sent
+    and a fragment satisfiable by the statement text would prove nothing. It was
+    the only one of the suite's nine rejection assertions to fail; the other
+    eight name constraints and indexes, which survive translation verbatim. The
+    fix is one statement against the fixture rather than any change to the suite,
+    and it is transcribed as normative rather than left as an operator step,
+    because a test database pinned in one dimension of its locale and inheriting
+    another is pinned in neither. A third verification check goes with it, `SHOW
+    lc_messages`, which must answer C and never a language name. With it applied
+    the two legs return identical counts for the first time: 188 files and 1476
+    tests on PGlite in 234 seconds, and the same 188 and 1476 against the real
+    Postgres 18 in 67.
 - Merge rulings at the P3 merge, 2026-08-07. By the human owner, accepting all
   four recommendations of the endpoint shape review and transcribed onto
   frozen section 7: closing paragraphs on 7.7 and 7.8 settling that each of
