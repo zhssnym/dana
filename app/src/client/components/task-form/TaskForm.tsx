@@ -41,18 +41,34 @@ adds is the copy 9.3 writes for the three refusals a person meets most, and
 the reason it needs to exist at all is that a convenience nobody measures is a
 convenience the person meets as a silent failure.
 
-The reminder is held and not saved. 7.9's endpoint arrives with P7, in the
-package running beside this one, and there is no reminder route in this tree
-yet; the control is here because 9.3's dependency table and AC-092 are about
-the form's state rather than about a stored row, and the write arm is the one
-thing in this file waiting on another package.
+**The reminder is saved like every other field of this form**, which the
+second P8 change control ruled a client obligation with no frozen text moving,
+on the ground that the contract already carried everything needed. It reads
+off the two arms of 9.3's control the way 4.8 stores it, exactly one of the
+two columns non-null, and `save` hands it to the caller as a third value
+rather than folding it into either body. That split is the contract's and not
+a preference: frozen 7.6 gives the create body a `reminder` arm, and frozen
+7.6's PATCH carries no reminder key at all, so an existing task's reminder is
+written through 7.9's PUT and removed through its DELETE. Which of the three
+a save performs is `TaskFormOverlay`'s, because it is the file holding the
+mutations.
+
+Until the second change control this control was held and discarded, which is
+the worst kind of defect this suite can miss: a field offered, silently
+dropped, and nothing anywhere telling the person. AC-169 and AC-170 exist for
+it and assert the stored row rather than the form.
 */
 import { useId, useState } from 'react'
 
 import { useCreateInvite } from '../../api/mutations.js'
 import { useFolder, useFolders, useMe } from '../../api/queries.js'
 import type { Folder } from '../../../shared/folders.js'
-import type { PatchTaskBody, PostTasksBody, TaskDetail } from '../../../shared/tasks.js'
+import type {
+  PatchTaskBody,
+  PostTasksBody,
+  ReminderInput,
+  TaskDetail,
+} from '../../../shared/tasks.js'
 import { RECURRENCE_WEEKDAYS } from '../../../shared/recurrence.js'
 import type { RecurrenceWeekday } from '../../../shared/recurrence.js'
 import { Button, ConfirmDialog, DELETE_TASK_CONFIRM, OverflowMenu } from '../ui/index.js'
@@ -115,7 +131,17 @@ export interface FormValues {
 export interface TaskFormProps {
   readonly initial: FormValues
   readonly task: TaskDetail | null
-  readonly onSave: (create: PostTasksBody | null, patch: PatchTaskBody | null) => void
+  /**
+   * The three values one save carries: the create body, the patch body, and
+   * what the reminder should become. The third is separate because the
+   * contract puts it on two endpoints, 7.6's create arm and 7.9's PUT and
+   * DELETE, and this component does not know which of them it is on.
+   */
+  readonly onSave: (
+    create: PostTasksBody | null,
+    patch: PatchTaskBody | null,
+    reminder: ReminderInput | null,
+  ) => void
   readonly onDelete: () => void
   readonly onAppendStep: (title: string) => void
   readonly onToggleStep: (step: EditorStep) => void
@@ -322,6 +348,32 @@ export function TaskForm({
     const dueDate = dated ? values.dueDate : null
     const dueTime = dated && values.dueTime !== '' ? values.dueTime : null
 
+    /*
+    What the form is asking for the reminder to become, in 4.8's shape.
+
+    The mode follows the due time and never the arm the person last touched,
+    which is 9.3's own rule ("reminder control switches mode with due time")
+    and is what frozen 7.9 answers 422 on getting wrong. So a task that gained
+    a time sends the offset arm and one that lost it sends the time-of-day
+    arm, whatever the other arm still holds from before the switch.
+
+    Null means the form is carrying no reminder, which is a removal on the
+    edit path and simply an absent key on the create path. A date is required
+    for either arm to mean anything (INV-6), and the control is disabled
+    without one, so the guard here is the same rule stated where the value is
+    built rather than trusted from the control's state.
+    */
+    const reminder: ReminderInput | null =
+      dueDate === null
+        ? null
+        : dueTime !== null
+          ? values.reminderOffset === null
+            ? null
+            : { offset_minutes: values.reminderOffset, time_of_day: null }
+          : values.reminderTime === ''
+            ? null
+            : { offset_minutes: null, time_of_day: values.reminderTime }
+
     if (editing) {
       const patch: PatchTaskBody = {
         title: values.title.trim(),
@@ -336,7 +388,7 @@ export function TaskForm({
       // field is not on the form there at all, so the key is left out rather
       // than sent as a value the server would have to repair.
       const body = assigneeVisible ? { ...patch, assignee_id: selectedAssignee } : patch
-      onSave(null, body)
+      onSave(null, body, reminder)
       return
     }
 
@@ -349,8 +401,12 @@ export function TaskForm({
       due_time: dueTime,
       recurrence_rule: dueDate === null ? null : rule,
       steps: values.steps.map((step) => step.title),
+      // Frozen 7.6's own arm. Absent rather than null when the form carries
+      // none, because a create that names no reminder is not a create that
+      // clears one.
+      ...(reminder === null ? {} : { reminder }),
     }
-    onSave(assigneeVisible ? { ...create, assignee_id: selectedAssignee } : create, null)
+    onSave(assigneeVisible ? { ...create, assignee_id: selectedAssignee } : create, null, reminder)
   }
 
   return (

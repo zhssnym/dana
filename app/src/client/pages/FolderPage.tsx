@@ -176,6 +176,18 @@ export function FolderPage(): React.JSX.Element {
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
+        {/* 9.1's regions table gained "Folder header" at the second P8 change
+            control, on the tester's escalation, and this is the whole of what
+            it asked for. 9.6 puts an overflow menu here, which is a third
+            control answering to "More actions" after the task form's and a
+            task row's; giving it a name of its own was declined, because the
+            two named menus share that name deliberately, being one control
+            pointed at different objects. So the container is named instead,
+            and AC-162's folder case stops reaching the menu by position. The
+            ratio of 8.11, the Share button and the inline rename come inside
+            it for free, all four having been addressable only by looking
+            anywhere on the page. */}
+        <PageSection name="Folder header">
         {/* 9.6: "name (inline rename for owner)". The heading becomes a field
             in place rather than opening a dialog, which is what inline means,
             and the field is offered only while the menu has put it there. */}
@@ -252,6 +264,7 @@ export function FolderPage(): React.JSX.Element {
             />
           </div>
         )}
+        </PageSection>
         {sharing && detail !== undefined ? (
           <FolderSharingPanel folder={detail} connections={connections.data} />
         ) : null}

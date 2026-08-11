@@ -2,43 +2,28 @@
 The token 11.6's double-submit pattern puts in a second, readable cookie, read
 back so every mutation can echo it in X-CSRF-Token.
 
-Identified by property before it is identified by name, which is the
-discipline both test harnesses already run on: 11.6 fixes that the session
-cookie is httpOnly and the CSRF cookie is not, and fixes neither name.
-`document.cookie` exposes exactly the non-httpOnly cookies, so from here the
-readable set is the whole visible set, and 11.6 says there is one of them at
-sign-in.
+**The cookie has a name now, and the guess is gone.** 11.6 named both cookies
+at the second P8 change control on 2026-08-11, on this session's own
+escalation: the session cookie is `dana_session` and the CSRF cookie is
+`dana_csrf`. Until then this section fixed only that the second was readable
+and the first was not, so this file preferred a name and fell back to whatever
+the sole readable cookie turned out to be. That fallback was worse than the
+guess it protected. It is correct exactly while nothing else sets a readable
+cookie, and on the day something does, every mutation carries the wrong value
+and earns a 403 that says nothing about why. Removing it is the client return
+11.6 routes, and this is it.
 
-The name is still preferred when it is present, because "the only readable
-cookie" stops being true the day anything else sets one, and a client that
-guessed wrong would fail every write with a 403 that says nothing about why.
-The constant is duplicated rather than imported: src/client cannot import
-src/server (tsconfig.client.json compiles this directory into the browser
-bundle), and src/shared does not carry it. That duplication is the one thing
-in this file worth an escalation, and it is recorded in README.md beside the
-recommendation, which is to move the two cookie names into src/shared where
-both sides can read one definition.
+The constant is transcribed rather than imported, which is 11.6's own ruling
+on the recommendation this escalation carried. `src/shared` is the contract as
+code, the section 7 schemas both sides import, and a transport detail of
+section 11 is not part of that contract; naming the cookies in the
+specification lets each side transcribe one specified constant, the discipline
+the acceptance suite already runs on for section 9's copy. So the name below
+is the specification's, and it is the only thing this file matches on.
 */
 
-const PREFERRED_NAME = 'dana_csrf'
-
-interface Cookie {
-  readonly name: string
-  readonly value: string
-}
-
-function readableCookies(): Cookie[] {
-  const header = typeof document === 'undefined' ? '' : document.cookie
-  const out: Cookie[] = []
-  for (const pair of header.split(';')) {
-    const equals = pair.indexOf('=')
-    if (equals === -1) continue
-    const name = pair.slice(0, equals).trim()
-    if (name === '') continue
-    out.push({ name, value: decode(pair.slice(equals + 1).trim()) })
-  }
-  return out
-}
+/** Spec 11.6, transcribed. The server sets this at sign-in, non-httpOnly. */
+const CSRF_COOKIE = 'dana_csrf'
 
 function decode(raw: string): string {
   try {
@@ -54,9 +39,12 @@ function decode(raw: string): string {
 
 /** The token, or null when no session has been established in this browser. */
 export function csrfToken(): string | null {
-  const cookies = readableCookies()
-  const named = cookies.find((cookie) => cookie.name === PREFERRED_NAME)
-  if (named !== undefined) return named.value
-  const sole = cookies.length === 1 ? cookies[0] : undefined
-  return sole === undefined ? null : sole.value
+  const header = typeof document === 'undefined' ? '' : document.cookie
+  for (const pair of header.split(';')) {
+    const equals = pair.indexOf('=')
+    if (equals === -1) continue
+    if (pair.slice(0, equals).trim() !== CSRF_COOKIE) continue
+    return decode(pair.slice(equals + 1).trim())
+  }
+  return null
 }

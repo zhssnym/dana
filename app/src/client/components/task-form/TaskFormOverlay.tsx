@@ -31,15 +31,21 @@ import { useEffect, useRef, useState } from 'react'
 import {
   useAddStep,
   useCreateTask,
+  useDeleteReminder,
   useDeleteStep,
   useDeleteTask,
   useUpdateStep,
+  usePutReminder,
   useUpdateTask,
 } from '../../api/mutations.js'
 import { useFolders, useMe, useTask } from '../../api/queries.js'
 import { onOpenTaskForm } from '../../shell/overlays.js'
 import type { TaskFormDefaults } from '../../shell/overlays.js'
-import type { PatchTaskBody, PostTasksBody } from '../../../shared/tasks.js'
+import type {
+  PatchTaskBody,
+  PostTasksBody,
+  ReminderInput,
+} from '../../../shared/tasks.js'
 import { UPCOMING_OCCURRENCE } from './copy.js'
 import { onOpenTask } from './open.js'
 import { initialForCreate, initialForEdit, TaskForm } from './TaskForm.js'
@@ -64,6 +70,8 @@ export function TaskFormOverlay(): React.JSX.Element | null {
 
   const create = useCreateTask()
   const update = useUpdateTask()
+  const putReminder = usePutReminder()
+  const dropReminder = useDeleteReminder()
   const remove = useDeleteTask()
   const addStep = useAddStep()
   const patchStep = useUpdateStep()
@@ -125,13 +133,81 @@ export function TaskFormOverlay(): React.JSX.Element | null {
     setOpen(null)
   }
 
-  function onSave(body: PostTasksBody | null, patch: PatchTaskBody | null): void {
+  /*
+  One save, and on the edit path two requests, because the contract puts the
+  reminder on two endpoints rather than one.
+
+  The create path is one request: frozen 7.6 gives the create body a reminder
+  arm, and `TaskForm` has already folded it in, so nothing extra happens here.
+
+  The edit path is the PATCH and frozen 7.9's PUT or DELETE, and **whether
+  they are ordered or concurrent is decided by whether the PATCH can touch the
+  reminder at all.**
+
+  It can, in three ways, all of them 7.6's: clearing the due date deletes the
+  reminder row through 8.4's cascade, clearing the due time deletes an offset
+  reminder, and moving the date recomputes the fire instant through 8.6. Every
+  one of the three is keyed on due_date or due_time. So when either moves, the
+  reminder write is sequenced after the PATCH: written before it, it would land
+  on the task's old shape and then be deleted or recomputed by the edit that
+  followed it.
+
+  When neither moves, the PATCH cannot reach the reminder and the two writes
+  touch disjoint state, so they go together. That is worth doing rather than
+  ordering everything for uniformity: the tests and the local database run on
+  PGlite, which holds one connection (11.15), and a needlessly ordered pair is
+  two serialised round trips with the 8.3 invalidation refetch contending
+  between them.
+
+  The DELETE fires only when the task had a reminder and now carries none. 7.9
+  makes it idempotent, so firing it unconditionally would be correct and would
+  put a request on the wire for every save of every task that never had one.
+
+  The overlay closes once both have settled, so nobody watches the form close
+  over a reminder that has not been written.
+  */
+  function onSave(
+    body: PostTasksBody | null,
+    patch: PatchTaskBody | null,
+    reminder: ReminderInput | null,
+  ): void {
     if (body !== null) {
       create.mutate(body, { onSuccess: close })
       return
     }
     if (patch === null || detail === null) return
-    update.mutate({ id: detail.id, body: patch }, { onSuccess: close })
+    const taskId = detail.id
+    const had = detail.reminder !== null
+
+    /** The reminder write this save owes, or null when it owes none. */
+    const writeReminder = (): Promise<unknown> | null => {
+      if (reminder !== null) return putReminder.mutateAsync({ taskId, body: reminder })
+      if (had) return dropReminder.mutateAsync(taskId)
+      return null
+    }
+
+    // Whether the PATCH reaches the reminder, which is the whole of what
+    // decides the shape below. Compared on the wire formats of 7.0, both
+    // YYYY-MM-DD and HH:MM, so a server that answers seconds does not read as
+    // a change.
+    const sameDate = (patch.due_date ?? null) === detail.due_date
+    const sameTime =
+      (patch.due_time ?? null) === (detail.due_time === null ? null : detail.due_time.slice(0, 5))
+    const independent = sameDate && sameTime
+
+    // mutateAsync rejects where mutate does not, and the rejection is already
+    // reported: the mutation cache raises 9.1's toast for every failed write
+    // in this client. Swallowed here so a refused request does not also become
+    // an unhandled rejection, and so a failed PATCH does not leave the
+    // reminder write hanging.
+    const quiet = (work: Promise<unknown> | null): Promise<unknown> =>
+      work === null ? Promise.resolve() : work.catch(() => undefined)
+
+    const patched = quiet(update.mutateAsync({ id: taskId, body: patch }))
+    const written = independent
+      ? quiet(writeReminder())
+      : patched.then(() => quiet(writeReminder()))
+    void Promise.all([patched, written]).then(close)
   }
 
   return (
@@ -145,7 +221,12 @@ export function TaskFormOverlay(): React.JSX.Element | null {
           key={`${String(open.seq)}-${open.taskId ?? 'new'}`}
           initial={initial}
           task={detail}
-          saving={create.isPending || update.isPending}
+          saving={
+            create.isPending ||
+            update.isPending ||
+            putReminder.isPending ||
+            dropReminder.isPending
+          }
           onSave={onSave}
           onDelete={() => {
             if (detail === null) return

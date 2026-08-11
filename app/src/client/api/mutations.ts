@@ -60,12 +60,14 @@ import {
   patchTaskResponse,
   postTaskStepsResponse,
   postTasksResponse,
+  putTaskReminderResponse,
   taskTransitionResponse,
 } from '../../shared/tasks.js'
 import type {
   PatchStepBody,
   PatchTaskBody,
   PostTasksBody,
+  PutTaskReminderBody,
   TaskDetail,
   TaskTransitionResponse,
 } from '../../shared/tasks.js'
@@ -339,6 +341,54 @@ export function useTransitionTask(): UseMutationResult<
             ? { tz: requestTimezone() }
             : undefined,
       }),
+  })
+}
+
+export interface PutReminderVariables {
+  readonly taskId: string
+  readonly body: PutTaskReminderBody
+}
+
+/**
+ * Frozen 7.9's PUT, the edit path's half of the reminder write.
+ *
+ * It answers the affected TaskDetail, by the owner's ruling of 2026-08-10:
+ * 7.0 gives the reminder no object of its own, this section offers no GET for
+ * one, and TaskDetail already carries a reminder field, so the parent task is
+ * the only object the contract holds that reports what the call did. Parsed
+ * against that shape for the same reason every other response here is.
+ *
+ * The body carries exactly one of the two 4.8 columns, which the shared schema
+ * refuses to let it get wrong, and which mode is correct is decided by the
+ * task's due_time (9.3, and 7.9's own 422).
+ */
+export function usePutReminder(): UseMutationResult<
+  TaskDetail,
+  Error,
+  PutReminderVariables
+> {
+  return useMutation({
+    mutationFn: ({ taskId, body }: PutReminderVariables) =>
+      mutateApi(putTaskReminderResponse, {
+        method: 'PUT',
+        path: `/tasks/${taskId}/reminder`,
+        body,
+      }),
+  })
+}
+
+/**
+ * Frozen 7.9's DELETE, which is how a reminder is removed and the only way.
+ *
+ * No task body expresses a removal: 7.6's create arm sets one and its PATCH
+ * carries no reminder key at all, so an emptied control on an existing task
+ * has exactly this endpoint and nothing else. 204, idempotent, so calling it
+ * on a task that has none is a no-op rather than an error.
+ */
+export function useDeleteReminder(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/tasks/${taskId}/reminder` }),
   })
 }
 
