@@ -386,7 +386,20 @@ acceptance, anything touching a frozen interface, and the target release.
 **The release ritual**, once P10's criteria are the only thing left:
 
 1. Preconditions: every package merged, CI green on main, and the production smoke
-   subset green (health, auth round trip, one CRUD cycle).
+   subset green (health, auth round trip, one CRUD cycle, and one reminder that
+   actually arrives in an inbox).
+
+   The reminder is in that list for a reason the other three are not. Spec 11.8
+   forbids real sending in development and in tests, and the notify module
+   implements that literally: with the 11.10 sink injected every message goes to
+   the sink, and with neither sink nor transport the module logs the suppression
+   and sends nothing. So the entire acceptance suite can be green on both database
+   legs while no email has ever left the process, and production is the only place
+   the Resend transport is reached at all. A misconfigured API key, an
+   unauthenticated domain, or a wrong from-address is therefore invisible to every
+   check in this build except this one, and it fails silently rather than loudly:
+   the scheduler marks the row sent and nobody hears anything. Set a reminder on
+   production, wait for the tick, and confirm it arrives.
 2. You pick the version. 1.0.0 first; after that, behavior additions bump the
    minor, fixes bump the patch, and the RFC that carried the change names its
    target release.
