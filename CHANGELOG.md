@@ -10,6 +10,101 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **Package P7 of RFC 0001, reminders: 8.6's fire instants with both DST rules,
+  all five recompute triggers, frozen 7.9's two endpoints, and 11.7's delivery
+  pass with Resend behind it.** The fire-instant module implements the gap
+  clamp and the fold's earlier instant explicitly, because 11.9 records that
+  Luxon guarantees neither, and section 13 item 25 records why no oracle exists
+  for either: they are policy chosen where the standard is silent, so the
+  module is asserted against raw Luxon by name rather than against a second
+  library. The five triggers are one transaction-taking callable its consumers
+  invoke, never arithmetic they restate, and one invariant carries fired_at
+  across all of them, null exactly when state is scheduled. The scheduler is a
+  60-second in-process interval with an in-flight guard, claiming due rows with
+  SELECT FOR UPDATE SKIP LOCKED, honoring 8.6's skips, invoking Security's
+  session pruning from the same pass, and recording each cycle into the health
+  field that has answered null since P0. P6's deferred reminder-copy seam and
+  P3's deferred reminder arm of frozen 7.6's two write bodies both close here,
+  which was the plan's own sequencing rather than late discovery. AC-083 to
+  AC-090, AC-144 to AC-154, AC-164 and AC-168 pass by number beside every
+  earlier range: 1476 tests across 188 files, the whole gate green in CI's
+  order, on PGlite and on postgres:18. Zero dependencies were added across the
+  package, verified against main.
+- **One retrace error is corrected at the merge review rather than overwritten,
+  because it is the error this column exists to prevent.** The third change
+  control recorded that AC-168 would fold into the tester return already queued
+  for AC-164, calling it a shorter sequencing than the separate session the
+  endpoint shape review had proposed. The branch shows the fold was impossible:
+  that return had landed at `0cbd9a5`, four commits before the shape review at
+  `4ae05d6` found the defect AC-168 exists for, so there was nothing left to
+  fold into. AC-168 took a session of its own at `b2f8ef1`, exactly as the
+  review proposed, and the 02 return at `bd49621` carried the fix and both
+  routed comments together. The mistake was made by retracing against the row's
+  own prose instead of against the log, which is why the merge review's retrace
+  reads the branch.
+- **One defect shape accounted for three of this package's defects, recorded
+  because the pattern is more useful than the three fixes.** Frozen 7.9's
+  bullet named a state instead of reading the one the instant earned. 8.5's
+  copy hardcoded 'scheduled' over the state planReminder had already computed
+  and returned. And generateSuccessor handed down an `at` that the copy ignored
+  in favour of its own clock reading. Each is the same move: a value computed,
+  made available, and then discarded, with a second value substituted for it.
+  Each was invisible until something downstream began depending on the
+  discarded one, which is why none of the three was found by the suite. Two
+  were found by sessions reading sections against each other, the tester
+  finding 7.9 against 8.6 and the endpoint shape review finding 8.5 against
+  8.6. What generalizes is not "check for hardcoded states" but that a
+  discarded return value is a defect waiting for a dependency, and that reading
+  two sections against each other catches what testing one of them cannot. The
+  structural repair matches: 8.6 now defines the rule once for all five
+  writers, rather than each path restating it, which is the condition that let
+  one shape recur three times.
+- **The cross-file isolation repair is measured rather than reasoned.** Six
+  delivery criterion files share one database under TEST_DATABASE_URL where
+  PGlite gives each its own, so one file's scheduler pass could claim another's
+  due rows, redden both files at once and neither for its own reason. The
+  repair scopes the delivery count by recipient address, every actor carrying a
+  fresh uuid, rather than scoping the poll, which is the specification, or
+  disabling file parallelism, a whole-suite cost paid for six files. It was
+  written from a code reading and could not be reproduced on this machine,
+  which has neither Docker nor a TEST_DATABASE_URL, and the harness comment
+  says so. It is measured now: the postgres:18 leg is green on this branch,
+  which is the leg the defect could only ever have appeared on, and the first
+  time that leg ran in this package's life.
+- **Four disclosures ratified at the P7 merge review, none of them routed.**
+  The trigger union keeps its `{ kind: 'reminder' }` arm with its prose
+  corrected, ruled at the third change control and executed by the Scheduling
+  engineer's return; 8.6 names five triggers and a union naming four is the
+  worse lie. The pass decides a fourth skip case, `no_recipient_address`, which
+  8.6 does not name; it is ratified and 8.6 now records it, because a behavior
+  the code performs and the specification omits is a deviation whatever its
+  reachability. The code's defence was verified against migration 0000 rather
+  than taken: `users.email` is genuinely nullable, for 8.10's scrub alone, and
+  R-CLEAN unassigns that user's tasks before the scrub, so the branch is
+  unreachable wherever account deletion ran whole. Treating it as the
+  unassigned skip is right for the reason 8.6 gives that one, there being no
+  one person to deliver to, and throwing would take down every other reminder
+  in the batch for one unreachable row. Sending is gated on NODE_ENV ===
+  'production' plus all three provider variables, which is fail-safe in the
+  direction that matters, an unset value logging rather than sending, and it is
+  not silent: an unconfigured production boot logs one line naming the missing
+  variables and every suppressed send logs its own. What it is not is alerted,
+  so a host that never sets them logs every reminder forever and only a reader
+  of logs would know. That is P10's to close, 10.7's launch checklist being
+  where the sending domain, SPF, DKIM and DMARC are set up, and it is recorded
+  here as the revisit trigger rather than fixed in a package whose gate cannot
+  observe a real delivery. And the branch adds one private copy each of
+  `rowsOf` and `inTransaction`, both in the scheduler's new `pass.ts`, tagged
+  for the P9 consolidation the existing copies already carry; the count is
+  corrected from report by measurement, `rowsOf` now standing at four
+  definitions and `inTransaction` at three rather than five apiece.
+- **No frozen-text hold was owed at this merge, which is worth stating so it is
+  not read as an omission.** Three frozen edits landed on this branch, 7.9's
+  response body, 7.9's past-instant qualifier and 7.6's mirror clause, and each
+  was read in a second context before the work that depended on it, which is
+  the standing lesson from the P5 merge. Frozen section 4 was not touched at
+  all. Section 7's whole diff is nine inserted lines and one changed bullet,
+  and that bullet is 7.9's PUT taking the qualifier the owner ruled.
 - **P7's third change control, 2026-08-10, after the endpoint shape review.**
   8.5's copy arm wrote a state 8.6 forbids and the loop delivered it.
   `copyReminderToSuccessor` computes the right state through `planReminder`,
