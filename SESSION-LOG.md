@@ -268,7 +268,7 @@ before starting the next.
 | 13 | AC-169 to AC-172 written, AC-162 rescoped to the new region, two confirms added | 11 | Testers | Done |
 | 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done |
 | 15 | Eleven server reads sequenced behind the writes they measure, four of them false greens | 11 | Testers | Done |
-| 16 | Token transcription and component fidelity against the committed design | 08 | Implementers | Blocked: Imran 🔴 |
-| 17 | Manifest icons and colours, and the landing copy that closes item 14 | 07 | Implementers | Blocked: Imran 🔴|
+| 16 | Token transcription and component fidelity against the committed design | 08 | Implementers | Running |
+| 17 | Manifest icons and colours, and the landing copy that closes item 14 | 07 | Implementers | Planned, final copy still Imran's 🔴 |
 | 18 | Merge review | 12 | Steward | Planned |
 | 19 | Merge into main | 12 | Steward | Planned |
