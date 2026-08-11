@@ -11,14 +11,24 @@ treat a row as evidence that something landed, and never read a planned row as a
 assignment. `git log`, the suite, `app/tests/`, the specification, and the active
 RFC's implementation plan are what bind you.
 
-A row is added when a session has been verified, not when it is planned. Inserted
-rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
-place rather than being renumbered, because the numbers are addresses. Rows are
-listed in the order they ran, so a number out of sequence means that session
-moved. Mode names the chat a session returned into, or Unattended where it ran
-as an isolated sub-agent with no chat to return to. A run of consecutive Unattended
-rows is a grouped run: one dispatching chat launched each as an isolated
-sub-agent in sequence, verifying each before starting the next.
+A row whose Status reads Done was written after that session's final block had been
+verified against the repository, and those rows are listed in the order they ran,
+so a number out of sequence means that session moved. From P8 onward a package's
+table also carries the sessions still ahead of it, marked Planned or Blocked in the
+same column, so the whole shape of a package reads in one place instead of half of
+it. Those rows are a forecast and they are the operator's, revised whenever a
+session's findings revise the plan, which is often: eight of P8's rows were not
+foreseen when its table opened. A planned row is never an assignment, and what a
+session is told to do reaches it through its prompt and through the active RFC's
+implementation plan rather than through here.
+
+Inserted rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep
+their place rather than being renumbered, because the numbers are addresses. Mode
+names the chat a session returned into, or the chat one is intended for while its
+row is still a forecast, or Unattended where it ran as an isolated sub-agent with
+no chat to return to. A run of consecutive Unattended rows is a grouped run: one
+dispatching chat launched each as an isolated sub-agent in sequence, verifying each
+before starting the next.
 
 ## P minus 4: product definition
 
@@ -257,3 +267,15 @@ sub-agent in sequence, verifying each before starting the next.
 | 12 | Seven carried items ruled, AC-169 to AC-172 numbered, item 28 recorded | 12 | Unattended | Done |
 | 13 | AC-169 to AC-172 written, AC-162 rescoped to the new region, two confirms added | 11 | Testers | Done |
 | 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done, one note |
+| 15 | AC-169's and AC-170's reads sequenced after the save they measure | 11 | Testers | Planned |
+| 16 | Token transcription and component fidelity against the committed design | 08 | Implementers | Blocked: Imran |
+| 17 | Manifest icons and colours, and the landing copy that closes item 14 | 07 | Implementers | Blocked: Imran |
+| 18 | Merge review | 12 | Steward | Planned |
+| 19 | Merge into main | 12 | Steward | Planned |
+
+Rows 16 and 17 close no criterion. AC-159 and AC-163 already assert the landing
+page and the manifest and both pass: what they fix is structure, one "Continue with
+Google" button with no AI claim, and a manifest naming Dana with fetchable 192 and
+512 icons, all of which section 9 deliberately leaves free of colour, type and
+wording. Imran's work fills those slots, so neither session owes a tester return
+and neither can be measured by the suite. Row 17 closes section 13 item 14.
