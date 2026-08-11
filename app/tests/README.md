@@ -33,6 +33,7 @@ npx vitest run -t "AC-105"
 | P7 | AC-083 to AC-090 | Covered, failing against the unmounted 7.9 routes and the absent scheduler module, the designed order |
 | P7 gate | AC-144 to AC-153 | Covered, failing the same way; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
 | P7 gate | AC-154 | Covered, failing the same way; appended by the same amendment from the change control's own ruling rather than proposed here |
+| P7 gate | AC-164 | Covered, passing on arrival; the one criterion in this package written after its implementation, numbered from outside the branch because P8 held a concurrent range |
 | P8 to P10 | AC-091 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -524,6 +525,32 @@ has that P7's own work could take away: AC-087's "the transition leaves the
 reminder row untouched", and AC-150's two controls, the closing occurrence
 keeping its own reminder and a rule-less series acquiring none. AC-124's
 header records why a test that has never failed is worth naming as such.
+
+AC-164 arrives green in full, and it is the one criterion here written after
+its implementation. The reason is outside the branch and is recorded rather
+than smoothed over: P8 was live in a second tree proposing criteria
+concurrently, neither branch could see the other's range, and section 12 held
+this one under a pending heading until the coordinating session assigned the
+number across both ledgers. AC-131 is the precedent. Two things limit the
+cost. Both arms were fully specified in 8.4 and frozen 7.6 before the
+implementing session read either, so the file tests a written rule rather than
+a silence; and both wrong cascade rules, deleting on no due_time edit and
+deleting on every one, were red-proven against the same tables in a throwaway
+file before the green was believed, the repayment AC-124 made for the same
+debt.
+
+**The six files that run a pass count only their own emails.** A pass polls
+every due row in the database, which is 8.6's poll and not something an
+implementation may narrow, and under TEST_DATABASE_URL every file shares one
+database with no fileParallelism set, so one file's pass can deliver another's
+due rows through the same sink and redden both. `reminderEmailsOf` takes the
+file's own `ZoneCast` and filters by recipient address, and `reminderEmails` is
+no longer exported, so the scope is structural rather than remembered at each
+call site. It weakens nothing: a broadcast to a folder is a broadcast to that
+file's own members. This was reasoned from 8.6 and from the vitest config
+rather than measured, because this machine has neither Docker nor a
+TEST_DATABASE_URL, and it was fixed rather than deferred because CI stops at
+its first failing step, so the postgres leg had never run on this branch.
 
 AC-144 to AC-153 were proposed here with their tests and numbered by the
 Integration Steward's section 12 amendment on 2026-08-10, the AC-125, AC-133
