@@ -255,3 +255,42 @@ would have gone on reading as an open request indefinitely. **Ruling: for a
 ledger entry whose request is not the boot file's, the executing role reports
 completion in its commit message and the Steward annotates the entry at merge.**
 Platform's right over boot-file entries is unchanged.
+
+## the 7.9 reminder endpoints (P7, Collaboration and Permissions)
+
+**No wiring is owed for these, and that is the whole request.** PUT and DELETE
+`/tasks/:id/reminder` are handlers on `createTasksRouter`, which the boot file
+has mounted since fc6325f, so they went live with the code rather than with a
+line in `createApp`. The entry stands anyway, because the RFC's P7 row and this
+package's own working notes both describe the reminder endpoints as unmounted,
+and a Platform session reading that and finding nothing here would go looking
+for a request that does not exist. There is nothing to add to the boot file.
+
+Facts it can rely on, each read off the router rather than assumed:
+
+- The two paths are new and whole: `/tasks/:id/reminder`, on PUT and on DELETE.
+  Express matches whole paths, so neither meets `/tasks/:id`,
+  `/tasks/:id/my-day`, or anything the folders, views, invites and connections
+  routers claim.
+- Both are mutations and both carry the CSRF link, `requireSession` then
+  `requireCsrf` then the handler, which is 11.3's order and what every other
+  mutation on this router already does.
+- The factory is unchanged: still synchronous, still no I/O, still answering
+  the constructed-without-a-database 500 when `options.dbClient` is absent.
+- They reach no module the boot file does not already construct. The 8.6
+  computation comes from `src/server/time`, which opens nothing, and no notify
+  call site exists on this surface: 8.6's one outbound message is the delivery
+  loop's, and that is the scheduler pass rather than a route.
+
+What the boot file does still owe this package is Platform's own and not this
+entry's to request: the 11.7 scheduler pass at
+`app/src/server/scheduler/index.ts`, which the acceptance suite reaches through
+the seam that section ratified. Measured with these two endpoints live and that
+module absent, so the split between the two sessions is on the record rather
+than inferred at the merge. AC-146, AC-147, AC-148, AC-149 and AC-151 pass
+whole. AC-152 passes but for its login-sync control, which is 8.6's fifth
+recompute trigger and fires in the auth module rather than here. AC-090 passes
+its two 7.9 clauses and fails its two delivery clauses, which is the straddle
+the P7 row predicted for that number. AC-085 passes but for one case that is a
+false red and is escalated to the suite's owner, along with the identical case
+in AC-084; both are recorded in `ef68ac9` and in that session's final block.
