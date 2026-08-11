@@ -232,8 +232,23 @@ isolation was real.
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: tests-first held, mocks kept out of `app/tests/`, section 9 given its routes and its addressing rule, the Playwright seam split by file, the end-to-end obligation itemized | 12 | Steward | Done |
 | 1 | The Playwright runner and the Tailwind 4 toolchain, the fifth CI leg armed without turning it red empty | 10 | Implementers | Done, escalated |
+| 2 | AC-091 to AC-100 as browser specs, the recorded halves found by grep, one whole signed-in path, twelve criteria proposed, one self-repair | 11 | Testers | Done, escalated |
+| 3 | Change control: the twelve numbered, three section 9 silences closed, eight controls named, AC-138's clause ruled dormant, items 26 and 27 | 12 | Steward | Done, escalated |
+| 4 | Two files renumbered, the provisional language retired, nine locator families moved from descriptions to exact strings, AC-138's clause let go | 11 | Testers | Done, escalated |
+| 4a | The page sections named as regions, so a control can be scoped inside one | 12 | Steward | Done |
+| 5 | The shell: routing, the data layer, the four page states, the PWA registration, and the conventions ledger at `app/src/client/README.md` | 07 | Shell | Done, escalated |
+| 6 | The component set, and the token file that says plainly it is provisional | 08 | Unattended | Done |
+| 7 | 9.3's form, 9.9's overlay and Q3C's grid | 09 | Unattended | Done |
+| 8 | The four surfaces the shell left owed, and a task's title kept out of the namespace section 9 addresses controls in | 07 | Unattended | Done |
+| 9 | The 10.6 PWA layer landed verbatim, the guard that could only ever be true retired, the browser leg given room | 10 | Unattended | Done |
 
 This package runs in the second working tree at `D:\dana-client`, beside P7 in
 `D:\dana`, the two-tree arrangement runbook section 5 records. It merges second,
 after P7, because 9.3's reminder control has no endpoint behind it until frozen
 7.9 lands.
+
+Rows 6 to 9 ran as one grouped run, four isolated sub-agents in sequence. Row 5
+was deliberately kept out of it: it set the conventions the four inherit, and
+its ledger is a committed file rather than a paragraph in a chat, because no
+later session reads the chat a session returned into.
+
