@@ -192,15 +192,45 @@ absent" rule the PATCH body keeps below: there, absence means leave the column
 alone, and here a reminder body states its whole mode, 7.9 upserting the row
 rather than patching it.
 */
-const reminderModes = z.object({
+const reminderShape = {
   offset_minutes: reminderOffsetMinutes.nullable().default(null),
   time_of_day: reminderTimeOfDay.nullable().default(null),
-})
+}
+
+const reminderModes = z.object(reminderShape)
+
+/** 4.8's exclusive-or as a caller reads it under a reminder key. The whole
+ * sentence 7.9's body answers with is in putTaskReminderBody below: one
+ * predicate, two phrasings, and the phrasing follows the position. */
+const EXACTLY_ONE_MODE = 'must carry exactly one of offset_minutes and time_of_day'
 
 export const reminderInput = reminderModes.refine(carriesExactlyOneMode, {
-  error: 'must carry exactly one of offset_minutes and time_of_day',
+  error: EXACTLY_ONE_MODE,
 })
 export type ReminderInput = z.infer<typeof reminderInput>
+
+/*
+The same object under the one key that has to refuse a null, which is the
+whole difference between the two and the reason this schema exists rather
+than reminderInput being reused with .optional().
+
+Settled at the P7 endpoint shape review and pinned on the wire in
+src/server/http/tasks-contract.test.ts: the message is the only thing on the
+wire that carries the ruling below to a client, and without it the refusal is
+the validator's own "expected object, received null", which reads as a
+complaint about a type to a caller who was asking for a removal. Every other
+refusal in this file is authored and actionable, and the one field whose
+refusal a client is most likely to meet by an honest misreading was the one
+answering in zod's words. The shape literal is shared rather than copied,
+because 4.8's two columns written twice are two things that can disagree; what
+differs is the sentence, which is what the position is about.
+*/
+const patchReminderInput = z
+  .object(reminderShape, {
+    error:
+      'must be a reminder object; removal is DELETE /tasks/:id/reminder, never a null here',
+  })
+  .refine(carriesExactlyOneMode, { error: EXACTLY_ONE_MODE })
 
 /*
 The 4.11 rule string, and the one definition the write path, the read path and
@@ -427,11 +457,35 @@ uses, and removal keeps the one door the frozen text opened for it rather
 than gaining a second, unasserted one. A null here is refused with a 422
 naming the field, which is 7.0's answer to a wrong type on a parsed object,
 so a client that meant to clear the reminder is told where to go rather than
-answered 200 by a route that quietly did nothing. This reading is narrow on
-purpose: the frozen text names no clearing semantics for this field, and it is
-recorded to the Steward as a question rather than decided wider here, since
-widening it later admits a body that is refused today while narrowing it
-later would take back one that worked.
+answered 200 by a route that quietly did nothing.
+
+**Settled at the P7 endpoint shape review**, with the wire in front of it and
+with the implementing session's recommendation, which this review takes. The
+question is live because frozen 7.6 names no clearing semantics for this
+field and 8.6's deletion list, "reminder removal, the clear-date cascade, task
+deletion", reads either way. Four things decide it. Removal is spelled DELETE
+everywhere else in this contract, and 7.9 spells this one that way one line
+from the PUT, so "reminder removal" in 8.6's list names an endpoint that
+exists rather than a body nobody has written. The two readings are not
+symmetrical in cost: the narrow one widens later by accepting a body that is
+refused today, while the wide one can only narrow by taking back a body that
+worked. No criterion in any range asserts a PATCH removal, so the wide reading
+would hand this endpoint a delete path nothing measures, on the very field
+whose silent-drop failure went unnoticed for four packages. And a second door
+onto one row is a second place for 8.4's cascade ordering to be got right,
+where the PUT and the DELETE each do one thing.
+
+The narrow reading is this review's to make because it refuses a body rather
+than promising one: it adds no key, no status and no shape to frozen 7.6. The
+converse is not, and is recorded here so a later session does not quietly take
+it: a PATCH that clears a reminder is a second removal path for one row, and
+it belongs on frozen 7.6 with a criterion of its own, which makes it the human
+owner's through the Steward. The asymmetry with the create body, where
+reminder does admit null, is not drift and is the same rule read on two
+bodies: on a create there is no prior row, so null and absent both say "no
+reminder" and neither can demand a date, while on a partial body absent means
+leave the row alone and null would have to mean something this contract has
+not said.
 
 Absent from the shape: status, which 7.6 refuses with 409 rather than 422.
 See carriesStatus below. Absent too, the state-dependent half of INV-6: a
@@ -455,7 +509,7 @@ export const patchTaskBody = z
     recurrence_rule: recurrenceRule.nullable().optional(),
     folder_id: uuid.optional(),
     assignee_id: uuid.nullable().optional(),
-    reminder: reminderInput.optional(),
+    reminder: patchReminderInput.optional(),
   })
   /*
   The one INV-6 violation a PATCH body states without any help from the row:
@@ -642,6 +696,23 @@ formatter).
   together on both arms of the upsert, and 7.9's own reset to scheduled, or to
   skipped when the computed instant is already past, is that module's answer
   rather than a field this body carries.
+
+One consequence of that last bullet is routed to the Steward by this review
+rather than acted on here, because it lives in another role's module. 8.6's
+trigger list has five arms and src/server/time transcribes all five as a union,
+but the arm for the reminder's own value and mode has no caller and is not
+meant to acquire one: every write path to this row goes through the upsert,
+which asks planReminder what the row should be written as, and a recompute
+after it would read back the row just written and take a second clock reading,
+so an instant falling between the two calls would be scheduled by one and
+skipped by the other. That is one decision made twice, at exactly the moment
+the two answers differ. What is wrong is only the prose: two places in that
+module name PUT /tasks/:id/reminder as the arm's caller, which the PUT
+provably is not, so the next session to read them could restore the missing
+call and reintroduce the defect the upsert argued out. The recommendation is
+to keep the arm, 8.6 naming five triggers and a union that names four being a
+worse lie, and to say there that the write paths answer this trigger through
+planReminder and why.
 
 On the PATCH, one further half: a reminder sent with no due_time in the body
 is legal or not by the column the row already holds, and the 8.4 cascade runs

@@ -808,7 +808,27 @@ describe('the reminder arm (7.9, 7.6, 4.8, 10.3)', () => {
         result.error.issues[0]?.path,
         '7.0 answers a wrong type on a parsed object with a 422 naming the field, so a client that meant to clear the reminder is told where to go',
       ).toEqual(['reminder'])
+      expect(
+        result.error.issues[0]?.message,
+        'and told where, which the P7 shape review made the message say: the validator\'s own "expected object, received null" is a complaint about a type to a caller who was asking for a removal',
+      ).toContain('DELETE /tasks/:id/reminder')
     }
+  })
+
+  test('the sentence on that field costs the fields inside it nothing', () => {
+    // The object-level message is the object's alone. One shape literal
+    // reached through two schemas is why it is shared rather than copied, so
+    // the 10.3 row inside it must still answer in its own words.
+    const inner = patchTaskBody.safeParse({ reminder: { offset_minutes: -1 } })
+    expect(inner.success).toBe(false)
+    if (!inner.success) {
+      expect(inner.error.issues[0]?.path).toEqual(['reminder', 'offset_minutes'])
+      expect(inner.error.issues[0]?.message).toBe('must be 0 to 10080 minutes')
+    }
+    expect(
+      patchTaskBody.safeParse({ reminder: {} }).error?.issues[0]?.message,
+      '4.8\'s exclusive-or is the one predicate both bodies call, phrased for the position it is read in',
+    ).toBe('must carry exactly one of offset_minutes and time_of_day')
   })
 
   test('a reminder is refused wholesale when it is not an object at all', () => {
