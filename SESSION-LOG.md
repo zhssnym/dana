@@ -253,3 +253,5 @@ sub-agent in sequence, verifying each before starting the next.
 | 8 | The four owed surfaces closed, a title kept out of the addressing namespace | 07 | Unattended | Done |
 | 9 | The 10.6 PWA layer landed, the guard retired, the browser leg given room | 10 | Unattended | Done |
 | 10 | AC-100's deploy made real on disk, eight fixture collisions repaired, a ninth found | 11 | Testers | Done, escalated |
+| 11 | main merged down, seven conflicts kept both, section 12 reconciled to 168 by count | 12 | Unattended | Done |
+| 12 | Seven carried items ruled, AC-169 to AC-172 numbered, item 28 recorded | 12 | Unattended | Done |
