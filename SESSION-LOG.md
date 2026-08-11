@@ -269,6 +269,6 @@ before starting the next.
 | 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done |
 | 15 | Eleven server reads sequenced behind the writes they measure, four of them false greens | 11 | Testers | Done |
 | 16 | Token transcription and component fidelity against the committed design | 08 | Implementers | Running |
-| 17 | Manifest icons and colours, and the landing copy that closes item 14 | 07 | Implementers | Planned, final copy still Imran's 🔴 |
+| 17 | Manifest icons and colours, and the landing copy the owner ruled | 07 | Implementers | Planned |
 | 18 | Merge review | 12 | Steward | Planned |
 | 19 | Merge into main | 12 | Steward | Planned |
