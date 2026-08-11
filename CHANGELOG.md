@@ -93,6 +93,50 @@ Planning and design. No software has been released yet.
   its lists are decisions the server also makes; a grouping the server never
   makes and cannot be wrong about is a rendering of fields the Folder object
   already carries, in the section that owns rendering.
+- **Section 9's sections are named regions, ruled 2026-08-11 on the tester
+  return's routed recommendation.** Two closures made the same day interacted
+  and neither session could have seen it alone: 9.3 gave a folder page's two
+  quick-add rows different due dates, Scheduled opening with today and
+  Unscheduled with empty, while 9.1's control table gave the inline quick-add
+  input one name for the control class. A folder page carries two of them, so
+  a test could address "a quick-add row" and not "the Scheduled section's",
+  and the only remaining distinguisher was DOM position, which is the
+  implementer's internals and the one thing the addressing sentence exists to
+  keep out of this suite. Until it was ruled, the two dates the change
+  control had just written were asserted by nothing. *The container is named
+  rather than the control, and the decisive argument is not cost but scale.*
+  Qualifying the input, "the Scheduled section's quick-add", would put a
+  per-page variation into a table whose other seven entries are one control
+  each, which is the reason the return gave; the stronger one is that it
+  cannot be done at all for Tasks, which carries one quick-add row per folder
+  group, so its instances number as many folders as hold undated tasks and no
+  table of names can enumerate a set the data decides. Naming containers
+  costs almost nothing extra because section 9 already names most of them:
+  9.4's three headings, All's two, 9.7's three and 9.9's three are normative
+  strings today, and the rest take the datum they are generated from, a
+  folder, a label, a day. *Generalized once rather than per page*, because
+  the alternative is a session discovering it on Tasks, coming back, and a
+  second one discovering it on All. The rule is that every section a page's
+  structure names is a named region and a control inside one is addressed
+  within it, with three consequences written down: a collapsible section is a
+  region plus a control of the same name whose expanded state is what
+  collapsed means, which is what AC-058's clause now reads and which covers
+  9.4's recap and 9.1's label groups with it; a region's name is announced
+  rather than rendered, so Tasks' Inbox block is named without acquiring the
+  heading 9.5 deliberately denies it; and where the name comes from data
+  whose rendering this section leaves free, Done's day groups being the case,
+  a test asks for the text the page rendered rather than a string fixed here.
+  *Completed is named beside the two open sections*, which the routed item
+  raised and left open. Naming only where the collision was would have been
+  arbitrary, 9.6's body being three sections, and AC-058's half was reaching
+  a heading-shaped button by regex, which is exactly the loose description
+  matching the naming ruling exists to remove. *And one adjacent silence is
+  closed with them*, recorded because it sits inside the same table: the
+  Inbox block carries a quick-add row like every folder group beside it. 9.1
+  places the row at the bottom of Tasks groups and 9.5 calls that block
+  ungrouped, which between them left the one folder every account has as the
+  only one on that page that could not be captured into, on the page whose
+  whole purpose is capture without a date.
 - **P8's mid-package change control, 2026-08-11.** Twelve criteria numbered,
   four silences ruled, two properties recorded in section 13, one CI edit
   routed to Platform, and a tester return declared owed. *The numbering
