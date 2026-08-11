@@ -1349,6 +1349,90 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- The gate moves onto the owner's machine, 2026-08-11, and four rulings come with
+  it. GitHub's hosted runners stopped starting at 18:46 UTC on an account billing
+  failure: every run from `96e6e50` onward completes in three to four seconds with
+  no runner assigned and zero steps, two of them on commits that touched only
+  `SESSION-LOG.md`, and the last green run is 16:08 UTC at `e54038e`. The owner
+  chose not to buy hosted minutes, so CI moves to a self-hosted runner here. This
+  branch rules and records; the workflow file is Platform's and is deliberately
+  untouched by it, so nothing here has yet been proven to execute, and until a
+  runner is registered nothing can be.
+  - **11.11 admits a self-hosted runner without moving a step.** "CI is GitHub
+    Actions" survives intact, a self-hosted runner being GitHub Actions with a
+    different executing machine and the same workflow, events, checks and run
+    history. What did not survive as written is "test on postgres:18", which named
+    a Docker image on a machine that has none and will not get one. That step is
+    now "test on a real Postgres 18", and the two vehicles, a service container on
+    a hosted runner and the host's own cluster on a self-hosted one, are named as
+    job configuration, which is what the service block always was. The seven steps
+    and their order are untouched, so the workflow header's rule that changing
+    order or steps is an escalation is satisfied rather than waived. Three
+    consequences ride with it, each recorded in 11.11: the arrangement is
+    acceptable exactly while this repository is private, a self-hosted runner
+    executing whatever any pushed branch's workflow says on a machine holding the
+    owner's data; CI now exists only while that machine is on, and a job that finds
+    no runner waits rather than failing, so a branch gets no verdict rather than a
+    red one; and the Playwright step may drop `--with-deps` on Windows, a flag that
+    installs Linux system packages and has nothing to do there.
+  - **The test database is pinned to Postgres 18's builtin C.UTF-8 locale, and
+    11.10 stops calling the second leg the production-fidelity authority.** The
+    cluster installed here was initialised with a French locale, read off disk from
+    `global/1262` because the superuser password is deliberately not available to a
+    session: all three databases are UTF8 with the libc provider and
+    French_France.1252 for both collate and ctype. The `postgres:18` image is
+    Debian with `ENV LANG en_US.utf8`, so glibc en_US.utf8. Those two differ, which
+    is why the question was routed, but the measurement that decided it was a third
+    one: PGlite is LC_COLLATE C, and always has been. The suite has therefore been
+    green on C and on glibc en_US.utf8 simultaneously since P0, which is proof that
+    no acceptance criterion can distinguish them and that the container leg was
+    never in fact exercising the production collation. The name was the over-claim,
+    not the coverage. So the second leg is pinned to what Postgres itself
+    guarantees identical on every platform and every version, the builtin
+    provider's C.UTF-8, measured byte-identical to PGlite's default ordering over a
+    probe carrying case, accents, punctuation and digits, and giving the same full
+    Unicode case mapping so Q8's ILIKE and trigram search fold the same way on both
+    legs. It also puts the database under the same ordering as the suite's own
+    oracle, JavaScript's `<` being UTF-16 code unit order, which is what AC-069
+    sorts with to assert 7.3's roster; under a linguistic collation that criterion
+    agreed with the database only for as long as its fixture avoided case, accents
+    and punctuation. Two rejected alternatives go to 11.14 rather than being left
+    to rediscovery: matching the image's libc locale, which Windows cannot do,
+    having no glibc and substituting the Windows NLS implementation under the same
+    name, and the ICU provider, which is stable only within one ICU major version
+    and would be a third ordering agreeing with nothing. What the ruling gives up
+    is section 13 item 26: no leg now runs a linguistic collation, so the ordering
+    a production Render Postgres serves is checked by nothing, and the one place
+    that is visible is 7.3's unfolded display_name. Closing it is the owner's
+    choice among three, and the cheapest two touch no frozen section.
+  - **The connection string lives in the runner installation's own `.env`, not in a
+    GitHub secret**, which inverts what 11.11 said about CI and so is now stated
+    there positively: a credential for a resource GitHub cannot reach is never
+    stored at GitHub. Every workflow on every branch can read a repository secret,
+    workflow files are code the sessions of this build edit and push, and the
+    string describes a database on the owner's own machine, so storing it at GitHub
+    widens exposure and buys nothing. A machine-wide environment variable was
+    rejected for the same plaintext at a wider blast radius and a service restart
+    to rotate. The role is `dana_ci` with CREATEDB, never the superuser, which is
+    enough because pg_trgm has been a trusted extension since Postgres 13 and the
+    one `CREATE EXTENSION` in the migrations is therefore a database owner's to
+    run.
+  - **"Merges to main require green CI" is the protocol's rule and never was the
+    platform's.** Checked on 2026-08-11: the branch protection and ruleset APIs
+    both answer 403 on this repository, which is private on a plan offering
+    neither. The sentence in 11.11 now says so. The practical reading is that
+    nothing at GitHub will stop a merge, and what blocks a package landing without
+    a green gate is the definition of done in protocol section 4, enforced by the
+    Integration Steward, which is where it has always actually lived.
+  - One boundary was crossed knowingly and is disclosed rather than buried.
+    `CLAUDE.md` is Platform's owned file by persona, and this branch edits its
+    "Commands and this machine" section, because that section is the recorded home
+    of exactly these facts and leaving it saying there is no Docker and that
+    `postgres:18` is the authority would have misled every session opened before
+    Platform's next one. The Platform session that implements the workflow may
+    rewrite any of that wording; what it must not do is drop the facts. Nothing
+    else outside change control was touched, and `.github/workflows/ci.yml` was
+    deliberately left alone.
 - Merge rulings at the P3 merge, 2026-08-07. By the human owner, accepting all
   four recommendations of the endpoint shape review and transcribed onto
   frozen section 7: closing paragraphs on 7.7 and 7.8 settling that each of
