@@ -1412,6 +1412,50 @@ describe('the 7.9 endpoints and the reminder arms, on the wire', () => {
   })
 
   /*
+  8.5's copy, which is the fourth write path to the one 4.8 row and the only
+  one that is not a request body. It reaches this surface through the
+  transition envelope, where 7.6 gives generated_task a TaskCard: 7.0's card
+  carries no reminder key, so nothing in the response reports that the
+  successor acquired one and a client learns it from a GET or not at all. That
+  is the frozen shape rather than a gap this review may close, and it is
+  measured here so it is a fact rather than an assumption.
+  */
+  test('a generated successor carries the reminder, and only its own GET says so', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const taskId = await freshTask('reminder successor', {
+      due_date: due,
+      due_time: '09:30',
+      recurrence_rule: 'FREQ=DAILY',
+      reminder: { offset_minutes: 45 },
+    })
+
+    const done = await api(owner, `/tasks/${taskId}/complete?tz=UTC`, {
+      method: 'POST',
+    })
+    expect(done.status).toBe(200)
+    const envelope = done.json() as Record<string, unknown>
+    const card = expectTaskCardExact(envelope.generated_task, 'the successor card')
+    expect(
+      'reminder' in card,
+      '7.0 gives the card no reminder key, so 8.5\'s copy is invisible in the envelope by the shape frozen 7.6 chose',
+    ).toBe(false)
+
+    const successor = expectTaskDetailExact(
+      (await api(owner, `/tasks/${String(card.id)}`)).json(),
+      'the successor read fresh',
+    )
+    expect(
+      successor.reminder,
+      '8.5 copies the mode and the value onto the successor, so the row the client fetches carries a legal 4.8 pair rather than the both-null shape a half-copy would leave',
+    ).toEqual({ offset_minutes: 45, time_of_day: null })
+    expect(
+      (envelope.task as Record<string, unknown>).reminder,
+      'and the completed occurrence keeps its own, 8.6 saying a reminder survives completion untouched',
+    ).toEqual({ offset_minutes: 45, time_of_day: null })
+  })
+
+  /*
   8.6: a reminder "survives completion and abandonment untouched", and frozen
   7.9 names no status guard on the write either. Worth a probe because the
   guard a reader expects to find is the one somebody eventually adds: nothing

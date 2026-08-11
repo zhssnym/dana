@@ -947,6 +947,33 @@ recorded here because this is where a reader looks for the shape of an answer.
 - **A no-op fills neither**, whatever the row carries. 5.1's no-op writes
   nothing, so there is nothing for either key to report, and the envelope is
   the same three keys with the same nulls a P3 transition answered.
+
+P7 adds one thing this envelope does not report, and the silence is frozen
+7.6's rather than this file's. 8.5 copies the reminder onto the successor, and
+generated_task is a TaskCard, which 7.0 gives no reminder key, so a client
+learns that the successor acquired one from a GET or not at all. The P7 shape
+review measured it rather than assuming it and left the shape alone: reminder
+is one of 7.0's eight detail keys, and putting it on the card to report this
+one effect would change what every view endpoint of 7.10 answers.
+
+Checking that is what turned up a finding this review routes to the Steward
+rather than acting on, the module being another role's. 8.5's copy writes
+state = 'scheduled' flatly, following 8.5's pseudocode and discarding the
+state 8.6's computation returned, and the module records the grounds: the two
+only disagree where the successor's instant is already past, and there the
+delivery loop's six-hour staleness rule is said to reach the same answer one
+tick later. It does so only beyond six hours. Inside them the loop's answer is
+the opposite one, since it selects state = 'scheduled' with fire_at <= now()
+and skips only what is more than six hours stale, so the row is delivered:
+which is the retroactive fire 8.6 forbids, and the same defect shape the
+mid-package change control found in frozen 7.9's unqualified bullet. It is
+reached by ordinary values rather than exotic ones, a daily task with a
+one-day lead time completed an hour after its due time putting the successor's
+instant an hour in the past. The recommendation is that 8.5's arm take the
+qualifier 7.9's PUT took, since the copy already computes the state and then
+overrides it, which would make all four write paths to this row state one
+rule; AC-150 pins a successor a week out with a 45-minute lead and is
+unaffected either way.
 */
 export const taskTransitionResponse = z.object({
   task: taskDetail,
