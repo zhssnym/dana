@@ -154,9 +154,12 @@ at the PostgreSQL 18 already installed here instead of at a container. The steps
 below are the part no session can do for you, because every one of them either
 needs a credential or is a credential.
 
-Do them in this order. Steps 2 and 3 must not swap: the collation ruling in 11.10
-is worthless if `dana_test` is created by inheriting the cluster default, and this
-cluster's default is `French_France.1252`.
+Do them in this order, and do not reach for a shortcut in step 2. The collation
+ruling in 11.10 is worthless if `dana_test` is created by inheriting the cluster
+default, and this cluster's default is `French_France.1252`, so `createdb dana_test`
+or a `CREATE DATABASE` without the locale clauses produces a database that looks
+right, passes the suite for a while, and orders text differently from every other
+leg. Paste the statement as written.
 
 Two rules that hold throughout. The runner installation lives at
 `C:\actions-runner`, outside the repository and outside every working tree, and
