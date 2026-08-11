@@ -1410,21 +1410,42 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
       jsonInit('POST', {
         title: 'contract tolerance',
         nonsense: 'ignored',
-        reminder: { offset_minutes: 30 },
       }),
     )
-    expect(
-      tolerated.status,
-      'an unknown field is ignored, which is also how the one arm P7 still owns reads',
-    ).toBe(201)
+    expect(tolerated.status, 'an unknown field is ignored').toBe(201)
     const body = expectTaskDetailExact(
       tolerated.json(),
       'the tolerant create body',
     )
     expect(
       body.reminder,
-      'and ignored means stored nowhere: a reminder needs the 8.6 fire instant 4.8 makes NOT NULL',
+      'and a create that sends no reminder gets none, which is the state this case measured through the tolerated arm until P7',
     ).toBeNull()
+
+    /*
+    reminder was the last field in the tolerated list, and it has left it: P7
+    delivers the 8.6 instant 4.8's NOT NULL fire_at demands, so the field is a
+    field of the body now. A body carrying one without the due_date 7.6's
+    dependency check requires is a 422 naming it rather than an unknown key
+    answering 201, which is exactly what happened to recurrence_rule at P6.
+    */
+    const refusedReminder = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract reminder',
+        reminder: { offset_minutes: 30 },
+      }),
+    )
+    expect(
+      refusedReminder.status,
+      '7.6 names the dependency in one breath: due_time, recurrence_rule and reminder require due_date, 422 (INV-6, AC-149)',
+    ).toBe(422)
+    expect(errorEnvelope.safeParse(refusedReminder.json()).success).toBe(true)
+    expect(
+      refusedReminder.body.toLowerCase(),
+      'and the message names the field the caller sent',
+    ).toContain('reminder')
 
     /*
     recurrence_rule was in the tolerated list until P6, and this file's own

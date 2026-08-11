@@ -6,6 +6,8 @@ import {
   patchTaskBody,
   postTaskStepsBody,
   postTasksBody,
+  putTaskReminderBody,
+  putTaskReminderResponse,
   taskCard,
   taskDetail,
   taskReminder,
@@ -75,25 +77,28 @@ describe('postTasksBody (7.6: the create body, 10.3: the limits)', () => {
     }
   })
 
-  test('keeps the rule P6 validates and still strips the arm P7 owns', () => {
+  test('carries both arms P3 deferred, the second of them since P7', () => {
     const result = postTasksBody.safeParse({
       title: 'Water the plants',
       due_date: '2026-08-20',
+      due_time: '18:00',
       recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
       reminder: { offset_minutes: 30 },
     })
     expect(
       result.success,
-      'P6 delivers the 4.11 validator, so the rule is a field of the body rather than an unknown one',
+      'P6 delivers the 4.11 validator and P7 the 8.6 instant, so both are fields of the body rather than unknown ones',
     ).toBe(true)
     if (result.success) {
       expect(
         result.data,
-        'reminder still falls to 7.0\'s tolerated-unknown rule, waiting on the 8.6 fire instant (RFC 0001 P7 row)',
+        'neither arm falls to 7.0\'s tolerated-unknown rule any longer, and the reminder parses to 4.8\'s two columns whichever spelling arrived',
       ).toEqual({
         title: 'Water the plants',
         due_date: '2026-08-20',
+        due_time: '18:00',
         recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+        reminder: { offset_minutes: 30, time_of_day: null },
       })
     }
   })
@@ -532,6 +537,294 @@ describe('recurrenceRule on both 7.6 write bodies (4.11, 4.5, 10.3)', () => {
   })
 })
 
+/*
+The reminder arm, P3's second deferral and the last one this build carried,
+across the three bodies that write a reminder: frozen 7.9's PUT and both of
+frozen 7.6's write bodies.
+
+What these check is where the line falls. Every rule 4.8 and 7.9 state about a
+reminder is here in one of three positions: a property of the value sent
+(10.3's offset range, 4.11's minute precision), a relation between fields of
+one body (the exclusive-or on all three, and the whole of the dependency and
+mode rules on the create), or a relation with the row, which no schema can see
+and which the domain module answers. The cases below assert the first two and
+assert that the third is admitted rather than guessed at, because a schema
+that refuses a legal PATCH is as wrong as one that accepts an illegal create.
+*/
+describe('the reminder arm (7.9, 7.6, 4.8, 10.3)', () => {
+  const created = (extra: Record<string, unknown>): unknown => ({
+    title: 'Remind me',
+    due_date: '2026-08-20',
+    ...extra,
+  })
+
+  /*
+  A create carrying a time_of_day needs no due_time and an offset needs one,
+  so the mode rule and the exclusive-or would collide on that body if the
+  fixture below sent one due_time for both modes. This puts the right one
+  beside each mode, leaving the exclusive-or as the only rule under test.
+  */
+  function modeShapedExtras(reminder: {
+    offset_minutes?: number | null
+    time_of_day?: string | null
+  }): Record<string, unknown> {
+    return typeof reminder.time_of_day === 'string' ? { due_time: null } : {}
+  }
+
+  test('4.8\'s exclusive-or is the same rule on all three bodies', () => {
+    const modes = [
+      [{ offset_minutes: 30 }, true],
+      [{ time_of_day: '09:00' }, true],
+      [{ offset_minutes: 30, time_of_day: null }, true],
+      [{ offset_minutes: null, time_of_day: '09:00' }, true],
+      [{}, false],
+      [{ offset_minutes: null }, false],
+      [{ offset_minutes: null, time_of_day: null }, false],
+      [{ offset_minutes: 30, time_of_day: '09:00' }, false],
+    ] as const
+
+    for (const [reminder, ok] of modes) {
+      const why = `4.8 CHECKs ((offset_minutes IS NULL) <> (time_of_day IS NULL)); sent ${JSON.stringify(reminder)}`
+      expect(putTaskReminderBody.safeParse(reminder).success, why).toBe(ok)
+      expect(
+        postTasksBody.safeParse(
+          created({ due_time: '18:00', reminder, ...modeShapedExtras(reminder) }),
+        ).success,
+        `${why}, through 7.6's create body`,
+      ).toBe(ok)
+      expect(
+        patchTaskBody.safeParse({ reminder }).success,
+        `${why}, through 7.6's PATCH body`,
+      ).toBe(ok)
+    }
+  })
+
+  test('null is not a mode, which is what AC-147 sends', () => {
+    const result = putTaskReminderBody.safeParse({ offset_minutes: null })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues[0]?.path,
+        'the rule is about the body, not about one of its two fields, so it names no field and says so in a whole sentence',
+      ).toEqual([])
+      expect(result.error.issues[0]?.message).toContain('Exactly one of')
+    }
+  })
+
+  test('a nested failure names the field the way every other message here does', () => {
+    const result = postTasksBody.safeParse(created({ reminder: {} }))
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues[0]?.path,
+        'sendValidationError joins the path, so a caller reads "reminder: must carry exactly one ..."',
+      ).toEqual(['reminder'])
+    }
+  })
+
+  test('holds the offset to 10.3\'s range on every body that writes one', () => {
+    for (const [offset, ok] of [
+      [0, true],
+      [10_080, true],
+      [-1, false],
+      [10_081, false],
+      [1_000_000, false],
+      [30.5, false],
+    ] as const) {
+      const reminder = { offset_minutes: offset }
+      const why = `10.3 and the 4.8 CHECK admit 0 to 10080 minutes; sent ${String(offset)}`
+      expect(putTaskReminderBody.safeParse(reminder).success, why).toBe(ok)
+      expect(
+        postTasksBody.safeParse(created({ due_time: '18:00', reminder })).success,
+        `${why}, on the create`,
+      ).toBe(ok)
+      expect(
+        patchTaskBody.safeParse({ reminder }).success,
+        `${why}, on the PATCH`,
+      ).toBe(ok)
+    }
+  })
+
+  test('holds time_of_day to 4.11\'s minute precision, the write form', () => {
+    for (const [time, ok] of [
+      ['00:00', true],
+      ['09:00', true],
+      ['23:59', true],
+      ['09:00:00', true],
+      ['09:00:30', false],
+      ['9:00', false],
+      ['24:00', false],
+      ['morning', false],
+    ] as const) {
+      expect(
+        putTaskReminderBody.safeParse({ time_of_day: time }).success,
+        `4.8 stores time_of_day at minute precision, the rule due_time carries; sent ${time}`,
+      ).toBe(ok)
+    }
+  })
+
+  test('a parsed reminder is always 4.8\'s two columns, whichever spelling arrived', () => {
+    for (const sent of [
+      { offset_minutes: 30 },
+      { offset_minutes: 30, time_of_day: null },
+      { offset_minutes: 30, unknown_key: 'ignored' },
+    ]) {
+      const result = putTaskReminderBody.safeParse(sent)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(
+          result.data,
+          '7.0 answers both keys with one null, so a client can echo what it read, and the domain module reads one shape rather than three',
+        ).toEqual({ offset_minutes: 30, time_of_day: null })
+      }
+    }
+  })
+
+  test('the create answers 7.6\'s dependency check for the third field', () => {
+    const result = postTasksBody.safeParse({
+      title: 'Undated but reminded',
+      reminder: { time_of_day: '09:00' },
+    })
+    expect(
+      result.success,
+      '7.6: due_time, recurrence_rule and reminder require due_date, 422. INV-6 is the invariant, and AC-149 asserts the create rolls back whole',
+    ).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['reminder'])
+      expect(result.error.issues[0]?.message).toContain('due_date')
+    }
+    expect(
+      postTasksBody.safeParse({ title: 'Neither', reminder: null }).success,
+      'a null reminder sets nothing, so it demands no date, which is how notes and recurrence_rule read a null too',
+    ).toBe(true)
+  })
+
+  test('the create answers 4.8\'s mode rule, because it sets the due_time itself', () => {
+    expect(
+      postTasksBody.safeParse(
+        created({ due_time: '18:00', reminder: { offset_minutes: 30 } }),
+      ).success,
+      'the offset mode beside the due_time it is measured from',
+    ).toBe(true)
+    expect(
+      postTasksBody.safeParse(created({ reminder: { time_of_day: '09:00' } }))
+        .success,
+      'and the date-only mode on a task with no due_time',
+    ).toBe(true)
+
+    const offsetWithoutTime = postTasksBody.safeParse(
+      created({ reminder: { offset_minutes: 30 } }),
+    )
+    expect(
+      offsetWithoutTime.success,
+      '4.8: offset requires the task\'s due_time, and on a create the body is the only place that time can come from (AC-149, AC-090 through the other door)',
+    ).toBe(false)
+    if (!offsetWithoutTime.success) {
+      expect(offsetWithoutTime.error.issues[0]?.path).toEqual([
+        'reminder',
+        'offset_minutes',
+      ])
+    }
+
+    const timeOfDayWithTime = postTasksBody.safeParse(
+      created({ due_time: '18:00', reminder: { time_of_day: '09:00' } }),
+    )
+    expect(
+      timeOfDayWithTime.success,
+      '4.8: time_of_day requires the absence of a due_time, which is AC-147\'s converse wrong mode',
+    ).toBe(false)
+    if (!timeOfDayWithTime.success) {
+      expect(timeOfDayWithTime.error.issues[0]?.path).toEqual([
+        'reminder',
+        'time_of_day',
+      ])
+    }
+  })
+
+  test('the PATCH leaves the row\'s half of the same rules to the row', () => {
+    expect(
+      patchTaskBody.safeParse({ reminder: { offset_minutes: 30 } }).success,
+      'legal against a task carrying a due_time and refused against one that does not, which only the row can say (7.11 lists the date-dependency rules as server-authoritative)',
+    ).toBe(true)
+    expect(
+      patchTaskBody.safeParse({ reminder: { time_of_day: '09:00' } }).success,
+      'and the same on the other mode',
+    ).toBe(true)
+    expect(
+      patchTaskBody.safeParse({
+        due_time: '18:30',
+        reminder: { offset_minutes: 30 },
+      }).success,
+      'a due_time moving between two values invalidates no mode (8.4\'s closing paragraph, AC-151)',
+    ).toBe(true)
+  })
+
+  test('the PATCH refuses the contradictions a body states without the row', () => {
+    const clearing = patchTaskBody.safeParse({
+      due_date: null,
+      reminder: { time_of_day: '09:00' },
+    })
+    expect(
+      clearing.success,
+      '8.4\'s cascade deletes the reminder when the date is cleared, so honoring both drops one of the two fields the caller sent',
+    ).toBe(false)
+    if (!clearing.success) {
+      expect(clearing.error.issues[0]?.path).toEqual(['reminder'])
+    }
+
+    expect(
+      patchTaskBody.safeParse({
+        due_time: null,
+        reminder: { offset_minutes: 30 },
+      }).success,
+      'the 8.4 arm ruled on 2026-08-10: clearing due_time deletes an offset reminder, so a body that clears it and sets one asks for the row it just deleted (AC-164)',
+    ).toBe(false)
+
+    expect(
+      patchTaskBody.safeParse({
+        due_time: '18:00',
+        reminder: { time_of_day: '09:00' },
+      }).success,
+      'and its mirror arm, setting due_time on a date-only task deleting a time_of_day reminder',
+    ).toBe(false)
+
+    expect(
+      patchTaskBody.safeParse({
+        due_time: null,
+        reminder: { time_of_day: '09:00' },
+      }).success,
+      'the pair that is not a contradiction: the cascade deletes an offset row and the body sets the mode the resulting task admits',
+    ).toBe(true)
+  })
+
+  test('the PATCH admits an object and refuses a null, 7.9 owning the removal', () => {
+    const result = patchTaskBody.safeParse({ reminder: null })
+    expect(
+      result.success,
+      'a reminder is a row of 4.8 rather than a column of 4.5, and frozen 7.9 gives its removal an endpoint of its own: DELETE /tasks/:id/reminder, 204 and idempotent',
+    ).toBe(false)
+    if (!result.success) {
+      expect(
+        result.error.issues[0]?.path,
+        '7.0 answers a wrong type on a parsed object with a 422 naming the field, so a client that meant to clear the reminder is told where to go',
+      ).toEqual(['reminder'])
+    }
+  })
+
+  test('a reminder is refused wholesale when it is not an object at all', () => {
+    for (const value of [5, 'PT30M', ['offset_minutes'], true]) {
+      expect(
+        putTaskReminderBody.safeParse(value).success,
+        `7.9's body is the reminder object; sent ${JSON.stringify(value)}`,
+      ).toBe(false)
+      expect(
+        postTasksBody.safeParse(created({ reminder: value })).success,
+        `and the same value nested in the create body; sent ${JSON.stringify(value)}`,
+      ).toBe(false)
+    }
+  })
+})
+
 describe('carriesStatus (7.6: status is refused by presence, with 409)', () => {
   test('sees the field whatever it says', () => {
     for (const body of [
@@ -759,7 +1052,7 @@ describe('the 7.0 response shapes', () => {
     ).toBe(true)
   })
 
-  test('TaskDetail keeps the two deferred keys even while their bodies do not', () => {
+  test('TaskDetail requires the two keys whose request arms arrived later', () => {
     const { recurrence_rule, ...withoutRule } = detail
     void recurrence_rule
     expect(
@@ -803,6 +1096,20 @@ describe('the 7.0 response shapes', () => {
     expect(
       taskStep.safeParse({ id: someUuid, title: 'Rinse', done: false }).success,
     ).toBe(false)
+  })
+
+  test('the ruled 7.9 response is the TaskDetail, not a shape of its own', () => {
+    expect(
+      putTaskReminderResponse,
+      'the owner ruled on 2026-08-10 that PUT /tasks/:id/reminder answers the affected TaskDetail; binding the name is what keeps a ruling from being a sentence two shapes could each claim to satisfy',
+    ).toBe(taskDetail)
+    expect(
+      putTaskReminderResponse.safeParse({
+        ...detail,
+        reminder: { offset_minutes: 30, time_of_day: null },
+      }).success,
+      'and it reports the reminder the call wrote, which is why the parent task is the object that answers',
+    ).toBe(true)
   })
 
   test('a transition answers 7.6\'s three keys, both companions nullable', () => {
