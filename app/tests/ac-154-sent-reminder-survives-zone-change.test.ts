@@ -43,11 +43,12 @@ naming.** 4.8 sets fired_at when state leaves scheduled, so a route that
 recomputed the instant and then noticed the state and put it back would leave
 fire_at moved with fired_at intact, which reads as a delivered reminder about
 a moment it was never scheduled for. The ruling's own second consequence is
-the other side of that column: where one of the other four triggers does
-revive a sent row, fired_at is cleared with it, so 4.8's note stays true of
-every row. That half is AC-148's territory, and its sent case asserts it; the
-same question asked of a skipped row is routed to the Integration Steward from
-that file rather than asserted in either.
+the other side of that column: where one of the other four triggers returns a
+row to scheduled from either of 4.8's two terminal states, sent or skipped,
+fired_at is cleared with it, so 4.8's note stays true of every row. That half
+is AC-148's territory and both of its revival cases assert it. This paragraph
+named the sent case alone until 2026-08-10, when the consequence was widened
+to both terminal states on that file's routing.
 
 **Both doors of the trigger are exercised**, the login sync the criterion
 names and the PATCH /me that frozen 7.1 charges with the same recompute, for

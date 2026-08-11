@@ -41,18 +41,27 @@ which 8.6 counts as a new occasion and which returns a sent row to scheduled;
 a timezone change alters neither the deadline nor the recipient, and 8.6 as
 ruled at the same change control leaves a sent row alone for it.
 
-**The revival clears fired_at, and that is asserted where the ruling states
-it.** 8.6 as ruled records the consequence in its own words: where one of the
-other four triggers returns a sent row to scheduled, fired_at is cleared with
-it, so frozen 4.8's note that the column is set when state leaves scheduled
-stays true of every row. The sent case below asserts it. The skipped case
-deliberately does not, and the difference is a reading rather than an
-oversight: the ruling names a sent row, 4.8 says only when the column is set
-and never when it clears, and a skipped row revived with a stale fired_at
-would leave that note untrue of exactly one row shape. It is routed to the
-Integration Steward rather than asserted here, because asserting past the
-words of a ruling this file also cites is the reinterpretation this role is
-forbidden.
+**The revival clears fired_at, from either terminal state, and both cases
+below assert it.** 8.6 records the consequence in its own words: where one of
+the other four triggers returns a row to scheduled from either of 4.8's two
+terminal states, sent or skipped, fired_at is cleared with it, so frozen 4.8's
+note that the column is set when state leaves scheduled stays true of every
+row rather than of most of them.
+
+The history is worth the two sentences, because this paragraph said something
+narrower first. The mid-package change control of 2026-08-10 wrote the
+consequence for a sent row alone, so this file asserted the sent case, where
+the ruling's words reached, and deliberately declined to assert the skipped
+one rather than read a step past a ruling it also cites. That routing was
+answered the same day and the sentence was widened to both terminal states,
+on the ground that the narrow wording did not merely omit a case but defeated
+its own reason: it left exactly one row shape uncovered, a scheduled row
+holding a fired_at, which is the shape the sentence exists to rule out. A
+skipped row carries a fired_at like a sent one, set by the loop when it skips
+and required by 4.8's note when a recompute skips, and neither terminal state
+is a delivery that happened, so nothing distinguishes them here. The separate
+distinction the ruling does draw, between the timezone trigger and the other
+four, is untouched and is AC-154's.
 
 **The ruled response body is judged on every success**, in the harness, by the
 same helper as the ruled 7.7 and 7.8 bodies: a whole TaskDetail equal to what
@@ -229,7 +238,7 @@ describe('AC-148: a second PUT replaces the row and revives it', () => {
     ).toBe('scheduled')
     expect(
       row.fired_at,
-      '8.6 as ruled on 2026-08-10 records this consequence in its own words: where one of the other four triggers returns a sent row to scheduled, fired_at is cleared with it, so frozen 4.8\'s note that the column is set when state leaves scheduled stays true of every row rather than of most of them. A revival that moved the state and the instant and left the old fired_at standing reads as a reminder delivered at a moment it was never scheduled for',
+      '8.6 as ruled on 2026-08-10 records this consequence in its own words: where one of the other four triggers returns a row to scheduled from either of 4.8\'s two terminal states, sent or skipped, fired_at is cleared with it, so frozen 4.8\'s note that the column is set when state leaves scheduled stays true of every row rather than of most of them. A revival that moved the state and the instant and left the old fired_at standing reads as a reminder delivered at a moment it was never scheduled for',
     ).toBeNull()
     expectFireAt(
       row,
@@ -248,10 +257,15 @@ describe('AC-148: a second PUT replaces the row and revives it', () => {
       'the first PUT (spec 7.9)',
     )
     await setReminderState(app.db, id, 'skipped')
+    const terminal = await requireReminderRow(app.db, id, 'the row exists')
     expect(
-      (await requireReminderRow(app.db, id, 'the row exists')).state,
+      terminal.state,
       'the control: the row is terminal in the other of 4.8\'s two ways',
     ).toBe('skipped')
+    expect(
+      terminal.fired_at,
+      'and it carries a fired_at like a sent row does, set by the loop when it skips, which is what the revival below has to undo',
+    ).not.toBeNull()
 
     await putReminderOk(
       owner,
@@ -264,6 +278,10 @@ describe('AC-148: a second PUT replaces the row and revives it', () => {
       row.state,
       '7.9 says state resets to scheduled unless that instant is already past, and it names no state it resets from, so an implementation reviving one of 4.8\'s two terminal states is no evidence at all about the other',
     ).toBe('scheduled')
+    expect(
+      row.fired_at,
+      '8.6 clears fired_at on a revival from EITHER terminal state, widened from the sent case on 2026-08-10 because the narrow wording left one row shape uncovered, a scheduled row holding a fired_at, which is the shape the sentence exists to rule out. This is the half this file previously routed rather than asserted, and it is the sharper of the two: an implementation that clears the column beside the state it just changed passes the sent case by writing both at once, while one that clears it in a branch keyed on the old value being sent fails only here',
+    ).toBeNull()
     expectFireAt(
       row,
       offsetFireInstant(KARACHI, due, DUE_TIME, 90),
