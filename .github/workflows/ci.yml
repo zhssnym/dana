@@ -14,7 +14,20 @@ defaults:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A hang killer, not a budget. 20 was P0's number for a job whose fifth
+    # leg had never run; measured on this branch, the four legs ahead of the
+    # browser one cost 13.5 to 14.5 minutes of it, and three of the four runs
+    # before this commit were killed with Playwright mid-leg. What that
+    # produces is a cancelled job rather than a red one: the leg's own
+    # evidence, the named assertion of the case that broke, is destroyed by
+    # the clock, which is the same false signal the condition below argues
+    # against. The fourteen minutes in front of the browser leg do not shrink
+    # as the client fills in, and a red case is slower than a green one
+    # because it spends its timeouts, so the pressure is upward on the run
+    # that most needs to finish. 40 keeps a genuinely hung job from burning
+    # GitHub's six-hour default, and costs nothing on a healthy run, because
+    # this is a ceiling and not an allocation.
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:18
@@ -50,22 +63,24 @@ jobs:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dana_test
       - name: Build
         run: npm run build
-      # The fifth leg, and the only one whose first execution in this
-      # project's history is still ahead of it. P0 keyed it on the
-      # configuration file alone, when a config was the only half anyone
-      # could foresee; P8 splits that seam by file, so the config lands with
-      # the Platform session and the first spec lands later with the
-      # Adversarial Test session. Between those two commits the config exists
-      # and tests/e2e/ is empty, and playwright test treats finding no spec
-      # as an error rather than an empty pass, which would turn this leg red
-      # for the length of that gap on a branch whose other four are green.
+      # The fifth leg. The condition is P0's design and it guards history:
+      # a commit predating the config has no runner to invoke, and skipping
+      # is the honest answer there.
       #
-      # Both halves are therefore named. The alternative, passing
-      # a no-tests-found flag, buys the same quiet by making an empty
-      # collection permanently indistinguishable from a passing one, and this
-      # leg is where ten acceptance criteria will live.
+      # A second condition stood beside it until P8, requiring a matching
+      # spec to exist as well, because the P8 kickoff split this seam by file
+      # and between the config's commit and the first spec's commit
+      # playwright test treats finding no spec as an error rather than an
+      # empty pass. That gap has closed: the specs are committed and specs
+      # can only be added, so the condition can no longer be false while the
+      # config is true. It is removed rather than left standing, and the
+      # reason is the one this comment used to give for rejecting the
+      # no-tests-found flag. A skipped step is green, so a condition that can
+      # only ever be true is a live way for this leg to go quiet without
+      # anyone reading a red: it is that flag written in YAML, and this leg
+      # is the only one any browser acceptance criterion runs in.
       - name: Playwright
-        if: hashFiles('app/playwright.config.ts') != '' && hashFiles('app/tests/e2e/**/*.spec.ts') != ''
+        if: hashFiles('app/playwright.config.ts') != ''
         # Only the browser the config's single project names. Installing the
         # other two costs minutes of this job for something nothing runs.
         run: npx playwright install --with-deps chromium && npx playwright test
