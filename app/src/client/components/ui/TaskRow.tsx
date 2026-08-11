@@ -42,7 +42,7 @@ import { useState } from 'react'
 
 import { todayInBrowserZone } from '../../api/tz.js'
 import { Button } from './Button.js'
-import { Chip } from './Chip.js'
+import { Chip, initialsOf } from './Chip.js'
 import { ConfirmDialog } from './ConfirmDialog.js'
 import { ABANDON_CONFIRM, ABANDONED_CHIP, DELETE_TASK_CONFIRM, REMOVE_FROM_MY_DAY, RESTORE } from './copy.js'
 import { OverflowMenu } from './OverflowMenu.js'
@@ -80,7 +80,23 @@ export interface TaskRowProps {
  * the title it shows, so a title split across a wrapper and an inner span is
  * a title that matches twice or not at all depending on which is asked for.
  */
-function TaskTitle({ task }: { readonly task: TaskCard }): React.JSX.Element {
+/*
+The title, and the one place the design's scanning argument shows up in code.
+
+It is the only 14/400 element on a row, everything else being 12 pixel
+metadata or sitting inside a quiet chip, which is what lets the eye ladder
+titles without reading anything else. Urgency is carried by weight rather than
+by size or colour, so an overdue row steps to 500 and gains no height and no
+second colour; the "Overdue" word on the badge beside it is the cue that does
+not depend on either.
+*/
+function TaskTitle({
+  task,
+  overdue = false,
+}: {
+  readonly task: TaskCard
+  readonly overdue?: boolean
+}): React.JSX.Element {
   if (task.status === 'abandoned') {
     // 9.5: struck. The `s` element carries the line-through with no
     // stylesheet at all, so the strike survives a missing token file; the
@@ -90,7 +106,11 @@ function TaskTitle({ task }: { readonly task: TaskCard }): React.JSX.Element {
   if (task.status === 'completed') {
     return <span className="task-title task-title-completed">{task.title}</span>
   }
-  return <span className="task-title">{task.title}</span>
+  return (
+    <span className={overdue ? 'task-title task-title-overdue' : 'task-title'}>
+      {task.title}
+    </span>
+  )
 }
 
 interface PendingConfirm {
@@ -227,14 +247,14 @@ export function TaskRow({
       AC-097's computed-style read.
       */}
       {onOpenTask === undefined ? (
-        <TaskTitle task={task} />
+        <TaskTitle task={task} overdue={overdue} />
       ) : (
         <span
           onClick={() => {
             onOpenTask(task)
           }}
         >
-          <TaskTitle task={task} />
+          <TaskTitle task={task} overdue={overdue} />
         </span>
       )}
       <span className="meta">{task.folder.name}</span>
@@ -259,7 +279,13 @@ export function TaskRow({
         </span>
       ) : null}
       {otherAssignee === null ? null : (
-        <Chip>{otherAssignee.display_name ?? 'Someone'}</Chip>
+        // The design pairs the avatar with the name and says outright that
+        // the initial is never shown alone. It rides the glyph seam, which
+        // is aria-hidden and inside the chip's own element, so the chip
+        // stays one element carrying one readable text node.
+        <Chip glyph={initialsOf(otherAssignee.display_name)}>
+          {otherAssignee.display_name ?? 'Someone'}
+        </Chip>
       )}
       {unassigned ? <Chip>Unassigned</Chip> : null}
       {task.pending_invite_email === null ? null : (
