@@ -384,3 +384,33 @@ registration goes to `waiting`, the "Update available, reload" button appears,
 the mark set on the document survives, and the URL does not change. Routed to
 the Adversarial Test Engineer with that measurement and the recommendation
 that the spec make the new build real on disk rather than on the wire.
+
+Fulfilled as requested, every value verbatim, in `vite.config.ts`. Annotated by
+the Platform engineer under the P2 ruling above, which gives this right to the
+role that executes the request, and reported in the commit as well, which is
+what the P5 ruling asks of an entry the boot file does not own; the two rulings
+name different halves of one act here, because for once the executor and the
+annotator are the same role.
+
+The measurement, taken on this tree rather than copied from the request. Before
+the block, on the committed tree, the whole browser leg ran 63 passed and 16
+failed in CI. After it, the four specs this entry concerns run **AC-091 3 of 3,
+AC-160 2 of 2, AC-163 2 of 2**, which is the request's own figure reproduced,
+and the seven cases moved from red to green.
+
+AC-100 stays red and its red moved, which is the part worth recording. Before
+the block it failed on the precondition every PWA criterion shares, that no
+service worker controlled the page. It now reaches its own sentence and fails
+waiting twenty seconds for the "Update available, reload" control, which is
+exactly what this entry predicts: `context.route()` never intercepted the
+worker script, so no new build was ever offered and there was nothing for the
+affordance to announce. The cause is the criterion's mechanism and not this
+configuration, and it sits with the Adversarial Test Engineer where the entry
+routed it.
+
+Six values were checked against the installed plugin rather than trusted.
+`directoryIndex` is typed `string | null` in workbox-build, so the `null` this
+entry requires is expressible and not a cast. The build emits `sw.js`,
+`workbox-*.js`, `manifest.webmanifest` and both icons into `dist/client`,
+precaching 9 entries, and `createApp` serves all of them with no server change,
+as the entry said it would.
