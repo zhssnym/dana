@@ -14,9 +14,11 @@ calls the projection from the calendar. Both are black boxes to their
 callers, so a signature here changes only through a Steward escalation
 (02-scheduling-and-time.md, Handoff).
 
-What is deliberately not here yet: the 8.6 fire-instant module, which 11.9
-assigns to this same role and RFC 0001 places in P7. The reminder arm of
-8.5's generation waits with it, and generation.ts carries the seam.
+P7 added the reminder half, on the same terms. The Collaboration engineer
+calls the recompute at four of 8.6's five triggers and the Security engineer
+at the fifth, and both do so inside their own transaction; the reminder arm of
+8.5's generation, which waited here for the computation, is closed inside
+generation.ts and is nobody else's to call.
 */
 export {
   addDays,
@@ -57,5 +59,23 @@ export type { SeriesGuardOutcome } from './seriesGuard.js'
 
 export { virtualInstances } from './projection.js'
 export type { ProjectionSource } from './projection.js'
+
+/* The P7 reminder half: 8.6's fire-instant computation and its five recompute
+ * triggers. copyReminderToSuccessor is deliberately not re-exported; 8.5's
+ * arm has exactly one caller and it is generation.ts, one directory in. */
+export { computeFireAt, resolveFireAt, resolveLocalTime } from './reminderTime.js'
+export type { FireAtInput, LocalResolution, LocalTimeKind } from './reminderTime.js'
+
+export { planReminder, recomputeReminders } from './reminderRecompute.js'
+export type {
+  ComputedState,
+  RecomputeOutcome,
+  RecomputedReminder,
+  ReminderPlan,
+  ReminderPlanRequest,
+  ReminderState,
+  ReminderTrigger,
+  UnresolvedReminder,
+} from './reminderRecompute.js'
 
 export type { Executor } from './executor.js'

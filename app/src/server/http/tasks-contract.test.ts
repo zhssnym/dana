@@ -40,6 +40,7 @@ import {
   postTaskMyDayResponse,
   postTaskStepsResponse,
   postTasksResponse,
+  putTaskReminderResponse,
   taskTransitionResponse,
 } from '../../shared/tasks.js'
 import { createApp } from '../index.js'
@@ -990,6 +991,503 @@ describe('the P6 arms of 7.6, on the wire', () => {
   })
 })
 
+/*
+P7's arms: frozen 7.9's two endpoints, which are new on this router, and the
+reminder object written rather than only read.
+
+Everything here is a first measurement. The probe above seeds a reminder row
+with an INSERT because until this package no request could create one, so
+TaskDetail's reminder key has been a rendering of a fixture rather than of
+anything the API did; and the date-only mode has never ridden this wire at
+all, in either direction. Frozen 7.9's own text is measured clause by clause,
+because two of its three paragraphs were written during this package and this
+is their first read by a role that did not write them.
+
+The acceptance range covers the behavior (AC-090, AC-146 to AC-151, AC-164).
+What is checked here is what that range cannot see: the shapes, judged against
+the shared schemas themselves, and the one grammar the refusals speak.
+*/
+describe('the 7.9 endpoints and the reminder arms, on the wire', () => {
+  test('PUT answers the affected TaskDetail, key-exact and equal to a fresh GET', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('reminder put', {
+      due_date: daysAhead(30),
+      due_time: '09:30',
+    })
+
+    const written = await api(
+      owner,
+      `/tasks/${taskId}/reminder`,
+      jsonInit('PUT', { offset_minutes: 30 }),
+    )
+    expect(
+      written.status,
+      'frozen 7.9 fixes the status at 200, and the owner\'s ruling of 2026-08-10 fills the silence beside it with the affected TaskDetail',
+    ).toBe(200)
+    expect(
+      issuesOf(putTaskReminderResponse.safeParse(written.json())),
+      'the PUT body does not match the shape the ruling bound it to',
+    ).toEqual([])
+    const body = expectTaskDetailExact(written.json(), 'the PUT reminder body')
+    expect(
+      body.reminder,
+      '7.0\'s reminder is the projection of the 4.8 row: both keys always, exactly one non-null, which is what lets a client read the mode off the values',
+    ).toEqual({ offset_minutes: 30, time_of_day: null })
+
+    expect(
+      written.json(),
+      'and the ruling\'s own ground, that the parent task is the object a fresh GET would give: the two bodies are the same object, field for field',
+    ).toEqual((await api(owner, `/tasks/${taskId}`)).json())
+  })
+
+  /*
+  4.8's other mode, which no response on this surface has ever carried. The
+  seeded probe earlier in this file writes an offset row, so time_of_day has
+  been a null in every body this API has answered since P3, and the read
+  primitive was chosen for a rendering nobody had seen.
+  */
+  test('the date-only arm rides the wire as HH:MM, the form 4.11 gives due_time', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('reminder date only', {
+      due_date: daysAhead(30),
+    })
+
+    const written = await api(
+      owner,
+      `/tasks/${taskId}/reminder`,
+      jsonInit('PUT', { time_of_day: '09:00' }),
+    )
+    expect(written.status).toBe(200)
+    expect(issuesOf(putTaskReminderResponse.safeParse(written.json()))).toEqual([])
+    expect(
+      expectTaskDetailExact(written.json(), 'the date-only PUT body').reminder,
+      '4.11 is minute precision on both sides of the wire, so the column rides back as HH:MM the way due_time does and never as the HH:MM:SS the storage renders',
+    ).toEqual({ offset_minutes: null, time_of_day: '09:00' })
+
+    const spelled = await api(
+      owner,
+      `/tasks/${taskId}/reminder`,
+      jsonInit('PUT', { time_of_day: '09:00:00' }),
+    )
+    expect(
+      spelled.status,
+      'the write form admits a zero seconds field, which names the same minute rather than a second value',
+    ).toBe(200)
+    expect(
+      (spelled.json() as Record<string, unknown>).reminder,
+      'and the answer is the same reminder, so a spelling the caller chose is not a value the row holds',
+    ).toEqual({ offset_minutes: null, time_of_day: '09:00' })
+  })
+
+  test('PUT is idempotent and upserts the one row 4.8 keys by task (7.0, 7.9)', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('reminder upsert', {
+      due_date: daysAhead(30),
+      due_time: '17:00',
+    })
+    const path = `/tasks/${taskId}/reminder`
+
+    const first = await api(owner, path, jsonInit('PUT', { offset_minutes: 30 }))
+    const second = await api(owner, path, jsonInit('PUT', { offset_minutes: 30 }))
+    expect(
+      [first.status, second.status],
+      '7.0: PUT is idempotent, so the same body twice is the same call twice',
+    ).toEqual([200, 200])
+    expect(
+      second.json(),
+      'and the same answer: the response reports the reminder the request states, never a history of how the row got there',
+    ).toEqual(first.json())
+
+    const replaced = await api(owner, path, jsonInit('PUT', { offset_minutes: 60 }))
+    expect(replaced.status).toBe(200)
+    expect(
+      (replaced.json() as Record<string, unknown>).reminder,
+      '7.9 upserts the single row rather than adding one, so a second value replaces the first instead of conflicting with it',
+    ).toEqual({ offset_minutes: 60, time_of_day: null })
+  })
+
+  test('7.9\'s two 422s name the mode the caller sent, and the body rule speaks for itself', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const dateless = await freshTask('reminder dateless')
+    const dateOnly = await freshTask('reminder mode date only', { due_date: due })
+    const timed = await freshTask('reminder mode timed', {
+      due_date: due,
+      due_time: '09:30',
+    })
+
+    const named: readonly [string, string, unknown, string][] = [
+      [
+        '7.9\'s second refusal, INV-6, which covers both modes rather than the offset one alone: with no date the date-only arm has nothing to attach its wall time to',
+        dateless,
+        { offset_minutes: 30 },
+        'offset_minutes',
+      ],
+      ['the same refusal reached through the other mode', dateless, { time_of_day: '09:00' }, 'time_of_day'],
+      [
+        '4.8\'s cross-table rule: offset is the mode for a task with a due_time',
+        dateOnly,
+        { offset_minutes: 30 },
+        'offset_minutes',
+      ],
+      [
+        'and its converse, time_of_day being the mode for a task without one',
+        timed,
+        { time_of_day: '09:00' },
+        'time_of_day',
+      ],
+      [
+        '10.3\'s reminder offset row, 0 to 10080 minutes, which is the one refusal here a body answers alone',
+        timed,
+        { offset_minutes: 10_081 },
+        'offset_minutes',
+      ],
+    ]
+    for (const [what, taskId, body, field] of named) {
+      const response = await api(
+        owner,
+        `/tasks/${taskId}/reminder`,
+        jsonInit('PUT', body),
+      )
+      expect(response.status, `${what} must answer 422`).toBe(422)
+      expect(
+        issuesOf(errorEnvelope.safeParse(response.json())),
+        `${what} must carry the 7.0 envelope`,
+      ).toEqual([])
+      expect(
+        (response.json() as { error: { code: string } }).error.code,
+        `${what} must carry the one code this status has`,
+      ).toBe('validation_failed')
+      expect(
+        response.body,
+        `${what} must name ${field}, the mode the caller sent, in the one 10.3 grammar; naming the pair would say something is wrong without saying which half`,
+      ).toContain(`${field}:`)
+    }
+
+    /*
+    The rule that is about the body rather than about a field, which frozen
+    7.9's PUT is the first body in this contract to carry: its two modes are
+    one exclusive-or and neither field is the wrong one. errors.ts answers it
+    in the schema author's words, because nothing prefixes a pathless issue
+    and the alternative told a caller who sent a JSON object that a JSON
+    object is required.
+    */
+    const bodyRules: readonly [string, unknown][] = [
+      ['neither mode', {}],
+      ['both modes', { offset_minutes: 30, time_of_day: '09:00' }],
+      ['both keys present and neither carrying a value', { offset_minutes: null, time_of_day: null }],
+    ]
+    for (const [what, body] of bodyRules) {
+      const response = await api(
+        owner,
+        `/tasks/${timed}/reminder`,
+        jsonInit('PUT', body),
+      )
+      expect(response.status, `${what} must answer 422`).toBe(422)
+      expect(
+        (response.json() as { error: { message: string } }).error.message,
+        `${what} is 4.8's CHECK read as a rule about the whole body, so it reaches the caller as its author wrote it`,
+      ).toBe('Exactly one of offset_minutes and time_of_day is required.')
+    }
+  })
+
+  /*
+  Which refusal comes first, measured as a pair rather than asserted. The
+  schema is judged before the task is resolved, the ordering 7.6's status 409
+  and 7.8's tz already use: a refusal that reads no row answers the same for a
+  task the caller owns and one they cannot see, so it discriminates nothing.
+  The refusals that do read a row come after access, which is what AC-147's
+  last case means by a 422 confirming the task exists.
+  */
+  test('the body is judged before the row and the row before its own refusals (10.2)', async () => {
+    const { owner, strangerTaskId } = await stage()
+    const mine = await freshTask('reminder ordering', { due_date: daysAhead(30) })
+    const dateless = await freshTask('reminder ordering dateless')
+
+    const onMine = await api(owner, `/tasks/${mine}/reminder`, jsonInit('PUT', {}))
+    const onStranger = await api(
+      owner,
+      `/tasks/${strangerTaskId}/reminder`,
+      jsonInit('PUT', {}),
+    )
+    expect(
+      [onMine.status, onStranger.status],
+      'a body that states its own contradiction is refused for every id, so the ordering leaks nothing',
+    ).toEqual([422, 422])
+
+    expect(
+      (
+        await api(
+          owner,
+          `/tasks/${strangerTaskId}/reminder`,
+          jsonInit('PUT', { offset_minutes: 30 }),
+        )
+      ).status,
+      'while a legal body against a task the caller cannot see is 404, never the 422 that would confirm the row exists',
+    ).toBe(404)
+    expect(
+      (
+        await api(
+          owner,
+          `/tasks/${dateless}/reminder`,
+          jsonInit('PUT', { offset_minutes: 30 }),
+        )
+      ).status,
+      'and the same body against a task they can see reaches the row-dependent refusal, which is the difference the leak rule turns on',
+    ).toBe(422)
+    expect(
+      (await api(owner, `/tasks/${strangerTaskId}/reminder`, { method: 'DELETE' }))
+        .status,
+      'the DELETE reads the task the same way: an inaccessible one is nonexistent',
+    ).toBe(404)
+  })
+
+  test('DELETE is 204 and idempotent, and is emphatically not 8.4\'s cascade', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const taskId = await freshTask('reminder delete', {
+      due_date: due,
+      due_time: '09:30',
+      recurrence_rule: 'FREQ=DAILY',
+    })
+    expect(
+      (
+        await api(
+          owner,
+          `/tasks/${taskId}/reminder`,
+          jsonInit('PUT', { offset_minutes: 30 }),
+        )
+      ).status,
+      'staging the row the delete removes',
+    ).toBe(200)
+
+    const removed = await api(owner, `/tasks/${taskId}/reminder`, {
+      method: 'DELETE',
+    })
+    expect(removed.status, '7.9 fixes this one at 204').toBe(204)
+    expect(
+      removed.body,
+      'a 204 carries no body, and the ruling that gave the PUT one left this bullet alone: the endpoint carrying the most sits beside the endpoint carrying the least',
+    ).toBe('')
+
+    const after = expectTaskDetailExact(
+      (await api(owner, `/tasks/${taskId}`)).json(),
+      'the task the delete left behind',
+    )
+    expect(after.reminder, 'the row is gone').toBeNull()
+    expect(
+      [after.due_date, after.due_time, after.recurrence_rule],
+      '8.6 lists reminder removal one line from the clear-date cascade, and they are not the same thing: this one takes the reminder and leaves the date, the time and the rule exactly where they are',
+    ).toEqual([due, '09:30', 'FREQ=DAILY'])
+
+    expect(
+      (await api(owner, `/tasks/${taskId}/reminder`, { method: 'DELETE' })).status,
+      '7.9 says idempotent, so a second call is 204 rather than the 404 a second DELETE /tasks/:id answers',
+    ).toBe(204)
+    expect(
+      (
+        await api(
+          owner,
+          `/tasks/${await freshTask('reminder never had one')}/reminder`,
+          { method: 'DELETE' },
+        )
+      ).status,
+      'and a task that never carried one answers the same, the 404 on this endpoint being the task\'s alone',
+    ).toBe(204)
+  })
+
+  /*
+  The rule this role exists to enforce, on the first object in this contract
+  that three endpoints write. 7.9's PUT, 7.6's create body and 7.6's PATCH
+  body all reach the one row 4.8 keys by task_id, and a per-endpoint variant
+  would appear here first, since each door builds its answer through its own
+  handler. They are compared against each other rather than each against a
+  shape, which is the only comparison that catches a door that drifted by a
+  value while satisfying every key list.
+  */
+  test('the three write paths to one row answer one object, not three', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const dated = { due_date: due, due_time: '09:30' }
+
+    const created = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract reminder create',
+        ...dated,
+        reminder: { offset_minutes: 45 },
+      }),
+    )
+    expect(
+      created.status,
+      '7.6 names reminder in its create body, and P7 is where the arm stops falling to 7.0\'s tolerated-unknown rule',
+    ).toBe(201)
+    expect(
+      issuesOf(postTasksResponse.safeParse(created.json())),
+      'the created body does not match the shared TaskDetail schema',
+    ).toEqual([])
+    const fromCreate = expectTaskDetailExact(created.json(), 'the create body')
+
+    const patched = await api(
+      owner,
+      `/tasks/${await freshTask('reminder patch arm', dated)}`,
+      jsonInit('PATCH', { reminder: { offset_minutes: 45 } }),
+    )
+    expect(
+      patched.status,
+      '7.6\'s PATCH takes the fields its create body names, which is how recurrence_rule arrived at P6',
+    ).toBe(200)
+    expect(issuesOf(patchTaskResponse.safeParse(patched.json()))).toEqual([])
+    const fromPatch = expectTaskDetailExact(patched.json(), 'the PATCH body')
+
+    const put = await api(
+      owner,
+      `/tasks/${await freshTask('reminder put arm', dated)}/reminder`,
+      jsonInit('PUT', { offset_minutes: 45 }),
+    )
+    expect(put.status).toBe(200)
+    const fromPut = expectTaskDetailExact(put.json(), 'the PUT body')
+
+    expect(
+      [fromCreate.reminder, fromPatch.reminder],
+      'one request, three doors, one object: a door that assembled its own reminder would pass every key check above and fail here',
+    ).toEqual([fromPut.reminder, fromPut.reminder])
+  })
+
+  /*
+  The one shape question frozen 7.6 leaves open on the field it gained here,
+  settled at this review and recorded with its grounds in
+  src/shared/tasks.ts. The wire is where it is worth pinning, because the
+  narrow reading is only defensible if the refusal tells the caller where the
+  removal lives: 7.9 opened one door for it and this endpoint is not it.
+  */
+  test('the PATCH admits a reminder and refuses a null, 7.9 owning the removal', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('reminder patch null', {
+      due_date: daysAhead(30),
+      due_time: '09:30',
+    })
+    expect(
+      (
+        await api(
+          owner,
+          `/tasks/${taskId}`,
+          jsonInit('PATCH', { reminder: { offset_minutes: 15 } }),
+        )
+      ).status,
+    ).toBe(200)
+
+    const cleared = await api(
+      owner,
+      `/tasks/${taskId}`,
+      jsonInit('PATCH', { reminder: null }),
+    )
+    expect(
+      cleared.status,
+      'a reminder is a row of 4.8 rather than a column of 4.5, so its absence is the row not existing and null is not a value the field holds',
+    ).toBe(422)
+    expect(issuesOf(errorEnvelope.safeParse(cleared.json()))).toEqual([])
+    expect(
+      cleared.body,
+      'naming the field, in the one 10.3 grammar',
+    ).toContain('reminder:')
+    expect(
+      cleared.body,
+      'and pointing at the door frozen 7.9 opened, which is what makes a refusal something a client can act on rather than a type complaint',
+    ).toContain('DELETE /tasks/:id/reminder')
+
+    expect(
+      expectTaskDetailExact(
+        (await api(owner, `/tasks/${taskId}`)).json(),
+        'the task the refusal did not move',
+      ).reminder,
+      'a refused body applies none of itself, so the reminder the caller meant to clear is still there',
+    ).toEqual({ offset_minutes: 15, time_of_day: null })
+
+    expect(
+      (await api(owner, `/tasks/${taskId}/reminder`, { method: 'DELETE' })).status,
+      'and the door that does clear it answers 204',
+    ).toBe(204)
+  })
+
+  /*
+  8.5's copy, which is the fourth write path to the one 4.8 row and the only
+  one that is not a request body. It reaches this surface through the
+  transition envelope, where 7.6 gives generated_task a TaskCard: 7.0's card
+  carries no reminder key, so nothing in the response reports that the
+  successor acquired one and a client learns it from a GET or not at all. That
+  is the frozen shape rather than a gap this review may close, and it is
+  measured here so it is a fact rather than an assumption.
+  */
+  test('a generated successor carries the reminder, and only its own GET says so', async () => {
+    const { owner } = await stage()
+    const due = daysAhead(30)
+    const taskId = await freshTask('reminder successor', {
+      due_date: due,
+      due_time: '09:30',
+      recurrence_rule: 'FREQ=DAILY',
+      reminder: { offset_minutes: 45 },
+    })
+
+    const done = await api(owner, `/tasks/${taskId}/complete?tz=UTC`, {
+      method: 'POST',
+    })
+    expect(done.status).toBe(200)
+    const envelope = done.json() as Record<string, unknown>
+    const card = expectTaskCardExact(envelope.generated_task, 'the successor card')
+    expect(
+      'reminder' in card,
+      '7.0 gives the card no reminder key, so 8.5\'s copy is invisible in the envelope by the shape frozen 7.6 chose',
+    ).toBe(false)
+
+    const successor = expectTaskDetailExact(
+      (await api(owner, `/tasks/${String(card.id)}`)).json(),
+      'the successor read fresh',
+    )
+    expect(
+      successor.reminder,
+      '8.5 copies the mode and the value onto the successor, so the row the client fetches carries a legal 4.8 pair rather than the both-null shape a half-copy would leave',
+    ).toEqual({ offset_minutes: 45, time_of_day: null })
+    expect(
+      (envelope.task as Record<string, unknown>).reminder,
+      'and the completed occurrence keeps its own, 8.6 saying a reminder survives completion untouched',
+    ).toEqual({ offset_minutes: 45, time_of_day: null })
+  })
+
+  /*
+  8.6: a reminder "survives completion and abandonment untouched", and frozen
+  7.9 names no status guard on the write either. Worth a probe because the
+  guard a reader expects to find is the one somebody eventually adds: nothing
+  in the acceptance range writes a reminder onto a settled task.
+  */
+  test('7.9 carries no status guard, which is 8.6 read forward', async () => {
+    const { owner } = await stage()
+    const taskId = await freshTask('reminder on a settled task', {
+      due_date: daysAhead(30),
+      due_time: '09:30',
+    })
+    expect(
+      (await api(owner, `/tasks/${taskId}/complete?tz=UTC`, { method: 'POST' }))
+        .status,
+    ).toBe(200)
+
+    const written = await api(
+      owner,
+      `/tasks/${taskId}/reminder`,
+      jsonInit('PUT', { offset_minutes: 30 }),
+    )
+    expect(
+      written.status,
+      '8.6 keeps a reminder through completion and lets un-completing before the instant fire it, so a completed task is not a 409 here',
+    ).toBe(200)
+    expect(
+      expectTaskDetailExact(written.json(), 'the settled task\'s PUT body').status,
+      'and the row is answered as it stands, completed and carrying a reminder',
+    ).toBe('completed')
+  })
+})
+
 describe('the 7.7 and 7.8 response bodies the review settled', () => {
   test('both step mutations answer the parent TaskDetail a fresh GET would give', async () => {
     const { owner } = await stage()
@@ -1251,6 +1749,21 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
         'DELETE /tasks/:id/my-day',
         await api(owner, `/tasks/${strangerTaskId}/my-day`, { method: 'DELETE' }),
       ],
+      [
+        'PUT /tasks/:id/reminder',
+        // A legal body, for the reason the pull carries a valid tz above: a
+        // body the schema refuses answers 422 for every id, so this probe
+        // would measure that refusal rather than the 404 it is about.
+        await api(
+          owner,
+          `/tasks/${strangerTaskId}/reminder`,
+          jsonInit('PUT', { offset_minutes: 30 }),
+        ),
+      ],
+      [
+        'DELETE /tasks/:id/reminder',
+        await api(owner, `/tasks/${strangerTaskId}/reminder`, { method: 'DELETE' }),
+      ],
     ]
     for (const [what, response] of probes) {
       expect(
@@ -1335,6 +1848,15 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
       [`DELETE /steps/${stepId}`, { method: 'DELETE' }],
       [`POST /tasks/${taskId}/my-day`, { method: 'POST' }],
       [`DELETE /tasks/${taskId}/my-day`, { method: 'DELETE' }],
+      // 7.9's two, which this package added to the surface after the sweep
+      // was written. A missing link is invisible from the endpoint beside it,
+      // which is the whole reason this list is exhaustive rather than a
+      // sample.
+      [
+        `PUT /tasks/${taskId}/reminder`,
+        jsonInit('PUT', { offset_minutes: 30 }),
+      ],
+      [`DELETE /tasks/${taskId}/reminder`, { method: 'DELETE' }],
     ]
 
     for (const [what, init] of mutations) {
@@ -1410,21 +1932,42 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
       jsonInit('POST', {
         title: 'contract tolerance',
         nonsense: 'ignored',
-        reminder: { offset_minutes: 30 },
       }),
     )
-    expect(
-      tolerated.status,
-      'an unknown field is ignored, which is also how the one arm P7 still owns reads',
-    ).toBe(201)
+    expect(tolerated.status, 'an unknown field is ignored').toBe(201)
     const body = expectTaskDetailExact(
       tolerated.json(),
       'the tolerant create body',
     )
     expect(
       body.reminder,
-      'and ignored means stored nowhere: a reminder needs the 8.6 fire instant 4.8 makes NOT NULL',
+      'and a create that sends no reminder gets none, which is the state this case measured through the tolerated arm until P7',
     ).toBeNull()
+
+    /*
+    reminder was the last field in the tolerated list, and it has left it: P7
+    delivers the 8.6 instant 4.8's NOT NULL fire_at demands, so the field is a
+    field of the body now. A body carrying one without the due_date 7.6's
+    dependency check requires is a 422 naming it rather than an unknown key
+    answering 201, which is exactly what happened to recurrence_rule at P6.
+    */
+    const refusedReminder = await api(
+      owner,
+      '/tasks',
+      jsonInit('POST', {
+        title: 'contract reminder',
+        reminder: { offset_minutes: 30 },
+      }),
+    )
+    expect(
+      refusedReminder.status,
+      '7.6 names the dependency in one breath: due_time, recurrence_rule and reminder require due_date, 422 (INV-6, AC-149)',
+    ).toBe(422)
+    expect(errorEnvelope.safeParse(refusedReminder.json()).success).toBe(true)
+    expect(
+      refusedReminder.body.toLowerCase(),
+      'and the message names the field the caller sent',
+    ).toContain('reminder')
 
     /*
     recurrence_rule was in the tolerated list until P6, and this file's own

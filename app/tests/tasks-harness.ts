@@ -461,7 +461,7 @@ what a fresh GET /tasks/:id then answers. Refusals stay on the unjudged
 transports above, because a refusal answers the 7.0 envelope rather than a
 task; DELETE /steps/:id keeps 7.7's 204 and carries no body at all.
 */
-async function expectAffectedTask(
+export async function expectAffectedTask(
   actor: Actor,
   taskId: string,
   response: RawResponse,

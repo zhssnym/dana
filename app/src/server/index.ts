@@ -12,14 +12,16 @@ import type { DbClient } from '../../db/client.js'
 import { createAuthRouter } from './auth/index.js'
 import type { AuthConfig } from './auth/index.js'
 import { errorBody } from './http/errors.js'
-import { attachNotifier, createNotifier } from './notify/index.js'
+import { attachNotifier, createNotifier, notifierOf } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
+import { resolveEmailTransport } from './notify/resend.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createViewsRouter } from './routes/views.js'
+import { startReminderScheduler } from './scheduler/index.js'
 
 export const logger = pino()
 
@@ -54,9 +56,9 @@ export interface AppOptions {
    * The 11.10 notification sink, { send(message) }. When present, the 11.8
    * notify module delivers every outbound message to it instead of logging,
    * the only way a send is observable under test: 11.8 forbids real sending
-   * there, and 10.5 keeps recipient addresses out of the logs. Absent, the
-   * module logs the suppression and sends nothing until P7 lands the
-   * provider.
+   * there, and 10.5 keeps recipient addresses out of the logs. Absent, 11.8
+   * stands unchanged: the module logs in development and tests, and sends
+   * through the Resend transport P7 landed in notify/resend.ts in production.
    */
   notifications?: NotificationSink
   /**
@@ -100,10 +102,25 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.disable('x-powered-by')
 
   // The 11.8 notify module is constructed with the application so the 11.10
-  // sink can replace its log transport. Nothing here consumes it yet: the
-  // call sites are the Collaboration engineer's (7.4 share grant, then 7.5)
-  // and reach the instance through notifierOf(app) when their routes mount.
-  attachNotifier(app, createNotifier({ sink: options.notifications, logger }))
+  // sink can replace its log transport. The call sites are the Collaboration
+  // engineer's (7.4 share grant, 7.5 invites) and reach the instance through
+  // notifierOf(app); the 11.7 pass is handed the same instance in main()
+  // below, so one construction decides what every outbound message does.
+  //
+  // The transport is resolved here rather than passed in, because it is a
+  // fact about the process rather than about this application: 11.8 sends in
+  // production and logs everywhere else, and resolveEmailTransport answers
+  // undefined for every environment but the one. Reading environment
+  // variables is not I/O, which is the same ground on which 11.6 has
+  // createApp read DANA_DEV_LOGIN at this call.
+  attachNotifier(
+    app,
+    createNotifier({
+      sink: options.notifications,
+      transport: resolveEmailTransport({ logger }),
+      logger,
+    }),
+  )
 
   app.use(express.json())
 
@@ -302,6 +319,28 @@ async function main(): Promise<void> {
   const server = app.listen(port, () => {
     logger.info({ port }, 'dana listening')
   })
+
+  // 11.7's delivery loop, the only background execution in v1 (8.6) and the
+  // one thing in this process that must still be working at 03:00. It is
+  // started after listen rather than before, so a port that will not bind
+  // fails the deploy without a pass having sent anything from an instance
+  // that is about to die.
+  //
+  // The application's own notifier is what the pass sends through, rather
+  // than a second construction: the sink of 11.10, when a caller injected
+  // one, and the 11.8 transport otherwise, decided once above. A Notifier
+  // satisfies the sink shape it is passed as, which is what makes one
+  // decision serve both callers.
+  //
+  // Single instance, still (11.1): this interval assumes it, alongside the
+  // in-memory rate limits, the boot migration run and the auth module's
+  // pending authorizations. A second instance needs one elected tick owner.
+  const scheduler = startReminderScheduler({
+    dbClient,
+    notifications: notifierOf(app),
+    logger,
+    heartbeatUrl: process.env.SCHEDULER_HEARTBEAT_URL,
+  })
   // Binding errors (port in use, no permission) fire on the server after
   // main() resolves, so they need their own route into the structured
   // boot-failed log; without it they surface as a raw uncaught exception.
@@ -310,6 +349,9 @@ async function main(): Promise<void> {
     process.exit(1)
   })
   const shutdown = (): void => {
+    // Before the server closes, so no tick starts against a database handle
+    // that is on its way out. A pass already in flight finishes on its own.
+    scheduler.stop()
     server.close(() => {
       void dbClient.close().finally(() => {
         process.exit(0)

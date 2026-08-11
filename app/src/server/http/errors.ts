@@ -34,12 +34,25 @@ export function sendError(
 /**
  * 10.3's 422, with every failing field named in one message.
  *
- * An issue with an empty path is not about a field: it is the body itself
- * being something other than the object the endpoint takes, which is what a
- * request with no JSON content type produces, since nothing parsed a body for
- * the schema to see. Those answer a sentence a person can act on rather than
- * the validator's own phrasing, which would surface "expected object,
- * received undefined" to a caller who never mentioned an object.
+ * An issue with an empty path is not about a field, and there are two reasons
+ * it can be one, which P7 separated because the second acquired its first
+ * caller there.
+ *
+ * It is usually the body itself being something other than the object the
+ * endpoint takes, which is what a request with no JSON content type produces,
+ * since nothing parsed a body for the schema to see. Those answer a sentence a
+ * person can act on rather than the validator's own phrasing, which would
+ * surface "expected object, received undefined" to a caller who never
+ * mentioned an object.
+ *
+ * Or it is a rule about the whole body rather than about one of its fields, a
+ * schema-level refinement, which frozen 7.9's PUT is the first body in this
+ * contract to carry: its two modes are one exclusive-or and neither field is
+ * the wrong one. That message is the schema author's and is written as a whole
+ * sentence for exactly this position, because nothing prefixes it, and it
+ * reaches the caller as written. Sending the missing-body sentence for it
+ * would tell a caller who sent a JSON object that a JSON object is required,
+ * which is the one answer they can prove wrong.
  */
 export function sendValidationError(res: Response, error: ZodError): void {
   const problems = error.issues
@@ -49,11 +62,12 @@ export function sendValidationError(res: Response, error: ZodError): void {
       message: issue.message,
     }))
   if (problems.length === 0) {
+    const bodyRule = error.issues.find((issue) => issue.code === 'custom')
     sendError(
       res,
       422,
       'validation_failed',
-      'A JSON object body is required.',
+      bodyRule?.message ?? 'A JSON object body is required.',
     )
     return
   }

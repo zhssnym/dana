@@ -255,3 +255,77 @@ would have gone on reading as an open request indefinitely. **Ruling: for a
 ledger entry whose request is not the boot file's, the executing role reports
 completion in its commit message and the Steward annotates the entry at merge.**
 Platform's right over boot-file entries is unchanged.
+
+## the 7.9 reminder endpoints (P7, Collaboration and Permissions)
+
+**No wiring is owed for these, and that is the whole request.** PUT and DELETE
+`/tasks/:id/reminder` are handlers on `createTasksRouter`, which the boot file
+has mounted since fc6325f, so they went live with the code rather than with a
+line in `createApp`. The entry stands anyway, because the RFC's P7 row and this
+package's own working notes both describe the reminder endpoints as unmounted,
+and a Platform session reading that and finding nothing here would go looking
+for a request that does not exist. There is nothing to add to the boot file.
+
+Facts it can rely on, each read off the router rather than assumed:
+
+- The two paths are new and whole: `/tasks/:id/reminder`, on PUT and on DELETE.
+  Express matches whole paths, so neither meets `/tasks/:id`,
+  `/tasks/:id/my-day`, or anything the folders, views, invites and connections
+  routers claim.
+- Both are mutations and both carry the CSRF link, `requireSession` then
+  `requireCsrf` then the handler, which is 11.3's order and what every other
+  mutation on this router already does.
+- The factory is unchanged: still synchronous, still no I/O, still answering
+  the constructed-without-a-database 500 when `options.dbClient` is absent.
+- They reach no module the boot file does not already construct. The 8.6
+  computation comes from `src/server/time`, which opens nothing, and no notify
+  call site exists on this surface: 8.6's one outbound message is the delivery
+  loop's, and that is the scheduler pass rather than a route.
+
+What the boot file does still owe this package is Platform's own and not this
+entry's to request: the 11.7 scheduler pass at
+`app/src/server/scheduler/index.ts`, which the acceptance suite reaches through
+the seam that section ratified. Measured with these two endpoints live and that
+module absent, so the split between the two sessions is on the record rather
+than inferred at the merge. AC-146, AC-147, AC-148, AC-149 and AC-151 pass
+whole. AC-152 passes but for its login-sync control, which is 8.6's fifth
+recompute trigger and fires in the auth module rather than here. AC-090 passes
+its two 7.9 clauses and fails its two delivery clauses, which is the straddle
+the P7 row predicted for that number. AC-085 passes but for one case that is a
+false red and is escalated to the suite's owner, along with the identical case
+in AC-084; both are recorded in `ef68ac9` and in that session's final block.
+
+Read and confirmed by the Platform session at `198a672`, which is the reason
+this entry was written: the request the RFC's P7 row implies does not exist,
+and a session going looking for it would have found nothing and invented one.
+Checked against `tasks.ts` rather than taken from the paragraph above: both
+handlers are registered on `createTasksRouter`, at `/tasks/:id/reminder` on PUT
+and on DELETE, each behind `requireSession` then `requireCsrf`, and that factory
+has been mounted since `fc6325f`. **Nothing was added to `createApp` for them,
+and nothing was owed.**
+
+What the boot file did owe, and now carries, is the other paragraph's: the
+scheduler. `main()` starts the 11.7 interval after `listen`, hands it the
+application's own notifier as the sink so one construction decides what every
+outbound message does, reads `SCHEDULER_HEARTBEAT_URL` for 11.12's heartbeat,
+and stops the interval ahead of `server.close()` on SIGTERM. The notifier itself
+gained the 11.8 transport at the same construction call, which is inside
+`createApp` and is the only change to that function this package makes.
+
+The measurement, on this session's own scope rather than the whole suite, which
+the coordinating session runs after it. Before: 15 of 38 failing across the six
+criterion files that reach the pass plus this role's two unit files, every one of
+the fifteen the same "no reminder scheduler module could be loaded" assertion,
+except AC-085's escalated case. After: 1 of 38, that one case. Over the whole P7
+range and its neighbours, `ac-08*`, `ac-09*`, `ac-14*` and `ac-15*`, 135 of 138
+pass; the three are AC-084's and AC-085's twin false reds recorded above and
+AC-086's third case, which the phase 3 session escalated in
+`src/server/auth/README.md` and which no implementation can pass beside AC-154's
+third case.
+
+One request in another file was fulfilled by this session and is deliberately
+not annotated by it: the pruning call that `src/server/auth/README.md` has
+carried since P1. That file is the Security engineer's path, and the P5 ruling
+above covers exactly this shape, an entry whose executor cannot write in the
+file that holds it. Reported in `198a672`'s message; the Steward annotates it at
+the merge.

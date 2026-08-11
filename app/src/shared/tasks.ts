@@ -15,14 +15,15 @@ server-side, which P6 delivers, and reminder needs the 8.6 fire instant that
 4.8's NOT NULL fire_at demands, which P7 delivers. At P3 both fell to 7.0's
 tolerated-unknown rule, so a body carrying either parsed and the field was
 stripped: a rule accepted then would have been an unvalidated rule, and a
-reminder accepted now would be a row that cannot be written.
+reminder accepted then would have been a row that cannot be written.
 
-P6 closes the first of the two. shared/recurrence.js carries the 4.11 grammar,
-so the recurrence_rule primitive below states both checks 4.11 and 4.5
-between them require, and both write bodies carry the field. One arm is left,
-reminder, and its absence is unchanged. The absence was ever from the request
-side only: both are keys of frozen 7.0's TaskDetail, so the response shapes
-below have carried them since P3.
+P6 closed the first of the two, and P7 closes the second, so no arm of the
+frozen bodies is deferred any longer. shared/recurrence.js carries the 4.11
+grammar and the reminder primitives below carry 4.8's two modes, so both write
+bodies now state every field frozen 7.6 gives them, and frozen 7.9's own PUT
+body joins them. The deferrals were ever from the request side only: both
+fields are keys of frozen 7.0's TaskDetail, so the response shapes below have
+carried them since P3 and gain nothing here.
 
 The response bodies frozen 7.7 and 7.8 leave open are settled at the end of
 this file, at the P3 endpoint shape review, with the implemented routes in
@@ -36,11 +37,16 @@ import { folderMemberUser, folderName } from './folders.js'
 import { parseRecurrenceRule } from './recurrence.js'
 
 /*
-Present-and-not-null, the test both dependency rules below are phrased with.
+Present-and-not-null, the test every dependency rule below is phrased with.
 An absent field and a null field differ everywhere else in this file, and on
-these two rules they agree: neither sets a value, so neither can demand one.
+those rules they agree: neither sets a value, so neither can demand one.
+
+Written as a type guard rather than a plain predicate so the rules that go on
+to read inside the value they tested, which the reminder's two mode rules do,
+narrow through it instead of repeating the two comparisons. The call sites
+that only ask the question read exactly as they did.
 */
-function isSet(value: unknown): boolean {
+function isSet<T>(value: T): value is NonNullable<T> {
   return value !== null && value !== undefined
 }
 
@@ -127,14 +133,104 @@ field and a driver error wearing a 500.
 export const stepPosition = z.int32({ error: 'must be a 32-bit integer' })
 
 /*
-10.3's reminder offset row, matching the 4.8 CHECK. A response field at P3:
-7.9's PUT body rides P7 with the computation it needs, and the reminder arm
-of 7.6's create body is deferred with it.
+10.3's reminder offset row, matching the 4.8 CHECK. A response field at P3,
+because 7.9's PUT body rode P7 with the computation it needs and the reminder
+arm of 7.6's create body was deferred with it; P7 makes it a request field
+too, and it is the same rule read from the same place, which is what one
+definition is for.
 */
 export const reminderOffsetMinutes = z
   .int({ error: 'must be an integer' })
   .min(0, { error: 'must be 0 to 10080 minutes' })
   .max(10080, { error: 'must be 0 to 10080 minutes' })
+
+/*
+4.8's other mode, a TIME column at minute precision, which is due_time's rule
+at a different column: the stepTitle case, a second name for the call site
+rather than a second limit. Written as the write form deliberately, so a
+reminder is spelled on the wire the way a due_time is; wallClockTime below is
+the tolerant read form both sides answer with, and the two are not
+interchangeable.
+*/
+export const reminderTimeOfDay = dueTime
+
+/*
+4.8's exclusive-or, "CHECK ((offset_minutes IS NULL) <> (time_of_day IS
+NULL))", as one predicate. The request objects and the response object each
+state it once by calling this rather than by carrying a copy, because a
+constraint written three times is three things that can disagree, and this
+one is the whole of what 7.9 means by a mode.
+
+It reads the parsed shape, where an absent key and a null key have already
+become one thing, so "carries" means non-null and nothing subtler.
+*/
+function carriesExactlyOneMode(reminder: {
+  offset_minutes: number | null
+  time_of_day: string | null
+}): boolean {
+  return (reminder.offset_minutes === null) !== (reminder.time_of_day === null)
+}
+
+/*
+The reminder as a request states it: 4.8's two columns, the write forms, with
+absent and null meaning the same thing and exactly one of the two carrying a
+value.
+
+The nulls are deliberate and are what lets a client echo back what it read.
+7.0 answers TaskDetail's reminder with both keys always and one of them null,
+by the P3 shape ruling, so a client that reads a task and sends its reminder
+back sends { offset_minutes: 30, time_of_day: null }. A schema admitting only
+the one-key spelling would refuse the object this API just handed out. The
+rule that decides both spellings is the same 4.8 CHECK: null is not a mode, so
+{ offset_minutes: null } carries none and is refused with the empty object
+(AC-147), while { offset_minutes: 30, time_of_day: null } carries one.
+
+.default(null) rather than .optional() so the parsed value is always both
+keys, which is the 4.8 row and the 7.0 object, and so the domain module reads
+one shape whichever spelling arrived. This is not the "absent survives as
+absent" rule the PATCH body keeps below: there, absence means leave the column
+alone, and here a reminder body states its whole mode, 7.9 upserting the row
+rather than patching it.
+*/
+const reminderShape = {
+  offset_minutes: reminderOffsetMinutes.nullable().default(null),
+  time_of_day: reminderTimeOfDay.nullable().default(null),
+}
+
+const reminderModes = z.object(reminderShape)
+
+/** 4.8's exclusive-or as a caller reads it under a reminder key. The whole
+ * sentence 7.9's body answers with is in putTaskReminderBody below: one
+ * predicate, two phrasings, and the phrasing follows the position. */
+const EXACTLY_ONE_MODE = 'must carry exactly one of offset_minutes and time_of_day'
+
+export const reminderInput = reminderModes.refine(carriesExactlyOneMode, {
+  error: EXACTLY_ONE_MODE,
+})
+export type ReminderInput = z.infer<typeof reminderInput>
+
+/*
+The same object under the one key that has to refuse a null, which is the
+whole difference between the two and the reason this schema exists rather
+than reminderInput being reused with .optional().
+
+Settled at the P7 endpoint shape review and pinned on the wire in
+src/server/http/tasks-contract.test.ts: the message is the only thing on the
+wire that carries the ruling below to a client, and without it the refusal is
+the validator's own "expected object, received null", which reads as a
+complaint about a type to a caller who was asking for a removal. Every other
+refusal in this file is authored and actionable, and the one field whose
+refusal a client is most likely to meet by an honest misreading was the one
+answering in zod's words. The shape literal is shared rather than copied,
+because 4.8's two columns written twice are two things that can disagree; what
+differs is the sentence, which is what the position is about.
+*/
+const patchReminderInput = z
+  .object(reminderShape, {
+    error:
+      'must be a reminder object; removal is DELETE /tasks/:id/reminder, never a null here',
+  })
+  .refine(carriesExactlyOneMode, { error: EXACTLY_ONE_MODE })
 
 /*
 The 4.11 rule string, and the one definition the write path, the read path and
@@ -201,7 +297,7 @@ const uuid = z.uuid({ error: 'must be a uuid' })
  * ------------------------------------------------------------------ */
 
 /*
-POST /tasks, frozen 7.6's body less the one arm P7 still owns.
+POST /tasks, frozen 7.6's body whole, the reminder arm included since P7.
 
 The three defaults 7.6 names, folder_id to V's Inbox, assignee_id to V, and
 important to false, are resolved where V is known rather than here. Two of
@@ -217,6 +313,16 @@ steps is a list of titles, 7.6's own notation, capped at 10.3's 50. The cap
 is a body fact on this endpoint and a row count on 7.7's, which is why both
 carry it.
 
+reminder admits null for the reason recurrence_rule and notes do: on a create
+there is no prior row, so a null and an absent field both say "no reminder"
+and neither can demand a date. Every guard 7.9 and 4.8 put on a reminder is
+answered here rather than by the row, which is the whole difference between
+this body and the PATCH below: a create states the task's due_date and
+due_time itself, so both dependency and mode are relations between fields of
+one body. The three refinements below are exactly those, and AC-149 measures
+them through this door while AC-090 and AC-147 measure the same rules through
+7.9's.
+
 Guards that are state rather than body stay out: membership of the named
 folder (404), the assignee's membership (422), and the single-member forcing
 all need rows to answer, and 7.11 lists them as server-authoritative there.
@@ -231,6 +337,7 @@ export const postTasksBody = z
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
     assignee_id: uuid.nullable().optional(),
+    reminder: reminderInput.nullable().optional(),
     steps: z
       .array(stepTitle)
       .max(50, { error: 'must be at most 50 steps' })
@@ -263,6 +370,54 @@ export const postTasksBody = z
     error: 'requires a due_date',
     path: ['recurrence_rule'],
   })
+  /*
+  The third field of 7.6's one-breath dependency check, "due_time,
+  recurrence_rule, reminder require due_date; 422", and INV-6 again. It is
+  the last of the three to be stated here because it is the last to become a
+  field of this body at all, and it answers whole for the reason the other
+  two do: a create carries no prior row, so the date the reminder needs is
+  the one this body sets or none. AC-149 asserts the refusal and asserts that
+  the whole create rolls back with it, which a 422 raised before any row is
+  written satisfies by construction.
+  */
+  .refine((body) => !isSet(body.reminder) || isSet(body.due_date), {
+    error: 'requires a due_date',
+    path: ['reminder'],
+  })
+  /*
+  4.8's cross-table rule, "which mode is legal depends on the task's
+  due_time, offset requires it and time_of_day requires its absence", which
+  4.8 calls enforced by the API and restated at every write. On this write it
+  is a relation between two fields of one body, because the task's due_time
+  is whatever this body sets and nothing else, so it is stated here and the
+  create path needs no second copy of it; on 7.9's PUT and on the PATCH the
+  same rule reads a row and is the domain module's, which is where AC-090's
+  first clause and AC-147's converse land.
+
+  Two refinements rather than one so the 422 names the mode the caller sent
+  rather than the pair, the way every other message in this file names the
+  field that is wrong.
+  */
+  .refine(
+    (body) =>
+      !isSet(body.reminder) ||
+      body.reminder.offset_minutes === null ||
+      isSet(body.due_time),
+    {
+      error: 'requires a due_time on the task, which this body does not set',
+      path: ['reminder', 'offset_minutes'],
+    },
+  )
+  .refine(
+    (body) =>
+      !isSet(body.reminder) ||
+      body.reminder.time_of_day === null ||
+      !isSet(body.due_time),
+    {
+      error: 'is the mode for a task without a due_time, and this body sets one',
+      path: ['reminder', 'time_of_day'],
+    },
+  )
 export type PostTasksBody = z.infer<typeof postTasksBody>
 
 /*
@@ -292,6 +447,46 @@ a normal task. Which of the two happened is the domain module's to act on;
 what this schema settles is that both are legal bodies and that the string is
 inside the 4.11 subset before either can be.
 
+**reminder is the one field here that admits an object and not a null**, and
+the asymmetry is deliberate. Every nullable field above is a column of 4.5
+whose null is a value the column holds; a reminder is a row of 4.8, and its
+absence is the row not existing, which frozen 7.9 gives an endpoint of its
+own: DELETE /tasks/:id/reminder, 204 and idempotent. So a PATCH sets or
+replaces the reminder, through the same upsert and the same guards the PUT
+uses, and removal keeps the one door the frozen text opened for it rather
+than gaining a second, unasserted one. A null here is refused with a 422
+naming the field, which is 7.0's answer to a wrong type on a parsed object,
+so a client that meant to clear the reminder is told where to go rather than
+answered 200 by a route that quietly did nothing.
+
+**Settled at the P7 endpoint shape review**, with the wire in front of it and
+with the implementing session's recommendation, which this review takes. The
+question is live because frozen 7.6 names no clearing semantics for this
+field and 8.6's deletion list, "reminder removal, the clear-date cascade, task
+deletion", reads either way. Four things decide it. Removal is spelled DELETE
+everywhere else in this contract, and 7.9 spells this one that way one line
+from the PUT, so "reminder removal" in 8.6's list names an endpoint that
+exists rather than a body nobody has written. The two readings are not
+symmetrical in cost: the narrow one widens later by accepting a body that is
+refused today, while the wide one can only narrow by taking back a body that
+worked. No criterion in any range asserts a PATCH removal, so the wide reading
+would hand this endpoint a delete path nothing measures, on the very field
+whose silent-drop failure went unnoticed for four packages. And a second door
+onto one row is a second place for 8.4's cascade ordering to be got right,
+where the PUT and the DELETE each do one thing.
+
+The narrow reading is this review's to make because it refuses a body rather
+than promising one: it adds no key, no status and no shape to frozen 7.6. The
+converse is not, and is recorded here so a later session does not quietly take
+it: a PATCH that clears a reminder is a second removal path for one row, and
+it belongs on frozen 7.6 with a criterion of its own, which makes it the human
+owner's through the Steward. The asymmetry with the create body, where
+reminder does admit null, is not drift and is the same rule read on two
+bodies: on a create there is no prior row, so null and absent both say "no
+reminder" and neither can demand a date, while on a partial body absent means
+leave the row alone and null would have to mean something this contract has
+not said.
+
 Absent from the shape: status, which 7.6 refuses with 409 rather than 422.
 See carriesStatus below. Absent too, the state-dependent half of INV-6: a
 due_time sent alone is legal against a dated task and refused against an
@@ -299,7 +494,10 @@ undated one, which needs the row and so belongs to the domain module (7.11
 lists the date-dependency rules as always revalidated). 7.6's "requires
 due_date" on a rule set against a task without one is the same shape of rule
 and lands the same way: a rule sent alone is legal against a dated task, and
-only the row can say which this is.
+only the row can say which this is. A reminder sent alone is the third
+instance of that shape and the largest: its dependency on a due_date and its
+mode against the task's due_time are both the row's to answer here, where the
+create body answers both itself.
 */
 export const patchTaskBody = z
   .object({
@@ -311,6 +509,7 @@ export const patchTaskBody = z
     recurrence_rule: recurrenceRule.nullable().optional(),
     folder_id: uuid.optional(),
     assignee_id: uuid.nullable().optional(),
+    reminder: patchReminderInput.optional(),
   })
   /*
   The one INV-6 violation a PATCH body states without any help from the row:
@@ -333,6 +532,55 @@ export const patchTaskBody = z
     error: 'cannot be set in a body that clears due_date',
     path: ['recurrence_rule'],
   })
+  /*
+  And the third, for the row 8.4's cascade deletes rather than the columns it
+  nulls. A body that clears the date and sets a reminder asks for the two
+  halves of one transaction to undo each other: the cascade deletes the
+  reminder, and honoring the field would write back a row 4.8 says cannot
+  exist beside a null due_date. It is refused for the reason the two above
+  are, that either order silently drops one of the two fields the caller
+  sent, and INV-6 is the invariant behind all three.
+  */
+  .refine((body) => !(body.due_date === null && isSet(body.reminder)), {
+    error: 'cannot be set in a body that clears due_date',
+    path: ['reminder'],
+  })
+  /*
+  4.8's mode rule, in the one direction a PATCH body states without the row.
+  The task's due_time after this PATCH is what the body sets when the body
+  sets it, whatever the row held, so a body that moves due_time across the
+  null boundary decides the legal mode by itself, and the 8.4 arms ruled on
+  2026-08-10 make honoring both fields impossible in the same way the two
+  refinements above do: setting due_time deletes a time_of_day reminder and
+  clearing it deletes an offset one, so the reminder the caller sent in the
+  same body is the one the cascade would delete.
+
+  The other direction stays with the row and is the domain module's: a
+  reminder sent with no due_time in the body is legal or not according to the
+  column the task already carries, and a due_time that moves between two
+  non-null values invalidates no mode at all (8.4's closing paragraph, AC-151
+  and AC-164's third clause).
+  */
+  .refine(
+    (body) =>
+      !isSet(body.reminder) ||
+      body.reminder.offset_minutes === null ||
+      body.due_time !== null,
+    {
+      error: 'is the mode for a task with a due_time, and this body clears it',
+      path: ['reminder', 'offset_minutes'],
+    },
+  )
+  .refine(
+    (body) =>
+      !isSet(body.reminder) ||
+      body.reminder.time_of_day === null ||
+      !isSet(body.due_time),
+    {
+      error: 'is the mode for a task without a due_time, and this body sets one',
+      path: ['reminder', 'time_of_day'],
+    },
+  )
 export type PatchTaskBody = z.infer<typeof patchTaskBody>
 
 /*
@@ -390,15 +638,116 @@ export const patchStepBody = z.object({
 export type PatchStepBody = z.infer<typeof patchStepBody>
 
 /* ------------------------------------------------------------------ *
+ * 7.9 request bodies
+ * ------------------------------------------------------------------ */
+
+/*
+PUT /tasks/:id/reminder, frozen 7.9: "{ offset_minutes } when the task has
+due_time, { time_of_day } when it does not; wrong mode 422; task without
+due_date 422 (INV-6)".
+
+The body is the reminder object and nothing else, so this is reminderInput
+under the name the route reads it by, with one difference that is presentation
+rather than rule. The exclusive-or is the same predicate, and it is the only
+half of that sentence a body can answer: which mode is legal depends on the
+task's due_time and whether a reminder is legal at all depends on the task's
+due_date, and both are the row's, which is why AC-090's first clause and every
+case of AC-147 but one are raised by the domain module. The one this schema
+answers is the last, an offset outside 10.3's range, which is a property of
+the value the caller sent.
+
+The message is a whole sentence here and a fragment inside the two 7.6 bodies,
+because it is read in two positions. Nested under a reminder key,
+sendValidationError prefixes the field and "reminder: must carry exactly one
+of ..." is what a caller reads. Here there is no field to prefix: the rule is
+about the body, so it says so itself, and errors.ts answers a body-level rule
+with its own words. One predicate, two phrasings, and the phrasing follows the
+position rather than the rule.
+*/
+export const putTaskReminderBody = reminderModes.refine(carriesExactlyOneMode, {
+  error: 'Exactly one of offset_minutes and time_of_day is required.',
+})
+export type PutTaskReminderBody = z.infer<typeof putTaskReminderBody>
+
+/*
+What the row answers, written here rather than derived three times.
+
+The reminder's guards fall in two places and this file is one of them, so the
+other half is named where a reader of this half will look for it, the way the
+domain module already names the halves this file answers for INV-6 and for the
+4.11 rule. Every rule below needs a row, which is why no schema states it, and
+each answers a 422 through sendFieldValidationError so a caller cannot tell
+which validator refused them (10.3, and errors.ts's own reason for having one
+formatter).
+
+- **A reminder requires the task's due_date**, INV-6 and 7.9's second 422.
+  Both modes are refused on a dateless task rather than only one: with no date
+  the offset arm has no due_time INV-6 would permit and the date-only arm has
+  no date to attach a time to (AC-147).
+- **The mode is legal against the task's due_time**, 4.8's cross-table rule:
+  offset requires it, time_of_day requires its absence. AC-090's first clause
+  is one direction and AC-147's second case is the other. The field named is
+  the mode the caller sent, offset_minutes or time_of_day, which is the name
+  this file uses for the same refusals on the create.
+- **The task must be accessible**, 404 before any of the above (10.2, and
+  AC-147's last case: a 422 about the body would confirm the task exists).
+- **The instant and the state are 8.6's**, computed by planReminder in
+  src/server/time and never here: fire_at, state and fired_at are written
+  together on both arms of the upsert, and 7.9's own reset to scheduled, or to
+  skipped when the computed instant is already past, is that module's answer
+  rather than a field this body carries.
+
+One consequence of that last bullet is routed to the Steward by this review
+rather than acted on here, because it lives in another role's module. 8.6's
+trigger list has five arms and src/server/time transcribes all five as a union,
+but the arm for the reminder's own value and mode has no caller and is not
+meant to acquire one: every write path to this row goes through the upsert,
+which asks planReminder what the row should be written as, and a recompute
+after it would read back the row just written and take a second clock reading,
+so an instant falling between the two calls would be scheduled by one and
+skipped by the other. That is one decision made twice, at exactly the moment
+the two answers differ. What is wrong is only the prose: two places in that
+module name PUT /tasks/:id/reminder as the arm's caller, which the PUT
+provably is not, so the next session to read them could restore the missing
+call and reintroduce the defect the upsert argued out. The recommendation is
+to keep the arm, 8.6 naming five triggers and a union that names four being a
+worse lie, and to say there that the write paths answer this trigger through
+planReminder and why.
+
+On the PATCH, one further half: a reminder sent with no due_time in the body
+is legal or not by the column the row already holds, and the 8.4 cascade runs
+before any recompute, so a body that both invalidates a mode and sets a
+reminder is refused above rather than resolved by ordering.
+
+And the thing a schema cannot make anyone do, said once because its failure is
+silent rather than loud. Three bodies now carry a reminder and each is a write
+path to the one row 4.8 keys by task_id: 7.9's PUT, 7.6's create, and 7.6's
+PATCH. A route that parses one of them and does not act on the field answers
+its ordinary success with the field dropped, which is what the create did while
+the arm was deferred and is indistinguishable on the wire from a request that
+never carried a reminder. AC-149 exists because that failure was invisible for
+four packages; the PATCH arm has no criterion at all, so nothing but this
+sentence will notice it.
+*/
+
+/* ------------------------------------------------------------------ *
  * The endpoints that take no request body, which is a decision
  * ------------------------------------------------------------------ */
 
 /*
 POST and DELETE /tasks/:id/my-day take no request body in frozen 7.8, and
-neither do 7.6's four transition endpoints or its DELETE: the task is the
-path, and the actor is the session. So no schema stands here, and the routes
-must not require one. What those calls answer is a separate question, settled
-at the end of this file.
+neither do 7.6's four transition endpoints or its DELETE, nor 7.9's DELETE
+/tasks/:id/reminder: the task is the path, and the actor is the session. So no
+schema stands here, and the routes must not require one. What those calls
+answer is a separate question, settled at the end of this file.
+
+7.9's DELETE is the one of them that acquired a sibling with a body, and it
+stays bodyless for the reason all of these do rather than by inheritance from
+the PUT beside it. It names the row by naming the task, and 7.9 spells its
+answer 204, which carries nothing either way; the owner's ruling of 2026-08-10
+gave the PUT a response and left this bullet alone, so the endpoint that
+carries the most is next to the endpoint that carries the least, and that is
+the contract rather than an oversight.
 
 The distinction matters because of the P2 ruling on 7.0's first bullet, which
 answers 422 for a body an endpoint needed and did not receive. An endpoint
@@ -451,18 +800,25 @@ storage and the wire then cannot drift apart, and a client reads a stable key
 set instead of narrowing a union to learn which mode it holds.
 
 The refinement is the 4.8 CHECK restated: exactly one mode, never both and
-never neither.
+never neither. It is the predicate the request objects call, not a second copy
+of it, which is what P7 changed here: the constraint now guards a write as
+well as a read, and a rule stated twice is a rule that can one day disagree
+with itself.
+
+The two sides read the same modes through different primitives, and that is
+the one place they are deliberately not identical. The write forms hold a
+reminder to 4.11's minute precision the way due_time is held; this shape reads
+the tolerant wallClockTime, because Postgres renders TIME as HH:MM:SS and a
+response reports the column.
 */
 export const taskReminder = z
   .object({
     offset_minutes: reminderOffsetMinutes.nullable(),
     time_of_day: wallClockTime.nullable(),
   })
-  .refine(
-    (reminder) =>
-      (reminder.offset_minutes === null) !== (reminder.time_of_day === null),
-    { error: 'must carry exactly one of offset_minutes and time_of_day' },
-  )
+  .refine(carriesExactlyOneMode, {
+    error: 'must carry exactly one of offset_minutes and time_of_day',
+  })
 export type TaskReminder = z.infer<typeof taskReminder>
 
 // A step as TaskDetail carries it (7.0). The order is 4.6's, (position, id),
@@ -591,6 +947,33 @@ recorded here because this is where a reader looks for the shape of an answer.
 - **A no-op fills neither**, whatever the row carries. 5.1's no-op writes
   nothing, so there is nothing for either key to report, and the envelope is
   the same three keys with the same nulls a P3 transition answered.
+
+P7 adds one thing this envelope does not report, and the silence is frozen
+7.6's rather than this file's. 8.5 copies the reminder onto the successor, and
+generated_task is a TaskCard, which 7.0 gives no reminder key, so a client
+learns that the successor acquired one from a GET or not at all. The P7 shape
+review measured it rather than assuming it and left the shape alone: reminder
+is one of 7.0's eight detail keys, and putting it on the card to report this
+one effect would change what every view endpoint of 7.10 answers.
+
+Checking that is what turned up a finding this review routes to the Steward
+rather than acting on, the module being another role's. 8.5's copy writes
+state = 'scheduled' flatly, following 8.5's pseudocode and discarding the
+state 8.6's computation returned, and the module records the grounds: the two
+only disagree where the successor's instant is already past, and there the
+delivery loop's six-hour staleness rule is said to reach the same answer one
+tick later. It does so only beyond six hours. Inside them the loop's answer is
+the opposite one, since it selects state = 'scheduled' with fire_at <= now()
+and skips only what is more than six hours stale, so the row is delivered:
+which is the retroactive fire 8.6 forbids, and the same defect shape the
+mid-package change control found in frozen 7.9's unqualified bullet. It is
+reached by ordinary values rather than exotic ones, a daily task with a
+one-day lead time completed an hour after its due time putting the successor's
+instant an hour in the past. The recommendation is that 8.5's arm take the
+qualifier 7.9's PUT took, since the copy already computes the state and then
+overrides it, which would make all four write paths to this row state one
+rule; AC-150 pins a successor a week out with a 45-minute lead and is
+unaffected either way.
 */
 export const taskTransitionResponse = z.object({
   task: taskDetail,
@@ -646,6 +1029,20 @@ shape review's four sentences were: one closing paragraph on 7.7 and one on
 7.8 recording the settlement in the frozen text. Nothing here waits on that;
 the shapes are bound below and the wire is checked against them in
 src/server/http/tasks-contract.test.ts.
+
+The eighth name is P7's, and it is transcription rather than judgment. Frozen
+7.9 carried the same silence for its PUT, it was escalated at the P7 kickoff,
+and the human owner ruled on 2026-08-10 that the PUT answers 200 with the
+affected TaskDetail, on exactly the grounds the paragraphs above give for 7.7
+and 7.8: 7.0 gives the reminder no object of its own, 7.9 offers no GET for
+one, and TaskDetail already carries a reminder field, so the parent task is
+the only object in the frozen catalogue that reports what the call did. The
+ruling stands in 7.9's own text with the two alternatives it declined, a bare
+reminder object that would echo the request and a silence the route would have
+to fill twice. Binding the name to taskDetail is what keeps that from being a
+sentence two shapes could each claim to satisfy, the same reason
+patchMeSettingsResponse exists in me.ts. The DELETE gains no name: it answers
+204 and carries nothing.
 */
 export const postTasksResponse = taskDetail
 export const getTaskResponse = taskDetail
@@ -654,3 +1051,4 @@ export const postTaskStepsResponse = taskDetail
 export const patchStepResponse = taskDetail
 export const postTaskMyDayResponse = taskDetail
 export const deleteTaskMyDayResponse = taskDetail
+export const putTaskReminderResponse = taskDetail

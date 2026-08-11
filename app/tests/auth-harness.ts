@@ -116,6 +116,22 @@ export interface AuthTestApp {
   stub: OidcStub
   /** Every outbound email the application attempted, via the injected sink. */
   emails: EmailRecorder
+  /**
+   * The sink object itself, the one createApp was constructed with. Exposed
+   * for P7: the 11.7 reminder pass is a plain callable rather than a route, so
+   * it is invoked directly and has to be handed the same sink the application
+   * holds, or its sends would land in a recorder nothing reads. Every other
+   * consumer wants `emails` and should keep wanting it.
+   *
+   * Optional for a boundary reason rather than a design one, the same
+   * boundary tasks-harness.ts records for the pull's tz. Four unit tests under
+   * src/server/routes/ build an AuthTestApp literal of their own and belong to
+   * the Collaboration and Query engineers, so a required field here would fail
+   * files outside this role's paths at the typecheck gate. startAuthTestApp
+   * always sets it, and the P7 harness asserts it is there rather than
+   * defaulting it away.
+   */
+  emailSink?: { send(message: unknown): void | Promise<void> }
   browser(): TestBrowser
   close(): Promise<void>
 }
@@ -222,6 +238,7 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
     db: dbClient.db,
     stub,
     emails,
+    emailSink: emails.sink,
 
     browser() {
       return new TestBrowser(origin)

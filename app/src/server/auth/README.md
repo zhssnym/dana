@@ -4,6 +4,12 @@ Owned by the Security and Privacy engineer (`docs/team/06-security-and-privacy.m
 Implements sections 7.1, 7.2, 10.1, and 11.6 against the acceptance criteria
 AC-005 to AC-010, AC-105 to AC-115, and AC-119 to AC-123.
 
+P7 added one obligation from outside that list. 8.6's fifth recompute trigger is
+the assignee's `users.timezone`, and both doors that move that column are here:
+the callback's login sync and PATCH /me. AC-086 and AC-154 therefore read this
+module as well as the reminders engine, which is why the P7 kickoff put the
+trigger in the reminders seam of `docs/team/README.md`; no persona had named it.
+
 ## How this module is wired
 
 **Mounted since `82ad14c`.** `createApp` in `app/src/server/index.ts` mounts the
@@ -57,7 +63,7 @@ rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
 | `cookies.ts` | The three cookies of 11.6 and their flags |
 | `pending.ts` | The pending-authorization records of 11.6 |
 | `provisioning.ts` | The 7.1 provisioning transaction, idempotent under `google_sub` |
-| `timezone-sync.ts` | 8.1's alias rule, the one predicate the shared validator lacks |
+| `timezone-sync.ts` | 8.1's zone sync: the alias predicate the shared validator lacks, and `writeTimezone`, which writes the column and then fires 8.6's fifth trigger. Both doors call it, so the order cannot be got right in one and wrong in the other |
 | `account.ts` | `/me`, and the 8.10 deletion stub the P1 row places here |
 | `settings.ts` | `/me/settings`, the 7.2 pair; P2S added it inside this router, so it needed no new wiring |
 | `pages.ts` | The 9.2 unverified-email page, the only page this module renders |
@@ -69,6 +75,29 @@ which P9 extends rather than replaces.
 
 ## Open items for the Steward
 
+- **AC-086's third case cannot pass beside AC-154's third case, and the fixture
+  is why.** Raised at the P7 phase 3 session, routed to the Adversarial Test
+  engineer and then the Steward under protocol section 6 ("an acceptance
+  criterion appears wrong"). `AC-086: one login recomputes two due dates either
+  side of a transition` builds its two reminders on due dates in 2010, so
+  `planReminder` computes an instant sixteen years past and frozen 7.9's own
+  qualifier writes them `skipped`, which the probe confirms. 8.6's ruling of
+  2026-08-10 then puts them outside the timezone trigger, in the sentence
+  AC-154's third case transcribes: "a skipped row is outside the timezone
+  trigger too". The case asserts the two instants move; the ruling says they do
+  not. No implementation satisfies both, and this module cannot resolve it
+  without contradicting settled spec text or the engine it imports.
+  Recommendation, verified against the engine before being written down: the
+  case seeds the two rows back to `scheduled` before the login, with
+  `setReminderState` from `tests/reminders-harness.ts`, which AC-154 already
+  uses for the same reason. With that one line the recompute writes exactly the
+  instants the case asserts, `2010-01-15T14:00:00Z` and `2010-07-15T13:00:00Z`,
+  and the rows land back in `skipped` afterwards, which the case never reads.
+  The historical dates stay, so section 13 item 25's fixture rule is untouched,
+  and the property the case exists for, that each row resolves in the zone as it
+  stood on its own due date rather than by one offset delta applied to all,
+  survives intact. The two alternatives are worse: future due dates would break
+  item 25, and deleting the case would lose a property nothing else covers.
 - **openid-client does not verify the ID token signature in the code flow by
   default**, as OIDC Core 3.1.3.7 item 6 permits, which AC-106 forbids.
   `oidc.ts` switches on `enableNonRepudiationChecks`; verified against the

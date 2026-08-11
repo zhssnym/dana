@@ -56,7 +56,14 @@ const SEARCH_SPAN_MS = 36 * 3_600_000
  * refused is refused again next time rather than remembered. */
 const validatedZones = new Set<string>()
 
-function assertZone(tz: string): string {
+/**
+ * The zone guard, shared with reminderTime.ts so one cache serves both and one
+ * message describes the failure. 11.15 names app/src/shared/timezone.ts as the
+ * single IANA validation and the fire-instant module needs it for the same
+ * reason this file does: without it, an identifier Luxon cannot use produces
+ * NaN arithmetic and a failure that names something else.
+ */
+export function assertIanaZone(tz: string): string {
   if (validatedZones.has(tz)) return tz
   if (!isIanaTimezone(tz)) {
     throw new TypeError(
@@ -70,7 +77,7 @@ function assertZone(tz: string): string {
 function localDateOfMillis(millis: number, tz: string): CalendarDate {
   const date = DateTime.fromMillis(millis, { zone: tz }).toISODate()
   if (date === null) {
-    // Unreachable behind assertZone; a throw beats a null propagating into a
+    // Unreachable behind assertIanaZone; a throw beats a null propagating into a
     // query as the string "null".
     throw new TypeError(`could not read a local date in ${tz} at ${millis}`)
   }
@@ -85,7 +92,7 @@ function localDateOfMillis(millis: number, tz: string): CalendarDate {
  * "grouped into days in the viewer's timezone at render".
  */
 export function localDateOf(instant: Date, tz: string): CalendarDate {
-  assertZone(tz)
+  assertIanaZone(tz)
   return localDateOfMillis(instant.getTime(), tz)
 }
 
@@ -202,7 +209,7 @@ function localDayBounds(
  * against the installed tzdb. Callers must not assume the length.
  */
 export function localDayWindow(date: CalendarDate, tz: string): LocalDayWindow {
-  assertZone(tz)
+  assertIanaZone(tz)
   const { start, end } = localDayBounds(date, tz)
   return {
     date,

@@ -57,6 +57,11 @@ import {
   transition,
   transitionOk,
 } from '../../../tests/tasks-harness.js'
+import {
+  putReminder,
+  setReminderState,
+} from '../../../tests/reminders-harness.js'
+import { shiftDate, todayIn } from '../../../tests/views-harness.js'
 import { createTestDb, rows } from '../../../tests/helpers.js'
 import { startOidcStub } from '../../../tests/oidc-stub.js'
 import { TestBrowser } from '../../../tests/http-client.js'
@@ -480,6 +485,228 @@ describe('the tasks router, driven through the harness idiom', () => {
       422,
       'INV-6 is revalidated against the row, never left to the 4.5 CHECK (spec 7.11)',
     )
+  })
+
+  /*
+  The four probes below are the P7 half of this file, and they are chosen the
+  way the header says: one per behavior, and only where no criterion speaks.
+  AC-146 to AC-149, AC-151 and AC-152 are the authoritative versions of the
+  reminder endpoint, the create arm and two of the recompute triggers, and
+  none of them is repeated here. What is left over is the 8.4 mode cascade,
+  whose criterion AC-164 arrives after this session; the reminder arm of the
+  PATCH body, which has no criterion at all and which src/shared/tasks.ts
+  names as the write path a dropped field fails silently on; created_by on the
+  conflict arm of the upsert, which is this session's decision and which no
+  response reports; and the rewrite that must not recompute, whose absence is
+  invisible in every single-write assertion and costs a duplicate email.
+  */
+
+  test('PATCH /tasks/:id: 8.4\'s mode cascade, both arms, and the move that cascades nothing', async () => {
+    const { owner, sharedId } = await stage()
+    const due = shiftDate(todayIn('UTC'), 30)
+    const build = async (label: string, dueTime?: string): Promise<string> => {
+      const created = await createTaskOk(
+        owner,
+        {
+          title: `proof mode cascade ${label}`,
+          folder_id: sharedId,
+          due_date: due,
+          ...(dueTime === undefined ? {} : { due_time: dueTime }),
+        },
+        'the fixture task is creatable',
+      )
+      expectStatus(
+        await putReminder(
+          owner,
+          created.id,
+          dueTime === undefined
+            ? { time_of_day: '09:00' }
+            : { offset_minutes: 30 },
+        ),
+        200,
+        'and takes the one mode 4.8 admits for it (spec 7.9)',
+      )
+      return created.id
+    }
+
+    const cleared = await build('cleared', '17:00')
+    const afterClear = await patchTaskOk(
+      owner,
+      cleared,
+      { due_time: null },
+      'clearing due_time alone is a legal PATCH (spec 7.6 as ruled 2026-08-10)',
+    )
+    expect(
+      afterClear.reminder,
+      '8.4: an offset reminder is measured from the due_time, so it cannot outlive it',
+    ).toBeNull()
+    expect(
+      afterClear.due_date,
+      'and the date stays where it is: this is the clear-date cascade one size down, not the cascade itself',
+    ).not.toBeNull()
+
+    const dateOnly = await build('date only')
+    const afterSet = await patchTaskOk(
+      owner,
+      dateOnly,
+      { due_time: '08:00' },
+      'and setting one on a date-only task is legal too (spec 7.6 as ruled 2026-08-10)',
+    )
+    expect(
+      afterSet.reminder,
+      "8.4's mirror arm: the surviving row would compute, 8.6's date-only arm never reading the task's due_time, and 4.8 calls the pair illegal anyway",
+    ).toBeNull()
+
+    const moved = await build('moved', '17:00')
+    const before = await reminderRow(app.db, moved)
+    const afterMove = await patchTaskOk(
+      owner,
+      moved,
+      { due_time: '09:00' },
+      'a due_time moving between two non-null values (spec 7.6)',
+    )
+    expect(
+      afterMove.reminder,
+      "8.4's closing paragraph and AC-164's third clause: this move crosses no line, invalidates no mode and deletes nothing",
+    ).toEqual({ offset_minutes: 30, time_of_day: null })
+    expect(
+      String((await reminderRow(app.db, moved))?.fire_at),
+      'it is 8.6\'s ordinary recompute instead, so only the instant moved',
+    ).not.toBe(String(before?.fire_at))
+  })
+
+  test('PATCH /tasks/:id: the reminder arm writes the 4.8 row behind the guards 7.9 names', async () => {
+    const { owner, sharedId } = await stage()
+    const due = shiftDate(todayIn('UTC'), 30)
+    const timed = await createTaskOk(
+      owner,
+      {
+        title: 'proof patch reminder',
+        folder_id: sharedId,
+        due_date: due,
+        due_time: '17:00',
+      },
+      'the fixture task is creatable',
+    )
+
+    const patched = await patchTaskOk(
+      owner,
+      timed.id,
+      { reminder: { offset_minutes: 45 } },
+      'the third of the three bodies that write the one 4.8 row (spec 7.6)',
+    )
+    expect(
+      patched.reminder,
+      'a route that parses the field and does not act on it answers its ordinary 200 with the reminder dropped, which is indistinguishable on the wire from a body that never carried one',
+    ).toEqual({ offset_minutes: 45, time_of_day: null })
+
+    expectStatus(
+      await patchTask(owner, timed.id, { reminder: { time_of_day: '09:00' } }),
+      422,
+      "4.8's mode rule reads the task's due_time here exactly as it does on 7.9's PUT, the body being silent about that column",
+    )
+    expect(
+      (await reminderRow(app.db, timed.id))?.offset_minutes,
+      'and the refusal returns before the first write, so the row it would have replaced is untouched',
+    ).toBe(45)
+
+    const undated = await createTaskOk(
+      owner,
+      { title: 'proof patch reminder undated', folder_id: sharedId },
+      'an undated task is creatable',
+    )
+    expectStatus(
+      await patchTask(owner, undated.id, { reminder: { time_of_day: '09:00' } }),
+      422,
+      "INV-6 and 7.9's second refusal, against the row rather than the body: with no date there is no legal mode at all",
+    )
+  })
+
+  test('PUT /tasks/:id/reminder: the upsert rewrites created_by to the caller', async () => {
+    const { owner, helper, sharedId } = await stage()
+    const created = await createTaskOk(
+      owner,
+      {
+        title: 'proof reminder created_by',
+        folder_id: sharedId,
+        due_date: shiftDate(todayIn('UTC'), 30),
+        due_time: '17:00',
+      },
+      'the fixture task is creatable',
+    )
+
+    expectStatus(
+      await putReminder(owner, created.id, { offset_minutes: 30 }),
+      200,
+      'the first PUT creates the row (spec 7.9)',
+    )
+    expect(
+      String((await reminderRow(app.db, created.id))?.created_by),
+      'the insert names its writer',
+    ).toBe(owner.id)
+
+    expectStatus(
+      await putReminder(helper, created.id, { offset_minutes: 60 }),
+      200,
+      'and another member of the folder writes over it (spec 7.9)',
+    )
+    const row = await reminderRow(app.db, created.id)
+    expect(
+      String(row?.created_by),
+      "this session's decision, recorded because nothing observable turns on it: 7.0 makes PUT idempotent, so the stored row is a function of the request and the task rather than of history, and DELETE-then-PUT would otherwise differ from PUT-over-the-row in this column alone",
+    ).toBe(helper.id)
+    expect(
+      Number(row?.offset_minutes),
+      'the rest of the row is the second caller\'s request whole',
+    ).toBe(60)
+  })
+
+  test('the 8.6 recompute fires on a change and not on a rewrite', async () => {
+    const { owner, sharedId } = await stage()
+    const created = await createTaskOk(
+      owner,
+      {
+        title: 'proof recompute on change',
+        folder_id: sharedId,
+        due_date: shiftDate(todayIn('UTC'), 30),
+        due_time: '17:00',
+      },
+      'a task thirty days out, so every instant here is in the future',
+    )
+    expectStatus(
+      await putReminder(owner, created.id, { offset_minutes: 30 }),
+      200,
+      'with a reminder on it (spec 7.9)',
+    )
+    await setReminderState(app.db, created.id, 'sent')
+    const delivered = await reminderRow(app.db, created.id)
+
+    await patchTaskOk(
+      owner,
+      created.id,
+      { due_time: '17:00:00' },
+      'a PATCH rewriting due_time with the minute it already held, which 4.11 lets a client spell either way (spec 7.6)',
+    )
+    expect(
+      await reminderRow(app.db, created.id),
+      '8.6 recomputes when one of its five values changes, and this body changed none of them. The four task-scoped triggers revive a terminal row by design, so a recompute fired by a no-op write sends one person the same email twice about a deadline that did not move',
+    ).toEqual(delivered)
+
+    await patchTaskOk(
+      owner,
+      created.id,
+      { due_time: '09:00' },
+      'and a PATCH that does move it (spec 7.6)',
+    )
+    const after = await reminderRow(app.db, created.id)
+    expect(
+      after?.state,
+      'the control: a due_time that really moves is one of 8.6\'s five, and a new occasion deserves a delivery of its own',
+    ).toBe('scheduled')
+    expect(
+      after?.fired_at,
+      "and fired_at is cleared with it, so 4.8's note that the column is set when state leaves scheduled stays true of every row (8.6 as ruled 2026-08-10)",
+    ).toBeNull()
   })
 
   test('the 5.1 transitions: the guarded update, its no-ops, and its conflicts', async () => {
