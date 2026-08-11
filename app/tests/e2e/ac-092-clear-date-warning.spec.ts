@@ -118,9 +118,9 @@ test.describe('AC-092: clearing the date in the task form', () => {
         'normative, being 8.4\'s cascade stated to the person about to run it',
     ).toBeVisible()
 
-    // The confirming control of a warning has no name in section 9. Matched
-    // by the two words a confirm is spelled with, and the silence is
-    // escalated rather than closed with an invented string.
+    // 9.1's control table names both controls of every confirmation, and
+    // names them uniformly: "Continue" and "Cancel", the destructive verb
+    // being already in the message the person is reading.
     await clickControl(
       page.getByRole('button', { name: 'Continue', exact: true }),
       'spec 9.3: the 8.4 warning is confirmed before it acts, so it offers a control that proceeds',

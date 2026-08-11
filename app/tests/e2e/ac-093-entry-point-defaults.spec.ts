@@ -11,13 +11,17 @@ defaulted every page to today would satisfy My Day and Planned and fail
 Tasks, and a form that read important from the page would satisfy Important
 alone. The three columns together are what make the six rows six.
 
-**One cell of the table cannot be asserted and is escalated rather than
-guessed.** The folder page's due date is "per that folder's section
-context", and the floating add button of 9.1 sits on the page rather than in
-a section, so the table states no value for the opening this criterion
-names. The two columns that row does determine, important off and the
-folder being that folder, are asserted below; the third is left to the
-Steward with a recommendation, and no test here invents a value for it.
+**The sixth row's due date is asserted now, and was not when this file was
+written.** The table's folder-page cell read "per that folder's section
+context" and the floating add button of 9.1 sits on the page rather than in
+a section, so the table stated no value for the opening this criterion
+names, and this file escalated it rather than guessing. The P8 change
+control closed it on 2026-08-11: the Scheduled section's quick-add opens
+with today, the Unscheduled section's with empty, and the button with empty,
+on the ground that a folder is not a dated page and clearing a date that was
+added for you costs more than adding one that was not. The criterion's text
+did not move; the cell it reads did. So all three columns are asserted here
+for all six rows, which is what "in all six cases" asks for.
 
 **The calendar cell's date is chosen so it cannot collide.** The cell clicked
 is the fifteenth of next month, reached with the "next" control 9.5 gives
@@ -217,33 +221,24 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     })
   })
 
-  test('AC-093: a folder page opens with that folder', async ({ page }) => {
+  test('AC-093: a folder page opens with that folder and no date', async ({ page }) => {
     await page.goto(routes.folder(seedIds.groceries))
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults '
         + 'of 9.3, and it is on every page except Done',
     )
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
-        + 'names it "More options"',
-    )
 
-    expect(
-      await fieldDisplay(formField(page, 'folder')),
-      'spec 9.3 entry-point defaults, opened from a folder page: the folder column reads ' +
-        '"that folder", which is the seeded shared folder this page is',
-    ).toContain('Groceries')
-    await expect(
-      formField(page, 'important'),
-      'spec 9.3 entry-point defaults, opened from a folder page: important is off',
-    ).not.toBeChecked()
-
-    // The due date of this row is "per that folder's section context" and
-    // the floating add button belongs to no section, so the table states no
-    // value for this opening. Escalated to the Integration Steward rather
-    // than asserted; nothing is asserted here that the specification does
-    // not say.
+    // All three columns, the same as every other row above. The due date is
+    // empty because 9.3 says so as of 2026-08-11: the button sits on the page
+    // rather than in a section, and having no section context means an empty
+    // date everywhere else in this table. The reason it is not today is that
+    // a folder holds dated and undated tasks at once, so defaulting would
+    // file a task into the Scheduled section nobody aimed at.
+    await expectDefaults(page, 'a folder page', {
+      dueDate: '',
+      important: false,
+      folder: 'Groceries',
+    })
   })
 })

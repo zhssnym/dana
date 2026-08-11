@@ -43,7 +43,7 @@ npx playwright test -g "AC-095"
 | P7 to P10 | AC-083 to AC-090, AC-101 to AC-104 | Not yet written |
 | P8 | AC-091 to AC-100 | Covered in the Playwright leg, every case red: `app/src/client` is P0's nineteen-line placeholder until this package's three implementing sessions run, which is the designed order |
 | P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered in the Playwright leg, red on the same ground. Those criteria stay in their own packages with their server halves green where they are |
-| P8 gate | AC-154 to AC-165 | Proposed here with their tests; the numbers are provisional until the mid-package change control assigns them |
+| P8 gate | AC-155 to AC-163, AC-165 to AC-167 | Covered in the Playwright leg, red on the same ground; proposed here with their tests and numbered by the section 12 amendment of 2026-08-11. The gaps at 154 and 164 belong to package P7 and are deliberate |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -491,7 +491,14 @@ Six things these files are written around.
   files names a class or a DOM shape. What the sentence fixes is
   identification, not construction: section 9 specifies structure, states and
   copy rather than widgets, so the two helpers that operate a picker dispatch on
-  what the element turned out to be instead of assuming a native select.
+  what the element turned out to be instead of assuming a native select. Eight
+  controls the section described without naming were matched by description
+  while this leg was first written, each with the gap recorded; 9.1 gained a
+  control table naming all eight at the P8 change control on 2026-08-11, and
+  every match is a string now and every one is exact. Exactness is the point
+  rather than a habit: three of the eight names begin with "add" and two of
+  them are "More actions", so a loose match restores exactly the collision the
+  naming removed.
 - **Section 9's copy is restated in the harness, never imported from
   `src/client`.** The standing Steward ruling for the frozen response shapes,
   applied where it bites hardest: a suite that reads the string it asserts out
@@ -535,22 +542,33 @@ already was. None of this renumbers or re-owns those criteria, and none of it
 re-asserts server behavior through a browser, which buys latency rather than
 truth.
 
-**One recorded half is not closed, and is escalated rather than skipped.**
-AC-138's file records that a scrubbed user's surviving history "renders as
-Deleted user" and calls that P8's half of 8.10's sentence. Section 9 names no
-surface that displays `created_by`, `completed_by` or `accepted_by`: the
-assignee clears at step 4, the membership goes with it, and 7.3 excludes
-soft-deleted users from the roster, so the sentence has nowhere in this
-specification to be asserted against. Closing it would mean this suite
-inventing a page for the implementer, which is the one thing the separation
-exists to prevent. Escalated to the Integration Steward with a recommendation.
+**One recorded half left this package rather than being closed, and the
+specification it comes from was not corrected.** AC-138's file records that a
+scrubbed user's surviving history "renders as Deleted user" and calls that
+P8's half of 8.10's sentence. Section 9 names no surface that displays
+`created_by`, `completed_by` or `accepted_by`, so this leg escalated it and
+recommended lifting the sentence. The P8 change control ruled the other way
+on 2026-08-11 and the difference matters: 4.1 and 8.10 are both correct, and
+section 9's silence is a consequence of 8.10's own ordering rather than an
+omission, since step 4 clears the assignments and drops the memberships and
+7.3 excludes soft-deleted users from the roster, so every path a page renders
+a display name through is already empty. The clause is correct and dormant.
+The obligation lifts from this package as section 13 item 27, recorded as a
+reading of frozen 4.1, and AC-138 pins the server half unchanged.
+`rendered-halves.spec.ts` says so in full, because a reader finding the
+clause gone will otherwise assume it was found wrong.
 
-AC-154 to AC-165 were authored here with their tests for the mid-package change
-control to number, the AC-125, AC-133 and AC-142 precedent, and every file says
-its own number is provisional. They begin at AC-154 rather than AC-144 because
-package P7 is concurrently proposing AC-144 to AC-153 on its own branch and
-merges first; P7's numbering is not final either, so the Steward reconciles
-both. The standard is the one those batches were admitted under, a rule the
+AC-155 to AC-163 and AC-165 to AC-167 were authored here with their tests and
+numbered by the Integration Steward's section 12 amendment on 2026-08-11, the
+AC-125, AC-133 and AC-142 precedent. Ten stand at the numbers this leg
+proposed; two moved, because package P7 had by then assigned AC-154 and AC-164
+in the second working tree, and renumbering a criterion another branch has
+already assigned is the one move that would make appending unsafe. The file
+proposing AC-154 carries AC-166 and the one proposing AC-164 carries AC-167,
+with no assertion changed and no fixture moved. The gaps this leaves in the
+range are section 12's own and are deliberate: a later reader finding 154 and
+164 outside this range finds them inside P7's rather than finding nothing.
+The standard is the one those batches were admitted under, a rule the
 specification states that no numbered criterion asserts, and section 9 is thick
 with them: the quick-add row's enter and escape, the sidebar's folder ordering
 against a frozen 7.4 order it deliberately is not, the search overlay's

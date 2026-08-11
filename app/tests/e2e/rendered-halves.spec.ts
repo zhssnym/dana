@@ -21,13 +21,36 @@ What the grep found, and where each is closed:
   third case, on the seeded undated abandoned row, which is the fixture that
   criterion is written on.
 - **AC-058**, the collapsed Completed section. Below.
-- **AC-138**, history rendering as "Deleted user". Not closed, and not
-  skipped quietly: section 9 names no surface that displays `created_by`,
-  `completed_by` or `accepted_by`, so 8.10's sentence has no place to be
-  asserted against. Escalated to the Integration Steward with a
-  recommendation rather than answered here by inventing a surface, which
-  would be this suite specifying the implementer's page.
+- **AC-138**, history rendering as "Deleted user". No longer this package's
+  to close, and the paragraph below says why, because the reason is not the
+  one a reader will assume.
 - **AC-141**, the People screen's refusal copy. Below.
+
+**AC-138's clause left this list on 2026-08-11, and the specification it
+comes from was not corrected.** This file escalated it: section 9 names no
+surface that displays `created_by`, `completed_by` or `accepted_by`, so
+8.10's sentence had nowhere to be asserted, and the recommendation from here
+was to lift the sentence. The P8 change control ruled the other way and the
+distinction is the whole point. 4.1 carries the same clause at the
+`display_name` column and 8.10 carries it in prose, and both are correct:
+what section 9 lacks is not an omission but a consequence of 8.10's own
+ordering, which empties every path a page renders a display name through.
+Step 4 clears the deleted account's assignments and drops its memberships,
+so no assignee chip and no member avatar stack can hold it, and 7.3 excludes
+soft-deleted users from the roster, so the People screen cannot either. The
+three columns that survive are read by no page in v1. The clause is
+therefore correct and dormant: it states what must happen the first time a
+surface shows an author, a completer or an acceptor, and this version ships
+none.
+
+So the obligation lifts from this package as section 13 item 27, recorded as
+a reading of frozen 4.1 rather than as a change to it, and AC-138 pins its
+server half unchanged. Written out here rather than deleted quietly because
+the next reader of this file will otherwise assume the specification was
+found wrong and fixed, and it was found right and left alone. Item 27 names
+the revisit trigger: any surface that displays a task's author or completer,
+or an invite's acceptor, at which point the rendering is a criterion that
+package owes.
 
 Each case pairs its assertion with the neighbouring row that must not carry
 the same adornment, because every one of these is a chip or a state that an

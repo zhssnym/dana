@@ -180,8 +180,11 @@ test.describe('AC-166: the inline quick-add row', () => {
 
     // Both open sections of 9.6 carry a quick-add row and both add into this
     // folder, so the folder column of 9.3's table holds for whichever row
-    // this is. The due date differs between them and is the cell escalated
-    // at AC-093, so it is not asserted here.
+    // this is. The due date does not: 9.3 states as of 2026-08-11 that the
+    // Scheduled section's quick-add opens with today and the Unscheduled
+    // section's with empty, so the two differ and this case takes whichever
+    // row comes first. Telling them apart needs the section each sits in,
+    // which no accessible property of the row itself carries.
     const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,

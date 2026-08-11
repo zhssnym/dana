@@ -27,10 +27,11 @@ control that silently does nothing is the same defect with no words on it.
 Forty-nine steps is the control, so neither assertion can pass by being
 permanently true.
 
-One copy silence is recorded rather than closed: 9.3 requires the cap notice
-and spells no string for it, so what is asserted is that a notice naming the
-cap is present. Escalated to the Integration Steward with the two others
-this leg found.
+The cap notice's copy was a silence when this file was written, so both cases
+below asked only for a notice mentioning fifty. 9.3 spells it as of the P8
+change control on 2026-08-11, "Limit 50 steps", and they ask for the string
+now. The criterion's text does not move: it said the editor shows its cap
+notice, and what changed is that the specification says what the notice says.
 
 Spec: 9.3 (the validation copy and the steps editor), 10.3 (the limits the
 copy reports), 7.11 (why a client-side rule still needs measuring), 7.6.
@@ -166,7 +167,7 @@ test.describe('AC-161: the form says why it will not save', () => {
         + 'names it "More options"',
     )
     await expect(
-      page.getByText(new RegExp(`\\b${STEP_CAP}\\b`)),
+      page.getByText(copy.stepCapNotice),
       `spec 9.3: the cap notice is at fifty, so a task holding ${STEP_CAP - 1} steps does not ` +
         'carry it. Without this case the assertion below passes against a notice that is ' +
         'always on screen',
@@ -183,10 +184,10 @@ test.describe('AC-161: the form says why it will not save', () => {
         + 'names it "More options"',
     )
     await expect(
-      page.getByText(new RegExp(`\\b${STEP_CAP}\\b`)),
-      'spec 9.3: the steps editor shows a cap notice at fifty. The section requires the ' +
-        'notice and spells no string for it, so what is asserted is that a notice naming the ' +
-        'cap is there; the copy is escalated to the Steward',
+      page.getByText(copy.stepCapNotice),
+      'spec 9.3: the steps editor shows a cap notice at fifty, and 9.3 spells it "Limit 50 ' +
+        'steps" as of 2026-08-11. Asserted as the string rather than as a number somewhere on ' +
+        'the page, which a step titled "50" would also have satisfied',
     ).toBeVisible()
     await expect(
       page.getByRole('button', { name: 'Add step', exact: true }),

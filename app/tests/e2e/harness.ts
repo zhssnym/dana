@@ -10,10 +10,15 @@ otherwise make differently five times.
 **Controls are addressed by accessible role and normative name, never by
 class, DOM shape or test identifier.** That is 9.1's addressing sentence,
 landed at the P8 kickoff, and it is the reason this file exports no CSS
-selector. Where section 9 spells a control's name, the helper spells it
-back character for character; where the section describes a control without
-naming it, the helper says so in a comment and matches the description, and
-the gap is escalated rather than papered over with an invented string.
+selector. Every helper spells its control's name back character for
+character and matches it exactly. That was true of only some of them when
+this file was written: eight controls the section described without naming
+were matched by description and escalated, and the P8 change control named
+all eight on 2026-08-11, so the descriptions are gone. Exactness is not
+fastidiousness here. Three of the eight names begin with the word "add" and
+two of them are "More actions", so a loose match puts back exactly the
+collision the naming removed, which is the reason 9.1's own paragraph gives
+for the two names it explains.
 
 **Section 9's copy is restated here, never imported from `src/client`.** The
 standing Steward ruling for the frozen response shapes applies with more
@@ -314,6 +319,8 @@ export const copy = {
   dateDependentHelper: 'Set a due date first',
   /** 9.3, empty title. */
   titleRequired: 'Give it a title',
+  /** 9.3, the steps editor's cap notice, spelled at the P8 change control. */
+  stepCapNotice: 'Limit 50 steps',
   /** 9.3, the delete confirm in the form's overflow menu. */
   deleteTaskConfirm: "Delete this task? This can't be undone.",
   /** 9.4, abandon from My Day. */

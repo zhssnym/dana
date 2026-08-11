@@ -25,11 +25,17 @@ the date is asserted as present rather than as formatted. The dated fixture
 is a month out precisely so a client rendering "today" or "tomorrow" instead
 of a date is not mistaken for a client rendering nothing.
 
-**The inward copy is a genuine silence and is escalated rather than
-invented.** "Confirms importance" names no string anywhere in section 9, so
-the second arm asserts the two things the criterion does say: that it does
-not point outward, and that it is about importance. The Steward is asked for
-the copy.
+**The inward copy was a silence when this file was written and is a string
+now.** "Confirms importance" named nothing in section 9, so the second arm
+could assert only that the tooltip did not point outward and was about
+importance at all, and the gap was escalated rather than filled with an
+invented word. The P8 change control closed it on 2026-08-11: off Important
+the star's name is its own state, "Important" when filled and "Mark as
+important" when not, and 9.5 makes that both the tooltip and the accessible
+name. Two strings rather than one because the star is an icon-only toggle,
+so each state owes a screen reader something true. The criterion's text does
+not move; the second arm asserts the string instead of the shape of one, and
+the star is addressed by that name rather than by a regex over two words.
 
 Spec: 6 Q4 (the outward tooltip and its two forms), 9.5 (Important's star
 and its outward tooltip), 9.1's addressing sentence, 7.10.
@@ -72,7 +78,9 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
     })
 
     await page.goto(routes.important)
-    const star = taskRow(page, DATED).getByRole('button', { name: /star|important/i })
+    // Named rather than matched: 9.5 makes "Important" the star's accessible
+    // name in the filled state, which is the state every fixture here is in.
+    const star = taskRow(page, DATED).getByRole('button', { name: 'Important', exact: true })
     const tip = await tooltipText(
       star,
       'spec 9.4 and 6 Q4: every row carries a star, which is the control the tooltip belongs to',
@@ -98,7 +106,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
     })
 
     await page.goto(routes.important)
-    const star = taskRow(page, UNDATED).getByRole('button', { name: /star|important/i })
+    const star = taskRow(page, UNDATED).getByRole('button', { name: 'Important', exact: true })
     const tip = await tooltipText(
       star,
       'spec 9.4 and 6 Q4: every row carries a star, which is the control the tooltip belongs to',
@@ -127,7 +135,9 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
     })
 
     await page.goto(routes.planned)
-    const star = taskRow(page, DATED).getByRole('button', { name: /star|important/i })
+    // Named rather than matched: 9.5 makes "Important" the star's accessible
+    // name in the filled state, which is the state every fixture here is in.
+    const star = taskRow(page, DATED).getByRole('button', { name: 'Important', exact: true })
     const tip = await tooltipText(
       star,
       'spec 9.4 and 6 Q4: every row carries a star, which is the control the tooltip belongs to',
@@ -141,9 +151,15 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
     ).not.toContain('Also in')
     expect(
       tip,
-      'AC-099: on any other page the tooltip confirms importance. Section 9 states no copy ' +
-        'for it, so what is asserted is that it is about importance at all; the string is ' +
-        'escalated to the Integration Steward rather than invented here',
-    ).toMatch(/important/i)
+      "spec 9.5: off Important the star's name is its own state, \"Important\" when filled, " +
+        'and that name is its tooltip. Asserted as the string since 2026-08-11; before that ' +
+        'this case could ask only that the tooltip was about importance at all',
+    ).toContain('Important')
+    expect(
+      tip,
+      'spec 9.5: "Important" is the filled state, and this row is starred. A star showing ' +
+        '"Mark as important" over a task that already is one tells the person their star did ' +
+        'not take',
+    ).not.toContain('Mark as important')
   })
 })
