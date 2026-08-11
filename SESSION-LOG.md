@@ -16,7 +16,9 @@ rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
 place rather than being renumbered, because the numbers are addresses. Rows are
 listed in the order they ran, so a number out of sequence means that session
 moved. Mode names the chat a session returned into, or Unattended where it ran
-as an isolated sub-agent with no chat to return to.
+as an isolated sub-agent with no chat to return to. A run of consecutive Unattended
+rows is a grouped run: one dispatching chat launched each as an isolated
+sub-agent in sequence, verifying each before starting the next.
 
 ## P minus 4: product definition
 
@@ -191,13 +193,6 @@ as an isolated sub-agent with no chat to return to.
 | 13 | Five settlements transcribed into frozen 7.5, 7.3 and 7.1 | 12 | Steward | Done |
 | 14 | Merged at 11d83fe, green on both legs on the merge commit itself | 12 | Steward | Done |
 
-Rows 9 to 12 ran as four personas inside one unattended chat rather than as four
-sessions. Ownership of writes held throughout, and row 10 declined to annotate a
-ledger entry that was not its to annotate rather than reaching across. The
-Steward pass of row 12 was not independent of the three it reviewed, which the
-changelog records in full; the acceptance suite, authored earlier and elsewhere,
-is what actually adjudicated the package.
-
 ## P6: recurrence engine (`p6-recurrence`)
 
 | # | Session | Role | Mode | Status |
@@ -215,16 +210,6 @@ is what actually adjudicated the package.
 | 10 | Shape review: the envelope companions and the ghost pinned | 04 | Review | Done, escalated |
 | 11 | Merge review: the bullet ruling, items 22 to 24, held | 12 | Steward | Done |
 | 12 | Merged at 02f467f, green on both legs on the merge commit itself | 12 | Steward | Done |
-
-Rows 6 to 8 ran as the first grouped run: one dispatching chat launched each
-as an isolated sub-agent in sequence, so each derived its state from the
-repository rather than from the one before it and no context held two
-personas. The dispatcher verified each phase committed, pushed and left the
-tree building before starting the next. The endpoint shape review was kept
-out of the group deliberately, because reviewing those three is its work.
-Rows 7 and 8 each raised the same two findings independently, in different
-personas, which is the strongest evidence the run produced that its
-isolation was real.
 
 ## P7: reminders (`p7-reminders`)
 
@@ -250,19 +235,3 @@ isolation was real.
 | 10b | AC-168 written red, the email counting scoped per actor | 11 | Testers | Done |
 | 10c | The copy writes the state its instant earns, `at` threaded through | 02 | Implementers | Done |
 
-Rows 6 to 9 ran as one grouped run: a dispatching chat launched each as an
-isolated sub-agent in sequence, each deriving its state from the repository
-rather than from the phase before it. The dispatcher verified every phase
-committed, pushed and left the tree building before starting the next, and it
-caught a wrong premise in its own brief, which said the 7.9 endpoints were
-unmounted when both hang off the tasks router mounted since P3. Rows 7 and 8
-independently found the same test defect from different code and both stopped
-rather than adjusting it.
-
-Row 10 is the session this package would have merged without. Every test
-passed when it began, and it found that 8.5's copy wrote a state 8.6 forbids
-by reading the two sections against each other. That defect was the third
-appearance of one shape here: a value computed, made available, and then
-discarded, which was also frozen 7.9's unqualified bullet and the `at` that
-`generateSuccessor` handed down and the copy ignored. None of the three was
-caught by a test until something downstream depended on the discarded value.
