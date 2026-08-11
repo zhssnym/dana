@@ -1,6 +1,7 @@
 # Dana session log
 
-Every agent session that has run, in the order it ran, one table per package.
+Every agent session that has run, in the order it ran, one table per package,
+and one at the end for work that belongs to no package.
 `CHANGELOG.md` records what the product became; this records how it was built.
 
 **This is a record, not a source of truth.** Protocol section 2 names the five
@@ -272,3 +273,11 @@ before starting the next.
 | 17 | The type scale onto pages, the landing copy ruled, the manifest colours | 07 | Implementers | Done, escalated |
 | 18 | Merge review, and 9.1's folder colour dot, which nothing renders or asserts | 12 | Steward | Planned |
 | 19 | Merge into main | 12 | Steward | Planned |
+
+## Outside the packages: infrastructure (`local-ci`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | The runner and the collation ruled, `postgres:18` found never to have been a collation authority | 12 | Unattended | Done |
+| 2 | Postgres 18 configured, the workflow moved onto the runner, the runner staged to its token | 10 | Unattended | Done |
+| 3 | Merge review: the double-PGlite guard, the ceiling at 40, `lc_messages` pinned, merged at 3dc950f | 12 | Steward | Done, escalated |
