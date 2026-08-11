@@ -26,6 +26,14 @@ And the reminder template's payload is asserted at the message rather than at
 the sink's count, because the suite's recorder normalizes a message down to
 its template and recipient by design (11.10 fixes only those two), so the
 fields that make an email usable are only visible from here.
+
+**Nothing below asserts a total.** A pass polls every due row in the database,
+which is 8.6's poll and not a thing to scope, and on the postgres:18 leg of
+11.10 every file in the suite shares one database. So each case asserts the
+rows it seeded, by task id, and reads the sink filtered the same way; the
+outcome counts are asserted as floors rather than as equalities. An exact
+count here would be an assertion about what the rest of the suite happened to
+be doing.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -69,10 +77,17 @@ function capturingLogger(): SchedulerLogger & { lines: CapturedLine[] } {
 function recordingSink(refuse: (message: OutboundMessage) => boolean = () => false): {
   send(message: OutboundMessage): void
   received: OutboundMessage[]
+  /** The messages this case's own rows produced, which is the only slice of
+   * the recorder a shared database makes an assertion about. */
+  forTasks(taskIds: readonly string[]): OutboundMessage[]
 } {
   const received: OutboundMessage[] = []
   return {
     received,
+    forTasks: (taskIds) =>
+      received.filter((message) =>
+        taskIds.includes(message.reminder?.taskId ?? ''),
+      ),
     send(message: OutboundMessage): void {
       if (refuse(message)) {
         throw new Error('the email provider refused a reminder message')
@@ -218,14 +233,13 @@ describe('the 11.7 pass over its rows', () => {
       logger,
     })()
 
-    expect(outcome.sent, 'one row was due and deliverable').toBe(1)
-    expect(outcome.failed).toBe(0)
+    expect(outcome.sent, 'one row was due and deliverable').toBeGreaterThanOrEqual(1)
     expect(await reminderView(taskId)).toEqual({ state: 'sent', firedAtSet: true })
 
     // 11.10 fixes that a message identifies its template and its recipient and
     // leaves the rest to this module; 10.7 asks each template for content and
     // one action link, which a body cannot have without these.
-    expect(sink.received).toEqual([
+    expect(sink.forTasks([taskId])).toEqual([
       {
         template: 'reminder',
         to: owner.email,
@@ -285,11 +299,11 @@ describe('the 11.7 pass over its rows', () => {
       logger,
     })()
 
-    expect({ sent: outcome.sent, skipped: outcome.skipped }).toEqual({
-      sent: 0,
-      skipped: 3,
-    })
-    expect(sink.received, 'a skip is not a send').toEqual([])
+    expect(outcome.skipped).toBeGreaterThanOrEqual(3)
+    expect(
+      sink.forTasks([completed, unassigned, stale]),
+      'a skip is not a send',
+    ).toEqual([])
     for (const taskId of [completed, unassigned, stale]) {
       expect(await reminderView(taskId), `the reminder on ${taskId}`).toEqual({
         state: 'skipped',
@@ -333,10 +347,11 @@ describe('the 11.7 pass over its rows', () => {
       logger,
     })()
 
-    expect({ sent: outcome.sent, failed: outcome.failed }).toEqual({
-      sent: 1,
-      failed: 1,
-    })
+    expect(outcome.failed, 'the refusal is counted as one').toBeGreaterThanOrEqual(1)
+    expect(
+      sink.forTasks([refusedTask, deliveredTask]).map((message) => message.to),
+      'the batch delivered the one it could',
+    ).toEqual([delivered.email])
     expect(
       await reminderView(refusedTask),
       'the refused row is left exactly as the pass found it, so the next tick retries it and 8.6 six hour window eventually settles it honestly',
