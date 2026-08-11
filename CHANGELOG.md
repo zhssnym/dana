@@ -1433,6 +1433,45 @@ Planning and design. No software has been released yet.
     rewrite any of that wording; what it must not do is drop the facts. Nothing
     else outside change control was touched, and `.github/workflows/ci.yml` was
     deliberately left alone.
+  - **Two defects the branch raised against itself, fixed at the merge review**,
+    2026-08-11, both in `.github/workflows/ci.yml`. The postgres leg could pass
+    by running PGlite twice: the connection string now arrives from outside the
+    workflow, and nothing checked that it arrived, so a missing runner `.env`, a
+    misspelled name, or a service started before the file was written would leave
+    the seam falling back to PGlite and the step reporting a second identical
+    green having measured nothing. Step five now refuses to run in that state.
+    The guard tests presence alone, reads no value into a command and names none,
+    and treats unset and empty as one case because that is exactly the fallback
+    condition of the seam at `app/db/client.ts`, so the two agree by construction
+    rather than by being kept in step. And `timeout-minutes` moves from 20, which
+    was sized for a hosted Linux job whose fifth leg had never run, to 40. That
+    is decided on two measurements rather than on the 45 this run first
+    estimated: five legs in 255 seconds on this machine with every cache warm and
+    the postgres leg still to add, and p8-client's hosted measurement of 13.5 to
+    14.5 minutes for the four legs ahead of the browser one, with three of its
+    four runs killed by the clock mid-Playwright. 40 is p8-client's own number,
+    taken so that two branches editing that line converge instead of colliding.
+  - **The workflow stops depending on which PowerShell happens to be installed.**
+    Ruled at the same review. `&&` is a PowerShell 7 pipeline chain operator and
+    a parser error in Windows PowerShell 5.1, which is what a Windows runner falls
+    back to when pwsh is absent, and that same shell assumption has now broken
+    this project three times in one day. The shell is therefore declared on the
+    two steps carrying more than a bare command and on those alone, the other five
+    being single commands that parse identically everywhere. It is job
+    configuration in the sense 11.11 already admits for `runs-on`, and it is
+    form-neutral: pwsh ships on GitHub-hosted runners, so the text is identical on
+    both forms 11.11 admits. What it changes on the self-hosted form is that
+    PowerShell 7 becomes a stated prerequisite instead of a lucky accident, which
+    is the point of the ruling. Installing it is the owner's step and is now owed
+    before the runner's first job rather than merely recommended.
+  - A third boundary was crossed, on the same terms as the one above and
+    disclosed the same way. `.github/workflows/**` is Platform's owned path by
+    persona, and the Integration Steward edited `ci.yml` at this merge on the
+    owner's instruction, the two defects having been routed to the Steward for
+    authorisation and authorising them being the whole of what remained. Platform
+    may rewrite any of the wording; what it must not do is drop the guard, the
+    ceiling, or the declared shells. Recorded beside the other two so the count
+    reads three rather than two.
 - Merge rulings at the P3 merge, 2026-08-07. By the human owner, accepting all
   four recommendations of the endpoint shape review and transcribed onto
   frozen section 7: closing paragraphs on 7.7 and 7.8 settling that each of
