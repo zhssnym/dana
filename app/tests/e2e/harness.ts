@@ -154,10 +154,21 @@ export const seedSubs = {
  * cookies in the browser context, so the page under test is authenticated
  * before its first load.
  */
-export async function signIn(page: Page, sub: string, name?: string): Promise<void> {
-  const response = await page.request.post('/api/v1/auth/dev-login', {
-    data: name === undefined ? { sub } : { sub, name },
-  })
+export async function signIn(
+  page: Page,
+  sub: string,
+  name?: string,
+  email?: string,
+): Promise<void> {
+  // The email is named only where a criterion turns on it. 6 Q12 matches a
+  // pending invite to the viewer's lowercased address, so an account that is
+  // to receive one has to be provisioned at the address the invite was sent
+  // to; every other spec here leaves it to default off the sub, which is what
+  // keeps a seeded address from colliding on 4.1's unique email.
+  const body: Record<string, string> = { sub }
+  if (name !== undefined) body['name'] = name
+  if (email !== undefined) body['email'] = email
+  const response = await page.request.post('/api/v1/auth/dev-login', { data: body })
   expect(
     response.status(),
     `POST /api/v1/auth/dev-login for ${sub} is 11.10's session source for this leg; ` +
@@ -273,6 +284,130 @@ export async function transition(
     response.status(),
     `POST /tasks/${id}/${event} answered ${response.status()}: ${await response.text()}`,
   ).toBe(200)
+}
+
+/* ------------------------------------------------------------------ *
+ * The reminder the form writes (9.3, frozen 7.6 and 7.9)
+ * ------------------------------------------------------------------ */
+
+export interface StoredReminder {
+  offset_minutes: number | null
+  time_of_day: string | null
+}
+
+/** The task the form saved, found by the title the case typed into it. */
+export async function findTaskId(page: Page, title: string): Promise<string> {
+  const found = await page.request.get(
+    `/api/v1/search?q=${encodeURIComponent(title)}&tz=UTC`,
+  )
+  expect(
+    found.status(),
+    `GET /search answered ${found.status()}: ${await found.text()}`,
+  ).toBe(200)
+  const rows = ((await found.json()) as { rows: { id: string; title: string }[] }).rows.filter(
+    (row) => row.title === title,
+  )
+  expect(
+    rows.length,
+    `exactly one task is titled ${JSON.stringify(title)}; the server holds ${rows.length}. ` +
+      'A zero here is the save failing rather than the reminder failing',
+  ).toBe(1)
+  const row = rows[0]
+  if (row === undefined) throw new Error('unreachable: length asserted above')
+  return row.id
+}
+
+/**
+ * What the server holds for a task's reminder, read through frozen 7.0's
+ * TaskDetail rather than off the form. That is what makes AC-169 and AC-170
+ * discriminate: a client holding the value in memory and rendering it back
+ * into the form satisfies every assertion made against the form.
+ */
+export async function storedReminder(
+  page: Page,
+  taskId: string,
+): Promise<StoredReminder | null> {
+  const detail = await page.request.get(`/api/v1/tasks/${taskId}`)
+  expect(
+    detail.status(),
+    `GET /tasks/:id answered ${detail.status()}: ${await detail.text()}`,
+  ).toBe(200)
+  return ((await detail.json()) as { reminder: StoredReminder | null }).reminder
+}
+
+/**
+ * Sets the reminder the form is currently offering and reports what it holds.
+ *
+ * 9.3 gives the control two modes and this dispatches on the one that is
+ * there, the way `chooseOption` dispatches, so a case states a mode rather
+ * than a widget. The value comes back out of the control rather than being
+ * fixed here, which is what lets an assertion compare the stored row to the
+ * form instead of to a number this suite invented: 9.3 calls the offset
+ * control preset-driven and which presets it offers is the implementer's.
+ *
+ * `skip` lets a case ask for a different offset than one it already used,
+ * which is what AC-170's change arm needs.
+ */
+export async function setOfferedReminder(
+  page: Page,
+  skip?: string,
+): Promise<{ mode: 'offset_minutes' | 'time_of_day'; value: string }> {
+  const control = formField(page, 'reminder')
+  await expect(
+    control,
+    'spec 9.3: the reminder is visible when the form is expanded and enabled once a date is ' +
+      'set, so there is a control to offer a reminder through',
+  ).toBeVisible()
+
+  const tag = await control.evaluate((element) =>
+    String((element as unknown as { tagName?: string }).tagName ?? '').toLowerCase(),
+  )
+  if (tag === 'select') {
+    const value = await control.evaluate((element, avoid: string | undefined) => {
+      const select = element as unknown as { options: Iterable<{ value: string }> }
+      for (const option of select.options) {
+        if (option.value !== '' && option.value !== avoid) return option.value
+      }
+      return ''
+    }, skip)
+    expect(
+      value,
+      'spec 9.3: with a due time the reminder control is an offset picker, so it offers at ' +
+        'least one offset to pick' +
+        (skip === undefined ? '' : ', and at least two where a case changes one'),
+    ).not.toBe('')
+    await control.selectOption(value)
+    return { mode: 'offset_minutes', value }
+  }
+
+  const time = skip === '09:00' ? '17:30' : '09:00'
+  await fillControl(
+    control,
+    time,
+    'spec 9.3: without a due time the reminder control is a time-of-day picker',
+  )
+  return { mode: 'time_of_day', value: time }
+}
+
+/**
+ * Puts the reminder control back to holding nothing, whichever mode it is in.
+ * 9.3's removal is a person emptying the control, and frozen 7.9 makes the
+ * write behind it DELETE /tasks/:id/reminder, no task body expressing one.
+ */
+export async function clearOfferedReminder(page: Page): Promise<void> {
+  const control = formField(page, 'reminder')
+  await expect(
+    control,
+    'spec 9.3: the reminder control is on the form to be emptied',
+  ).toBeVisible()
+  const tag = await control.evaluate((element) =>
+    String((element as unknown as { tagName?: string }).tagName ?? '').toLowerCase(),
+  )
+  if (tag === 'select') {
+    await control.selectOption('')
+    return
+  }
+  await control.fill('')
 }
 
 /* ------------------------------------------------------------------ *
@@ -454,6 +589,27 @@ export function floatingAddButton(page: Page): Locator {
  */
 export function quickAddInput(page: Page): Locator {
   return page.getByRole('textbox', { name: 'Add a task', exact: true })
+}
+
+/**
+ * A named region of 9.1's sections rule, which is how a control inside a
+ * page section is addressed: that control within that region.
+ *
+ * The rule exists because qualifying controls does not scale where the data
+ * decides how many there are, and it earns its keep wherever section 9 names
+ * one control twice. The folder page is the case that forced it into this
+ * file: 9.6 puts an overflow menu in the header, which is a third control
+ * answering to "More actions" after the task form's and a task row's, and
+ * reaching it as the first match on the page is addressing by position,
+ * which this suite may not do. The second P8 change control named "Folder
+ * header" and "Sharing panel" for exactly that, declining a third name for
+ * the menu itself on the ground that the two named menus share their name
+ * deliberately.
+ *
+ * Exact, for the same reason every control match here is exact.
+ */
+export function regionOf(page: Page, name: string): Locator {
+  return page.getByRole('region', { name, exact: true })
 }
 
 /**
