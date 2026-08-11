@@ -10,7 +10,7 @@ Results are discriminated unions rather than thrown statuses, the P2 module's
 convention, so the route layer owns the mapping onto 7.0's taxonomy and this
 file stays testable without HTTP.
 
-One of the two seams this file opened at P3 is closed here, and one is not:
+Both seams this file opened at P3 are closed now, and both the same way:
 
 - **Generation (8.5) and G-SERIES (5.1)** are wired at P6. Neither is
   implemented here: both are the Scheduling engineer's functions, taken from
@@ -23,11 +23,16 @@ One of the two seams this file opened at P3 is closed here, and one is not:
   because a repeat call on an already-pending row is 5.1's no-op and must
   write nothing. The two companion fields the 7.6 envelope names, null since
   P3, are answered from those two calls.
-- **fire_at recomputation (8.6)** follows a due_date or assignee change.
-  P7 delivers the computation, 4.8's NOT NULL fire_at means no row can be
-  written without it, and at P3 a reminder row exists only where a test
-  seeded one. The clear-date cascade still deletes the row, because 8.4
-  deletes rather than computes.
+- **The 8.6 fire instant and its recompute triggers** are wired at P7, on the
+  same terms and by the reminders seam of the same file: planReminder answers
+  what a row about to be written must carry, recomputeReminders answers what a
+  row that already exists must become, and no arithmetic is restated here.
+  Four of 8.6's five triggers fire in this file, three inside patchTask
+  (due_date, due_time, assignee_id) and one inside the 7.9 upsert; the fifth
+  is the assignee's own timezone and fires in the auth module, where frozen
+  7.1 puts it. Each call is made after this file's own write and inside the
+  same transaction, which is the one thing a caller of that module can get
+  wrong silently: called first, it computes from the state the write replaced.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -38,12 +43,21 @@ import type {
   PatchTaskBody,
   PostTaskStepsBody,
   PostTasksBody,
+  PutTaskReminderBody,
+  ReminderInput,
   TaskCard,
   TaskDetail,
   TaskStatus,
   TaskStep,
 } from '../../shared/tasks.js'
-import { applySeriesGuard, generateSuccessor, today } from '../time/index.js'
+import {
+  applySeriesGuard,
+  generateSuccessor,
+  planReminder,
+  recomputeReminders,
+  today,
+} from '../time/index.js'
+import type { ReminderTrigger } from '../time/index.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
 import { accessOf } from './folders.js'
@@ -367,6 +381,153 @@ async function viewOrFail(
 }
 
 /* ------------------------------------------------------------------ *
+ * The 4.8 reminder row: frozen 7.9's two endpoints, and the arm both of
+ * 7.6's write bodies carry
+ * ------------------------------------------------------------------ */
+
+/*
+Three write paths reach the one row 4.8 keys by task_id: frozen 7.9's PUT,
+7.6's create body, and 7.6's PATCH body. They are one upsert and one guard
+below rather than three of each, for the reason 4.8 gives itself: the mode
+rule is "cross-table and enforced by the API, restated at every write", and
+restated is exactly where two call sites drift. AC-149's last case measures
+the drift by making the same request through two of the three doors and
+comparing the stored instants.
+*/
+
+/** 4.8's exclusive-or as the three write paths hand it over: exactly one of
+ * the two is non-null, which the schemas in src/shared have already checked. */
+interface ReminderMode {
+  offsetMinutes: number | null
+  timeOfDay: string | null
+}
+
+function modeOf(reminder: ReminderInput | PutTaskReminderBody): ReminderMode {
+  return {
+    offsetMinutes: reminder.offset_minutes,
+    timeOfDay: reminder.time_of_day,
+  }
+}
+
+/** A 422 the row answers rather than the body, carried out to the route so
+ * it names the field the way sendValidationError would. */
+export interface ReminderRefusal {
+  field: 'offset_minutes' | 'time_of_day'
+  problem: string
+}
+
+/*
+Frozen 7.9's two 422s, against the task as it will stand after this request's
+own writes. Both need a row and neither can be a schema rule: whether a
+reminder is legal at all depends on the task's due_date (INV-6, and 7.9's
+second refusal), and which mode is legal depends on the task's due_time
+(4.8). The create body is the one exception and answers both itself, because
+a create states those two columns in the same breath as the reminder.
+
+The field named is the mode the caller sent. Naming the pair instead would
+tell a client that something about its reminder is wrong without saying which
+half, and every other 10.3 message in this codebase names one field.
+
+The no-date refusal is checked first and covers both modes, not just the
+offset one: with no due_date the offset arm has no due_time INV-6 would
+permit, and the date-only arm has no date to attach its wall time to (AC-147).
+*/
+function reminderRefusal(
+  dueDate: string | null,
+  dueTime: string | null,
+  mode: ReminderMode,
+): ReminderRefusal | null {
+  const field = mode.offsetMinutes !== null ? 'offset_minutes' : 'time_of_day'
+  if (dueDate === null) {
+    return { field, problem: 'requires a due_date on the task (INV-6)' }
+  }
+  if (mode.offsetMinutes !== null && dueTime === null) {
+    return {
+      field,
+      problem: 'is the mode for a task with a due_time, and this task has none',
+    }
+  }
+  if (mode.timeOfDay !== null && dueTime !== null) {
+    return {
+      field,
+      problem: 'is the mode for a task without a due_time, and this task has one',
+    }
+  }
+  return null
+}
+
+/*
+The upsert all three write paths share, and the whole of what 7.9 means by
+"upserts the single row, computes fire_at, state resets to scheduled unless
+that instant is already past".
+
+The instant, the state and fired_at are planReminder's answer and are written
+together on both arms of the conflict. 4.8 makes fire_at NOT NULL, so there
+is no half-row to insert and compute after; and an upsert that carried the
+new instant across while leaving state and fired_at alone is the failure
+AC-148 pins, a row holding exactly the value the user asked for that will
+never fire again because it is still terminal from the last time it did.
+
+No recompute follows this call, and that is a decision rather than an
+omission. 8.6's reminder trigger and planReminder are two questions about one
+row, "what should it become" and "what should it be written as", and this
+path knows the second: recomputeReminders here would read back the row this
+statement just wrote and compute the identical answer from the identical
+columns. It would also take a second clock reading, so a reminder whose
+instant fell between the two calls could be scheduled by one and skipped by
+the other, which is one decision made twice at the only moment the two
+answers differ.
+
+**created_by is rewritten to the caller on the conflict arm**, and the column
+is the one thing here that no response reports, so the reason is recorded.
+8.6 reads it in exactly one place, as the fallback zone of an unassigned
+task, and the loop skips an unassigned task at fire time, so nothing
+observable turns on the choice either way; what turns on it is coherence.
+7.0 makes PUT idempotent, and rewriting is what makes the stored row a
+function of the request and the task alone: keeping the old value would make
+DELETE-then-PUT and PUT-over-the-row differ in a column, by history rather
+than by anything either caller said. It also keeps the row self-describing,
+since the instant above was computed in this caller's zone when the task is
+unassigned, and a row naming a different creator than the one its instant was
+computed from would be silently moved by the next recompute that touched it.
+And where the column is read, the better stand-in for a missing assignee is
+the member who just asked for this reminder and passed 10.2 a moment ago,
+rather than an earlier creator who may since have left the folder under
+R-CLEAN. 8.5's copy onto a generated successor keeps its source's created_by
+and is untouched by this: that is one reminder reproduced onto a new row, not
+a second actor replacing one.
+*/
+async function upsertReminder(
+  tx: Executor,
+  taskId: string,
+  mode: ReminderMode,
+  createdBy: string,
+): Promise<void> {
+  const plan = await planReminder(tx, {
+    taskId,
+    offsetMinutes: mode.offsetMinutes,
+    timeOfDay: mode.timeOfDay,
+    createdBy,
+  })
+  const firedAt = plan.firedAt === null ? null : plan.firedAt.toISOString()
+  await tx.execute(
+    sql`INSERT INTO reminders (task_id, offset_minutes, time_of_day, fire_at,
+                               state, fired_at, created_by)
+        VALUES (${taskId}::uuid, ${mode.offsetMinutes},
+                ${mode.timeOfDay}::time,
+                ${plan.fireAt.toISOString()}::timestamptz,
+                ${plan.state}, ${firedAt}::timestamptz, ${createdBy}::uuid)
+        ON CONFLICT (task_id) DO UPDATE
+           SET offset_minutes = EXCLUDED.offset_minutes,
+               time_of_day = EXCLUDED.time_of_day,
+               fire_at = EXCLUDED.fire_at,
+               state = EXCLUDED.state,
+               fired_at = EXCLUDED.fired_at,
+               created_by = EXCLUDED.created_by`,
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * POST /tasks
  * ------------------------------------------------------------------ */
 
@@ -438,6 +599,25 @@ export async function createTask(
     )
     const taskId = String(inserted[0]?.id)
 
+    /*
+    7.6's reminder arm, deferred at the P3 kickoff with the 8.6 instant that
+    4.8's NOT NULL fire_at demands and delivered here. It is written after the
+    task rather than beside it because the computation reads the row: the zone
+    is the assignee's, which the INV-5 forcing above may have chosen rather
+    than the body, and the dates are the ones just inserted.
+
+    Both of 7.9's guards are already answered, by the create body itself and
+    not by this file. A create states the task's due_date and due_time in the
+    same breath as the reminder, so the dependency and the mode are relations
+    between fields of one body, which is where the schema puts them and where
+    AC-149 measures them. Reaching the upsert with a shape 8.6 cannot compute
+    would mean that schema had stopped refusing it, and planReminder throws
+    rather than inventing an arm, which is the backstop this ordering wants.
+    */
+    if (body.reminder !== undefined && body.reminder !== null) {
+      await upsertReminder(tx, taskId, modeOf(body.reminder), viewerId)
+    }
+
     // 7.6's steps are a list of titles; 4.6's position is a sort key with
     // gaps allowed, so the create numbers them from one in the order sent.
     const titles = body.steps ?? []
@@ -464,6 +644,7 @@ export type PatchTaskResult =
   | { kind: 'unassign_single_member' }
   | { kind: 'time_without_date' }
   | { kind: 'rule_without_date' }
+  | { kind: 'reminder_refused'; refusal: ReminderRefusal }
 
 /*
 7.6's PATCH, one transaction, and every refusal returns before the first
@@ -503,6 +684,35 @@ Three derived rules ride along:
   membership the row can be readmitted to. Setting it null ends the series
   and writes nothing else, the date and the reminder staying, because 8.4's
   cascade runs the other way round only.
+
+The reminder is three more, all P7's and all in this one transaction:
+
+- **The mode cascade (8.4, one size down from the clear-date cascade above).**
+  Two PATCH edits move due_time across the line 4.8 draws and each leaves a
+  pair 4.8 calls illegal, so both delete the row: clearing due_time deletes an
+  offset reminder, and setting one on a date-only task deletes a time_of_day
+  reminder. A due_time that moves between two non-null values crosses no line,
+  invalidates no mode and deletes nothing; it is the ordinary recompute below,
+  and AC-164's third clause is the control that says so. Both deletes carry
+  the mode in their predicate as well as in the condition that reached them,
+  which costs nothing and makes the statement true on its own terms.
+- **The recompute (8.6), once.** Three of 8.6's five triggers are edits this
+  endpoint makes, and the answer is a function of the row as it stands after
+  the write, so a body moving all three is one call rather than three. Which
+  trigger it is named for is the first of due_date, due_time and assignee_id
+  that actually moved: the arithmetic cannot tell them apart, and the caller
+  that knows which field it wrote is the only party that does.
+  **Actually moved**, compared against the row rather than read off the body's
+  key set, because a recompute returns a delivered reminder to scheduled and a
+  PATCH rewriting due_time with the value it already held would then send the
+  same email a second time for an occasion that did not change.
+- **The reminder arm of the body (7.6, 7.9).** A reminder sent here is the
+  same upsert and the same guards the PUT uses, against the task as it stands
+  after this request's own column writes. It runs after the cascade, which 8.4
+  requires in those words: the delete precedes any recompute, because after it
+  there is no row to recompute and the callable throws on a shape it cannot
+  compute. And it stands in for the recompute rather than running beside it,
+  the upsert having computed from the same final row a recompute would read.
 */
 export async function patchTask(
   db: Db,
@@ -569,6 +779,29 @@ export async function patchTask(
       return { kind: 'rule_without_date' }
     }
 
+    /*
+    The task's due_time once this body has been applied, which is what both
+    the 8.4 cascade and 7.9's mode guard read. 8.4 nulls the column with the
+    date, so the clear-date arm decides it before the body's own field does.
+    Minutes are compared rather than strings: the write form of 4.11's time
+    admits HH:MM:00 for the same minute HH:MM names, and a spelling difference
+    is not a change any trigger fires on.
+    */
+    const finalDueTime = clearing
+      ? null
+      : patch.due_time !== undefined
+        ? minuteOf(patch.due_time)
+        : current.dueTime
+
+    // 4.8's mode rule and INV-6, in the direction only the row can answer.
+    // Refused before the first write, like every other refusal here: a
+    // request is one unit, so a body failing on any field applies none of it.
+    const reminder = patch.reminder === undefined ? null : modeOf(patch.reminder)
+    if (reminder !== null) {
+      const refusal = reminderRefusal(finalDueDate, finalDueTime, reminder)
+      if (refusal !== null) return { kind: 'reminder_refused', refusal }
+    }
+
     const sets: SQL[] = []
     if (patch.title !== undefined) sets.push(sql`title = ${patch.title}`)
     if (patch.notes !== undefined) sets.push(sql`notes = ${patch.notes}`)
@@ -612,10 +845,90 @@ export async function patchTask(
       await tx.execute(
         sql`DELETE FROM reminders WHERE task_id = ${taskId}::uuid`,
       )
+    } else if (patch.due_time !== undefined && finalDueTime !== current.dueTime) {
+      // 8.4's smaller sibling, both arms. Only a move across the null
+      // boundary invalidates a mode, so a time that moves from one value to
+      // another falls through to the recompute below (AC-164's third clause).
+      if (finalDueTime === null) {
+        await tx.execute(
+          sql`DELETE FROM reminders
+               WHERE task_id = ${taskId}::uuid AND offset_minutes IS NOT NULL`,
+        )
+      } else if (current.dueTime === null) {
+        await tx.execute(
+          sql`DELETE FROM reminders
+               WHERE task_id = ${taskId}::uuid AND time_of_day IS NOT NULL`,
+        )
+      }
+    }
+
+    if (reminder !== null) {
+      await upsertReminder(tx, taskId, reminder, viewerId)
+    } else {
+      const trigger = movedTrigger(taskId, patch, current, {
+        clearing,
+        finalDueTime,
+        finalAssigneeId:
+          assigneeId === undefined ? current.assigneeId : assigneeId,
+      })
+      if (trigger !== null) await recomputeReminders(tx, trigger)
     }
 
     return { kind: 'patched', task: await viewOrFail(tx, viewerId, taskId) }
   })
+}
+
+/** HH:MM, the form to_char reads a 4.11 time column back in. The write form
+ * admits a zero seconds field for the same minute, and a comparison against
+ * the stored value has to see one value there. */
+function minuteOf(time: string | null): string | null {
+  return time === null ? null : time.slice(0, 5)
+}
+
+/**
+ * Which of 8.6's task-scoped triggers this PATCH fired, or null for a body
+ * that moved none of them.
+ *
+ * One trigger for a body that moved several: recomputeReminders reads the row
+ * as it now stands, so the answer is the same whichever of them is named, and
+ * naming a second would compute the same instant twice.
+ *
+ * Two edits deliberately answer null. Clearing due_date is 8.4's cascade,
+ * which deleted the row a moment ago and leaves nothing to recompute; and a
+ * field rewritten with the value it already carried moved no deadline, no
+ * lead time and no recipient, so it is not one of the changes 8.6's trigger
+ * list names. That second one has teeth: the four task-scoped triggers revive
+ * a delivered reminder by design, so a recompute fired by a no-op write is a
+ * second copy of an email about an occasion nobody changed.
+ */
+function movedTrigger(
+  taskId: string,
+  patch: PatchTaskBody,
+  current: TaskAccess,
+  applied: {
+    clearing: boolean
+    finalDueTime: string | null
+    finalAssigneeId: string | null
+  },
+): ReminderTrigger | null {
+  if (
+    !applied.clearing &&
+    patch.due_date !== undefined &&
+    patch.due_date !== current.dueDate
+  ) {
+    return { kind: 'due_date', taskId }
+  }
+  if (
+    !applied.clearing &&
+    patch.due_time !== undefined &&
+    applied.finalDueTime !== current.dueTime
+  ) {
+    return { kind: 'due_time', taskId }
+  }
+  if (applied.finalAssigneeId !== current.assigneeId) {
+    return { kind: 'assignee_id', taskId }
+  }
+  return null
 }
 
 /* ------------------------------------------------------------------ *
@@ -1025,5 +1338,75 @@ export async function dropFromMyDay(
           WHERE task_id = ${taskId}::uuid AND user_id = ${viewerId}::uuid`,
     )
     return { kind: 'ok', task: await viewOrFail(tx, viewerId, taskId) }
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * PUT and DELETE /tasks/:id/reminder
+ * ------------------------------------------------------------------ */
+
+export type PutReminderResult =
+  | { kind: 'written'; task: TaskDetail }
+  | { kind: 'not_found' }
+  | { kind: 'refused'; refusal: ReminderRefusal }
+
+/**
+ * Frozen 7.9's PUT: the whole reminder, upserted, answering the affected
+ * TaskDetail by the owner's ruling of 2026-08-10.
+ *
+ * The row is locked before it is read, the reason patchTask locks: this
+ * decides from the task's due_date and due_time and then writes against them,
+ * and a PATCH arriving between the two would leave a reminder whose mode 4.8
+ * calls illegal, written by a guard that was true when it ran.
+ *
+ * Order is 10.2's and not this endpoint's preference: access first, so a
+ * caller outside the folder is answered 404 without learning whether their
+ * body would have been valid (AC-147's last case).
+ */
+export async function putTaskReminder(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  body: PutTaskReminderBody,
+): Promise<PutReminderResult> {
+  return inTransaction(db, async (tx) => {
+    const current = await lockedTask(tx, viewerId, taskId)
+    if (current === null) return { kind: 'not_found' }
+
+    const mode = modeOf(body)
+    const refusal = reminderRefusal(current.dueDate, current.dueTime, mode)
+    if (refusal !== null) return { kind: 'refused', refusal }
+
+    await upsertReminder(tx, taskId, mode, viewerId)
+    return { kind: 'written', task: await viewOrFail(tx, viewerId, taskId) }
+  })
+}
+
+/**
+ * Frozen 7.9's DELETE: 204, idempotent, and nothing else touched.
+ *
+ * Idempotent means the row's absence is not an error, so the resource this
+ * URL addresses is the task and the 404 is the task's alone: a second call,
+ * and a call against a task that never carried a reminder, both answer 204
+ * (AC-146). This is 7.8's DELETE shape rather than 7.6's, where a second
+ * delete of a task answers 404 because there the row named in the path is the
+ * one that went.
+ *
+ * It is emphatically not 8.4's cascade, which sits one line from it in 8.6's
+ * list of what removes a reminder: that one deletes the row because the date
+ * went, and this one leaves due_date, due_time and any rule exactly where
+ * they are.
+ */
+export async function deleteTaskReminder(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+): Promise<'deleted' | 'not_found'> {
+  return inTransaction(db, async (tx) => {
+    if ((await accessibleTask(tx, viewerId, taskId)) === null) {
+      return 'not_found'
+    }
+    await tx.execute(sql`DELETE FROM reminders WHERE task_id = ${taskId}::uuid`)
+    return 'deleted'
   })
 }
