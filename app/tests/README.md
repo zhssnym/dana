@@ -41,9 +41,9 @@ npx playwright test -g "AC-095"
 | P6 | AC-071 to AC-082 | Covered, passing since the grammar reached 7.6's write bodies, generation and G-SERIES reached the transition seams, and Q3C's virtual arm got its own fetch; written red before any of it existed |
 | P6 gate | AC-142, AC-143 | Covered, passing since the same four commits; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
 | P7 to P10 | AC-083 to AC-090, AC-101 to AC-104 | Not yet written |
-| P8 | AC-091 to AC-100 | Covered in the Playwright leg, every case red: `app/src/client` is P0's nineteen-line placeholder until this package's three implementing sessions run, which is the designed order |
-| P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered in the Playwright leg, red on the same ground. Those criteria stay in their own packages with their server halves green where they are |
-| P8 gate | AC-155 to AC-163, AC-165 to AC-167 | Covered in the Playwright leg, red on the same ground; proposed here with their tests and numbered by the section 12 amendment of 2026-08-11. The gaps at 154 and 164 belong to package P7 and are deliberate |
+| P8 | AC-091 to AC-100 | Covered, passing in the Playwright leg since the grouped run built the client; written red against P0's placeholder and green in the order that was designed |
+| P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered, passing in the Playwright leg. Those criteria stay in their own packages with their server halves green where they are |
+| P8 gate | AC-155 to AC-163, AC-165 to AC-167 | Covered, passing in the Playwright leg; proposed here with their tests and numbered by the section 12 amendment of 2026-08-11. The gaps at 154 and 164 belong to package P7 and are deliberate |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -523,6 +523,43 @@ Six things these files are written around.
   a UTC midnight in the seconds between the seed and the spec, which
   `middayZone()` avoids in the vitest leg and this one cannot, the seed's dates
   not being ours to choose.
+
+**Nine reds outlived the client and none of them was the client's.** The
+grouped run left them deliberately, no implementer phase being permitted to
+edit this directory, and each was measured passing in isolation before it was
+routed here. Eight were fixtures of two kinds, both of which this leg's own
+rules already forbade. Two asserted `getByText` on a word their own fixture
+title contained, and since that matcher takes a case-insensitive substring,
+the title answered alongside the chip; the titles carry neither word now. Six
+created a row whose title their file had already used, against a database the
+runner seeds once and never resets, so the second case of each pair resolved
+its locator to both rows. `caseTitle` tags a title with `testInfo.testId`,
+which is stable per case across runs and distinct between any two, so a
+case's rows are its own; the titles are locals rather than module constants,
+because a module constant is computed once per file and that is the scope
+that was too wide. Cleanup between cases was rejected: it would fight the
+single seed and the single worker rather than use them.
+
+A ninth surfaced only once the eight were repaired, and it is worth keeping
+for what it shows about addressing. AC-162 reached for the last "More
+actions" on the page, and 9.1's control table gives that name to the form's
+overflow menu and to a task row's alike, on purpose. Position was the only
+thing separating them, position is not a property this suite may address by,
+and it held only while the row inventory left the form's button last;
+changing the inventory landed the click on a row's menu behind the form's own
+scrim. It is scoped to the open dialog now, which is what actually
+distinguishes the two.
+
+The tenth red was a mechanism rather than a fixture. AC-100 faked a deploy on
+the wire with `context.route()` over the worker's script URL, and Playwright
+does not intercept the browser's fetch of a service worker script during
+`registration.update()`, so the script came back byte-identical and the
+affordance correctly never appeared. The deploy is real now: one comment
+appended to the file the page's own registration names, `update()` called,
+and the bytes restored in a `finally`. That is the event the criterion names
+rather than a picture of it, and a changed byte is a new version by the only
+rule the browser applies. It writes to `dist/client`, which is build output
+rather than source, gitignored and rebuilt at the start of every run.
 
 Two things this leg asserts that no single criterion could. `session-path.spec.ts`
 walks the sidebar through six pages, a folder and the search overlay and then
