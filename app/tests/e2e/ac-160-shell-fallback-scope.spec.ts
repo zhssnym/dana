@@ -1,10 +1,12 @@
 /*
-AC-160 (proposed): given a prior online load, then every /app path falls back
+AC-160: given a prior online load, then every /app path falls back
 to the cached shell offline while / does not.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 9.1's route table closes with the sentence this criterion is: "Every /app
 path falls back to the cached shell per 10.6; / does not." It is a rule the
@@ -51,7 +53,7 @@ test.afterEach(async ({ context }) => {
   await context.setOffline(false)
 })
 
-test.describe('AC-160 (proposed): what the cached shell answers for', () => {
+test.describe('AC-160: what the cached shell answers for', () => {
   test('AC-160: an unvisited /app path opens offline and / does not', async ({
     page,
     context,

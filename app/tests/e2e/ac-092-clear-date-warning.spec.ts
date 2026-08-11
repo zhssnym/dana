@@ -122,7 +122,7 @@ test.describe('AC-092: clearing the date in the task form', () => {
     // by the two words a confirm is spelled with, and the silence is
     // escalated rather than closed with an invented string.
     await clickControl(
-      page.getByRole('button', { name: /^(continue|clear|confirm|ok)$/i }),
+      page.getByRole('button', { name: 'Continue', exact: true }),
       'spec 9.3: the 8.4 warning is confirmed before it acts, so it offers a control that proceeds',
     )
 
@@ -196,7 +196,7 @@ test.describe('AC-092: clearing the date in the task form', () => {
       'spec 9.3: the warning precedes the clearing, so it is on the page to be declined',
     ).toBeVisible()
     await clickControl(
-      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
     )
 
@@ -306,7 +306,7 @@ test.describe('AC-092: clearing the date in the task form', () => {
     ).toBeVisible()
 
     await clickControl(
-      page.getByRole('button', { name: /^(continue|clear|confirm|ok)$/i }),
+      page.getByRole('button', { name: 'Continue', exact: true }),
       'spec 9.3: the 8.4 warning is confirmed before it acts, so it offers a control that proceeds',
     )
     for (const field of DEPENDENTS) {

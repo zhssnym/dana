@@ -1,11 +1,13 @@
 /*
-AC-163 (proposed): given the installed application's manifest, then it names
+AC-163: given the installed application's manifest, then it names
 Dana, displays standalone, starts at /app, and carries fetchable 192 and 512
 icons with a theme and a background color.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 10.6's first sentence is a list of five manifest facts and section 12 reaches
 none of them. AC-091 and AC-100 cover the service worker's two behaviors and
@@ -56,7 +58,7 @@ interface Manifest {
   icons?: { src: string; sizes?: string }[]
 }
 
-test.describe('AC-163 (proposed): the PWA manifest of 10.6', () => {
+test.describe('AC-163: the PWA manifest of 10.6', () => {
   test('AC-163: the manifest names Dana, stands alone and starts at /app', async ({
     page,
   }) => {

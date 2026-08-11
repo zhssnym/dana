@@ -1,13 +1,14 @@
 /*
-AC-155 (proposed): given folders with and without personal labels, then the
+AC-155: given folders with and without personal labels, then the
 sidebar pins Inbox first with its pending count, groups the labeled folders
 by label ascending, and lists the unlabeled folders after them by name
 ascending.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control to assign, from AC-154 onward because P7 is
-concurrently proposing AC-144 to AC-153 and merges first. See the header of
-`ac-154-quick-add-row.spec.ts` for the standard and the precedent.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 The rule is 9.1's folder list sentence and no numbered criterion asserts any
 part of it. It is worth a number for a reason the RFC 0001 P8 row states
@@ -112,7 +113,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-155 (proposed): the sidebar folder list', () => {
+test.describe('AC-155: the sidebar folder list', () => {
   test('AC-155: Inbox is pinned first, labels ascending, then unlabeled by name', async ({
     page,
   }) => {

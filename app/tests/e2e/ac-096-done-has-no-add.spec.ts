@@ -28,9 +28,14 @@ with the + button"). Asserted in the third test, which is where this file
 fails against an over-generalized rule that satisfies the criterion as
 written.
 
-The floating add button has no normative name, only 9.1's description and
-Q5's "+ button", so it is matched by description; the silence is escalated
-rather than closed here. See `harness.ts`.
+Both controls are addressed by the names 9.1's control table gave them at
+the P8 change control on 2026-08-11, "Add task" and "Add a task", and both
+matches are exact. Before that table this file matched descriptions and
+escalated the gap: the button by `/add/i`, which also catches the quick-add
+row and the steps editor's "Add step", and the row by "any text box that is
+not the search box". The second assertion below is the one the naming
+improved most, because it now states the criterion, no quick-add row on
+Done, where it used to state a proxy for it, no text entry of any kind.
 
 Spec: 9.1 (the floating add button and the quick-add row), 9.5 (Done), 6 Q6,
 9.1's route table.
@@ -40,11 +45,11 @@ import { expect, test } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   floatingAddButton,
+  quickAddInput,
   routes,
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  textInputs,
 } from './harness.js'
 
 // The seed's dated rows are UTC dates and the client reports the browser's
@@ -78,17 +83,17 @@ test.describe('AC-096: Done carries no add affordance', () => {
   test('AC-096: the quick-add row is on Tasks and not on Done', async ({ page }) => {
     await page.goto(routes.tasks)
     await expect(
-      textInputs(page).first(),
-      'spec 9.1 puts an inline quick-add row at the bottom of every Tasks group, so Tasks ' +
-        'carries a text input that is not the global search control',
+      quickAddInput(page).first(),
+      'spec 9.1 puts an inline quick-add row at the bottom of every Tasks group, and the 9.1 ' +
+        'control table names its input "Add a task"',
     ).toBeVisible()
 
     await page.goto(routes.done)
     await expect(
-      textInputs(page),
+      quickAddInput(page),
       'spec 9.1 lists the quick-add row on Tasks groups, the Planned list and folder ' +
-        'sections, and 9.5 forbids any add affordance on Done, so Done carries no text entry ' +
-        'other than the global search control',
+        'sections, and 9.5 forbids any add affordance on Done, so no control named "Add a ' +
+        'task" is on this page',
     ).toHaveCount(0)
   })
 

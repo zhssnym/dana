@@ -1,11 +1,13 @@
 /*
-AC-158 (proposed): given an account with no tasks, then each page renders the
+AC-158: given an account with no tasks, then each page renders the
 empty-state copy section 6 gives it, the My Day recap is hidden rather than
 empty, and the calendar shows the bare grid with no message.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 Section 9's preamble gives every page five states and names the empty one;
 section 6 writes the copy for eight of them, sentence by sentence, each
@@ -53,7 +55,7 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const EMPTY_SUB = 'ac-158-account-with-nothing-in-it'
 
-test.describe('AC-158 (proposed): the empty state of every page', () => {
+test.describe('AC-158: the empty state of every page', () => {
   test('AC-158: each page carries its own empty copy from section 6', async ({ page }) => {
     await signIn(page, EMPTY_SUB, 'Ac158 Empty')
 

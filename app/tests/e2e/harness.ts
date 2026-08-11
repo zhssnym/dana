@@ -392,37 +392,35 @@ export function sidebarLink(page: Page, name: string): Locator {
 }
 
 /**
- * The floating add button of 9.1.
+ * The floating add button of 9.1, named "Add task" by the 9.1 control table
+ * added at the P8 change control on 2026-08-11.
  *
- * Section 9 names this control without naming it: "Floating add button" is
- * its description in 9.1 and Q5's empty state calls it "the + button", so
- * unlike "New folder" or "Remove from My Day" there is no string to spell
- * back. The match is therefore on the description, and the silence is
- * escalated rather than closed here with an invented name. Every assertion
- * about this control's absence is paired with the same matcher finding it
- * on a page that must have it, so a matcher that finds nothing anywhere
- * fails loudly instead of passing as an absence.
- *
- * Narrowed to the first match rather than left plural, so that a page
- * carrying both this control and a named "Add" button inside a quick-add row
- * is a page this helper can still click. Counting is unaffected: the first
- * match of nothing is nothing, so an absence still reads as zero.
+ * Exact, and this is the one place in this file where exactness is the whole
+ * point rather than good practice. Until that table landed this matched
+ * `/add/i` on a description, because Q5 called the control "the + button" and
+ * nothing spelled a name; that regex also matches "Add a task" and "Add
+ * step", which are two other controls of the same section, and matching
+ * loosely now would put back precisely the collision the naming removed.
+ * 9.1's own paragraph says as much: "Add task" was chosen to separate this
+ * control from the quick-add row beneath it on the same page.
  */
 export function floatingAddButton(page: Page): Locator {
-  return page.getByRole('button', { name: /add/i }).first()
+  return page.getByRole('button', { name: 'Add task', exact: true })
 }
 
 /**
- * Any text entry on the page other than the global search control of 9.1,
- * which every page carries and which is therefore never the quick-add row.
+ * The inline quick-add row of 9.1, named "Add a task", the words the design
+ * brief already used for it.
  *
- * Excluded by accessible name, which is the only thing that distinguishes
- * them: an input element has no text content, so filtering on text would
- * exclude nothing at all and the search box would count as a quick-add row
- * on every page.
+ * This replaces a helper that matched every text box whose name did not
+ * contain "search", which was the best available reading while the row had
+ * no name: an input carries no text content, so nothing but the name
+ * distinguishes a quick-add row from a rename field or a search box. The
+ * name makes that exact, and it makes AC-096's absence assertion say what
+ * the criterion says rather than "no text entry of any kind".
  */
-export function textInputs(page: Page): Locator {
-  return page.getByRole('textbox', { name: /^(?!.*search).*$/is })
+export function quickAddInput(page: Page): Locator {
+  return page.getByRole('textbox', { name: 'Add a task', exact: true })
 }
 
 /**

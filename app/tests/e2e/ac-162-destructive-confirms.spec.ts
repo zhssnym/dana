@@ -1,11 +1,13 @@
 /*
-AC-162 (proposed): given each destructive action section 9 puts a confirm on,
+AC-162: given each destructive action section 9 puts a confirm on,
 then the confirm carries that section's copy and declining it performs
 nothing.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 Section 9 writes four confirmations word for word and section 12 asserts
 none of them. They are not decoration. Three of the four describe an effect
@@ -77,7 +79,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-162 (proposed): the four confirms of section 9', () => {
+test.describe('AC-162: the four confirms of section 9', () => {
   test('AC-162: abandoning from My Day carries 9.4\'s copy and declining does nothing', async ({
     page,
   }) => {
@@ -91,7 +93,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
 
     await page.goto(routes.myDay)
     await clickControl(
-      taskRow(page, title).getByRole('button', { name: /more|overflow|options/i }),
+      taskRow(page, title).getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.4: a row carries an overflow menu',
     )
     await clickControl(
@@ -107,7 +109,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     ).toBeVisible()
 
     await clickControl(
-      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
     )
     expect(
@@ -132,7 +134,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     )
     // 9.3: delete lives in the form's overflow menu.
     await clickControl(
-      page.getByRole('button', { name: /more|overflow|options/i }).last(),
+      page.getByRole('button', { name: 'More actions', exact: true }).last(),
       'spec 9.3: the task form carries an overflow menu, which is where delete lives',
     )
     await clickControl(
@@ -147,7 +149,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     ).toBeVisible()
 
     await clickControl(
-      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
     )
     expect(
@@ -188,7 +190,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
 
     await page.goto(routes.folder(folder.id))
     await clickControl(
-      page.getByRole('button', { name: /more|overflow|options/i }).first(),
+      page.getByRole('button', { name: 'More actions', exact: true }).first(),
       'spec 9.6: the folder header carries an overflow menu with rename, label, leave and delete',
     )
     await clickControl(
@@ -209,7 +211,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     ).toBeVisible()
 
     await clickControl(
-      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
     )
     const after = await page.request.get(`/api/v1/folders/${folder.id}`)
@@ -247,7 +249,7 @@ test.describe('AC-162 (proposed): the four confirms of section 9', () => {
     ).toBeVisible()
 
     await clickControl(
-      page.getByRole('button', { name: /^(cancel|keep|no)$/i }),
+      page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
     )
     expect(

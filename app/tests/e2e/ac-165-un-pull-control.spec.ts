@@ -1,12 +1,14 @@
 /*
-AC-165 (proposed): given a My Day row whose inclusion came from an entry,
+AC-165: given a My Day row whose inclusion came from an entry,
 then it carries "Remove from My Day"; given one that also qualifies
 automatically, then it does not, and using the control removes the row at
 once.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 9.4's row list gives the un-pull control a name and a condition in the same
 clause: "pulled marker with un-pull control when inclusion came from an
@@ -60,7 +62,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-165 (proposed): the un-pull control', () => {
+test.describe('AC-165: the un-pull control', () => {
   test('AC-165: a row on My Day only by its entry carries the control', async ({ page }) => {
     const task = await createTask(page, {
       title: PULLED_ONLY,

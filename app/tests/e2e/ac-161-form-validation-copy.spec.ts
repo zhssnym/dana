@@ -1,11 +1,13 @@
 /*
-AC-161 (proposed): given the task form, then an empty title shows "Give it a
+AC-161: given the task form, then an empty title shows "Give it a
 title", an over-limit field shows "Too long: limit N characters", and the
 steps editor shows its cap notice at fifty and appends no more rows.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 9.3's validation paragraph is three rules and section 12 covers none of them.
 The server halves are green: AC-043 refuses a fifty-first step, 10.3's limits
@@ -69,7 +71,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-161 (proposed): the form says why it will not save', () => {
+test.describe('AC-161: the form says why it will not save', () => {
   test('AC-161: an empty title shows the copy of 9.3', async ({ page }) => {
     await page.goto(routes.tasks)
     await clickControl(
@@ -79,7 +81,7 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
     )
 
     await clickControl(
-      page.getByRole('button', { name: /^(save|add|create|done)$/i }),
+      page.getByRole('button', { name: 'Save', exact: true }),
       'spec 9.3: the form is committed by a control, which is what its validation copy answers',
     )
 
@@ -110,7 +112,7 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
       'spec 9.3: title is always visible on the form',
     )
     await clickControl(
-      page.getByRole('button', { name: /^(save|add|create|done)$/i }),
+      page.getByRole('button', { name: 'Save', exact: true }),
       'spec 9.3: the form is committed by a control, which is what its validation copy answers',
     )
 
@@ -187,7 +189,7 @@ test.describe('AC-161 (proposed): the form says why it will not save', () => {
         'cap is there; the copy is escalated to the Steward',
     ).toBeVisible()
     await expect(
-      page.getByRole('button', { name: /^(add step|new step|add a step)$/i }),
+      page.getByRole('button', { name: 'Add step', exact: true }),
       'spec 10.3 and AC-043: a fifty-first step answers 422, so an editor that still offers ' +
         'to append one is offering something the server refuses. 7.11 files this under client ' +
         'convenience, which is why it needs measuring rather than why it does not',

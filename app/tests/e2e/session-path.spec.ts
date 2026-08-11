@@ -50,6 +50,7 @@ import {
   checkControl,
   clickControl,
   fillControl,
+  quickAddInput,
   routes,
   seedIds,
   seedSubs,
@@ -57,7 +58,6 @@ import {
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  textInputs,
   tzOf,
   watchWire,
 } from './harness.js'
@@ -151,7 +151,7 @@ test.describe('The signed-in path', () => {
     // This file's own row, so nothing seeded transitions.
     const title = 'session path completes this one'
     await page.goto(routes.tasks)
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,
       title,

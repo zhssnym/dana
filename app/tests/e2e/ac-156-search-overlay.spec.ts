@@ -1,12 +1,14 @@
 /*
-AC-156 (proposed): given the search overlay of 9.9, then both shortcuts open
+AC-156: given the search overlay of 9.9, then both shortcuts open
 it, the input debounces at 300 ms, results render grouped under Pending,
 Abandoned and Completed, enter opens the first result, and the footer carries
 its copy.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 9.9 is nine lines and every one of them states a rule; section 12 asserts
 none of them, and AC-057, AC-127, AC-128 and AC-131 between them cover the
@@ -69,7 +71,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-156 (proposed): the search overlay', () => {
+test.describe('AC-156: the search overlay', () => {
   test('AC-156: both shortcuts of 9.1 open the overlay', async ({ page }) => {
     await page.goto(routes.myDay)
 
@@ -90,7 +92,7 @@ test.describe('AC-156 (proposed): the search overlay', () => {
     await page.keyboard.press('Escape')
 
     await clickControl(
-      page.getByRole('button', { name: /search/i }),
+      page.getByRole('button', { name: 'Search', exact: true }),
       'spec 9.1: the top bar carries a global search control, which 9.9 says opens the overlay',
     )
     await expect(

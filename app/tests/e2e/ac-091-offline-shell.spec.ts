@@ -46,12 +46,12 @@ import {
   copy,
   expectServiceWorkerControl,
   fillControl,
+  quickAddInput,
   routes,
   seedIds,
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  textInputs,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -121,7 +121,7 @@ test.describe('AC-091: the installed app opens offline', () => {
     // 9.1's quick-add row: a single title input, enter saves immediately.
     // The shortest write path the specification offers, and the one that
     // needs no dialog to reach.
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await expect(
       quickAdd,
       'spec 9.1 puts an inline quick-add row at the bottom of Tasks groups, and 10.6 ' +

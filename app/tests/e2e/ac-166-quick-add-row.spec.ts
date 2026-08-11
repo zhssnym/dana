@@ -1,16 +1,16 @@
 /*
-AC-154 (proposed): given the inline quick-add row of 9.1, when a title is
+AC-166: given the inline quick-add row of 9.1, when a title is
 typed and enter pressed, then the task is created immediately with that
 entry point's defaults; when escape is pressed, then the input clears and
 nothing is created.
 
-**The number is provisional.** This criterion is authored on the P8 branch
-with its test, the way AC-125 to AC-131, AC-133 to AC-140 and AC-142 were
-authored on theirs, and the mid-package change control assigns whatever it
-accepts. It is numbered from AC-154 rather than AC-144 because package P7 is
-concurrently proposing AC-144 to AC-153 on its own branch and merges first;
-P7's numbering is not final either, so both sides are provisional and the
-Steward reconciles them.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now, transcribed
+unchanged. This file proposed AC-154 and carries AC-166: package P7 had by then
+assigned AC-154 in the other tree, and renumbering a criterion another branch
+has already assigned is the one move that would make appending unsafe. The
+gap this leaves at 154 in this range is deliberate and section 12 records
+why.
 
 The standard it is offered under is the one those three batches were
 admitted under: a rule the specification states that no numbered criterion
@@ -36,6 +36,7 @@ import type { Page } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   fillControl,
+  quickAddInput,
   routes,
   seedDate,
   seedIds,
@@ -43,7 +44,6 @@ import {
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  textInputs,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -75,14 +75,14 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-154 (proposed): the inline quick-add row', () => {
-  test('AC-154: enter on Tasks saves immediately, undated, in that group\'s folder', async ({
+test.describe('AC-166: the inline quick-add row', () => {
+  test('AC-166: enter on Tasks saves immediately, undated, in that group\'s folder', async ({
     page,
   }) => {
     const title = 'ac-154 tasks quick add'
     await page.goto(routes.tasks)
 
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,
       title,
@@ -120,11 +120,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     ).toBe('Inbox')
   })
 
-  test('AC-154: enter on the Planned list saves the task dated today', async ({ page }) => {
+  test('AC-166: enter on the Planned list saves the task dated today', async ({ page }) => {
     const title = 'ac-154 planned quick add'
     await page.goto(routes.planned)
 
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,
       title,
@@ -150,11 +150,11 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     expect(card.important, 'spec 9.3: important is off at this entry point').toBe(false)
   })
 
-  test('AC-154: escape clears the input and creates nothing', async ({ page }) => {
+  test('AC-166: escape clears the input and creates nothing', async ({ page }) => {
     const title = 'ac-154 escaped and never created'
     await page.goto(routes.tasks)
 
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,
       title,
@@ -174,7 +174,7 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     ).toEqual([])
   })
 
-  test('AC-154: a folder page adds into that folder', async ({ page }) => {
+  test('AC-166: a folder page adds into that folder', async ({ page }) => {
     const title = 'ac-154 folder quick add'
     await page.goto(routes.folder(seedIds.groceries))
 
@@ -182,7 +182,7 @@ test.describe('AC-154 (proposed): the inline quick-add row', () => {
     // folder, so the folder column of 9.3's table holds for whichever row
     // this is. The due date differs between them and is the cell escalated
     // at AC-093, so it is not asserted here.
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,
       title,

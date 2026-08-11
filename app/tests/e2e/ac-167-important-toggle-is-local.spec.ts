@@ -1,11 +1,15 @@
 /*
-AC-164 (proposed): given the important-only toggle on My Day, then it filters
+AC-167: given the important-only toggle on My Day, then it filters
 the rows already fetched and issues no request, and turning it off restores
 them without one either.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now, transcribed
+unchanged. This file proposed AC-164 and carries AC-167: package P7 had by then
+assigned AC-164 in the other tree, and renumbering a criterion another branch
+has already assigned is the one move that would make appending unsafe. The
+gap this leaves at 164 in this range is deliberate and section 12 records
+why.
 
 Q1's closing line is the rule: "The important toggle is a client-side filter
 to important = true within already-fetched groups; it changes no query." Two
@@ -55,8 +59,8 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 const PLAIN = 'ac-164 due today and not important'
 const STARRED = 'ac-164 due today and important'
 
-test.describe('AC-164 (proposed): the important-only toggle is local', () => {
-  test('AC-164: toggling filters the fetched rows and sends nothing', async ({ page }) => {
+test.describe('AC-167: the important-only toggle is local', () => {
+  test('AC-167: toggling filters the fetched rows and sends nothing', async ({ page }) => {
     const wire = watchWire(page)
     await signIn(page, seedSubs.hassan)
 
@@ -118,7 +122,7 @@ test.describe('AC-164 (proposed): the important-only toggle is local', () => {
     ).toBe(before)
   })
 
-  test('AC-164: toggling back restores the rows without a refetch', async ({ page }) => {
+  test('AC-167: toggling back restores the rows without a refetch', async ({ page }) => {
     const wire = watchWire(page)
     await signIn(page, seedSubs.hassan)
     await createTask(page, {

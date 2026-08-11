@@ -1,11 +1,13 @@
 /*
-AC-159 (proposed): given the landing page at /, then it describes the
+AC-159: given the landing page at /, then it describes the
 shipping product with one "Continue with Google" button and privacy and
 terms links, and makes no AI claim anywhere.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 9.2 is one paragraph and four rules, and section 12 reaches the section
 exactly once, at AC-008, which asserts the rejection page 9.2 also carries
@@ -51,7 +53,7 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
  */
 const AI_CLAIM = /\bAI\b|\bA\.I\.|artificial intelligence|machine learning|\bLLM\b|\bGPT\b|AI-powered/i
 
-test.describe('AC-159 (proposed): the landing page of 9.2', () => {
+test.describe('AC-159: the landing page of 9.2', () => {
   test('AC-159: one Continue with Google button, privacy and terms links', async ({
     browser,
   }) => {

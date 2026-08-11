@@ -1,11 +1,13 @@
 /*
-AC-157 (proposed): given a mutation the server refuses with 409, then the
+AC-157: given a mutation the server refuses with 409, then the
 page shows the state machine copy of 5.1 verbatim rather than the general
 error toast.
 
-**The number is provisional**, authored on this branch with its test for the
-mid-package change control, from AC-154 onward because P7 is concurrently
-proposing AC-144 to AC-153 and merges first. See `ac-154-quick-add-row.spec.ts`.
+Numbered by the Integration Steward at P8's mid-package change control on
+2026-08-11, so the sentence above is section 12's own text now; it is
+transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
+precedent for a batch authored on the branch and numbered additively so
+nothing already written moves.
 
 9.1's last line states two rules in one sentence and section 12 asserts
 neither: failed requests show "Something went wrong. Nothing was saved. Try
@@ -41,13 +43,13 @@ import {
   copy,
   createTask,
   fillControl,
+  quickAddInput,
   routes,
   seedIds,
   seedSubs,
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  textInputs,
   transition,
 } from './harness.js'
 
@@ -56,7 +58,7 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
+test.describe('AC-157: a 409 shows 5.1\'s copy', () => {
   test('AC-157: completing a task another member abandoned shows 5.1\'s copy', async ({
     page,
     browser,
@@ -124,7 +126,7 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
 
     // 9.4's overflow menu carries abandon, with the confirm of that section.
     await clickControl(
-      taskRow(page, title).getByRole('button', { name: /more|overflow|options/i }),
+      taskRow(page, title).getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.4: a row carries an overflow menu',
     )
     await clickControl(
@@ -133,7 +135,7 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
       "spec 9.4: the row's overflow menu carries edit, abandon and delete",
     )
     await clickControl(
-      page.getByRole('button', { name: /^(abandon|continue|confirm|ok)$/i }),
+      page.getByRole('button', { name: 'Continue', exact: true }),
       'spec 9.4: abandoning confirms first, so the dialog offers a control that proceeds',
     )
 
@@ -169,7 +171,7 @@ test.describe('AC-157 (proposed): a 409 shows 5.1\'s copy', () => {
       })
     })
 
-    const quickAdd = textInputs(page).first()
+    const quickAdd = quickAddInput(page).first()
     await fillControl(
       quickAdd,
       'ac-157 a request that fails',
