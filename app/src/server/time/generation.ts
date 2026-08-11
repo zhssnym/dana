@@ -159,7 +159,7 @@ export async function generateSuccessor(
   of it, including which of 8.6's two zone arms applies, is
   copyReminderToSuccessor's.
   */
-  await copyReminderToSuccessor(tx, request.taskId, successorId)
+  await copyReminderToSuccessor(tx, request.taskId, successorId, request.at)
 
 
   // 8.5: the rule lives only on the current occurrence, and the current

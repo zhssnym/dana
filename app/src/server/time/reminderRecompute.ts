@@ -5,13 +5,22 @@
 reminders seam of docs/team/README.md states the tiebreaker in the words this
 file exists to satisfy: this role owns all five triggers as a callable, never
 as arithmetic the callers restate, and every caller invokes it inside its own
-transaction. Four of the five fire inside the Collaboration engineer's paths
-(due_date, due_time and assignee_id through PATCH /tasks/:id, and the
-reminder's own value and mode through PUT /tasks/:id/reminder), and the fifth
-fires inside the Security engineer's auth module, at the login sync and at
-PATCH /me, which frozen 7.1 charges with the recompute in its own text. Five
-call sites restating one computation is five chances to disagree about a
-timezone, and the two that disagreed would differ by an hour twice a year.
+transaction. Call sites restating one computation is one chance per site to
+disagree about a timezone, and two that disagreed would differ by an hour
+twice a year.
+
+**Four of 8.6's five triggers reach this file; the fifth is answered by the
+write itself.** Three fire inside the Collaboration engineer's PATCH
+/tasks/:id, for due_date, due_time and assignee_id, and one inside the
+Security engineer's auth module, at the login sync and at PATCH /me, which
+frozen 7.1 charges with the recompute in its own text. The trigger for the
+reminder's own value and mode reaches no call site here, and deliberately: all
+three paths that write a reminder share one upsert, and that upsert asks
+planReminder below what to store, so the row already holds the answer this
+file would recompute. A recompute after it would re-read the row just written
+and take a second clock reading, and an instant falling between the two calls
+would be scheduled by one and skipped by the other, which is one decision made
+twice at exactly the moment the two answers differ.
 
 **The caller owns the transaction, and calls after its own write.** Nothing
 here opens a transaction, the shape of P5's deleteAccountData(tx, userId) and
@@ -72,9 +81,15 @@ export type ReminderTrigger =
   | { readonly kind: 'due_date'; readonly taskId: string }
   /** PATCH /tasks/:id moved due_time. */
   | { readonly kind: 'due_time'; readonly taskId: string }
-  /** PUT /tasks/:id/reminder changed the reminder's own value or mode, on a
-   * row that already existed. A first write uses planReminder below, the row
-   * having no instant to recompute yet. */
+  /** The reminder's own value or mode changed. 8.6 names this trigger, so the
+   * union names it, but no production caller constructs it and none should:
+   * every path that writes a reminder goes through one upsert that stores
+   * planReminder's answer, so the row is already correct when the write
+   * returns, and the ON CONFLICT branch draws no line between a first write
+   * and an overwrite that this arm could sit on. Kept rather than dropped
+   * because a union naming four of five triggers is the worse lie, and the
+   * recompute handles it correctly for any caller that ever needs it: the
+   * unit tests exercise it, and that is where it is exercised. */
   | { readonly kind: 'reminder'; readonly taskId: string }
   /** PATCH /tasks/:id moved assignee_id, in either direction. This is the one
    * trigger that changes the zone rather than a local time inside one. */
@@ -421,17 +436,37 @@ async function recomputeForZoneChange(
  * fresh 8.6 computation over the successor's own due date, which is exactly
  * what the arm was waiting for.
  *
- * 8.5 writes state='scheduled' flatly and this follows it rather than 8.6's
- * past-instant rule, which governs the five triggers and does not list
- * generation among them. The two only disagree where a successor's instant is
- * already past, which needs an offset measured in days against a rule whose
- * next instance is tomorrow; there the loop's own six-hour staleness rule
- * settles it on the first pass, which is the same answer one tick later.
+ * The row is written with the state its instant earns, which is planReminder's
+ * answer and not this function's to name. 8.6 now defines that rule once for
+ * every path that writes the column, and 8.5's own line reads that fire_at and
+ * state are both per 8.6.
+ *
+ * This function used to write 'scheduled' flatly, following 8.5's pseudocode
+ * before the third change control amended it, and defended the override here
+ * on the ground that the delivery loop reaches the same answer one tick later.
+ * That defence was true beyond six hours and exactly inverted inside them,
+ * which is the window ordinary values land in: the loop selects scheduled rows
+ * with fire_at <= now() and skips only what is more than six hours stale, so a
+ * daily task due 09:00 whose reminder leads by a day, completed at 10:00, puts
+ * the successor's instant an hour back and the next tick mails a reminder for
+ * a deadline that has not arrived. The argument is recorded rather than
+ * deleted because what made it wrong was its shape: a path that computes an
+ * instant and then names a state instead of reading the one the instant earns.
+ * AC-168 pins it.
+ *
+ * `at` is the moment "already past" is measured against, and it is threaded
+ * from generateSuccessor's own parameter rather than read here. Until the
+ * state became a function of the instant this argument had nothing to decide,
+ * so its absence was invisible: a caller stating the instant it evaluates
+ * today at, which generateSuccessor documents as its whole reason for taking
+ * one, would have had that opinion honored for the successor's due date and
+ * silently ignored for its reminder's state.
  */
 export async function copyReminderToSuccessor(
   tx: Executor,
   sourceTaskId: string,
   successorTaskId: string,
+  at?: Date,
 ): Promise<ReminderPlan | null> {
   const found = await rowsOf(
     tx,
@@ -450,14 +485,21 @@ export async function copyReminderToSuccessor(
     offsetMinutes: integer(source.offset_minutes),
     timeOfDay: text(source.time_of_day),
     createdBy,
+    at,
   })
+  const firedAt = plan.firedAt === null ? null : plan.firedAt.toISOString()
   await tx.execute(
     sql`INSERT INTO reminders (task_id, offset_minutes, time_of_day, fire_at,
                                state, fired_at, created_by)
         VALUES (${successorTaskId}::uuid, ${integer(source.offset_minutes)},
                 ${text(source.time_of_day)}::time,
                 ${plan.fireAt.toISOString()}::timestamptz,
-                'scheduled', NULL, ${createdBy}::uuid)`,
+                ${plan.state}, ${firedAt}::timestamptz, ${createdBy}::uuid)`,
   )
-  return { ...plan, state: 'scheduled', firedAt: null }
+  // Returned as planned rather than as amended. The overwrite that used to sit
+  // here outlived the INSERT's own override in every earlier draft of this
+  // fix, which is the shape of the defect repeating one line down: a caller
+  // reading this object would have been told scheduled about a row the
+  // database correctly holds skipped.
+  return plan
 }

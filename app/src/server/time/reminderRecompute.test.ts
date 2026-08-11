@@ -2,12 +2,17 @@
 8.6's five recompute triggers, against a real database.
 
 The acceptance range exercises these through PATCH /tasks/:id, PUT
-/tasks/:id/reminder and the auth module's timezone sync, none of which exists
-yet: the four task-scoped call sites are the Collaboration engineer's and the
-fifth is the Security engineer's, both later sessions on this branch. This
-file drives the callable directly, so a defect in the arithmetic or in the
-state rules is reported as itself rather than as a wrong response body two
-layers up. generation.test.ts covers the sixth caller, 8.5's copy.
+/tasks/:id/reminder and the auth module's timezone sync, which are the
+Collaboration engineer's and the Security engineer's and have since landed on
+this branch. This file drives the callable directly, so a defect in the
+arithmetic or in the state rules is reported as itself rather than as a wrong
+response body two layers up.
+
+8.5's copy is exercised both ways: generation.test.ts reaches it through
+generateSuccessor, which is how a real caller reaches it and which discards its
+return value, and the last block here calls it directly for the sake of that
+return value, which no acceptance test can see and which the third change
+control found falsified.
 
 Every case runs inside a transaction, the way every real caller must, and
 every zone here is DST-free and long stable except where a case is about a
@@ -28,6 +33,7 @@ import { createTestDb, rows } from '../../../tests/helpers.js'
 import { inTransaction } from '../domain/db.js'
 
 import {
+  copyReminderToSuccessor,
   planReminder,
   recomputeReminders,
 } from './reminderRecompute.js'
@@ -721,5 +727,146 @@ describe('the assignee timezone trigger', () => {
       '2026-07-28 09:30',
     )
     expect((await readReminder(sound))?.fire_at).toBe('2026-07-29 19:00')
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * 8.5's copy, and the plan it reports
+ * ------------------------------------------------------------------ */
+
+describe("8.5's copy onto a successor", () => {
+  /*
+  The row this writes is asserted end to end by AC-168 and by AC-150. What is
+  asserted here and nowhere else is the value it returns, which the third
+  change control recorded as falsified alongside the INSERT: the function
+  computed a state, wrote 'scheduled' anyway, and then handed its caller a plan
+  amended to match the wrong write. AC-168's own header explains why the
+  acceptance range cannot reach it, no response in section 7 carrying a
+  reminder's state, and routes it here, which is where protocol section 8 puts
+  a module's own return values.
+
+  copyReminderToSuccessor takes no evaluation instant, unlike planReminder and
+  recomputeReminders, so these cases reach past and future by choosing the
+  successor's due date rather than by moving a clock. They are days out rather
+  than the hour AC-168 uses, and deliberately: that file lands its fixtures
+  inside the loop's six-hour staleness window because it runs a pass and the
+  window is the whole point there. Nothing here runs a pass, so the window is
+  not in play and distance from now buys robustness instead.
+  */
+  function dateDaysFromNow(days: number): string {
+    return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+  }
+
+  async function stageCopy(
+    successorDueDate: string,
+  ): Promise<{ owner: string; source: string; successor: string }> {
+    const owner = await seedUser(KARACHI)
+    const folderId = await seedFolder(owner)
+    const source = await seedTask(folderId, owner, { dueDate: '2026-07-20' })
+    await seedReminder(source, {
+      timeOfDay: '09:00',
+      fireAt: '2026-07-20T04:00:00Z',
+      createdBy: owner,
+    })
+    const successor = await seedTask(folderId, owner, {
+      dueDate: successorDueDate,
+    })
+    return { owner, source, successor }
+  }
+
+  function copy(source: string, successor: string): Promise<ReminderPlan | null> {
+    return inTransaction(db, async (tx) =>
+      copyReminderToSuccessor(tx, source, successor),
+    )
+  }
+
+  test('a past instant is written skipped, and reported skipped', async () => {
+    const { source, successor } = await stageCopy(dateDaysFromNow(-3))
+    const reported = await copy(source, successor)
+
+    const row = await readReminder(successor)
+    expect(
+      { state: row?.state, fired: row?.fired_at_set },
+      '8.6 defines the state a write earns once, for every path that writes the column: skipped with fired_at set when the instant is already past. 8.5\'s line reads that fire_at and state are both per 8.6',
+    ).toEqual({ state: 'skipped', fired: true })
+    expect(
+      { state: reported?.state, fired: reported?.firedAt !== null },
+      'and the returned plan says the same thing. It used to be amended to match the wrong write, so a caller trusting it was misled even where the row was right',
+    ).toEqual({ state: 'skipped', fired: true })
+    expect(
+      row?.state,
+      'the two are one answer, not two that happen to agree',
+    ).toBe(reported?.state)
+  })
+
+  test('a future instant is written scheduled, and reported scheduled', async () => {
+    // The control against the opposite mistake: an implementation writing
+    // skipped unconditionally satisfies the case above and silences every
+    // reminder in the product.
+    const { source, successor } = await stageCopy(dateDaysFromNow(30))
+    const reported = await copy(source, successor)
+
+    const row = await readReminder(successor)
+    expect({ state: row?.state, fired: row?.fired_at_set }).toEqual({
+      state: 'scheduled',
+      fired: false,
+    })
+    expect({
+      state: reported?.state,
+      fired: reported?.firedAt !== null,
+    }).toEqual({ state: 'scheduled', fired: false })
+    expect(row?.state).toBe(reported?.state)
+  })
+
+  test('the mode and value come across, and the instant is the successor\'s own', async () => {
+    // Read once rather than per assertion, so a run crossing UTC midnight
+    // between two calls cannot compare two different days.
+    const successorDue = dateDaysFromNow(30)
+    const { owner, source, successor } = await stageCopy(successorDue)
+    const reported = await copy(source, successor)
+    const row = await readReminder(successor)
+    expect({
+      offset_minutes: row?.offset_minutes,
+      time_of_day: row?.time_of_day,
+      created_by: row?.created_by,
+    }).toEqual({
+      offset_minutes: null,
+      time_of_day: '09:00',
+      // The creator comes across with the row, the way created_by does on the
+      // task itself: a generation is not a person setting a reminder.
+      created_by: owner,
+    })
+    expect(
+      row?.fire_at,
+      '8.5 says fire_at recomputed, over the successor\'s own due date; 09:00 in Karachi is 04:00Z',
+    ).toBe(`${successorDue} 04:00`)
+    expect(
+      reported?.fireAt.toISOString().slice(0, 16).replace('T', ' '),
+      'and the reported instant is the one that was stored',
+    ).toBe(`${successorDue} 04:00`)
+  })
+
+  test('the source reminder is untouched by the copy', async () => {
+    const { source, successor } = await stageCopy(dateDaysFromNow(-3))
+    await copy(source, successor)
+    const row = await readReminder(source)
+    expect(
+      { state: row?.state, fire_at: row?.fire_at, fired: row?.fired_at_set },
+      '8.5 inserts a row and rewrites nothing; the closing occurrence keeps its own',
+    ).toEqual({ state: 'scheduled', fire_at: '2026-07-20 04:00', fired: false })
+  })
+
+  test('a source carrying no reminder writes nothing and reports null', async () => {
+    const owner = await seedUser(KARACHI)
+    const folderId = await seedFolder(owner)
+    const source = await seedTask(folderId, owner, { dueDate: '2026-07-20' })
+    const successor = await seedTask(folderId, owner, {
+      dueDate: dateDaysFromNow(30),
+    })
+    expect(
+      await copy(source, successor),
+      '8.5 guards the arm with "if reminder exists on t"',
+    ).toBeNull()
+    expect(await readReminder(successor)).toBeUndefined()
   })
 })

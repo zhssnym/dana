@@ -405,6 +405,51 @@ describe('what the successor carries', () => {
     ).toBe('2026-07-27 06:45')
   })
 
+  test("the copy's state is the successor instant's, which 8.6 defines once", async () => {
+    /*
+    8.6's own worked example, in the module that performs it: a daily task due
+    09:00 whose reminder leads by a day, completed at 10:00, puts the
+    successor's instant an hour back. The rule makes the successor due
+    strictly after the cutoff, so only an offset measured in days can reach
+    the past at all, which is why 4.8's 10080 bound is what makes this case
+    ordinary rather than exotic.
+
+    Written 'scheduled' flatly, as this arm was until the third change control,
+    the row is inside the loop's six-hour staleness window and the next tick
+    mails a reminder for a deadline that has not arrived. The case above is the
+    other half and is the one that pins `at` reaching this computation at all:
+    its successor instant is past on the real clock and future against the
+    stated one, so it answers scheduled only where the caller's `at` is honored.
+    */
+    const occurrence = await seedOccurrence({
+      dueDate: '2026-07-27',
+      rule: 'FREQ=DAILY',
+      dueTime: '09:00',
+    })
+    await db.execute(
+      sql`INSERT INTO reminders (task_id, offset_minutes, fire_at, created_by)
+          VALUES (${occurrence.taskId}::uuid, ${1440},
+                  ${'2026-07-26T09:00:00Z'}::timestamptz,
+                  ${occurrence.ownerId}::uuid)`,
+    )
+    await generate(occurrence, 'UTC', new Date('2026-07-27T10:00:00Z'))
+    const [successor] = await successorsOf(occurrence)
+    if (successor === undefined) throw new Error('no successor')
+
+    expect(successor.due_date, 'the next daily instance after the cutoff').toBe(
+      '2026-07-28',
+    )
+    const [copied] = await readReminders(successor.id)
+    expect(
+      copied?.fire_at_utc,
+      "a day before 09:00 on the 28th is 09:00 on the 27th, which the completion at 10:00 has already passed",
+    ).toBe('2026-07-27 09:00')
+    expect(
+      { state: copied?.state, fired: copied?.fired_at !== null },
+      '8.6: skipped with fired_at set when the instant is already past, never fired retroactively, on every path that writes the column',
+    ).toEqual({ state: 'skipped', fired: true })
+  })
+
   test('a successor generated from a task with no reminder gets none', async () => {
     const occurrence = await seedOccurrence({
       dueDate: '2026-07-27',
