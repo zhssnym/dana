@@ -23,7 +23,7 @@ provisional.
 | `pages/` | One file per surface of 9.2 and 9.4 to 9.8 | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |
-| `parts/` | **Provisional rows and inputs, to be replaced** | see below |
+| `parts/` | **Provisional rows and inputs, to be replaced.** Replaced; see the page assembly section at the end | see below |
 | `components/ui/` | The component library of 11.4 | Component and Design System |
 | `styles/tokens.css` | The single token file of 11.4 | Component and Design System |
 | the calendar, task form and search overlay directories | 9.3, 9.5's calendar, 9.9 | Complex Interaction |
@@ -469,3 +469,174 @@ Both are the pattern `components/README.md` already reported twice and
 - **AC-156's fourth case.** It creates `ac156token pending row`, which its own
   third case already created, and then asserts that title is visible. Same
   cause, same one-line fix.
+
+## Extended by the page assembly session, and the owner's review of two others
+
+The second session of this role at P8, and the last one to write pages. Two
+sessions ran between it and the shell: they extended this file, and this
+section both extends it again and answers, as the owner of most of the files
+they touched, whether what they did was a hole filled or a convention broken.
+Nothing above is reworded, and everything below that changes something above
+says which.
+
+### The owner's review, first
+
+**Both sessions filled holes, and neither broke a convention.** Every edit
+inside `shell/`, `pages/`, `parts/` and `api/` cited a committed comment of
+this role's that named the role to fill it, and each landed in the shape the
+comment described: the calendar in the slot `PlannedPage` left for it, the
+folder header's delete and its confirm, the Done page's G-SERIES probe, the
+two overlays mounted by `AppLayout`, and eleven hooks in `api/` that
+invalidate nothing and report nothing, which is this file's settled rule and
+stays so. Reviewed as the owner and kept.
+
+**Three things are corrected rather than kept, and none is a rewrite.**
+
+- **The sentence "both overlays are mounted once, last, by `AppLayout`" is
+  wrong about one of the two, and the code is right.** `SearchOverlay` is
+  mounted third, above the page; `TaskFormOverlay` is mounted last. The
+  reason for last is stated in that section and holds for the form alone,
+  that `getByRole('button', { name: 'More actions' }).last()` must find the
+  form's menu rather than a row's. The search overlay has the opposite
+  obligation and `AppLayout`'s own comment gives it: its input has to be the
+  document's first text entry, since AC-158 reaches for the first textbox on
+  a page that also carries quick-add rows. So the rule is **the form is last
+  and the search is first**, and the earlier sentence is corrected here
+  rather than in place, by this file's own convention for extensions.
+
+- **"Nothing below a page fetches" is narrowed to what it was always
+  protecting.** `PlannedCalendar` calls the Q3C hook itself and
+  `components/ui/QuickAddRow` calls `useCreateTask` itself, and both were
+  recorded as departures. Reviewed, they are not: what the rule exists to
+  prevent is a component that cannot be rendered twice on one page, which is
+  9.5's All page rendering the Tasks page's regions inside itself. A mutation
+  observes no query, and the calendar is mounted once by one page because 9.5
+  gives Planned one grid. The rule as it should have been written: **a
+  component that observes a query may be mounted once and only by a page that
+  cannot render it twice; everything else takes rows as props.** Anything
+  broader would have made the two departures above into defects, and they are
+  not.
+
+- **`parts/` is gone except for one file.** The two re-export files are
+  deleted and the five pages import from `components/ui` directly, which is
+  the request `components/README.md` filed against this role.
+  `parts/useRowActions.ts` stayed, and moving it into `api/` was refused
+  rather than deferred: it reaches for `openTask` and for `StarTooltipMode`,
+  so `api/` would point at `components/` for the first time in this client.
+  The reason is at the file.
+
+### What this session added
+
+**Q6 pages, and it is one hook body for one order.** `useDoneView` and
+`useFolderCompletedTasks` are both `useInfiniteQuery` over the same shape,
+because section 6 defines Q7's third section as "Q6 predicate, order, and
+pagination, folder_id = F" and 7.10 settled on 2026-08-07 that a cursor's kind
+names the order it pages rather than the endpoint that issued it. The cursor
+is opaque and is handed back byte for byte; a null `next_cursor` is the only
+end-of-list signal, and nothing counts rows to decide whether to stop.
+
+**A day is not a page**, so `mergeCompletedDays` in `api/queries.ts` puts a
+day split across a page boundary back into one group. Two regions cannot carry
+one name, and 9.1 names Done's regions by the day each one groups. It merges
+and never reorders, which section 6's preamble forbids.
+
+**`MorePages` in `states/PageStates.tsx` is the end of an infinite list**, and
+it is one control doing two jobs deliberately: a button, so the next page is
+reachable by keyboard and addressable at all, and an intersection observer on
+that button, so an ordinary reader never sees it and 9.5's "infinite scroll"
+is what actually happens. Section 9 names no control here, so its label is a
+**first pass**.
+
+**The truncation notice is `PageBody`'s**, on a new optional `truncated` prop,
+carried by the six capped bodies of 7.10 and by no other page. The cap is per
+response rather than per array (ruled 2026-08-07), so one flag serves My Day's
+three sections and All's two, and the notice sits above all of them. The copy
+is a **first pass** and is recorded as an open silence below: section 6
+requires the notice and writes no words for it, unlike the eight empty states
+it writes sentence by sentence. The number is deliberately not interpolated,
+the flag reporting that rows were dropped and never how many.
+
+**9.6's sharing panel is `pages/FolderSharingPanel.tsx`**, behind the Share
+button 9.6 puts in the header, and it is a named region called "Sharing
+panel". That name is 9.6's own words rather than an invention, and it is a
+region by the sections ruling read past its own table: the table enumerates
+the folder page's three task sections because it was written against Q7's
+body, and the ruling's sentence is about every section a page's structure
+names. It matters here because the panel carries a field labelled "Invite by
+email", which is also the last option of 9.3's assignee dropdown.
+
+**The folder header now carries all four entries of 9.6**, each conditioned on
+the actor 5.4 permits and each refused again server-side (7.11). Rename is
+inline, on the heading. Two confirms in this area are **first passes**: the
+one before an owner removes a member and the one before a member leaves.
+Section 9 writes four confirmations word for word and neither of these is one,
+while 5.3's R-CLEAN gives both exactly the invisible consequence those four
+exist to state.
+
+**The Q12 login surface is `pages/PendingInviteList`, rendered first on My
+Day.** 9.8 says the list "renders before anything else after callback" and 9.2
+says where the callback lands: "first-run lands on My Day; pending invites,
+when any exist, surface first as 9.8 describes". So the surface is the top of
+My Day rather than a band above every page, which is the reading rejected, and
+it is mounted on the People screen too, that being the screen 9.8 gives the
+rest of this subject. Accepting a folder invite navigates into that folder,
+from the full Folder object 7.5 answers with. Recorded as a reading, escalated
+below.
+
+**9.8's roster removal control** landed with that section's verbatim confirm,
+and **Q6's star** landed on a Done row. Done's rows stay that page's own
+rather than `TaskList`'s, and the reason is at the page: 9.5 gives the page a
+differently named control, "Mark as not done", because on the G-SERIES branch
+it confirms first, and a checkbox that sometimes opens a dialog would hide
+that inside the one control every other page uses unconditionally.
+
+**The sidebar's label groups are `CollapsibleSection`s**, which is what the
+sections ruling makes them: it names them in its table and again in its first
+consequence. Nothing about the control's name or its expanded state changed.
+
+**9.2's landing page has a structure and placeholder copy in marked slots.**
+The frame is this session's: a hero carrying the product sentence and the
+single call to action, a block of points, a footer of links. Every string is
+in one block at the top of the file so a rewrite is a diff over that block,
+and section 13 item 14 makes the wording the designer's. The rule that
+outlives the copy is the one about addition, which AC-159 reads off the whole
+rendered body.
+
+**`main.tsx` imports `styles/tokens.css`**, the request `components/README.md`
+filed. The import in `components/ui/index.ts` is that role's to remove; while
+both exist Vite emits one stylesheet either way.
+
+### Still owed after this session
+
+- **The truncation notice is never exercised.** Nothing in this repository
+  produces a response over the 1000-row cap, so the notice is asserted by no
+  test at any level and has been read rather than seen.
+- **Q6's paging is likewise unexercised.** The seed carries one completed row,
+  so `MorePages` renders nothing on any page this suite opens, and the merge
+  across a page boundary is proved by construction rather than by measurement.
+  A vitest-level unit test over `mergeCompletedDays` is the cheapest way to
+  close that, and belongs to whoever writes this client's first unit test.
+- **9.6's colour half.** "Label and color personal" is implemented as the
+  label alone: 7.4 takes both on one body and `styles/tokens.css` is where a
+  palette would come from, and neither that file nor the design brief carries
+  one yet. The mutation already takes `color`.
+- **The invite list has no region name.** 9.1's table names no region for the
+  login surface, and a page with several invites has several controls named
+  "Accept". Each row carries its own sentence, so a control is addressed
+  inside the row that names the inviter and the folder, which is the same
+  addressing a task row's controls get; a name here would have to be invented.
+
+### Open silences added to the list above
+
+- **The truncation notice's copy.** Section 6 requires it and spells nothing.
+  Recommendation: section 6 either write the sentence beside the eight empty
+  states it already writes, or say that the notice's wording is the design's.
+- **The removal and leave confirms.** 9.6 names Leave and the sharing panel's
+  remove controls and writes copy for neither, while writing four other
+  confirmations word for word. Recommendation: 9.6 spell both, or state that
+  the four it writes are the only confirmations whose copy is normative.
+- **Where the Q12 surface lives.** 9.8's "before anything else after callback"
+  and 9.2's "first-run lands on My Day" agree about the first load and say
+  nothing about the second. Recommendation: 9.8 say whether the invite list is
+  the first screen after callback or a standing surface until every invite is
+  answered.

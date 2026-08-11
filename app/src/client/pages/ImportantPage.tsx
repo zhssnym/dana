@@ -12,7 +12,7 @@ which is the Component engineer's file, and is recorded as owed in
 `src/client/README.md`.
 */
 import { useImportantView, useMe } from '../api/queries.js'
-import { TaskList } from '../parts/TaskRow.js'
+import { TaskList } from '../components/ui/index.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../states/PageStates.js'
 import { IMPORTANT_EMPTY } from './empty-states.js'

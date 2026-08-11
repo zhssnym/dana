@@ -49,11 +49,9 @@ import {
   useMultiMemberFolderIds,
 } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
-import { ConfirmDialog, OverflowMenu } from '../components/ui/index.js'
+import { ConfirmDialog, OverflowMenu, QuickAddRow, TaskList } from '../components/ui/index.js'
 import type { MenuEntry } from '../components/ui/index.js'
 import { paths } from '../routes.js'
-import { QuickAddRow } from '../parts/QuickAddRow.js'
-import { TaskList } from '../parts/TaskRow.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
 import { MorePages, PageBody } from '../states/PageStates.js'

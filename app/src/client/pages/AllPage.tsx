@@ -13,7 +13,7 @@ several.
 Section headers are static labels, not links (9.5).
 */
 import { useAllView, useMe, useMultiMemberFolderIds } from '../api/queries.js'
-import { TaskList } from '../parts/TaskRow.js'
+import { TaskList } from '../components/ui/index.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'

@@ -1,5 +1,22 @@
 /*
-The row props every page hands to `TaskList`, in one place.
+The row props every page hands to `TaskList`, in one place, and the only file
+left in this directory.
+
+`parts/` was the shell session's holding pen for the least that let a page
+render, and its header said it should shrink to nothing when the component
+library landed. It has: the row and the quick-add row are `components/ui/`,
+the two re-export files that stood in for them are deleted, and the five
+pages that imported through them now import from there directly, which is the
+request `components/README.md` filed against this role.
+
+**This file stayed, and moving it into `api/` was refused rather than
+deferred.** Both ledgers proposed that move on the ground that row callbacks
+are the data layer's. They are, but this hook reaches for `openTask` from
+`components/task-form` and for `StarTooltipMode` from `components/ui`, and
+putting it in `api/` would point the data layer at the component layer for
+the first time. The dependency runs one way in this client and that is worth
+more than the tidier address. What this hook actually is, is the page layer:
+every page calls it and no component does.
 
 Not a convenience: it is what keeps 8.3's invalidation uniform. Each callback
 is a mutation from `api/mutations.ts`, so each one refetches the active view on

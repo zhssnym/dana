@@ -29,8 +29,7 @@ this page's own rules, carrying these same regions inside it.
 */
 import type { GetTasksViewResponse } from '../../shared/views.js'
 import { useMe, useTasksView } from '../api/queries.js'
-import { QuickAddRow } from '../parts/QuickAddRow.js'
-import { TaskList } from '../parts/TaskRow.js'
+import { QuickAddRow, TaskList } from '../components/ui/index.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
