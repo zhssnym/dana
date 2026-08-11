@@ -20,7 +20,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
-import { sameZone } from './timezone-sync.js'
+import { sameZone, writeTimezone } from './timezone-sync.js'
 
 /**
  * The one shape this module needs from a database handle or a transaction.
@@ -135,6 +135,19 @@ export async function provisionUser(
  * 8.1's auto-sync: a successful login that reported a zone writes it when it
  * differs from the stored one. A login carrying no zone syncs nothing, and a
  * tzdb alias of the stored zone is not a different zone.
+ *
+ * Both of those are "no write, and no 8.6 recompute" in 8.1's own sentence, so
+ * the two guards below are one guard read twice and the recompute sits behind
+ * them rather than beside them. AC-086 asserts both absences with a real zone
+ * change beside each, because an implementation that recomputes on every login
+ * passes the positive cases and moves a traveler's instants for a sign-in that
+ * changed nothing.
+ *
+ * The write and the recompute go in one transaction of this function's own.
+ * provisionUser's has committed by the time we are called: the zone this
+ * compares against is what that transaction settled, and reopening it to add a
+ * conditional write would put the first login and the returning one on
+ * different paths for no gain.
  */
 export async function syncTimezone(
   db: Db,
@@ -143,7 +156,5 @@ export async function syncTimezone(
 ): Promise<void> {
   if (reportedTimezone === undefined) return
   if (sameZone(reportedTimezone, user.timezone)) return
-  await db.execute(
-    sql`UPDATE users SET timezone = ${reportedTimezone} WHERE id = ${user.id}`,
-  )
+  await inTransaction(db, (tx) => writeTimezone(tx, user.id, reportedTimezone))
 }
