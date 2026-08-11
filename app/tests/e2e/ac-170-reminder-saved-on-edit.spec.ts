@@ -59,6 +59,7 @@ import {
   setOfferedReminder,
   signIn,
   storedReminder,
+  waitForSaveToSettle,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -91,6 +92,14 @@ async function save(page: Page): Promise<void> {
     page.getByRole('button', { name: 'Save', exact: true }),
     'spec 9.3: the form is committed by its Save control',
   )
+  // The click returns as soon as it has been dispatched, so without this the
+  // read below asks the server what it holds while the save is still being
+  // written. The two are different HTTP clients: a spec's read goes out on
+  // Playwright's own context and is not queued behind the page's in-flight
+  // writes. This case passed on the timing of one machine and would have
+  // failed against a client taking two serialised round trips here, which is
+  // a false red against an implementation that satisfies the criterion.
+  await waitForSaveToSettle(page)
 }
 
 test.beforeEach(async ({ page }) => {

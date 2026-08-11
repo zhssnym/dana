@@ -43,6 +43,7 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  waitForApiIdle,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -166,6 +167,17 @@ test.describe('AC-166: the inline quick-add row', () => {
       quickAdd,
       'spec 9.1: escape clears the quick-add row',
     ).toHaveValue('')
+    // The same barrier the reminder criteria needed, for the same reason
+    // pointed the other way. This case asserts an absence, and an absence is
+    // what a read reports when it arrives before the write it was looking
+    // for: a row that committed on escape would have its POST in flight while
+    // this read travels on Playwright's own HTTP client, and the case would
+    // pass against the implementation it exists to catch.
+    await waitForApiIdle(
+      page,
+      'escape is asserted to have created nothing, so everything the page might have sent has ' +
+        'to have been sent and answered before the server is asked',
+    )
     expect(
       await stored(page, title),
       'spec 9.1 gives escape one meaning, clearing, so it is not a second way to save. A row ' +

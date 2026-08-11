@@ -64,6 +64,7 @@ import {
   taskRow,
   TEST_TIMEOUT_MS,
   transition,
+  waitForApiIdle,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -77,7 +78,22 @@ const OPEN = 3
 const COMPLETED = 2
 const ABANDONED = 4
 
+/**
+ * The task's status, read after a barrier rather than straight after the
+ * click that declined.
+ *
+ * The declining cases assert an absence, that nothing happened, and an
+ * absence is the one thing a read can report by arriving early. A client that
+ * acted on Cancel anyway would have its write in flight while this read
+ * travels on Playwright's own HTTP client, and the case would pass against
+ * exactly the implementation it exists to catch.
+ */
 async function statusOf(page: Page, id: string): Promise<string> {
+  await waitForApiIdle(
+    page,
+    'a declined confirm is asserted to have written nothing, so everything the page might ' +
+      'have sent has to have been sent and answered before the row is read',
+  )
   const response = await page.request.get(`/api/v1/tasks/${id}`)
   expect(
     response.status(),
@@ -244,6 +260,11 @@ test.describe('AC-162: the four confirms of section 9', () => {
       page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
     )
+    await waitForApiIdle(
+      page,
+      'a declined delete is asserted to have deleted nothing, so the page has to have finished ' +
+        'whatever it was going to send before the folder is asked for',
+    )
     const after = await page.request.get(`/api/v1/folders/${folder.id}`)
     expect(
       after.status(),
@@ -325,6 +346,11 @@ test.describe('AC-162: the four confirms of section 9', () => {
       'spec 9.1: every confirmation offers Continue and Cancel',
     )
 
+    await waitForApiIdle(
+      page,
+      'a declined leave is asserted to have left the membership, so the page has to have ' +
+        'finished whatever it was going to send before the folder is asked for',
+    )
     const after = await page.request.get(`/api/v1/folders/${seedIds.groceries}`)
     expect(
       after.status(),
@@ -368,6 +394,11 @@ test.describe('AC-162: the four confirms of section 9', () => {
       'spec 9.1: every confirmation offers Continue and Cancel',
     )
 
+    await waitForApiIdle(
+      page,
+      'a declined removal is asserted to have removed nobody, so the page has to have finished ' +
+        'whatever it was going to send before the member list is read',
+    )
     const after = await page.request.get(`/api/v1/folders/${seedIds.groceries}`)
     expect(
       after.status(),

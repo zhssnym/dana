@@ -18,6 +18,14 @@ the endpoints, and no criterion read the two together. A field that is
 offered and silently dropped is the worst kind of defect this suite can miss,
 because the person is told nothing.
 
+**The read is sequenced behind the save.** A click returns once it has been
+dispatched, and a spec's `page.request` read travels on Playwright's own HTTP
+client rather than behind the page's in-flight writes, so a case that clicked
+and read immediately was asking the server a question while the answer was
+still being written. It passed on the timing of one machine. `waitForSaveToSettle`
+is the barrier, and it waits on the form closing, which the client does only
+once every write of that save has settled, and then on the API going quiet.
+
 **The assertion is the stored row, read back through section 7.** What makes
 this criterion discriminate is that it never reads the form again after the
 save: it asks the server what it holds. A client that keeps the value in
@@ -66,6 +74,7 @@ import {
   setOfferedReminder,
   signIn,
   storedReminder,
+  waitForSaveToSettle,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -116,6 +125,7 @@ test.describe('AC-169: a reminder set while creating is saved', () => {
       page.getByRole('button', { name: 'Save', exact: true }),
       'spec 9.3: the form is committed by its Save control',
     )
+    await waitForSaveToSettle(page)
 
     const stored = await storedReminder(page, await findTaskId(page, title))
     expect(
@@ -178,6 +188,7 @@ test.describe('AC-169: a reminder set while creating is saved', () => {
       page.getByRole('button', { name: 'Save', exact: true }),
       'spec 9.3: the form is committed by its Save control',
     )
+    await waitForSaveToSettle(page)
 
     const stored = await storedReminder(page, await findTaskId(page, title))
     expect(
@@ -228,6 +239,7 @@ test.describe('AC-169: a reminder set while creating is saved', () => {
       page.getByRole('button', { name: 'Save', exact: true }),
       'spec 9.3: the form is committed by its Save control',
     )
+    await waitForSaveToSettle(page)
 
     expect(
       await storedReminder(page, await findTaskId(page, title)),

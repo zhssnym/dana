@@ -165,6 +165,10 @@ export async function signIn(
   // to receive one has to be provisioned at the address the invite was sent
   // to; every other spec here leaves it to default off the sub, which is what
   // keeps a seeded address from colliding on 4.1's unique email.
+  // Before the first request, so a barrier reached for later has been
+  // counting since the page's first navigation.
+  trackApi(page)
+
   const body: Record<string, string> = { sub }
   if (name !== undefined) body['name'] = name
   if (email !== undefined) body['email'] = email
@@ -284,6 +288,120 @@ export async function transition(
     response.status(),
     `POST /tasks/${id}/${event} answered ${response.status()}: ${await response.text()}`,
   ).toBe(200)
+}
+
+/* ------------------------------------------------------------------ *
+ * Sequencing a server read after an interaction
+ * ------------------------------------------------------------------ */
+
+/**
+ * How long the API must stay quiet before a barrier calls an interaction
+ * finished.
+ *
+ * The window is the whole point rather than a flake guard. A save that takes
+ * two serialised round trips, a task write and then frozen 7.9's, is idle in
+ * the gap between them, so a barrier that returned at the first moment of
+ * zero in flight would return inside the save it is supposed to be waiting
+ * for. Against a local server a round trip is single-digit milliseconds, so
+ * this is generous by two orders of magnitude and costs a quarter second per
+ * barrier.
+ */
+const API_SETTLE_MS = 250
+
+interface ApiTraffic {
+  inFlight: number
+  quietSince: number
+}
+
+const traffic = new WeakMap<Page, ApiTraffic>()
+
+/**
+ * Starts counting this page's requests to the API, once per page.
+ *
+ * Installed by `signIn`, which every spec in this leg calls before it does
+ * anything else, so a barrier can be reached for at any point afterwards and
+ * will have been counting since before the first navigation.
+ */
+export function trackApi(page: Page): void {
+  if (traffic.has(page)) return
+  const state: ApiTraffic = { inFlight: 0, quietSince: Date.now() }
+  traffic.set(page, state)
+  const isApi = (request: Request): boolean => request.url().includes('/api/v1/')
+  page.on('request', (request) => {
+    if (!isApi(request)) return
+    state.inFlight += 1
+    state.quietSince = Date.now()
+  })
+  const settled = (request: Request): void => {
+    if (!isApi(request)) return
+    state.inFlight = Math.max(0, state.inFlight - 1)
+    state.quietSince = Date.now()
+  }
+  page.on('requestfinished', settled)
+  page.on('requestfailed', settled)
+}
+
+/**
+ * Waits until everything the page was going to send has been sent and
+ * answered.
+ *
+ * This is what orders a `page.request` read after an interaction. The two are
+ * different HTTP clients: a spec's read goes out on Playwright's own context
+ * and is not queued behind whatever the page has in flight, so a case that
+ * clicks and then reads is asking the server a question while the answer is
+ * still being written. It passed on this machine and would fail on a client
+ * one round trip slower, which is a false red against an implementation that
+ * satisfies the criterion.
+ *
+ * Transport-agnostic on purpose. AC-169's and AC-170's own texts refuse to
+ * fix which requests a save makes, so waiting for a named endpoint would
+ * encode the transport the criteria decline to name; what is waited on is
+ * that the page has stopped talking, whatever it said.
+ */
+export async function waitForApiIdle(page: Page, why: string): Promise<void> {
+  trackApi(page)
+  const state = traffic.get(page)
+  if (state === undefined) throw new Error('unreachable: tracker installed above')
+
+  const deadline = Date.now() + 15_000
+  for (;;) {
+    if (state.inFlight === 0 && Date.now() - state.quietSince >= API_SETTLE_MS) return
+    if (Date.now() > deadline) {
+      expect(
+        state.inFlight,
+        `${why}. Fifteen seconds after the interaction the page still had ${state.inFlight} ` +
+          'requests to /api/v1 in flight, so nothing here can read the server and know what ' +
+          'it is reading',
+      ).toBe(0)
+      return
+    }
+    await page.waitForTimeout(25)
+  }
+}
+
+/**
+ * The barrier a spec crosses between saving the task form and reading what
+ * the server stored.
+ *
+ * Two signals rather than one, and each covers what the other cannot. The
+ * form closes only once every write of that save has settled, so its
+ * disappearance is the application's own report that the save finished; and
+ * API quiet catches whatever follows it, including the 8.3 refetch, which on
+ * a single-connection backend (11.15) is exactly what was landing between a
+ * save's two writes.
+ *
+ * The dialog half is synchronization and not an assertion of section 9, which
+ * spells no closing behavior. It is written as an expectation anyway so that
+ * a client which stopped closing the form fails here saying so, rather than
+ * somewhere later saying something else.
+ */
+export async function waitForSaveToSettle(page: Page): Promise<void> {
+  await expect(
+    page.getByRole('dialog'),
+    'the task form closes once every write of the save has settled, which is what makes its ' +
+      'disappearance the signal a read can be sequenced behind rather than a guess at one',
+  ).toHaveCount(0)
+  await waitForApiIdle(page, 'the save had to finish before the stored row could be read')
 }
 
 /* ------------------------------------------------------------------ *
