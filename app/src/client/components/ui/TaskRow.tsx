@@ -204,22 +204,38 @@ export function TaskRow({
           onToggleComplete?.(task)
         }}
       />
-      {/* 9.5: "click on any row opens the task". Recorded as owed in
-          `components/README.md` while the edit arm of the overlay seam did not
-          exist; it does now, so the title is the row's opening control. A
-          button rather than a handler on the row, so the same click is a tab
-          stop and an Enter press. The title element itself is untouched, which
-          is what keeps it one text node for AC-097's computed-style read. */}
+      {/*
+      9.5: "click on any row opens the task". Recorded as owed in
+      `components/README.md` while the edit arm of the overlay seam did not
+      exist; it does now, so the title opens the task.
+
+      **A wrapper with a handler, deliberately not a button, and the reason is
+      not laziness.** A button's accessible name is its content, so a button
+      around a title makes every row on the page a control named by whatever
+      the person typed into it. Names are how section 9 addresses every control
+      it specifies, and putting arbitrary user data into that namespace means a
+      task called "Completed" answers to the folder page's Completed section
+      and a task called "Restore" answers to the row control beside it. Both
+      were measured on the browser leg rather than imagined.
+
+      The keyboard path is not lost, because the row already has one: the
+      overflow menu's "Edit" entry is this same action under a fixed name, and
+      it is reachable by tab, arrow and Enter. So the title is a pointer
+      target, as a table row's cell is, and the named control is in the menu.
+
+      The title element itself is untouched, which keeps it one text node for
+      AC-097's computed-style read.
+      */}
       {onOpenTask === undefined ? (
         <TaskTitle task={task} />
       ) : (
-        <button
-          type="button"
-          className="button-base button-quiet"
-          onClick={() => onOpenTask(task)}
+        <span
+          onClick={() => {
+            onOpenTask(task)
+          }}
         >
           <TaskTitle task={task} />
-        </button>
+        </span>
       )}
       <span className="meta">{task.folder.name}</span>
       {task.due_date === null ? null : (

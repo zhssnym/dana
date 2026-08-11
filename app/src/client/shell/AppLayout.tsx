@@ -107,6 +107,13 @@ export function AppLayout(): React.JSX.Element {
           })
         }}
       />
+      {/* 9.9's overlay sits beside the control that opens it, which 9.1 puts
+          in the top bar, and ahead of the page. Both halves of that matter: it
+          is global chrome rather than page content, and its input is then the
+          document's first text entry, so "the overlay's input" is the first
+          one on any page rather than whichever quick-add row 9.1 happened to
+          put above it. Added by the Complex Interaction session. */}
+      <SearchOverlay />
       <OfflineBanner />
       <UpdatePrompt />
       <Sidebar settings={settings.data} folders={folders.data} />
@@ -115,15 +122,14 @@ export function AppLayout(): React.JSX.Element {
       </main>
       {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
       <ToastRegion />
-      {/* The two surfaces the seam above asks for, mounted once and last.
-          Once, because 9.3's form and 9.9's overlay open over whatever page is
-          beneath them and a per-page copy would be two of each on the All
-          page; last, because both are modal and a control inside one has to be
-          the page's last, not its first, in reading order. Added by the
-          Complex Interaction session, which owns both directories; nothing
-          else in this file changed. */}
+      {/* 9.3's form, mounted once and last. Once, because it opens over
+          whatever page is beneath it and a per-page copy would be two of them
+          on the All page; last, because it is opened from a row anywhere in
+          the page and its own controls have to come after that page's, so
+          "the form's overflow menu" is the last one on the document rather
+          than a row's. Added by the Complex Interaction session, which owns
+          both overlay directories. */}
       <TaskFormOverlay />
-      <SearchOverlay />
     </div>
   )
 }
