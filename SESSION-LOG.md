@@ -234,3 +234,35 @@ isolation was real.
 | 1 | The 7.9 response body ruled by the owner and transcribed, the conditional session closed | 12 | Steward | Done |
 | 2 | AC-083 to AC-090 with the reminders harness, the DST claim split into arithmetic and policy, AC-144 to AC-153 proposed, four findings raised | 11 | Testers | Done, escalated |
 | 3 | Change control: the owner's past-instant qualifier onto frozen 7.9, AC-144 to AC-154 numbered, the scheduler seam ratified into 11.7, 11.9's DST claim repaired | 12 | Steward | Done |
+| 4 | The numbering retired, AC-148's qualifier, two stale 7.9 quotations refreshed, AC-154's test | 11 | Testers | Done, escalated |
+| 4a | The `fired_at` clearing widened to both terminal states | 12 | Steward | Done |
+| 5 | The engine: 8.6's computation with both DST rules written out, the five-trigger callable, P6's copy seam closed | 02 | Implementers | Done, escalated |
+| 5a | Change control: the `due_time` cascade ruled on both arms into 8.4 | 12 | Steward | Done, escalated |
+| 5b | The mirror clause onto frozen 7.6 by owner ruling, AC-164 assigned | 12 | Steward | Done |
+| 6 | The 7.9 bodies and the last deferred arm of 7.6's write bodies | 04 | Unattended | Done, escalated |
+| 7 | The reminder endpoint, four of the five trigger call sites, the 8.4 cascade | 03 | Unattended | Done, escalated |
+| 8 | The fifth trigger, at the login sync and PATCH /me | 06 | Unattended | Done, escalated |
+| 9 | The 11.7 pass, Q11, Resend, the heartbeat and the session pruning | 10 | Unattended | Done, escalated |
+| 9a | Two unreachable derived values repaired, AC-086's fixture, every pass count scoped, AC-164's test | 11 | Testers | Done |
+| 9b | The `fired_at` clearing asserted from both terminal states, as 8.6 now rules it | 11 | Testers | Done |
+| 10 | Shape review: frozen 7.9 measured on the wire for the first time, the PATCH's null settled, 8.5's copy defect found | 04 | Review | Done, escalated |
+| 10a | Change control: the rule stated once in 8.6 rather than a fourth time, AC-168 numbered, five writers measured | 12 | Steward | Done |
+| 10b | AC-168 written red, the email counting scoped per actor | 11 | Testers | Done |
+| 10c | The copy writes the state its instant earns, its return value un-falsified, `at` threaded through | 02 | Implementers | Done |
+
+Rows 6 to 9 ran as one grouped run: a dispatching chat launched each as an
+isolated sub-agent in sequence, each deriving its state from the repository
+rather than from the phase before it. The dispatcher verified every phase
+committed, pushed and left the tree building before starting the next, and it
+caught a wrong premise in its own brief, which said the 7.9 endpoints were
+unmounted when both hang off the tasks router mounted since P3. Rows 7 and 8
+independently found the same test defect from different code and both stopped
+rather than adjusting it.
+
+Row 10 is the session this package would have merged without. Every test
+passed when it began, and it found that 8.5's copy wrote a state 8.6 forbids
+by reading the two sections against each other. That defect was the third
+appearance of one shape here: a value computed, made available, and then
+discarded, which was also frozen 7.9's unqualified bullet and the `at` that
+`generateSuccessor` handed down and the copy ignored. None of the three was
+caught by a test until something downstream depended on the discarded value.
