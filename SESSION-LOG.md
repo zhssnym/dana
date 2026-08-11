@@ -266,16 +266,9 @@ before starting the next.
 | 11 | main merged down, seven conflicts kept both, section 12 reconciled to 168 by count | 12 | Unattended | Done |
 | 12 | Seven carried items ruled, AC-169 to AC-172 numbered, item 28 recorded | 12 | Unattended | Done |
 | 13 | AC-169 to AC-172 written, AC-162 rescoped to the new region, two confirms added | 11 | Testers | Done |
-| 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done, one note |
-| 15 | AC-169's and AC-170's reads sequenced after the save they measure | 11 | Testers | Planned |
-| 16 | Token transcription and component fidelity against the committed design | 08 | Implementers | Blocked: Imran |
-| 17 | Manifest icons and colours, and the landing copy that closes item 14 | 07 | Implementers | Blocked: Imran |
+| 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done |
+| 15 | Eleven server reads sequenced behind the writes they measure, four of them false greens | 11 | Testers | Done |
+| 16 | Token transcription and component fidelity against the committed design | 08 | Implementers | Blocked: Imran 🔴 |
+| 17 | Manifest icons and colours, and the landing copy that closes item 14 | 07 | Implementers | Blocked: Imran 🔴|
 | 18 | Merge review | 12 | Steward | Planned |
 | 19 | Merge into main | 12 | Steward | Planned |
-
-Rows 16 and 17 close no criterion. AC-159 and AC-163 already assert the landing
-page and the manifest and both pass: what they fix is structure, one "Continue with
-Google" button with no AI claim, and a manifest naming Dana with fetchable 192 and
-512 icons, all of which section 9 deliberately leaves free of colour, type and
-wording. Imran's work fills those slots, so neither session owes a tester return
-and neither can be measured by the suite. Row 17 closes section 13 item 14.
