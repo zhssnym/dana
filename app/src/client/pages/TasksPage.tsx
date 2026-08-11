@@ -107,7 +107,7 @@ export function TasksPage(): React.JSX.Element {
 
   return (
     <div>
-      <h1>Tasks</h1>
+      <h1 className="text-title">Tasks</h1>
       <TasksGroups
         query={view}
         view={view.data}

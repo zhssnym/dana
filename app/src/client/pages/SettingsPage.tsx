@@ -62,7 +62,7 @@ export function SettingsPage(): React.JSX.Element {
 
   return (
     <div>
-      <h1>Settings</h1>
+      <h1 className="text-title">Settings</h1>
 
       <PageSection name="Pages" heading="Pages">
         <PageBody query={settings} isEmpty={false} emptyCopy="">
@@ -80,22 +80,24 @@ export function SettingsPage(): React.JSX.Element {
                     update.mutate({ [toggle.key]: event.target.checked })
                   }}
                 />
-                <span id={`setting-${toggle.key}-description`}>{toggle.description}</span>
+                <span className="meta" id={`setting-${toggle.key}-description`}>{toggle.description}</span>
               </li>
             ))}
           </ul>
-          <p>{ALWAYS_SHOWN}</p>
+          <p className="text-body">{ALWAYS_SHOWN}</p>
         </PageBody>
       </PageSection>
 
       <PageSection name="Account" heading="Account">
-        <p>{me.data?.user.display_name ?? ''}</p>
-        <p>{me.data?.user.email ?? ''}</p>
-        <p>{me.data?.user.timezone ?? ''}</p>
-        <p>{TIMEZONE_NOTE}</p>
+        <p className="text-body">{me.data?.user.display_name ?? ''}</p>
+        <p className="meta">{me.data?.user.email ?? ''}</p>
+        <p className="meta">{me.data?.user.timezone ?? ''}</p>
+        <p className="meta">{TIMEZONE_NOTE}</p>
         {/* 10.6: Settings carries a short install hint and no custom prompt
             interception in v1, so this is a sentence and not a control. */}
-        <p>Install Dana from your browser&apos;s own install control to keep it a tap away.</p>
+        <p className="text-body">
+          Install Dana from your browser&apos;s own install control to keep it a tap away.
+        </p>
         <button
           type="button"
           onClick={() => {
@@ -109,8 +111,8 @@ export function SettingsPage(): React.JSX.Element {
       </PageSection>
 
       <PageSection name="Danger zone" heading="Danger zone">
-        <p>{DELETE_ACCOUNT}</p>
-        <label htmlFor="delete-confirmation">Type DELETE to confirm</label>
+        <p className="text-body">{DELETE_ACCOUNT}</p>
+        <label className="text-label" htmlFor="delete-confirmation">Type DELETE to confirm</label>
         <input
           id="delete-confirmation"
           type="text"

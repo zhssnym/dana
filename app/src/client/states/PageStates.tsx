@@ -80,7 +80,7 @@ function LoadingRows(): React.JSX.Element {
 function NotFound(): React.JSX.Element {
   return (
     <div>
-      <p>Not found. This may have been deleted, or it may never have been yours to see.</p>
+      <p className="text-body">Not found. This may have been deleted, or it may never have been yours to see.</p>
     </div>
   )
 }
@@ -88,7 +88,7 @@ function NotFound(): React.JSX.Element {
 function ErrorWithRetry({ retry }: { readonly retry: () => unknown }): React.JSX.Element {
   return (
     <div>
-      <p>Couldn&apos;t load this. Nothing was changed.</p>
+      <p className="text-body">Couldn&apos;t load this. Nothing was changed.</p>
       <button
         type="button"
         onClick={() => {
@@ -113,7 +113,7 @@ export function PageBody({
     if (query.error instanceof ApiError && query.error.status === 404) return <NotFound />
     return <ErrorWithRetry retry={query.refetch} />
   }
-  if (isEmpty) return <p>{emptyCopy}</p>
+  if (isEmpty) return <p className="text-body">{emptyCopy}</p>
   return (
     <>
       {truncated ? <TruncationNotice /> : null}

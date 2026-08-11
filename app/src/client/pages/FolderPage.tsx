@@ -192,9 +192,9 @@ export function FolderPage(): React.JSX.Element {
             in place rather than opening a dialog, which is what inline means,
             and the field is offered only while the menu has put it there. */}
         {renaming === null ? (
-          <h1>{detail?.name}</h1>
+          <h1 className="text-title">{detail?.name}</h1>
         ) : (
-          <h1>
+          <h1 className="text-title">
             <input
               type="text"
               aria-label="Folder name"
@@ -218,7 +218,7 @@ export function FolderPage(): React.JSX.Element {
             />
           </h1>
         )}
-        <p>
+        <p className="meta">
           {detail?.counts.completed ?? 0} of{' '}
           {(detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)} done
         </p>
@@ -239,7 +239,7 @@ export function FolderPage(): React.JSX.Element {
         </button>
         {labelling === null ? null : (
           <div>
-            <label htmlFor="folder-personal-label">Label</label>
+            <label className="text-label" htmlFor="folder-personal-label">Label</label>
             <input
               id="folder-personal-label"
               type="text"

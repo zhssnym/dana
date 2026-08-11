@@ -101,7 +101,7 @@ export function DonePage(): React.JSX.Element {
 
   return (
     <div>
-      <h1>Done</h1>
+      <h1 className="text-title">Done</h1>
       <PageBody query={view} isEmpty={days.length === 0} emptyCopy={DONE_EMPTY}>
         {days.map((day) => (
           <PageSection key={day.date} name={day.date} heading={day.date}>

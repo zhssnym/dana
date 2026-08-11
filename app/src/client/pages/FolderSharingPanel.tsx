@@ -130,7 +130,7 @@ export function FolderSharingPanel({
         ))}
       </ul>
 
-      <label htmlFor="folder-roster-picker">{ROSTER_PICKER}</label>
+      <label className="text-label" htmlFor="folder-roster-picker">{ROSTER_PICKER}</label>
       <select
         id="folder-roster-picker"
         value={picked}
@@ -150,7 +150,7 @@ export function FolderSharingPanel({
         ))}
       </select>
 
-      <label htmlFor="folder-invite-by-email">{INVITE_BY_EMAIL}</label>
+      <label className="text-label" htmlFor="folder-invite-by-email">{INVITE_BY_EMAIL}</label>
       <input
         id="folder-invite-by-email"
         type="email"

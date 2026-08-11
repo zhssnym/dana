@@ -9,8 +9,8 @@ can navigate away from a page they cannot see.
 export function NotFoundPage(): React.JSX.Element {
   return (
     <div>
-      <h1>Not found</h1>
-      <p>That page does not exist. Everything Dana has is in the sidebar.</p>
+      <h1 className="text-title">Not found</h1>
+      <p className="text-body">That page does not exist. Everything Dana has is in the sidebar.</p>
     </div>
   )
 }

@@ -17,7 +17,7 @@ export function OfflineBanner(): React.JSX.Element | null {
   if (online) return null
   return (
     <div role="status" aria-live="polite">
-      <p>{OFFLINE_BANNER}</p>
+      <p className="text-body">{OFFLINE_BANNER}</p>
     </div>
   )
 }

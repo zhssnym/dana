@@ -55,7 +55,7 @@ export function PlannedPage(): React.JSX.Element {
 
   return (
     <div>
-      <h1>Planned</h1>
+      <h1 className="text-title">Planned</h1>
       <button type="button" aria-pressed={mode === 'list'} onClick={() => choose('list')}>
         List
       </button>

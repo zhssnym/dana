@@ -30,7 +30,7 @@ export function AllPage(): React.JSX.Element {
 
   return (
     <div>
-      <h1>All</h1>
+      <h1 className="text-title">All</h1>
       <PageBody
         query={view}
         isEmpty={

@@ -42,7 +42,7 @@ export function PeoplePage(): React.JSX.Element {
 
   return (
     <div>
-      <h1>People</h1>
+      <h1 className="text-title">People</h1>
 
       {/* 9.8's login surface, above the roster: an unanswered invite is the
           one thing on this screen a person can still act on. */}
@@ -72,7 +72,7 @@ export function PeoplePage(): React.JSX.Element {
         </ul>
       </PageBody>
 
-      <label htmlFor="invite-by-email">Invite by email</label>
+      <label className="text-label" htmlFor="invite-by-email">Invite by email</label>
       <input
         id="invite-by-email"
         type="email"

@@ -23,7 +23,7 @@ export function ImportantPage(): React.JSX.Element {
   const actions = useRowActions()
   return (
     <div>
-      <h1>Important</h1>
+      <h1 className="text-title">Important</h1>
       <PageBody
         query={view}
         isEmpty={(view.data?.rows.length ?? 0) === 0}

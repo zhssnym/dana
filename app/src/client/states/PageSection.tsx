@@ -42,7 +42,7 @@ export function PageSection({
 }: PageSectionProps): React.JSX.Element {
   return (
     <section aria-label={name}>
-      {heading === undefined ? null : <h2>{heading}</h2>}
+      {heading === undefined ? null : <h2 className="text-heading">{heading}</h2>}
       {children}
     </section>
   )
@@ -65,9 +65,10 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen)
   return (
     <section aria-label={name}>
-      <h2>
+      <h2 className="text-heading">
         <button
           type="button"
+          className="text-heading"
           aria-expanded={open}
           onClick={() => {
             const next = !open

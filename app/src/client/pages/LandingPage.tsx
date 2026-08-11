@@ -15,14 +15,17 @@ changes is what gets added rather than what is here. Section 13 item 14 records
 the final wording as the designer's under that rule; what is below is
 placeholder copy that obeys it, and the rule outlives the copy.
 
-**The structure is this session's and the words are not.** 9.2 specifies one
-screen and names three things on it, so what this file fixes is the frame: a
-hero carrying the product sentence and the single call to action, a block of
-points about what the product does, and a footer of links. Every string below
-is a placeholder in a slot, marked so, and replacing one is an edit to a
-sentence rather than to this page. The one thing a rewrite may not do is add a
-claim: `tests/e2e/ac-159-landing-page.spec.ts` reads the whole rendered body
-for it, which is the only way a rule about addition can be measured.
+**The words are the owner's, written by him on 2026-08-11.** Section 13 item
+14 recorded the final wording as the designer's; he chose among four drafts
+and wrote it himself instead, which is his to do, item 14 being an open
+question rather than frozen text and RFC 0001 already reading it as closing
+when this package lands the copy. The structure around the strings is this
+file's and does not move: a hero carrying the product sentence and the single
+call to action, a block of points, and a footer of links.
+
+The one thing a later rewrite may not do is add a claim:
+`tests/e2e/ac-159-landing-page.spec.ts` reads the whole rendered body for one,
+which is the only way a rule broken by addition can be measured at all.
 
 The sign-in link carries the browser's zone, which is 7.1's optional tz: it
 rides the pending-authorization record to the callback, where it becomes the
@@ -37,20 +40,24 @@ unauthenticated person ever sees from everyone who could check it.
 import { browserTimezone } from '../api/tz.js'
 
 /*
-Placeholder copy, in the slots the structure above fixes. Section 13 item 14
-records the final wording as the designer's, so these are here to be replaced
-rather than to be kept, and each one obeys 9.2's rule about what may not be
-said. Collected at the top of the file rather than written into the markup so
-that a rewrite is a diff over this block alone.
+The owner's copy, ruled 2026-08-11. Collected here rather than written into
+the markup below so that a later revision is a diff over this block alone.
+
+The third point's closing clause is worth a sentence, because it looks like
+decoration and is not. The owner's own draft ended at the task landing on the
+assignee's day; Q1's predicate is an assignee **and** a due date that has
+arrived, which is what that query's empty state tells a person in its own
+words, so a point promising the first alone would describe a page Dana does
+not have. The clause was corrected before it reached this session.
 */
-const HEADLINE = 'Shared to-do lists that stay in one place.'
+const HEADLINE = 'A shared to-do list, and nothing else.'
 const SUBHEAD =
-  'Put your tasks in folders, share a folder with the people it concerns, and everyone ' +
-  'sees the same list.'
+  'Folders you can share, tasks with dates, and the people they belong to. ' +
+  'No databases, no wikis, no setup.'
 const POINTS = [
-  'Give anything a date and it shows up on the day it is due.',
-  'Assign a task to someone in the folder and it shows up on their day.',
-  'Repeat, remind, and break a task into steps when it needs them.',
+  'Share a folder once. Everything you put in it is already shared.',
+  'A task with a date appears on that day. There is no second place to file it.',
+  'Hand a task to someone and it shows up on their day, on the date you set.',
 ] as const
 
 export function LandingPage(): React.JSX.Element {
@@ -58,12 +65,12 @@ export function LandingPage(): React.JSX.Element {
   return (
     <main>
       <header>
-        <p>Dana</p>
+        <p className="text-heading">Dana</p>
       </header>
 
       <section aria-label="What Dana is">
-        <h1>{HEADLINE}</h1>
-        <p>{SUBHEAD}</p>
+        <h1 className="text-title">{HEADLINE}</h1>
+        <p className="text-body">{SUBHEAD}</p>
         {/* The single call to action of 9.2, and the only one on the page. A
             link rather than a button because it is a navigation to 7.1's
             endpoint; 9.2 calls it a button and 9.1's addressing sentence
@@ -75,7 +82,9 @@ export function LandingPage(): React.JSX.Element {
       <section aria-label="What Dana does">
         <ul>
           {POINTS.map((point) => (
-            <li key={point}>{point}</li>
+            <li className="text-body" key={point}>
+              {point}
+            </li>
           ))}
         </ul>
       </section>

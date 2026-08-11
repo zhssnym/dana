@@ -56,9 +56,9 @@ export function MyDayPage(): React.JSX.Element {
     <div>
       {/* 9.2 and 9.8: before anything else on the page the callback lands on. */}
       <PendingInviteList invites={invites.data ?? []} />
-      <h1>My Day</h1>
-      <p>{todayInBrowserZone()}</p>
-      <label>
+      <h1 className="text-title">My Day</h1>
+      <p className="meta">{todayInBrowserZone()}</p>
+      <label className="text-label">
         <input
           type="checkbox"
           role="switch"
