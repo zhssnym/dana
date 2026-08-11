@@ -349,6 +349,12 @@ export class ZoneCast {
 
   constructor(private readonly prefix = 'p7') {}
 
+  /** Everyone this file has signed in, which is what scopes its recorded
+   * emails to rows it owns. See reminderEmailsOf. */
+  actors(): readonly Actor[] {
+    return [...this.created]
+  }
+
   async signIn(
     app: AuthTestApp,
     slug: string,
@@ -632,12 +638,56 @@ export function isReminderTemplate(template: string): boolean {
   return /remind/i.test(template)
 }
 
-export function reminderEmails(app: AuthTestApp): readonly OutboundEmail[] {
+/** Every reminder message the sink recorded, from any file sharing this
+ * database. Deliberately not exported: see reminderEmailsOf below, which is
+ * the only reading of it a criterion may count. */
+function reminderEmails(app: AuthTestApp): readonly OutboundEmail[] {
   return app.emails.sent().filter((email) => isReminderTemplate(email.template))
 }
 
-export function reminderRecipients(app: AuthTestApp): string[] {
-  return reminderEmails(app)
+/*
+The reminder messages addressed to one file's own actors, and the only counter
+the delivery criteria use.
+
+Why a total is the wrong number to count, reasoned from 8.6 rather than
+measured, because this machine has neither Docker nor a TEST_DATABASE_URL. A
+pass polls every due row in the database: that is 8.6's poll, which scopes by
+state and instant and by nothing else, and an implementation that scoped it to
+one file's rows would be wrong rather than considerate. Under the default
+PGlite backend each test file gets its own in-memory database, so a pass can
+only ever see its own file's rows and a total is a file-local number by
+accident of the backend. Under TEST_DATABASE_URL every file shares one
+database and vitest sets no fileParallelism, so AC-087's pass can claim
+AC-088's due rows, deliver them through this same sink and mark them sent,
+which reddens both files at once and neither for its own reason.
+
+The scope is the recipient address because 11.10 gives a message a template
+and a recipient and nothing else to key on, and every actor's address carries
+a fresh uuid, so no two files can collide. It weakens nothing: a broadcast to
+a folder is a broadcast to that file's own members, which is what AC-088 and
+AC-090 assert against, and no criterion here asserts anything about a stranger
+who was never in the fixture.
+
+Two alternatives were considered and are recorded so they are not re-derived.
+Scoping the poll itself is not available: it is the specification. Disabling
+file parallelism is a whole-suite cost paid for six files, and it would leave
+the totals correct by scheduling rather than by construction.
+*/
+export function reminderEmailsOf(
+  app: AuthTestApp,
+  cast: ZoneCast,
+): readonly OutboundEmail[] {
+  const mine = new Set(cast.actors().map((actor) => actor.email))
+  return reminderEmails(app).filter((email) => mine.has(email.to))
+}
+
+/** The addresses of the above, sorted, for the cases that assert who was
+ * reached rather than how many were. */
+export function reminderRecipientsOf(
+  app: AuthTestApp,
+  cast: ZoneCast,
+): string[] {
+  return reminderEmailsOf(app, cast)
     .map((email) => email.to)
     .sort()
 }

@@ -32,6 +32,17 @@ number asserts.
 column set when state leaves scheduled, and a skip recorded without it is a
 row that cannot be told from one the loop never reached.
 
+**Every count here is scoped to this file's own actors.** A pass polls every
+due row in the database, which is 8.6's poll rather than anything an
+implementation may narrow, and under TEST_DATABASE_URL every test file shares
+one database with no fileParallelism set, so this file's pass would otherwise
+claim AC-088's due rows, deliver them through this same sink and mark them
+sent, reddening both files and neither for its own reason.
+`reminderEmailsOf` filters the sink to the addresses this file signed in; the
+reasoning and the two rejected alternatives are in reminders-harness.ts. It
+weakens nothing this file asserts, since every address it cares about is one
+of its own.
+
 Spec: 8.6 (the delivery loop and its three skips; the survival and
 un-complete sentences), 11.7 (the pass), 4.8 (state, fired_at), 5.1 (the
 transitions), 11.10 (the sink that makes a send observable).
@@ -54,7 +65,7 @@ import {
   ZoneCast,
   minutesAgo,
   minutesAhead,
-  reminderEmails,
+  reminderEmailsOf,
   requireReminderRow,
   runPass,
   seedReminderRow,
@@ -139,7 +150,7 @@ describe('AC-087: a task completed before its instant is skipped, not sent', () 
     await instantArrives(completed)
     await instantArrives(pending)
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
 
     const skipped = await requireReminderRow(
@@ -166,7 +177,7 @@ describe('AC-087: a task completed before its instant is skipped, not sent', () 
       'the control that makes the skip mean something: a due reminder on a pending task is sent in the same pass, so "sends nothing" above is about the status and not about a loop that does nothing',
     ).toBe('sent')
 
-    const arrived = reminderEmails(app).slice(before)
+    const arrived = reminderEmailsOf(app, cast).slice(before)
     expect(
       arrived.length,
       '8.6 sends the pending one and only the pending one',
@@ -187,7 +198,7 @@ describe('AC-087: a task completed before its instant is skipped, not sent', () 
     )
     await instantArrives(abandoned)
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
       (await requireReminderRow(app.db, abandoned, 'the reminder survives'))
@@ -195,7 +206,7 @@ describe('AC-087: a task completed before its instant is skipped, not sent', () 
       '8.6 skips on `t.status != pending`, which is abandoned as much as completed. An implementation comparing against the string completed passes this criterion as written and delivers reminders for abandoned work',
     ).toBe('skipped')
     expect(
-      reminderEmails(app).length - before,
+      reminderEmailsOf(app, cast).length - before,
       'and sends nothing for it',
     ).toBe(0)
   })
@@ -252,7 +263,7 @@ describe('AC-087: a task completed before its instant is skipped, not sent', () 
     ).toBe('pending')
 
     await instantArrives(taskId)
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
 
     expect(
@@ -260,7 +271,7 @@ describe('AC-087: a task completed before its instant is skipped, not sent', () 
       '8.6, in the sentence after this criterion\'s own: un-completing before the instant lets it fire normally. An implementation that marked the reminder at the transition rather than at fire time has already spent it by now',
     ).toBe('sent')
     expect(
-      reminderEmails(app).length - before,
+      reminderEmailsOf(app, cast).length - before,
       'and exactly one email went out for it',
     ).toBe(1)
   })

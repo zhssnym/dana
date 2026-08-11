@@ -226,12 +226,20 @@ describe('AC-084: the date-only arm of 8.6, at the offset of the due date', () =
     // constants: two identical reminders on two due dates six months apart
     // are not a whole number of days apart in UTC, and no single offset,
     // whether taken from the current instant or hardcoded, can produce both.
+    // Hours away from a whole number of days, signed. Written as the distance
+    // from the NEAREST whole day rather than from the floor: the gap here is
+    // 180 days and 23 hours, so a remainder taken with % answers +23, which
+    // is the same fact spelled as "23 hours past 180 days" and can never be
+    // the -1 this relationship is about. Two implementer sessions found that
+    // independently and both stopped rather than adjust anything to match it,
+    // which is the correct verdict on a test whose derived value no
+    // implementation could produce; the constants above passed throughout.
     const days =
       (Date.parse(String(summerRow.fire_at)) -
         Date.parse(String(winterRow.fire_at))) /
       86_400_000
     expect(
-      Math.round((days % 1) * 24),
+      Math.round((days - Math.round(days)) * 24),
       '8.6 resolves each local time in the zone as it stood on its own due date, so the two instants differ by whole days minus the DST hour. An implementation reading one offset for both answers a whole number of days here, and passes both constants above only if it happens to read the right season',
     ).toBe(-1)
   })

@@ -42,6 +42,15 @@ honesty AC-021, AC-077 and AC-124 carry in their own headers. The plain
 summary: locally this file proves the outcome, and on postgres:18 it proves
 the lock.
 
+**And a second thing the postgres leg changes, on the same reasoning.** A pass
+polls every due row in the database, so under TEST_DATABASE_URL, where every
+test file shares one and no fileParallelism is set, a neighbouring file's due
+rows would arrive in this file's slice and break the exact counts below.
+`reminderEmailsOf` filters the sink to the addresses this file signed in. It
+does not touch the concurrency question above: the two passes issued together
+still race or queue as the backend decides, and what is scoped is only which
+deliveries this file counts as its own.
+
 Spec: 8.6 (the stale catch-up skip and the poll predicate), 11.7 (the pass,
 its self-healing tick, and SKIP LOCKED), 11.15 and 11.10 (what each leg can
 show), 4.8.
@@ -62,7 +71,7 @@ import {
   ZoneCast,
   minutesAgo,
   minutesAhead,
-  reminderEmails,
+  reminderEmailsOf,
   requireReminderRow,
   runPass,
   runTwoPassesTogether,
@@ -140,9 +149,9 @@ describe('AC-089: a restart inside the stale window sends, and beyond it skips',
     const inside = await missedReminder('five hours fifty-nine', JUST_INSIDE)
     const outside = await missedReminder('six hours one', JUST_OUTSIDE)
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
-    const arrived = reminderEmails(app).slice(before)
+    const arrived = reminderEmailsOf(app, cast).slice(before)
 
     const insideRow = await requireReminderRow(
       app.db,
@@ -184,24 +193,24 @@ describe('AC-089: a restart inside the stale window sends, and beyond it skips',
     // Ahead of now, so this pass is the tick that finds nothing.
     await setFireAt(app.db, taskId, minutesAhead(30))
 
-    let before = reminderEmails(app).length
+    let before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
       (await requireReminderRow(app.db, taskId, 'the reminder exists')).state,
       '8.6 polls fire_at <= now(), so a row whose instant is still ahead is not due and this pass must leave it alone',
     ).toBe('scheduled')
-    expect(reminderEmails(app).length - before, 'and send nothing').toBe(0)
+    expect(reminderEmailsOf(app, cast).length - before, 'and send nothing').toBe(0)
 
     // The instant passes with no pass running, which is 11.7's missed tick.
     await setFireAt(app.db, taskId, minutesAgo(10))
-    before = reminderEmails(app).length
+    before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
       (await requireReminderRow(app.db, taskId, 'the reminder exists')).state,
       '11.7: the poll is over fire_at <= now(), so the next pass picks up anything a missed one would have sent, inside the six hour window',
     ).toBe('sent')
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to),
       'and it reaches the assignee',
     ).toEqual([owner.email])
   })
@@ -210,7 +219,7 @@ describe('AC-089: a restart inside the stale window sends, and beyond it skips',
     const { owner } = await stage()
     const taskId = await missedReminder('two passes at once', 10)
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     // 11.7: the deploy overlap window can run two instances for about ninety
     // seconds, and SKIP LOCKED is what makes concurrent ticks contend safely
     // rather than double-send. What each leg of this suite can show is in the
@@ -218,7 +227,7 @@ describe('AC-089: a restart inside the stale window sends, and beyond it skips',
     await runTwoPassesTogether(app)
 
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to),
       '11.7 claims due rows with SELECT ... FOR UPDATE SKIP LOCKED so two ticks cannot both send the same reminder. On this suite\'s default backend the pair queues, single-connection per 11.15, and the second pass must find the row no longer scheduled; on CI\'s postgres:18 leg they overlap and the lock decides it. Either way one email is the answer, and a pass that reads its due rows outside a transaction, or claims them without locking, sends two',
     ).toEqual([owner.email])
 

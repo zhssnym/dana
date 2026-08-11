@@ -70,6 +70,7 @@ import {
   offsetAt,
   putReminderOk,
   requireReminderRow,
+  setReminderState,
   storedZone,
 } from './reminders-harness.js'
 import { shiftDate, todayIn } from './views-harness.js'
@@ -208,6 +209,34 @@ describe('AC-086: the assignee\'s zone changes and the instants follow', () => {
     const { actor, folderId } = await traveler('two-seasons', KARACHI)
     const winter = await remindedTask(actor, folderId, 'winter', WINTER_DUE)
     const summer = await remindedTask(actor, folderId, 'summer', SUMMER_DUE)
+
+    /*
+    Both rows are put back to scheduled before the login, and the reason is
+    two rulings that landed after this case was written rather than anything
+    about the zones it measures.
+
+    The historical due dates are the fixture's whole point: section 13 item 25
+    forbids a fixture on a future transition, so the dates are in 2010 and
+    every instant computed from them is in the past. Frozen 7.9 gained its
+    past-instant qualifier by owner ruling on 2026-08-10, so the PUT that
+    creates each row writes it skipped; 8.6 gained its delivered-reminder
+    ruling the same day, which puts a skipped row outside the timezone trigger
+    and which AC-154's third case asserts by number. Left alone, this case and
+    that one are mutually exclusive on this fixture and no implementation
+    satisfies both.
+
+    Neither criterion is weakened to settle it. This case is about the
+    arithmetic one login performs over two seasons, not about which states the
+    trigger reaches, so the fixture states what it needs: two scheduled rows.
+    setReminderState is the helper AC-154 already uses to put a row into a
+    state the loop would have left it in, used here in the other direction,
+    and it clears fired_at with the state so 4.8's note stays true of the row
+    it writes. The historical dates and the instants asserted below are
+    untouched.
+    */
+    for (const taskId of [winter, summer]) {
+      await setReminderState(app.db, taskId, 'scheduled')
+    }
 
     // Karachi has no DST, so before the change the two instants sit at the
     // same UTC time of day. That is what makes the hour appear only after.

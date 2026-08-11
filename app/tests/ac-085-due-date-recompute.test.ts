@@ -37,6 +37,14 @@ there being no transition to predict. They need no midday guard: a due date
 thirty days out stays future and a due date a day back stays past even if the
 zone rolls over mid-run.
 
+**The one case here that runs a pass counts only this file's own emails.** A
+pass polls every due row in the database, which is 8.6's poll rather than
+anything an implementation may narrow, and under TEST_DATABASE_URL every test
+file shares one database with no fileParallelism set. `reminderEmailsOf`
+filters the sink to the addresses this file signed in, so a neighbouring
+file's pass cannot redden this one and this one cannot redden it; the whole
+reasoning is in reminders-harness.ts.
+
 Spec: 8.6 (the trigger list, the past-instant rule, and the reset clause), 7.6
 (due_date changed non-null recomputes fire_at), 11.7 (the pass and its stale
 window), 4.8, section 13 item 25.
@@ -59,7 +67,7 @@ import {
   ZoneCast,
   expectFireAt,
   putReminderOk,
-  reminderEmails,
+  reminderEmailsOf,
   requireReminderRow,
   runPass,
   shiftDay,
@@ -167,11 +175,17 @@ describe('AC-085: a due date that moves takes the fire instant with it', () => {
       `8.6 recomputes from the new due_date, so 09:00 on ${SUMMER_DUE} in ${NEW_YORK}, which is UTC-4 that day`,
     )
 
+    // Hours away from a whole number of days, signed, and measured from the
+    // NEAREST whole day rather than from the floor. AC-084 carries the same
+    // pair and the same repair: this gap is 180 days and 23 hours, so a
+    // remainder taken with % answers +23 for every implementation that
+    // satisfied the two constants above, which made the expectation
+    // unreachable rather than strict.
     const days =
       (Date.parse(String(after.fire_at)) - Date.parse(String(before.fire_at))) /
       86_400_000
     expect(
-      Math.round((days % 1) * 24),
+      Math.round((days - Math.round(days)) * 24),
       'the due date moved a whole number of days and the instant did not, because a transition lies between them. An implementation adding the day difference to the stored instant answers a whole number of days here and is right in every season without one',
     ).toBe(-1)
   })
@@ -237,10 +251,10 @@ describe('AC-085: a due date that moves takes the fire instant with it', () => {
       'the same move into the past (spec 7.6)',
     )
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
-      reminderEmails(app).length - before,
+      reminderEmailsOf(app, cast).length - before,
       '8.6 polls state = scheduled, so a skipped row is not due however far past its instant is, and 11.7 must send nothing for it',
     ).toBe(0)
     expect(

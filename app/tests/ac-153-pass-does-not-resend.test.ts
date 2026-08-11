@@ -35,6 +35,16 @@ statement about the settled rows rather than about a pass that stopped
 working. Without it this criterion is satisfied by any implementation that
 runs the loop once and never again.
 
+**"Nothing more was sent" is counted over this file's own actors.** A pass
+polls every due row in the database, which is the very predicate this
+criterion is about and not something an implementation may narrow, so under
+TEST_DATABASE_URL, where every test file shares one database and no
+fileParallelism is set, a neighbouring file's first delivery would land in
+this file's second window and read exactly like the re-send this criterion
+forbids. `reminderEmailsOf` filters the sink to the addresses this file signed
+in. The criterion is unweakened: a re-send of this file's own row is a message
+to this file's own actor, which is inside the filter.
+
 Spec: 8.6 (the poll predicate, the state writes, and the exact duplicate it
 accepts), 11.7 (the sixty second interval, the self-healing poll), 11.8 (one
 provider, and the daily cap worth watching), 4.8 (state and fired_at).
@@ -56,7 +66,7 @@ import {
   ZoneCast,
   minutesAgo,
   minutesAhead,
-  reminderEmails,
+  reminderEmailsOf,
   requireReminderRow,
   runPass,
   seedReminderRow,
@@ -122,20 +132,20 @@ describe('AC-153: a settled reminder is not reconsidered', () => {
     const { owner } = await stage()
     const taskId = await dueReminder('sent once', minutesAgo(5))
 
-    let before = reminderEmails(app).length
+    let before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to),
       'the first pass delivers it',
     ).toEqual([owner.email])
     const settled = await requireReminderRow(app.db, taskId, 'the row settled')
     expect(settled.state, '4.8: the row records the send').toBe('sent')
 
-    before = reminderEmails(app).length
+    before = reminderEmailsOf(app, cast).length
     await runPass(app)
     await runPass(app)
     expect(
-      reminderEmails(app).length - before,
+      reminderEmailsOf(app, cast).length - before,
       '8.6 polls state = scheduled, so a sent row is not due however long ago its instant was. A loop polling on fire_at alone sends this every sixty seconds until the row crosses the six hour window: 360 emails for one deadline, from a provider whose free tier 11.8 caps at 100 a day',
     ).toBe(0)
     expect(
@@ -154,23 +164,23 @@ describe('AC-153: a settled reminder is not reconsidered', () => {
     )
     await setFireAt(app.db, taskId, minutesAgo(5))
 
-    let before = reminderEmails(app).length
+    let before = reminderEmailsOf(app, cast).length
     await runPass(app)
     const settled = await requireReminderRow(app.db, taskId, 'the row settled')
     expect(
       settled.state,
       'the first pass skips it, which AC-087 is about and this file takes as its starting point',
     ).toBe('skipped')
-    expect(reminderEmails(app).length - before, 'sending nothing').toBe(0)
+    expect(reminderEmailsOf(app, cast).length - before, 'sending nothing').toBe(0)
 
-    before = reminderEmails(app).length
+    before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
       await requireReminderRow(app.db, taskId, 'the row survives'),
       'a poll written as state <> sent reads correctly for a delivered row and reconsiders every skipped one, and this range produces plenty of those: a completed task, an unassigned one, a stale one, and every reminder whose date moved backwards',
     ).toEqual(settled)
     expect(
-      reminderEmails(app).length - before,
+      reminderEmailsOf(app, cast).length - before,
       'and still nothing is sent',
     ).toBe(0)
   })
@@ -180,19 +190,19 @@ describe('AC-153: a settled reminder is not reconsidered', () => {
     const settled = await dueReminder('settled early', minutesAgo(5))
     const later = await dueReminder('due later', minutesAhead(60))
 
-    let before = reminderEmails(app).length
+    let before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to),
       'the first pass delivers the one that was due',
     ).toEqual([owner.email])
 
     // The second reminder's instant arrives between the passes.
     await setFireAt(app.db, later, minutesAgo(1))
-    before = reminderEmails(app).length
+    before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to),
       'the second pass delivers exactly one email, for the row that became due since. Without this case the two above are satisfied by a loop that runs once and never works again',
     ).toEqual([owner.email])
     expect(

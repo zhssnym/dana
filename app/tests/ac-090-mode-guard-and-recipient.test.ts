@@ -36,6 +36,15 @@ mode, are not this criterion's. They are AC-147, numbered at this package's
 change control on 2026-08-10, because 7.9 names the no-due_date refusal
 separately from the wrong-mode one and no number covered it.
 
+**The recipient assertions count this file's own actors only.** A pass polls
+every due row in the database, 8.6's poll being scoped by state and instant
+and by nothing else, and under TEST_DATABASE_URL every test file shares one
+database with no fileParallelism set. `reminderEmailsOf` filters the sink to
+the addresses this file signed in, so a neighbouring file's delivery cannot
+appear in an equality about who this folder's reminder reached. The
+discriminating half is untouched: this file's own three members are all
+inside the filter, which is exactly where a broadcast would show.
+
 Spec: 7.9 (the mode rules, and the ruling of 2026-08-10 that PUT answers the
 affected TaskDetail), 4.8 (which mode is legal depends on the task's due_time,
 cross-table and enforced by the API), 8.6 (delivery to the assignee), INV-5,
@@ -66,7 +75,7 @@ import {
   minutesAgo,
   putReminder,
   putReminderOk,
-  reminderEmails,
+  reminderEmailsOf,
   requireReminderRow,
   runPass,
   seedReminderRow,
@@ -204,10 +213,10 @@ describe('AC-090: the wrong mode is refused, and the right one reaches one perso
       fireAt: minutesAgo(1),
     })
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to),
       '8.6 sends to the assignee, whom INV-5 makes the sole member of this folder',
     ).toEqual([solo.email])
     expect(
@@ -230,10 +239,10 @@ describe('AC-090: the wrong mode is refused, and the right one reaches one perso
       fireAt: minutesAgo(1),
     })
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
     expect(
-      reminderEmails(app).slice(before).map((email) => email.to).sort(),
+      reminderEmailsOf(app, cast).slice(before).map((email) => email.to).sort(),
       `the criterion's own fixture cannot tell "the assignee" from "every member", INV-5 making them the same person in a single-member folder. Here they are not: the task is assigned to one of three, and 8.6 never broadcasts to a folder, so neither ${solo.email} nor ${third.email} may receive anything`,
     ).toEqual([second.email])
   })

@@ -34,6 +34,16 @@ that decision. A creator who travels moves nothing observable, which is why
 their zone is not a sixth trigger, and this file is the reason: the row either
 never fires or is recomputed in a new assignee's zone before it does.
 
+**The counts are scoped to this file's own actors, and that is what keeps the
+broadcast assertion honest rather than what softens it.** A pass polls every
+due row in the database, 8.6's poll being scoped by state and instant and by
+nothing else, and under TEST_DATABASE_URL every test file shares one database,
+so a neighbouring file's delivery would otherwise arrive in this file's slice
+and fail an equality that is about this folder's three members.
+`reminderEmailsOf` filters to the addresses this file signed in. The three
+members are all of them, so a broadcast to this folder is still fully visible
+here; what is filtered out is only mail this criterion never spoke about.
+
 Spec: 8.6 (the loop's second skip and the sentence explaining it; the creator
 fallback as recorded at the P7 kickoff), 11.7, 4.8, 11.10, 10.5, INV-5.
 */
@@ -57,7 +67,7 @@ import {
   ZoneCast,
   minutesAgo,
   minutesAhead,
-  reminderEmails,
+  reminderEmailsOf,
   requireReminderRow,
   runPass,
   seedReminderRow,
@@ -156,9 +166,9 @@ describe('AC-088: an unassigned task at fire time is skipped, and nobody is mail
     const unassigned = await taskDue('unassigned', null)
     const assigned = await taskDue('assigned to the second member', second.id)
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
-    const arrived = reminderEmails(app).slice(before)
+    const arrived = reminderEmailsOf(app, cast).slice(before)
 
     const skipped = await requireReminderRow(
       app.db,
@@ -208,9 +218,9 @@ describe('AC-088: an unassigned task at fire time is skipped, and nobody is mail
     // its due_date implies and would not be polled at all.
     await setFireAt(app.db, taskId, minutesAgo(1))
 
-    const before = reminderEmails(app).length
+    const before = reminderEmailsOf(app, cast).length
     await runPass(app)
-    const arrived = reminderEmails(app).slice(before)
+    const arrived = reminderEmailsOf(app, cast).slice(before)
 
     expect(
       (await requireReminderRow(app.db, taskId, 'the reminder survives')).state,
