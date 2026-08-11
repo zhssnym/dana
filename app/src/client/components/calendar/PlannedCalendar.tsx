@@ -191,10 +191,24 @@ export function PlannedCalendar(): React.JSX.Element {
         }}
         eventContent={(info) => {
           const props = info.event.extendedProps as unknown as CellEventProps
-          return props.kind === 'ghost' ? (
-            <i>{info.event.title}</i>
-          ) : (
-            <span>{info.event.title}</span>
+          const title =
+            props.kind === 'ghost' ? <i>{info.event.title}</i> : <span>{info.event.title}</span>
+          /*
+          The leading space is load-bearing and is measured rather than
+          stylistic. A day cell's text is the concatenation of its
+          descendants' text with no separator inserted anywhere, so a cell
+          holding the fifth of the month and a row reads "5ac-098 daily
+          series" as one string, and the day number stops being a word: any
+          reader, a person's eye included once the cell is narrow enough,
+          loses the boundary between the number and the first row. A space
+          text node before the title restores it, costs nothing to render, and
+          is what makes a cell addressable by the day it draws.
+          */
+          return (
+            <>
+              {' '}
+              {title}
+            </>
           )
         }}
       />
