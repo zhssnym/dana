@@ -234,4 +234,6 @@ sub-agent in sequence, verifying each before starting the next.
 | 10a | The rule stated once in 8.6, AC-168 numbered, five writers measured | 12 | Steward | Done |
 | 10b | AC-168 written red, the email counting scoped per actor | 11 | Testers | Done |
 | 10c | The copy writes the state its instant earns, `at` threaded through | 02 | Implementers | Done |
+| 11 | Merge review: four disclosures ratified, the fourth skip into 8.6, a retrace error corrected | 12 | Steward | Done |
+| 12 | Merged at 2bda626, green on both legs on the merge commit itself | 12 | Steward | Done |
 
