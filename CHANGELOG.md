@@ -222,6 +222,151 @@ Planning and design. No software has been released yet.
   cancelled run is worse than a failed one, branch protection reading it as
   not green while the report names no assertion, so a session reading CI to
   learn whether its own work passed learns nothing.
+- **P8's second change control, 2026-08-11.** Seven items ruled, four criteria
+  numbered from AC-169, one section 13 item recorded, two amendments to
+  section 11, and nothing routed to the human owner: every item turned out to
+  sit in section 9 or section 11, and neither is frozen. Two returns already
+  declared owed grow rather than two new sessions being added, which is the
+  cheaper shape and the one this row has used since its first return. The
+  items came from three places, which is worth naming because no single
+  session could have raised them: the tester escalated one from a locator it
+  could not write, the co-lead found one by reading the client against
+  section 7 endpoint by endpoint, and five were recorded as open silences and
+  readings in `app/src/client/README.md` by the sessions that met them. One
+  further item was noted rather than escalated and is agreed with here:
+  AC-100 appends one comment to `dist/client` during its run and restores the
+  bytes in a `finally`, which is a fixture action on the running system of
+  the same kind as seeding rows, over build output that is gitignored and
+  rebuilt at the start of every run. The one thing it is not is a fixture
+  written through section 7, so if it ever failed to restore, the next case
+  would read a modified worker; the `finally` and the rebuild bound that, and
+  the alternative that session measured is worse, `context.route()` not
+  intercepting the browser's fetch of a worker script at all.
+- **The reminder the client never sent, found by the co-lead and numbered as
+  AC-169 and AC-170.** `api/mutations.ts` carries a hook for every write of
+  section 7 except frozen 7.9's, so a reminder set in the task form was held
+  in the form's state and discarded at save, silently, with the whole suite
+  green. That last part is the finding rather than the missing hook: AC-092
+  asserts the form's state and says so in its own text, AC-146 to AC-150
+  assert the endpoints, and no criterion read the two together, which is the
+  gap shape AC-132 and AC-142 were written for one and two packages earlier.
+  Nothing frozen has to move, the endpoints having landed with P7, so this is
+  the client's obligation alone and 9.3 now states it: a reminder set while
+  creating rides the reminder arm of frozen 7.6's create body, and a reminder
+  set or changed while editing is 7.9's PUT, with DELETE
+  /tasks/:id/reminder for removal because no task body expresses one. *Two
+  numbers rather than one*, because create and edit are two paths to two
+  endpoints, which is the split section 12 already carries on the server side
+  with AC-149 against AC-146 and AC-148; one number covering both would pass
+  on an implementation that wired whichever path its author happened to test,
+  which is exactly the failure that produced the pair. Neither criterion
+  names a transport beyond what section 7 fixes, the stored reminder being
+  the assertion, so a client using the reminder arm of a PATCH body that 8.6
+  also names satisfies them.
+- **Section 9 gains the copy it had been implying, five strings in three
+  places.** All five were recorded as open silences by the sessions that met
+  them and none is invented to fill a gap in the abstract. *Two inline page
+  states* are written into 9.1: the failed read's "Couldn't load this.
+  Nothing was changed." with a "Try again" control, and the 404 answer's
+  "Not found. This may have been deleted, or it may never have been yours to
+  see." Section 9 gives every page five states and had spelled the toast
+  alone, while 10.2's chokepoint makes an inaccessible resource answer as a
+  missing one, so a client with no words there tells the person something
+  false about their own account. AC-171 asserts both. *The truncation notice*
+  is written beside them, "This list is long, so only the first part is
+  shown. Narrow it down to see the rest.", with no number interpolated
+  because the flag reports that rows were dropped and never how many, and a
+  client spelling "1000" would transcribe a limit of 10.3 the response does
+  not carry. It is deliberately asserted by no criterion, and the reason is
+  recorded in section 12 rather than left to look like an oversight:
+  producing it takes a thousand and one rows through section 7, and section
+  13 item 6 records that the cap is unreachable at v1 scale. The copy sits in
+  section 9 rather than section 6 because these are page states and page
+  states are section 9's; the cap rule that produces the flag does not move.
+  *And 9.6's two missing confirmations* are written word for word, before a
+  member is removed and before one leaves, each stating the R-CLEAN of 5.3
+  that a person cannot see from where they are standing, which is what the
+  four confirmations section 9 already wrote exist to state. They add no
+  criterion: AC-162's text is every destructive action section 9 puts a
+  confirm on rather than a list of four, so it reaches them as written and
+  what is owed is two cases in its file.
+- **The folder header is a region and the invite list is not, ruled the same
+  day and deliberately in opposite directions.** The tester escalated a
+  locator it could not write: 9.1's control table gives "More actions" to the
+  task form's overflow menu and to a task row's, 9.6's folder header carries
+  a third, and AC-162 reaches it as the first match on the page, which is
+  position and which that suite's own rule forbids. Of the two answers
+  offered, the tester preferred giving that menu a name of its own and this
+  change control took the other, applying the sections rule added to 9.1 on
+  the same date: the header and the sharing panel are named regions, "Folder
+  header" and "Sharing panel", both 9.6's own words, and the menu is
+  addressed as "More actions" within the first. *Why the tester's preference
+  lost*: the two named menus share one name deliberately, being the same
+  control pointed at different objects, so a third name would assert a
+  difference in kind that is not there, and the sections ruling's own
+  argument applies unchanged, that naming containers scales where qualifying
+  controls does not. Naming the header also reaches further for less, since
+  AC-058's 8.11 ratio, the Share button and the inline rename all sit in it
+  and are all addressed today by looking anywhere on the page. *And the
+  opposite ruling on the invite list*, which the page assembly session
+  recorded as owed rather than escalated, expecting disagreement: it stays
+  unnamed, because the sections rule takes a region's name from the heading
+  the section gives it or from the datum it is generated from, and this list
+  has neither, being one list with no heading. Its rows are addressed the way
+  a task row's controls are, from the row's own sentence, which is what
+  "Hassan invited you to Wedding" is for. A rule that produces a name where
+  the specification has one and produces none where it does not is one rule;
+  inventing a string here would have been a second.
+- **Two readings where two sentences agreed about one case and were silent
+  about the next.** *Where the Q12 invite surface lives*: 9.8 renders the
+  invite list "before anything else" after callback and 9.2 lands first-run
+  on My Day, which between them fix the first load and say nothing about the
+  second. It is a standing section of My Day, and of the People screen, for
+  as long as Q12 is non-empty, and AC-172 asserts it, because both wrong
+  implementations are plausible and silent: a surface rendered once leaves
+  anyone who reloads before answering with no invite in front of them, and a
+  band above every page invents global chrome 9.1 does not name. *Whether
+  9.3's assignee dropdown offers unassignment*: it does not, and 9.3 now says
+  so. Section 4 makes assignee_id nullable and INV-5 permits the null in a
+  folder of two or more, but AC-094 asserts the dropdown lists exactly the
+  members plus the invite option, so a "Nobody" entry would close a silence
+  by falsifying a criterion that passes, which trades the wrong way round.
+  The field is hidden in single-member folders, where AC-032's 409 lives, so
+  nothing is lost at the only place the refusal bites, and the form defaults
+  the assignee to the viewer, the null arriving from events rather than
+  choices: a move whose target the assignee is not a member of, and 5.3's
+  R-CLEAN. What it costs is recorded as section 13 item 28 rather than left
+  implicit, that a task in a shared folder can be reassigned from the
+  interface and not unassigned.
+- **Two carried items closed in section 11, neither of them frozen.** *The
+  CSRF cookie's name* is fixed: `dana_session` and `dana_csrf`, which is what
+  the server has set since P1. 11.6 fixed that the token cookie is readable
+  and fixed no name, so `api/csrf.ts` preferred a guess and fell back to
+  whatever the sole readable cookie turned out to be, a fallback worse than
+  the guess it protects, being correct exactly until something else sets a
+  readable cookie and then sending the wrong value on every mutation for a
+  403 that says nothing about why. The recommendation carried with the item,
+  moving both names into `app/src/shared`, is declined: that directory is the
+  contract as code, the section 7 schemas and types both sides import, and a
+  transport detail of 11.6 is not part of it. With the name in the
+  specification each side transcribes one specified constant, which is the
+  discipline the acceptance suite already runs on for section 9's copy,
+  restating rather than importing so that neither side takes its definition
+  of correct from the other. Removing the fallback is one line and is routed
+  with the client return. *And 11.4's `virtual:pwa-register` parenthesis*
+  names the flow rather than the import, which is the reading the shell
+  session recommended and which is now recorded in 11.4 so that a client not
+  importing that module is not read later as a deviation. The bullet's
+  obligation is 10.6's non-forcing update; the parenthesis identifies which
+  of the plugin's registration flows satisfies it, prompt-for-update rather
+  than autoUpdate, and a module specifier is how the plugin's own
+  documentation names that flow. The measured reason it is not merely a
+  preference: the virtual module exists only while the plugin is configured,
+  so a static import of it fails the build outright, and this package's
+  client had to be green on a tree where `vite.config.ts` was not yet wired.
+  Nothing forbids the import to a later session and the swap is one file.
+  Recorded as a reading of 11.4 rather than a change to it, the shape 11.9
+  took for UNTIL's spelling at P6.
 - **Package P7 of RFC 0001, reminders: 8.6's fire instants with both DST rules,
   all five recompute triggers, frozen 7.9's two endpoints, and 11.7's delivery
   pass with Resend behind it.** The fire-instant module implements the gap
