@@ -10,6 +10,66 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **P7's third change control, 2026-08-10, after the endpoint shape review.**
+  8.5's copy arm wrote a state 8.6 forbids and the loop delivered it.
+  `copyReminderToSuccessor` computes the right state through `planReminder`,
+  then hardcodes 'scheduled', NULL at the INSERT and discards the answer, and
+  falsifies its own return value the same way. The implementation is faithful:
+  8.5's pseudocode named the state flat, so 8.5 is what disagreed with 8.6.
+  It is a live defect rather than a harmless override, because the loop selects
+  state = 'scheduled' with fire_at <= now() and skips only beyond six hours, so
+  a row written scheduled with a past instant inside that window is mailed on
+  the very next tick. The comment defending the override, that the loop reaches
+  the same answer one tick later, is true beyond six hours and exactly inverted
+  inside them, which is where ordinary values land: 4.8 admits offsets up to
+  10080 minutes, so a daily task due 09:00 whose reminder leads by a day,
+  completed at 10:00, puts the successor's instant an hour in the past and the
+  next tick mails a reminder for a deadline that has not arrived.
+- **The rule is generalized into 8.6 rather than qualified in a fourth
+  section.** This is the second appearance of one defect shape on one row.
+  Frozen 7.9's unqualified PUT bullet was the first, escalated at the first
+  change control and ruled by the owner; both are a path that computes an
+  instant and then names a state instead of reading the one the instant earns.
+  8.6 had written the rule as a property of the recompute alone, and that
+  narrowness is what let three other writers each restate or ignore it, so the
+  fix is one sentence governing every path that writes the column, with 8.5's
+  line pointing at it instead of naming a state. The repository's own standing
+  warning is that a rule stated twice will one day disagree with itself, and
+  this rule already had, twice. Frozen sections are untouched: 7.9 keeps its
+  qualifier as a client-facing clause consistent with the general rule rather
+  than a second definition of it, and 7.6 needs none, saying nothing about
+  state and correctly leaving it to section 8.
+- **The class was measured rather than read, and it corrects the count.** There
+  are five writers of the column, not four. The three API paths, 7.9's PUT and
+  the reminder arms of 7.6's create and patch bodies, all reach it through one
+  `upsertReminder` helper that writes `plan.state` and `plan.firedAt`, verified
+  at `createTask`, `patchTask` and `putTaskReminder`. The recompute's own
+  UPDATE writes them too. `copyReminderToSuccessor` was the only override, so
+  the shape review's instance was the whole class, which is worth more than the
+  fix itself: the same measurement would have found a second override had one
+  existed, and none does.
+- **AC-168 numbered, from the ledger's free number.** It pins the rule across
+  the creating paths rather than per path, a per-path number repeating in
+  section 12 the spread that caused the defect in 8.6. Nothing asserted this on
+  any creating path before, so even the owner's 7.9 qualifier was unpinned:
+  AC-148 deliberately confined itself to future instants, where the two
+  readings agree. Its scheduler clause is what makes it more than a column
+  check, the harm being that the poll matches on the stored value, and its
+  future-instant control stops an implementation that wrote skipped
+  unconditionally, which would satisfy every past-instant clause while
+  silencing every reminder in the product.
+- **The trigger union's reminder arm is kept, and only its prose is routed.**
+  The shape review recommended against retiring it and the argument holds: 8.6
+  names five triggers, a union naming four is the worse lie, the recompute
+  handles the arm and the module's own tests exercise it. What is wrong is two
+  comments naming PUT /tasks/:id/reminder as a caller the PUT provably is not,
+  every write going through the upsert and a recompute after it taking a second
+  clock reading, so an instant falling between the two calls would be scheduled
+  by one and skipped by the other. The docstring also splits first write from
+  overwrite, which the ON CONFLICT upsert does not. The module is the
+  Scheduling engineer's, so the correction is routed to its return rather than
+  made by the Steward; left standing it invites the next reader to restore the
+  missing call and reintroduce the defect the upsert argued out.
 - **The mirror arm reaches frozen 7.6, by owner ruling of 2026-08-10 on the
   change control's escalation.** The appended paragraph gains one sentence:
   setting due_time on a date-only task carrying a time_of_day reminder deletes
