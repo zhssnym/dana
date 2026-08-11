@@ -255,3 +255,5 @@ sub-agent in sequence, verifying each before starting the next.
 | 10 | AC-100's deploy made real on disk, eight fixture collisions repaired, a ninth found | 11 | Testers | Done, escalated |
 | 11 | main merged down, seven conflicts kept both, section 12 reconciled to 168 by count | 12 | Unattended | Done |
 | 12 | Seven carried items ruled, AC-169 to AC-172 numbered, item 28 recorded | 12 | Unattended | Done |
+| 13 | AC-169 to AC-172 written, AC-162 rescoped to the new region, two confirms added | 11 | Testers | Done |
+| 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done, one note |
