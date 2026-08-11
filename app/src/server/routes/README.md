@@ -294,3 +294,38 @@ its two 7.9 clauses and fails its two delivery clauses, which is the straddle
 the P7 row predicted for that number. AC-085 passes but for one case that is a
 false red and is escalated to the suite's owner, along with the identical case
 in AC-084; both are recorded in `ef68ac9` and in that session's final block.
+
+Read and confirmed by the Platform session at `198a672`, which is the reason
+this entry was written: the request the RFC's P7 row implies does not exist,
+and a session going looking for it would have found nothing and invented one.
+Checked against `tasks.ts` rather than taken from the paragraph above: both
+handlers are registered on `createTasksRouter`, at `/tasks/:id/reminder` on PUT
+and on DELETE, each behind `requireSession` then `requireCsrf`, and that factory
+has been mounted since `fc6325f`. **Nothing was added to `createApp` for them,
+and nothing was owed.**
+
+What the boot file did owe, and now carries, is the other paragraph's: the
+scheduler. `main()` starts the 11.7 interval after `listen`, hands it the
+application's own notifier as the sink so one construction decides what every
+outbound message does, reads `SCHEDULER_HEARTBEAT_URL` for 11.12's heartbeat,
+and stops the interval ahead of `server.close()` on SIGTERM. The notifier itself
+gained the 11.8 transport at the same construction call, which is inside
+`createApp` and is the only change to that function this package makes.
+
+The measurement, on this session's own scope rather than the whole suite, which
+the coordinating session runs after it. Before: 15 of 38 failing across the six
+criterion files that reach the pass plus this role's two unit files, every one of
+the fifteen the same "no reminder scheduler module could be loaded" assertion,
+except AC-085's escalated case. After: 1 of 38, that one case. Over the whole P7
+range and its neighbours, `ac-08*`, `ac-09*`, `ac-14*` and `ac-15*`, 135 of 138
+pass; the three are AC-084's and AC-085's twin false reds recorded above and
+AC-086's third case, which the phase 3 session escalated in
+`src/server/auth/README.md` and which no implementation can pass beside AC-154's
+third case.
+
+One request in another file was fulfilled by this session and is deliberately
+not annotated by it: the pruning call that `src/server/auth/README.md` has
+carried since P1. That file is the Security engineer's path, and the P5 ruling
+above covers exactly this shape, an entry whose executor cannot write in the
+file that holds it. Reported in `198a672`'s message; the Steward annotates it at
+the merge.
