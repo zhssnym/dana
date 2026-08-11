@@ -48,6 +48,7 @@ npx playwright test -g "AC-095"
 | P8 | AC-091 to AC-100 | Covered, passing in the Playwright leg since the grouped run built the client; written red against P0's placeholder and green in the order that was designed |
 | P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered, passing in the Playwright leg. Those criteria stay in their own packages with their server halves green where they are |
 | P8 gate | AC-155 to AC-163, AC-165 to AC-167 | Covered, passing in the Playwright leg; proposed here with their tests and numbered by the section 12 amendment of 2026-08-11. The gaps at 154 and 164 belong to package P7 and are deliberate |
+| P8 gate | AC-169 to AC-172 | Covered in the Playwright leg; appended by the second section 12 amendment of 2026-08-11 from that change control's rulings rather than proposed here. AC-171 and AC-172 pass; AC-169 and AC-170 are red by design against the reminder write the client does not yet have |
 | P9 to P10 | AC-101 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
@@ -692,6 +693,41 @@ Six things these files are written around.
   a UTC midnight in the seconds between the seed and the spec, which
   `middayZone()` avoids in the vitest leg and this one cannot, the seed's dates
   not being ours to choose.
+
+**The second change control's four criteria, and what their colours mean.**
+AC-169 and AC-170 are red by design and are the standing order working: the
+client carries a mutation for every write of section 7 except frozen 7.9's,
+so a reminder set in the task form was held in the form's state and discarded
+at save, and the whole suite was green over it because AC-092 reads the form,
+AC-146 to AC-150 read the endpoints, and nothing read the two together. Both
+assert the stored row rather than the form, which is the only question that
+separates a value that was written from one that is merely remembered, and
+the red was confirmed to land there rather than earlier before either was
+committed. They are two numbers because create and edit reach two endpoints,
+and one number would pass on whichever path its author happened to wire.
+
+AC-171 and AC-172 pass on arrival, which is worth saying because that is the
+inverse of the order everything else here ran in. Both come from rulings
+rather than from defects: 9.1's inline state copy was adopted from the
+client's own first pass, and 9.8's invite list was already a standing section
+of both pages, so what the change control did was write down what was there
+and make it assertable. A criterion that arrives green has not been shown to
+discriminate, so each carries its own control: AC-171 asserts the failure
+copy absent on the 404 arm and the not-found copy absent on the failure arm,
+since a client rendering one state for both passes any case that looks for
+one string; AC-172 asserts the list gone from both pages after the invite is
+answered.
+
+**AC-162's folder case is red on purpose, and it is the only case here whose
+colour was traded deliberately.** It reached 9.6's overflow menu as the first
+"More actions" on the page, which is position, and position is not a property
+this suite may address by; the second change control named "Folder header"
+and "Sharing panel" as regions for exactly that. Scoped to the region it is
+red, because the client shipped before the ruling and exposes only Q7's three
+body sections as regions. Green by luck became red by contract, which is the
+trade this suite exists to make. The sharing panel is already a named region,
+which is why the new remove case passes while the new leave case fails on the
+same missing header.
 
 **Nine reds outlived the client and none of them was the client's.** The
 grouped run left them deliberately, no implementer phase being permitted to

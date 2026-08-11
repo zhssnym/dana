@@ -24,6 +24,14 @@ folder case asserts the folder afterwards through 7.4 rather than off the
 page, because a client that deleted it and re-rendered from a stale cache
 looks identical to one that did not.
 
+**The two confirms added on 2026-08-11 fall inside this criterion rather
+than beside it.** Its text is every destructive action section 9 puts a
+confirm on, not a list of four, so 9.6's leave and remove confirms owe two
+more cases here and no fifth number. Both state 5.3's R-CLEAN, which is
+exactly the invisible consequence the four written confirms exist to state:
+the person losing access also loses every assignment they held in that
+folder, and nothing else on the page says so.
+
 **The folder confirm is asserted with counts this file made.** 9.6's copy
 carries three numbers, and its example (28 open, 12 completed, 3 abandoned)
 is a shape rather than a value, so the fixture is built to three counts that
@@ -34,7 +42,9 @@ looks for digits.
 
 Spec: 9.3 (the delete confirm), 9.4 (the abandon confirm), 9.5 (the
 G-SERIES un-complete confirm), 9.6 (the folder delete confirm and its
-counts), 5.1, 8.5, 8.8, 7.4.
+counts, and the leave and remove confirms), 9.1 (the regions the folder
+page's header and sharing panel are), 5.1, 5.3's R-CLEAN, 5.4, 8.5, 8.8,
+7.4.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -45,6 +55,7 @@ import {
   copy,
   createTask,
   csrfToken,
+  regionOf,
   routes,
   seedDate,
   seedIds,
@@ -197,9 +208,20 @@ test.describe('AC-162: the four confirms of section 9', () => {
     }
 
     await page.goto(routes.folder(folder.id))
+    // Inside the region rather than first on the page. 9.6's menu is a third
+    // control answering to "More actions" after the task form's and a task
+    // row's, and reaching it by position is what the last tester return
+    // flagged and what the second change control answered by naming this
+    // region. A third name for the menu was declined there: the two named
+    // menus share their name deliberately, being one control pointed at
+    // different objects, so what separates them is the container.
     await clickControl(
-      page.getByRole('button', { name: 'More actions', exact: true }).first(),
-      'spec 9.6: the folder header carries an overflow menu with rename, label, leave and delete',
+      regionOf(page, 'Folder header').getByRole('button', {
+        name: 'More actions',
+        exact: true,
+      }),
+      'spec 9.6 and 9.1: the folder header is a named region carrying an overflow menu with ' +
+        'rename, label, leave and delete',
     )
     await clickControl(
       page.getByRole('menuitem', { name: /delete/i }),
@@ -265,5 +287,99 @@ test.describe('AC-162: the four confirms of section 9', () => {
       'spec 5.1: the declined un-complete left the completed row completed, so the successor ' +
         'it would have deleted is still pending',
     ).toBe('completed')
+  })
+
+  test("AC-162: leaving a folder carries 9.6's copy and declining keeps the membership", async ({
+    browser,
+  }) => {
+    // The non-owner of the seeded shared folder, because 5.4 gives leave to a
+    // member and gives the owner a transfer instead. A context of its own so
+    // this case does not disturb the viewer every other case here signs in as.
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await signIn(page, seedSubs.imran)
+
+    await page.goto(routes.folder(seedIds.groceries))
+    await clickControl(
+      regionOf(page, 'Folder header').getByRole('button', {
+        name: 'More actions',
+        exact: true,
+      }),
+      'spec 9.6 and 9.1: the folder header is a named region, and its overflow menu carries ' +
+        'Leave for a member who is not the owner',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: /leave/i }),
+      'spec 9.6: the header overflow carries Leave, non-owner only per the 5.4 matrix',
+    )
+
+    await expect(
+      page.getByText(copy.leaveFolder('Groceries')),
+      "spec 9.6: the leave confirm states 5.3's R-CLEAN, which is the half of leaving a " +
+        'person cannot see: the assignments they hold in this folder become unassigned. Copy ' +
+        'in section 9 is normative',
+    ).toBeVisible()
+
+    await clickControl(
+      page.getByRole('button', { name: 'Cancel', exact: true }),
+      'spec 9.1: every confirmation offers Continue and Cancel',
+    )
+
+    const after = await page.request.get(`/api/v1/folders/${seedIds.groceries}`)
+    expect(
+      after.status(),
+      'spec 5.3: a declined leave leaves the membership, so this member can still read the ' +
+        'folder. A 404 here is the leave having run anyway, which is invisible to a case that ' +
+        'only reads the dialog',
+    ).toBe(200)
+    await context.close()
+  })
+
+  test("AC-162: removing a member carries 9.6's copy and declining keeps them", async ({
+    page,
+  }) => {
+    // The owner removes the other member, which 5.4 gives to the owner alone.
+    await page.goto(routes.folder(seedIds.groceries))
+    await clickControl(
+      page.getByRole('button', { name: 'Share' }),
+      'spec 9.6: the folder header carries a Share button, which opens the sharing panel',
+    )
+
+    const panel = regionOf(page, 'Sharing panel')
+    const member = panel
+      .getByRole('listitem')
+      .or(panel.getByRole('row'))
+      .filter({ hasText: 'Imran' })
+    await clickControl(
+      member.getByRole('button', { name: /remove/i }),
+      'spec 9.6 and 9.1: the sharing panel is a named region carrying the member list with its ' +
+        'remove controls, and the row names the member the control acts on',
+    )
+
+    await expect(
+      page.getByText(copy.removeMember('Imran', 'Groceries')),
+      "spec 9.6: the remove confirm states 5.3's R-CLEAN for the person being removed, the " +
+        'same consequence the leave confirm states for the person leaving. It names them and ' +
+        'the folder from the row, the way the delete confirm takes the folder and its counts',
+    ).toBeVisible()
+
+    await clickControl(
+      page.getByRole('button', { name: 'Cancel', exact: true }),
+      'spec 9.1: every confirmation offers Continue and Cancel',
+    )
+
+    const after = await page.request.get(`/api/v1/folders/${seedIds.groceries}`)
+    expect(
+      after.status(),
+      `GET /folders/:id answered ${after.status()}: ${await after.text()}`,
+    ).toBe(200)
+    const members = ((await after.json()) as { members: { user: { display_name: string } }[] })
+      .members
+    expect(
+      members.map((entry) => entry.user.display_name).sort(),
+      'spec 5.3: a declined removal removes nobody. The seeded folder keeps both members, and ' +
+        'asserted through 7.4 rather than off the page because a client that removed them and ' +
+        're-rendered from a stale cache looks identical to one that did not',
+    ).toEqual(['Hassan', 'Imran'])
   })
 })

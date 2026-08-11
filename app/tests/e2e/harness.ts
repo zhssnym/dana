@@ -474,6 +474,23 @@ export const copy = {
   offlineWriteToast: "Couldn't save. You're offline.",
   /** 9.1, the global error toast for failed requests. */
   errorToast: 'Something went wrong. Nothing was saved. Try again.',
+  /**
+   * 9.1's inline state copy, written at the second P8 change control because
+   * three of the five states section 9 gives every page had no words at all.
+   * The truncation notice sits here beside the two AC-171 asserts so that it
+   * is one string chosen once rather than one per page, which is the reason
+   * 9.1 gives for writing it down while asserting it nowhere.
+   */
+  readFailed: "Couldn't load this. Nothing was changed.",
+  notFound: 'Not found. This may have been deleted, or it may never have been yours to see.',
+  truncated:
+    'This list is long, so only the first part is shown. Narrow it down to see the rest.',
+  /** 9.6's two confirmations, whose names come from the row they act on. */
+  leaveFolder: (folder: string) =>
+    `Leave ${folder}? You lose access to it, and anything in it assigned to you becomes unassigned.`,
+  removeMember: (member: string, folder: string) =>
+    `Remove ${member} from ${folder}? They lose access, and anything in this folder assigned ` +
+    'to them becomes unassigned.',
   /** 9.3, the 8.4 warning shown before a date is cleared. */
   clearDateWarning: 'Clearing the date also ends the repeat and removes the reminder.',
   /** 9.3, the helper text on each of the three date-dependent fields. */
