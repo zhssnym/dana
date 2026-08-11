@@ -10,6 +10,33 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **The mirror arm reaches frozen 7.6, by owner ruling of 2026-08-10 on the
+  change control's escalation.** The appended paragraph gains one sentence:
+  setting due_time on a date-only task carrying a time_of_day reminder deletes
+  it, for the same reason and in the same transaction, so 7.6 and 8.4 state one
+  policy rather than half of one each. The reasoning the owner named as
+  carrying it is 9.3's, that the reminder control switches mode with due_time,
+  so a surviving row would render an offset picker over a wall time, a reminder
+  the interface can neither show nor edit. No bullet moved through either of
+  the two rulings this paragraph now carries, both being silences beside
+  bullets that name a consequence for due_date and none for due_time.
+- **The cascade criterion is AC-164, assigned from the cross-tree ledger on
+  2026-08-10, and section 12's pending heading is retired.** The number was
+  withheld while package P8 ran live in a second working tree with its own
+  tester proposing concurrently, neither branch able to see the other. The
+  coordinating session holds the ledger and settled it: P7 keeps AC-144 to
+  AC-154, P8 takes AC-155 to AC-163 plus AC-165, one P8 file renaming because
+  it had claimed AC-154 before that number was taken here, and AC-164 is free.
+  Both arms are one criterion because they are one policy over one field, with
+  a third clause as the control that keeps them from being implemented as a
+  blanket over the column: a due_time moving between two non-null values
+  cascades nothing and recomputes, which is AC-151's trigger. It is the one
+  criterion in this package written after the implementation it tests, which
+  AC-131 precedents and which a constraint outside the branch forced rather
+  than anyone choosing; the cost is limited because both arms were fully
+  specified in 8.4 and frozen 7.6 before the implementing session read either,
+  so it tests a written rule rather than a silence. The tester return that
+  writes it is no longer gated.
 - **A PATCH that invalidates the reminder's mode deletes the reminder, both
   arms, 2026-08-10.** The first arm is the human owner's ruling on the P7
   engine session's escalation: clearing due_time on a task carrying an offset
