@@ -357,3 +357,115 @@ in this client imports CSS, and `main.tsx` is not that role's file. Vite emits
 one stylesheet for the entry chunk, so the tokens are global regardless of
 which page is open. A first pass: one line in `main.tsx` is tidier and is
 requested in `components/README.md`.
+
+## Extended by the Complex Interaction session
+
+Appended rather than woven in, on this file's own invitation, and by the same
+rule the Component session followed: nothing above is reworded, and what
+changed above is named here. Three directories arrived, `components/task-form/`,
+`components/search/` and `components/calendar/`, each with a header stating
+what it implements and why.
+
+**The overlay seam kept its shape and gained one arm.** The question this file
+marked as this role's call is answered: `shell/overlays.ts` stays the chrome's
+and stays exactly as written, and the edit arm is a second, narrower bus in
+this role's own directory, `components/task-form/open.ts`. `openTaskForm`
+carries 9.3's entry-point defaults and no identity, because the chrome decides
+those; `openTask(taskId, { upcoming })` carries an identity and no defaults,
+because a row, a calendar cell and a search result each open a task that
+exists. The `upcoming` flag is 9.5's ghost path and rides that path alone.
+
+**Both overlays are mounted once, last, by `AppLayout`.** Once, because each
+opens over whatever page is beneath it and a per-page copy would be two of
+each on the All page. Last, because both are modal and a control inside one
+has to be the page's last in reading order, which is what makes
+`getByRole('button', { name: 'More actions' }).last()` name the form's menu
+rather than a row's.
+
+**A surface is a page for the purposes of the one-hook rule.** The form
+overlay and the search overlay read, and the components below them take values
+and callbacks as props: `TaskFormOverlay` holds every read and write of 9.3,
+`SearchOverlay` holds the one read of 9.9, and `TaskForm`, `StepsEditor` and
+the calendar's own pieces fetch nothing. `PlannedCalendar` is the one
+exception in kind and not in spirit: it is mounted by a page and calls the
+Q3C hook itself, because the range it asks for is the range its own grid laid
+out and no page can know that before the grid renders.
+
+**Four reads and seven writes were added to `api/`**, because this file
+settles that every read and every write in this client lives there:
+`usePlannedCalendarView`, `useTask`, `useDeleteTask`, `useAddStep`,
+`useUpdateStep`, `useDeleteStep` and `useDeleteFolder`. None of them
+invalidates or reports anything, which is this file's settled rule and stays
+so.
+
+**`parts/useRowActions.ts` gained `onOpenTask` and `onDelete`**, the two
+entries `components/README.md` recorded as owed. Both are additive, so every
+page that spreads the actions got them with no page edit.
+
+**One thing changed in `components/ui/` that is not that role's to have
+foreseen.** `StarButton` now carries its accessible name as content rather
+than as `aria-label`. The name is identical, `aria-pressed` is unchanged, and
+every criterion that asks for the star by role and name is unaffected. What
+changed is that an `aria-label` is a *label* to the acceptance suite's
+`formField` helper, which addresses 9.3's ten fields by accessible name across
+roles because those fields are ten different roles. 9.3's own important toggle
+is one of them, and the seed puts a starred row on five of the six pages
+AC-093 opens the form from, so the two collided and the criterion could not be
+asserted at all. Measured, not reasoned: Playwright's label engine reads
+`aria-label` off any element.
+
+### Readings recorded, and what would let the client stop making them
+
+Three, each at its call site as well as here. Each is a place where the
+specification asks the client to render something no response reports.
+
+- **The G-SERIES branch on a Done row.** 9.5 confirms before an un-complete
+  that takes the successor branch and 5.1 defines that branch by a pending
+  sibling. `pages/DonePage.tsx` reads the row through 7.6 on the click and
+  derives it from two TaskDetail fields: 8.5 moves the rule onto the successor
+  and 5.1's exhausted-series clause leaves it on the last row, so a completed
+  row has a successor exactly when it carries a `series_id` and no rule. The
+  transition response already carries `deleted_successor_id`, so the server
+  knows this before it acts. Recommendation: a field saying whether the branch
+  applies, or the confirm's condition stated in 9.5.
+- **The abandoned count in 9.6's folder confirm.** The copy names three counts
+  and 7.4's Folder carries two, 8.11 putting abandoned rows on neither side.
+  `pages/FolderPage.tsx` counts them off the open sections, which carry every
+  abandoned row in the folder by Q2's and Q3's predicates. Recommendation:
+  7.4's counts carry the number the copy asks for.
+- **"Unassigned" is not offered by the assignee dropdown.** 9.3 says the
+  dropdown lists the folder's members plus "Invite by email", and AC-094
+  asserts that by counting, so a null option would make the count wrong. INV-5
+  permits a null assignee in a multi-member folder, so this narrows what the
+  form can express: the field falls back to the viewer where they are a
+  member, which is also 9.3's own default. Recommendation: 9.3 say whether the
+  dropdown offers unassignment.
+
+### Owed by this role, and marked in the code
+
+- **The reminder is held and never saved.** 7.9's endpoint arrives with P7 and
+  there is no reminder route in this tree, so the control implements 9.3's two
+  modes and its dependency on the date, and nothing writes it. AC-092 is about
+  the form's state rather than a stored row and says so itself. The write arm
+  is one hook and one call site.
+- **The sharing panel of 9.6**, and with it the folder header's rename, label
+  and leave. The header's delete and its confirm are in place; the other three
+  each need a mutation this client does not carry.
+- **The calendar's week and day zooms are wired and undesigned.** Both views
+  render and both request their own range; what 9.5 calls the all-day banner
+  lane and the timed lane is FullCalendar's own, and the token file that would
+  style either has not been transcribed.
+
+### Two criteria that cannot pass as written, reported rather than worked around
+
+Both are the pattern `components/README.md` already reported twice and
+`app/tests/` is no phase's to edit.
+
+- **AC-098's second and third cases.** The file's `beforeEach` creates a task
+  titled `ac-098 daily series` before every case, against a database the
+  runner seeds once, so the second case sees two series and the title locator
+  resolves to two elements. Measured: each of the three passes alone against a
+  fresh seed.
+- **AC-156's fourth case.** It creates `ac156token pending row`, which its own
+  third case already created, and then asserts that title is visible. Same
+  cause, same one-line fix.
