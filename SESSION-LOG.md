@@ -269,6 +269,6 @@ before starting the next.
 | 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done |
 | 15 | Eleven server reads sequenced behind the writes they measure, four of them false greens | 11 | Testers | Done |
 | 16 | The foundation transcribed whole, three components onto its vocabulary | 08 | Implementers | Done |
-| 17 | The type scale onto pages, the landing copy ruled, the manifest colours | 07 | Implementers | Planned |
+| 17 | The type scale onto pages, the landing copy ruled, the manifest colours | 07 | Implementers | Done, escalated |
 | 18 | Merge review, and 9.1's folder colour dot, which nothing renders or asserts | 12 | Steward | Planned |
 | 19 | Merge into main | 12 | Steward | Planned |

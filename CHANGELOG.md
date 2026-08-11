@@ -1349,6 +1349,150 @@ Planning and design. No software has been released yet.
 
 ### Changed
 
+- The gate moves onto the owner's machine, 2026-08-11, and four rulings come with
+  it. GitHub's hosted runners stopped starting at 18:46 UTC on an account billing
+  failure: every run from `96e6e50` onward completes in three to four seconds with
+  no runner assigned and zero steps, two of them on commits that touched only
+  `SESSION-LOG.md`, and the last green run is 16:08 UTC at `e54038e`. The owner
+  chose not to buy hosted minutes, so CI moves to a self-hosted runner here. This
+  branch rules and records; the workflow file is Platform's and is deliberately
+  untouched by it, so nothing here has yet been proven to execute, and until a
+  runner is registered nothing can be.
+  - **11.11 admits a self-hosted runner without moving a step.** "CI is GitHub
+    Actions" survives intact, a self-hosted runner being GitHub Actions with a
+    different executing machine and the same workflow, events, checks and run
+    history. What did not survive as written is "test on postgres:18", which named
+    a Docker image on a machine that has none and will not get one. That step is
+    now "test on a real Postgres 18", and the two vehicles, a service container on
+    a hosted runner and the host's own cluster on a self-hosted one, are named as
+    job configuration, which is what the service block always was. The seven steps
+    and their order are untouched, so the workflow header's rule that changing
+    order or steps is an escalation is satisfied rather than waived. Three
+    consequences ride with it, each recorded in 11.11: the arrangement is
+    acceptable exactly while this repository is private, a self-hosted runner
+    executing whatever any pushed branch's workflow says on a machine holding the
+    owner's data; CI now exists only while that machine is on, and a job that finds
+    no runner waits rather than failing, so a branch gets no verdict rather than a
+    red one; and the Playwright step may drop `--with-deps` on Windows, a flag that
+    installs Linux system packages and has nothing to do there.
+  - **The test database is pinned to Postgres 18's builtin C.UTF-8 locale, and
+    11.10 stops calling the second leg the production-fidelity authority.** The
+    cluster installed here was initialised with a French locale, read off disk from
+    `global/1262` because the superuser password is deliberately not available to a
+    session: all three databases are UTF8 with the libc provider and
+    French_France.1252 for both collate and ctype. The `postgres:18` image is
+    Debian with `ENV LANG en_US.utf8`, so glibc en_US.utf8. Those two differ, which
+    is why the question was routed, but the measurement that decided it was a third
+    one: PGlite is LC_COLLATE C, and always has been. The suite has therefore been
+    green on C and on glibc en_US.utf8 simultaneously since P0, which is proof that
+    no acceptance criterion can distinguish them and that the container leg was
+    never in fact exercising the production collation. The name was the over-claim,
+    not the coverage. So the second leg is pinned to what Postgres itself
+    guarantees identical on every platform and every version, the builtin
+    provider's C.UTF-8, measured byte-identical to PGlite's default ordering over a
+    probe carrying case, accents, punctuation and digits, and giving the same full
+    Unicode case mapping so Q8's ILIKE and trigram search fold the same way on both
+    legs. It also puts the database under the same ordering as the suite's own
+    oracle, JavaScript's `<` being UTF-16 code unit order, which is what AC-069
+    sorts with to assert 7.3's roster; under a linguistic collation that criterion
+    agreed with the database only for as long as its fixture avoided case, accents
+    and punctuation. Two rejected alternatives go to 11.14 rather than being left
+    to rediscovery: matching the image's libc locale, which Windows cannot do,
+    having no glibc and substituting the Windows NLS implementation under the same
+    name, and the ICU provider, which is stable only within one ICU major version
+    and would be a third ordering agreeing with nothing. What the ruling gives up
+    is section 13 item 26: no leg now runs a linguistic collation, so the ordering
+    a production Render Postgres serves is checked by nothing, and the one place
+    that is visible is 7.3's unfolded display_name. Closing it is the owner's
+    choice among three, and the cheapest two touch no frozen section.
+  - **The connection string lives in the runner installation's own `.env`, not in a
+    GitHub secret**, which inverts what 11.11 said about CI and so is now stated
+    there positively: a credential for a resource GitHub cannot reach is never
+    stored at GitHub. Every workflow on every branch can read a repository secret,
+    workflow files are code the sessions of this build edit and push, and the
+    string describes a database on the owner's own machine, so storing it at GitHub
+    widens exposure and buys nothing. A machine-wide environment variable was
+    rejected for the same plaintext at a wider blast radius and a service restart
+    to rotate. The role is `dana_ci` with CREATEDB, never the superuser, which is
+    enough because pg_trgm has been a trusted extension since Postgres 13 and the
+    one `CREATE EXTENSION` in the migrations is therefore a database owner's to
+    run.
+  - **"Merges to main require green CI" is the protocol's rule and never was the
+    platform's.** Checked on 2026-08-11: the branch protection and ruleset APIs
+    both answer 403 on this repository, which is private on a plan offering
+    neither. The sentence in 11.11 now says so. The practical reading is that
+    nothing at GitHub will stop a merge, and what blocks a package landing without
+    a green gate is the definition of done in protocol section 4, enforced by the
+    Integration Steward, which is where it has always actually lived.
+  - One boundary was crossed knowingly and is disclosed rather than buried.
+    `CLAUDE.md` is Platform's owned file by persona, and this branch edits its
+    "Commands and this machine" section, because that section is the recorded home
+    of exactly these facts and leaving it saying there is no Docker and that
+    `postgres:18` is the authority would have misled every session opened before
+    Platform's next one. The Platform session that implements the workflow may
+    rewrite any of that wording; what it must not do is drop the facts. Nothing
+    else outside change control was touched, and `.github/workflows/ci.yml` was
+    deliberately left alone.
+  - **Two defects the branch raised against itself, fixed at the merge review**,
+    2026-08-11, both in `.github/workflows/ci.yml`. The postgres leg could pass
+    by running PGlite twice: the connection string now arrives from outside the
+    workflow, and nothing checked that it arrived, so a missing runner `.env`, a
+    misspelled name, or a service started before the file was written would leave
+    the seam falling back to PGlite and the step reporting a second identical
+    green having measured nothing. Step five now refuses to run in that state.
+    The guard tests presence alone, reads no value into a command and names none,
+    and treats unset and empty as one case because that is exactly the fallback
+    condition of the seam at `app/db/client.ts`, so the two agree by construction
+    rather than by being kept in step. And `timeout-minutes` moves from 20, which
+    was sized for a hosted Linux job whose fifth leg had never run, to 40. That
+    is decided on two measurements rather than on the 45 this run first
+    estimated: five legs in 255 seconds on this machine with every cache warm and
+    the postgres leg still to add, and p8-client's hosted measurement of 13.5 to
+    14.5 minutes for the four legs ahead of the browser one, with three of its
+    four runs killed by the clock mid-Playwright. 40 is p8-client's own number,
+    taken so that two branches editing that line converge instead of colliding.
+  - **The workflow stops depending on which PowerShell happens to be installed.**
+    Ruled at the same review. `&&` is a PowerShell 7 pipeline chain operator and
+    a parser error in Windows PowerShell 5.1, which is what a Windows runner falls
+    back to when pwsh is absent, and that same shell assumption has now broken
+    this project three times in one day. The shell is therefore declared on the
+    two steps carrying more than a bare command and on those alone, the other five
+    being single commands that parse identically everywhere. It is job
+    configuration in the sense 11.11 already admits for `runs-on`, and it is
+    form-neutral: pwsh ships on GitHub-hosted runners, so the text is identical on
+    both forms 11.11 admits. What it changes on the self-hosted form is that
+    PowerShell 7 becomes a stated prerequisite instead of a lucky accident, which
+    is the point of the ruling. Installing it is the owner's step and is now owed
+    before the runner's first job rather than merely recommended.
+  - A third boundary was crossed, on the same terms as the one above and
+    disclosed the same way. `.github/workflows/**` is Platform's owned path by
+    persona, and the Integration Steward edited `ci.yml` at this merge on the
+    owner's instruction, the two defects having been routed to the Steward for
+    authorisation and authorising them being the whole of what remained. Platform
+    may rewrite any of the wording; what it must not do is drop the guard, the
+    ceiling, or the declared shells. Recorded beside the other two so the count
+    reads three rather than two.
+  - **11.10 gains a second normative statement, `ALTER DATABASE dana_test SET
+    lc_messages = 'C'`, because the first execution of this leg turned up what
+    the ruling had missed.** The locale a database is created with fixes how it
+    sorts and folds text. It does not fix the language the server writes its
+    error messages in, which is a separate GUC, inherited from the cluster and
+    superuser-context so the owning role cannot set it. The cluster here is
+    French, and the leg came back red on exactly one of 1476 tests: AC-001's
+    adversarial NOT NULL case, which asserts that the rejection contains `null
+    value in column "folder_id"`. That assertion reads the server's own prose on
+    purpose, because the bare column name also appears in the statement it sent
+    and a fragment satisfiable by the statement text would prove nothing. It was
+    the only one of the suite's nine rejection assertions to fail; the other
+    eight name constraints and indexes, which survive translation verbatim. The
+    fix is one statement against the fixture rather than any change to the suite,
+    and it is transcribed as normative rather than left as an operator step,
+    because a test database pinned in one dimension of its locale and inheriting
+    another is pinned in neither. A third verification check goes with it, `SHOW
+    lc_messages`, which must answer C and never a language name. With it applied
+    the two legs return identical counts for the first time: 188 files and 1476
+    tests on PGlite in 234 seconds, and the same 188 and 1476 against the real
+    Postgres 18 in 67.
 - Merge rulings at the P3 merge, 2026-08-07. By the human owner, accepting all
   four recommendations of the endpoint shape review and transcribed onto
   frozen section 7: closing paragraphs on 7.7 and 7.8 settling that each of
