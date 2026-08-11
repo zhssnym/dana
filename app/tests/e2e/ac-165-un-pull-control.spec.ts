@@ -39,6 +39,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  caseTitle,
   clickControl,
   copy,
   createTask,
@@ -56,7 +57,12 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-const PULLED_ONLY = 'ac-165 undated and pulled'
+/**
+ * A base rather than a title. Two cases create this row and the run seeds
+ * once, so a shared title left two rows and the third case resolved its
+ * un-pull control to both.
+ */
+const PULLED_ONLY_BASE = 'ac-165 undated and pulled'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
@@ -64,6 +70,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('AC-165: the un-pull control', () => {
   test('AC-165: a row on My Day only by its entry carries the control', async ({ page }) => {
+    const PULLED_ONLY = caseTitle(PULLED_ONLY_BASE)
     const task = await createTask(page, {
       title: PULLED_ONLY,
       folder_id: seedIds.groceries,
@@ -110,6 +117,7 @@ test.describe('AC-165: the un-pull control', () => {
   })
 
   test('AC-165: using the control removes the row and keeps it removed', async ({ page }) => {
+    const PULLED_ONLY = caseTitle(PULLED_ONLY_BASE)
     const task = await createTask(page, {
       title: PULLED_ONLY,
       folder_id: seedIds.groceries,

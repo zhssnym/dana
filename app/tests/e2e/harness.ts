@@ -49,7 +49,7 @@ the seed and the spec crossing a UTC midnight, which the vitest suite avoids
 with `middayZone()` and this leg cannot, the seed's dates not being ours to
 choose.
 */
-import { expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import type { BrowserContext, Locator, Page, Request } from '@playwright/test'
 
 import { seedIds } from '../../db/seed.js'
@@ -187,6 +187,32 @@ export async function csrfToken(context: BrowserContext): Promise<string> {
 /* ------------------------------------------------------------------ *
  * Fixtures through section 7
  * ------------------------------------------------------------------ */
+
+/**
+ * A row title unique to the case that creates it.
+ *
+ * The runner seeds once and never resets, so two cases in one file that
+ * create "the same" row leave two rows behind, and every locator addressing
+ * that title afterwards resolves to both. This file's own header states the
+ * rule, and six cases broke it: the first case of each pair passed while
+ * only one row existed and the second failed on strict mode, which is a
+ * failure that looks like a client defect and is not one.
+ *
+ * The repair is uniqueness per case rather than cleanup between cases,
+ * because cleanup fights the shared database that the single worker and the
+ * single seed exist to give us. A case's own rows are its own, they outlive
+ * it harmlessly, and the next case's locators cannot see them.
+ *
+ * The tag is `testInfo.testId`, which is stable for a given case across
+ * runs and distinct between any two cases, so a title is reproducible from
+ * one run to the next and still cannot collide. Callable only inside a test
+ * or a hook, which is why the titles it builds are locals rather than the
+ * module constants they replaced: a constant is computed once per file and
+ * that is exactly the scope that was too wide.
+ */
+export function caseTitle(base: string): string {
+  return `${base} ${test.info().testId}`
+}
 
 interface NewTask {
   title: string

@@ -92,7 +92,11 @@ test.describe("P8's half of the criteria earlier packages split", () => {
     // AC-047's own file: "The chip is section 9's rendering and arrives with
     // P8; the assignee object 7.0 gives TaskCard is what the chip is drawn
     // from, and it is this package's half." So this is the other half.
-    const title = 'ac-047 assigned to imran and pulled'
+    // The title carries no member's name. getByText matches a substring
+    // case-insensitively, so a title holding "imran" resolves to the title
+    // and the assignee chip together, and the case fails on strict mode
+    // against a page drawing the chip exactly as 9.4 requires.
+    const title = 'ac-047 pulled from another member of the folder'
     const created = await createTask(page, {
       title,
       folder_id: seedIds.groceries,

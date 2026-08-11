@@ -39,6 +39,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  caseTitle,
   clickControl,
   createTask,
   routes,
@@ -56,11 +57,19 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-const PLAIN = 'ac-164 due today and not important'
-const STARRED = 'ac-164 due today and important'
+/**
+ * Bases rather than titles, and named for this file rather than for the
+ * number it proposed. Both cases create the unimportant row and the run
+ * seeds once, so a shared title left two rows and the second case resolved
+ * its row to both.
+ */
+const PLAIN_BASE = 'ac-167 due today and not important'
+const STARRED_BASE = 'ac-167 due today and important'
 
 test.describe('AC-167: the important-only toggle is local', () => {
   test('AC-167: toggling filters the fetched rows and sends nothing', async ({ page }) => {
+    const PLAIN = caseTitle(PLAIN_BASE)
+    const STARRED = caseTitle(STARRED_BASE)
     const wire = watchWire(page)
     await signIn(page, seedSubs.hassan)
 
@@ -123,6 +132,7 @@ test.describe('AC-167: the important-only toggle is local', () => {
   })
 
   test('AC-167: toggling back restores the rows without a refetch', async ({ page }) => {
+    const PLAIN = caseTitle(PLAIN_BASE)
     const wire = watchWire(page)
     await signIn(page, seedSubs.hassan)
     await createTask(page, {

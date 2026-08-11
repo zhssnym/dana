@@ -44,6 +44,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  caseTitle,
   createTask,
   routes,
   seedDate,
@@ -60,8 +61,14 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-const DATED = 'ac-099 important and dated'
-const UNDATED = 'ac-099 important and undated'
+/**
+ * Bases rather than titles. Two cases here create the dated fixture, and the
+ * database is seeded once for the whole run, so a shared title left two rows
+ * and the second case resolved its star to both. caseTitle tags each per
+ * case.
+ */
+const DATED_BASE = 'ac-099 important and dated'
+const UNDATED_BASE = 'ac-099 important and undated'
 const DUE = seedDate(30)
 
 test.beforeEach(async ({ page }) => {
@@ -70,6 +77,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('AC-099: the star tooltip points outward on Important', () => {
   test('AC-099: a dated row names Planned and its date', async ({ page }) => {
+    const DATED = caseTitle(DATED_BASE)
     await createTask(page, {
       title: DATED,
       folder_id: seedIds.groceries,
@@ -99,6 +107,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
   })
 
   test('AC-099: an undated row names Tasks and its folder', async ({ page }) => {
+    const UNDATED = caseTitle(UNDATED_BASE)
     await createTask(page, {
       title: UNDATED,
       folder_id: seedIds.groceries,
@@ -127,6 +136,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
   test('AC-099: the same row on another page confirms importance instead', async ({
     page,
   }) => {
+    const DATED = caseTitle(DATED_BASE)
     await createTask(page, {
       title: DATED,
       folder_id: seedIds.groceries,

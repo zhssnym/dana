@@ -38,6 +38,7 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  caseTitle,
   clickControl,
   createTask,
   fieldValue,
@@ -58,9 +59,15 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const TOKEN = 'ac156token'
-const PENDING = `${TOKEN} pending row`
-const ABANDONED = `${TOKEN} abandoned row`
-const COMPLETED = `${TOKEN} completed row`
+/**
+ * Bases rather than titles. Two cases create the pending row and the run
+ * seeds once, so a shared title left two rows and the fourth case resolved
+ * its result to both. Each case tags its own; every title still carries
+ * TOKEN, so the search that finds them is unchanged.
+ */
+const PENDING_BASE = `${TOKEN} pending row`
+const ABANDONED_BASE = `${TOKEN} abandoned row`
+const COMPLETED_BASE = `${TOKEN} completed row`
 
 /** The overlay's input, which is the only text entry it puts on the page. */
 function searchInput(page: Page) {
@@ -136,6 +143,9 @@ test.describe('AC-156: the search overlay', () => {
   test('AC-156: results group under the three status headings and the footer is present', async ({
     page,
   }) => {
+    const PENDING = caseTitle(PENDING_BASE)
+    const ABANDONED = caseTitle(ABANDONED_BASE)
+    const COMPLETED = caseTitle(COMPLETED_BASE)
     await createTask(page, { title: PENDING, folder_id: seedIds.groceries })
     const abandoned = await createTask(page, {
       title: ABANDONED,
@@ -182,6 +192,7 @@ test.describe('AC-156: the search overlay', () => {
   })
 
   test('AC-156: enter opens the first result', async ({ page }) => {
+    const PENDING = caseTitle(PENDING_BASE)
     await createTask(page, { title: PENDING, folder_id: seedIds.groceries })
 
     await page.goto(routes.myDay)

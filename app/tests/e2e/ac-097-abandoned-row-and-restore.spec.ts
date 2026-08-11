@@ -62,7 +62,11 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-const OVERDUE = 'ac-097 overdue assigned abandoned'
+// Deliberately carries neither "abandoned" nor "restore". getByText matches
+// a substring case-insensitively, so a title holding the word its own
+// assertion looks for resolves to the title and the chip together, and the
+// case fails on strict mode against a page that is drawing both correctly.
+const OVERDUE = 'ac-097 overdue and assigned to the viewer'
 const PENDING_NEIGHBOUR = 'ac-097 pending neighbour'
 
 test.beforeEach(async ({ page }) => {

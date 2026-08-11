@@ -38,6 +38,7 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  caseTitle,
   clickControl,
   computedStyle,
   createTask,
@@ -56,7 +57,15 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-const TITLE = 'ac-098 daily series'
+/**
+ * The base of each case's row title. Every case here creates its own series
+ * through beforeEach, and the runner never resets the database between them,
+ * so a shared title left three rows on the anchor date and the second and
+ * third cases failed on strict mode against a calendar drawing all three
+ * correctly. caseTitle tags it per case; the same case's hook and body get
+ * the same string, so nothing has to be threaded between them.
+ */
+const BASE = 'ac-098 daily series'
 /** The current occurrence's own date, which draws the one real row. */
 const ANCHOR = firstOfMonth(1)
 /** A day the rule reaches and the current occurrence does not: a ghost. */
@@ -83,7 +92,7 @@ async function openNextMonthCalendar(page: Page): Promise<void> {
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
   await createTask(page, {
-    title: TITLE,
+    title: caseTitle(BASE),
     folder_id: seedIds.groceries,
     due_date: ANCHOR,
     recurrence_rule: 'FREQ=DAILY',
@@ -92,6 +101,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('AC-098: clicking a calendar ghost', () => {
   test('AC-098: a ghost opens the current occurrence with the banner', async ({ page }) => {
+    const TITLE = caseTitle(BASE)
     await openNextMonthCalendar(page)
 
     const ghostCell = page
@@ -125,6 +135,7 @@ test.describe('AC-098: clicking a calendar ghost', () => {
   })
 
   test('AC-098: the real row opens the same task without the banner', async ({ page }) => {
+    const TITLE = caseTitle(BASE)
     await openNextMonthCalendar(page)
 
     const anchorDay = Number(ANCHOR.slice(8))
@@ -157,6 +168,7 @@ test.describe('AC-098: clicking a calendar ghost', () => {
   })
 
   test('AC-098: a ghost is drawn as a ghost and a real row is not', async ({ page }) => {
+    const TITLE = caseTitle(BASE)
     await openNextMonthCalendar(page)
 
     const anchorDay = Number(ANCHOR.slice(8))
