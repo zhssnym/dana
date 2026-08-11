@@ -1,0 +1,353 @@
+/*
+Dana's design tokens: the single file of 11.4, and the only place in this
+client where a raw colour, type size, spacing step or radius may be written.
+
+**Every value below is provisional and none of it is the design.** This is
+stated first because a token file is exactly the artifact whose placeholder
+values ship: it reads like a decision, it is referenced from everywhere, and
+nothing about a working page says the greys in it were invented by an
+engineer. 11.13 makes the values the designer's, arriving as
+`docs/design/screens/*.png`, `docs/design/notes.md` and the foundations page
+of the throwaway prototype the brief asks for; `docs/design/` holds
+`brief.md` alone today, so no foundations export exists to transcribe. The P8
+change control made the transcription session required rather than optional
+for this reason, and this file is what it transcribes into.
+
+So what is settled here is the **shape**: which tokens exist, what each one
+is for, and that every component reads them by name. What is not settled is
+what any of them equals. A later session replaces the values wholesale, and
+if it does its job no component file changes at all, which is the test of
+whether this vocabulary was the right one.
+
+What the values are, so a reader is not misled about their standing: a
+neutral, low-chroma set chosen to be legible and to satisfy the brief's
+accessibility floor (text contrast at least 4.5:1, a visible focus ring, and
+touch targets of at least 44 pixels), and nothing more. They are not a
+palette. The brief warns in its own words against shipping a default
+neutral theme, and this file is the placeholder that warning is about.
+
+Three rules this file encodes for everything downstream:
+
+- **Tailwind 4 is configured in CSS.** There is no `tailwind.config.js` and
+  v3 configuration idioms are defects (11.15). `@theme` below is the whole
+  configuration, compiled by `@tailwindcss/vite`, which is wired in
+  `vite.config.ts`.
+- **Every colour a state signals also has a non-colour cue** in the markup
+  that carries it, per the brief's accessibility floor: abandoned rows are
+  struck and chipped, completed rows are checked, overdue badges are
+  labelled. The tokens here are the colour half of pairs whose other half is
+  in `components/ui/`.
+- **Dark mode is out of scope for v1** and the brief says not to design it.
+  Nothing here bakes it out: the semantic names below (`--color-surface`,
+  `--color-text-muted`) are the indirection a later theme needs, which is
+  why no component names a grey.
+*/
+
+@import 'tailwindcss';
+
+/*
+Automatic source detection already finds these files; the line is explicit so
+that a change to where the build runs from cannot silently empty the
+stylesheet, which fails as a page with correct markup and no styling at all.
+*/
+@source '../**/*.{ts,tsx}';
+
+@theme {
+  /* ---------------------------------------------------------------- *
+   * Colour. Semantic names only: no component may name a grey.
+   * ---------------------------------------------------------------- */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4f5f7;
+  --color-surface-raised: #ffffff;
+  --color-border: #d9dde3;
+  --color-border-strong: #aeb6c1;
+
+  --color-text: #1f2933;
+  --color-text-muted: #5b6673;
+  --color-text-inverse: #ffffff;
+
+  --color-accent: #2f5d8c;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #9b2c2c;
+  --color-danger-contrast: #ffffff;
+  --color-overdue: #9b2c2c;
+  --color-focus: #2f5d8c;
+
+  /*
+  The folder swatches. The brief asks design for 8 to 16 colours that read
+  well as small dots and chips; eight is the floor, so eight is what the
+  placeholder carries, and the count is one of the things the transcription
+  may change. Nothing in the client hard-codes eight: the folder dot takes
+  an index modulo the number of tokens defined here.
+  */
+  --color-folder-1: #2f5d8c;
+  --color-folder-2: #3f7d63;
+  --color-folder-3: #8c6d2f;
+  --color-folder-4: #7a3f8c;
+  --color-folder-5: #8c3f52;
+  --color-folder-6: #2f7d8c;
+  --color-folder-7: #566b2f;
+  --color-folder-8: #6b6b7a;
+
+  /* ---------------------------------------------------------------- *
+   * Type. Named by role, so a size is never chosen at a call site.
+   * ---------------------------------------------------------------- */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.25rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.5rem;
+  --text-page-title: 1.375rem;
+  --text-page-title--line-height: 1.875rem;
+
+  /* ---------------------------------------------------------------- *
+   * Spacing. Named steps rather than a numeric scale, so a component
+   * asks for "the gap between a row's parts" and not for four pixels.
+   * ---------------------------------------------------------------- */
+  --spacing-hair: 0.25rem;
+  --spacing-tight: 0.5rem;
+  --spacing-row: 0.75rem;
+  --spacing-block: 1rem;
+  --spacing-page: 1.5rem;
+
+  /* ---------------------------------------------------------------- *
+   * Radius, elevation, and the sizes the accessibility floor fixes.
+   * ---------------------------------------------------------------- */
+  --radius-chip: 999px;
+  --radius-control: 0.375rem;
+  --radius-card: 0.5rem;
+
+  --shadow-menu: 0 2px 8px rgb(31 41 51 / 0.16);
+  --shadow-dialog: 0 8px 32px rgb(31 41 51 / 0.24);
+
+  /* The brief's floor: touch targets at least 44 pixels. */
+  --size-touch: 2.75rem;
+  --size-icon: 1rem;
+
+  /* ---------------------------------------------------------------- *
+   * State. The fade of 9.5 and its completed cousin are tokens, which
+   * is what `parts/TaskRow.tsx` recorded as owed to this file.
+   * ---------------------------------------------------------------- */
+  --opacity-abandoned: 0.55;
+  --opacity-completed: 0.65;
+
+  --width-menu: 12rem;
+  --width-dialog: 22rem;
+}
+
+/*
+Base rules, and deliberately few. Everything here is a consequence of a token
+above rather than a style of its own: the page takes the type and the colour
+the tokens name, and every focusable thing shows the focus ring the brief's
+accessibility floor requires on every interactive element.
+*/
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+  }
+
+  body {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+/*
+The component utilities. They exist so a component file can say what a thing
+is rather than what it looks like, which is what keeps every value in this
+file: `task-title-abandoned` is a name a designer can restyle, where
+`opacity-55 text-slate-500` would be two values living in a `.tsx`.
+*/
+
+/*
+9.5's abandoned row: "faded and struck". The strike is the `s` element, which
+computes a line-through with no stylesheet at all, so what is owed here is the
+fade, and it is applied to the element carrying the row's title rather than to
+the row.
+
+That is not a detail. `opacity` does not inherit, so a fade set on the row
+leaves every descendant computing 1, and a reader (or an acceptance test)
+comparing an abandoned row's title against a pending row's title beside it
+would find the two identical while the page looked correct. Colour is set with
+it for the same reason from the other side: colour does inherit, so the pair
+holds whichever property is read.
+*/
+@utility task-title-abandoned {
+  opacity: var(--opacity-abandoned);
+  color: var(--color-text-muted);
+}
+
+/* Completed rows are faded and checked (section 6's state table). */
+@utility task-title-completed {
+  opacity: var(--opacity-completed);
+  color: var(--color-text-muted);
+}
+
+/*
+The button, in its base shape and its four tones. Defined here rather than
+assembled from utilities at each call site, so that "what a primary button
+looks like" is one line a designer can change and not a string repeated in
+six `.tsx` files.
+*/
+@utility button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-hair);
+  min-height: var(--size-touch);
+  padding: 0 var(--spacing-row);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+
+@utility button-default {
+  border-color: var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+@utility button-primary {
+  background-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+@utility button-danger {
+  background-color: var(--color-danger);
+  color: var(--color-danger-contrast);
+}
+
+@utility button-quiet {
+  background-color: transparent;
+  color: var(--color-text-muted);
+}
+
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-hair);
+  padding: 0 var(--spacing-tight);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--text-meta);
+  line-height: calc(var(--text-meta--line-height) + var(--spacing-hair));
+  white-space: nowrap;
+}
+
+@utility chip-alert {
+  border-color: var(--color-overdue);
+  color: var(--color-overdue);
+  font-weight: 600;
+}
+
+/*
+The icon-only controls of a row. Sized to the touch floor rather than to the
+glyph, because a 16 pixel star is not a 44 pixel target.
+*/
+@utility icon-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-touch);
+  min-height: var(--size-touch);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* The overflow menu's popup and the confirmation's panel. */
+@utility menu-panel {
+  position: absolute;
+  z-index: 40;
+  min-width: var(--width-menu);
+  padding: var(--spacing-hair);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-menu);
+}
+
+@utility menu-item {
+  display: block;
+  width: 100%;
+  min-height: var(--size-touch);
+  padding: 0 var(--spacing-row);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text);
+  font-size: var(--text-body);
+  text-align: start;
+  cursor: pointer;
+}
+
+@utility dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-page);
+  background-color: color-mix(in srgb, var(--color-text) 40%, transparent);
+}
+
+@utility dialog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-block);
+  width: var(--width-dialog);
+  max-width: 100%;
+  padding: var(--spacing-block);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dialog);
+}
+
+/* The row itself, and the parts of it that are layout rather than state. */
+@utility task-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-tight);
+  padding: var(--spacing-hair) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+@utility task-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text);
+}
+
+@utility meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-meta);
+}
+
+@utility quick-add {
+  width: 100%;
+  min-height: var(--size-touch);
+  padding: 0 var(--spacing-tight);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-body);
+}

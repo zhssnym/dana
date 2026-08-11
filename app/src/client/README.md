@@ -303,10 +303,16 @@ goes the other way, the swap is that one file.
   reading, with the recommendation that the card carry the reason.
 - 9.5's abandoned row is struck (the `s` element, which computes a
   line-through with no stylesheet) and not faded. Fading is a token.
+  **Closed** by the Component and Design System session: the row is
+  `components/ui/TaskRow.tsx` and the fade is `styles/tokens.css`.
 - Q4's outward star tooltip ("Also in Planned, due ..."), the row overflow menu
   ("More actions"), the sharing panel of 9.6, the folder overflow menu, the
   G-SERIES confirm before an uncomplete on Done, and every confirmation of 9.3
-  to 9.9 with its "Continue" and "Cancel".
+  to 9.9 with its "Continue" and "Cancel". **Partly closed** by the same
+  session: the tooltip, the row's overflow menu, and `ConfirmDialog` with
+  9.1's two names are in `components/ui/`. The folder overflow menu, the
+  G-SERIES confirm and the sharing panel are those components applied to page
+  markup that is not that role's; `components/README.md` says so by file.
 - The Q12 login surface of 9.8: when pending invites exist, the invite list
   renders before anything else after callback. The read (`usePendingInvites`)
   is in place; the surface is not.
@@ -324,3 +330,30 @@ goes the other way, the swap is that one file.
   readable cookie. The server holds that constant in `src/server/auth/
   cookies.ts`, which `src/client` cannot import. Recommendation: move the two
   cookie names to `src/shared` so one definition serves both sides.
+
+## Extended by the Component and Design System session
+
+Appended rather than woven in, on this file's own invitation to extend a first
+pass and say where. Three things above changed and nothing above was reworded.
+
+**`parts/` is now two one-line re-exports and one hook.** The component library
+of 11.4 is `components/ui/`, with `components/README.md` beside it as its own
+ledger. `parts/TaskRow.tsx` and `parts/QuickAddRow.tsx` re-export from it, so
+the five pages that import them kept working without an edit to a file that
+role does not own; repointing those imports deletes both. `parts/useRowActions.ts`
+stays, because row callbacks are the data layer's rather than a component, and
+it belongs in `api/` whenever someone who owns that directory moves it.
+
+**`RowActions` gained two members**, and both are additive, so every page that
+spreads `{...actions}` gets them with no page edit. `onAbandon` is 9.4's
+overflow entry, behind that section's confirmation. `starTooltipMode` is not a
+callback: Q4 gives the star an outward tooltip on Important and an inward one
+everywhere else, which is a property of the page rather than of the row, and
+this hook is the page layer. The row takes it as a plain prop, so it behaves
+the same wherever it is mounted.
+
+**`styles/tokens.css` is imported by `components/ui/index.ts`.** Nothing else
+in this client imports CSS, and `main.tsx` is not that role's file. Vite emits
+one stylesheet for the entry chunk, so the tokens are global regardless of
+which page is open. A first pass: one line in `main.tsx` is tidier and is
+requested in `components/README.md`.

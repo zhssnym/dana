@@ -1,190 +1,20 @@
 /*
-PROVISIONAL. The least that lets the pages of 9.4 to 9.8 render.
+What is left of the provisional task row.
 
-A task row is a component, and components are the Component and Design System
-engineer's (11.4, and this role's persona). What this file is for is the four
-sessions that come after this one: a page cannot be assembled against a
-component library that does not exist yet, and a page assembled against
-nothing cannot be measured at all. So this is structure, roles and accessible
-names, with no styling, no tokens, and no judgment about appearance.
+The shell session wrote this file as "the least that lets a page render" and
+said in its header and in `src/client/README.md` that it should shrink toward
+nothing when the component library landed. It has: the row is now
+`components/ui/TaskRow.tsx`, with the adornments, the states and the
+accessibility 9.4 and section 6 enumerate, and this file is the import path
+the pages already use pointing at it.
 
-What is settled here and worth keeping when this is replaced:
+It is a re-export and not a wrapper, so nothing can drift between the two.
 
-- A row is an `li` inside a `ul`. The acceptance suite addresses a row by the
-  accessible grouping role a list of rows carries, admitting list or grid and
-  nothing else, so this is a contract rather than a preference.
-- The star's accessible name is its own state, "Important" when filled and
-  "Mark as important" when not (9.5, closed at the P8 change control). It is a
-  `button` with `aria-pressed`, deliberately not a `switch`: 9.4's
-  important-only filter is the switch on that page, and a row full of switches
-  named "Important" would collide with it.
-- The un-pull control reads "Remove from My Day" (9.4).
-
-What is not done here and is owed, recorded in README.md as well:
-
-- 9.5's faded-and-struck rendering of an abandoned row is half done. The
-  strike is the `s` element, which computes a line-through with no stylesheet
-  at all; the fading is a token and belongs to the file that owns tokens.
-- 9.4's un-pull marker is "absent when the row also qualifies automatically",
-  and the condition is derived here from Q1's automatic disjunct because
-  nothing on the wire reports it. The derivation is argued at the call site.
-  Escalated as a reading; a field on the card saying why a row is on this page
-  would remove the derivation.
-- The overflow menu ("More actions", 9.1's control table) opens the task form
-  and the abandon and delete confirms, all of which are the Complex
-  Interaction engineer's.
+**What is owed here is a deletion nobody in this package may make.** The five
+pages that import from this path are the Frontend Architect's files, and
+repointing their imports at `components/ui` is the one change that removes
+this file; it is requested in `components/README.md`. Until then this line is
+what keeps the pages working without an edit outside this role's paths.
 */
-import { useState } from 'react'
-
-import type { TaskCard } from '../../shared/tasks.js'
-import { todayInBrowserZone } from '../api/tz.js'
-
-export interface TaskRowProps {
-  readonly task: TaskCard
-  /** The signed-in person, so the assignee chip can be conditional (9.4). */
-  readonly viewerId: string | null
-  /** Q3's chip is conditional on the folder holding more than one member. */
-  readonly multiMemberFolders?: ReadonlySet<string>
-  readonly onToggleComplete?: (task: TaskCard) => void
-  readonly onToggleImportant?: (task: TaskCard) => void
-  readonly onRestore?: (task: TaskCard) => void
-  readonly onRemoveFromMyDay?: (task: TaskCard) => void
-  /** 9.4 shows the un-pull control on My Day only. */
-  readonly showPullMarker?: boolean
-}
-
-export function TaskRow({
-  task,
-  viewerId,
-  multiMemberFolders,
-  onToggleComplete,
-  onToggleImportant,
-  onRestore,
-  onRemoveFromMyDay,
-  showPullMarker = false,
-}: TaskRowProps): React.JSX.Element {
-  const abandoned = task.status === 'abandoned'
-  const otherAssignee =
-    task.assignee !== null && task.assignee.id !== viewerId ? task.assignee : null
-  const unassigned =
-    task.assignee === null && multiMemberFolders?.has(task.folder.id) === true
-  /*
-  9.4's parenthesis: the un-pull marker is "absent when the row also qualifies
-  automatically". 7.8 says why it has to be. DELETE removes the viewer's entry
-  and the task stays in My Day while it still qualifies, so a control offered
-  on such a row promises a removal it cannot perform, and the person presses
-  it and watches nothing happen.
-
-  Q1's automatic disjunct is the whole condition: assigned to the viewer, with
-  a due date, on or before today. Nothing on the wire reports it, because 7.0's
-  TaskCard carries the row rather than the reason it is on this page, so the
-  client evaluates it. That is the one date comparison in this client outside
-  an entry-point default, and it is safe for a reason worth stating: today here
-  comes from the same zone identifier the request that fetched this row
-  carried, so the two agree by construction rather than by luck. The residual
-  is a midnight crossed between the fetch and the render, which the next
-  refetch corrects.
-
-  Recorded as a reading rather than a rule, and escalated: a field on the card
-  saying why a row is here would let the client stop deriving this.
-  */
-  const qualifiesAutomatically =
-    task.assignee?.id === viewerId &&
-    viewerId !== null &&
-    task.due_date !== null &&
-    task.due_date <= todayInBrowserZone()
-  /*
-  What the box shows between the click and the refetch.
-
-  The row is controlled by the server's status, which is right: 5.1's
-  transitions are guarded and the client holds no authority over them. But a
-  controlled box that snaps back while the request is in flight tells the
-  person their click did nothing, and it is indistinguishable from a click
-  that missed. So the box shows what was asked for until the answer arrives,
-  and 8.3's refetch is what replaces it: on success the row leaves the view,
-  and on failure 9.1's toast says so and the next render is the server's
-  again.
-  */
-  const [asked, setAsked] = useState<boolean | null>(null)
-  const completed = asked ?? task.status === 'completed'
-  return (
-    <li>
-      <input
-        type="checkbox"
-        aria-label="Complete"
-        checked={completed}
-        onChange={(event) => {
-          setAsked(event.target.checked)
-          onToggleComplete?.(task)
-        }}
-      />
-      <span>{abandoned ? <s>{task.title}</s> : task.title}</span>
-      <span>{task.folder.name}</span>
-      {task.due_date === null ? null : <span>{task.due_date}</span>}
-      {task.due_time === null ? null : <span>{task.due_time}</span>}
-      {otherAssignee === null ? null : (
-        <span>{otherAssignee.display_name ?? 'Someone'}</span>
-      )}
-      {unassigned ? <span>Unassigned</span> : null}
-      <button
-        type="button"
-        aria-pressed={task.important}
-        aria-label={task.important ? 'Important' : 'Mark as important'}
-        title={task.important ? 'Important' : 'Mark as important'}
-        onClick={() => onToggleImportant?.(task)}
-      >
-        {task.important ? '★' : '☆'}
-      </button>
-      {abandoned ? (
-        <>
-          <span>Abandoned</span>
-          <button type="button" onClick={() => onRestore?.(task)}>
-            Restore
-          </button>
-        </>
-      ) : null}
-      {showPullMarker && task.pulled && !qualifiesAutomatically ? (
-        <button type="button" onClick={() => onRemoveFromMyDay?.(task)}>
-          Remove from My Day
-        </button>
-      ) : null}
-    </li>
-  )
-}
-
-interface TaskListProps {
-  readonly tasks: readonly TaskCard[]
-  readonly viewerId: string | null
-  readonly multiMemberFolders?: ReadonlySet<string>
-  readonly onToggleComplete?: (task: TaskCard) => void
-  readonly onToggleImportant?: (task: TaskCard) => void
-  readonly onRestore?: (task: TaskCard) => void
-  readonly onRemoveFromMyDay?: (task: TaskCard) => void
-  readonly showPullMarker?: boolean
-}
-
-/**
- * Rows in the order they arrived. Section 6's preamble is explicit that every
- * view returns rows already ordered and clients never re-sort, so this maps
- * and does nothing else; a sort here would be a second ordering nobody
- * specified.
- */
-export function TaskList(props: TaskListProps): React.JSX.Element {
-  return (
-    <ul>
-      {props.tasks.map((task) => (
-        <TaskRow
-          key={task.id}
-          task={task}
-          viewerId={props.viewerId}
-          multiMemberFolders={props.multiMemberFolders}
-          onToggleComplete={props.onToggleComplete}
-          onToggleImportant={props.onToggleImportant}
-          onRestore={props.onRestore}
-          onRemoveFromMyDay={props.onRemoveFromMyDay}
-          showPullMarker={props.showPullMarker}
-        />
-      ))}
-    </ul>
-  )
-}
+export { TaskList, TaskRow } from '../components/ui/index.js'
+export type { TaskListProps, TaskRowProps } from '../components/ui/index.js'
