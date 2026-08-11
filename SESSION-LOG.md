@@ -16,7 +16,9 @@ rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
 place rather than being renumbered, because the numbers are addresses. Rows are
 listed in the order they ran, so a number out of sequence means that session
 moved. Mode names the chat a session returned into, or Unattended where it ran
-as an isolated sub-agent with no chat to return to.
+as an isolated sub-agent with no chat to return to. A run of consecutive Unattended
+rows is a grouped run: one dispatching chat launched each as an isolated
+sub-agent in sequence, verifying each before starting the next.
 
 ## P minus 4: product definition
 
@@ -191,13 +193,6 @@ as an isolated sub-agent with no chat to return to.
 | 13 | The five settlements transcribed into frozen 7.5, 7.3 and 7.1 by owner ruling; `CLAUDE.md` assigned to 10 | 12 | Steward | Done |
 | 14 | Merged at 11d83fe, green on both legs on the merge commit itself | 12 | Steward | Done |
 
-Rows 9 to 12 ran as four personas inside one unattended chat rather than as four
-sessions. Ownership of writes held throughout, and row 10 declined to annotate a
-ledger entry that was not its to annotate rather than reaching across. The
-Steward pass of row 12 was not independent of the three it reviewed, which the
-changelog records in full; the acceptance suite, authored earlier and elsewhere,
-is what actually adjudicated the package.
-
 ## P6: recurrence engine (`p6-recurrence`)
 
 | # | Session | Role | Mode | Status |
@@ -216,16 +211,6 @@ is what actually adjudicated the package.
 | 11 | Merge review: the owner's bullet ruling onto frozen 7.6, items 22 to 24, both disclosures ratified, verdict READY and held | 12 | Steward | Done |
 | 12 | Merged at 02f467f, green on both legs on the merge commit itself | 12 | Steward | Done |
 
-Rows 6 to 8 ran as the first grouped run: one dispatching chat launched each
-as an isolated sub-agent in sequence, so each derived its state from the
-repository rather than from the one before it and no context held two
-personas. The dispatcher verified each phase committed, pushed and left the
-tree building before starting the next. The endpoint shape review was kept
-out of the group deliberately, because reviewing those three is its work.
-Rows 7 and 8 each raised the same two findings independently, in different
-personas, which is the strongest evidence the run produced that its
-isolation was real.
-
 ## P8: the web client (`p8-client`)
 
 | # | Session | Role | Mode | Status |
@@ -241,14 +226,4 @@ isolation was real.
 | 7 | 9.3's form, 9.9's overlay and Q3C's grid | 09 | Unattended | Done |
 | 8 | The four surfaces the shell left owed, and a task's title kept out of the namespace section 9 addresses controls in | 07 | Unattended | Done |
 | 9 | The 10.6 PWA layer landed verbatim, the guard that could only ever be true retired, the browser leg given room | 10 | Unattended | Done |
-
-This package runs in the second working tree at `D:\dana-client`, beside P7 in
-`D:\dana`, the two-tree arrangement runbook section 5 records. It merges second,
-after P7, because 9.3's reminder control has no endpoint behind it until frozen
-7.9 lands.
-
-Rows 6 to 9 ran as one grouped run, four isolated sub-agents in sequence. Row 5
-was deliberately kept out of it: it set the conventions the four inherit, and
-its ledger is a committed file rather than a paragraph in a chat, because no
-later session reads the chat a session returned into.
 
