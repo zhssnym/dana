@@ -68,10 +68,31 @@ protocol points here rather than repeating them.
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
   removed; it dies with `ERR_LOAD_URL` while trying to load `basic` as a custom
   reporter module.
-- There is no Docker on this machine. Tests default to PGlite, an embedded Postgres
-  18 needing no setup, selected by the single seam in `app/db/client.ts`. Set
-  `TEST_DATABASE_URL` to run against a real Postgres instead; CI runs both, with
-  `postgres:18` as the production-fidelity authority (spec 11.10).
+- There is no Docker on this machine and there will not be. Tests default to PGlite,
+  an embedded Postgres 18 needing no setup, selected by the single seam in
+  `app/db/client.ts`. The second leg runs against the PostgreSQL 18 installed here:
+  service `postgresql-x64-18`, binaries in `C:\Program Files\PostgreSQL\18\bin`,
+  port 5432. Set `TEST_DATABASE_URL` in the shell to reach it. Nothing loads
+  `app/.env` for a test run, only the server boot does, so exporting the variable is
+  the only way in and a value sitting in that file will not be picked up by
+  `npm test`.
+- The cluster's own locale is French_France.1252 under libc, which is not what the
+  suite runs on and must never become it. The `dana_test` database is created with
+  the builtin C.UTF-8 locale so that it orders text exactly as PGlite does; spec
+  11.10 carries the CREATE DATABASE statement, the reasoning, and the two checks
+  that prove the two legs agree. Never point `TEST_DATABASE_URL` at a database that
+  inherited the cluster default. The string authenticates as `dana_ci`, never the
+  superuser, and lives in the runner installation's `.env` and in a gitignored
+  `app/.env`; it is never committed and never stored as a GitHub secret (11.11).
+- CI runs on a self-hosted GitHub Actions runner on this machine (spec 11.11), so
+  there is no CI while the machine is off or the runner service is stopped: a pushed
+  branch simply has no verdict until then, rather than failing. Hosted runs stopped
+  starting on 2026-08-11 on an account billing failure, and the owner chose not to
+  buy hosted minutes.
+- The Postgres tooling here answers in French, `initdb --help` and `pg_controldata`
+  included, and one translated flag name is wrong: the option is `--builtin-locale`,
+  which the French help prints as `--builtin-provider`. Read option names from the
+  English documentation, not from `--help` on this machine.
 - The GitHub CLI is installed and authenticated but is on no shell's PATH. Call it
   by its full path, `"C:\Program Files\GitHub CLI\gh.exe"`, to read CI. The
   repository is private, so the unauthenticated API answers 404 and this is the only
