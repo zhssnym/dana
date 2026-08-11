@@ -28,6 +28,7 @@ export function ImportantPage(): React.JSX.Element {
         query={view}
         isEmpty={(view.data?.rows.length ?? 0) === 0}
         emptyCopy={IMPORTANT_EMPTY}
+        truncated={view.data?.truncated ?? false}
       >
         <TaskList
           tasks={view.data?.rows ?? []}

@@ -13,8 +13,8 @@ Every hook here is `getView` or `getPlain` from `http.ts`, so the tz rule of
 remembering. The split is 7.0's own: view endpoints evaluate dates and take
 tz, the roster and the folder list and settings do not and carry none.
 */
-import { useQuery } from '@tanstack/react-query'
-import type { UseQueryResult } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
 import { getConnectionsResponse } from '../../shared/connections.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -25,7 +25,7 @@ import type { GetInvitesPendingResponse } from '../../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
 import type { MeResponse, Settings } from '../../shared/me.js'
 import { getTaskResponse } from '../../shared/tasks.js'
-import type { TaskDetail } from '../../shared/tasks.js'
+import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import {
   getAllResponse,
   getDoneResponse,
@@ -41,7 +41,6 @@ import {
 import type {
   GetAllResponse,
   GetDoneResponse,
-  GetFolderTasksCompletedResponse,
   GetFolderTasksOpenResponse,
   GetImportantResponse,
   GetMyDayResponse,
@@ -150,18 +149,93 @@ export function useAllView(): UseQueryResult<GetAllResponse> {
 }
 
 /**
- * Done's first page only.
+ * A day-grouped page of completed rows, which is the shape Q6 answers and the
+ * shape Q7's third section answers, one page at a time.
  *
- * Q6 is keyset-paginated and 9.5 renders it as infinite scroll, which needs
- * `useInfiniteQuery` and a cursor the client hands back byte for byte (7.10).
- * The first page is what makes the page render, which is what this session
- * owes; the infinite arm is marked provisional in README.md and is the next
- * session's to extend.
+ * The two hooks below are one function because section 6 says they are one
+ * query: "Completed: Q6 predicate, order, and pagination, folder_id = F". 7.10
+ * settled the consequence on 2026-08-07, that a cursor's kind names the order
+ * it pages rather than the endpoint that issued it, so the same cursor is
+ * legal at both endpoints. One hook body for one order is that sentence as
+ * code.
  */
-export function useDoneView(): UseQueryResult<GetDoneResponse> {
-  return useQuery({
+type CompletedPage = GetDoneResponse
+
+/**
+ * The cursor rules of 7.10, in the three lines a client owes them.
+ *
+ * A cursor is opaque, so `undefined` is the first page and every later page is
+ * the previous response's `next_cursor` handed back byte for byte; nothing
+ * here reads a character of it. A null `next_cursor` is the only end-of-list
+ * signal, and returning `undefined` for it is what tells TanStack Query there
+ * is no next page: an empty final page is not an end signal and would leave a
+ * "load more" control offering a page that does not exist.
+ */
+function nextPageParam(page: CompletedPage): string | undefined {
+  return page.next_cursor ?? undefined
+}
+
+/**
+ * The pages of a completed list, flattened back into the day groups 9.5 and
+ * 9.6 render.
+ *
+ * A day is not a page. Q6 pages by 50 rows on (completed_at desc, id desc) and
+ * groups for display by the completed date, so a busy day spans two pages and
+ * arrives as two groups carrying one date. Concatenating the pages' `days`
+ * arrays would render that day's heading twice with the rows split under it,
+ * which is 9.1's region table broken as well: Done's regions are named by the
+ * day each one groups, and two regions cannot carry one name.
+ *
+ * Merging by date is safe rather than a re-sort, which section 6's preamble
+ * forbids. The pages arrive in the server's own order and each page's days are
+ * in it, so a date's second appearance is always immediately after its first
+ * across the seam; this appends within the existing group and never reorders
+ * either the days or the rows inside one.
+ */
+export interface CompletedDay {
+  readonly date: string
+  readonly rows: readonly TaskCard[]
+}
+
+export function mergeCompletedDays(
+  pages: readonly CompletedPage[] | undefined,
+): readonly CompletedDay[] {
+  const order: string[] = []
+  const byDate = new Map<string, TaskCard[]>()
+  for (const page of pages ?? []) {
+    for (const day of page.days) {
+      const existing = byDate.get(day.date)
+      if (existing === undefined) {
+        order.push(day.date)
+        byDate.set(day.date, [...day.rows])
+        continue
+      }
+      existing.push(...day.rows)
+    }
+  }
+  return order.map((date) => ({ date, rows: byDate.get(date) ?? [] }))
+}
+
+/**
+ * Done, as the infinite scroll 9.5 asks for.
+ *
+ * `useInfiniteQuery` rather than a page-index scheme because Q6 is keyset
+ * paginated: there is no page two to ask for, only the position the last
+ * response reported. The pages accumulate in the cache, so 8.3's unfiltered
+ * invalidation refetches every page a person has scrolled through rather than
+ * dropping them back to the first, which is what keeps a completion made in
+ * another tab from moving the ground under them.
+ */
+export function useDoneView(): UseInfiniteQueryResult<
+  { readonly pages: readonly CompletedPage[] },
+  Error
+> {
+  return useInfiniteQuery({
     queryKey: queryKeys.view('done'),
-    queryFn: () => getView(getDoneResponse, '/views/done'),
+    queryFn: ({ pageParam }) =>
+      getView(getDoneResponse, '/views/done', { cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
   })
 }
 
@@ -176,13 +250,16 @@ export function useFolderOpenTasks(id: string): UseQueryResult<GetFolderTasksOpe
 export function useFolderCompletedTasks(
   id: string,
   enabled: boolean,
-): UseQueryResult<GetFolderTasksCompletedResponse> {
-  return useQuery({
+): UseInfiniteQueryResult<{ readonly pages: readonly CompletedPage[] }, Error> {
+  return useInfiniteQuery({
     queryKey: queryKeys.folderTasks(id, 'completed'),
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       getView(getFolderTasksCompletedResponse, `/folders/${id}/tasks`, {
         section: 'completed',
+        cursor: pageParam,
       }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
     // Q7 renders the Completed section collapsed, and a collapsed section that
     // fetched anyway would make the collapse cosmetic. AC-058's P8 half reads
     // on the control's expanded state; this is what that state controls.

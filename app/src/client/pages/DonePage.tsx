@@ -15,18 +15,29 @@ test addresses it by the text the page rendered. The format of a date is the
 design's and section 9 has never spelled one, so the region's name here is the
 date exactly as the row carries it.
 
-Q6 is keyset-paginated and 9.5 renders it as infinite scroll. This renders the
-first page. The cursor arm is provisional and recorded in
-`src/client/README.md`; the shape it needs is `useInfiniteQuery` over
-`next_cursor`, handed back byte for byte as 7.10 requires.
+**The rows are this file's own rather than the component set's, and that is
+the one thing here worth reading twice.** Every other page hands its rows to
+`TaskList`, whose control for a completed row is the complete checkbox. 9.5
+gives this page a differently named control, "Mark as not done", because it
+does something the checkbox cannot: on the G-SERIES successor branch it
+confirms first, and the confirm is about a row nobody can see. A checkbox that
+sometimes opens a dialog would be that behaviour hidden inside the one control
+every other page uses unconditionally. So the row is composed here from the
+same library pieces, and the affordance 9.5 names is a named control.
+
+Q6's pagination is 9.5's infinite scroll, and it arrives here rather than in
+the page: `useDoneView` is an infinite query, the cursor is handed back byte
+for byte (7.10), and `mergeCompletedDays` puts a day split across two pages
+back into one region, because two regions cannot carry one name.
 */
 import { useEffect, useState } from 'react'
 
-import { useDoneView, useMe, useTask } from '../api/queries.js'
+import { mergeCompletedDays, useDoneView, useTask } from '../api/queries.js'
 import { useTransitionTask } from '../api/mutations.js'
-import { ConfirmDialog } from '../components/ui/index.js'
+import { useRowActions } from '../parts/useRowActions.js'
+import { Chip, ConfirmDialog, StarButton } from '../components/ui/index.js'
 import { PageSection } from '../states/PageSection.js'
-import { PageBody } from '../states/PageStates.js'
+import { MorePages, PageBody } from '../states/PageStates.js'
 import { DONE_EMPTY } from './empty-states.js'
 
 /**
@@ -37,11 +48,14 @@ import { DONE_EMPTY } from './empty-states.js'
 const UNCOMPLETE_SERIES_CONFIRM =
   'This removes the next scheduled occurrence (including any edits to it). Continue?'
 
+/** 9.5's own name for the un-complete affordance Q6 lists on every row. */
+const MARK_AS_NOT_DONE = 'Mark as not done'
+
 export function DonePage(): React.JSX.Element {
   const view = useDoneView()
-  const me = useMe()
+  const actions = useRowActions()
   const transition = useTransitionTask()
-  void me
+  const days = mergeCompletedDays(view.data?.pages)
 
   /*
   Which un-completes confirm, and why the row cannot answer it.
@@ -88,32 +102,41 @@ export function DonePage(): React.JSX.Element {
   return (
     <div>
       <h1>Done</h1>
-      <PageBody
-        query={view}
-        isEmpty={(view.data?.days.length ?? 0) === 0}
-        emptyCopy={DONE_EMPTY}
-      >
-        {(view.data?.days ?? []).map((day) => (
+      <PageBody query={view} isEmpty={days.length === 0} emptyCopy={DONE_EMPTY}>
+        {days.map((day) => (
           <PageSection key={day.date} name={day.date} heading={day.date}>
-            <ul>
+            <ul role="list">
               {day.rows.map((task) => (
-                <li key={task.id}>
-                  <span>{task.title}</span>
-                  <span>{task.folder.name}</span>
-                  {task.due_date === null ? null : <span>{task.due_date}</span>}
+                <li key={task.id} className="task-row">
+                  {/* Q6's row adornments: folder name, the due date it had,
+                      the star when important, and the un-complete affordance.
+                      The star is the library's, so its two names and its
+                      pressed state are the same here as on every other page. */}
+                  <span className="task-title task-title-completed">{task.title}</span>
+                  <span className="meta">{task.folder.name}</span>
+                  {task.due_date === null ? null : <Chip>{task.due_date}</Chip>}
+                  <StarButton
+                    task={task}
+                    mode="inward"
+                    onToggle={actions.onToggleImportant}
+                  />
                   <button
                     type="button"
                     onClick={() => {
                       setProbe(task.id)
                     }}
                   >
-                    Mark as not done
+                    {MARK_AS_NOT_DONE}
                   </button>
                 </li>
               ))}
             </ul>
           </PageSection>
         ))}
+        {/* Outside every region, because it belongs to the list rather than to
+            the day at the bottom of it: the next page usually opens a new day
+            and sometimes extends the last one. */}
+        <MorePages query={view} />
       </PageBody>
 
       {confirming === null ? null : (

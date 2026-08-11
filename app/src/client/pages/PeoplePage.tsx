@@ -1,6 +1,6 @@
 /*
-9.8's People screen: the roster with its removal control, and the bare invite
-by email.
+9.8's People screen: the roster with its removal control, the bare invite by
+email, and the pending invites addressed to the viewer.
 
 The refusal an already-connected address earns is 7.5's 409, entered by owner
 ruling on 2026-08-09, and its message is 9.8's copy character for character on
@@ -10,35 +10,63 @@ happens to be exactly what 9.8 asks a person to read here. A second copy of
 that string in this file would be a second thing to keep in step with the
 specification.
 
-The roster removal confirm and the invite list's Cancel and Resend are
-confirmations and belong with the rest of them; recorded as owed.
+The removal confirm is 9.8's own sentence and is transcribed. It is the third
+of the four things that section names and the only one whose copy it writes,
+which is why it is the only string in this file.
+
+The pending list is 9.8's login surface, the same component My Day mounts.
+9.8 gives that surface no home outside the callback, and this is the screen a
+person returns to after navigating away from it; mounting it here is not a
+second reading of "before anything else", it is the same list on the screen
+this section devotes to the subject.
 */
 import { useState } from 'react'
 
-import { useCreateInvite } from '../api/mutations.js'
+import { useCreateInvite, useRemoveConnection } from '../api/mutations.js'
 import { useConnections, usePendingInvites } from '../api/queries.js'
+import { ConfirmDialog } from '../components/ui/index.js'
 import { PageBody } from '../states/PageStates.js'
+import { PendingInviteList } from './PendingInvites.js'
+
+/** 9.8, verbatim: the confirm before a roster entry is removed. */
+const REMOVE_CONNECTION =
+  "Remove connection? You can still see shared folders; you'll just need a fresh invite to share new ones."
 
 export function PeoplePage(): React.JSX.Element {
   const connections = useConnections()
   const pending = usePendingInvites()
   const invite = useCreateInvite()
+  const disconnect = useRemoveConnection()
   const [email, setEmail] = useState('')
+  const [removing, setRemoving] = useState<string | null>(null)
 
   return (
     <div>
       <h1>People</h1>
+
+      {/* 9.8's login surface, above the roster: an unanswered invite is the
+          one thing on this screen a person can still act on. */}
+      <PendingInviteList invites={pending.data ?? []} />
 
       <PageBody
         query={connections}
         isEmpty={(connections.data?.length ?? 0) === 0}
         emptyCopy="No one yet. Invite someone by email to share a folder with them."
       >
-        <ul>
+        <ul role="list">
           {(connections.data ?? []).map((entry) => (
             <li key={entry.user.id}>
               <span>{entry.user.display_name ?? entry.user.email}</span>
               <span>{entry.user.email}</span>
+              {/* 9.8: "roster list with remove control". Either side may call
+                  it (7.3), so it is offered on every row rather than on the
+                  rows one of the two happens to have created. */}
+              <button
+                type="button"
+                onClick={() => setRemoving(entry.user.id)}
+              >
+                Remove connection
+              </button>
             </li>
           ))}
         </ul>
@@ -61,15 +89,16 @@ export function PeoplePage(): React.JSX.Element {
         onChange={(event) => setEmail(event.target.value)}
       />
 
-      {(pending.data ?? []).length === 0 ? null : (
-        <ul>
-          {(pending.data ?? []).map((row) => (
-            <li key={row.id}>
-              {row.inviter.display_name ?? 'Someone'} invited you to{' '}
-              {row.folder_name ?? 'connect'}
-            </li>
-          ))}
-        </ul>
+      {removing === null ? null : (
+        <ConfirmDialog
+          message={REMOVE_CONNECTION}
+          onContinue={() => {
+            const target = removing
+            setRemoving(null)
+            disconnect.mutate(target)
+          }}
+          onCancel={() => setRemoving(null)}
+        />
       )}
     </div>
   )

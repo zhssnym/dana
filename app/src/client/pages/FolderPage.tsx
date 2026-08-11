@@ -21,13 +21,27 @@ because it is a reading, and it is the reading AC-093 and AC-158 are both
 written against.
 
 The Completed section is collapsed on arrival and does not fetch until it is
-opened, which is what makes the collapse real rather than cosmetic.
+opened, which is what makes the collapse real rather than cosmetic. Once open
+it pages: Q7's third section is Q6 entire, so it carries Q6's cursor and Q6's
+"Show more", from the same hook Done uses.
+
+The header carries all four entries 9.6 gives it. Rename, Label and Leave were
+owed while this client had no mutation for any of them; each is now one hook
+in `api/mutations.ts`, and each entry is offered only to the actor 5.4 permits,
+because a menu that offers a person a 403 is a menu that lies.
 */
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
-import { useDeleteFolder } from '../api/mutations.js'
 import {
+  useDeleteFolder,
+  useRemoveFolderMember,
+  useRenameFolder,
+  useUpdateMyMembership,
+} from '../api/mutations.js'
+import {
+  mergeCompletedDays,
+  useConnections,
   useFolder,
   useFolderCompletedTasks,
   useFolderOpenTasks,
@@ -36,13 +50,15 @@ import {
 } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { ConfirmDialog, OverflowMenu } from '../components/ui/index.js'
+import type { MenuEntry } from '../components/ui/index.js'
 import { paths } from '../routes.js'
 import { QuickAddRow } from '../parts/QuickAddRow.js'
 import { TaskList } from '../parts/TaskRow.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
-import { PageBody } from '../states/PageStates.js'
+import { MorePages, PageBody } from '../states/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
+import { FolderSharingPanel } from './FolderSharingPanel.js'
 
 /**
  * 9.6's delete confirm, word for word, with the folder and its three counts.
@@ -63,6 +79,22 @@ function folderDeleteConfirm(
   )
 }
 
+/**
+ * The confirm before a member leaves a folder.
+ *
+ * **First pass**, like the removal confirm in the sharing panel and for the
+ * same reason: 5.3's R-CLEAN makes leaving lose the person their assignments
+ * and their My Day entries in this folder, which is exactly the invisible
+ * consequence section 9's four written confirmations exist to state, and
+ * section 9 does not write this one. Recorded as an open silence.
+ */
+function leaveFolderConfirm(name: string): string {
+  return (
+    `Leave ${name}? You lose access to it, and anything in it assigned to ` +
+    'you becomes unassigned.'
+  )
+}
+
 export function FolderPage(): React.JSX.Element {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -72,14 +104,29 @@ export function FolderPage(): React.JSX.Element {
   const actions = useRowActions()
   const multiMember = useMultiMemberFolderIds()
   const remove = useDeleteFolder()
+  const rename = useRenameFolder()
+  const relabel = useUpdateMyMembership()
+  const leave = useRemoveFolderMember()
   const [completedOpen, setCompletedOpen] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [labelling, setLabelling] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<'delete' | 'leave' | null>(null)
   const completed = useFolderCompletedTasks(id, completedOpen)
+  /*
+  The roster, read here because the sharing panel needs it and nothing below a
+  page fetches. It is one entry in the cache that the People screen and the
+  9.3 assignee dropdown also read, so this costs a request the first time a
+  folder page is opened in a document and nothing after that.
+  */
+  const connections = useConnections()
   const viewerId = me.data?.user.id ?? null
 
+  const detail = folder.data
   const scheduled = open.data?.scheduled ?? []
   const unscheduled = open.data?.unscheduled ?? []
   const bothEmpty = scheduled.length === 0 && unscheduled.length === 0
+  const completedDays = mergeCompletedDays(completed.data?.pages)
   /*
   The third count of 9.6's confirm, which 8.11 does not compute.
 
@@ -95,39 +142,129 @@ export function FolderPage(): React.JSX.Element {
     (task) => task.status === 'abandoned',
   ).length
 
+  /*
+  9.6's header menu: "Rename owner-only, Label and color personal, Leave
+  non-owner, Delete owner-only with confirm listing counts".
+
+  Each entry is conditioned on the actor 5.4 permits, which is this section's
+  own qualification of each of the four rather than a rule the client invented:
+  rename and delete are the owner's, leave is everyone else's, and the label is
+  every member's because 7.4 stores it on their own membership row. Delete is
+  additionally withheld from a default folder, which 7.4 answers 409 for under
+  INV-2.
+  */
+  const entries: MenuEntry[] = []
+  if (detail !== undefined) {
+    if (detail.is_owner) {
+      entries.push({
+        label: 'Rename folder',
+        onSelect: () => setRenaming(detail.name),
+      })
+    }
+    entries.push({
+      label: 'Label and color',
+      onSelect: () => setLabelling(detail.my_label ?? ''),
+    })
+    if (!detail.is_owner) {
+      entries.push({ label: 'Leave folder', onSelect: () => setConfirm('leave') })
+    }
+    if (detail.is_owner && !detail.is_default) {
+      entries.push({ label: 'Delete folder', onSelect: () => setConfirm('delete') })
+    }
+  }
+
   return (
     <div>
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
-        <h1>{folder.data?.name}</h1>
+        {/* 9.6: "name (inline rename for owner)". The heading becomes a field
+            in place rather than opening a dialog, which is what inline means,
+            and the field is offered only while the menu has put it there. */}
+        {renaming === null ? (
+          <h1>{detail?.name}</h1>
+        ) : (
+          <h1>
+            <input
+              type="text"
+              aria-label="Folder name"
+              value={renaming}
+              autoFocus
+              disabled={rename.isPending}
+              onChange={(event) => setRenaming(event.target.value)}
+              onBlur={() => setRenaming(null)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setRenaming(null)
+                  return
+                }
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                const trimmed = renaming.trim()
+                setRenaming(null)
+                if (trimmed === '' || trimmed === detail?.name) return
+                rename.mutate({ id, body: { name: trimmed } })
+              }}
+            />
+          </h1>
+        )}
         <p>
-          {folder.data?.counts.completed ?? 0} of{' '}
-          {(folder.data?.counts.completed ?? 0) + (folder.data?.counts.pending ?? 0)} done
+          {detail?.counts.completed ?? 0} of{' '}
+          {(detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)} done
         </p>
         <ul>
-          {(folder.data?.members ?? []).map((member) => (
+          {(detail?.members ?? []).map((member) => (
             <li key={member.user.id}>{member.user.display_name ?? 'Someone'}</li>
           ))}
         </ul>
-        {/* The sharing panel of 9.6 is still owed; the overflow menu's delete
-            and its confirm are here, added by the Complex Interaction session
-            this file's own comment assigned them to. Rename, label and leave
-            stay owed: each needs a mutation this client does not carry, and
-            9.6's own division makes them separate controls rather than one.
-            A menu offers only what it can perform, which is why the entries
-            are conditional rather than greyed. */}
-        <OverflowMenu
-          entries={
-            folder.data?.is_owner === true && !folder.data.is_default
-              ? [{ label: 'Delete folder', onSelect: () => setConfirmDelete(true) }]
-              : []
-          }
-        />
-        <button type="button">Share</button>
+        <OverflowMenu entries={entries} />
+        {/* 9.6's Share button, which is the entry point Q7's header names and
+            the panel below is what it opens. */}
+        <button
+          type="button"
+          aria-expanded={sharing}
+          onClick={() => setSharing(!sharing)}
+        >
+          Share
+        </button>
+        {labelling === null ? null : (
+          <div>
+            <label htmlFor="folder-personal-label">Label</label>
+            <input
+              id="folder-personal-label"
+              type="text"
+              value={labelling}
+              autoFocus
+              disabled={relabel.isPending}
+              onChange={(event) => setLabelling(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setLabelling(null)
+                  return
+                }
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                const trimmed = labelling.trim()
+                setLabelling(null)
+                // 7.4 makes both fields nullable and null is what clears one,
+                // so an emptied field clears the label rather than sending a
+                // string 10.3 refuses for being shorter than one character.
+                relabel.mutate({ id, body: { label: trimmed === '' ? null : trimmed } })
+              }}
+            />
+          </div>
+        )}
+        {sharing && detail !== undefined ? (
+          <FolderSharingPanel folder={detail} connections={connections.data} />
+        ) : null}
 
         <PageSection name="Scheduled" heading="Scheduled">
-          <PageBody query={open} isEmpty={bothEmpty} emptyCopy={FOLDER_EMPTY}>
+          <PageBody
+            query={open}
+            isEmpty={bothEmpty}
+            emptyCopy={FOLDER_EMPTY}
+            truncated={open.data?.truncated ?? false}
+          >
             <TaskList
               tasks={scheduled}
               viewerId={viewerId}
@@ -154,38 +291,52 @@ export function FolderPage(): React.JSX.Element {
             only known once it has been fetched, and it is only fetched once it
             is opened, so the control is rendered on the strength of the
             folder's own completed count. */}
-        {(folder.data?.counts.completed ?? 0) === 0 ? null : (
+        {(detail?.counts.completed ?? 0) === 0 ? null : (
           <CollapsibleSection
             name="Completed"
             defaultOpen={false}
             onOpenChange={setCompletedOpen}
           >
-            {(completed.data?.days ?? []).map((day) => (
+            {completedDays.map((day) => (
               <PageSection key={day.date} name={day.date} heading={day.date}>
                 <TaskList tasks={day.rows} viewerId={viewerId} {...actions} />
               </PageSection>
             ))}
+            <MorePages query={completed} />
           </CollapsibleSection>
         )}
-        {confirmDelete ? (
+        {confirm === null ? null : (
           <ConfirmDialog
-            message={folderDeleteConfirm(
-              folder.data?.name ?? '',
-              folder.data?.counts.pending ?? 0,
-              folder.data?.counts.completed ?? 0,
-              abandoned,
-            )}
+            message={
+              confirm === 'delete'
+                ? folderDeleteConfirm(
+                    detail?.name ?? '',
+                    detail?.counts.pending ?? 0,
+                    detail?.counts.completed ?? 0,
+                    abandoned,
+                  )
+                : leaveFolderConfirm(detail?.name ?? '')
+            }
             onContinue={() => {
-              setConfirmDelete(false)
-              // 8.8's cascade takes the page with it, so the navigation is
-              // part of the action rather than something the person does
-              // next: staying would render 10.2's answer for a folder that
-              // has just been deleted, which reads as an error.
-              remove.mutate(id, { onSuccess: () => navigate(paths.myDay) })
+              const which = confirm
+              setConfirm(null)
+              // 8.8's cascade and 5.3's leave each take the page with them, so
+              // the navigation is part of the action rather than something the
+              // person does next: staying would render 10.2's answer for a
+              // folder they can no longer see, which reads as an error.
+              if (which === 'delete') {
+                remove.mutate(id, { onSuccess: () => navigate(paths.myDay) })
+                return
+              }
+              if (viewerId === null) return
+              leave.mutate(
+                { folderId: id, userId: viewerId },
+                { onSuccess: () => navigate(paths.myDay) },
+              )
             }}
-            onCancel={() => setConfirmDelete(false)}
+            onCancel={() => setConfirm(null)}
           />
-        ) : null}
+        )}
       </PageBody>
     </div>
   )

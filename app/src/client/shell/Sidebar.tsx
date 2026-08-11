@@ -33,6 +33,7 @@ import type { Folder } from '../../shared/folders.js'
 import type { Settings } from '../../shared/me.js'
 import { useCreateFolder } from '../api/mutations.js'
 import { paths, sidebarPages } from '../routes.js'
+import { CollapsibleSection } from '../states/PageSection.js'
 
 interface LabelGroup {
   readonly label: string
@@ -81,22 +82,31 @@ function FolderLink({ folder }: { readonly folder: Folder }): React.JSX.Element 
   )
 }
 
+/**
+ * One personal label group: a named region carrying a control with the same
+ * name, which is what 9.1's sections ruling makes a collapsible section.
+ *
+ * The ruling's table names the sidebar's regions outright, "one per personal
+ * label group, named by that label", and its first consequence names these
+ * groups among the three things a collapsible section covers. So this is
+ * `CollapsibleSection` rather than markup of its own, and what it buys is that
+ * a folder link is addressable inside the label group it is under: a folder
+ * can sit in one member's group and among another's unlabeled folders, which
+ * is what AC-155's fourth case is about.
+ *
+ * The control's name is the label alone. A count here would make the
+ * accessible name something no table fixes and no test can ask for.
+ */
 function LabelGroupBlock({ group }: { readonly group: LabelGroup }): React.JSX.Element {
-  const [open, setOpen] = useState(true)
   return (
     <li>
-      {/* The control's name is the label alone. A count here would make the
-          accessible name something no table fixes and no test can ask for. */}
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {group.label}
-      </button>
-      {open ? (
-        <ul aria-label={group.label}>
+      <CollapsibleSection name={group.label} defaultOpen>
+        <ul>
           {group.folders.map((folder) => (
             <FolderLink key={folder.id} folder={folder} />
           ))}
         </ul>
-      ) : null}
+      </CollapsibleSection>
     </li>
   )
 }

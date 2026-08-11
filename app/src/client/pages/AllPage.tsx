@@ -39,6 +39,9 @@ export function AllPage(): React.JSX.Element {
           (data?.tasks_groups.length ?? 0) === 0
         }
         emptyCopy={ALL_EMPTY}
+        // One flag for both sections: the cap is per response, so All's two
+        // arrays share it and the notice belongs above the pair.
+        truncated={data?.truncated ?? false}
       >
         <PageSection name="Planned" heading="Planned">
           <TaskList

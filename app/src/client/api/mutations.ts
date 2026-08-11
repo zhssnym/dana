@@ -25,10 +25,34 @@ ones section 7 names.
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
-import { deleteFolderResponse, folder } from '../../shared/folders.js'
-import type { DeleteFolderResponse, Folder, PostFoldersBody } from '../../shared/folders.js'
-import { postInvitesBody, postInvitesResponse } from '../../shared/invites.js'
-import type { PostInvitesBody, PostInvitesResponse } from '../../shared/invites.js'
+import {
+  deleteFolderResponse,
+  folder,
+  patchFolderMyMembershipResponse,
+  patchFolderResponse,
+  postFolderMembersResponse,
+} from '../../shared/folders.js'
+import type {
+  DeleteFolderResponse,
+  Folder,
+  FolderMember,
+  PatchFolderBody,
+  PatchFolderMyMembershipBody,
+  PostFoldersBody,
+} from '../../shared/folders.js'
+import {
+  acceptInviteResponse,
+  cancelInviteResponse,
+  declineInviteResponse,
+  postInvitesBody,
+  postInvitesResponse,
+  resendInviteResponse,
+} from '../../shared/invites.js'
+import type {
+  AcceptInviteResponse,
+  PostInvitesBody,
+  PostInvitesResponse,
+} from '../../shared/invites.js'
 import { patchMeSettingsResponse } from '../../shared/me.js'
 import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
 import {
@@ -135,6 +159,158 @@ export function useDeleteFolder(): UseMutationResult<DeleteFolderResponse, Error
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(deleteFolderResponse, { method: 'DELETE', path: `/folders/${id}` }),
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * 9.6's folder header and sharing panel
+ * ------------------------------------------------------------------ */
+
+/**
+ * PATCH /folders/:id, 9.6's inline rename. Owner only by 5.4, which the
+ * server decides; the client's half is not offering the control to anyone
+ * else, and 7.4 answers the Folder object a fresh GET would.
+ */
+export interface RenameFolderVariables {
+  readonly id: string
+  readonly body: PatchFolderBody
+}
+
+export function useRenameFolder(): UseMutationResult<Folder, Error, RenameFolderVariables> {
+  return useMutation({
+    mutationFn: ({ id, body }: RenameFolderVariables) =>
+      mutateApi(patchFolderResponse, { method: 'PATCH', path: `/folders/${id}`, body }),
+  })
+}
+
+/**
+ * PATCH /folders/:id/my-membership, 9.6's "Label and color personal".
+ *
+ * Personal in the strong sense: 7.4 stores both on the viewer's own
+ * membership row, so the same folder sits inside a label group for one member
+ * and among the unlabeled for another, which is what 9.1's sidebar renders
+ * and AC-155's fourth case measures.
+ */
+export interface UpdateMyMembershipVariables {
+  readonly id: string
+  readonly body: PatchFolderMyMembershipBody
+}
+
+export function useUpdateMyMembership(): UseMutationResult<
+  Folder,
+  Error,
+  UpdateMyMembershipVariables
+> {
+  return useMutation({
+    mutationFn: ({ id, body }: UpdateMyMembershipVariables) =>
+      mutateApi(patchFolderMyMembershipResponse, {
+        method: 'PATCH',
+        path: `/folders/${id}/my-membership`,
+        body,
+      }),
+  })
+}
+
+/** POST /folders/:id/members, the roster picker of 9.6's sharing panel. */
+export interface AddFolderMemberVariables {
+  readonly folderId: string
+  readonly userId: string
+}
+
+export function useAddFolderMember(): UseMutationResult<
+  FolderMember,
+  Error,
+  AddFolderMemberVariables
+> {
+  return useMutation({
+    mutationFn: ({ folderId, userId }: AddFolderMemberVariables) =>
+      mutateApi(postFolderMembersResponse, {
+        method: 'POST',
+        path: `/folders/${folderId}/members`,
+        body: { user_id: userId },
+      }),
+  })
+}
+
+/**
+ * DELETE /folders/:id/members/:userId, which is three actions of 5.3 behind
+ * one endpoint: an owner removing a member, a member leaving, and an owner
+ * leaving through the transfer of 8.9. The client sends the same request for
+ * all three and the server decides which one it was, so nothing here encodes
+ * a permission the matrix of 5.4 already holds.
+ */
+export interface RemoveFolderMemberVariables {
+  readonly folderId: string
+  readonly userId: string
+}
+
+export function useRemoveFolderMember(): UseMutationResult<
+  void,
+  Error,
+  RemoveFolderMemberVariables
+> {
+  return useMutation({
+    mutationFn: ({ folderId, userId }: RemoveFolderMemberVariables) =>
+      mutateApi(null, {
+        method: 'DELETE',
+        path: `/folders/${folderId}/members/${userId}`,
+      }),
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * 7.5's four invite transitions
+ * ------------------------------------------------------------------ */
+
+/**
+ * POST /invites/:id/accept, the Q12 login surface's affirmative.
+ *
+ * The response carries the full Folder object rather than the group-heading
+ * stub (7.5, settled 2026-08-10), which is what lets 9.8's "accepting a
+ * folder invite lands inside that folder" navigate without a second read.
+ */
+export function useAcceptInvite(): UseMutationResult<AcceptInviteResponse, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(acceptInviteResponse, { method: 'POST', path: `/invites/${id}/accept` }),
+  })
+}
+
+export function useDeclineInvite(): UseMutationResult<PostInvitesResponse, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(declineInviteResponse, { method: 'POST', path: `/invites/${id}/decline` }),
+  })
+}
+
+export function useCancelInvite(): UseMutationResult<PostInvitesResponse, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(cancelInviteResponse, { method: 'POST', path: `/invites/${id}/cancel` }),
+  })
+}
+
+/**
+ * POST /invites/:id/resend. 7.5 answers 429 inside 24 hours, which 9.6 turns
+ * into a disabled control with the tooltip "Resent recently" rather than a
+ * request the person makes and is refused; the server still refuses it, which
+ * is what makes the disabling a convenience (7.11) rather than the rule.
+ */
+export function useResendInvite(): UseMutationResult<PostInvitesResponse, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(resendInviteResponse, { method: 'POST', path: `/invites/${id}/resend` }),
+  })
+}
+
+/**
+ * DELETE /connections/:userId, 9.8's roster removal, behind that section's
+ * own confirm. 7.3 lets either side call it and answers 204.
+ */
+export function useRemoveConnection(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (userId: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/connections/${userId}` }),
   })
 }
 

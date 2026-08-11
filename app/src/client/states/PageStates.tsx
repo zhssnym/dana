@@ -30,6 +30,7 @@ persistent, global statement of that condition, and 10.6's contract is that
 reads need network. Adding a second offline message per page would be two
 answers to one question.
 */
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
 import { ApiError } from '../api/http.js'
@@ -46,6 +47,12 @@ interface PageBodyProps {
   readonly isEmpty: boolean
   /** The empty copy section 6 gives this page. Normative; never paraphrased. */
   readonly emptyCopy: string
+  /**
+   * The `truncated` flag of the six capped bodies of 7.10. Section 6's cap
+   * rule ends "the UI shows a notice", and this is where every page shows it,
+   * for the reason the four states are here: one treatment or none.
+   */
+  readonly truncated?: boolean
   readonly children: ReactNode
 }
 
@@ -98,6 +105,7 @@ export function PageBody({
   query,
   isEmpty,
   emptyCopy,
+  truncated = false,
   children,
 }: PageBodyProps): React.JSX.Element {
   if (query.status === 'pending') return <LoadingRows />
@@ -106,5 +114,91 @@ export function PageBody({
     return <ErrorWithRetry retry={query.refetch} />
   }
   if (isEmpty) return <p>{emptyCopy}</p>
-  return <>{children}</>
+  return (
+    <>
+      {truncated ? <TruncationNotice /> : null}
+      {children}
+    </>
+  )
+}
+
+/**
+ * The notice section 6's cap rule asks for and spells no copy for.
+ *
+ * "List responses capped at 1000 rows with truncated flag ... the UI shows a
+ * notice." Six of the nine bodies of 7.10 carry the flag and every one of them
+ * is a capped list rather than a paginated one, so the notice is the only
+ * thing that distinguishes a page showing everything from a page showing a
+ * thousand of something. Without it the person reads the end of a list that
+ * has not ended, which is worse than a slow page.
+ *
+ * **First pass.** Section 6 requires the notice and writes no words for it,
+ * unlike the eight empty states it writes sentence by sentence. The string
+ * below is this session's and is recorded as an open silence in
+ * `src/client/README.md`; design may reword it without a spec change until
+ * something rules otherwise. The number is not interpolated, deliberately: the
+ * flag says rows were dropped and never how many, and a client that spelled
+ * "1000" would be transcribing a limit of 10.3 that the response does not
+ * report and that a later release may move.
+ *
+ * `role="status"` rather than an alert: it is a fact about the list, not a
+ * failure, and 9.1's toasts are what failures use.
+ */
+const TRUNCATION_NOTICE =
+  'This list is long, so only the first part is shown. Narrow it down to see the rest.'
+
+function TruncationNotice(): React.JSX.Element {
+  return <p role="status">{TRUNCATION_NOTICE}</p>
+}
+
+/**
+ * The end of an infinite list: 9.5's Done and 9.6's Completed section, which
+ * Q6 pages by keyset rather than capping.
+ *
+ * Two controls' worth of behaviour in one, and the pairing is the point. The
+ * button is what makes the next page reachable by keyboard and addressable at
+ * all, since section 9 names no control here and a page whose only way forward
+ * is a scroll position is a page a screen reader cannot finish reading. The
+ * observer is what makes it the "infinite scroll" 9.5 asks for rather than a
+ * pager: when the control scrolls into view it is pressed, so the ordinary
+ * reader never sees it and the keyboard reader always can.
+ *
+ * `hasNextPage` is 7.10's null cursor and nothing else. An empty page is not
+ * an end of list, so nothing here counts rows to decide whether to stop.
+ */
+export interface InfinitePageState {
+  readonly hasNextPage: boolean
+  readonly isFetchingNextPage: boolean
+  readonly fetchNextPage: () => unknown
+}
+
+export function MorePages({ query }: { readonly query: InfinitePageState }): React.JSX.Element | null {
+  const button = useRef<HTMLButtonElement | null>(null)
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
+
+  useEffect(() => {
+    const element = button.current
+    if (element === null || !hasNextPage || isFetchingNextPage) return undefined
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void fetchNextPage()
+    })
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  if (!hasNextPage) return null
+  return (
+    <button
+      type="button"
+      ref={button}
+      disabled={isFetchingNextPage}
+      onClick={() => {
+        void fetchNextPage()
+      }}
+    >
+      Show more
+    </button>
+  )
 }

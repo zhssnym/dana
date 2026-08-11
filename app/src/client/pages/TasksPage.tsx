@@ -44,11 +44,18 @@ export function TasksGroups({
   viewerId,
   actions,
   emptyCopy = TASKS_EMPTY,
+  truncated = false,
 }: {
   readonly query: PageQueryState
   readonly view: GetTasksViewResponse | undefined
   readonly viewerId: string | null
   readonly actions: RowActions
+  /**
+   * False on the All page, whose own `PageBody` already carries the flag: the
+   * cap is per response and All's response has one, so a notice here as well
+   * would be the same fact stated twice on one page.
+   */
+  readonly truncated?: boolean
   /**
    * Null on the All page. 9.5 renders All's Tasks section by this page's own
    * rules, but Q5 gives All its own empty copy, and a section that also
@@ -68,6 +75,7 @@ export function TasksGroups({
             (view?.groups.length ?? 0) === 0
           }
           emptyCopy={emptyCopy ?? ''}
+          truncated={truncated}
         >
           <TaskList tasks={view?.inbox ?? []} viewerId={viewerId} {...actions} />
         </PageBody>
@@ -106,6 +114,7 @@ export function TasksPage(): React.JSX.Element {
         view={view.data}
         viewerId={me.data?.user.id ?? null}
         actions={actions}
+        truncated={view.data?.truncated ?? false}
       />
     </div>
   )

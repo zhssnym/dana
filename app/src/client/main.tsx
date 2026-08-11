@@ -13,6 +13,19 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 
+/*
+The single token file of 11.4, imported once by the entry point.
+
+`components/README.md` requested this line and gave the reason: the component
+set's own entry point was pulling the stylesheet in, which works because Vite
+treats a CSS import as a side effect and emits one stylesheet for the entry
+chunk, but it ties the tokens to whether a page happens to render a component
+from that directory. Here they are the document's, like the query client and
+the router beside them. The import in `components/ui/index.ts` is that role's
+to remove; while both exist Vite emits one stylesheet either way.
+*/
+import './styles/tokens.css'
+
 import { getPlain } from './api/http.js'
 import { queryKeys } from './api/keys.js'
 import { createQueryClient, setQueryClient } from './api/queryClient.js'
