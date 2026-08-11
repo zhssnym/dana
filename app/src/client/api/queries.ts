@@ -24,6 +24,8 @@ import { getInvitesPendingResponse } from '../../shared/invites.js'
 import type { GetInvitesPendingResponse } from '../../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
 import type { MeResponse, Settings } from '../../shared/me.js'
+import { getTaskResponse } from '../../shared/tasks.js'
+import type { TaskDetail } from '../../shared/tasks.js'
 import {
   getAllResponse,
   getDoneResponse,
@@ -31,6 +33,7 @@ import {
   getFolderTasksOpenResponse,
   getImportantResponse,
   getMyDayResponse,
+  getPlannedCalendarResponse,
   getPlannedResponse,
   getSearchResponse,
   getTasksViewResponse,
@@ -42,6 +45,7 @@ import type {
   GetFolderTasksOpenResponse,
   GetImportantResponse,
   GetMyDayResponse,
+  GetPlannedCalendarResponse,
   GetPlannedResponse,
   GetSearchResponse,
   GetTasksViewResponse,
@@ -183,6 +187,51 @@ export function useFolderCompletedTasks(
     // fetched anyway would make the collapse cosmetic. AC-058's P8 half reads
     // on the control's expanded state; this is what that state controls.
     enabled,
+  })
+}
+
+/**
+ * Q3C's range, which the calendar of 9.5 asks for and this hook carries.
+ *
+ * The range is the client's to choose and Q3C answers whatever it receives;
+ * 9.5 fixes the month zoom's at the whole six weeks overlapping the month,
+ * which is 42 days and never approaches Q3C's 62-day refusal. The dates are
+ * part of the key rather than of the hook's identity, so changing zoom or
+ * paging a month is a different cache entry rather than a refetch of the same
+ * one, and going back to a month already seen is answered from the cache.
+ *
+ * Disabled while the range is unknown: the calendar reports its own dates
+ * after it has laid them out, so the first render has none, and a request
+ * without start and end is a 422 naming the pair.
+ */
+export function usePlannedCalendarView(
+  start: string | null,
+  end: string | null,
+): UseQueryResult<GetPlannedCalendarResponse> {
+  return useQuery({
+    queryKey: [...queryKeys.view('planned-calendar'), start, end],
+    queryFn: () =>
+      getView(getPlannedCalendarResponse, '/views/planned/calendar', {
+        start: start ?? '',
+        end: end ?? '',
+      }),
+    enabled: start !== null && end !== null,
+  })
+}
+
+/**
+ * One task in full, which 9.3's edit mode pre-fills from.
+ *
+ * `getPlain` rather than `getView`: 7.0 scopes its tz sentence to the view
+ * endpoints, and GET /tasks/:id evaluates no date. It answers TaskDetail,
+ * whose eight extra fields over TaskCard are exactly what the form needs and
+ * no list response carries: notes, the rule, the reminder and the steps.
+ */
+export function useTask(id: string | null): UseQueryResult<TaskDetail> {
+  return useQuery({
+    queryKey: queryKeys.task(id ?? ''),
+    queryFn: () => getPlain(getTaskResponse, `/tasks/${id ?? ''}`),
+    enabled: id !== null,
   })
 }
 

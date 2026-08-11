@@ -204,7 +204,23 @@ export function TaskRow({
           onToggleComplete?.(task)
         }}
       />
-      <TaskTitle task={task} />
+      {/* 9.5: "click on any row opens the task". Recorded as owed in
+          `components/README.md` while the edit arm of the overlay seam did not
+          exist; it does now, so the title is the row's opening control. A
+          button rather than a handler on the row, so the same click is a tab
+          stop and an Enter press. The title element itself is untouched, which
+          is what keeps it one text node for AC-097's computed-style read. */}
+      {onOpenTask === undefined ? (
+        <TaskTitle task={task} />
+      ) : (
+        <button
+          type="button"
+          className="button-base button-quiet"
+          onClick={() => onOpenTask(task)}
+        >
+          <TaskTitle task={task} />
+        </button>
+      )}
       <span className="meta">{task.folder.name}</span>
       {task.due_date === null ? null : (
         <Chip tone={overdue ? 'alert' : 'default'}>

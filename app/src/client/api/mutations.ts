@@ -25,18 +25,21 @@ ones section 7 names.
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
-import { folder } from '../../shared/folders.js'
-import type { Folder, PostFoldersBody } from '../../shared/folders.js'
+import { deleteFolderResponse, folder } from '../../shared/folders.js'
+import type { DeleteFolderResponse, Folder, PostFoldersBody } from '../../shared/folders.js'
 import { postInvitesBody, postInvitesResponse } from '../../shared/invites.js'
 import type { PostInvitesBody, PostInvitesResponse } from '../../shared/invites.js'
 import { patchMeSettingsResponse } from '../../shared/me.js'
 import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
 import {
+  patchStepResponse,
   patchTaskResponse,
+  postTaskStepsResponse,
   postTasksResponse,
   taskTransitionResponse,
 } from '../../shared/tasks.js'
 import type {
+  PatchStepBody,
   PatchTaskBody,
   PostTasksBody,
   TaskDetail,
@@ -69,6 +72,69 @@ export function useUpdateTask(): UseMutationResult<TaskDetail, Error, PatchTaskV
   return useMutation({
     mutationFn: ({ id, body }: PatchTaskVariables) =>
       mutateApi(patchTaskResponse, { method: 'PATCH', path: `/tasks/${id}`, body }),
+  })
+}
+
+/**
+ * DELETE /tasks/:id, which 9.3 puts in the form's overflow menu and 9.4 in a
+ * row's, both behind that section's confirmation.
+ *
+ * 7.6 answers 204, so nothing is parsed: `mutateApi(null, ...)` is the arm
+ * that exists for the three mutations of section 7 with no body.
+ */
+export function useDeleteTask(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) => mutateApi(null, { method: 'DELETE', path: `/tasks/${id}` }),
+  })
+}
+
+/** 7.7's append, which answers the affected TaskDetail rather than the step. */
+export interface AddStepVariables {
+  readonly taskId: string
+  readonly title: string
+}
+
+export function useAddStep(): UseMutationResult<TaskDetail, Error, AddStepVariables> {
+  return useMutation({
+    mutationFn: ({ taskId, title }: AddStepVariables) =>
+      mutateApi(postTaskStepsResponse, {
+        method: 'POST',
+        path: `/tasks/${taskId}/steps`,
+        body: { title },
+      }),
+  })
+}
+
+export interface PatchStepVariables {
+  readonly stepId: string
+  readonly body: PatchStepBody
+}
+
+export function useUpdateStep(): UseMutationResult<TaskDetail, Error, PatchStepVariables> {
+  return useMutation({
+    mutationFn: ({ stepId, body }: PatchStepVariables) =>
+      mutateApi(patchStepResponse, { method: 'PATCH', path: `/steps/${stepId}`, body }),
+  })
+}
+
+export function useDeleteStep(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (stepId: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/steps/${stepId}` }),
+  })
+}
+
+/**
+ * DELETE /folders/:id, behind 9.6's confirm.
+ *
+ * 7.4 answers 200 with the counts of what the cascade removed, "so the client
+ * can confirm what the dialog promised". The shape is parsed for that reason
+ * rather than discarded, even though nothing renders it yet.
+ */
+export function useDeleteFolder(): UseMutationResult<DeleteFolderResponse, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(deleteFolderResponse, { method: 'DELETE', path: `/folders/${id}` }),
   })
 }
 

@@ -16,6 +16,7 @@ rather than one that appears when its target does.
 import { useState } from 'react'
 
 import { useMe, useMultiMemberFolderIds, usePlannedView } from '../api/queries.js'
+import { PlannedCalendar } from '../components/calendar/index.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { QuickAddRow } from '../parts/QuickAddRow.js'
 import { TaskList } from '../parts/TaskRow.js'
@@ -68,10 +69,11 @@ export function PlannedPage(): React.JSX.Element {
       </button>
 
       {mode === 'calendar' ? (
-        // Q3C's grid arrives with the Complex Interaction engineer's session.
-        // Nothing is asserted about this placeholder; it is here so the toggle
-        // above is not a control that leads nowhere.
-        <div data-planned-calendar-slot="" />
+        // The named place the shell session left for Q3C's grid, filled by the
+        // Complex Interaction session. Everything about the calendar, its
+        // range request included, is inside that component; this page decides
+        // only which of the two modes 9.5 gives it is showing.
+        <PlannedCalendar />
       ) : (
         <>
           <PageBody

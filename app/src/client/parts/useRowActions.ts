@@ -26,7 +26,13 @@ is 9.1's table as code.
 */
 import { useLocation } from 'react-router'
 
-import { useRemoveFromMyDay, useTransitionTask, useUpdateTask } from '../api/mutations.js'
+import {
+  useDeleteTask,
+  useRemoveFromMyDay,
+  useTransitionTask,
+  useUpdateTask,
+} from '../api/mutations.js'
+import { openTask } from '../components/task-form/index.js'
 import { paths } from '../routes.js'
 import type { StarTooltipMode } from '../components/ui/index.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -38,6 +44,10 @@ export interface RowActions {
   readonly onRemoveFromMyDay: (task: TaskCard) => void
   /** 9.4's overflow menu, behind that section's own confirmation. */
   readonly onAbandon: (task: TaskCard) => void
+  /** 9.5's "click on any row opens the task", and 9.4's overflow edit. */
+  readonly onOpenTask: (task: TaskCard) => void
+  /** 9.4's overflow delete, behind 9.3's confirmation. */
+  readonly onDelete: (task: TaskCard) => void
   /** Q4: outward on Important, inward on every other page. */
   readonly starTooltipMode: StarTooltipMode
 }
@@ -46,6 +56,7 @@ export function useRowActions(): RowActions {
   const transition = useTransitionTask()
   const update = useUpdateTask()
   const unpull = useRemoveFromMyDay()
+  const remove = useDeleteTask()
   const location = useLocation()
   return {
     onToggleComplete: (task) => {
@@ -65,6 +76,24 @@ export function useRowActions(): RowActions {
     },
     onAbandon: (task) => {
       transition.mutate({ id: task.id, event: 'abandon' })
+    },
+    /*
+    The two entries `components/README.md` recorded as owed, arriving with the
+    surfaces they waited on. Both are additive, so every page that spreads
+    these actions gets them with no page edit, which is the property that file
+    said the row already had.
+
+    Opening a task is not a mutation and so is not a hook here: it raises the
+    edit arm of the overlay seam, which is `components/task-form/open.ts`.
+    It sits in this hook anyway because the row takes it as a callback like
+    every other, and because a row that reached for the bus itself would be a
+    component deciding what a click means.
+    */
+    onOpenTask: (task) => {
+      openTask(task.id)
+    },
+    onDelete: (task) => {
+      remove.mutate(task.id)
     },
     starTooltipMode: location.pathname === paths.important ? 'outward' : 'inward',
   }

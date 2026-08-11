@@ -26,8 +26,22 @@ The date after "due" is rendered as the card carries it. Nothing in the
 specification spells a date format, which AC-099's own file says outright, and
 this is the one place this file would otherwise invent one; the format is the
 design's and arrives with 11.13's screens.
+
+**The name is carried by content, not by `aria-label`, and that is a
+measurement rather than a preference.** Added by the Complex Interaction
+session at P8, changing how the name is attached and not what the name is:
+this control still announces "Important" or "Mark as important" and is still
+found by `getByRole('button', { name })`, which is how AC-055 and AC-099 ask
+for it. What changed is that an `aria-label` is a *label* to the acceptance
+suite's `formField` helper, which addresses 9.3's ten form fields by
+accessible name across roles because those fields are ten different roles.
+9.3's own "inline toggle for important" is one of them, so a page carrying any
+starred row and an open task form had two elements answering to "Important",
+and AC-093 asserts that toggle on five pages the seed puts a starred row on.
+Naming by content leaves the accessible name identical and takes this button
+out of that collision; the glyph stays `aria-hidden`, so a glyph swap is still
+never a rename.
 */
-import { IconButton } from './Button.js'
 import { STAR_OFF, STAR_ON } from './copy.js'
 import type { TaskCard } from '../../../shared/tasks.js'
 
@@ -54,13 +68,19 @@ export function StarButton({
   readonly mode: StarTooltipMode
   readonly onToggle?: (task: TaskCard) => void
 }): React.JSX.Element {
+  const name = task.important ? STAR_ON : STAR_OFF
   return (
-    <IconButton
-      label={task.important ? STAR_ON : STAR_OFF}
+    <button
+      type="button"
+      className="icon-control"
+      aria-pressed={task.important}
       title={starTooltip(task, mode)}
-      glyph={task.important ? '★' : '☆'}
-      pressed={task.important}
       onClick={() => onToggle?.(task)}
-    />
+    >
+      <span aria-hidden="true">{task.important ? '★' : '☆'}</span>
+      {/* The accessible name, as content. `sr-only` keeps the control icon-only
+          to the eye while the name is still the button's own text. */}
+      <span className="sr-only">{name}</span>
+    </button>
   )
 }

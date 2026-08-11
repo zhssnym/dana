@@ -24,6 +24,8 @@ import { Outlet, useLocation } from 'react-router'
 import { mutateApi } from '../api/http.js'
 import { useFolders, useMe, useSettings } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
+import { SearchOverlay } from '../components/search/index.js'
+import { TaskFormOverlay } from '../components/task-form/index.js'
 import { UpdatePrompt } from '../pwa/UpdatePrompt.js'
 import { paths } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
@@ -113,6 +115,15 @@ export function AppLayout(): React.JSX.Element {
       </main>
       {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
       <ToastRegion />
+      {/* The two surfaces the seam above asks for, mounted once and last.
+          Once, because 9.3's form and 9.9's overlay open over whatever page is
+          beneath them and a per-page copy would be two of each on the All
+          page; last, because both are modal and a control inside one has to be
+          the page's last, not its first, in reading order. Added by the
+          Complex Interaction session, which owns both directories; nothing
+          else in this file changed. */}
+      <TaskFormOverlay />
+      <SearchOverlay />
     </div>
   )
 }
