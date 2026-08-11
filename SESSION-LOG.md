@@ -237,3 +237,18 @@ sub-agent in sequence, verifying each before starting the next.
 | 11 | Merge review: four disclosures ratified, the fourth skip into 8.6, a retrace error corrected | 12 | Steward | Done |
 | 12 | Merged at 2bda626, green on both legs on the merge commit itself | 12 | Steward | Done |
 
+## P8: the web client (`p8-client`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: tests-first held, routes and addressing into 9.1, the Playwright seam split | 12 | Steward | Done |
+| 1 | The Playwright runner and the Tailwind 4 toolchain, the fifth CI leg armed | 10 | Implementers | Done, escalated |
+| 2 | AC-091 to AC-100 as browser specs, twelve criteria proposed, one self-repair | 11 | Testers | Done, escalated |
+| 3 | The twelve numbered, three silences closed, eight controls named, items 26 and 27 | 12 | Steward | Done, escalated |
+| 4 | Two files renumbered, provisional language retired, nine locator families to strings | 11 | Testers | Done, escalated |
+| 4a | The page sections named as regions | 12 | Steward | Done |
+| 5 | The shell: routing, the data layer, page states, PWA, the conventions ledger | 07 | Shell | Done, escalated |
+| 6 | The component set, and a token file that says it is provisional | 08 | Unattended | Done |
+| 7 | 9.3's form, 9.9's overlay and Q3C's grid | 09 | Unattended | Done |
+| 8 | The four owed surfaces closed, a title kept out of the addressing namespace | 07 | Unattended | Done |
+| 9 | The 10.6 PWA layer landed, the guard retired, the browser leg given room | 10 | Unattended | Done |
