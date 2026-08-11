@@ -647,6 +647,16 @@ On the PATCH, one further half: a reminder sent with no due_time in the body
 is legal or not by the column the row already holds, and the 8.4 cascade runs
 before any recompute, so a body that both invalidates a mode and sets a
 reminder is refused above rather than resolved by ordering.
+
+And the thing a schema cannot make anyone do, said once because its failure is
+silent rather than loud. Three bodies now carry a reminder and each is a write
+path to the one row 4.8 keys by task_id: 7.9's PUT, 7.6's create, and 7.6's
+PATCH. A route that parses one of them and does not act on the field answers
+its ordinary success with the field dropped, which is what the create did while
+the arm was deferred and is indistinguishable on the wire from a request that
+never carried a reminder. AC-149 exists because that failure was invisible for
+four packages; the PATCH arm has no criterion at all, so nothing but this
+sentence will notice it.
 */
 
 /* ------------------------------------------------------------------ *
