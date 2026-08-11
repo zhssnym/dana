@@ -40,10 +40,15 @@ npx playwright test -g "AC-095"
 | P5 gate | AC-141 | Covered, passing since the P5 merge; appended by the same date's amendment from the owner's ruling rather than proposed here |
 | P6 | AC-071 to AC-082 | Covered, passing since the grammar reached 7.6's write bodies, generation and G-SERIES reached the transition seams, and Q3C's virtual arm got its own fetch; written red before any of it existed |
 | P6 gate | AC-142, AC-143 | Covered, passing since the same four commits; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
-| P7 to P10 | AC-083 to AC-090, AC-101 to AC-104 | Not yet written |
+| P7 | AC-083 to AC-090 | Covered, failing against the unmounted 7.9 routes and the absent scheduler module, the designed order |
+| P7 gate | AC-144 to AC-153 | Covered, failing the same way; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
+| P7 gate | AC-154 | Covered, failing the same way; appended by the same amendment from the change control's own ruling rather than proposed here |
+| P7 gate | AC-164 | Covered, passing on arrival; the one criterion in this package written after its implementation, numbered from outside the branch because P8 held a concurrent range |
+| P7 gate | AC-168 | Covered, red on one arm by design: 8.5's copy writes a past instant scheduled, which is the defect the third change control ruled. The three other arms pass, and only the PUT pair is a regression guard |
 | P8 | AC-091 to AC-100 | Covered, passing in the Playwright leg since the grouped run built the client; written red against P0's placeholder and green in the order that was designed |
 | P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered, passing in the Playwright leg. Those criteria stay in their own packages with their server halves green where they are |
 | P8 gate | AC-155 to AC-163, AC-165 to AC-167 | Covered, passing in the Playwright leg; proposed here with their tests and numbered by the section 12 amendment of 2026-08-11. The gaps at 154 and 164 belong to package P7 and are deliberate |
+| P9 to P10 | AC-101 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package
@@ -453,6 +458,170 @@ asserted that scope while AC-082's own series sits inside its range, so an
 implementation projecting off the range-bounded real rows passed the whole
 existing suite and emptied every month-ahead view.
 
+P7's range, AC-083 to AC-090, covers 8.6's computation and trigger list,
+frozen 7.9 as ruled on 2026-08-10, 4.8's three states, and 11.7's loop with
+its three skips. Its layer is `reminders-harness.ts`. Written before the
+implementation per the RFC 0001 P7 row, so the write half fails on PUT
+/tasks/:id/reminder answering 404 and the delivery half fails on one named
+assertion saying no scheduler module could be loaded. Seven things those files
+are written around.
+
+- **The computation criteria go through the write path and the delivery
+  criteria seed their rows.** This is P6's rules-seeded, transitions-requested
+  split applied to the other half of the same problem. AC-083 to AC-086 and
+  the recompute numbers create their reminders through 7.9's PUT or 7.6's
+  create body, because what a write path computes is what they are about;
+  AC-087 to AC-090 and AC-153 seed a 4.8 row with a chosen mode, value,
+  fire_at and state, so their failures stay attributable to the loop rather
+  than to a PUT nobody has written. Instants are moved with SQL, the AC-113
+  and P5 precedent for reaching a timed boundary without waiting at it.
+- **Fire instants are computed in the harness through Intl, and the two DST
+  policy rules are not computed at all.** The standing rule is the suite's:
+  importing the module under test would borrow its definition of correct.
+  Section 13 item 25 makes Intl inadmissible for 8.6's two rules specifically,
+  being Luxon's own engine, so the gap and fold instants are hand-derived
+  constants carried beside the instant 11.9 records raw Luxon would answer.
+  `reminders-harness.test.ts` is the guard on the rest, and it records one
+  measured correction: the harness's read-back check catches a gap and does
+  not catch a fold, where both instants read back correctly and the helper
+  reaches the later one, which is the instant 8.6 refuses.
+- **Every DST fixture is a historical transition and asserts it still is.**
+  Item 25's reason is that the Node runtime and the embedded engine of 11.10
+  carry tzdb copies that move independently, so a fixture on a future
+  transition is a flake waiting for an upstream release. America/New_York
+  under the rule unchanged since 2007 and Europe/London under the EU rule
+  unchanged since 1996, both in 2010, and `expectGapFixture` and
+  `expectFoldFixture` read the transition off the runtime before anything
+  leans on it.
+- **11.9's claim that AC-083 to AC-086 pin both DST rules was closed by
+  splitting it.** Those four now instantiate DST arithmetic, which is the
+  tzdb half: AC-084 puts one wall time on two due dates either side of a
+  transition, AC-085 moves a due date across one, AC-086 moves two due dates
+  with one login. The two policy rules, which have no correct answer to
+  compute, are AC-144 and AC-145, numbered on item 25's recorded expectation
+  that a case buried inside another criterion is invisible to the grep this
+  role's First moves prescribe. 11.9 names the two groups separately now, and
+  item 25's coverage half is closed while its no-oracle reasoning, its fixture
+  rule and its Luxon-upgrade revisit trigger stand.
+- **Two criteria cannot discriminate in the fixture they name, and both files
+  say so.** AC-090's "the recipient is that member" is satisfied in a
+  single-member folder by an implementation that mails every member, INV-5
+  making those the same person, and AC-088's "no broadcast" is unobservable
+  for the same reason. Each asserts its criterion's own fixture and then a
+  three-member one where the assignee and the folder are different sets.
+- **AC-089 states what each backend leg proves.** 11.7 claims due rows with
+  SELECT ... FOR UPDATE SKIP LOCKED, which is contention between concurrent
+  transactions, and 11.15 records that PGlite is single-connection and that
+  what genuinely needs a second connection is a second concurrent transaction.
+  So two passes issued together queue locally and overlap only on CI's
+  postgres:18 leg, and the assertions are the outcome both must produce, one
+  email and one fired_at. That an overlap was observed is asserted nowhere,
+  which would be a false red about the backend; AC-021, AC-077 and AC-124
+  carry the same sentence. AC-088 records the neighbouring limit: the 11.10
+  seam makes sends observable and nothing else, 10.5 keeping addresses out of
+  the logs on purpose, so that criterion's "logged" is asserted as 4.8's state
+  and fired_at and the file says so rather than skipping the clause.
+- **One seam is stated in one place, and 11.7 now carries it.** That section
+  makes the delivery loop a plain callable rather than a route and frozen
+  section 7 offers no endpoint that runs one pass, so the suite cannot reach
+  it over HTTP the way 11.10 reaches everything else.
+  `reminders-harness.ts` loads `app/src/server/scheduler/index.ts` through a
+  computed specifier, the loader shape 11.15 records and
+  `src/server/auth/router.ts` already uses, so its absence is one named
+  assertion rather than a module-load crash that would take a whole file's
+  coverage with it. Proposed here and ratified into 11.7 at the change control
+  of 2026-08-10, the options.notifications precedent; the export-name
+  tolerance was kept on purpose, so the implementing session picks
+  `createReminderPass` or `runReminderPass` and this loader accepts either.
+
+Three cases in this range arrive green, and each is a property main already
+has that P7's own work could take away: AC-087's "the transition leaves the
+reminder row untouched", and AC-150's two controls, the closing occurrence
+keeping its own reminder and a rule-less series acquiring none. AC-124's
+header records why a test that has never failed is worth naming as such.
+
+AC-164 arrives green in full, and it is the one criterion here written after
+its implementation. The reason is outside the branch and is recorded rather
+than smoothed over: P8 was live in a second tree proposing criteria
+concurrently, neither branch could see the other's range, and section 12 held
+this one under a pending heading until the coordinating session assigned the
+number across both ledgers. AC-131 is the precedent. Two things limit the
+cost. Both arms were fully specified in 8.4 and frozen 7.6 before the
+implementing session read either, so the file tests a written rule rather than
+a silence; and both wrong cascade rules, deleting on no due_time edit and
+deleting on every one, were red-proven against the same tables in a throwaway
+file before the green was believed, the repayment AC-124 made for the same
+debt.
+
+**The six files that run a pass count only their own emails.** A pass polls
+every due row in the database, which is 8.6's poll and not something an
+implementation may narrow, and under TEST_DATABASE_URL every file shares one
+database with no fileParallelism set, so one file's pass can deliver another's
+due rows through the same sink and redden both. `reminderEmailsOf` takes the
+file's own `ZoneCast` and filters by recipient address, and `reminderEmails` is
+no longer exported, so the scope is structural rather than remembered at each
+call site. It weakens nothing: a broadcast to a folder is a broadcast to that
+file's own members. This was reasoned from 8.6 and from the vitest config
+rather than measured, because this machine has neither Docker nor a
+TEST_DATABASE_URL, and it was fixed rather than deferred because CI stops at
+its first failing step, so the postgres leg had never run on this branch.
+
+AC-144 to AC-153 were proposed here with their tests and numbered by the
+Integration Steward's section 12 amendment on 2026-08-10, the AC-125, AC-133
+and AC-142 precedent for a batch authored on the branch and numbered
+additively so nothing moves. AC-144 and AC-145 are the two DST policy rules
+above. AC-146 to AC-150 are five of the six surfaces the RFC 0001 P7 row
+listed as unasserted and called a floor: the reminder DELETE, which no
+criterion touched at all; the 7.9 write guards AC-090 does not cover,
+including the no-due_date refusal 7.9 names separately; the upsert and its
+state reset; the reminder arm of 7.6's create body, deferred since P3 and
+silently dropped until it lands; and 8.5's copy onto a generated successor,
+which P6 recorded as asserted by no criterion in its own range either. The
+sixth, AC-089's six-hour boundary from both sides, is inside AC-089. AC-151 to
+AC-153 come from the row's sentence that its list is a floor: 8.6 names five
+recompute triggers and section 12 asserted three, so due_time and assignee_id
+gain one each, and AC-153 pins that 8.6's poll filters on state, without which
+one deadline sends an email every sixty seconds for six hours.
+
+Two of the amendment's texts carried a clause the proposals had left to their
+assertions, and no assertion moved for either. AC-144 and AC-145 now name the
+raw Luxon answer each rule refuses, which `expectNotFireAt` had asserted since
+those files were written. And AC-148 now states that its instant is in the
+future, which both its cases already used: the change control qualified frozen
+7.9's PUT bullet on this suite's own escalation, so a past instant answers
+skipped, and the criterion states the condition rather than leaving the two
+texts to meet later. Two assertion messages in that file quoted the old
+phrasing and were refreshed to the qualified one, quotations only.
+
+AC-154 did not come from here. The change control ruled the silence this suite
+escalated and appended the criterion from its own ruling, the AC-124 and
+AC-141 shape, so only its test is this role's. What it settles is narrower
+than the ground this suite argued: the recommendation carried "a sent reminder
+is history", and the Steward declined that as over-general, since generalized
+across all five triggers it would leave a user who pushes a deadline out by a
+week hearing nothing while still seeing a reminder configured. The line drawn
+instead is what the trigger changes. Four of the five change the occasion, its
+deadline, its lead time or the person owed it, and a new occasion earns a
+delivery, which is why AC-148 pins that a PUT does revive a sent row. A zone
+change re-expresses an unchanged occasion on a different wall clock, so it
+alone leaves a delivered row alone; frozen 7.1 scoping its recompute to
+scheduled reminders while 7.7 scopes its own to no state was the contract
+drawing that same line already.
+
+Both silences these files routed are now text. Frozen 7.9 said a PUT resets
+state to scheduled while 8.6 says a recompute landing in the past sets it to
+skipped and never fires retroactively, and a PUT computing a past instant
+satisfied both differently; the owner qualified the bullet, skipped, on the
+ground that a scheduled row with a past instant is delivered by the very next
+pass inside 11.7's six-hour window, which makes 8.6's own rule unreachable
+rather than merely disagreeing with it. AC-083 still asserts fire_at and not
+state, because that criterion is about the instant, and AC-148 still confines
+itself to future instants, which is now what isolates the revival from the
+refusal sharing its bullet. And whether a reminder already sent recomputes
+under a zone change is 8.6's own text now and AC-154's; AC-086 continues to
+assert neither reading of it, deliberately, so the two files do not both own
+one rule.
+
 P8's range, AC-091 to AC-100, is the first that runs in a browser, and it runs
 in the Playwright leg alone: protocol section 4's gate does not name Playwright
 and 11.11's CI order does, so a P8 session reporting the four-command gate
@@ -664,6 +833,12 @@ through `Intl` rather than imported, calendar arithmetic on 4.11 date
 strings, the nine 7.10 response envelopes restated and asserted key-exact
 with every row parsed through the frozen `TaskCard` check, fixtures written
 directly with every column named, and cursor paging to exhaustion.
+`reminders-harness.ts` is the P7 layer: actors whose users.timezone is stated
+and written through 7.1's tz parameter, the frozen 7.9 transports with the
+owner's 2026-08-10 ruling judged once, 4.8 rows seeded and read, fire-instant
+arithmetic computed through Intl with the two DST policy rules deliberately
+excluded from it, reminder sends counted through the ratified sink, and one
+pass of 11.7's loop behind the assumed seam.
 `e2e/harness.ts` is the P8 layer and the only one that never opens a database:
 it reaches the application through a browser and a running server instead, so
 its own section above rather than this list is where its decisions are.

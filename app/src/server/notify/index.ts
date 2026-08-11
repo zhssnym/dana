@@ -11,13 +11,18 @@ sends nothing. The log line carries only the template name, so the 10.5
 rule is structural: the recipient address never reaches the logger in any
 environment.
 
-The Resend transport slots in here at P7 (11.8, 10.7); until then the
-module logs in every sink-less environment, which the RFC 0001 P5 row
-records ("the notification module logs until P7 lands the provider").
-Call sites are the Collaboration engineer's (7.4 share grant now, 7.5
-invites at P5): routes reach the per-application instance through
-notifierOf(app), attached by createApp so the sink arrives with the same
-construction call that carries the database handle.
+The Resend transport landed at P7, in ./resend.ts, and the three template
+bodies with it in ./templates.ts. The order of precedence here is 11.10's
+sentence read literally: an injected sink replaces the logging, and absent
+one, 11.8 stands unchanged, which is log in development and tests and send
+in production. So the sink wins over the transport, the transport over the
+log, and a process with neither still sends nothing and says so.
+
+Call sites are the Collaboration engineer's (7.4 share grant, 7.5 invites)
+and, since P7, the scheduler pass's reminder: routes reach the
+per-application instance through notifierOf(app), attached by createApp so
+the sink arrives with the same construction call that carries the database
+handle, and the pass is handed that same instance at boot.
 */
 import type { Application } from 'express'
 
@@ -39,12 +44,36 @@ export interface OutboundMessage {
   /** Recipient address. Never logged (10.5); observable only through the
    * sink. */
   to: string
+  /** Present exactly on a reminder, whose body is unusable without it. The
+   * 11.7 pass reads these three columns in the same statement that claims the
+   * row, so the template renders from the row that fired rather than from a
+   * second read that could disagree with it. */
+  reminder?: ReminderPayload
+}
+
+export interface ReminderPayload {
+  taskId: string
+  title: string
+  /** Floating, as stored (4.4): the date the task is due, and its wall time
+   * when it has one. */
+  dueDate: string
+  dueTime: string | null
 }
 
 /** The 11.10 sink shape, { send(message) }, exactly what the acceptance
  * harness injects. */
 export interface NotificationSink {
   send(message: OutboundMessage): void | Promise<void>
+}
+
+/**
+ * The 11.8 provider transport, structurally the sink's twin and semantically
+ * its opposite: the sink exists so a test can observe a message that must not
+ * be sent, and the transport exists to send one. Two names because one of
+ * them being present decides what the other does.
+ */
+export interface NotificationTransport {
+  send(message: OutboundMessage): Promise<void>
 }
 
 /** The slice of the boot logger this module needs, structural so unit
@@ -59,21 +88,30 @@ export interface Notifier {
 
 export interface NotifierOptions {
   sink?: NotificationSink
+  /** The 11.8 provider, when this process is one that sends. Resolved by
+   * ./resend.ts from the environment; absent everywhere else. */
+  transport?: NotificationTransport
   logger: NotifyLogger
 }
 
 /*
 A sink failure propagates to the caller rather than being swallowed: under
 test the sink is the observation channel and a throwing one should fail
-loudly, and the failure policy for a real provider (retries, at-least-once
-bookkeeping) belongs to the P7 transport, not to this seam.
+loudly. A transport failure propagates for the same reason turned around:
+the one caller that can do something about a refused send is the 11.7 pass,
+which leaves the reminder row scheduled so the next tick retries it, and it
+can only do that if it hears. Retry policy is that caller's, not this seam's.
 */
 export function createNotifier(options: NotifierOptions): Notifier {
-  const { sink, logger } = options
+  const { sink, transport, logger } = options
   return {
     async send(message: OutboundMessage): Promise<void> {
       if (sink !== undefined) {
         await sink.send(message)
+        return
+      }
+      if (transport !== undefined) {
+        await transport.send(message)
         return
       }
       // Only the template crosses to the logger: 10.5 held structurally,

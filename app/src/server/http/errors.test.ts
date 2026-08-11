@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { z } from 'zod'
 
 import { deleteMeBody, patchMeBody } from '../../shared/me.js'
+import { putTaskReminderBody } from '../../shared/tasks.js'
 import {
   errorBody,
   sendError,
@@ -58,6 +59,21 @@ beforeAll(() => {
     // A body failing two schemas' worth of fields at once, to prove the
     // message carries every failing field, not only the first (10.3).
     const parsed = patchMeBody.and(deleteMeBody).safeParse(req.body)
+    if (!parsed.success) {
+      sendValidationError(res, parsed.error)
+      return
+    }
+    res.status(200).json(parsed.data)
+  })
+  /*
+  The body-level rule, driven through the first body in this contract to carry
+  one: frozen 7.9's PUT is the reminder object itself, so 4.8's exclusive-or
+  is a rule about the body and names no field. Before P7 every request-body
+  refinement carried a path, and a pathless one was indistinguishable here
+  from a body that never parsed.
+  */
+  app.put('/body-rule-demo', (req, res) => {
+    const parsed = putTaskReminderBody.safeParse(req.body)
     if (!parsed.success) {
       sendValidationError(res, parsed.error)
       return
@@ -124,6 +140,52 @@ describe('sendValidationError', () => {
       body: JSON.stringify({ confirm: 'DELETE' }),
     })
     expect(res.status).toBe(204)
+  })
+
+  test('a rule about the body reaches the caller in its own words', async () => {
+    const res = await fetch(`${baseUrl}/body-rule-demo`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: { code: string; message: string } }
+    expect(body.error.code).toBe('validation_failed')
+    expect(
+      body.error.message,
+      'the caller sent a JSON object, so answering that a JSON object is required is the one thing they can prove wrong (7.9, 4.8)',
+    ).toBe('Exactly one of offset_minutes and time_of_day is required.')
+  })
+
+  test('and the body that never parsed still says so', async () => {
+    // The case the empty-path branch was written for, kept beside the one P7
+    // added: no JSON content type, so the schema sees undefined and the issue
+    // is a type failure at the root rather than a rule about a body.
+    const res = await fetch(`${baseUrl}/body-rule-demo`, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: JSON.stringify({ offset_minutes: 30 }),
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('A JSON object body is required.')
+    expect(
+      body.error.message,
+      'the validator\'s own phrasing never reaches a caller',
+    ).not.toContain('expected object')
+  })
+
+  test('a body-level rule passing lets a legal body through untouched', async () => {
+    const res = await fetch(`${baseUrl}/body-rule-demo`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ offset_minutes: 30 }),
+    })
+    expect(res.status).toBe(200)
+    expect(
+      await res.json(),
+      '4.8 is two columns and the parsed value is both of them, whichever spelling arrived',
+    ).toEqual({ offset_minutes: 30, time_of_day: null })
   })
 
   test('every failing field is named in one answer', async () => {

@@ -222,6 +222,491 @@ Planning and design. No software has been released yet.
   cancelled run is worse than a failed one, branch protection reading it as
   not green while the report names no assertion, so a session reading CI to
   learn whether its own work passed learns nothing.
+- **Package P7 of RFC 0001, reminders: 8.6's fire instants with both DST rules,
+  all five recompute triggers, frozen 7.9's two endpoints, and 11.7's delivery
+  pass with Resend behind it.** The fire-instant module implements the gap
+  clamp and the fold's earlier instant explicitly, because 11.9 records that
+  Luxon guarantees neither, and section 13 item 25 records why no oracle exists
+  for either: they are policy chosen where the standard is silent, so the
+  module is asserted against raw Luxon by name rather than against a second
+  library. The five triggers are one transaction-taking callable its consumers
+  invoke, never arithmetic they restate, and one invariant carries fired_at
+  across all of them, null exactly when state is scheduled. The scheduler is a
+  60-second in-process interval with an in-flight guard, claiming due rows with
+  SELECT FOR UPDATE SKIP LOCKED, honoring 8.6's skips, invoking Security's
+  session pruning from the same pass, and recording each cycle into the health
+  field that has answered null since P0. P6's deferred reminder-copy seam and
+  P3's deferred reminder arm of frozen 7.6's two write bodies both close here,
+  which was the plan's own sequencing rather than late discovery. AC-083 to
+  AC-090, AC-144 to AC-154, AC-164 and AC-168 pass by number beside every
+  earlier range: 1476 tests across 188 files, the whole gate green in CI's
+  order, on PGlite and on postgres:18. Zero dependencies were added across the
+  package, verified against main.
+- **One retrace error is corrected at the merge review rather than overwritten,
+  because it is the error this column exists to prevent.** The third change
+  control recorded that AC-168 would fold into the tester return already queued
+  for AC-164, calling it a shorter sequencing than the separate session the
+  endpoint shape review had proposed. The branch shows the fold was impossible:
+  that return had landed at `0cbd9a5`, four commits before the shape review at
+  `4ae05d6` found the defect AC-168 exists for, so there was nothing left to
+  fold into. AC-168 took a session of its own at `b2f8ef1`, exactly as the
+  review proposed, and the 02 return at `bd49621` carried the fix and both
+  routed comments together. The mistake was made by retracing against the row's
+  own prose instead of against the log, which is why the merge review's retrace
+  reads the branch.
+- **One defect shape accounted for three of this package's defects, recorded
+  because the pattern is more useful than the three fixes.** Frozen 7.9's
+  bullet named a state instead of reading the one the instant earned. 8.5's
+  copy hardcoded 'scheduled' over the state planReminder had already computed
+  and returned. And generateSuccessor handed down an `at` that the copy ignored
+  in favour of its own clock reading. Each is the same move: a value computed,
+  made available, and then discarded, with a second value substituted for it.
+  Each was invisible until something downstream began depending on the
+  discarded one, which is why none of the three was found by the suite. Two
+  were found by sessions reading sections against each other, the tester
+  finding 7.9 against 8.6 and the endpoint shape review finding 8.5 against
+  8.6. What generalizes is not "check for hardcoded states" but that a
+  discarded return value is a defect waiting for a dependency, and that reading
+  two sections against each other catches what testing one of them cannot. The
+  structural repair matches: 8.6 now defines the rule once for all five
+  writers, rather than each path restating it, which is the condition that let
+  one shape recur three times.
+- **The cross-file isolation repair is measured rather than reasoned.** Six
+  delivery criterion files share one database under TEST_DATABASE_URL where
+  PGlite gives each its own, so one file's scheduler pass could claim another's
+  due rows, redden both files at once and neither for its own reason. The
+  repair scopes the delivery count by recipient address, every actor carrying a
+  fresh uuid, rather than scoping the poll, which is the specification, or
+  disabling file parallelism, a whole-suite cost paid for six files. It was
+  written from a code reading and could not be reproduced on this machine,
+  which has neither Docker nor a TEST_DATABASE_URL, and the harness comment
+  says so. It is measured now: the postgres:18 leg is green on this branch,
+  which is the leg the defect could only ever have appeared on, and the first
+  time that leg ran in this package's life.
+- **Four disclosures ratified at the P7 merge review, none of them routed.**
+  The trigger union keeps its `{ kind: 'reminder' }` arm with its prose
+  corrected, ruled at the third change control and executed by the Scheduling
+  engineer's return; 8.6 names five triggers and a union naming four is the
+  worse lie. The pass decides a fourth skip case, `no_recipient_address`, which
+  8.6 does not name; it is ratified and 8.6 now records it, because a behavior
+  the code performs and the specification omits is a deviation whatever its
+  reachability. The code's defence was verified against migration 0000 rather
+  than taken: `users.email` is genuinely nullable, for 8.10's scrub alone, and
+  R-CLEAN unassigns that user's tasks before the scrub, so the branch is
+  unreachable wherever account deletion ran whole. Treating it as the
+  unassigned skip is right for the reason 8.6 gives that one, there being no
+  one person to deliver to, and throwing would take down every other reminder
+  in the batch for one unreachable row. Sending is gated on NODE_ENV ===
+  'production' plus all three provider variables, which is fail-safe in the
+  direction that matters, an unset value logging rather than sending, and it is
+  not silent: an unconfigured production boot logs one line naming the missing
+  variables and every suppressed send logs its own. What it is not is alerted,
+  so a host that never sets them logs every reminder forever and only a reader
+  of logs would know. That is P10's to close, 10.7's launch checklist being
+  where the sending domain, SPF, DKIM and DMARC are set up, and it is recorded
+  here as the revisit trigger rather than fixed in a package whose gate cannot
+  observe a real delivery. And the branch adds one private copy each of
+  `rowsOf` and `inTransaction`, both in the scheduler's new `pass.ts`, tagged
+  for the P9 consolidation the existing copies already carry; the count is
+  corrected from report by measurement, `rowsOf` now standing at four
+  definitions and `inTransaction` at three rather than five apiece.
+- **No frozen-text hold was owed at this merge, which is worth stating so it is
+  not read as an omission.** Three frozen edits landed on this branch, 7.9's
+  response body, 7.9's past-instant qualifier and 7.6's mirror clause, and each
+  was read in a second context before the work that depended on it, which is
+  the standing lesson from the P5 merge. Frozen section 4 was not touched at
+  all. Section 7's whole diff is nine inserted lines and one changed bullet,
+  and that bullet is 7.9's PUT taking the qualifier the owner ruled.
+- **P7's third change control, 2026-08-10, after the endpoint shape review.**
+  8.5's copy arm wrote a state 8.6 forbids and the loop delivered it.
+  `copyReminderToSuccessor` computes the right state through `planReminder`,
+  then hardcodes 'scheduled', NULL at the INSERT and discards the answer, and
+  falsifies its own return value the same way. The implementation is faithful:
+  8.5's pseudocode named the state flat, so 8.5 is what disagreed with 8.6.
+  It is a live defect rather than a harmless override, because the loop selects
+  state = 'scheduled' with fire_at <= now() and skips only beyond six hours, so
+  a row written scheduled with a past instant inside that window is mailed on
+  the very next tick. The comment defending the override, that the loop reaches
+  the same answer one tick later, is true beyond six hours and exactly inverted
+  inside them, which is where ordinary values land: 4.8 admits offsets up to
+  10080 minutes, so a daily task due 09:00 whose reminder leads by a day,
+  completed at 10:00, puts the successor's instant an hour in the past and the
+  next tick mails a reminder for a deadline that has not arrived.
+- **The rule is generalized into 8.6 rather than qualified in a fourth
+  section.** This is the second appearance of one defect shape on one row.
+  Frozen 7.9's unqualified PUT bullet was the first, escalated at the first
+  change control and ruled by the owner; both are a path that computes an
+  instant and then names a state instead of reading the one the instant earns.
+  8.6 had written the rule as a property of the recompute alone, and that
+  narrowness is what let three other writers each restate or ignore it, so the
+  fix is one sentence governing every path that writes the column, with 8.5's
+  line pointing at it instead of naming a state. The repository's own standing
+  warning is that a rule stated twice will one day disagree with itself, and
+  this rule already had, twice. Frozen sections are untouched: 7.9 keeps its
+  qualifier as a client-facing clause consistent with the general rule rather
+  than a second definition of it, and 7.6 needs none, saying nothing about
+  state and correctly leaving it to section 8.
+- **The class was measured rather than read, and it corrects the count.** There
+  are five writers of the column, not four. The three API paths, 7.9's PUT and
+  the reminder arms of 7.6's create and patch bodies, all reach it through one
+  `upsertReminder` helper that writes `plan.state` and `plan.firedAt`, verified
+  at `createTask`, `patchTask` and `putTaskReminder`. The recompute's own
+  UPDATE writes them too. `copyReminderToSuccessor` was the only override, so
+  the shape review's instance was the whole class, which is worth more than the
+  fix itself: the same measurement would have found a second override had one
+  existed, and none does.
+- **AC-168 numbered, from the ledger's free number.** It pins the rule across
+  the creating paths rather than per path, a per-path number repeating in
+  section 12 the spread that caused the defect in 8.6. Nothing asserted this on
+  any creating path before, so even the owner's 7.9 qualifier was unpinned:
+  AC-148 deliberately confined itself to future instants, where the two
+  readings agree. Its scheduler clause is what makes it more than a column
+  check, the harm being that the poll matches on the stored value, and its
+  future-instant control stops an implementation that wrote skipped
+  unconditionally, which would satisfy every past-instant clause while
+  silencing every reminder in the product.
+- **The trigger union's reminder arm is kept, and only its prose is routed.**
+  The shape review recommended against retiring it and the argument holds: 8.6
+  names five triggers, a union naming four is the worse lie, the recompute
+  handles the arm and the module's own tests exercise it. What is wrong is two
+  comments naming PUT /tasks/:id/reminder as a caller the PUT provably is not,
+  every write going through the upsert and a recompute after it taking a second
+  clock reading, so an instant falling between the two calls would be scheduled
+  by one and skipped by the other. The docstring also splits first write from
+  overwrite, which the ON CONFLICT upsert does not. The module is the
+  Scheduling engineer's, so the correction is routed to its return rather than
+  made by the Steward; left standing it invites the next reader to restore the
+  missing call and reintroduce the defect the upsert argued out.
+- **The mirror arm reaches frozen 7.6, by owner ruling of 2026-08-10 on the
+  change control's escalation.** The appended paragraph gains one sentence:
+  setting due_time on a date-only task carrying a time_of_day reminder deletes
+  it, for the same reason and in the same transaction, so 7.6 and 8.4 state one
+  policy rather than half of one each. The reasoning the owner named as
+  carrying it is 9.3's, that the reminder control switches mode with due_time,
+  so a surviving row would render an offset picker over a wall time, a reminder
+  the interface can neither show nor edit. No bullet moved through either of
+  the two rulings this paragraph now carries, both being silences beside
+  bullets that name a consequence for due_date and none for due_time.
+- **The cascade criterion is AC-164, assigned from the cross-tree ledger on
+  2026-08-10, and section 12's pending heading is retired.** The number was
+  withheld while package P8 ran live in a second working tree with its own
+  tester proposing concurrently, neither branch able to see the other. The
+  coordinating session holds the ledger and settled it: P7 keeps AC-144 to
+  AC-154, P8 takes AC-155 to AC-163 plus AC-165, one P8 file renaming because
+  it had claimed AC-154 before that number was taken here, and AC-164 is free.
+  Both arms are one criterion because they are one policy over one field, with
+  a third clause as the control that keeps them from being implemented as a
+  blanket over the column: a due_time moving between two non-null values
+  cascades nothing and recomputes, which is AC-151's trigger. It is the one
+  criterion in this package written after the implementation it tests, which
+  AC-131 precedents and which a constraint outside the branch forced rather
+  than anyone choosing; the cost is limited because both arms were fully
+  specified in 8.4 and frozen 7.6 before the implementing session read either,
+  so it tests a written rule rather than a silence. The tester return that
+  writes it is no longer gated.
+- **A PATCH that invalidates the reminder's mode deletes the reminder, both
+  arms, 2026-08-10.** The first arm is the human owner's ruling on the P7
+  engine session's escalation: clearing due_time on a task carrying an offset
+  reminder clears the time and deletes the reminder. It is the one live route
+  to a shape 8.6 cannot compute, the offset arm reading the task's due_time
+  and there being none left to read. His grounds are the engine's own. 8.4
+  already deletes the reminder when the date is cleared, so clearing the time
+  is that action's smaller sibling and the two read as one policy rather than
+  two; refusing with 422 blocks an edit the user is entitled to make over a row
+  they may have forgotten; and converting the mode is the only option that
+  silently changes when a reminder fires, by inventing a time of day nobody
+  chose. 8.4 carries the substance, that section's subject being the cascade
+  itself, with both arms written as code beside the clear-date one. Frozen 7.6
+  carries the clause a client reads, appended with no bullet moved: those
+  bullets name a consequence for due_date in both directions and say nothing
+  at all about due_time, which is a silence and not a falsehood, so the form is
+  the 7.9-response-body one rather than the `d7c81eb` one that qualified 7.9's
+  PUT on this same branch.
+- **The mirror arm is ruled with it, at the P7 change control rather than left
+  for the session that would meet it next.** Setting due_time on a date-only
+  task carrying a time_of_day reminder deletes that reminder too. It differs in
+  one way, stated rather than hidden: this shape computes, 8.6's date-only arm
+  reading the reminder's own time_of_day and never the task's, so the row would
+  go on firing correctly and only 4.8's cross-table mode rule makes the pair
+  illegal. It cascades anyway, for three reasons. The pair is one 4.8 says the
+  API must not permit, and a task write that creates a shape the schema section
+  forbids is incoherent whether or not the arithmetic survives it. 9.3 switches
+  the reminder control's mode with due_time, so the form would show an offset
+  picker over a row holding a wall time, a reminder the interface can neither
+  render nor edit. And both alternatives here are the ones already rejected on
+  the other arm. Ruling the two together is what makes this one rule rather
+  than three, covering the date clear, the time clear and the time set. Only
+  8.4 carries the mirror; its frozen 7.6 clause is escalated with a
+  recommendation rather than written on the Steward's authority, this branch's
+  standing limit on frozen sections 4 and 7. Two consequences are recorded for
+  the call site so it does not derive them: the delete precedes any recompute,
+  the callable throwing on a shape it cannot compute being correct as a
+  backstop and wrong as a live path, verified in the engine's committed module
+  rather than assumed; and a due_time moving between two non-null values
+  cascades nothing and is the ordinary trigger AC-151 pins.
+- **A criterion is owed for the cascade and its number is deliberately
+  withheld.** Both arms belong to one criterion, being one policy over one
+  field. Nothing today asserts any of it: AC-028 covers the date clear and
+  stops there, so an implementation that refuses the edit with 422, or leaves
+  an uncomputable row standing, or reaches the recompute and throws, passes
+  every existing number. The number is not assignable on this branch, because
+  package P8 is live in a second working tree and its tester session is
+  proposing criteria from AC-155 onward, having been told P7 took AC-144 to
+  AC-154, and neither branch can see the other; guessing here is how two ranges
+  collide. Section 12 records it as owed with the number pending, which is
+  where a reader checks whether a ruled behavior has one. The coordinating
+  session assigns it before P7's merge review, and the tester return that
+  writes the test is gated on that.
+- **8.6's fired_at consequence is widened from the sent case to both terminal
+  states, 2026-08-10, on the tester return's routing.** The ruling of the
+  mid-package change control recorded that where one of the four non-timezone
+  triggers returns a sent row to scheduled, fired_at is cleared with it, so
+  frozen 4.8's note that the column is set when state leaves scheduled stays
+  true of every row rather than of most of them. The tester return observed
+  that a skipped row revived by those same triggers falls outside those words
+  and keeps a stale fired_at, so the narrow wording did not merely omit a case,
+  it defeated its own reason: it left exactly one row shape uncovered, a
+  scheduled row holding a fired_at, which is the shape the sentence exists to
+  rule out. The recommendation is taken in full. A skipped row carries a
+  fired_at like a sent one, set by the delivery loop when it skips and required
+  by 4.8's note when a recompute skips, and neither terminal state is a
+  delivery that happened, so nothing distinguishes them at this point; the
+  distinction the ruling does draw, between the timezone trigger and the other
+  four, is a separate sentence and is untouched. It is ruled now rather than at
+  the merge because the Scheduling engineer implements the five-trigger
+  callable next and would otherwise decide it alone or stop and ask. The
+  routing itself is worth recording: the return asserted the sent case, where
+  the ruling's words reached, and declined to assert the skipped case rather
+  than read one step past a ruling its own file cites, which is the separation
+  role 11 exists to hold.
+- **P7's mid-package change control, 2026-08-10, after the tester session.**
+  Six items, opened by the four findings that session raised. State re-derived
+  on this tree before ruling any of them: 179 files, 1341 tests, 68 failures,
+  every failure an assertion in the eighteen files the tester added, which
+  matches its own report exactly. Its four commits touched twenty-three files
+  and every one is under `app/tests/`.
+- **Frozen 7.9's PUT bullet takes a past-instant qualifier, by owner ruling of
+  2026-08-10 on the tester's finding.** The bullet said "state resets to
+  scheduled" without condition while 8.6 sets state = skipped when a recompute
+  lands in the past and never fires retroactively, and a PUT is a recompute
+  trigger by 8.6's own list, so both sentences governed the same call and
+  answered differently. Skipped wins and 7.9 takes the qualifier rather than
+  8.6 being amended. The grounds, verified through 8.6's loop rather than
+  reasoned from the two sentences: the poll selects state = 'scheduled' and
+  fire_at <= now() and skips only beyond six hours stale, so a scheduled row
+  with a past instant inside that window is delivered on the very next tick,
+  which is exactly the retroactive fire the same section forbids. Reading the
+  bullet literally does not merely disagree with 8.6, it makes 8.6's own rule
+  unreachable, and that is what settles which of the two texts is wrong. The
+  form is `d7c81eb`'s and not 7.5's, the distinction the P6 merge review
+  recorded: appending beside a bullet governs one that is already true, and
+  this one was not, so the changed span is exactly the untrue clause and
+  everything before it, "computes fire_at (section 8.6)" included, is
+  byte-identical. The DELETE bullet is untouched. One check the P6 precedent
+  requires comes out differently here and is recorded rather than waved past:
+  the old phrasing is quoted twice, in assertion messages in
+  `ac-148-reminder-upsert-state.test.ts`, where 7.6's bullet phrasing had
+  occurred exactly once. Both cases use future instants and stay correct, so
+  nothing goes red, and the quotations ride the tester return.
+- **AC-144 to AC-153 numbered, all ten taken whole and none declined, and
+  AC-154 added from this change control's own ruling.** They change no existing
+  number and so invalidate no criterion, which is what placed them with the
+  Steward rather than the human owner; AC-125, AC-133 and AC-142 are the
+  precedent for a batch authored on the branch and numbered additively.
+  AC-144 and AC-145 close section 13 item 25 the way its expectation named,
+  splitting AC-083 to AC-086's tzdb arithmetic from the two rules where the
+  standard has no answer. AC-146 to AC-150 close five of the six floor
+  surfaces the P7 row listed, the sixth being inside AC-089 where its own text
+  puts it. AC-151 to AC-153 come from the sentence that made that list a floor.
+  One wording change on transcription and only one: AC-148's instant is stated
+  as future, because the same change control qualified frozen 7.9 and an
+  unqualified "state returns to scheduled" would now be wrong for a past
+  instant; its test already uses future instants in both cases, so no
+  assertion moves and the two texts agree on arrival rather than meeting later.
+- **A delivered reminder is not revived by a timezone change, ruled into 8.6
+  and numbered AC-154.** The tester escalated the silence and asserted neither
+  reading: frozen 7.1 scopes PATCH /me's recompute to "scheduled reminders on
+  tasks assigned to V" and AC-086 says "scheduled fire_at values", while 8.6's
+  reset clause names no state it resets from, so a delivered row read the
+  second way returns to scheduled and the loop mails it again. The timezone
+  trigger takes the narrow reading and no frozen text moves, 7.1 having said
+  so all along where 8.6 merely did not restate it. The tester's recommended
+  ground, that a sent reminder is history, is deliberately not the ruling's,
+  because generalized to all five triggers it is wrong: the other four change
+  the occasion the reminder is about, its deadline through due_date or
+  due_time, its lead time through the reminder's own value or mode, or the
+  person owed it through assignee_id, and a user who pushes a deadline out a
+  week and then hears nothing has lost a reminder they can still see
+  configured on the task, which is why the reset names no starting state and
+  why frozen 7.7 scopes its due_date recompute to none either. A zone change
+  alters neither the deadline nor the recipient; it re-expresses an unchanged
+  occasion on a different wall clock, so reviving for it sends one person the
+  same reminder about the same deadline twice, which 8.6's at-least-once
+  tolerance covers as a crash artifact and never licenses as a design. Two
+  consequences are recorded rather than left to be re-derived three times:
+  skipped rows are outside the timezone trigger too, 7.1's scope taken at its
+  word and a narrow loss since a skipped instant is already past and the row
+  is recomputed by the next change to the task's own dates; and where one of
+  the other four does return a sent row to scheduled, fired_at is cleared with
+  the reset, so frozen 4.8's note that fired_at is set when state leaves
+  scheduled stays true of every row rather than of most of them. AC-154 is the
+  AC-124 and AC-141 shape, settled text quoted with only its test routed to
+  the Adversarial Test role, and it is worth a number because the wrong
+  implementation is the shorter one, is invisible in every other criterion,
+  and fails by mailing a real person a duplicate about a deadline that did not
+  move.
+- **The scheduler's test seam is ratified into 11.7 rather than routed to the
+  Platform session that has not yet run.** 11.7 makes the pass a plain
+  callable and frozen section 7 offers no endpoint that runs one, so it is the
+  acceptance suite's only way in and the delivery criteria could not otherwise
+  be written at all. Three things decide it. Section 11's text is the
+  Steward's change control and not Platform's, which that persona's own Owns
+  section states. The precedent is exact: 11.10 ratified options.notifications
+  when the same need appeared for observing sends. And routing it does not
+  defer the decision, it defers it to a session with more sunk cost, since
+  eighteen files already load the module and a different name makes every one
+  of them fail on a module-load assertion. What is fixed is only what the
+  suite must know in advance, the module path and deps of { dbClient,
+  notifications } reusing 11.10's own option names, both already determined by
+  that seam and by the scheduler directory Platform owns; the pass's
+  internals, transaction shape and return value stay that session's. The name
+  tolerance the tester wrote, `createReminderPass` or `runReminderPass`, is
+  kept rather than narrowed, because the harness accepts both so no drift is
+  possible in the suite and the choice is properly the implementer's. Recorded
+  with it: the seam is not an HTTP endpoint, which would widen frozen section
+  7 and which 11.7 contemplates only if hosting moves, and it is not a second
+  production path.
+- **11.9's closing DST sentence repaired, and item 25's coverage half closed.**
+  It said AC-083 to AC-086 pin both DST rules of 8.6. Before the tester session
+  that over-claimed, which item 25 recorded at the kickoff; after it, those
+  four pin the zone arithmetic and AC-144 and AC-145 pin the two policy rules,
+  one each and by name against the raw Luxon behaviors the same bullet
+  describes. The sentence now says so and keeps the history rather than
+  dropping it. Item 25 is marked closed on its coverage half alone: the
+  anti-oracle unit tests, the fixture rule and the Luxon-upgrade revisit
+  trigger are standing obligations, and the reason no oracle exists has not
+  altered.
+- **Package P7 of RFC 0001, reminders, kicked off on branch `p7-reminders` on
+  2026-08-10.** The P7 row is traced into its session list in the form every
+  package since P2 has carried, two kickoff questions are settled below, and
+  the third is escalated to the human owner because any answer that closes it
+  touches frozen 7.9. The row named two owners and the work needs six roles.
+  Four of 8.6's five recompute triggers fire inside
+  `03-collaboration-and-permissions.md`'s own endpoints, due_date, due_time and
+  assignee_id through PATCH /tasks/:id and the reminder's own value and mode
+  through the endpoint its Owns section already names, and the fifth, the
+  assignee's users.timezone, fires inside `06-security-and-privacy.md`'s auth
+  module at the login sync and at PATCH /me. That role's persona mentions
+  reminders nowhere, and what makes the call site its own rather than a
+  widening of its mandate is that frozen 7.1 already charges PATCH /me with the
+  recompute in its own text; AC-086 asserts the trigger by number. The
+  tiebreaker is the P6 generation hook's, so `02-scheduling-and-time.md` owns
+  the recompute as one transaction-taking callable and every caller invokes it
+  inside its own transaction rather than restating arithmetic, and the
+  reminders seam of `docs/team/README.md` now names where each trigger fires,
+  that having been the one seam of this package that no file named. Two things
+  the row did not name ride it, both deferrals with their computation attached:
+  the reminder arm of frozen 7.6's two write bodies, the last of the two arms
+  `app/src/shared/tasks.ts` has carried a comment for since P3, and the
+  reminder-copy arm of 8.5's generation that P6 left as a comment in its own
+  module. No Data session is owed, migration 0000 carrying every table and
+  4.8's partial index, and the one access path this package adds that is not
+  the poll already leads with `tasks_assignee_status_due_idx`'s first column.
+  No Query session is owed for Q11: it is one predicate with no ordering, cap
+  or cursor, its home is Platform's scheduler pass, and 11.7 rather than
+  section 6 specifies how it claims rows, which makes it the fourth internal
+  query implemented by whoever owns the path it lives in, after Q9 and Q10 at
+  P2 and Q12 at P5.
+- **What checks the DST arithmetic, ruled at the P7 kickoff and recorded as
+  section 13 item 25.** Item 4's P6 strategy does not carry over and no oracle
+  should be sought, which is worth stating because the absence would otherwise
+  read as an omission. An oracle adjudicates where two implementations of one
+  standard should agree; 8.6's two rules are policy chosen where the standard
+  is silent, a nonexistent local time having no correct answer and an ambiguous
+  one having two, so no library implements them. Luxon is worse than absent,
+  being an anti-oracle for exactly these two cases per 11.9, and 11.15
+  forecloses the cheapest substitute, Intl.DateTimeFormat being Luxon's own
+  engine rather than an independent one, so that comparison would be circular.
+  A second date library was considered and rejected: it would agree with Luxon
+  on the offsets, disagree with the module on the policy, and re-report what
+  11.9 already records, at the cost of a dependency. Three things are owed
+  instead. The fire-instant module's own unit tests assert raw Luxon and the
+  module in the same test, so each override is proven necessary rather than
+  assumed, on the shape of items 16 to 18 and with a Luxon upgrade as the
+  revisit trigger; protocol section 8 puts them there rather than in the
+  acceptance range, which is where P6's oracle suite sat for the same reason.
+  The acceptance range must instantiate both rules, which today it does not
+  require: 11.9 closes by saying AC-083 to AC-086 pin both, and none of the
+  four names a gap or a fold, AC-083 running in Asia/Karachi which has observed
+  no DST since 2009, AC-084 naming no zone, AC-085 moving a due date and AC-086
+  changing one. Two of them can carry a DST fixture without straining their
+  text, so the coverage is possible and optional at once and that sentence in
+  11.9 over-claims until the tester closes it; whether the cases arrive as
+  numbers of their own is that session's proposal at a change control, and the
+  recorded expectation is that they should, because 11.9 points at numbers and
+  a reader checking coverage by number finds nothing. And every fixture on both
+  sides uses historical transition dates in zones stable for decades, never a
+  future date and never a recently changed zone, because the Node runtime and
+  the embedded engine of 11.10 carry tzdb copies that can move independently
+  under a CI runner.
+- **8.6 gains one paragraph: the creator's zone is a fallback for the
+  computation and not a sixth recompute trigger.** An unassigned task's
+  reminder is computed from its creator only because 4.8's NOT NULL fire_at
+  admits no row without an instant; the delivery loop skips an unassigned task
+  at fire time, and assignee_id is itself a trigger, so such a row either never
+  fires or is recomputed in the new assignee's zone before it does. A creator
+  who travels moves nothing any user can observe, and following them would add
+  a write path with no reachable effect. Recorded because three sessions of
+  this package read the computation's two arms against the trigger list's one
+  and could reconcile them three ways.
+- **The 7.9 response-body ruling, entered by the human owner on 2026-08-10.**
+  He took the recommendation below in full and in its own terms, declining both
+  alternatives on the grounds it carried: PUT /tasks/:id/reminder answers 200
+  with the affected TaskDetail, it is 7.7's case rather than 7.4's, and a bare
+  reminder object would either echo the request or widen to expose fire_at and
+  state, which no frozen response carries anywhere in section 7. It is
+  transcribed onto frozen 7.9 as one appended paragraph, both existing bullets
+  byte-identical, the form 7.5, 7.6, 7.8 and 7.10 all carry. Nothing else in
+  section 7 moved, and the DELETE is untouched and still answers no body. No
+  acceptance criterion is invalidated: nothing in the repository calls this
+  endpoint, and AC-090's PUT clause asserts a 422 that no answer to this
+  question reaches. The conditional Steward session in the P7 trace is done,
+  and the tester session it gated is now startable.
+- **Escalated at the P7 kickoff on 2026-08-10, and ruled the same day by the
+  entry above.** Frozen 7.9's PUT /tasks/:id/reminder
+  names no response body: it says "200" and stops, while its DELETE says 204
+  and carries none. This is the silence frozen 7.2 carried for PATCH
+  /me/settings, escalated at P2S and ruled by the owner, and every comparable
+  surface has since been settled the same way: 7.1's PATCH answers the /me
+  object, 7.2's answers the settings object, 7.4's mutations answer Folder, and
+  7.7 and 7.8 each answer the affected TaskDetail by the ruling at the P3 shape
+  review. The Steward's recommendation is 7.7's answer rather than 7.4's: PUT
+  answers 200 with the affected TaskDetail. 7.0 gives the reminder no object of
+  its own, 7.9 offers no GET for one, and TaskDetail already carries a reminder
+  field, so the parent task is the only object in the frozen catalogue that
+  reports what the call did, and it reports the write's whole effect rather
+  than a fragment of it. The two alternatives, stated fairly. A bare reminder
+  object is the narrower answer and the one an implementer reaches for first,
+  but the frozen catalogue holds no such object, so it would either echo the
+  request, TaskDetail's reminder carrying exactly the two 4.8 mode columns the
+  request sent and nothing else, or invent a wider shape carrying fire_at and
+  state, two columns no frozen response exposes anywhere in section 7. The
+  first is worthless and the second is a new object in a frozen catalogue,
+  which is the per-endpoint variant the API role exists to prevent. Leaving the
+  silence as it stands is not free: the route must return something, and an
+  unstated something is chosen twice, once by the schema session and once by
+  the routes session, which is the drift the freeze exists to stop, while the
+  tester can assert no body at all. The one honest argument for it is that
+  DELETE's 204 sits beside PUT's 200 in the same two-line section, so the
+  asymmetry may be deliberate rather than an omission; against that, 7.2 read
+  the same way at P2S and was ruled an omission, and a 200 that carries nothing
+  is spelled 204 everywhere else in this contract. Whatever is ruled is
+  transcribed onto frozen 7.9 as an appended paragraph leaving both existing
+  bullets byte-identical, the form 7.5, 7.6, 7.8 and 7.10 all carry, and it
+  lands before the tester writes for the P4 and P6 reason: an acceptance test
+  citing a ruling the specification does not carry is a debt every later
+  session inherits. No criterion is invalidated by any of the three answers;
+  nothing in the repository calls this endpoint.
 - **Package P6 of RFC 0001, recurrence, kicked off on branch `p6-recurrence`
   on 2026-08-10.** The P6 row is traced into its session list in the form every
   package since P2 has carried, three kickoff questions are settled below, and

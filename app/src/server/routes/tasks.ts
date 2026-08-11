@@ -34,6 +34,7 @@ import {
   patchTaskBody,
   postTaskStepsBody,
   postTasksBody,
+  putTaskReminderBody,
 } from '../../shared/tasks.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { viewTz } from '../../shared/views.js'
@@ -49,14 +50,16 @@ import {
   createTask,
   deleteStep,
   deleteTask,
+  deleteTaskReminder,
   dropFromMyDay,
   patchStep,
   patchTask,
   pullIntoMyDay,
+  putTaskReminder,
   taskView,
   transitionTask,
 } from '../domain/tasks.js'
-import type { TransitionEvent } from '../domain/tasks.js'
+import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
 
 export interface TasksRouterOptions {
   dbClient?: DbClient
@@ -87,6 +90,14 @@ function notFound(res: Response): void {
  * whichever layer refused. */
 function fieldError(res: Response, field: string, problem: string): void {
   sendError(res, 422, 'validation_failed', `${field}: ${problem}.`)
+}
+
+/** The same 422 for the two refusals frozen 7.9 names, which the domain
+ * module raises because both read a row: the field is the mode the caller
+ * sent, so a client reads one grammar whether the schema or the row refused
+ * it (7.9, 4.8, 10.3). */
+function reminderError(res: Response, refusal: ReminderRefusal): void {
+  fieldError(res, refusal.field, refusal.problem)
 }
 
 /*
@@ -255,6 +266,12 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           // body-level half is in the shared schema, which refuses a rule
           // sent in the same breath as a cleared date.
           fieldError(res, 'recurrence_rule', 'requires a due_date')
+          return
+        case 'reminder_refused':
+          // The third field of the same dependency check, and 4.8's mode rule
+          // with it. A reminder sent here writes the row 7.9's PUT writes, so
+          // it answers the refusals 7.9 names, in the same words.
+          reminderError(res, result.refusal)
           return
         case 'patched':
           res.status(200).json(result.task)
@@ -508,6 +525,77 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       // 200 and not 204, which 7.8 states outright, and idempotent: an
       // absent entry is nothing to remove rather than a missing resource.
       res.status(200).json(result.task)
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * 7.9 Reminder
+   * ---------------------------------------------------------------- */
+
+  /*
+  The two endpoints frozen 7.9 names, on the router the rest of the task
+  surface already lives on: the row they address is 4.8's, keyed by the task
+  in the path, and every guard on it is a fact about that task.
+
+  The body is parsed before the task is resolved, the ordering the P3 shape
+  review checked on the wire for 7.6's status refusal and 7.4 already used: a
+  refusal that reads no row tells a prober nothing about which rows exist.
+  What the schema answers here is 4.8's exclusive-or and 10.3's offset range,
+  properties of the value sent; the two refusals 7.9 names by name both read
+  the task's own columns and are the domain module's, which is why they arrive
+  as a result rather than as a parse failure.
+  */
+  router.put(
+    '/tasks/:id/reminder',
+    requireSession,
+    requireCsrf,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const parsed = putTaskReminderBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const result = await putTaskReminder(db, viewer(req), taskId, parsed.data)
+      switch (result.kind) {
+        case 'not_found':
+          notFound(res)
+          return
+        case 'refused':
+          reminderError(res, result.refusal)
+          return
+        case 'written':
+          // 200 with the affected TaskDetail, by the owner's ruling of
+          // 2026-08-10 on the silence this bullet carried: 7.0 gives the
+          // reminder no object of its own and this section offers no GET for
+          // one, so the parent task is the only object that reports the call.
+          res.status(200).json(result.task)
+          return
+      }
+    },
+  )
+
+  router.delete(
+    '/tasks/:id/reminder',
+    requireSession,
+    requireCsrf,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const result = await deleteTaskReminder(db, viewer(req), taskId)
+      if (result === 'not_found') {
+        notFound(res)
+        return
+      }
+      // 7.9's own 204, and idempotent: the 404 above is the task's, never the
+      // reminder's, so a second call and a task that never had one both land
+      // here. The ruling that gave the PUT a body left this bullet alone.
+      res.status(204).end()
     },
   )
 

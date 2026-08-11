@@ -17,7 +17,7 @@ import { deleteAccountData } from '../domain/accountDeletion.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
 import { inTransaction, rowsOf } from './provisioning.js'
-import { sameZone } from './timezone-sync.js'
+import { sameZone, writeTimezone } from './timezone-sync.js'
 
 /*
 The 7.1 body's shape comes from the contract rather than from a copy of it.
@@ -103,28 +103,37 @@ export async function handlePatchMe(
     return
   }
 
-  // 8.1's alias rule applies to this endpoint in the same sentence that gives
-  // it to the login path: "a reported zone that is a tzdb alias of the stored
-  // one is not a different zone: no write, and no 8.6 recompute". Writing
-  // US/Eastern over America/New_York would hand the account a zone its owner
-  // never chose, and would trigger a recompute of every reminder for nothing.
-  const current = await rowsOf(
-    db,
-    sql`SELECT timezone FROM users WHERE id = ${userId}`,
-  )
-  const stored = current[0]?.timezone
-  const changed =
-    typeof stored !== 'string' || !sameZone(parsed.data.timezone, stored)
+  /*
+  The comparison and its consequence in one transaction, and the whole of 7.1's
+  second sentence about this endpoint inside it.
 
-  if (changed) {
-    await db.execute(
-      sql`UPDATE users SET timezone = ${parsed.data.timezone} WHERE id = ${userId}`,
+  8.1's alias rule applies here in the same sentence that gives it to the login
+  path: "a reported zone that is a tzdb alias of the stored one is not a
+  different zone: no write, and no 8.6 recompute". Writing US/Eastern over
+  America/New_York would hand the account a zone its owner never chose, and
+  would move every reminder instant for a request that changed nothing.
+
+  The read joins the write here rather than preceding it from outside, so the
+  decision is taken against the row the write then lands on. 8.3 still governs
+  which zone survives two concurrent PATCHes, last write wins; what this buys is
+  narrower and worth having, that no interleaving can leave the column moved by
+  one request and the instants recomputed against the other's reading of it.
+
+  writeTimezone is the login sync's function, called unchanged: 7.1 charges both
+  doors with the same recompute, and AC-086 fails an implementation that wires
+  one of them.
+  */
+  await inTransaction(db, async (tx) => {
+    const current = await rowsOf(
+      tx,
+      sql`SELECT timezone FROM users WHERE id = ${userId}`,
     )
-    // 7.1 also recomputes fire_at for scheduled reminders assigned to V
-    // (8.6), and only when the zone actually changed. No reminder can exist
-    // before P7 lands the table's writers, so there is nothing to recompute
-    // here yet; the obligation is P7's to pick up, at this branch.
-  }
+    const stored = current[0]?.timezone
+    if (typeof stored === 'string' && sameZone(parsed.data.timezone, stored)) {
+      return
+    }
+    await writeTimezone(tx, userId, parsed.data.timezone)
+  })
 
   const body = await meBody(db, userId)
   if (body === null) {

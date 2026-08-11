@@ -25,6 +25,12 @@ export interface AuthLogFields {
   /** Machine-readable outcome, from a fixed vocabulary at the call site. */
   reason?: string
   provisioned?: boolean
+  /** How many rows an event touched or could not touch. A number carries no
+   * content by construction, which is why 10.5 admits row counts on deletions
+   * while admitting none of the rows themselves; P7 added it for the reminders
+   * a zone sync could not compute (8.6, and the unresolved list it reports
+   * rather than throws). */
+  count?: number
 }
 
 export function logAuthEvent(event: string, fields: AuthLogFields = {}): void {
@@ -36,6 +42,7 @@ export function logAuthEvent(event: string, fields: AuthLogFields = {}): void {
       ...(fields.provisioned === undefined
         ? {}
         : { provisioned: fields.provisioned }),
+      ...(fields.count === undefined ? {} : { count: fields.count }),
     },
     'auth',
   )

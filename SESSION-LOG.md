@@ -176,54 +176,80 @@ sub-agent in sequence, verifying each before starting the next.
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
-| 0 | Kickoff: trace, the 8.7 cap ruled onto 8.7 and 5.3, the 8.10 criteria and two carried gaps routed to the tester, the 10.4 arm placed at P9 | 12 | Steward | Done |
-| 1 | AC-059 to AC-069 against frozen 7.5 and 7.3, AC-133 to AC-140 proposed, AC-124's acceptance arm raced | 11 | Unattended | Done |
-| 1a | The invite transport retyped, a false green closed, the stale P4 coverage rows refreshed | 11 | Testers | Done |
-| 2 | AC-133 to AC-140 numbered, the bare-invite edge routed to the owner | 12 | Steward | Done, escalated |
-| 3 | The bare invite to a connection answered 409 by owner ruling, AC-141 appended | 12 | Steward | Done |
+| 0 | Kickoff: trace, the 8.7 cap ruled, the 8.10 criteria routed | 12 | Steward | Done |
+| 1 | AC-059 to AC-069, and AC-133 to AC-140 proposed | 11 | Unattended | Done |
+| 1a | The invite transport retyped, a false green closed | 11 | Testers | Done |
+| 2 | AC-133 to AC-140 numbered, the bare invite routed | 12 | Steward | Done, escalated |
+| 3 | The bare invite answered 409 by owner ruling, AC-141 appended | 12 | Steward | Done |
 | 4 | AC-141 asserted, the proposal wording retired | 11 | Testers | Done |
-| 5 | The 7.5 and 7.3 shapes into `src/shared`, stopping where the frozen text stops | 04 | Unattended | Done |
-| 6 | The suite timings and two Vitest 4 flag traps recorded in `CLAUDE.md` | n/a | Co-lead | Done |
-| 7 | The invites and connections package: the domain modules, 8.10's steps 1 to 6, both routers, two wiring requests | 03 | Unattended | Done, escalated |
-| 8 | AC-060's release case and AC-138's fixture repaired, both proven unsatisfiable first | 11 | Testers | Done |
-| 9 | The 8.10 call swap: `deleteAccountData` inside the transaction DELETE /me already opened | 06 | Unattended | Done |
-| 10 | Both routers mounted, the ledger annotated, the whole suite green for the first time | 10 | Unattended | Done |
-| 11 | Shape review: the four floors settled against the routes, the email asymmetry decided | 04 | Unattended | Done, escalated |
-| 12 | Pre-merge: gate measured, 8.7's missing clause landed, the ledger ruling, verdict READY without merging | 12 | Steward | Done, escalated |
-| 13 | The five settlements transcribed into frozen 7.5, 7.3 and 7.1 by owner ruling; `CLAUDE.md` assigned to 10 | 12 | Steward | Done |
+| 5 | The 7.5 and 7.3 shapes into `src/shared` | 04 | Unattended | Done |
+| 6 | Suite timings and two Vitest 4 traps into `CLAUDE.md` | n/a | Co-lead | Done |
+| 7 | The invites and connections package, and 8.10's steps 1 to 6 | 03 | Unattended | Done, escalated |
+| 8 | AC-060's release case and AC-138's fixture repaired | 11 | Testers | Done |
+| 9 | The 8.10 call swap, inside the transaction DELETE /me opens | 06 | Unattended | Done |
+| 10 | Both routers mounted, the whole suite green | 10 | Unattended | Done |
+| 11 | Shape review: four floors settled, the email asymmetry decided | 04 | Unattended | Done, escalated |
+| 12 | Pre-merge: gate measured, verdict READY, held | 12 | Steward | Done, escalated |
+| 13 | Five settlements transcribed into frozen 7.5, 7.3 and 7.1 | 12 | Steward | Done |
 | 14 | Merged at 11d83fe, green on both legs on the merge commit itself | 12 | Steward | Done |
 
 ## P6: recurrence engine (`p6-recurrence`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
-| 0 | Kickoff: trace, the 4.11 grammar placed in `src/shared` by file, the reminder-copy arm deferred to P7, the July 2026 examples ruled asserted by content, the cutoff zone escalated | 12 | Steward | Done, escalated |
-| 1 | The cutoff ruled by the owner and transcribed onto frozen 7.6, `actor.tz` bound in 8.5 | 12 | Steward | Done |
-| 2 | AC-071 to AC-082 tests-first, two absence criteria made to discriminate, AC-142 and AC-143 proposed, two spec silences escalated | 11 | Testers | Done, escalated |
-| 3 | Change control: AC-142 and AC-143 numbered, UNTIL read onto 11.9 as frozen 4.11 permits, the month zoom fixed at six weeks in 9.5 | 12 | Steward | Done |
-| 4 | The proposal wording retired, and the week-start reasoning in AC-082 corrected in prose | 11 | Testers | Done |
-| 5 | The engine: the 4.11 grammar, the iterator pinned against the rrule oracle, 8.5 generation and projection, 5.1 G-SERIES | 02 | Implementers | Done, escalated |
-| 6 | The 4.11 grammar wired into the two write bodies of 7.6 | 04 | Unattended | Done |
-| 7 | Generation in the winning branch, the guard ahead of uncomplete and restore | 03 | Unattended | Done, escalated |
-| 8 | Q3C's virtual arm, fetched separately rather than filtered from the real rows | 05 | Unattended | Done, escalated |
-| 9 | Both escalated defects repaired, the count helper made to fail loudly, the coverage table refreshed | 11 | Testers | Done |
-| 10 | Shape review: the envelope companions and the ghost pinned on the wire, the bullet asymmetry escalated | 04 | Review | Done, escalated |
-| 11 | Merge review: the owner's bullet ruling onto frozen 7.6, items 22 to 24, both disclosures ratified, verdict READY and held | 12 | Steward | Done |
+| 0 | Kickoff: trace, the grammar placed by file, the cutoff escalated | 12 | Steward | Done, escalated |
+| 1 | The cutoff ruled and transcribed, `actor.tz` bound in 8.5 | 12 | Steward | Done |
+| 2 | AC-071 to AC-082, two absence criteria made to discriminate | 11 | Testers | Done, escalated |
+| 3 | AC-142 and AC-143 numbered, UNTIL and the month zoom ruled | 12 | Steward | Done |
+| 4 | Proposal wording retired, AC-082's week-start prose corrected | 11 | Testers | Done |
+| 5 | The engine: grammar, iterator, generation, projection, G-SERIES | 02 | Implementers | Done, escalated |
+| 6 | The grammar wired into 7.6's two write bodies | 04 | Unattended | Done |
+| 7 | Generation in the winning branch, the guard ahead of restore | 03 | Unattended | Done, escalated |
+| 8 | Q3C's virtual arm, fetched separately from the real rows | 05 | Unattended | Done, escalated |
+| 9 | Both defects repaired, the count helper made to fail loudly | 11 | Testers | Done |
+| 10 | Shape review: the envelope companions and the ghost pinned | 04 | Review | Done, escalated |
+| 11 | Merge review: the bullet ruling, items 22 to 24, held | 12 | Steward | Done |
 | 12 | Merged at 02f467f, green on both legs on the merge commit itself | 12 | Steward | Done |
+
+## P7: reminders (`p7-reminders`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: trace, the fifth trigger given to Security, item 25 recorded | 12 | Steward | Done, escalated |
+| 1 | The 7.9 response body ruled by the owner and transcribed | 12 | Steward | Done |
+| 2 | AC-083 to AC-090, the DST claim split into arithmetic and policy | 11 | Testers | Done, escalated |
+| 3 | The past-instant qualifier, AC-144 to AC-154, the scheduler seam | 12 | Steward | Done |
+| 4 | Numbering retired, two stale 7.9 quotations refreshed, AC-154's test | 11 | Testers | Done, escalated |
+| 4a | The `fired_at` clearing widened to both terminal states | 12 | Steward | Done |
+| 5 | The engine: both DST rules by hand, the five-trigger callable | 02 | Implementers | Done, escalated |
+| 5a | The `due_time` cascade ruled on both arms into 8.4 | 12 | Steward | Done, escalated |
+| 5b | The mirror clause onto frozen 7.6 by owner ruling, AC-164 assigned | 12 | Steward | Done |
+| 6 | The 7.9 bodies, and 7.6's last deferred arm | 04 | Unattended | Done, escalated |
+| 7 | The reminder endpoint, four trigger call sites, the 8.4 cascade | 03 | Unattended | Done, escalated |
+| 8 | The fifth trigger, at the login sync and PATCH /me | 06 | Unattended | Done, escalated |
+| 9 | The 11.7 pass, Q11, Resend, heartbeat, session pruning | 10 | Unattended | Done, escalated |
+| 9a | Two unreachable derived values, AC-086's fixture, AC-164's test | 11 | Testers | Done |
+| 9b | The `fired_at` clearing asserted from both terminal states | 11 | Testers | Done |
+| 10 | Shape review: 7.9 on the wire, and 8.5's copy defect found | 04 | Review | Done, escalated |
+| 10a | The rule stated once in 8.6, AC-168 numbered, five writers measured | 12 | Steward | Done |
+| 10b | AC-168 written red, the email counting scoped per actor | 11 | Testers | Done |
+| 10c | The copy writes the state its instant earns, `at` threaded through | 02 | Implementers | Done |
+| 11 | Merge review: four disclosures ratified, the fourth skip into 8.6, a retrace error corrected | 12 | Steward | Done |
+| 12 | Merged at 2bda626, green on both legs on the merge commit itself | 12 | Steward | Done |
 
 ## P8: the web client (`p8-client`)
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
-| 0 | Kickoff: tests-first held, mocks kept out of `app/tests/`, section 9 given its routes and its addressing rule, the Playwright seam split by file, the end-to-end obligation itemized | 12 | Steward | Done |
-| 1 | The Playwright runner and the Tailwind 4 toolchain, the fifth CI leg armed without turning it red empty | 10 | Implementers | Done, escalated |
-| 2 | AC-091 to AC-100 as browser specs, the recorded halves found by grep, one whole signed-in path, twelve criteria proposed, one self-repair | 11 | Testers | Done, escalated |
-| 3 | Change control: the twelve numbered, three section 9 silences closed, eight controls named, AC-138's clause ruled dormant, items 26 and 27 | 12 | Steward | Done, escalated |
-| 4 | Two files renumbered, the provisional language retired, nine locator families moved from descriptions to exact strings, AC-138's clause let go | 11 | Testers | Done, escalated |
-| 4a | The page sections named as regions, so a control can be scoped inside one | 12 | Steward | Done |
-| 5 | The shell: routing, the data layer, the four page states, the PWA registration, and the conventions ledger at `app/src/client/README.md` | 07 | Shell | Done, escalated |
-| 6 | The component set, and the token file that says plainly it is provisional | 08 | Unattended | Done |
+| 0 | Kickoff: tests-first held, routes and addressing into 9.1, the Playwright seam split | 12 | Steward | Done |
+| 1 | The Playwright runner and the Tailwind 4 toolchain, the fifth CI leg armed | 10 | Implementers | Done, escalated |
+| 2 | AC-091 to AC-100 as browser specs, twelve criteria proposed, one self-repair | 11 | Testers | Done, escalated |
+| 3 | The twelve numbered, three silences closed, eight controls named, items 26 and 27 | 12 | Steward | Done, escalated |
+| 4 | Two files renumbered, provisional language retired, nine locator families to strings | 11 | Testers | Done, escalated |
+| 4a | The page sections named as regions | 12 | Steward | Done |
+| 5 | The shell: routing, the data layer, page states, PWA, the conventions ledger | 07 | Shell | Done, escalated |
+| 6 | The component set, and a token file that says it is provisional | 08 | Unattended | Done |
 | 7 | 9.3's form, 9.9's overlay and Q3C's grid | 09 | Unattended | Done |
-| 8 | The four surfaces the shell left owed, and a task's title kept out of the namespace section 9 addresses controls in | 07 | Unattended | Done |
-| 9 | The 10.6 PWA layer landed verbatim, the guard that could only ever be true retired, the browser leg given room | 10 | Unattended | Done |
-
+| 8 | The four owed surfaces closed, a title kept out of the addressing namespace | 07 | Unattended | Done |
+| 9 | The 10.6 PWA layer landed, the guard retired, the browser leg given room | 10 | Unattended | Done |
+| 10 | AC-100's deploy made real on disk, eight fixture collisions repaired, a ninth found | 11 | Testers | Done, escalated |
