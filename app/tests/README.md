@@ -34,6 +34,7 @@ npx vitest run -t "AC-105"
 | P7 gate | AC-144 to AC-153 | Covered, failing the same way; proposed here with their tests and numbered by the section 12 amendment of 2026-08-10 |
 | P7 gate | AC-154 | Covered, failing the same way; appended by the same amendment from the change control's own ruling rather than proposed here |
 | P7 gate | AC-164 | Covered, passing on arrival; the one criterion in this package written after its implementation, numbered from outside the branch because P8 held a concurrent range |
+| P7 gate | AC-168 | Covered, red on one arm by design: 8.5's copy writes a past instant scheduled, which is the defect the third change control ruled. The three other arms pass, and only the PUT pair is a regression guard |
 | P8 to P10 | AC-091 to AC-104 | Not yet written |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,

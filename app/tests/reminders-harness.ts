@@ -677,7 +677,26 @@ export function reminderEmailsOf(
   app: AuthTestApp,
   cast: ZoneCast,
 ): readonly OutboundEmail[] {
-  const mine = new Set(cast.actors().map((actor) => actor.email))
+  return reminderEmailsFor(app, cast.actors())
+}
+
+/**
+ * The same filter over a chosen few rather than over a whole file's cast, for
+ * a file whose cases must not see each other's deliveries.
+ *
+ * A file-wide scope is enough while every case leaves the database quiet, and
+ * it is not enough for a file written red: a case that fails at its first
+ * assertion abandons whatever rows it had already created, and a later case
+ * running a pass then delivers them and counts them as its own. Scoping each
+ * case to its own actor makes the cases independent of the order they ran in
+ * and of whether an earlier one got that far, which is what a red file needs
+ * if its later failures are to mean anything.
+ */
+export function reminderEmailsFor(
+  app: AuthTestApp,
+  actors: readonly Actor[],
+): readonly OutboundEmail[] {
+  const mine = new Set(actors.map((actor) => actor.email))
   return reminderEmails(app).filter((email) => mine.has(email.to))
 }
 
