@@ -397,6 +397,9 @@ the block, on the committed tree, the whole browser leg ran 63 passed and 16
 failed in CI. After it, the four specs this entry concerns run **AC-091 3 of 3,
 AC-160 2 of 2, AC-163 2 of 2**, which is the request's own figure reproduced,
 and the seven cases moved from red to green.
+The whole browser leg moved with them, and CI rather than this machine is the
+authority on that: 63 passed and 16 failed at `06b1ebe`, 70 passed and 9 failed
+at `de479b6`, the same nine reds either way.
 
 AC-100 stays red and its red moved, which is the part worth recording. Before
 the block it failed on the precondition every PWA criterion shares, that no
