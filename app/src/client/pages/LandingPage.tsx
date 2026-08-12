@@ -63,26 +63,38 @@ const POINTS = [
 export function LandingPage(): React.JSX.Element {
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
   return (
-    <main>
+    <main className="shell-content space-y-12 py-16">
       <header>
-        <p className="text-heading">Dana</p>
+        {/* The locked mark beside the wordmark, which is the same pairing the
+            top bar carries once a person is inside. Not redrawn, outlined,
+            ringed, shadowed or put in a decorative container. */}
+        <p className="shell-brand">
+          <img src="/dana-mark.svg" alt="" width="32" height="32" />
+          Dana
+        </p>
       </header>
 
-      <section aria-label="What Dana is">
-        <h1 className="text-title">{HEADLINE}</h1>
-        <p className="text-body">{SUBHEAD}</p>
+      <section aria-label="What Dana is" className="space-y-4">
+        <h1 className="page-title">{HEADLINE}</h1>
+        <p className="empty-state-text">{SUBHEAD}</p>
         {/* The single call to action of 9.2, and the only one on the page. A
             link rather than a button because it is a navigation to 7.1's
             endpoint; 9.2 calls it a button and 9.1's addressing sentence
             fixes the name rather than the element, which is why the criterion
             admits either role under that one name. */}
-        <a href={signInHref}>Continue with Google</a>
+        <a className="button-base button-default" href={signInHref}>
+          {/* The Google mark is the button's own, at DES-030's export. It is
+              , so the link's name stays the three words 9.2
+              fixes and AC-005 asks for. */}
+          <img src="/google-g.svg" alt="" width="18" height="18" aria-hidden="true" />
+          Continue with Google
+        </a>
       </section>
 
       <section aria-label="What Dana does">
-        <ul>
+        <ul className="list-card space-y-1 p-4">
           {POINTS.map((point) => (
-            <li className="text-body" key={point}>
+            <li className="flex items-center gap-2 text-body" key={point}>
               {point}
             </li>
           ))}
@@ -90,12 +102,12 @@ export function LandingPage(): React.JSX.Element {
       </section>
 
       <footer>
-        <ul>
+        <ul className="flex items-center gap-4">
           <li>
-            <a href="/privacy">Privacy</a>
+            <a className="link meta" href="/privacy">Privacy</a>
           </li>
           <li>
-            <a href="/terms">Terms</a>
+            <a className="link meta" href="/terms">Terms</a>
           </li>
         </ul>
       </footer>

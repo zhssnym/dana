@@ -62,21 +62,13 @@ export function MyDayPage(): React.JSX.Element {
           <h1 className="page-title">My Day</h1>
           <p className="meta">{todayInBrowserZone()}</p>
         </div>
-        {/*
-        9.4's important-only filter, still the native checkbox with
-        `role="switch"` it has always been. The design draws a switch and the
-        vocabulary carries `switch-track` and `switch-thumb` for one, but those
-        want a two-element control whose state is an explicit `aria-checked`,
-        which a native checkbox cannot give them: its checked state is implicit
-        and a stylesheet cannot read it. Restyling this into a button would
-        change the element behind a role AC-167 drives, which this package does
-        not do, so the box takes the design's checkbox treatment and the switch
-        treatment is recorded for the next Component session.
-        */}
+        {/* 9.4's important-only filter, drawn as the switch it announces
+            itself to be. `switch` keys on `:checked`, so the element behind
+            the role AC-167 drives is the native checkbox it has always been. */}
         <label className="flex items-center gap-2 text-label">
           <input
             type="checkbox"
-            className="checkbox"
+            className="switch"
             role="switch"
             checked={importantOnly}
             onChange={(event) => setImportantOnly(event.target.checked)}

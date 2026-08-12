@@ -61,18 +61,29 @@ export function SettingsPage(): React.JSX.Element {
   const [confirmation, setConfirmation] = useState('')
 
   return (
-    <div>
-      <h1 className="text-title">Settings</h1>
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">Settings</h1>
+      </header>
 
       <PageSection name="Pages" heading="Pages">
         <PageBody query={settings} isEmpty={false} emptyCopy="">
-          <ul>
+          {/* No class names a settings row, so each one's shape is placed with
+              layout utilities and the name is recorded for row 4b. The order
+              inside is the DOM order it has always had, label then input then
+              description: the description wraps to its own line by taking the
+              full width rather than by moving. */}
+          <ul className="list-card">
             {TOGGLES.map((toggle) => (
-              <li key={toggle.key}>
-                <label htmlFor={`setting-${toggle.key}`}>{toggle.name}</label>
+              <li
+                key={toggle.key}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-3"
+              >
+                <label className="text-label flex-1" htmlFor={`setting-${toggle.key}`}>{toggle.name}</label>
                 <input
                   id={`setting-${toggle.key}`}
                   type="checkbox"
+                  className="switch"
                   role="switch"
                   aria-describedby={`setting-${toggle.key}-description`}
                   checked={settings.data?.[toggle.key] ?? false}
@@ -80,25 +91,26 @@ export function SettingsPage(): React.JSX.Element {
                     update.mutate({ [toggle.key]: event.target.checked })
                   }}
                 />
-                <span className="meta" id={`setting-${toggle.key}-description`}>{toggle.description}</span>
+                <span className="field-hint w-full" id={`setting-${toggle.key}-description`}>{toggle.description}</span>
               </li>
             ))}
           </ul>
-          <p className="text-body">{ALWAYS_SHOWN}</p>
+          <p className="field-hint">{ALWAYS_SHOWN}</p>
         </PageBody>
       </PageSection>
 
       <PageSection name="Account" heading="Account">
-        <p className="text-body">{me.data?.user.display_name ?? ''}</p>
+        <p className="section-heading">{me.data?.user.display_name ?? ''}</p>
         <p className="meta">{me.data?.user.email ?? ''}</p>
         <p className="meta">{me.data?.user.timezone ?? ''}</p>
         <p className="meta">{TIMEZONE_NOTE}</p>
         {/* 10.6: Settings carries a short install hint and no custom prompt
             interception in v1, so this is a sentence and not a control. */}
-        <p className="text-body">
+        <p className="field-hint">
           Install Dana from your browser&apos;s own install control to keep it a tap away.
         </p>
         <button
+          className="button-base button-default"
           type="button"
           onClick={() => {
             void mutateApi(null, { method: 'POST', path: '/auth/logout' }).finally(() => {
@@ -111,15 +123,17 @@ export function SettingsPage(): React.JSX.Element {
       </PageSection>
 
       <PageSection name="Danger zone" heading="Danger zone">
-        <p className="text-body">{DELETE_ACCOUNT}</p>
+        <p className="empty-state-text">{DELETE_ACCOUNT}</p>
         <label className="text-label" htmlFor="delete-confirmation">Type DELETE to confirm</label>
         <input
           id="delete-confirmation"
+          className="input-base"
           type="text"
           value={confirmation}
           onChange={(event) => setConfirmation(event.target.value)}
         />
         <button
+          className="button-base button-danger"
           type="button"
           disabled={confirmation !== 'DELETE'}
           onClick={() => {

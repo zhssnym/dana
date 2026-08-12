@@ -108,9 +108,9 @@ export function CollapsibleSection({
           sees and the expanded state is what everything else does.
           */}
           {open ? (
-            <ChevronDown aria-hidden="true" className="size-4" />
+            <ChevronDown aria-hidden="true" />
           ) : (
-            <ChevronRight aria-hidden="true" className="size-4" />
+            <ChevronRight aria-hidden="true" />
           )}
           {name}
         </button>
