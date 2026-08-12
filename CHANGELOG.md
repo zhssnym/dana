@@ -10,6 +10,74 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **P8's merge review, 2026-08-12, and the merge is held on one sentence of
+  9.1.** Five of the six docket items closed cleanly and the sixth did not.
+  *Section 13 item 14 closes*: the landing copy was the designer's to write and
+  the human owner wrote it himself on 2026-08-11, which is his to do, the
+  constraint that item recorded having always been 9.2's no-AI-claim rule
+  rather than whose pen it came from, and AC-159 now pins the page including
+  that rule. *The crossing into `app/vite.config.ts` is ratified rather than
+  reverted.* The Frontend Architect changed one literal in Platform's file,
+  theme_color from #1f2933 to #ffffff, and disclosed it under ESCALATION with
+  a comment at the site rather than leaving it to be found. Ratified because
+  10.6 makes the theme and background colours the design's choice, so the
+  value is the design's and only the file is Platform's, and because the
+  revert would put back a colour the design no longer contains, which trades a
+  boundary tidy for a defect. The crossing itself stands as one: the route was
+  a Platform session by request, which the P8 row already names, and
+  ratification here rests on the change being a single literal whose value
+  another section fixes. *The two departures from 11.4 were recorded nowhere,
+  which protocol section 1 makes a defect even where the code works, and they
+  are recorded now as section 13 items 30 and 31.* The client hand-rolled the
+  components 11.4 says are copied in from shadcn/ui, and its task form holds
+  six `useState` hooks where 11.4 names react-hook-form 7 with
+  @hookform/resolvers. Neither sentence of 11.4 moves. A rule is not rewritten
+  to match what was built, so what is recorded is the departure and its cost,
+  which is the shape protocol section 1 asks for and the opposite of the drift
+  the Steward exists to prevent. Both are recorded rather than routed because
+  the criteria measure these from the outside and the browser leg is green at
+  94 across every confirmation, overflow menu and collapsible section, so
+  rewriting the package's hardest component at its merge gate would trade a
+  measured state machine for an unmeasured one. One half is routed rather than
+  recorded, and it is the half 11.4's sentence was actually guarding: without
+  the resolver the form restates 10.3's limits, `TITLE_LIMIT = 300` and
+  `NOTES_LIMIT = 10000`, beside the shared zod schema that already carries
+  both, and nothing fails if the two drift because 7.11 makes the client's
+  copy advisory. No criterion in this suite can see that, every one of them
+  asserting the server's refusal, so it goes to P9's limits sweep, where the
+  fix is an import rather than a library.
+- **9.1's folder colour dot is P8's, numbered AC-173, and the merge waits on
+  it.** 9.1's folder list sentence names three things every folder row shows,
+  a colour dot, a name and a pending count, and the client renders two:
+  `my_color` appears nowhere under `app/src/client`, and AC-155, this
+  package's own criterion for that sentence, asserts the pinning, the grouping
+  and both orderings and stops short of the dot. One element of a section 9
+  sentence is implemented by nothing and asserted by nothing at once, which is
+  the class the P4 change control swept for. *It is P8's rather than P9's and
+  the persona files decide it, not convenience.* The RFC 0001 P9 row names
+  `06-security-and-privacy.md` with `10-platform.md` for AC-104, and neither
+  owns `app/src/client/shell/Sidebar.tsx` or `styles/tokens.css`, so routing
+  the dot there would either be a boundary violation by construction or would
+  add P8's own two client personas to a later row, which is this package's
+  sessions running under another package's name. Nothing about the work argues
+  for deferral either: `my_color` has ridden the 7.4 Folder object since P2,
+  the sidebar already maps every folder, and `tokens.css` has carried the ten
+  folder swatches since the design foundation landed at 34c0b29, two commits
+  before the branch tip, so the one dependency that could have blocked this
+  cleared before the review opened. The number is appended here rather than
+  left to the session that writes the test, the AC-124 and AC-141 shape where
+  the Steward appends from a ruling rather than from a proposal, so the tester
+  writes against settled text instead of inheriting a debt. What it asserts is
+  identification rather than a colour value, which is what the tokens file
+  itself says the swatches are for: the dot is present, it carries the
+  folder's own colour rather than one colour for every row, and a folder with
+  no colour still renders. *The merge is held rather than taken with the gap
+  recorded*, because a package that delivers section 9 and leaves a sentence
+  of 9.1 unimplemented has not met the first line of the definition of done,
+  and recording a gap is not the same as closing one. The gate is green on the
+  merged tree with the dot missing, which is the whole argument for the
+  criterion: no leg can see a sentence nothing asserts.
+
 - **Package P8 of RFC 0001, the web client, kicked off on branch `p8-client`
   on 2026-08-10.** The P8 row is traced into its session list in the form
   every package since P2 has carried, and with one thing no earlier list

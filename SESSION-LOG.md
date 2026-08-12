@@ -271,8 +271,10 @@ before starting the next.
 | 15 | Eleven server reads sequenced behind the writes they measure, four of them false greens | 11 | Testers | Done |
 | 16 | The foundation transcribed whole, three components onto its vocabulary | 08 | Implementers | Done |
 | 17 | The type scale onto pages, the landing copy ruled, the manifest colours | 07 | Implementers | Done, escalated |
-| 18 | Merge review, and 9.1's folder colour dot, which nothing renders or asserts | 12 | Steward | Planned |
-| 19 | Merge into main | 12 | Steward | Planned |
+| 18 | Merge review: main merged down, six items ruled, the colour dot ruled P8's and numbered AC-173 | 12 | Steward | Done, escalated |
+| 19 | AC-173's test, and the numbering language the amendment leaves behind | 11 | Testers | Planned |
+| 20 | 9.1's colour dot rendered from `my_color` on the tokens file's swatches | 08 | Implementers | Planned |
+| 21 | Merge into main | 12 | Steward | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
