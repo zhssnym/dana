@@ -13,20 +13,26 @@ first pass is one engineer's answer to something nothing has ruled on.
 
 | Path | What it is |
 | - | - |
-| `ui/` | The library of 11.4: rows, chips, buttons, the overflow menu, the confirmation |
+| `ui/`, the twenty lower-case files | The shadcn primitives of 11.4, copied from `docs/design/prototype/src/components/ui/` at P8R session R2. Behaviour under them is @base-ui/react |
+| `ui/utils.ts`, `ui/use-mobile.ts` | The designer's `cn` and his viewport predicate, which those primitives import |
 | `ui/copy.ts` | The strings section 9 writes word for word and a component renders |
-| `ui/index.ts` | The entry point, and the one import of `styles/tokens.css` |
+| `ui/index.ts` | The P8 set's entry point, and the one import of `styles/tokens.css` |
+| `ui/LegacyButton.tsx` and the five P8 files beside it | The hand-rolled set, retiring as R3 to R10 replace what calls them |
 | the calendar, task form and search directories | Complex Interaction's, and not this role's |
 
 `../styles/tokens.css` is the single token file of 11.4 and has one owner.
-**Its values are the design's, and since P8D session 1 it also carries the
-layout layer and the class vocabulary the rest of the client applies.** The
-colours, type roles, spacing and radii were transcribed from the foundation
-board at P8; what P8D added is the half no artifact had ever put in this
-client, the dimensions (`--shell-sidebar-width`, `--control-height`,
-`--task-row-height` and their neighbours) whose absence is the recorded reason
-P8 shipped a full-width sidebar, and the four motion durations that existed
-only as prose in `docs/design/notes.md`.
+**Since P8R session R2 it is the designer's `tokens.css` and his `app.css`
+carried in as one file**, which is what RFC 0002 means by making his prototype
+the source the client is built from rather than a reference it is compared
+against. The two became one because 11.4 says tokens live in exactly one file
+and that this is the only place raw values may appear, and his `app.css`
+carries a sheet width, four type sizes and a selection colour.
+
+Three departures from his two files are recorded in that file's own header,
+beside the values each affects: his `min-width` floor is absent because
+section 13 item 32 forbids it, `Inter Variable` leads the sans stack because
+that is the family @fontsource-variable/inter registers and his stack never
+reached the face he loaded, and one em dash is a comma.
 
 ## What a component here may and may not do
 
@@ -110,72 +116,70 @@ exception and is a neutral monochrome fill: a finished list should not be a
 column of blue, the accent meaning "you can act here" and a completed row not
 asking. It is `checkbox-neutral`, applied beside `checkbox`.
 
-## The class vocabulary
+## The class vocabulary is gone, and what replaced it
 
-**Settled**, landed by P8D session 1, and the reason that session goes first
-and alone: this client puts every visual value in `tokens.css` and writes
-`className="button-base"`, so a role that owns markup and owns no colour cannot
-restyle anything at all until the names exist. The index below is the contract.
-The definitions, with the artifact each was read from, are in `tokens.css`
-itself; nothing here repeats a value, because a value written twice is a value
-that will one day disagree with itself.
+**Superseded at P8R session R2, and this section is kept rather than deleted
+because the vocabulary it indexed is what every P8 page still writes.** Until
+that session this client styled itself by naming things: `tokens.css` held 94
+`@utility` definitions and a component wrote `className="button-base"` and
+never a colour. That file is now the designer's, so those 94 definitions no
+longer exist, and a class name from the old index resolves to nothing.
 
-A name applies rather than describes: write `task-row`, never a colour. Where a
-class has variants, the base class is always applied with them
-(`chip chip-alert`, `task-row task-row-completed`).
+RFC 0002 is why, and it is a change of idiom rather than a change of rule.
+That RFC makes his prototype the source the client is built from, and he
+composes Tailwind utility strings in the `.tsx` files where this client wrote
+named classes. Its own reasoning: a restyle would have had to re-derive every
+composition decision from his files into the naming idiom, by hand, with
+nothing checking the derivation. Taking his files removes the derivation step,
+and taking his files means taking the idiom they are written in.
 
-| Group | Classes | Who applies them |
-| - | - | - |
-| Buttons | `button-base` with `button-default`, `button-primary`, `button-danger`, `button-quiet`, and `button-inverse` for a control on a dark surface | anyone |
-| Icon controls | `icon-control`, `icon-control-active` | anyone |
-| Checkbox | `checkbox-target` wrapping `checkbox`, plus `checkbox-neutral` for DES-044's completed row | 08, 09 |
-| Switch | `switch`, on the native `input[type=checkbox]` itself | 07 (9.4's important-only filter, 9.7's page toggles) |
-| Inputs | `input-base`, `input-invalid`, `textarea-base`, `field-hint`, `field-error`, `quick-add` | 07, 09 |
-| Chips | `chip` with `chip-alert`, `chip-success`, `chip-info`, `chip-outline`; `avatar`, `avatar-chip`, `folder-dot` | anyone |
-| Menus | `menu-panel`, `menu-item`, `menu-item-danger`, `menu-separator`, `popover-panel`; `panel-floating` on either panel that opens inside something that scrolls | 08, 09 |
-| Dialogs | `dialog-scrim`, `dialog-panel`, `dialog-title`, `dialog-actions`; `sheet-scrim`, `sheet-panel` | 08, 09 |
-| The row | `task-row` with `task-row-completed`, `task-row-abandoned`; `task-title` with `task-title-overdue`, `task-title-completed`, `task-title-abandoned`; `meta` | 08 |
-| The shell | `app-shell`, `shell-sidebar`, `shell-sidebar-section`, `shell-sidebar-row`, `shell-sidebar-row-active`, `shell-main`, `shell-topbar`, `shell-brand`, `shell-pagebar`, `shell-pagebar-tab`, `shell-scroll`, `shell-content`, `shell-fab` | 07 |
-| Feedback | `banner` with `banner-offline`, `banner-update`; `toast-region` containing one `toast` per message | 07 |
-| Page furniture | `page-header`, `page-title`, `section-heading`, `day-heading`, `list-card`, `link` | 07 |
-| Shared states | `skeleton`, `skeleton-row`, `empty-state`, `empty-state-media`, `empty-state-text`, `inline-error` | 07 |
-| The task form | `form-title`, `form-row`, `form-label`, `form-value`, `select-trigger` | 09 |
-| Search | `search-scrim`, `search-panel`, `search-input`, `search-group-heading`, `search-result`, `search-result-active`, `search-footer`, `kbd` | 09 |
-| Calendar | `calendar-surface`, `calendar-event` with `calendar-event-overdue`, `calendar-event-completed`, `calendar-event-ghost` | 09 |
+**What this costs in the interim, so that nobody reports it as a defect.**
+Every page, shell and state P8 built writes those names, so that markup
+renders unstyled until R3 to R10 replace it. The old definitions were not kept
+beside his values: they are written against token names his file does not
+define, so a retained utility would resolve half its `var()` references and
+produce a broken layout rather than an unstyled one, which is harder both to
+look at and to diagnose.
 
-Three things that are deliberately not in the list, so no session looks for
-them. There is no class for the folder page's due-presence filter, the
-sidebar's collapse rail or resize handle, the task form's resize handle, or the
-five-second completion confirmation: none of those ships in P8D and each is
-named with its reason in the RFC's P8D row. There is no sidebar brand header,
-because 9.1 puts the app name, the search control and the avatar menu in the
-top bar and that is structure rather than skin, so the mark renders through
-`shell-brand` inside `shell-topbar`. And there is no `min-width` anywhere, per
-section 13 item 32.
+**What a session writes now.** Tailwind utility classes in the component,
+composed through `ui/utils.ts`'s `cn`, with variants expressed as
+class-variance-authority definitions the way the twenty primitives express
+theirs. `tokens.css` remains the single file of 11.4 and the only place a raw
+colour, type size, spacing step or radius may be written; what changed is that
+utilities now reach those values through Tailwind's `@theme` namespace rather
+than through a named class. So the rule this role exists to hold is unchanged
+and its enforcement moved: a raw value in a `.tsx` is still a defect, and
+`bg-primary` is not one.
 
-**A missing name is a scheduled session, not a mid-session escalation.** The
-RFC's P8D row keeps a second 08 session after roles 07 and 09 have run, to
-close whatever they found missing, and asks the four sessions before it to
-batch their requests to the Steward rather than raise them one at a time. Write
-the request down; do not invent a class in a `.tsx`, and do not spell a value
-there, because either one puts the design somewhere it cannot be changed from.
+**The exception worth stating, because it is the one thing an arbitrary value
+looks like.** Tailwind's bracket syntax, `min-w-[1180px]`, spells a raw value
+in markup. Section 13 item 32 forbids that particular one anywhere in the
+tree; the general form is what the rule above is about, and a component
+needing one has found either a missing token or an escalation.
 
-**And the table above is the thing they read, so a name missing from it is a
-name that gets reinvented.** That is not hypothetical: `panel-floating`,
-`toast-region` and `button-inverse` were minted at the first 08 return and left
-out of this index, and the next 07 session went looking here, did not find
-them, and recorded two of the three as names it needed and could not find while
-they already existed twenty lines away in `tokens.css`. The definitions live in
-that file and the index lives here, which is a split worth keeping because one
-is a value and the other is a contract; what it costs is that landing a class
-is not finished until both are written. Landing one and not the other is worse
-than landing neither, because the second reader trusts the index.
+Two things that were true of the old vocabulary and stay true. There is no
+`min-width` anywhere, per section 13 item 32, which now covers the bracket
+form as well as the declaration. And a name that section 9 fixes is still
+fixed: the tables above this section are section 9's contract and no change of
+styling idiom touches them.
 
-Icons come from `lucide-react`, imported per icon. **Never pass `strokeWidth`.**
-The design's 1.75 is set once in `tokens.css` on the package's own `.lucide`
-class, so an icon is written `<Star aria-hidden="true" />` and nothing more; a
-decorative glyph is always `aria-hidden`, because the accessible name belongs
-to the control around it.
+**Icons come from `lucide-react`, imported per icon, and the stroke rule
+inverted at R2.** The P8 client set the design's 1.75 once, in a `.lucide`
+rule in `tokens.css`, and this file told every session never to pass
+`strokeWidth`. That rule left with the old token file. His prototype does the
+opposite and passes `strokeWidth={1.75}` at the call site, which is the idiom
+his components arrive in, and his `tokens.css` carries `--icon-stroke-width`
+as a value that nothing currently reads. So an icon ported from his files
+keeps the explicit prop it came with, and an icon written fresh should match
+it. A decorative glyph is always `aria-hidden`, unchanged and unrelated,
+because the accessible name belongs to the control around it.
+
+Whether the global rule should be restored, at the cost of departing from his
+files in a way none of them expects, is a real question and is left open here
+rather than decided by this session: it is one line in `tokens.css` against an
+explicit prop on every glyph, and the argument for the prop is that it is what
+the source says. R11's copy sweep is the natural place to settle it if the
+visual review of item 33 raises a stroke difference.
 
 ## Owed, and by whom
 
