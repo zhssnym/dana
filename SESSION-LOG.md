@@ -317,24 +317,31 @@ above is superseded by it; the documentation the package produced is not, and st
 
 ## P8R: the UI replacement (`p8d-design`)
 
-Named provisionally by the co-lead; RFC 0002's author fixes the identifier. Rows R0 to R12
-are a forecast and the operator's, revised whenever a session's findings revise the plan.
+P8R is the identifier, kept as the co-lead named it: the row it replaces is P8D's, the
+branch is the same, and a third letter would buy nothing a reader of two tables does not
+already have. Row R0 has run. Rows R1 to R12 are RFC 0002's implementation plan, which
+is the authority on them and which the RFC's own table carries in full with its
+dependencies, its owners and its file boundaries; they are reproduced here in one line
+each, as a forecast and the operator's, revised whenever a session's findings revise the
+plan. They differ from the forecast R0 replaced in three ways, each traceable to what R0
+measured: the copy sweep at R11 is new, R3 gains the role corrections beside the
+relabelling, and every row now runs the prototype before it writes anything.
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
-| R0 | Author RFC 0002: the section 9 delta, the calendar onto 11.4, the dependency approvals, the three criteria to rewrite, new criteria and items numbered | 12 | Steward | Planned |
-| R1 | AC-093, AC-166 and AC-172 rewritten against the amended text, plus whatever the RFC numbers, all red | 11 | Testers | Planned |
+| R0 | RFC 0002 authored as a Draft at `docs/rfcs/0002-client-ui-replacement.md`, with both applications run first: the section 9 delta, the calendar off 11.4, the dependencies approved, three criteria rewritten, AC-174 to AC-183 and items 35 to 37 numbered provisionally, items 27 and 30 closed | 12 | Steward | Done, three research claims corrected |
+| R1 | AC-093, AC-166 and AC-172 rewritten against the amended text, plus AC-174 to AC-183, all red | 11 | Testers | Planned |
 | R2 | The dependencies, his `tokens.css` and `app.css` without the 1180px floor, his twenty `components/ui/` primitives | 08 | Implementers | Planned |
-| R3 | His presentational components, relabelled to section 9's names per the owner's ruling | 08 | Implementers | Planned |
+| R3 | His presentational components, relabelled to section 9's names and corrected to 9.1's new roles table | 08 | Implementers | Planned |
 | R4 | `parts/presenters.ts`, the layer that maps our API shapes onto his display props, with its own unit tests | 07 | Implementers | Planned |
-| R5 | His shell and sidebar on our router, our folders, and 9.7's visibility gates | 07 | Implementers | Planned |
-| R6 | The six list screens on our view hooks through the presenters | 07 | Implementers | Planned |
-| R7 | His task form: the sheet, the date picker, the dependency graph, steps, the invite row, task history | 09 | Implementers | Planned |
-| R8 | His search overlay and sharing panel | 09 | Implementers | Planned |
-| R9 | His calendar grid, replacing FullCalendar | 09 | Implementers | Planned |
-| R10 | Landing, unverified-email and invite gate, with his copy and his preview panel | 07 | Implementers | Planned |
-| R11 | The visual review, still a merge precondition under spec 13 item 33 | owner | not a session | Planned |
-| R12 | Findings returns, then the merge review | 12 | Steward | Planned |
+| R5 | His shell and sidebar on our router: the navigation landmark, the six page links, the three relocated controls, 9.7's visibility gates, the rail and the resize | 07 | Implementers | Planned |
+| R6 | The six list screens on our view hooks through the presenters, plus the shared page states | 07 | Implementers | Planned |
+| R7 | His task form: the sheet, the date picker, the dependency graph, steps, the invite row, the history block, the completion control | 09 | Implementers | Planned |
+| R8 | His search overlay, and the folder page with its single open list, its filter and the sharing panel | 09 | Implementers | Planned |
+| R9 | His calendar grid replacing FullCalendar, with the grid roles and "+N more" | 09 | Implementers | Planned |
+| R10 | Landing, unverified-email, the invite gate and the folder dialogs, with his copy and his preview panel | 07 | Implementers | Planned |
+| R11 | The copy sweep: the nine normative strings his prototype omits, splits or rewords, restored at every site that renders one | 08 | Implementers | Planned |
+| R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
