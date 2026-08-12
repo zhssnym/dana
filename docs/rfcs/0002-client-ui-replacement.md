@@ -130,6 +130,16 @@ rather than widening.
 
 ## Specification delta
 
+Fifteen units. Three of them replace something smaller than a numbered section:
+one table row in 11.13, three acceptance criteria by number, and two items of
+section 13. The criterion form is the preamble's own, which says an invalidated
+criterion is never deleted and a Replace unit names it and rewrites it, and the
+other two are that principle applied one level out. Each names its target
+uniquely, by the row's first cell and by the item's number, so the merge stays
+mechanical, which is the property the preamble's three operations exist to
+protect. Reproducing all of 11.13 to change one cell, or all of section 13 to
+change two items, would carry more transcription risk than it removes.
+
 ### Replace section 9.1
 
 ```markdown
