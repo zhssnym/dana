@@ -1,7 +1,9 @@
 # RFC 0002: Replace the client user interface with the designer's prototype
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Created:** 2026-08-13
+- **Accepted:** 2026-08-13 by the human owner; numbers finalised and both open
+  questions closed by the Integration Steward on the same date
 - **Target release:** v1, in place of the remainder of package P8D
 - **Spec sections touched:** 9.1, 9.2, 9.3, 9.5, 9.6, 9.8, 11.4, 11.13, 12, 13
 - **Frozen interfaces touched:** none
@@ -503,11 +505,16 @@ naming a calendar reads /views/planned/calendar through section 7 and never
 reaches the client at all. That is why removing the library invalidates none of
 them, and 9.1's new roles table is what keeps the three true.
 
-**New numbers are provisional.** AC-174 to AC-183 and section 13 items 35 to 37
-are numbered from the next free number as of 2026-08-13, when the specification
-carries AC-001 to AC-173 and items 1 to 34. Numbering in a Draft is provisional
-by the RFC preamble, and the Steward renumbers at acceptance if another RFC has
-claimed any of them first.
+**The numbers are final and none moved.** AC-174 to AC-183 and section 13 items
+35 to 37 were numbered from the next free number while this RFC was a Draft,
+when the specification carried AC-001 to AC-173 and items 1 to 34. The preamble
+makes a Draft's numbering provisional and has the Steward renumber at acceptance
+if another RFC claimed any of them first. Checked at acceptance on 2026-08-13
+against the specification and against every other RFC: section 12 still ends at
+AC-173, section 13 still ends at item 34, AC-174 to AC-183 appear nowhere in
+this repository outside this file, and items 35 to 37 are unclaimed. RFC 0001 is
+the only other RFC and adds no criterion of its own. So every number above is
+assigned as authored, and nothing downstream that cites one has to be revisited.
 
 ## Alternatives considered
 
@@ -557,25 +564,37 @@ rather than how wide it is, so the sentences say what was true anyway.
 
 ## Open questions
 
-Two, both the owner's, both resolvable at acceptance.
+None. Both closed on 2026-08-13 by the human owner, which the preamble requires
+before acceptance, and neither survives into the delta. They are recorded here
+as answered rather than deleted, because the delta above carries the answers and
+not the reasoning that reached them.
 
-1. **The em dash in the landing subheading.** His approved copy reads "in
-   clear, shareable folders" followed by an em dash and "so everyone knows what
-   comes next". Protocol section 7 forbids em dashes in any Dana document, and
-   this copy becomes specification text in 9.2 when the delta merges. The delta
-   above transcribes it with a comma. What resolves it: the owner confirming
-   that substitution, or ruling that the designer's punctuation is part of the
-   approved copy and that the protocol's convention yields to it here. It is
-   raised rather than decided because it is his copy and the owner adopted it as
-   his.
+1. **The em dash in the landing subheading. Closed: use the comma.** His
+   approved copy read "in clear, shareable folders" followed by an em dash and
+   "so everyone knows what comes next", and the delta transcribes it with a
+   comma. The owner confirmed the substitution on the ground that protocol
+   section 7's convention holds across the whole corpus, including copy adopted
+   from outside it, and that the sentence's meaning is unchanged. The alternative
+   he declined was ruling the designer's punctuation part of the approved copy
+   and letting the convention yield to it here. Nothing in the delta moves: 9.2
+   already carried the comma, and what this closes is whether it was allowed to.
 2. **Whether item 33's human visual review survives as this package's merge
-   precondition.** It was ruled for P8D, a package that added no criterion. This
-   RFC adds ten, and every one of them asserts structure rather than appearance,
-   so the argument that made the review the only real control is weaker but not
-   gone. The recommendation is that it stands unchanged: ten criteria about
-   landmarks and grid cells still cannot see whether the product looks right,
-   which is the whole reason that item exists. What resolves it: the owner
-   affirming or waiving it, in writing, as that item already requires.
+   precondition. Closed: it stands, unchanged and unwaived.** It was ruled for
+   P8D, a package that added no criterion, and this RFC adds ten, so the
+   argument that made the review the only real control is weaker. The owner
+   affirmed the requirement in writing on 2026-08-13, which is the form that item
+   itself demands of a decision either way. The ground is the one the
+   recommendation gave: ten criteria about landmarks, links, grid cells and copy
+   still cannot see whether the product looks right, which is the whole reason
+   that item exists, and this package's subject is still appearance. So R12's
+   review is a precondition of the merge exactly as item 33 writes it, the
+   Steward closing this package refuses on its absence as it would refuse on a
+   red leg, and the evidence it takes is unchanged: one recorded line naming who
+   looked, on what date, at which built pages against which prototype screens,
+   and what verdict they gave. Item 33 says a waiver would be written in the same
+   place for the same reason. This is the opposite of a waiver and is written in
+   the same place for that same reason, so that a reader of item 33 finds the
+   affirmation rather than a silence they must interpret.
 
 ## Implementation plan
 
