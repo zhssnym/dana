@@ -152,10 +152,19 @@ and its enforcement moved: a raw value in a `.tsx` is still a defect, and
 `bg-primary` is not one.
 
 **The exception worth stating, because it is the one thing an arbitrary value
-looks like.** Tailwind's bracket syntax, `min-w-[1180px]`, spells a raw value
-in markup. Section 13 item 32 forbids that particular one anywhere in the
-tree; the general form is what the rule above is about, and a component
-needing one has found either a missing token or an escalation.
+looks like.** Tailwind's bracket syntax spells a raw value directly in markup,
+`w-[37px]` and its kind. A component needing one has found either a missing
+token or an escalation.
+
+**And one trap that cost R2 a rebuild, because documenting a prohibition can
+enact it.** Tailwind's automatic source detection scans this markdown file. A
+bracket utility written here is therefore a class the build finds and emits,
+so naming the forbidden `min-w-` floor of section 13 item 32 in its literal
+form put a real `min-width` rule at that value into the built stylesheet, from
+prose whose whole point was that it must not exist. CSS comments are not
+scanned and markdown is. So describe such a utility, never spell it, and check
+the built output rather than the source: the grep that decides item 32 is
+against `dist/`.
 
 Two things that were true of the old vocabulary and stay true. There is no
 `min-width` anywhere, per section 13 item 32, which now covers the bracket

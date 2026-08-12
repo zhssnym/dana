@@ -41,11 +41,20 @@ and porting it would convert a deferral of mobile into a hard refusal to
 render, on the one surface 10.6 promises will open when installed. The same
 item requires that a narrow viewport be no worse after this package than
 before it, which is cheap to hold because P8's client carried no media query
-at all. The floor appears a third time, as `min-w-[1180px]` on his AppShell
-root in `app-shell.tsx`; that file arrives with R5 and the removal is owed
-there too. The two mentions in this paragraph are the only places that number
-survives anywhere under `app/`, and they are prose rather than declarations,
-so a grep for it should find this explanation and nothing else.
+at all. The floor appears a third time as a bracketed `min-w-` utility on his
+AppShell root in `app-shell.tsx`; that file arrives with R5 and the removal is
+owed there too.
+
+**Do not write that utility's literal form in any file Tailwind scans, this
+comment included.** It is a class name, so writing it anywhere the build looks
+is enough to emit the declaration it names, whatever the surrounding prose
+says about forbidding it. Measured at R2: the sentence above once spelled the
+utility, in this comment and in `components/README.md`, and the built
+stylesheet came back carrying a real `min-width` rule at that value from the
+markdown alone. CSS input is not scanned as content and markdown is, which is
+a distinction no reader should have to hold, so the literal is spelled nowhere
+and this paragraph is the reason. The check that matters is the built output
+rather than the source.
 
 `Inter Variable` is prepended to his sans stack. His stack opens with `Inter`,
 and the package 11.4 requires for self-hosting registers the family as
