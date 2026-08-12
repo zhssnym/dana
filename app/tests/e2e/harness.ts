@@ -1099,24 +1099,8 @@ export async function tooltipText(locator: Locator, why: string): Promise<string
 
 /**
  * Every text node in the document, whitespace normalized the way Playwright's
- * own text engine normalizes it.
- *
- * This exists because `getByText` cannot answer the question AC-183 asks.
- * That engine matches the smallest element whose combined text contains the
- * string, and combined text crosses element boundaries: a sentence delivered
- * as a dialog title plus a dialog description sits inside one wrapper whose
- * text is the whole sentence, so `getByText` finds it and reports a string
- * that no reader ever meets as one sentence. That is precisely the shape RFC
- * 0002 measured in the designer's prototype for 9.4's abandon confirm and
- * 9.8's remove-connection confirm, and precisely the shape AC-183's "as one
- * text run" is written against.
- *
- * A text node rather than an element, and interpolation is why that is not
- * too strict. Section 9's three confirmations that name a folder or a member
- * are one sentence with a value in the middle, and a client that builds the
- * sentence as one string and renders it produces one text node whatever the
- * value was; a client that renders the value as its own element has split the
- * sentence, which is the same defect at a smaller scale.
+ * own text engine normalizes it. Diagnostics for the assertion below, not the
+ * assertion itself.
  */
 export async function textRuns(page: Page): Promise<string[]> {
   return page.evaluate(() => {
@@ -1145,24 +1129,60 @@ export async function textRuns(page: Page): Promise<string[]> {
 /**
  * Asserts section 9 wrote this sentence and the page delivered it whole.
  *
- * The failure message carries the runs that share the sentence's opening
- * words, because the two ways this fails read identically from a boolean: the
- * string is absent, or the string is present in pieces. Naming the pieces is
- * what turns a red into an instruction.
+ * **What "one text run" is, measured rather than assumed.** Playwright's text
+ * engine was measured on 2026-08-13 against the four shapes this criterion has
+ * to tell apart, and it draws the line exactly where AC-183 draws it:
+ *
+ * | Shape | `getByText` |
+ * | - | - |
+ * | `<h2>Leave Work?</h2><p>You lose access.</p>` | no match |
+ * | `<span>Leave Work?</span> <span>You lose access.</span>` | matches |
+ * | `Leave <span>Work</span>? You lose access.` | matches |
+ * | one text node | matches |
+ *
+ * The first row is the shape RFC 0002 measured in the designer's prototype
+ * for 9.4's abandon confirm and 9.8's remove-connection confirm, an
+ * AlertDialogTitle and an AlertDialogDescription inside one header, and the
+ * engine refuses it: a block boundary is where a reader stops hearing one
+ * sentence, and it is where this stops matching. The third row is section
+ * 9.6's three confirmations, which are one sentence with a folder or a member
+ * in the middle, and the engine admits them, which is right: a person reading
+ * "Leave Work?" cannot tell whether the folder's name arrived in its own
+ * element. So this delegates rather than reimplementing.
+ *
+ * That is a correction. This helper first walked text nodes, which failed the
+ * third row too, and would have failed a port that rendered an interpolated
+ * name in a span while delivering the sentence perfectly. A criterion that
+ * fails a correct implementation is worse than no criterion, because the
+ * session it lands on will change working code to satisfy it.
+ *
+ * The failure message carries the runs that share the sentence's words,
+ * because the two ways this fails read identically from a locator count: the
+ * string is absent, or the string is on the page in pieces. Naming the pieces
+ * is what turns a red into an instruction.
  */
 export async function expectOneTextRun(
   page: Page,
   text: string,
   why: string,
 ): Promise<void> {
-  const runs = await textRuns(page)
-  const opening = text.slice(0, 18)
-  const near = runs.filter((run) => run.includes(opening) || text.includes(run.slice(0, 18)))
-  expect(
-    runs.some((run) => run.includes(text)),
-    `${why}. No single text node carried ${JSON.stringify(text)}. The runs sharing its words ` +
-      `were ${JSON.stringify(near.slice(0, 12))}`,
-  ).toBe(true)
+  const found = page.getByText(text)
+  try {
+    await expect(found, why).not.toHaveCount(0)
+  } catch (failure) {
+    const runs = await textRuns(page)
+    const opening = text.slice(0, 18)
+    const near = runs.filter(
+      (run) => run.includes(opening) || text.includes(run.slice(0, 18)),
+    )
+    expect(
+      near,
+      `${why}. Nothing on the page carried ${JSON.stringify(text)} as one run. These runs ` +
+        'shared its words: an empty list is the string absent or reworded, and a list holding ' +
+        'its halves is the string delivered in pieces, which is what AC-183 is about',
+    ).toEqual([text])
+    throw failure
+  }
 }
 
 /* ------------------------------------------------------------------ *

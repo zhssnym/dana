@@ -19,22 +19,21 @@ inside a criterion about something else; what those cannot do is fail as one
 thing when a port drops copy, and what none of them does is read whether the
 sentence arrived whole.
 
-**"As one text run" is what this file adds and it is not what getByText
-measures.** Playwright's text engine matches the smallest element whose
-combined text contains the string, and combined text crosses element
-boundaries: a sentence delivered as a dialog title plus a dialog description
-sits inside one wrapper whose text is the whole sentence, so that engine finds
-it and reports a string no reader ever meets as one sentence. Measured on
-2026-08-13 against the prototype: 9.4's abandon confirm and 9.8's
-remove-connection confirm are exactly that shape, an AlertDialogTitle and an
-AlertDialogDescription inside one AlertDialogHeader. So every assertion below
-goes through `expectOneTextRun`, which reads text nodes.
+**"As one text run" is a line this file had to find rather than assume, and
+where it falls was measured.** Four shapes have to be told apart, and the
+harness's `expectOneTextRun` records the measurement of 2026-08-13 beside the
+helper: a sentence split across a heading and a paragraph is refused, a
+sentence split across two inline spans is admitted, a sentence with an
+interpolated name in its middle is admitted, and one text node is admitted.
+That is the right line and it is not this file's invention: a block boundary
+is where a reader stops hearing one sentence, and 9.6's three confirmations
+carry a folder or a member in the middle, which no reader can tell from the
+rest of the sentence.
 
-Interpolation is why a text node is the right grain rather than too fine a
-one. 9.6's three confirmations are one sentence with a folder or a member in
-the middle, and a client that builds the sentence and renders it produces one
-text node whatever the value was; a client that renders the value as its own
-element has split the sentence, which is the same defect at a smaller scale.
+The first shape is the one this criterion exists for. Measured against the
+prototype on 2026-08-13, 9.4's abandon confirm and 9.8's remove-connection
+confirm are exactly it, an AlertDialogTitle and an AlertDialogDescription
+inside one AlertDialogHeader.
 
 **Two of the nine differ from every other string here in how they arrive.**
 9.1's failed-read line is a page state and needs a read to fail, and 9.8's
@@ -369,9 +368,10 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
       page,
       copy.removeConnection,
       'spec 9.8: the roster removal confirm, which the prototype splits across a dialog title ' +
-        'and its description. Its second clause is the whole of what a person needs to decide, ' +
-        'that removing a connection does not remove them from the folders already shared, and ' +
-        'a title read alone says the opposite',
+        'and its description, which is the block split this criterion refuses. Its second ' +
+        'clause is the whole of what a person needs to decide, that removing a connection does ' +
+        'not remove them from the folders already shared, and a title read alone says the ' +
+        'opposite',
     )
     await clickControl(
       page.getByRole('button', { name: 'Cancel', exact: true }),
