@@ -10,6 +10,54 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **Package P8 of RFC 0001, the web client, merged into main on 2026-08-12.**
+  The largest row in the plan and the first that renders anything: the shell,
+  the router over 9.1's route table, the TanStack Query data layer sending tz
+  on every view request and the CSRF header on every mutation, the component
+  set and the design foundation transcribed into `tokens.css`, the calendar,
+  the task form and the search overlay, the pages of 9.4 to 9.8, the landing
+  page, and the PWA layer of 10.6. Section 9 had never been implemented before
+  this package, and implementing it is what turned a great deal of it from
+  describable into assertable: the route table, the addressing sentence, eight
+  control names, the named regions, and nineteen appended criteria that each
+  close a rule the specification states and nothing asserted.
+  Merged at the commit below. Every leg green: lint, typecheck, 1476 tests
+  across 188 files on PGlite and the same on real Postgres 18, build, and the
+  browser leg at 97 of 97, which is the leg AC-091 to AC-100 and AC-155 to
+  AC-173 run in and the reason protocol section 4 now names CI's workflow as
+  the authority on the gate's set rather than listing four commands.
+- **9.1's colour dot, the item the merge review held on, and the two readings
+  it raised.** The review of 2026-08-12 found one element of 9.1's folder list
+  sentence implemented by nothing and asserted by nothing at once, ruled it
+  P8's rather than P9's because the P9 row names roles 06 and 10 and neither
+  owns the sidebar or the tokens file, numbered it AC-173 from the ruling
+  rather than from a proposal, and held the merge. Role 11 wrote it red and
+  role 07 closed it in one file, which is the separation the swarm's first
+  structural rule exists for and the reason the number is worth anything.
+  *Inbox shows a dot like every other folder row.* 9.1's sentence is genuinely
+  readable both ways, Inbox having its own clause naming only the badge while
+  "each folder" is universal, so the reading is written into 9.1 rather than
+  left for the next reader. The design brief this sentence was written from
+  puts the three adornments in a final sentence of their own, after Inbox, the
+  label groups and the unlabeled folders have each been placed, so they are a
+  property of a folder row rather than of a group, and Inbox's clause fixes
+  where it sits rather than what it carries. Frozen 4.4 settles it: it gives
+  `folder_members.color` a free-form #RRGGBB check with no exclusion for the
+  default folder, and 7.4's my-membership accepts a colour on any membership,
+  so the other reading would take a colour from a person and never show it
+  back. AC-173's "each folder row" already reaches that row, so no criterion
+  text moves. *The inline colour is ratified, and recorded in 11.4 as a
+  reading rather than as a deviation, because it is not one.* That rule
+  governs the values the design fixes. A folder's colour is a person's runtime
+  choice carried on the wire, per member and free-form, and the sidebar writes
+  no colour at all: only the fill comes from the response, while the dot's
+  size and shape stay in `tokens.css` where the rule puts them. Obeying the
+  rule literally would mean mapping a free-form hex onto the ten swatches that
+  file carries, which would paint a folder a colour its owner did not pick,
+  and it would buy nothing, because the hazard the rule exists to prevent is a
+  design that cannot be changed in one place and changing `tokens.css` must
+  never change what colour somebody's own folder is.
+
 - **P8's merge review, 2026-08-12, and the merge is held on one sentence of
   9.1.** Five of the six docket items closed cleanly and the sixth did not.
   *Section 13 item 14 closes*: the landing copy was the designer's to write and
