@@ -276,6 +276,18 @@ before starting the next.
 | 20 | The colour dot drawn from `my_color`, one file, `tokens.css` unmoved | 07 | Implementers | Done |
 | 21 | Merge into main at 6de5dd7: the two readings ruled, Inbox included, the inline colour ratified | 12 | Steward | Done |
 
+## P8D: the design port (`p8d-design`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 0 | Kickoff: 11.13 amended to admit a prototype, items 30 and 31 ruled, the dependency set ratified | 12 | Steward | Planned |
+| 1 | The dependencies added, his `tokens.css` reconciled against ours from the same board | 08 | Implementers | Planned |
+| 2 | The component port, every role, name and region preserved | 08 | Implementers | Planned |
+| 3 | Shell and layout: the sidebar beside the content, the top bar, the page canvas | 07 | Implementers | Planned |
+| 4 | The form, the calendar and the search overlay against his screens | 09 | Implementers | Planned |
+| 5 | The built pages reviewed against the sixteen screens | owner | not a session | Planned |
+| 6 | Merge review, then merge | 12 | Steward | Planned |
+
 ## Outside the packages: infrastructure (`local-ci`)
 
 | # | Session | Role | Mode | Status |
