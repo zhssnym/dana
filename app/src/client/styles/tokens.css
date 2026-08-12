@@ -562,6 +562,47 @@ a tint (see `chip-alert`).
 }
 
 /*
+The fifth tone, and the only one for a control standing on a dark surface.
+Requested by P8D session 2, which found the toast's dismiss control inheriting
+white by accident: the toast is graphite-900 and the four tones above are every
+one of them inked for a light ground, so `button-quiet` there would have been
+graphite-700 on near-black.
+
+The ink is graphite-300 rising to graphite-0 on hover, over a wash of white
+rather than a step of the graphite scale, which is the designer's own treatment
+for this control in his `SystemToast`. A grey step cannot serve here: the scale
+runs light to dark by step number and every step light enough to read on
+graphite-900 is one of the steps the design reserves for surfaces.
+
+**The focus ring is overridden, and that is a contrast decision rather than a
+style.** The ring is `accent-600` everywhere else, which is 6.0:1 on white and
+about 1.6:1 on graphite-900, so a keyboard user on this surface would be shown
+a ring they cannot see. It goes to graphite-0 here for the same reason the ink
+does. Nothing else about focus moves: same width, same offset, same trigger.
+
+Composes with `button-base`. An icon-only control on a dark surface has no
+consumer yet and no name here; the session that needs one should ask rather
+than reach for this.
+*/
+@utility button-inverse {
+  background-color: transparent;
+  color: var(--color-graphite-300);
+
+  &:hover:not(:disabled) {
+    background-color: color-mix(
+      in srgb,
+      var(--color-graphite-0) 10%,
+      transparent
+    );
+    color: var(--color-graphite-0);
+  }
+
+  &:focus-visible {
+    outline-color: var(--color-graphite-0);
+  }
+}
+
+/*
 The icon-only controls of a row. Sized to the target floor rather than to the
 glyph, because a 16 pixel star is not a 44 pixel target; the design draws that
 as a dashed square around a 20 pixel control and it is the same rule. This is
@@ -1019,6 +1060,19 @@ takes this modifier and places itself the same way.
   }
 }
 
+/*
+The hairline between grouped items, wherever they are grouped.
+
+**Ruled at P8D's return session, on the reuse session 2 disclosed.** It applied
+this to 9.1's sidebar divider, which is a menu's name on a sidebar rule, and
+asked for the reuse to be ratified or a name minted. Ratified, and the name
+does not move. The design draws one hairline for this job and gives it one
+value, so a second name would be two things that can drift apart, which is the
+argument this file's own header makes about the spacing scale. The name is
+where it was first drawn rather than where it is only used, and today the
+sidebar is in fact its only consumer; the task form's overflow menu will be the
+other, which puts the name back on its own ground.
+*/
 @utility menu-separator {
   height: 1px;
   margin: var(--spacing-1);
@@ -1197,10 +1251,25 @@ holds whichever property is read.
   color: var(--color-graphite-600);
 }
 
-/* The row's inline metadata: folder name, step counts, the repeat marker.
-   graphite-600 rather than the scale's metadata step, because the row gains a
-   graphite-100 hover surface and graphite-500 measures 4.2:1 against it,
-   which is the case OPEN-1 exists to forbid. */
+/*
+Quiet 12 pixel metadata, wherever it stands beside something louder: a row's
+folder name, step counts and repeat marker, a search result's folder and date,
+a page's date line, a sharing row's join date, and a sidebar folder's pending
+count.
+
+graphite-600 rather than the scale's metadata step, because the row gains a
+graphite-100 hover surface and graphite-500 measures 4.2:1 against it, which is
+the case OPEN-1 exists to forbid.
+
+**The sidebar count is ruled at P8D's return session, on the reuse session 2
+disclosed.** Ratified: this name was already the client's general word for
+quiet metadata and had eight consumers across rows, pages, search and the
+sharing panel before that count joined them, so the reuse is the name working
+rather than being stretched. 9.1 calls Inbox's count a badge, which is not read
+here as the chip this file also carries: the designer's sidebar draws a plain
+number, 11.13 makes his prototype authoritative for appearance, and a chip
+would be a heavier thing than the design puts down a quiet column.
+*/
 @utility meta {
   display: inline-flex;
   flex-shrink: 0;
@@ -1446,10 +1515,27 @@ carries every message the client raises and the words are what distinguish
 them; a red toast for a failed write and a grey one for a rate limit would be
 two components to keep in step.
 */
+/*
+The toast card, and it places itself, which is the designer's own shape: his
+`SystemToast` is one fixed card whose caller passes the offsets, because his
+prototype shows one message at a time and has no notion of a second.
+
+**It clears the floating action, which it did not before.** Both sat at
+`--spacing-6` from the bottom right, so a toast painted over the button on
+every page that has one, `toast` being at z-index 50 and `shell-fab` at 30. The
+offset below is derived rather than copied: the button is `--control-height`
+tall at `--spacing-6` from the edge, and one `--spacing-3` of air above it
+gives 76px, which is the number the designer's own shell hard-codes when its
+add button is showing. Done has no floating action (AC-096) and a toast there
+simply sits the same 76px up, which is the cost of not asking the markup
+whether the button is present.
+*/
 @utility toast {
   position: fixed;
   z-index: 50;
-  inset-block-end: var(--spacing-6);
+  inset-block-end: calc(
+    var(--control-height) + var(--spacing-6) + var(--spacing-3)
+  );
   inset-inline-end: var(--spacing-6);
   display: flex;
   align-items: center;
@@ -1463,6 +1549,43 @@ two components to keep in step.
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
   box-shadow: var(--elevation-2);
+}
+
+/*
+The region the cards stack in, requested by P8D session 2 and minted here.
+
+**Why it exists at all, when the design has no such thing.** The designer draws
+one toast because his prototype raises one. This client's `state/toasts.ts`
+appends, so several can stand at once, and several self-placing cards would
+land on exactly the same corner. So the region is ours rather than his, and it
+does the one thing his card cannot do for itself: put a second message
+somewhere a first is not.
+
+`column-reverse` so the newest message is nearest the corner and the older ones
+ride up, which is the direction a stack of transient messages reads in; the
+list is rendered oldest-first and this leaves that order alone.
+
+A card inside the region is placed by the region, so its own fixed position is
+switched off here rather than removed from `toast`. That is not a workaround
+kept for its own sake: the card is fixed in the design, and a caller that has
+exactly one message may still use it alone.
+*/
+@utility toast-region {
+  position: fixed;
+  z-index: 50;
+  inset-block-end: calc(
+    var(--control-height) + var(--spacing-6) + var(--spacing-3)
+  );
+  inset-inline-end: var(--spacing-6);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+
+  & > .toast {
+    position: static;
+    inset: auto;
+  }
 }
 
 @utility page-header {
