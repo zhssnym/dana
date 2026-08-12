@@ -290,6 +290,31 @@ export async function transition(
   ).toBe(200)
 }
 
+/**
+ * PATCH /me/settings with the CSRF header of 11.6.
+ *
+ * 9.1 puts six pages in the sidebar "each present only if permanent or
+ * toggled visible", and 9.7 owns the three toggles that decide the other
+ * half. A criterion asserting all six entries therefore has to put the
+ * account into the state where all six are visible rather than assume it,
+ * which is what this is for; the defaults are 9.7's and not this suite's to
+ * depend on.
+ */
+export async function patchSettings(
+  page: Page,
+  body: Record<string, boolean>,
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.patch('/api/v1/me/settings', {
+    data: body,
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PATCH /me/settings answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
 /* ------------------------------------------------------------------ *
  * Sequencing a server read after an interaction
  * ------------------------------------------------------------------ */
@@ -609,6 +634,18 @@ export const copy = {
   removeMember: (member: string, folder: string) =>
     `Remove ${member} from ${folder}? They lose access, and anything in this folder assigned ` +
     'to them becomes unassigned.',
+  /**
+   * 9.6's delete confirm, whose folder name and three counts come from the
+   * folder it acts on, exactly as the two above take theirs from a row.
+   *
+   * Written down here at the RFC 0002 change control because AC-183 asserts
+   * it as one of nine strings and AC-162 already spells it inline; a string
+   * this suite asserts from two files is one string or it is two things to
+   * keep in step with one specification.
+   */
+  deleteFolder: (folder: string, open: number, completed: number, abandoned: number) =>
+    `Delete ${folder}? This permanently deletes ${open} open, ${completed} completed, ` +
+    `and ${abandoned} abandoned tasks for every member.`,
   /** 9.3, the 8.4 warning shown before a date is cleared. */
   clearDateWarning: 'Clearing the date also ends the repeat and removes the reminder.',
   /** 9.3, the helper text on each of the three date-dependent fields. */
@@ -692,6 +729,37 @@ export const conflictCopy = {
  */
 export function sidebarLink(page: Page, name: string): Locator {
   return page.getByRole('link', { name, exact: true })
+}
+
+/**
+ * The sidebar of 9.1, which 9.1's roles table fixes as a navigation landmark
+ * at the RFC 0002 change control on 2026-08-13.
+ *
+ * A landmark rather than a container this file recognises some other way,
+ * because that table's ground is the section's own: the sidebar is 9.1's only
+ * chrome and holds the page set, and a landmark is what lets a person skip to
+ * it. AC-174 asserts the landmark itself; every helper below that scopes to
+ * the sidebar reads it through here so the suite has one answer to what the
+ * sidebar is.
+ */
+export function sidebar(page: Page): Locator {
+  return page.getByRole('navigation')
+}
+
+/**
+ * The inline quick-add of 9.1 in its collapsed state, a single control
+ * carrying the same name its text box carries.
+ *
+ * One name across two states is 9.1's own ruling of 2026-08-13: collapsed it
+ * is a control and expanded it is a text box, they are never on the page at
+ * the same time, and they are one affordance to the person using them. The
+ * distinction the name has to survive is against the floating add button on
+ * the same page, which is what "Add task" against "Add a task" was chosen
+ * for and which the state does not affect. So this is exact for the reason
+ * `floatingAddButton` is exact.
+ */
+export function quickAddControl(page: Page): Locator {
+  return page.getByRole('button', { name: 'Add a task', exact: true })
 }
 
 /**
@@ -1023,6 +1091,78 @@ export async function tooltipText(locator: Locator, why: string): Promise<string
     }
     return parts.join(' ').replace(/\s+/g, ' ').trim()
   })
+}
+
+/* ------------------------------------------------------------------ *
+ * Copy delivered whole (AC-183)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every text node in the document, whitespace normalized the way Playwright's
+ * own text engine normalizes it.
+ *
+ * This exists because `getByText` cannot answer the question AC-183 asks.
+ * That engine matches the smallest element whose combined text contains the
+ * string, and combined text crosses element boundaries: a sentence delivered
+ * as a dialog title plus a dialog description sits inside one wrapper whose
+ * text is the whole sentence, so `getByText` finds it and reports a string
+ * that no reader ever meets as one sentence. That is precisely the shape RFC
+ * 0002 measured in the designer's prototype for 9.4's abandon confirm and
+ * 9.8's remove-connection confirm, and precisely the shape AC-183's "as one
+ * text run" is written against.
+ *
+ * A text node rather than an element, and interpolation is why that is not
+ * too strict. Section 9's three confirmations that name a folder or a member
+ * are one sentence with a value in the middle, and a client that builds the
+ * sentence as one string and renders it produces one text node whatever the
+ * value was; a client that renders the value as its own element has split the
+ * sentence, which is the same defect at a smaller scale.
+ */
+export async function textRuns(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const view = globalThis as unknown as {
+      document: {
+        body: unknown
+        createTreeWalker: (
+          root: unknown,
+          whatToShow: number,
+        ) => { nextNode: () => { nodeValue: string | null } | null }
+      }
+    }
+    // 4 is NodeFilter.SHOW_TEXT. Named by its value because these specs
+    // typecheck with no DOM lib, correct because they run in node and only
+    // this callback runs in the browser.
+    const walker = view.document.createTreeWalker(view.document.body, 4)
+    const out: string[] = []
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const text = (node.nodeValue ?? '').replace(/\s+/g, ' ').trim()
+      if (text !== '') out.push(text)
+    }
+    return out
+  })
+}
+
+/**
+ * Asserts section 9 wrote this sentence and the page delivered it whole.
+ *
+ * The failure message carries the runs that share the sentence's opening
+ * words, because the two ways this fails read identically from a boolean: the
+ * string is absent, or the string is present in pieces. Naming the pieces is
+ * what turns a red into an instruction.
+ */
+export async function expectOneTextRun(
+  page: Page,
+  text: string,
+  why: string,
+): Promise<void> {
+  const runs = await textRuns(page)
+  const opening = text.slice(0, 18)
+  const near = runs.filter((run) => run.includes(opening) || text.includes(run.slice(0, 18)))
+  expect(
+    runs.some((run) => run.includes(text)),
+    `${why}. No single text node carried ${JSON.stringify(text)}. The runs sharing its words ` +
+      `were ${JSON.stringify(near.slice(0, 12))}`,
+  ).toBe(true)
 }
 
 /* ------------------------------------------------------------------ *

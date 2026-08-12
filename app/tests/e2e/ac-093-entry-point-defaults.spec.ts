@@ -1,44 +1,57 @@
 /*
-AC-093: given the form opened from each of the six entry points of 9.3, then
-the defaults match the table in all six cases.
+AC-093: given the task form opened from each of My Day, the Planned list, a
+Planned calendar cell, Important, a folder page and the bare add button, then
+its due date, important and folder fields hold exactly the values 9.3's
+entry-point table gives that row, the calendar cell contributing its own date
+and the folder page contributing that folder with an empty due date whether
+the form was opened from its quick-add or from the floating button.
 
-The table has six rows and eight distinct openings, because its first row
-names three ("Tasks, All, or bare button") and its calendar row names a
-click on a cell rather than a button. Each opening is asserted here against
-all three columns the table fills, due date, important and folder, not
-against the one column that differs from its neighbours: a form that
-defaulted every page to today would satisfy My Day and Planned and fail
-Tasks, and a form that read important from the page would satisfy Important
-alone. The three columns together are what make the six rows six.
+Rewritten by RFC 0002, Accepted 2026-08-13, which replaces this criterion's
+text rather than deleting it. The sentence above is that RFC's Replace unit
+transcribed unchanged, and it becomes section 12's own text when the delta
+merges. What moved is the sixth row of 9.3's table: it read "per that
+folder's section context", and 9.6 now carries one open list instead of the
+Scheduled and Unscheduled sections that were the context, so the cell states
+its value outright. The value is the one the earlier ruling had already given
+that page's floating button, empty, for a reason the restructuring leaves
+intact: a folder holds dated and undated tasks at once, so defaulting to
+today would file a task under a date nobody aimed at.
 
-**The sixth row's due date is asserted now, and was not when this file was
-written.** The table's folder-page cell read "per that folder's section
-context" and the floating add button of 9.1 sits on the page rather than in
-a section, so the table stated no value for the opening this criterion
-names, and this file escalated it rather than guessing. The P8 change
-control closed it on 2026-08-11: the Scheduled section's quick-add opens
-with today, the Unscheduled section's with empty, and the button with empty,
-on the ground that a folder is not a dated page and clearing a date that was
-added for you costs more than adding one that was not. The criterion's text
-did not move; the cell it reads did. So all three columns are asserted here
-for all six rows, which is what "in all six cases" asks for.
+**All three columns are asserted for every row, which is what makes the six
+rows six.** A form that defaulted every page to today satisfies My Day and
+Planned and fails Tasks; a form reading important from anywhere but the entry
+point satisfies five rows and fails Important. Neither is visible to a case
+that checks only the column its row differs on.
 
 **The calendar cell's date is chosen so it cannot collide.** The cell clicked
-is the fifteenth of next month, reached with the "next" control 9.5 gives
-the calendar. Every seeded row is dated today, tomorrow or a week out, and
-the fifteenth of next month is at least fifteen days away, so the cell is
-empty whatever day this suite runs on; 9.5 opens the form only from an
+is the fifteenth of next month, reached with the "next" control 9.5 gives the
+calendar. Every seeded row is dated today, tomorrow or a week out, so that
+cell is empty whatever day this suite runs on; 9.5 opens the form only from an
 empty cell, a click on a row opening that row instead.
 
-**Inbox is asserted by name, which is what the table says.** The table's
-folder column reads "Inbox" for five of its six rows, and Inbox is 4.3's
-default folder rather than a folder called Inbox: the seeded viewer's
-default is named Inbox, so the two agree here and the assertion is on the
-name the table writes.
+**Inbox is asserted by name, which is what the table says.** Five of the six
+rows read "Inbox", and Inbox is 4.3's default folder rather than a folder
+called Inbox: the seeded viewer's default is named Inbox, so the two agree
+here and the assertion is on the name the table writes.
 
-Spec: 9.3 (the entry-point table, the More options expander), 9.1 (the
-floating add button, the route table), 9.5 (the calendar's mode toggle, its
-next control, the click on an empty cell), 4.3.
+**The quick-add arm of the sixth row is escalated and is not asserted below.**
+This criterion now requires the form opened from the folder page's quick-add
+as well as from its floating button, and 9.1's amended quick-add bullet gives
+the expanded row "an escalation control opening the full task form at the
+same entry point" without naming it. 9.1's Names table names the quick-add
+itself, collapsed and expanded alike, and names no control inside it, so the
+only ways to reach the escalation control are by its position in the row or
+by a string this specification does not carry, and 9.1's own addressing
+paragraph forbids both. The gap is routed to the Integration Steward with a
+recommendation, on the P8 precedent where eight controls described without
+being named were escalated rather than guessed at. Everything else this
+criterion asserts is below, including the floating-button arm of the same
+row, so what is missing is one opening and not the row.
+
+Spec: 9.3 (the entry-point table as RFC 0002 amends it, the More options
+expander), 9.1 (the floating add button, the quick-add, the route table),
+9.5 (the calendar's mode toggle, its next control, the click on an empty
+cell), 9.6 (the single open list this row now reads against), 4.3.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -82,10 +95,10 @@ async function expectDefaults(
   // before the folder column is read. The other two columns are always
   // visible fields and are read either way.
   await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
-        + 'names it "More options"',
-    )
+    page.getByRole('button', { name: 'More options' }),
+    "spec 9.3: seven of the form's ten fields sit behind one expander, and the section " +
+      'names it "More options"',
+  )
 
   expect(
     await fieldValue(formField(page, 'due date')),
@@ -136,10 +149,10 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     ] as const) {
       await page.goto(path)
       await clickControl(
-      floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
-    )
+        floatingAddButton(page),
+        'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
+          'of 9.3, and it is on every page except Done',
+      )
       await expectDefaults(page, where, { dueDate: '', important: false, folder: 'Inbox' })
     }
   })
@@ -148,8 +161,8 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     await page.goto(routes.myDay)
     await clickControl(
       floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
+        'of 9.3, and it is on every page except Done',
     )
     await expectDefaults(page, 'My Day', {
       dueDate: seedDate(0),
@@ -162,8 +175,8 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     await page.goto(routes.planned)
     await clickControl(
       floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
+        'of 9.3, and it is on every page except Done',
     )
     await expectDefaults(page, 'the Planned list', {
       dueDate: seedDate(0),
@@ -172,7 +185,7 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     })
   })
 
-  test('AC-093: a Planned calendar cell opens with that cell\'s date', async ({ page }) => {
+  test("AC-093: a Planned calendar cell opens with that cell's date", async ({ page }) => {
     await page.goto(routes.planned)
     // 9.5's mode toggle. The mode is persisted per user client-side, so this
     // click may be a no-op on a later run and the assertion below is what
@@ -189,12 +202,12 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     const cell = page.getByRole('gridcell').filter({ hasText: /\b15\b/ }).first()
     await expect(
       cell,
-      'spec 9.5: the calendar draws day cells, and the fifteenth of next month is one of ' +
-        'them at every zoom this test uses',
+      "spec 9.1's roles table: a calendar day is a grid cell within a grid, and the fifteenth " +
+        'of next month is one of them at the month zoom this case uses',
     ).toBeVisible()
     await clickControl(
       cell,
-      'spec 9.5: the calendar draws day cells, and a click on an empty one opens the form with that date',
+      'spec 9.5: a click on an empty day cell opens the form with that date',
     )
 
     await expectDefaults(page, 'a Planned calendar cell', {
@@ -208,8 +221,8 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     await page.goto(routes.important)
     await clickControl(
       floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
+        'of 9.3, and it is on every page except Done',
     )
     // The one row of the table whose important column is on, and the one
     // that discriminates an implementation reading the flag from anywhere
@@ -221,21 +234,23 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     })
   })
 
-  test('AC-093: a folder page opens with that folder and no date', async ({ page }) => {
+  test("AC-093: a folder page's floating button opens with that folder and no date", async ({
+    page,
+  }) => {
     await page.goto(routes.folder(seedIds.groceries))
     await clickControl(
       floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+      'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
+        'of 9.3, and it is on every page except Done',
     )
 
     // All three columns, the same as every other row above. The due date is
-    // empty because 9.3 says so as of 2026-08-11: the button sits on the page
-    // rather than in a section, and having no section context means an empty
-    // date everywhere else in this table. The reason it is not today is that
-    // a folder holds dated and undated tasks at once, so defaulting would
-    // file a task into the Scheduled section nobody aimed at.
-    await expectDefaults(page, 'a folder page', {
+    // empty because 9.3 says so as RFC 0002 restates it: 9.6 now carries one
+    // open list, so there is no section context left to read and the cell
+    // states its value. Empty rather than today because a folder holds dated
+    // and undated tasks at once, and clearing a date that was added for you
+    // costs more than adding one that was not.
+    await expectDefaults(page, "a folder page's floating button", {
       dueDate: '',
       important: false,
       folder: 'Groceries',
