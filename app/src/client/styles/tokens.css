@@ -2,239 +2,188 @@
 Dana's design tokens: the single file of 11.4, and the only place in this
 client where a raw colour, type size, spacing step or radius may be written.
 
-**These are the design's values, transcribed from
-`docs/design/visual_foundation/Dana Visual Foundation.dc.html` section 08**,
-which is a complete token table its author wrote for this file specifically.
-The placeholder that stood here until P8 said of itself that every value in it
-was invented by an engineer; that session replaced them wholesale and this one
-finishes the job.
+**What this file is, after RFC 0002.** It is the designer's
+`docs/design/prototype/src/styles/tokens.css` and his
+`docs/design/prototype/src/styles/app.css`, carried in as one file at package
+P8R session R2. Under 11.13 as that RFC amends it, his prototype is the source
+the client is built from rather than a reference it is compared against, so a
+difference between his values and these is a defect in the port unless a
+numbered section says otherwise.
 
-**What P8D session 1 changed, and why the package exists.** P8 merged with 173
-criteria green and an application whose sidebar rendered as a full-width block.
-No acceptance criterion can see appearance (section 9's first sentence excludes
-colour, typography and spacing), so nothing in the machinery could say so. The
-direct cause was not a wrong colour: it was that this file described every
-colour correctly and never said how wide the sidebar is. So the layout layer
-below is new, and it is the half the foundation board never carried. Three
-artifacts, three authorities, ruled at the P8D kickoff on 2026-08-12 and
-recorded in 11.13: the board adjudicates a value, this file is where that value
-lives in the application, and `docs/design/prototype/src/styles/tokens.css` is
-read for the two things the board never carried, the layout dimensions and the
-role mapping.
+**Why the two files became one.** 11.4 says design tokens live in exactly one
+file and that this is the only place raw values may appear, and his `app.css`
+is full of raw values: a sheet width, four type sizes for the sidebar and the
+task form, a selection colour. Splitting them across two files would put half
+of them outside the file the rule names. One file also keeps the entry point
+untouched: `main.tsx` belongs to the Frontend Architect and already imports
+this path, so nothing outside this role's paths had to change for the
+stylesheet to arrive. His import order is preserved exactly, Tailwind then
+tw-animate-css then shadcn's sheet then his own values, because that order is
+what lets his values override the distribution's defaults.
 
-Three rules this file encodes for everything downstream:
+**What the P8 client's markup loses here, stated plainly because it is not a
+regression to be discovered later.** The file this replaces carried 94
+`@utility` definitions, and every page, shell and state P8 built writes those
+class names. They are gone, so that markup renders unstyled until R3 to R10
+replace it, which is the interim RFC 0002 chose when it chose a wholesale
+replacement over a second restyle. They were not kept beside his values,
+because they are written against token names this file no longer defines: a
+retained utility would resolve half its `var()` references and silently
+produce a broken layout, which is worse to look at and far worse to diagnose
+than an unstyled one.
 
-- **Tailwind 4 is configured in CSS.** There is no `tailwind.config.js` and v3
-  configuration idioms are defects (11.15). `@theme` below is the whole
-  configuration, compiled by `@tailwindcss/vite`.
-- **Every colour a state signals also has a non-colour cue** in the markup
-  that carries it. The design states the same rule in its own words, that
-  status is never colour alone: overdue adds weight and a label, completed
-  adds the check, abandoned adds the strike and a chip. The tokens here are
-  the colour half of pairs whose other half is in `components/ui/`.
-- **Dark mode is out of scope for v1** and the brief says not to design it.
-  The graphite scale runs light to dark by step number, which is the
-  indirection a later theme would invert rather than a set of names that bake
-  the current one in.
+**Three departures from his two files, each with its reason.**
 
-**The component classes at the bottom are the vocabulary, and they are the
-package's real deliverable.** This client styles itself by naming things:
-a component file writes `className="button-base button-primary"` and never a
-colour, where the designer's prototype composes Tailwind utility strings in the
-`.tsx` files. That idiom is why role 08 goes first in P8D and alone owns this
-file: under it, no other role can restyle anything until the names exist. Each
-class below therefore says what a thing *is*, so that changing what it looks
-like is an edit here and nowhere else.
+His `min-width: 1180px` on `html` and on `body` is absent, and it is the one
+thing here that is forbidden rather than merely changed. Section 13 item 32
+rules it out in terms: it is his prototype declaring its own delivery scope,
+and porting it would convert a deferral of mobile into a hard refusal to
+render, on the one surface 10.6 promises will open when installed. The same
+item requires that a narrow viewport be no worse after this package than
+before it, which is cheap to hold because P8's client carried no media query
+at all. The floor appears a third time, as `min-w-[1180px]` on his AppShell
+root in `app-shell.tsx`; that file arrives with R5 and the removal is owed
+there too. The two mentions in this paragraph are the only places that number
+survives anywhere under `app/`, and they are prose rather than declarations,
+so a grep for it should find this explanation and nothing else.
 
-Four transcription details, recorded so a reader comparing this file to section
-08 does not think any of them is a divergence.
+`Inter Variable` is prepended to his sans stack. His stack opens with `Inter`,
+and the package 11.4 requires for self-hosting registers the family as
+`Inter Variable`, so his stack never reaches the face he loaded. This is not
+a reading of his file: opened at 127.0.0.1:5199 on 2026-08-13, the running
+prototype reports `Inter Variable` as `unloaded` and computes a system
+fallback for `body`. Everything after the prepended name is his, character for
+character, so the correction adds a font rather than choosing one.
 
-**The spacing scale is spelled `--spacing-N` here and `--space-N` there.**
-`--spacing-*` is the namespace Tailwind 4 generates `gap-*`, `p-*` and `m-*`
-from, so a step written under any other name is a value the framework cannot
-see and a component would have to write in pixels. The ten steps and their
-values are the design's exactly, and there is one definition of each rather
-than an alias pair, because two names for one value are two things that can
-drift.
+His header comment's em dash is a comma here, protocol section 7 holding
+across the whole corpus including material adopted from outside it.
 
-**The type roles carry their weight as a companion property.** Section 08
-writes each role as one string, "600 24px / 32px". Tailwind's `--text-*`
-namespace takes the size, with `--text-*--line-height` and
-`--text-*--font-weight` beside it, so each role is transcribed into the three
-properties the framework reads. `--text-meta` is the exception the design
-itself makes: it writes "400-500", a range rather than a weight, so no weight
-is fixed here and the call site chooses.
-
-**The control height is 40px and the target floor is 44px, and they are two
-different things.** Section 08's table gives `--size-control: 44px` for "button
-and input height", which was the board's answer before Session 4; the
-designer's own later work refined it, his token file recording
-`--control-height: 40px` as the "Session 4 desktop compact-control refinement"
-and `notes.md` stating it as a rule at the Session 8 final handoff: "Standard
-buttons and major controls remain 40px high. TaskRow is the deliberate 44px
-exception." 11.13 names `--control-height: 40px` among the layout dimensions
-this file is owed, so the specification has already read the later value in and
-that is the one below. `--size-control` and `--size-row` are gone rather than
-kept beside their replacements, because a second name holding a different
-number for one concept is the drift this file's own spacing note argues
-against. What survives untouched is `--size-target: 44px`, which the board
-argues for separately and in prose: compactness comes from restrained gaps,
-never from undersized controls, and every interactive target keeps a 44px
-minimum. A 40px painted button inside a 44px hit area is exactly the picture
-section 04 of the board draws, a dashed 44px square around a 20px checkbox, and
-`icon-control` below is where that floor is kept.
-
-**Motion is here, and it had never been written down as a value anywhere.**
-`notes.md` fixes the four durations in prose and neither token file carried one
-of them, measured by grep at the P8D change control. They belong here under the
-reading of 11.4 the P8 merge recorded, that the rule governs the values the
-design fixes; that rule's own list of colour, type, spacing and radius names no
-duration and is not widened by this, and the distinction is written down so a
-session finding it does not have to guess which way it cuts.
-
-**Two OPEN notes this file used to carry are closed, and both were
-transcriptions rather than decisions.** OPEN-3, whether checked controls take
-`accent-600` or `graphite-950`, is answered by section 08 of the board itself,
-whose accent row gives `accent-600` for "primary actions, links, focus ring,
-checked controls" in one sentence; the completed task row's checkbox is the
-named exception at DES-044, a neutral monochrome fill, and it has its own class
-below. OPEN-4, the PWA theme and background colours, was approved as DES-029 on
-2026-08-10 at `#FFFFFF` for both, which is the value that was already here, so
-nothing moved except the hedge. `vite.config.ts` carries the manifest's own
-copy of that pair and its comment still calls DES-029 unsigned; that file is
-Platform's and the correction is routed to P9.
-
-**Three values below still rest on an item the design's author marked OPEN.**
-They are transcribed as the table states them and each is marked `OPEN-n` at
-its definition, so that a change after sign-off is a lookup rather than an
-excavation: OPEN-1, metadata ink inside tinted fills; OPEN-2, warning never
-being a filled button; OPEN-5, the type scale's approval, which reaches every
-`--text-*` role in this file.
+**One line is this client's own and is kept.** `@source` below is explicit
+where his prototype relies on automatic detection, because a change to where
+the build runs from would otherwise empty the stylesheet silently, which fails
+as a page with correct markup and no styling at all.
 */
 
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 /*
-Inter, self-hosted. Both token files name Inter as the sans family and this
-client loaded no font at all until now, rendering every screen in whatever
-system fallback the platform chose. `notes.md` asks for exactly this package
-and forbids a third-party CDN, and 10.6 is the second reason: a font fetched
-from another origin is a request the service worker cannot precache, so an
-installed Dana would render its own typeface only while online.
-
-The family this registers is `Inter Variable`, not `Inter`, which is why the
-stack below names both: the variable face when this package is present, the
-static family if a system copy exists, then the fallbacks.
+Inter, self-hosted. 11.4 requires this package rather than a third-party font
+link, and 10.6 is the reason: a font fetched from another origin is a request
+the service worker cannot precache, so an installed Dana would render its own
+typeface only while online.
 */
 @import '@fontsource-variable/inter';
 
-/*
-Automatic source detection already finds these files; the line is explicit so
-that a change to where the build runs from cannot silently empty the
-stylesheet, which fails as a page with correct markup and no styling at all.
-*/
 @source '../**/*.{ts,tsx}';
 
-@theme {
-  /* ---------------------------------------------------------------- *
-   * Typography. OPEN-5: the scale is proposed and awaiting approval.
-   * Inter, weights 400, 500 and 600 only.
-   * ---------------------------------------------------------------- */
-  --font-sans:
-    'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', sans-serif;
+@custom-variant dark (&:is(.dark *));
 
-  --text-title: 24px;
-  --text-title--line-height: 32px;
-  --text-title--font-weight: 600;
+/* Dana v1, approved light-theme tokens, including the Session 4 desktop
+ * compact-control refinement.
+ * Hex values are authoritative. Dark mode is intentionally out of scope.
+ */
 
-  --text-heading: 16px;
-  --text-heading--line-height: 24px;
-  --text-heading--font-weight: 600;
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --font-heading: var(--font-family-sans);
 
-  --text-body: 14px;
-  --text-body--line-height: 20px;
-  --text-body--font-weight: 400;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
-  --text-body-medium: 14px;
-  --text-body-medium--line-height: 20px;
-  --text-body-medium--font-weight: 500;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+  --radius-full: 9999px;
+}
 
-  --text-label: 14px;
-  --text-label--line-height: 20px;
-  --text-label--font-weight: 500;
+:root {
+  color-scheme: light;
 
-  /* 400 to 500 in the design, a range rather than a weight, so the call site
-     chooses and none is fixed here. */
-  --text-meta: 12px;
-  --text-meta--line-height: 16px;
+  /* Typography. `Inter Variable` leads the stack because that is the family
+   * @fontsource-variable/inter registers; the rest is the design's own. */
+  --font-family-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --text-title-size: 24px;
+  --text-title-line: 32px;
+  --text-heading-size: 16px;
+  --text-heading-line: 24px;
+  --text-body-size: 14px;
+  --text-body-line: 20px;
+  --text-meta-size: 12px;
+  --text-meta-line: 16px;
 
-  /* ---------------------------------------------------------------- *
-   * Neutral: graphite. Thirteen steps, each with the job the design
-   * gives it, because a step used for the wrong job is how a scale
-   * stops meaning anything.
-   * ---------------------------------------------------------------- */
-  --color-graphite-0: #ffffff; /* cards, content surfaces, top bar */
-  --color-graphite-25: #fafafb; /* app canvas, sidebar */
-  --color-graphite-50: #f4f5f6; /* hover fill */
-  --color-graphite-100: #ebecee; /* pressed fill, skeletons, neutral chips */
-  --color-graphite-200: #dddee2; /* borders, dividers */
-  --color-graphite-300: #c6c8cd; /* strong borders, off switch track */
-  --color-graphite-400: #999ca3; /* disabled text and icons only, never body */
-  --color-graphite-500: #6e7076; /* placeholders, 5.0:1 on white */
-  --color-graphite-600: #585a60; /* secondary text, metadata, icons, 6.8:1 */
-  --color-graphite-700: #44464c; /* hover text, icon emphasis */
-  --color-graphite-800: #2f3136; /* primary text, 12.9:1 */
-  --color-graphite-900: #1b1c20; /* titles, headings */
-  --color-graphite-950: #0a0a0a; /* locked Dana Mark ink */
+  /* Graphite neutral ramp */
+  --color-graphite-0: #ffffff;
+  --color-graphite-25: #fafafb;
+  --color-graphite-50: #f4f5f6;
+  --color-graphite-100: #ebecee;
+  --color-graphite-200: #dddee2;
+  --color-graphite-300: #c6c8cd;
+  --color-graphite-400: #999ca3;
+  --color-graphite-500: #6e7076;
+  --color-graphite-600: #585a60;
+  --color-graphite-700: #44464c;
+  --color-graphite-800: #2f3136;
+  --color-graphite-900: #1b1c20;
+  --color-graphite-950: #0a0a0a;
 
-  /* ---------------------------------------------------------------- *
-   * Accent: cobalt, and the only colour that means "you can act here".
-   * ---------------------------------------------------------------- */
-  --color-accent-50: #f2f4fc; /* selected row background */
-  --color-accent-100: #e3e8f9; /* active and selected fills */
-  --color-accent-200: #c9d3f2; /* selected borders */
-  /* Primary actions, links, focus ring and checked controls, 6.0:1. The
-     checked-control half is OPEN-3's answer, in the board's own sentence. */
-  --color-accent-600: #3c5bbf;
-  --color-accent-700: #334da3; /* hover */
-  --color-accent-800: #2b4088; /* pressed */
+  /* Dana cobalt: interaction only, never task status or folder identity */
+  --color-dana-accent-50: #f2f4fc;
+  --color-dana-accent-100: #e3e8f9;
+  --color-dana-accent-200: #c9d3f2;
+  --color-dana-accent-600: #3c5bbf;
+  --color-dana-accent-700: #334da3;
+  --color-dana-accent-800: #2b4088;
 
-  /* ---------------------------------------------------------------- *
-   * Semantic status. Each family is a triple: a tint to fill with, a
-   * border to sit in, and an ink dark enough to read on the tint.
-   * ---------------------------------------------------------------- */
+  /* Semantic colors */
   --color-success-100: #ddf2e2;
   --color-success-200: #bfe5ca;
-  --color-success-600: #1f7a3f; /* white text 5.4:1 */
-  --color-success-700: #1a6635; /* text on tint, 6.1:1 */
-
+  --color-success-600: #1f7a3f;
+  --color-success-700: #1a6635;
   --color-warning-100: #faeeda;
   --color-warning-200: #f2dcb4;
-  --color-warning-500: #b97514; /* non-text accents only */
-  /* OPEN-2: no amber carries white text at 4.5:1, so warning is badge and
-     inline text only and never a filled button. Proposed, not signed off. */
-  --color-warning-700: #8f5300; /* 6.2:1 on white, 5.4:1 on tint */
-
-  --color-danger-100: #fbe5e2; /* overdue and danger tint */
+  --color-warning-500: #b97514;
+  --color-warning-700: #8f5300;
+  --color-danger-100: #fbe5e2;
   --color-danger-200: #f3ccc7;
-  --color-danger-600: #be372f; /* destructive actions, white text 5.5:1 */
-  --color-danger-700: #a32c25; /* overdue text on tint, 5.9:1 */
-
+  --color-danger-600: #be372f;
+  --color-danger-700: #a32c25;
   --color-info-100: #dff0f6;
   --color-info-200: #c2e2ee;
-  --color-info-700: #0f6e8c; /* 6.0:1 on white, 5.2:1 on tint */
+  --color-info-700: #0f6e8c;
 
-  /* ---------------------------------------------------------------- *
-   * Folder swatches: identification only, always beside a label or a
-   * name. Ten, capped in one OKLCH lightness and chroma band so a full
-   * sidebar reads as one column rather than ten competing dots.
-   *
-   * Nothing in the client reads these: a folder's colour rides the wire
-   * as the hex of 7.4's my_color, which is a person's runtime choice
-   * and not a design value (11.4). This set is the palette a colour
-   * picker will offer.
-   * ---------------------------------------------------------------- */
+  /* Folder identity swatches; always pair with a visible folder name */
   --color-folder-clay: #c4705d;
   --color-folder-ochre: #b08034;
   --color-folder-olive: #8a8a3a;
@@ -246,1752 +195,205 @@ stylesheet, which fails as a page with correct markup and no styling at all.
   --color-folder-plum: #b562a9;
   --color-folder-rose: #c4627b;
 
-  /* ---------------------------------------------------------------- *
-   * Spacing: 4px base, ten steps, no half-steps. Spelled in Tailwind's
-   * own namespace for the reason in this file's header.
-   * ---------------------------------------------------------------- */
-  --spacing-1: 4px;
-  --spacing-2: 8px;
-  --spacing-3: 12px;
-  --spacing-4: 16px;
-  --spacing-5: 20px;
-  --spacing-6: 24px;
-  --spacing-8: 32px;
-  --spacing-10: 40px;
-  --spacing-12: 48px;
-  --spacing-16: 64px;
+  /* shadcn/ui semantic role mapping */
+  --background: var(--color-graphite-25);
+  --foreground: var(--color-graphite-800);
+  --card: var(--color-graphite-0);
+  --card-foreground: var(--color-graphite-800);
+  --popover: var(--color-graphite-0);
+  --popover-foreground: var(--color-graphite-800);
+  --primary: var(--color-dana-accent-600);
+  --primary-foreground: var(--color-graphite-0);
+  --secondary: var(--color-graphite-50);
+  --secondary-foreground: var(--color-graphite-800);
+  --muted: var(--color-graphite-50);
+  --muted-foreground: var(--color-graphite-600);
+  --accent: var(--color-graphite-50);
+  --accent-foreground: var(--color-graphite-800);
+  --destructive: var(--color-danger-600);
+  --destructive-foreground: var(--color-graphite-0);
+  --border: var(--color-graphite-200);
+  --input: var(--color-graphite-300);
+  --ring: var(--color-dana-accent-600);
+  --sidebar: var(--color-graphite-25);
+  --sidebar-foreground: var(--color-graphite-800);
+  --sidebar-primary: var(--color-dana-accent-600);
+  --sidebar-primary-foreground: var(--color-graphite-0);
+  --sidebar-accent: var(--color-graphite-50);
+  --sidebar-accent-foreground: var(--color-graphite-800);
+  --sidebar-border: var(--color-graphite-200);
+  --sidebar-ring: var(--color-dana-accent-600);
 
-  /* ---------------------------------------------------------------- *
-   * Control sizes. The 44px floor is a hit area and the 40px height is
-   * a painted box; this file's header records why the two differ and
-   * which artifact settles each.
-   * ---------------------------------------------------------------- */
-  --size-target: 44px; /* minimum interactive target, all pointers */
-  --control-height: 40px; /* buttons, inputs, menu items, selects */
-  --task-row-height: 44px; /* the design's deliberate row exception */
+  /* Spacing: 4px base, no half-steps */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shape */
+  --radius: 6px;
+  --radius-full: 9999px;
+
+  /* Elevation: borders structure pages; shadows are for floating layers */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgb(10 10 10 / 6%),
+    0 4px 16px rgb(10 10 10 / 10%);
+  --elevation-2: 0 2px 6px rgb(10 10 10 / 8%),
+    0 16px 40px rgb(10 10 10 / 16%);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Repeated control sizes: primary desktop controls are 40px; dense
+   * navigation and property rows use their own application-specific rhythm. */
+  --control-height: 40px;
+  --shell-sidebar-row-height: 32px;
+  --task-form-property-row-height: 36px;
+  --task-row-height: 44px;
   --checkbox-size: 20px;
   --switch-width: 40px;
   --switch-height: 22px;
-  --switch-thumb: 18px;
-  --size-avatar: 28px;
-  --size-avatar-chip: 20px; /* an avatar inside a chip */
+  --avatar-size: 28px;
+  --icon-size-compact: 16px;
+  --icon-size-default: 20px;
+  --icon-stroke-width: 1.75;
 
-  /* ---------------------------------------------------------------- *
-   * The desktop shell, and the layer whose absence is the reason this
-   * package exists. Session 4 approved, read from the designer's token
-   * file and his `notes.md` because the foundation board has no section
-   * for a dimension.
-   *
-   * The prototype's own `app.css` also sets `min-width: 1180px` on html
-   * and body. It is deliberately not here: the owner ruled on
-   * 2026-08-12 that v1 ships desktop-first, and a hard minimum would
-   * turn that deferral into a refusal to render on the one surface 10.6
-   * promises will open when installed (section 13 item 32).
-   * ---------------------------------------------------------------- */
+  /* Session 4 approved desktop shell */
   --shell-sidebar-width: 256px;
-  --shell-sidebar-row-height: 32px; /* navigation, group and folder rows */
-  --shell-sidebar-surface-height: 30px; /* their hover fill: 2px of air */
-  --shell-sidebar-section-size: 11px; /* the "Folders" section label */
-  --shell-sidebar-row-size: 13px;
-  --shell-topbar-height: 56px;
+  --shell-sidebar-item-height: var(--control-height);
+  --shell-sidebar-section-font-size: 11px;
+  --shell-sidebar-row-font-size: 13px;
   --shell-pagebar-height: 24px;
   --shell-content-max: 1120px;
 
-  /* The task form's right-side sheet, wider than a default sheet so its
-     compact property rows do not collapse into a mobile density. */
-  --task-form-width: 540px;
-  --task-form-row-height: 36px;
-  --task-form-title-size: 20px;
-  --task-form-title-line: 28px;
-
-  --search-panel-width: 680px;
-  --search-panel-top: 12vh;
-
-  /* ---------------------------------------------------------------- *
-   * Radius: five steps, each named for what it is put on.
-   * ---------------------------------------------------------------- */
-  --radius-sm: 4px; /* checkboxes, small tags */
-  --radius-md: 6px; /* buttons, inputs, menu items */
-  --radius-lg: 10px; /* cards, menus, popovers */
-  --radius-xl: 14px; /* dialogs */
-  --radius-full: 9999px; /* chips, badges, dots, avatars, switch */
-
-  /* ---------------------------------------------------------------- *
-   * Elevation. Borders structure the page and shadows are reserved for
-   * layers that float above it, which is why there are only three and
-   * why the first of them is a border.
-   * ---------------------------------------------------------------- */
-  --elevation-0: none;
-  --elevation-1:
-    0 1px 2px oklch(0.145 0 0 / 0.06), 0 4px 16px oklch(0.145 0 0 / 0.1);
-  --elevation-2:
-    0 2px 6px oklch(0.145 0 0 / 0.08), 0 16px 40px oklch(0.145 0 0 / 0.16);
-
-  /* ---------------------------------------------------------------- *
-   * Icons and focus.
-   * ---------------------------------------------------------------- */
-  --icon-size-sm: 16px; /* inline with metadata, chips */
-  --icon-size-md: 20px; /* controls, navigation, row actions */
-  --icon-stroke: 1.75;
-
-  --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
-  --focus-ring-color: var(--color-accent-600);
-
-  /* ---------------------------------------------------------------- *
-   * Motion. `notes.md` fixes these four durations in prose and neither
-   * token file carried one of them; the header records why they belong
-   * in this file. The rule they encode is the design's own: motion
-   * confirms a state change and never decorates idle content, so there
-   * is no spring, no bounce and nothing continuous.
-   *
-   * The 240ms collapse is a duration and nothing more. The five-second
-   * completion confirmation with Undo that it belongs to in the
-   * prototype is behaviour 9.4 and 9.5 never name, it does not ship in
-   * this package, and the undo Dana specifies is Done's "Mark as not
-   * done" of 9.5.
-   * ---------------------------------------------------------------- */
-  --motion-menu: 100ms; /* menus, selects, popovers */
-  --motion-dialog: 150ms; /* dialog overlays and dialogs */
-  --motion-shell: 200ms; /* sidebar, sheets, task row layout */
-  --motion-collapse: 240ms; /* a completed folder task leaving its list */
-  --motion-ease: cubic-bezier(0, 0, 0.2, 1);
-
-  /* ---------------------------------------------------------------- *
-   * PWA shell. DES-029, approved 2026-08-10 at #FFFFFF for both.
-   * `vite.config.ts` carries the manifest's own copy of these two,
-   * which a build reads and a stylesheet cannot; they are here so the
-   * pair has one place to be compared.
-   * ---------------------------------------------------------------- */
+  /* Installed light shell */
   --pwa-theme-color: #ffffff;
   --pwa-background-color: #ffffff;
-
-  /* ---------------------------------------------------------------- *
-   * State fades, from the board's own section 05, which draws both the
-   * completed row and the abandoned row at 0.55.
-   * ---------------------------------------------------------------- */
-  --opacity-abandoned: 0.55;
-  --opacity-completed: 0.55;
-
-  --width-menu: 12rem;
-  --width-dialog: 22rem;
-  --width-chip-max: 16rem;
 }
 
+/* Accessibility guardrails approved with the palette:
+ * - Small text inside a tint uses graphite-600 or the relevant semantic-700.
+ * - Warning is inline/badge treatment only, never an amber button with white text.
+ * - Status and folder colors always travel with a text or icon cue.
+ */
+
 /*
-Base rules, and deliberately few. Everything here is a consequence of a token
-above rather than a style of its own.
+Everything below is his `app.css`, in his order, less the two `min-width`
+declarations section 13 item 32 forbids.
 */
+
 @layer base {
-  html {
-    font-family: var(--font-sans);
-    color: var(--color-graphite-800);
-    background-color: var(--color-graphite-25);
-    /* The design's typeface ships every weight it asks for, so a browser
-       must never manufacture one; a synthesised 600 is not Inter's 600. */
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  body {
-    min-height: 100vh;
-    font-size: var(--text-body);
-    line-height: var(--text-body--line-height);
-    font-weight: var(--text-body--font-weight);
-  }
-
-  /* The design's own words: on every interactive element. */
-  :focus-visible {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  ::selection {
-    background-color: var(--color-accent-100);
-    color: var(--color-graphite-900);
-  }
-
-  /*
-  The icon stroke, set once for every Lucide glyph in the client.
-
-  `lucide-react` renders `stroke-width="2"` as a presentation attribute and
-  takes a `strokeWidth` prop to change it. Both are the wrong home: the design
-  fixes 1.75 and a prop would put that number in every `.tsx` that draws an
-  icon, which is the leak 11.4 exists to prevent. A CSS declaration outranks a
-  presentation attribute, so the value stays here and no call site spells it.
-  `lucide` is the package's own stable class, emitted on every icon beside
-  `lucide-<name>`.
-  */
-  .lucide {
-    stroke-width: var(--icon-stroke);
-  }
-
-  /*
-  The design's last motion rule, and the only one that is an obligation rather
-  than a number: nonessential transitions are suppressed when the person has
-  asked for reduced motion. Written once here rather than per component, so a
-  class added later cannot forget it.
-  */
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 1ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 1ms !important;
-      scroll-behavior: auto !important;
-    }
+  * {
+    @apply border-border outline-ring/50;
   }
 }
 
-/*
-The component utilities. They exist so a component file can say what a thing
-is rather than what it looks like, which is what keeps every value in this
-file: `task-title-abandoned` is a name a designer can restyle, where
-`opacity-55 text-slate-500` would be two values living in a `.tsx`.
-
-The order below is the order the P8D sessions arrive in: the row and its
-adornments first, which are role 08's own components; then the shell, the
-pages and the shared states; then the three surfaces of role 09. A class in a
-later group has no consumer yet and that is deliberate. Tailwind emits a
-custom utility only where a scanned file uses it, so an unused name below
-costs a reader's attention and not a byte of stylesheet.
-*/
-
-/* ================================================================== *
- * Buttons and controls
- * ================================================================== */
-
-/*
-The button, in its base shape and its tones. Defined here rather than
-assembled from utilities at each call site, so that "what a primary button
-looks like" is one line a designer can change and not a string repeated in six
-`.tsx` files.
-
-40px tall with 20px of side padding, from the board's section 04 and the
-Session 4 refinement the header explains. The border is `graphite-300` rather
-than the `graphite-200` P8 shipped: 200 is the divider step and 300 is what
-the board draws around a control, which is also the role his file maps as
-`--input`.
-
-The disabled treatment is the design's and belongs to the base rather than to
-a tone: graphite-100 fill, graphite-400 text, no border, whichever tone the
-control was. `graphite-400` is the one place that step is allowed, the scale
-naming it "disabled text and icons only".
-*/
-@utility button-base {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  height: var(--control-height);
-  padding: 0 var(--spacing-5);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
-  font-weight: var(--text-label--font-weight);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--motion-menu) var(--motion-ease),
-    color var(--motion-menu) var(--motion-ease),
-    border-color var(--motion-menu) var(--motion-ease);
-
-  &:disabled {
-    border-color: transparent;
-    background-color: var(--color-graphite-100);
-    color: var(--color-graphite-400);
-    cursor: default;
-  }
+* {
+  box-sizing: border-box;
 }
 
-@utility button-default {
-  border-color: var(--color-graphite-300);
-  background-color: var(--color-graphite-0);
-  color: var(--color-graphite-800);
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-graphite-50);
-    color: var(--color-graphite-700);
-  }
-  &:active:not(:disabled) {
-    background-color: var(--color-graphite-100);
-  }
+html {
+  background: var(--background);
+  font-family: var(--font-family-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
-@utility button-primary {
-  background-color: var(--color-accent-600);
-  color: var(--color-graphite-0);
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-accent-700);
-  }
-  &:active:not(:disabled) {
-    background-color: var(--color-accent-800);
-  }
-}
-
-/*
-Destructive, and deliberately not the overdue colour. The placeholder this
-file replaced gave the two one value; the design separates them, this being
-the filled control that carries white text at 5.5:1 and overdue being ink on
-a tint (see `chip-alert`).
-*/
-@utility button-danger {
-  background-color: var(--color-danger-600);
-  color: var(--color-graphite-0);
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-danger-700);
-  }
-}
-
-/* The board's third button: no fill, no border, graphite-700 ink. */
-@utility button-quiet {
-  background-color: transparent;
-  color: var(--color-graphite-700);
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-graphite-50);
-  }
-  &:active:not(:disabled) {
-    background-color: var(--color-graphite-100);
-  }
-}
-
-/*
-The fifth tone, and the only one for a control standing on a dark surface.
-Requested by P8D session 2, which found the toast's dismiss control inheriting
-white by accident: the toast is graphite-900 and the four tones above are every
-one of them inked for a light ground, so `button-quiet` there would have been
-graphite-700 on near-black.
-
-The ink is graphite-300 rising to graphite-0 on hover, over a wash of white
-rather than a step of the graphite scale, which is the designer's own treatment
-for this control in his `SystemToast`. A grey step cannot serve here: the scale
-runs light to dark by step number and every step light enough to read on
-graphite-900 is one of the steps the design reserves for surfaces.
-
-**The focus ring is overridden, and that is a contrast decision rather than a
-style.** The ring is `accent-600` everywhere else, which is 6.0:1 on white and
-about 1.6:1 on graphite-900, so a keyboard user on this surface would be shown
-a ring they cannot see. It goes to graphite-0 here for the same reason the ink
-does. Nothing else about focus moves: same width, same offset, same trigger.
-
-Composes with `button-base`. An icon-only control on a dark surface has no
-consumer yet and no name here; the session that needs one should ask rather
-than reach for this.
-*/
-@utility button-inverse {
-  background-color: transparent;
-  color: var(--color-graphite-300);
-
-  &:hover:not(:disabled) {
-    background-color: color-mix(
-      in srgb,
-      var(--color-graphite-0) 10%,
-      transparent
-    );
-    color: var(--color-graphite-0);
-  }
-
-  &:focus-visible {
-    outline-color: var(--color-graphite-0);
-  }
-}
-
-/*
-The icon-only controls of a row. Sized to the target floor rather than to the
-glyph, because a 16 pixel star is not a 44 pixel target; the design draws that
-as a dashed square around a 20 pixel control and it is the same rule. This is
-the one place `--size-target` is spent, and the header records why it did not
-move when the painted control height did.
-*/
-@utility icon-control {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-target);
-  height: var(--size-target);
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  color: var(--color-graphite-600);
-  cursor: pointer;
-  transition: background-color var(--motion-menu) var(--motion-ease),
-    color var(--motion-menu) var(--motion-ease);
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-graphite-50);
-    color: var(--color-graphite-700);
-  }
-
-  /* Every icon in this client is a Lucide glyph at the design's stroke; the
-     two sizes are the board's, and a control takes the larger. */
-  & svg {
-    width: var(--icon-size-md);
-    height: var(--icon-size-md);
-  }
-}
-
-/* An icon-only control whose state is "on": the important star, filled. */
-@utility icon-control-active {
-  color: var(--color-graphite-800);
-
-  & svg {
-    fill: currentcolor;
-  }
-}
-
-/*
-The completion checkbox: a native `input[type=checkbox]` with its platform
-appearance removed, never a div pretending. It keeps its role, its name, its
-space-bar activation and its indeterminate-free semantics for free, and the
-only thing this class replaces is the drawing.
-
-20px in a 4px radius, `graphite-400` at 1.5px unchecked, `accent-600` filled
-with a white tick when checked, which is OPEN-3's answer read off the board's
-accent row. The tick is the board's own path at its own 2.5 stroke, inlined as
-a data URI because a background image is the only way to put a glyph inside a
-replaced element.
-*/
-@utility checkbox {
-  appearance: none;
-  flex-shrink: 0;
-  width: var(--checkbox-size);
-  height: var(--checkbox-size);
+body {
+  min-height: 100vh;
   margin: 0;
-  border: 1.5px solid var(--color-graphite-400);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-graphite-0);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 14px 14px;
-  cursor: pointer;
-  transition: background-color var(--motion-menu) var(--motion-ease),
-    border-color var(--motion-menu) var(--motion-ease);
-
-  &:checked {
-    border-color: var(--color-accent-600);
-    background-color: var(--color-accent-600);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
-  }
-
-  &:disabled {
-    border-color: var(--color-graphite-200);
-    background-color: var(--color-graphite-50);
-    cursor: default;
-  }
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-family-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/*
-DES-044, and the one exception to the rule above: a completed task row's
-checkbox is a neutral monochrome fill rather than the accent. The design's
-reason is that a finished list should not be a column of blue; the accent is
-reserved for "you can act here", and a completed row is not asking.
-*/
-@utility checkbox-neutral {
-  &:checked {
-    border-color: var(--color-graphite-700);
-    background-color: var(--color-graphite-700);
-  }
+#root {
+  min-height: 100vh;
 }
 
-/* The 44px hit area the 20px control sits inside. */
-@utility checkbox-target {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-target);
-  height: var(--size-target);
-}
-
-/*
-The switch: 9.4's important-only filter and 9.7's page-visibility toggles, both
-of which are the same control on two pages. Drawn from the board's section 04,
-a 40 by 22 track, graphite-300 off and accent-600 on, with an 18px white thumb
-inside 2px of padding.
-
-**One treatment on the element the client actually uses, replacing the pair
-this file carried until now.** `switch-track` and `switch-thumb` were minted at
-P8D session 1 for a two-element control, a button carrying `aria-checked` with
-a thumb inside it, and the thumb selected on `[aria-checked='true'] > &`. Both
-consumers turned out to be a native `input[type=checkbox]` carrying
-`role="switch"`, whose checked state is implicit: the attribute those rules
-select on is never written, so the pair could not style either of them and
-never had a consumer at all. The 07 session found that on My Day and took
-`checkbox` as an interim; `pages/SettingsPage.tsx` has the identical element for
-every page toggle of 9.7. Restyling either into a button was not available,
-AC-167 driving that role and the element behind it being behaviour rather than
-appearance, so the treatment moves to the element instead. Retired rather than
-kept beside this one, because two vocabularies for one control is the drift
-this file's header argues against, and the unusable half of it is a trap a
-later session would reach for by name.
-
-**The thumb is painted rather than nested, and it has to be.** An `input` is a
-replaced element, so it has no children to be a thumb and its `::before` is not
-guaranteed to generate a box. A background image is painted on the element's
-own box and is reliable everywhere, which is the same reason the checkbox above
-draws its tick that way; the circle below is a data URI for the same reason its
-tick is. Sliding it is `background-position` between the two ends of the 2px
-inset, at the design's own duration for a small control.
-
-The 44px hit area the board draws around a small control is the label's here
-rather than this element's: both consumers wrap the input in a `label` carrying
-its words, so the target is the whole row of text and not a 40 by 22 box.
-*/
-@utility switch {
-  appearance: none;
-  flex-shrink: 0;
-  width: var(--switch-width);
-  height: var(--switch-height);
-  margin: 0;
-  border: none;
-  border-radius: var(--radius-full);
-  background-color: var(--color-graphite-300);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18'%3E%3Ccircle cx='9' cy='9' r='9' fill='%23ffffff'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-size: var(--switch-thumb) var(--switch-thumb);
-  background-position: 2px center;
-  cursor: pointer;
-  transition: background-color var(--motion-menu) var(--motion-ease),
-    background-position var(--motion-menu) var(--motion-ease);
-
-  &:checked {
-    background-color: var(--color-accent-600);
-    background-position: calc(100% - 2px) center;
-  }
-
-  &:disabled {
-    background-color: var(--color-graphite-200);
-    cursor: default;
-  }
-}
-
-/* ================================================================== *
- * Inputs
- * ================================================================== */
-
-/*
-The text input, from the board's section 04: a graphite-300 outline, 6px
-radius, graphite-800 ink on white, and the placeholder at the metadata step.
-Disabled is a graphite-50 fill inside a graphite-200 outline, which is how
-9.3's dependent fields read before their dependency is set.
-*/
-@utility input-base {
-  width: 100%;
-  height: var(--control-height);
-  padding: 0 var(--spacing-3);
-  border: 1px solid var(--color-graphite-300);
-  border-radius: var(--radius-md);
-  background-color: var(--color-graphite-0);
-  color: var(--color-graphite-800);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-
-  &::placeholder {
-    color: var(--color-graphite-500);
-  }
-
-  &:disabled {
-    border-color: var(--color-graphite-200);
-    background-color: var(--color-graphite-50);
-    color: var(--color-graphite-400);
-    cursor: default;
-  }
-}
-
-/* A field 9.3 has refused. The message beside it is the cue that does not
-   depend on the colour being seen. */
-@utility input-invalid {
-  border-color: var(--color-danger-600);
-}
-
-@utility textarea-base {
-  width: 100%;
-  min-height: calc(var(--control-height) * 2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-graphite-300);
-  border-radius: var(--radius-md);
-  background-color: var(--color-graphite-0);
-  color: var(--color-graphite-800);
+button,
+input,
+textarea,
+select {
   font-family: inherit;
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  resize: vertical;
-
-  &::placeholder {
-    color: var(--color-graphite-500);
-  }
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
 }
 
-/* 9.3's helper text under a field, and its refusal. */
-@utility field-hint {
-  color: var(--color-graphite-600);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-}
-
-@utility field-error {
-  color: var(--color-danger-700);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-  font-weight: 500;
-}
-
-/*
-The inline quick-add row of 9.1. An input by shape, so it takes the input's
-own outline and height rather than a second definition of one.
-*/
-@utility quick-add {
-  width: 100%;
-  height: var(--control-height);
-  padding: 0 var(--spacing-3);
-  border: 1px solid var(--color-graphite-300);
-  border-radius: var(--radius-md);
-  background-color: var(--color-graphite-0);
-  color: var(--color-graphite-800);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-
-  &::placeholder {
-    color: var(--color-graphite-500);
-  }
-
-  &:disabled {
-    background-color: var(--color-graphite-50);
-    color: var(--color-graphite-400);
-  }
-}
-
-/* ================================================================== *
- * Chips, badges and avatars
- * ================================================================== */
-
-/*
-Chips and badges. 12/16 at weight 500, which is the design's rule for every
-one of them, in the three shapes its section 04 draws: a filled neutral, a
-filled semantic family, and an outlined pill.
-
-OPEN-1 is why the ink is graphite-600 and not graphite-500: the metadata step
-passes 4.5:1 on white and on the two lightest greys but not inside a filled
-chip, and the design proposes as a hard rule that metadata inside a tinted
-fill takes graphite-600 or the family's own 700 ink. Transcribed as proposed
-and awaiting sign-off.
-*/
-@utility chip {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--spacing-1);
-  max-width: var(--width-chip-max);
-  min-height: var(--spacing-5);
-  padding: 2px var(--spacing-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  background-color: var(--color-graphite-100);
-  color: var(--color-graphite-600);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-  }
-}
-
-/*
-The overdue treatment: the danger family as a tint carrying its own 700 ink,
-which is how the board draws it in both section 04 and section 05. The weight
-is the design's second cue and the label beside it is the third, so nothing
-here depends on the colour being seen.
-*/
-@utility chip-alert {
-  background-color: var(--color-danger-100);
-  color: var(--color-danger-700);
-  font-weight: 600;
-}
-
-@utility chip-success {
-  background-color: var(--color-success-100);
-  color: var(--color-success-700);
-}
-
-/* 9.8's invite-pending chip, which the board draws in the info family. */
-@utility chip-info {
-  background-color: var(--color-info-100);
-  color: var(--color-info-700);
-}
-
-/* The outlined pill: no fill, a graphite-300 edge. Q3's "unassigned" chip and
-   the assignee chip are both drawn this way. */
-@utility chip-outline {
-  border-color: var(--color-graphite-300);
-  background-color: transparent;
-  padding-left: 2px;
-}
-
-/* A member's initials. Graphite fills keep identity quiet, and folder colour
-   is never reused for a person. */
-@utility avatar {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-avatar);
-  height: var(--size-avatar);
-  border-radius: var(--radius-full);
-  background-color: var(--color-graphite-100);
-  color: var(--color-graphite-700);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-  font-weight: 600;
-}
-
-/* The same, inside a chip, where the design shrinks it. */
-@utility avatar-chip {
-  width: var(--size-avatar-chip);
-  height: var(--size-avatar-chip);
-  font-size: 10px;
-  line-height: 14px;
-}
-
-/* A folder's colour dot: identification only, never alone. The fill is the
-   member's own `my_color` from the wire, so no colour is written here. */
-@utility folder-dot {
-  display: inline-block;
-  flex-shrink: 0;
-  width: var(--spacing-2);
-  height: var(--spacing-2);
-  border-radius: var(--radius-full);
-}
-
-/* ================================================================== *
- * Menus and dialogs
- * ================================================================== */
-
-/*
-The overflow menu's popup and the confirmation's panel: the two floating
-layers, at the two elevations the design reserves shadows for. The board's
-menu sits inside a graphite-100 hairline rather than the graphite-200 used for
-page dividers, so a menu edge does not compete with its own shadow.
-
-The focus ring goes inset inside a menu, which is the design's own note on its
-menu example. An outset ring on a full-width item is clipped by the panel it
-sits in, so the person sees three sides of it.
-*/
-@utility menu-panel {
-  position: absolute;
-  z-index: 40;
-  min-width: var(--width-menu);
-  padding: var(--spacing-1);
-  background-color: var(--color-graphite-0);
-  border: 1px solid var(--color-graphite-100);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elevation-1);
-}
-
-/*
-The modifier a floating layer takes when it opens inside something that
-scrolls, and the fix for the two red browser cases P8D session 2 left.
-
-**The problem, measured rather than reasoned.** The fixed shell that session
-built makes `main.shell-scroll` a clipping container: `overflow-y: auto` forces
-`overflow-x` to `auto`, and an overflow ancestor clips its absolutely
-positioned descendants. The folder header's "More actions" trigger sits about
-40 pixels inside the content column, and `menu-panel` above opens leftward from
-it, so the panel spanned roughly x=148 to x=340 against a sidebar ending at
-x=256. The left two thirds of it were never painted, and
-`document.elementFromPoint` at a menu item's centre returned the sidebar row
-underneath. A person could still click the sliced right-hand strip; a test
-clicking the centre could not, which is what AC-162 hit twice.
-
-**Why a modifier rather than making every menu fixed.** The Frontend
-Architect's session recommended fixing `menu-panel` itself, on the ground that
-every other floating layer in this file is `position: fixed`. The
-recommendation is right about the direction and would have broken something it
-could not see: `menu-panel` has two consumers, and the other is the avatar menu
-in `shell/TopBar.tsx`, which sits above the scroll region, is clipped by
-nothing, and positions itself with `top-full right-0`. Those two utilities
-resolve against the trigger while the panel is absolute and against the
-viewport once it is fixed, so making the base class fixed would have sent that
-menu below the fold, silently, on a surface no browser case addresses. The
-modifier fixes every clipped layer and leaves every unclipped one alone.
-
-`position: fixed` escapes an overflow ancestor because a fixed element's
-containing block is the viewport rather than any box inside it, so clipping
-that applies to the containing-block chain no longer reaches it. The price is
-that a fixed layer cannot be placed by CSS alone: nothing in a stylesheet knows
-where the trigger is. The consumer measures it and sets `top` and `right`,
-which are runtime coordinates read off the layout and not values the design
-fixes, so they belong at the call site and not in this file (11.4). See
-`components/ui/OverflowMenu.tsx` for the placement, including the reposition on
-scroll and the flip upward when there is no room below.
-
-Composes with `menu-panel` and with `popover-panel`, which is the other layer
-in this file that is absolute and therefore clippable. Role 09's three surfaces
-have not landed yet; a popover of theirs that opens inside a scrolling region
-takes this modifier and places itself the same way.
-*/
-@utility panel-floating {
-  position: fixed;
-}
-
-@utility menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  width: 100%;
-  height: var(--control-height);
-  padding: 0 var(--spacing-3);
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  color: var(--color-graphite-800);
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
-  font-weight: var(--text-label--font-weight);
-  text-align: start;
-  white-space: nowrap;
+button:not(:disabled),
+[role="button"]:not(:disabled) {
   cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-graphite-50);
-  }
-  &:focus-visible {
-    outline-offset: calc(-1 * var(--focus-ring-offset));
-  }
-
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-  }
 }
 
-/* The destructive entry, which the board tints on hover rather than filling. */
-@utility menu-item-danger {
-  color: var(--color-danger-600);
-
-  &:hover {
-    background-color: var(--color-danger-100);
-  }
+::selection {
+  background: var(--color-dana-accent-100);
+  color: var(--color-graphite-900);
 }
 
-/*
-The hairline between grouped items, wherever they are grouped.
-
-**Ruled at P8D's return session, on the reuse session 2 disclosed.** It applied
-this to 9.1's sidebar divider, which is a menu's name on a sidebar rule, and
-asked for the reuse to be ratified or a name minted. Ratified, and the name
-does not move. The design draws one hairline for this job and gives it one
-value, so a second name would be two things that can drift apart, which is the
-argument this file's own header makes about the spacing scale. The name is
-where it was first drawn rather than where it is only used, and today the
-sidebar is in fact its only consumer; the task form's overflow menu will be the
-other, which puts the name back on its own ground.
-*/
-@utility menu-separator {
-  height: 1px;
-  margin: var(--spacing-1);
-  background-color: var(--color-graphite-100);
+/* The desktop TaskForm is deliberately wider than the shadcn Sheet default so
+ * its compact field rows do not collapse into a mobile-density layout. */
+[data-slot="sheet-content"].task-form-sheet {
+  width: var(--task-form-width, 540px) !important;
+  max-width: var(--task-form-width, 540px) !important;
 }
 
-@utility dialog-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
+/* Semantic sidebar type tiers intentionally override shadcn's generic
+ * text-xs/text-sm menu defaults. Hierarchy comes from role, weight and color
+ * without introducing unrelated font sizes between sibling rows. */
+[data-sidebar-tier="section"] {
+  font-size: var(--shell-sidebar-section-font-size);
+  font-weight: 600;
+}
+
+[data-sidebar-tier="primary"],
+[data-sidebar-tier="group"],
+[data-sidebar-tier="action"] {
+  font-size: var(--shell-sidebar-row-font-size);
+  font-weight: 600;
+}
+
+[data-sidebar-tier="folder"] {
+  font-size: var(--shell-sidebar-row-font-size);
+  font-weight: 500;
+}
+
+[data-sidebar-tier="folder"][data-active] {
+  font-weight: 600;
+}
+
+/* Rows touch structurally; their 1px top and bottom inset creates the exact
+ * 2px visual separation between neighboring hover/selected surfaces. */
+[data-sidebar="menu"] {
+  gap: 0;
+}
+
+/* The collapsed rail has a fractional inner width after its divider is
+ * resolved. Center the complete 32px cell in that available column so every
+ * glyph shares the Dana Mark's optical axis. */
+[data-collapsible="icon"][data-state="collapsed"]
+  [data-sidebar="menu-button"] {
   justify-content: center;
-  padding: var(--spacing-6);
-  background-color: color-mix(in srgb, var(--color-graphite-900) 40%, transparent);
-}
-
-@utility dialog-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  width: var(--width-dialog);
-  max-width: 100%;
-  padding: var(--spacing-6);
-  background-color: var(--color-graphite-0);
-  border: 1px solid var(--color-graphite-200);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--elevation-2);
-}
-
-@utility dialog-title {
-  color: var(--color-graphite-900);
-  font-size: var(--text-heading);
-  line-height: var(--text-heading--line-height);
-  font-weight: var(--text-heading--font-weight);
-}
-
-@utility dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-2);
-}
-
-/* The right-side sheet the task form is presented in (9.3). The presentation
-   ports; the prototype's horizontal resize handle on it does not, being a
-   control 9.3 never names. */
-@utility sheet-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background-color: color-mix(in srgb, var(--color-graphite-900) 40%, transparent);
-}
-
-@utility sheet-panel {
-  position: fixed;
-  inset-block: 0;
-  inset-inline-end: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  width: var(--task-form-width);
-  max-width: 100%;
-  background-color: var(--color-graphite-0);
-  border-inline-start: 1px solid var(--color-graphite-200);
-  box-shadow: var(--elevation-2);
-}
-
-@utility popover-panel {
-  z-index: 40;
-  padding: var(--spacing-1);
-  background-color: var(--color-graphite-0);
-  border: 1px solid var(--color-graphite-100);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elevation-1);
-}
-
-/* ================================================================== *
- * The task row
- * ================================================================== */
-
-/*
-The row itself, and the largest visual change this session makes to a
-component. The design's row is a card-coloured band with a rounded full-row
-hover surface, not a list separated by rules: `notes.md` puts it plainly, the
-row "uses a full-row Graphite 100 hover/focus surface", and the divider P8
-drew under every row is gone with it.
-
-The height is the design's deliberate 44px exception to the 40px control
-rhythm, and its compactness rule lives here rather than anywhere else: rows use
-8 to 12 pixels internally, so a dense list never costs a reachable control.
-*/
-@utility task-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-height: var(--task-row-height);
-  padding-inline: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-md);
-  background-color: var(--color-graphite-0);
-  transition: background-color var(--motion-shell) var(--motion-ease);
-
-  &:hover,
-  &:focus-within {
-    background-color: var(--color-graphite-100);
-  }
-}
-
-/*
-The trailing metadata group of a finished row, quieted a step. The design
-fades the whole row; this client fades the title element instead, for the
-reason `task-title-abandoned` records, so the rest of the row is quieted by
-colour to reach the same picture without compounding two opacities.
-*/
-@utility task-row-completed {
-  & :where(.meta, .chip) {
-    color: var(--color-graphite-400);
-  }
-}
-
-@utility task-row-abandoned {
-  & :where(.meta, .chip) {
-    color: var(--color-graphite-500);
-  }
-}
-
-/*
-The title, and the design's central claim about scanning: it is the only
-14/400 element on the row, and everything else is 12 pixel metadata or sits
-inside a quiet chip, so the eye ladders titles without reading anything else.
-
-It truncates rather than wrapping, which is what keeps every row exactly one
-line tall. The DOM text is untouched by that, so a criterion addressing a row
-by its title still finds the whole string.
-*/
-@utility task-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-graphite-800);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  font-weight: var(--text-body--font-weight);
-}
-
-/* Weight rather than size or colour carries urgency, which is what lets an
-   overdue row read in peripheral vision without adding height or noise. */
-@utility task-title-overdue {
-  font-weight: var(--text-body-medium--font-weight);
-}
-
-/*
-9.5's abandoned row: "faded and struck". The strike is the `s` element, which
-computes a line-through with no stylesheet at all, so what is owed here is the
-fade, and it is applied to the element carrying the row's title rather than to
-the row.
-
-That is not a detail. `opacity` does not inherit, so a fade set on the row
-leaves every descendant computing 1, and a reader (or an acceptance test)
-comparing an abandoned row's title against a pending row's title beside it
-would find the two identical while the page looked correct. Colour is set with
-it for the same reason from the other side: colour does inherit, so the pair
-holds whichever property is read.
-*/
-@utility task-title-abandoned {
-  opacity: var(--opacity-abandoned);
-  color: var(--color-graphite-600);
-}
-
-/* Completed rows are faded and checked (section 6's state table, and the
-   design's section 05). No strike and no status chip: those are abandoned's
-   cues, and `notes.md` is explicit that a completed row takes neither. */
-@utility task-title-completed {
-  opacity: var(--opacity-completed);
-  color: var(--color-graphite-600);
-}
-
-/*
-Quiet 12 pixel metadata, wherever it stands beside something louder: a row's
-folder name, step counts and repeat marker, a search result's folder and date,
-a page's date line, a sharing row's join date, and a sidebar folder's pending
-count.
-
-graphite-600 rather than the scale's metadata step, because the row gains a
-graphite-100 hover surface and graphite-500 measures 4.2:1 against it, which is
-the case OPEN-1 exists to forbid.
-
-**The sidebar count is ruled at P8D's return session, on the reuse session 2
-disclosed.** Ratified: this name was already the client's general word for
-quiet metadata and had eight consumers across rows, pages, search and the
-sharing panel before that count joined them, so the reuse is the name working
-rather than being stretched. 9.1 calls Inbox's count a badge, which is not read
-here as the chip this file also carries: the designer's sidebar draws a plain
-number, 11.13 makes his prototype authoritative for appearance, and a chip
-would be a heavier thing than the design puts down a quiet column.
-
-**Section 6's truncation notice is ruled at the second return, on the reuse
-session 2a disclosed, and it is ratified for a reason worth stating because it
-is the weaker of the two.** No artifact settles this one: section 6 requires
-the notice and writes no words for it, unlike the eight empty states it writes
-sentence by sentence, and the designer draws no such element anywhere, so there
-is nothing to transcribe and a minted tone would be this file inventing design
-rather than carrying it. The notice is also a fact about the list rather than a
-warning about it, which is the register this name already holds. What ratifying
-costs is that a sentence telling a person their list is incomplete is drawn at
-12 pixels in a quiet grey, which is easy to miss; that is the trade, and the
-revisit trigger is the human visual review section 13 item 33 makes a merge
-precondition. If it reads too quietly there, the notice is one line here and no
-page changes, which is the whole point of it having a name at all.
-*/
-@utility meta {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--spacing-1);
-  color: var(--color-graphite-600);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-  }
-}
-
-/* ================================================================== *
- * The shell (9.1)
- * ================================================================== */
-
-/*
-The desktop shell: a sidebar of fixed width beside a content column that owns
-the vertical scroll. The page shell is pinned to the viewport, so the top bar,
-the sidebar, the banners and the floating action stay where they are while
-only the page moves.
-*/
-@utility app-shell {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background-color: var(--color-graphite-25);
-}
-
-@utility shell-sidebar {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  width: var(--shell-sidebar-width);
-  height: 100%;
-  overflow-y: auto;
-  padding: var(--spacing-2);
-  border-inline-end: 1px solid var(--color-graphite-200);
-  background-color: var(--color-graphite-25);
-}
-
-/* The "Folders" label: 11px semibold, and the only uppercase type in the
-   client. */
-@utility shell-sidebar-section {
-  display: flex;
-  align-items: center;
-  height: var(--shell-sidebar-row-height);
-  padding-inline: var(--spacing-2);
-  color: var(--color-graphite-500);
-  font-size: var(--shell-sidebar-section-size);
-  line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/*
-A navigation, group or folder row. 32px tall carrying a 30px surface, which is
-what leaves exactly 2px of visible separation between two adjacent hover fills
-with no structural gap between the rows themselves.
-*/
-@utility shell-sidebar-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  height: var(--shell-sidebar-row-height);
-  padding-block: 1px;
-  padding-inline: var(--spacing-2);
-  border-radius: var(--radius-md);
-  background-clip: content-box;
-  background-color: transparent;
-  color: var(--color-graphite-700);
-  font-size: var(--shell-sidebar-row-size);
-  line-height: 20px;
-  font-weight: 500;
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--motion-menu) var(--motion-ease);
-
-  &:hover {
-    background-color: var(--color-graphite-100);
-  }
-
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-    color: var(--color-graphite-500);
-  }
-}
-
-/* The current page. Weight and fill together, so the state is not colour
-   alone. A folder glyph reaches graphite-900 only here: expanding a group is
-   not selecting it. */
-@utility shell-sidebar-row-active {
-  background-color: var(--color-graphite-100);
-  color: var(--color-graphite-900);
-  font-weight: 600;
-
-  & svg {
-    color: var(--color-graphite-900);
-  }
-}
-
-@utility shell-main {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 100%;
-}
-
-/*
-9.1's top bar: the app name linking to My Day, the global search control and
-the avatar menu. The designer's prototype has no top bar at all and puts those
-three controls in the sidebar; that is a relocation of named controls rather
-than a skin of them, so section 9 wins (11.13) and the bar keeps all three.
-What ports is the surface: graphite-0, the one place the scale names besides
-cards, over a graphite-200 hairline.
-*/
-@utility shell-topbar {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--spacing-3);
-  height: var(--shell-topbar-height);
-  padding-inline: var(--spacing-4);
-  border-block-end: 1px solid var(--color-graphite-200);
-  background-color: var(--color-graphite-0);
-}
-
-/* The app name, rendered beside the locked Dana Mark. The mark is not
-   redrawn, outlined, ringed, shadowed or put in a decorative container. */
-@utility shell-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  color: var(--color-graphite-900);
-  font-size: var(--text-heading);
-  line-height: var(--text-heading--line-height);
-  font-weight: var(--text-heading--font-weight);
-  text-decoration: none;
-}
-
-/* The 24px strip under the top bar: a static current-page indicator, and
-   deliberately not a tab system. */
-@utility shell-pagebar {
-  display: flex;
-  flex-shrink: 0;
-  align-items: stretch;
-  height: var(--shell-pagebar-height);
-  border-block-end: 1px solid var(--color-graphite-200);
-  background-color: var(--color-graphite-25);
-}
-
-@utility shell-pagebar-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 12rem;
-  max-width: 16rem;
-  padding-inline: var(--spacing-3);
-  border-inline: 1px solid var(--color-graphite-200);
-  background-color: var(--color-graphite-0);
-  color: var(--color-graphite-800);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-  font-weight: 500;
-}
-
-/* The one region that scrolls. */
-@utility shell-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-/* The measure every page is laid out in. */
-@utility shell-content {
-  width: 100%;
-  max-width: var(--shell-content-max);
   margin-inline: auto;
-  padding: var(--spacing-6) var(--spacing-10);
 }
 
-/* 9.1's floating New task action, drawn in graphite rather than the accent so
-   it does not compete with the primary action inside whatever it opens. */
-@utility shell-fab {
-  position: absolute;
-  inset-block-end: var(--spacing-6);
-  inset-inline-end: var(--spacing-6);
-  z-index: 30;
-  background-color: var(--color-graphite-900);
-  color: var(--color-graphite-0);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elevation-1);
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-graphite-800);
-  }
-}
-
-/* ================================================================== *
- * Banners, toasts and page states
- * ================================================================== */
-
-/* 9.1's offline and update banners: a tinted strip across the content
-   column, with an icon that is never the only cue. */
-@utility banner {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-height: var(--control-height);
-  padding: var(--spacing-2) var(--spacing-4);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-  }
-}
-
-@utility banner-offline {
-  background-color: var(--color-warning-100);
-  color: var(--color-warning-700);
-}
-
-@utility banner-update {
-  background-color: var(--color-info-100);
-  color: var(--color-info-700);
-}
-
-/*
-9.1's toast. Graphite-900 rather than a semantic family, because one surface
-carries every message the client raises and the words are what distinguish
-them; a red toast for a failed write and a grey one for a rate limit would be
-two components to keep in step.
-*/
-/*
-The toast card, and it places itself, which is the designer's own shape: his
-`SystemToast` is one fixed card whose caller passes the offsets, because his
-prototype shows one message at a time and has no notion of a second.
-
-**It clears the floating action, which it did not before.** Both sat at
-`--spacing-6` from the bottom right, so a toast painted over the button on
-every page that has one, `toast` being at z-index 50 and `shell-fab` at 30. The
-offset below is derived rather than copied: the button is `--control-height`
-tall at `--spacing-6` from the edge, and one `--spacing-3` of air above it
-gives 76px, which is the number the designer's own shell hard-codes when its
-add button is showing. Done has no floating action (AC-096) and a toast there
-simply sits the same 76px up, which is the cost of not asking the markup
-whether the button is present.
-*/
-@utility toast {
-  position: fixed;
-  z-index: 50;
-  inset-block-end: calc(
-    var(--control-height) + var(--spacing-6) + var(--spacing-3)
-  );
-  inset-inline-end: var(--spacing-6);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  min-height: var(--control-height);
-  max-width: 22.5rem;
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-graphite-900);
-  color: var(--color-graphite-0);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  box-shadow: var(--elevation-2);
-}
-
-/*
-The region the cards stack in, requested by P8D session 2 and minted here.
-
-**Why it exists at all, when the design has no such thing.** The designer draws
-one toast because his prototype raises one. This client's `state/toasts.ts`
-appends, so several can stand at once, and several self-placing cards would
-land on exactly the same corner. So the region is ours rather than his, and it
-does the one thing his card cannot do for itself: put a second message
-somewhere a first is not.
-
-`column-reverse` so the newest message is nearest the corner and the older ones
-ride up, which is the direction a stack of transient messages reads in; the
-list is rendered oldest-first and this leaves that order alone.
-
-A card inside the region is placed by the region, so its own fixed position is
-switched off here rather than removed from `toast`. That is not a workaround
-kept for its own sake: the card is fixed in the design, and a caller that has
-exactly one message may still use it alone.
-*/
-@utility toast-region {
-  position: fixed;
-  z-index: 50;
-  inset-block-end: calc(
-    var(--control-height) + var(--spacing-6) + var(--spacing-3)
-  );
-  inset-inline-end: var(--spacing-6);
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: flex-end;
-  gap: var(--spacing-2);
-
-  & > .toast {
-    position: static;
-    inset: auto;
-  }
-}
-
-@utility page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-  margin-block-end: var(--spacing-4);
-}
-
-@utility page-title {
-  color: var(--color-graphite-900);
-  font-size: var(--text-title);
-  line-height: var(--text-title--line-height);
-  font-weight: var(--text-title--font-weight);
-}
-
-/*
-A section's heading, and any glyph a collapsible one carries beside it.
-
-The `svg` rule is the decision session 2a had to make at its call site and
-should not have had to: neither heading class sized an icon, so a disclosure
-chevron rendered at Lucide's own 24px and that session reached for `size-4` to
-bring it down. It landed on the right number by the right route, the design's
-own spacing scale, and `empty-state-media` sizes its icon exactly that way, so
-the idiom was sound and only the location was wrong. It is the metadata size
-here, which is what an icon standing beside text takes everywhere else in this
-file, and the call site can now drop its own.
-*/
-@utility section-heading {
-  color: var(--color-graphite-900);
-  font-size: var(--text-heading);
-  line-height: var(--text-heading--line-height);
-  font-weight: var(--text-heading--font-weight);
-
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-  }
-}
-
-/* Done's day groups and Planned's date headers. */
-@utility day-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding-block: var(--spacing-2);
-  color: var(--color-graphite-600);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
+[data-task-form-title] {
+  font-size: 20px;
   font-weight: 600;
-
-  /* The same rule as `section-heading` above, and for the same reason: a day
-     group can be collapsible too, and its chevron is not the call site's to
-     size. */
-  & svg {
-    flex-shrink: 0;
-    width: var(--icon-size-sm);
-    height: var(--icon-size-sm);
-  }
+  line-height: 28px;
 }
 
-/* The card a list of rows sits in. Elevation-0: a border, because in-page
-   structure never floats. */
-@utility list-card {
-  padding: var(--spacing-1);
-  border: 1px solid var(--color-graphite-200);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-graphite-0);
-}
-
-/*
-The loading state. Skeletons keep the row's geometry so the page does not jump
-when the data lands, which is the whole reason a skeleton beats a spinner
-here: 9.1's list pages are rows of one height.
-*/
-@utility skeleton {
-  border-radius: var(--radius-sm);
-  background-color: var(--color-graphite-100);
-}
-
-@utility skeleton-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-height: var(--task-row-height);
-  padding-inline: var(--spacing-1) var(--spacing-2);
-}
-
-/*
-The empty state. One restrained contextual icon at the disabled step, then the
-copy section 9 writes for that page, which is never paraphrased. The empty
-calendar is this rule's own exception and stays a bare grid.
-*/
-@utility empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-10) var(--spacing-6);
-  text-align: center;
-}
-
-@utility empty-state-media {
-  color: var(--color-graphite-400);
-
-  & svg {
-    width: var(--spacing-8);
-    height: var(--spacing-8);
-  }
-}
-
-@utility empty-state-text {
-  max-width: 52ch;
-  color: var(--color-graphite-600);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-}
-
-/* The error state, with its retry beside it. */
-@utility inline-error {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4);
-  border: 1px solid var(--color-danger-200);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-danger-100);
-  color: var(--color-danger-700);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-}
-
-@utility link {
-  color: var(--color-accent-600);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-
-  &:hover {
-    color: var(--color-accent-700);
-  }
-}
-
-/* ================================================================== *
- * The task form, the calendar and the search overlay (role 09)
- * ================================================================== */
-
-/* 9.3's editable title, the one type role above body inside the form. */
-@utility form-title {
-  width: 100%;
-  color: var(--color-graphite-900);
-  font-size: var(--task-form-title-size);
-  line-height: var(--task-form-title-line);
-  font-weight: 600;
-}
-
-/* A property row: label on the left, value on the right, 36px tall, which is
-   the form's own rhythm and deliberately tighter than a page control. */
-@utility form-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-height: var(--task-form-row-height);
-  padding-inline: var(--spacing-2);
-  border-radius: var(--radius-md);
-}
-
-@utility form-label {
-  flex-shrink: 0;
-  width: 6.5rem;
-  color: var(--color-graphite-600);
-  font-size: var(--shell-sidebar-row-size);
+[data-task-form-tier="disclosure"] {
+  font-size: 13px;
+  font-weight: 500;
   line-height: 20px;
-  font-weight: 500;
-}
-
-@utility form-value {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--color-graphite-800);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-}
-
-/* A select or date control inside the form: quiet until touched, so a form of
-   ten properties is not a wall of ten outlines. */
-@utility select-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  width: 100%;
-  height: var(--task-form-row-height);
-  padding-inline: var(--spacing-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  color: var(--color-graphite-800);
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  text-align: start;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background-color: var(--color-graphite-50);
-  }
-
-  &:disabled {
-    color: var(--color-graphite-400);
-    cursor: default;
-  }
-}
-
-/*
-9.9's search overlay: a floating panel near the top of the viewport rather
-than a centred dialog, because the person is typing and the results grow
-downward under the field.
-*/
-@utility search-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  justify-content: center;
-  padding-block-start: var(--search-panel-top);
-  background-color: color-mix(in srgb, var(--color-graphite-900) 40%, transparent);
-}
-
-@utility search-panel {
-  display: flex;
-  flex-direction: column;
-  width: min(var(--search-panel-width), calc(100vw - var(--spacing-8)));
-  max-height: 70vh;
-  overflow: hidden;
-  border-radius: var(--radius-xl);
-  background-color: var(--color-graphite-0);
-  box-shadow: var(--elevation-2);
-}
-
-@utility search-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: var(--control-height);
-  border: none;
-  background-color: transparent;
-  color: var(--color-graphite-800);
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 500;
-
-  &::placeholder {
-    color: var(--color-graphite-400);
-  }
-
-  &:focus-visible {
-    outline: none;
-  }
-}
-
-@utility search-group-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  height: 28px;
-  padding-inline: var(--spacing-2);
-  color: var(--color-graphite-500);
-  font-size: 10px;
-  line-height: 14px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-@utility search-result {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  min-height: var(--control-height);
-  padding-inline: var(--spacing-2);
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  text-align: start;
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-graphite-50);
-  }
-}
-
-/* The keyboard cursor, which is not focus: 9.9 moves a highlight with the
-   arrow keys while the input keeps focus. */
-@utility search-result-active {
-  background-color: var(--color-accent-50);
-  box-shadow: inset 0 0 0 1px var(--color-accent-200);
-}
-
-@utility search-footer {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  min-height: var(--control-height);
-  padding-inline: var(--spacing-4);
-  border-block-start: 1px solid var(--color-graphite-200);
-  background-color: var(--color-graphite-25);
-  color: var(--color-graphite-500);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-}
-
-@utility kbd {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px var(--spacing-2);
-  border: 1px solid var(--color-graphite-200);
-  border-radius: var(--radius-md);
-  background-color: var(--color-graphite-50);
-  color: var(--color-graphite-500);
-  font-family: inherit;
-  font-size: 10px;
-  line-height: 14px;
-  font-weight: 500;
-}
-
-/*
-The calendar. FullCalendar draws the grid and this is the skin over it: an
-event is a chip-shaped band, and a ghost is the one that must never be
-mistaken for a real row, so it is outlined rather than filled and carries no
-control at all.
-*/
-@utility calendar-surface {
-  border: 1px solid var(--color-graphite-200);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-graphite-0);
-}
-
-@utility calendar-event {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: 2px var(--spacing-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background-color: var(--color-graphite-100);
-  color: var(--color-graphite-800);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
-}
-
-@utility calendar-event-overdue {
-  background-color: var(--color-danger-100);
-  color: var(--color-danger-700);
-  font-weight: 600;
-}
-
-@utility calendar-event-completed {
-  opacity: var(--opacity-completed);
-  color: var(--color-graphite-600);
-}
-
-/* 9.5's virtual instance: an outline with no fill and a dashed edge, which is
-   a cue that survives a reader who cannot see the colour. */
-@utility calendar-event-ghost {
-  border-style: dashed;
-  border-color: var(--color-graphite-300);
-  background-color: transparent;
-  color: var(--color-graphite-500);
-  font-style: italic;
 }
