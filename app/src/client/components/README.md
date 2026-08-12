@@ -126,17 +126,17 @@ class has variants, the base class is always applied with them
 
 | Group | Classes | Who applies them |
 | - | - | - |
-| Buttons | `button-base` with `button-default`, `button-primary`, `button-danger`, `button-quiet` | anyone |
+| Buttons | `button-base` with `button-default`, `button-primary`, `button-danger`, `button-quiet`, and `button-inverse` for a control on a dark surface | anyone |
 | Icon controls | `icon-control`, `icon-control-active` | anyone |
 | Checkbox | `checkbox-target` wrapping `checkbox`, plus `checkbox-neutral` for DES-044's completed row | 08, 09 |
-| Switch | `switch-track` containing `switch-thumb` | 07 (9.4's important-only filter) |
+| Switch | `switch`, on the native `input[type=checkbox]` itself | 07 (9.4's important-only filter, 9.7's page toggles) |
 | Inputs | `input-base`, `input-invalid`, `textarea-base`, `field-hint`, `field-error`, `quick-add` | 07, 09 |
 | Chips | `chip` with `chip-alert`, `chip-success`, `chip-info`, `chip-outline`; `avatar`, `avatar-chip`, `folder-dot` | anyone |
-| Menus | `menu-panel`, `menu-item`, `menu-item-danger`, `menu-separator`, `popover-panel` | 08, 09 |
+| Menus | `menu-panel`, `menu-item`, `menu-item-danger`, `menu-separator`, `popover-panel`; `panel-floating` on either panel that opens inside something that scrolls | 08, 09 |
 | Dialogs | `dialog-scrim`, `dialog-panel`, `dialog-title`, `dialog-actions`; `sheet-scrim`, `sheet-panel` | 08, 09 |
 | The row | `task-row` with `task-row-completed`, `task-row-abandoned`; `task-title` with `task-title-overdue`, `task-title-completed`, `task-title-abandoned`; `meta` | 08 |
 | The shell | `app-shell`, `shell-sidebar`, `shell-sidebar-section`, `shell-sidebar-row`, `shell-sidebar-row-active`, `shell-main`, `shell-topbar`, `shell-brand`, `shell-pagebar`, `shell-pagebar-tab`, `shell-scroll`, `shell-content`, `shell-fab` | 07 |
-| Feedback | `banner` with `banner-offline`, `banner-update`; `toast` | 07 |
+| Feedback | `banner` with `banner-offline`, `banner-update`; `toast-region` containing one `toast` per message | 07 |
 | Page furniture | `page-header`, `page-title`, `section-heading`, `day-heading`, `list-card`, `link` | 07 |
 | Shared states | `skeleton`, `skeleton-row`, `empty-state`, `empty-state-media`, `empty-state-text`, `inline-error` | 07 |
 | The task form | `form-title`, `form-row`, `form-label`, `form-value`, `select-trigger` | 09 |
@@ -159,6 +159,17 @@ close whatever they found missing, and asks the four sessions before it to
 batch their requests to the Steward rather than raise them one at a time. Write
 the request down; do not invent a class in a `.tsx`, and do not spell a value
 there, because either one puts the design somewhere it cannot be changed from.
+
+**And the table above is the thing they read, so a name missing from it is a
+name that gets reinvented.** That is not hypothetical: `panel-floating`,
+`toast-region` and `button-inverse` were minted at the first 08 return and left
+out of this index, and the next 07 session went looking here, did not find
+them, and recorded two of the three as names it needed and could not find while
+they already existed twenty lines away in `tokens.css`. The definitions live in
+that file and the index lives here, which is a split worth keeping because one
+is a value and the other is a contract; what it costs is that landing a class
+is not finished until both are written. Landing one and not the other is worse
+than landing neither, because the second reader trusts the index.
 
 Icons come from `lucide-react`, imported per icon. **Never pass `strokeWidth`.**
 The design's 1.75 is set once in `tokens.css` on the package's own `.lucide`

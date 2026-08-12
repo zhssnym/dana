@@ -710,39 +710,64 @@ reserved for "you can act here", and a completed row is not asking.
 }
 
 /*
-The switch of 9.4's important-only filter. Drawn from the board's section 04:
-a 40 by 22 track, graphite-300 off and accent-600 on, with an 18px white
-thumb inside 2px of padding.
+The switch: 9.4's important-only filter and 9.7's page-visibility toggles, both
+of which are the same control on two pages. Drawn from the board's section 04,
+a 40 by 22 track, graphite-300 off and accent-600 on, with an 18px white thumb
+inside 2px of padding.
+
+**One treatment on the element the client actually uses, replacing the pair
+this file carried until now.** `switch-track` and `switch-thumb` were minted at
+P8D session 1 for a two-element control, a button carrying `aria-checked` with
+a thumb inside it, and the thumb selected on `[aria-checked='true'] > &`. Both
+consumers turned out to be a native `input[type=checkbox]` carrying
+`role="switch"`, whose checked state is implicit: the attribute those rules
+select on is never written, so the pair could not style either of them and
+never had a consumer at all. The 07 session found that on My Day and took
+`checkbox` as an interim; `pages/SettingsPage.tsx` has the identical element for
+every page toggle of 9.7. Restyling either into a button was not available,
+AC-167 driving that role and the element behind it being behaviour rather than
+appearance, so the treatment moves to the element instead. Retired rather than
+kept beside this one, because two vocabularies for one control is the drift
+this file's header argues against, and the unusable half of it is a trap a
+later session would reach for by name.
+
+**The thumb is painted rather than nested, and it has to be.** An `input` is a
+replaced element, so it has no children to be a thumb and its `::before` is not
+guaranteed to generate a box. A background image is painted on the element's
+own box and is reliable everywhere, which is the same reason the checkbox above
+draws its tick that way; the circle below is a data URI for the same reason its
+tick is. Sliding it is `background-position` between the two ends of the 2px
+inset, at the design's own duration for a small control.
+
+The 44px hit area the board draws around a small control is the label's here
+rather than this element's: both consumers wrap the input in a `label` carrying
+its words, so the target is the whole row of text and not a 40 by 22 box.
 */
-@utility switch-track {
-  position: relative;
-  display: inline-flex;
+@utility switch {
+  appearance: none;
   flex-shrink: 0;
-  align-items: center;
   width: var(--switch-width);
   height: var(--switch-height);
-  padding: 2px;
+  margin: 0;
   border: none;
   border-radius: var(--radius-full);
   background-color: var(--color-graphite-300);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18'%3E%3Ccircle cx='9' cy='9' r='9' fill='%23ffffff'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: var(--switch-thumb) var(--switch-thumb);
+  background-position: 2px center;
   cursor: pointer;
-  transition: background-color var(--motion-menu) var(--motion-ease);
+  transition: background-color var(--motion-menu) var(--motion-ease),
+    background-position var(--motion-menu) var(--motion-ease);
 
-  &[aria-checked='true'] {
+  &:checked {
     background-color: var(--color-accent-600);
+    background-position: calc(100% - 2px) center;
   }
-}
 
-@utility switch-thumb {
-  display: block;
-  width: var(--switch-thumb);
-  height: var(--switch-thumb);
-  border-radius: var(--radius-full);
-  background-color: var(--color-graphite-0);
-  transition: transform var(--motion-menu) var(--motion-ease);
-
-  [aria-checked='true'] > & {
-    transform: translateX(calc(var(--switch-width) - var(--switch-thumb) - 4px));
+  &:disabled {
+    background-color: var(--color-graphite-200);
+    cursor: default;
   }
 }
 
@@ -1269,6 +1294,20 @@ rather than being stretched. 9.1 calls Inbox's count a badge, which is not read
 here as the chip this file also carries: the designer's sidebar draws a plain
 number, 11.13 makes his prototype authoritative for appearance, and a chip
 would be a heavier thing than the design puts down a quiet column.
+
+**Section 6's truncation notice is ruled at the second return, on the reuse
+session 2a disclosed, and it is ratified for a reason worth stating because it
+is the weaker of the two.** No artifact settles this one: section 6 requires
+the notice and writes no words for it, unlike the eight empty states it writes
+sentence by sentence, and the designer draws no such element anywhere, so there
+is nothing to transcribe and a minted tone would be this file inventing design
+rather than carrying it. The notice is also a fact about the list rather than a
+warning about it, which is the register this name already holds. What ratifying
+costs is that a sentence telling a person their list is incomplete is drawn at
+12 pixels in a quiet grey, which is easy to miss; that is the trade, and the
+revisit trigger is the human visual review section 13 item 33 makes a merge
+precondition. If it reads too quietly there, the notice is one line here and no
+page changes, which is the whole point of it having a name at all.
 */
 @utility meta {
   display: inline-flex;
@@ -1603,11 +1642,29 @@ exactly one message may still use it alone.
   font-weight: var(--text-title--font-weight);
 }
 
+/*
+A section's heading, and any glyph a collapsible one carries beside it.
+
+The `svg` rule is the decision session 2a had to make at its call site and
+should not have had to: neither heading class sized an icon, so a disclosure
+chevron rendered at Lucide's own 24px and that session reached for `size-4` to
+bring it down. It landed on the right number by the right route, the design's
+own spacing scale, and `empty-state-media` sizes its icon exactly that way, so
+the idiom was sound and only the location was wrong. It is the metadata size
+here, which is what an icon standing beside text takes everywhere else in this
+file, and the call site can now drop its own.
+*/
 @utility section-heading {
   color: var(--color-graphite-900);
   font-size: var(--text-heading);
   line-height: var(--text-heading--line-height);
   font-weight: var(--text-heading--font-weight);
+
+  & svg {
+    flex-shrink: 0;
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
+  }
 }
 
 /* Done's day groups and Planned's date headers. */
@@ -1620,6 +1677,15 @@ exactly one message may still use it alone.
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
   font-weight: 600;
+
+  /* The same rule as `section-heading` above, and for the same reason: a day
+     group can be collapsible too, and its chevron is not the call site's to
+     size. */
+  & svg {
+    flex-shrink: 0;
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
+  }
 }
 
 /* The card a list of rows sits in. Elevation-0: a border, because in-page
