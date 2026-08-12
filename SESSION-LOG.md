@@ -274,7 +274,7 @@ before starting the next.
 | 18 | Merge review: main merged down, six items ruled, the colour dot ruled P8's and numbered AC-173 | 12 | Steward | Done, escalated |
 | 19 | AC-173 written red, three cases, a positive control added when one compared vacuously | 11 | Testers | Done |
 | 20 | The colour dot drawn from `my_color`, one file, `tokens.css` unmoved | 07 | Implementers | Done |
-| 21 | Merge into main: the two readings ruled, Inbox included, the inline colour ratified | 12 | Steward | Done |
+| 21 | Merge into main at 6de5dd7: the two readings ruled, Inbox included, the inline colour ratified | 12 | Steward | Done |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
