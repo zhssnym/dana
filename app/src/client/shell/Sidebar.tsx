@@ -70,10 +70,44 @@ export function groupFolders(folders: readonly Folder[]): {
   return { inbox, groups, unlabeled: [...unlabeled].sort(byName) }
 }
 
+/*
+9.1's folder row: "each folder showing color dot, name, pending count". The
+dot joins the two that were already here rather than replacing either.
+
+**The colour is data, and that is the whole of why it is written inline.**
+`my_color` rides the 7.4 Folder object and is per member, so two people see
+different dots on the same folder and one person changes theirs at runtime;
+`tokens.css` carries ten folder swatches, and those are the palette a picker
+would offer rather than the source of any given folder's dot. 11.4's rule that
+tokens.css is the only place a raw colour may appear is about the values the
+design fixes, and this is not one of them: no colour is written in this file
+at all, and the only way to obey that rule literally here would be to invent a
+mapping from a free-form hex onto ten presets, which would paint a folder a
+colour its owner did not choose.
+
+**The element renders whether or not there is a colour.** 7.4 makes `my_color`
+nullable and 9.1 gives the folder list one shape, so an uncoloured folder
+keeps the row every other folder has and simply has nothing painted in it. A
+row whose dot appeared only sometimes would be a list that changes shape as
+people colour things, which is the opposite of what a dot down the left of a
+sidebar is for.
+
+**Hidden from the accessibility tree**, because it is identification and never
+the only identification: 9.1 puts the name beside it and the design's own rule
+for these swatches is that they always accompany a label or a name. A screen
+reader announcing "magenta" before every folder would be reading the paint.
+*/
 function FolderLink({ folder }: { readonly folder: Folder }): React.JSX.Element {
   return (
     <li>
       <NavLink to={paths.folder(folder.id)}>
+        <span
+          className="folder-dot"
+          aria-hidden="true"
+          style={
+            folder.my_color === null ? undefined : { backgroundColor: folder.my_color }
+          }
+        />
         {/* The badge is the pending count and nothing else (8.11, AC-155). The
             completed count is on the same object and is not what this is. */}
         {folder.name} {folder.counts.pending}
