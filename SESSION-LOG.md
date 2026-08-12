@@ -1,6 +1,7 @@
 # Dana session log
 
-Every agent session that has run, in the order it ran, one table per package.
+Every agent session that has run, in the order it ran, one table per package,
+and one at the end for work that belongs to no package.
 `CHANGELOG.md` records what the product became; this records how it was built.
 
 **This is a record, not a source of truth.** Protocol section 2 names the five
@@ -11,14 +12,24 @@ treat a row as evidence that something landed, and never read a planned row as a
 assignment. `git log`, the suite, `app/tests/`, the specification, and the active
 RFC's implementation plan are what bind you.
 
-A row is added when a session has been verified, not when it is planned. Inserted
-rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep their
-place rather than being renumbered, because the numbers are addresses. Rows are
-listed in the order they ran, so a number out of sequence means that session
-moved. Mode names the chat a session returned into, or Unattended where it ran
-as an isolated sub-agent with no chat to return to. A run of consecutive Unattended
-rows is a grouped run: one dispatching chat launched each as an isolated
-sub-agent in sequence, verifying each before starting the next.
+A row whose Status reads Done was written after that session's final block had been
+verified against the repository, and those rows are listed in the order they ran,
+so a number out of sequence means that session moved. From P8 onward a package's
+table also carries the sessions still ahead of it, marked Planned or Blocked in the
+same column, so the whole shape of a package reads in one place instead of half of
+it. Those rows are a forecast and they are the operator's, revised whenever a
+session's findings revise the plan, which is often: eight of P8's rows were not
+foreseen when its table opened. A planned row is never an assignment, and what a
+session is told to do reaches it through its prompt and through the active RFC's
+implementation plan rather than through here.
+
+Inserted rows (`1a`, `3a`, `6b`) are sessions the plan did not foresee; they keep
+their place rather than being renumbered, because the numbers are addresses. Mode
+names the chat a session returned into, or the chat one is intended for while its
+row is still a forecast, or Unattended where it ran as an isolated sub-agent with
+no chat to return to. A run of consecutive Unattended rows is a grouped run: one
+dispatching chat launched each as an isolated sub-agent in sequence, verifying each
+before starting the next.
 
 ## P minus 4: product definition
 
@@ -253,3 +264,20 @@ sub-agent in sequence, verifying each before starting the next.
 | 8 | The four owed surfaces closed, a title kept out of the addressing namespace | 07 | Unattended | Done |
 | 9 | The 10.6 PWA layer landed, the guard retired, the browser leg given room | 10 | Unattended | Done |
 | 10 | AC-100's deploy made real on disk, eight fixture collisions repaired, a ninth found | 11 | Testers | Done, escalated |
+| 11 | main merged down, seven conflicts kept both, section 12 reconciled to 168 by count | 12 | Unattended | Done |
+| 12 | Seven carried items ruled, AC-169 to AC-172 numbered, item 28 recorded | 12 | Unattended | Done |
+| 13 | AC-169 to AC-172 written, AC-162 rescoped to the new region, two confirms added | 11 | Testers | Done |
+| 14 | The reminder write arm on both paths, the header named, the cookie guess dropped | 07 | Implementers | Done |
+| 15 | Eleven server reads sequenced behind the writes they measure, four of them false greens | 11 | Testers | Done |
+| 16 | The foundation transcribed whole, three components onto its vocabulary | 08 | Implementers | Done |
+| 17 | The type scale onto pages, the landing copy ruled, the manifest colours | 07 | Implementers | Done, escalated |
+| 18 | Merge review, and 9.1's folder colour dot, which nothing renders or asserts | 12 | Steward | Planned |
+| 19 | Merge into main | 12 | Steward | Planned |
+
+## Outside the packages: infrastructure (`local-ci`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | The runner and the collation ruled, `postgres:18` found never to have been a collation authority | 12 | Unattended | Done |
+| 2 | Postgres 18 configured, the workflow moved onto the runner, the runner staged to its token | 10 | Unattended | Done |
+| 3 | Merge review: the double-PGlite guard, the ceiling at 40, `lc_messages` pinned, merged at 3dc950f | 12 | Steward | Done, escalated |

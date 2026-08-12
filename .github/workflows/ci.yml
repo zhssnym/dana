@@ -1,11 +1,21 @@
 name: CI
 
-# The step order is normative: spec 11.11 fixes it as npm ci, lint, typecheck,
-# test on PGlite, test on postgres:18, build, Playwright. Changing order or
-# steps is an Integration Steward escalation, not an edit.
+# The seven steps and their order are normative: spec 11.11 fixes them as npm ci,
+# lint, typecheck, test on PGlite, test on a real Postgres 18, build, Playwright.
+# Changing the set or the order is an Integration Steward escalation, not an edit.
+# Where the job runs, where the postgres leg's database comes from, and which
+# interpreter a step's script is handed to are job configuration: they move
+# without amending 11.11, exactly as the service block they replaced always was.
 on:
   push:
   workflow_dispatch:
+
+# One machine serves every branch, so a second push to a branch supersedes the
+# first rather than queueing behind it. main is exempt: its run is the verdict a
+# merge is checked against, and a cancelled verdict is not a verdict.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 defaults:
   run:
@@ -13,35 +23,22 @@ defaults:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
-    # A hang killer, not a budget. 20 was P0's number for a job whose fifth
-    # leg had never run; measured on this branch, the four legs ahead of the
-    # browser one cost 13.5 to 14.5 minutes of it, and three of the four runs
-    # before this commit were killed with Playwright mid-leg. What that
-    # produces is a cancelled job rather than a red one: the leg's own
-    # evidence, the named assertion of the case that broke, is destroyed by
-    # the clock, which is the same false signal the condition below argues
-    # against. The fourteen minutes in front of the browser leg do not shrink
-    # as the client fills in, and a red case is slower than a green one
-    # because it spends its timeouts, so the pressure is upward on the run
-    # that most needs to finish. 40 keeps a genuinely hung job from burning
-    # GitHub's six-hour default, and costs nothing on a healthy run, because
-    # this is a ceiling and not an allocation.
+    runs-on: [self-hosted, windows, x64]
+    # A hang killer, not a budget. 20 was P0's number for a hosted job whose
+    # fifth leg had never run, and two independent measurements now say it is
+    # too small. On this machine, 2026-08-11, with every cache warm: npm ci 7s,
+    # lint 4s, typecheck 5s, the PGlite leg 234s, build 5s, so five legs in 255s
+    # with the postgres leg still to add and a cold npm ci still to pay for. On
+    # p8-client, measured on a hosted runner: the four legs ahead of the browser
+    # one cost 13.5 to 14.5 minutes, and three of the four runs before that
+    # branch's workflow commit were killed with Playwright mid-leg. A timeout
+    # that trips produces a cancelled job rather than a red one, which destroys
+    # the evidence of whatever broke, and it lands hardest on the browser leg,
+    # which is both last in order and the only leg any browser criterion runs
+    # in. 40 is p8-client's number, adopted here rather than a different one so
+    # that two branches editing this line converge instead of colliding. It
+    # costs nothing on a healthy run, being a ceiling rather than an allocation.
     timeout-minutes: 40
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: dana_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,10 +54,28 @@ jobs:
         run: npm run typecheck
       - name: Test on PGlite
         run: npm test
-      - name: Test on postgres 18
-        run: npm test
-        env:
-          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dana_test
+      # TEST_DATABASE_URL arrives from the runner installation's own .env file,
+      # never from a repository secret and never from this file: 11.11's Secrets
+      # bullet rules that a credential for a resource GitHub cannot reach is not
+      # stored at GitHub. The database it names is the one 11.10's CREATE
+      # DATABASE statement fixes to the builtin C.UTF-8 locale.
+      #
+      # The guard is what stops this step passing by running PGlite twice.
+      # Because the string arrives from outside this file, a missing .env, a
+      # misspelled name, or a service started before the file was written all
+      # leave the seam in app/db/client.ts falling back to PGlite, and the step
+      # would report a second identical green having measured nothing. It tests
+      # presence and nothing else: the value is never read into a command, never
+      # echoed, and never named here. Unset and empty are one case because that
+      # is exactly the seam's own fallback condition, so the two agree by
+      # construction rather than by being kept in step.
+      - name: Test on a real Postgres 18
+        shell: pwsh
+        run: |
+          if (-not $env:TEST_DATABASE_URL) {
+            throw 'TEST_DATABASE_URL is unset or empty, so this step would re-run the PGlite leg and report a green that measured nothing. Set it in the runner installation .env file (spec 11.11) and restart the runner service.'
+          }
+          npm test
       - name: Build
         run: npm run build
       # The fifth leg. The condition is P0's design and it guards history:
@@ -79,8 +94,25 @@ jobs:
       # only ever be true is a live way for this leg to go quiet without
       # anyone reading a red: it is that flag written in YAML, and this leg
       # is the only one any browser acceptance criterion runs in.
+      #
+      # The shell is declared for the same reason as the step above, and this
+      # is the step that earned the rule. && is a PowerShell 7 pipeline chain
+      # operator and a parser error in Windows PowerShell 5.1, which is what a
+      # Windows runner falls back to when pwsh is absent. Leaving the
+      # interpreter to whatever happens to be on PATH makes the gate's
+      # behaviour a function of what is installed rather than of what is
+      # written here, and it would fail on the one step whose whole purpose is
+      # to prove the browser criteria ran. PowerShell 7 is installed on this
+      # machine, so the declaration is satisfiable on the self-hosted form as
+      # well as on the hosted one.
+      #
+      # Two halves of the install command come from different branches and
+      # both are deliberate. chromium is p8-client's, naming the one browser
+      # the config's single project uses, because installing the other two
+      # costs minutes of this job for something nothing runs. The dropped
+      # --with-deps is main's: that flag installs Linux system packages
+      # through apt and does nothing a Windows runner can use.
       - name: Playwright
         if: hashFiles('app/playwright.config.ts') != ''
-        # Only the browser the config's single project names. Installing the
-        # other two costs minutes of this job for something nothing runs.
-        run: npx playwright install --with-deps chromium && npx playwright test
+        shell: pwsh
+        run: npx playwright install chromium && npx playwright test
