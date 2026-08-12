@@ -10,6 +10,103 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **RFC 0002 authored as a Draft, 2026-08-13: the client user interface is
+  replaced by the designer's prototype, four owner rulings are transcribed into
+  section 9, and ten prototype affordances are ruled rather than left to arrive
+  silently.** Nothing here is application code and nothing here touches a frozen
+  section. The RFC is at `docs/rfcs/0002-client-ui-replacement.md`, status Draft;
+  the human owner accepts it and a later session records the acceptance and
+  finalises the provisional numbers. The specification is deliberately not
+  amended here: an RFC's delta merges when its package is implemented, which is
+  the template's own lifecycle.
+  **It was written with both applications running, and that is the correction it
+  is under.** `SESSION-LOG.md` records why P8D stopped: six sessions read the
+  designer's files and not one opened his application, in a package whose entire
+  subject was appearance. Three claims in the research handed to this session
+  were false, and every one of them was false in a way that only running the
+  prototype exposes.
+  **The suite's role contract is not carried by his markup, which is the finding
+  that most changes the work.** The research reported that his markup carries all
+  of it once relabelled. Measured on 2026-08-13: his sidebar has no `nav` element
+  and no navigation landmark, where AC-155 and AC-173 read one; its six page
+  entries are buttons, where AC-091, AC-160 and AC-171 read links and
+  `harness.ts` records in its own comment why a link, 9.1's routes making every
+  page a URL; his calendar emits no `grid`, `gridcell`, `row` or `columnheader`
+  at all, where AC-093, AC-098 and AC-158 read grid cells; the regions "Folder
+  header" and "Sharing panel" do not exist; and two of the eight `getByLabel`
+  field names are wrong, title being labelled "Task name" and important being a
+  button rather than a control named "Important". The delta answers this by
+  giving 9.1 a roles table beside its names table and its sections table, on the
+  ground that stating it costs six rows and the alternative is what just
+  happened: the roles the suite reads have been the tester's inference defended
+  in harness comments rather than specification text, which was tolerable while
+  one client was written against the suite and stopped being tolerable when a
+  second body of markup arrived.
+  **Normative copy is missing, split or reworded in ten places and not four.**
+  Checked string by string with JSX entities decoded. Beyond the four reported,
+  9.3's "Limit 50 steps" is absent, 9.4's abandon confirm and 9.8's
+  remove-connection confirm are split across a dialog title and its description
+  so the sentence never renders as one text run, and 9.6's leave, remove-member
+  and delete-folder confirms are reworded. AC-183 is added for the nine that must
+  be restored. It is a regression criterion rather than a behavioural one and is
+  admitted as such: the nine were found by measurement, and a criterion is the
+  only thing in this build that survives the session that learned them.
+  **Two of the research's cautions were wrong in the prototype's favour**, and
+  both are recorded that way rather than quietly dropped. His task form does
+  carry an assignee field, rendered on 9.3's own two-or-more-members rule and
+  invisible only because the default fixture folder holds one member. And his
+  history block already renders "Deleted user" for a null author, which is the
+  rendering section 13 item 27 says v1 ships no surface for; that item closes for
+  `created_by` and `completed_by` and stays live for `invites.accepted_by`, which
+  7.5 still exposes to nobody.
+  **Item 30 closes, verified rather than assumed.** His `components.json`
+  declares shadcn's own schema and the `base-mira` style, and his twenty
+  components import `@base-ui/react`, which is the primitive library that
+  distribution is built on. Copying them into `app/src/client/components/ui/` is
+  what 11.4's sentence has asked for since it was written, so a provenance
+  deviation closes rather than widening. What replaces it is item 35: the
+  behaviours the old item worried about are now a library's, the version is
+  pinned exactly, and an upgrade re-runs the browser leg before it merges.
+  **Ten affordances his prototype carries that no numbered section names are
+  ruled here**, because the path of least resistance for every implementing
+  session is to port the component and say nothing, and protocol section 1 makes
+  an unrecorded deviation a defect even where the code works. Nine are admitted
+  with names and criteria: the folder due-date filter, the new-folder dialog, the
+  label-and-colour dialog, folder-group create, rename, delete and "Move to
+  group", the calendar's "+N more", the task form's history block and its
+  completion control, and the sidebar's rail and both resize handles. The
+  five-second completion Undo is refused, and refused in the specification's text
+  so that removing it is an instruction rather than an omission: 5.1's
+  transitions are immediate, 8.3 refetches after each own mutation, and a client
+  holding a write back for five seconds has to answer what its own list shows
+  meanwhile and what happens when the tab closes inside the window. What ports is
+  the completion toast without the undo control.
+  **FullCalendar 7 leaves and the dependency set the P8D kickoff refused is
+  approved**, both on the owner's rulings. The calendar bullet in 11.4 always
+  said the visible order was the contract and the mechanism was not, so a grid
+  whose cells we render orders them by rendering them in order, and the custom
+  `eventOrder` comparator and its documented fallback both disappear with the
+  library; 11.15 loses a hazard, which is one fewer thing every future session
+  must read. What is given up is the library's keyboard and accessibility
+  handling in the grid, which is why 9.1's roles table fixes the grid cell and
+  AC-177 asserts it. `@base-ui/react` pinned, `class-variance-authority`, `clsx`,
+  `tailwind-merge` and `tw-animate-css` are approved; the `shadcn` package stays
+  refused as a runtime dependency, being a copy-in generator, which is 11.4's own
+  reading and not a new one.
+  **Section 9 was amended to match a design artifact four times, and 11.13's rule
+  that artifacts never do that is unchanged.** Recorded as item 37 because four
+  escalations decided the same way looks from a distance like a rule that no
+  longer binds. Each of the four went to the owner, was decided on the merits and
+  arrived in section 9 as text, which is the route 11.13 prescribes working
+  exactly as written; what that rule forbids is an implementer resolving a
+  divergence by building the artifact, and none was resolved that way.
+  **Three criteria are rewritten and none is deleted**: AC-093, whose folder row
+  read a section context 9.6 no longer has; AC-166, whose quick-add is now a
+  disclosure; and AC-172, whose invite list is now a gate. AC-058 is untouched
+  and it is worth saying so, since it looks reachable from the folder page's
+  restructuring: it asserts Q7's arrays on the wire, and section 6 and section 7
+  do not move.
+
 - **The P8D mid-package change control, 2026-08-12: three owner rulings
   transcribed, six audit findings ruled, and two sessions added to a package
   that owned none of its pages.** Nothing here is application code and nothing
