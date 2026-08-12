@@ -17,6 +17,36 @@ The shell renders before any of the three answers, and it has to: 10.6's
 navigation fallback opens every /app path from the cached shell with no
 network at all, and AC-091 reads the sidebar's page links there. Nothing in
 the chrome waits on data.
+
+**The layout, added by P8D session 2, and it is the thing P8 never built.**
+Until now this file rendered a bare `div` with a bare `main` inside it, which
+is the direct reason the product shipped with its sidebar as a full-width
+block above the page. The shape below is the designer's: a sidebar of fixed
+width beside a content column, the whole of it pinned to the viewport, and
+exactly one region that scrolls.
+
+That last part is the design's own scrolling rule and the reason the nesting
+looks the way it does. `app-shell` is the viewport-height box; `shell-main` is
+the column beside the sidebar; `shell-scroll` inside it is the only element
+that overflows, so the top bar, the page strip, the banners and the floating
+action stay where they are while the page moves under them. Put the overflow
+anywhere else and either the whole document scrolls, taking the chrome with
+it, or the chrome scrolls away inside its own column.
+
+Every class here is from `components/README.md`'s vocabulary, which role 08
+landed in `styles/tokens.css` at session 1. This file writes no colour, no
+dimension and no duration, which is 11.4's rule; the two bare Tailwind
+utilities it does write, `relative` and `flex-col`, place things rather than
+paint them, which is the idiom the component set already uses.
+
+**Document order carries two contracts, so the tree below is not free to be
+rearranged for looks.** The search overlay is first, ahead of the sidebar and
+the top bar both, because the suite addresses its field as the document's
+first textbox and the sidebar's "New folder" disclosure carries a text input
+of its own; being fixed-position, it costs nothing to put it there and it can
+no longer lose that race. And the sidebar precedes the content column, which
+is the reading order navigation should have anyway and which AC-155 depends
+on, addressing the sidebar as the first navigation landmark on the page.
 */
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router'
@@ -27,7 +57,7 @@ import { todayInBrowserZone } from '../api/tz.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskFormOverlay } from '../components/task-form/index.js'
 import { UpdatePrompt } from '../pwa/UpdatePrompt.js'
-import { paths } from '../routes.js'
+import { paths, sidebarPages } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
 import { OfflineBanner } from './OfflineBanner.js'
@@ -35,6 +65,7 @@ import { openSearch } from './overlays.js'
 import { Sidebar } from './Sidebar.js'
 import { TopBar } from './TopBar.js'
 import type { TaskFormDefaults } from './overlays.js'
+import type { Folder } from '../../shared/folders.js'
 
 /**
  * The entry-point defaults of 9.3, keyed by the page the button sits on.
@@ -68,6 +99,36 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === 'input' || tag === 'textarea' || target.isContentEditable
 }
 
+/**
+ * The name of the page currently open, for the strip under the top bar.
+ *
+ * The strip is the designer's static current-page indicator and `notes.md` is
+ * explicit that it is not a tab system: nothing here is clickable and nothing
+ * navigates. It is rendered in a `span` and deliberately never a heading,
+ * because a heading here would be the first one on every page and AC-172
+ * asserts that an invite row precedes the first heading on My Day.
+ *
+ * A folder's name comes from the same `/folders` read the sidebar uses, so an
+ * unopened folder or a failed read simply shows nothing rather than a
+ * flickering identifier.
+ */
+function currentPageName(
+  pathname: string,
+  folders: readonly Folder[] | undefined,
+): string | null {
+  const page = sidebarPages.find((candidate) =>
+    candidate.path === paths.myDay ? pathname === paths.myDay : pathname === candidate.path,
+  )
+  if (page !== undefined) return page.name
+  if (pathname === paths.settings) return 'Settings'
+  if (pathname === paths.people) return 'People'
+  if (pathname.startsWith('/app/folders/')) {
+    const id = pathname.slice('/app/folders/'.length)
+    return folders?.find((folder) => folder.id === id)?.name ?? null
+  }
+  return null
+}
+
 export function AppLayout(): React.JSX.Element {
   const location = useLocation()
   const me = useMe()
@@ -93,34 +154,53 @@ export function AppLayout(): React.JSX.Element {
   }, [])
 
   const defaults = floatingDefaults(location.pathname)
+  const pageName = currentPageName(location.pathname, folders.data)
 
   return (
-    <div>
-      <TopBar
-        displayName={me.data?.user.display_name ?? null}
-        onSignOut={() => {
-          void mutateApi(null, { method: 'POST', path: '/auth/logout' }).finally(() => {
-            // A full document load rather than a client navigation: the query
-            // cache holds the previous person's rows, and 10.1 destroys their
-            // session, so nothing in it is theirs to keep.
-            window.location.assign(paths.landing)
-          })
-        }}
-      />
-      {/* 9.9's overlay sits beside the control that opens it, which 9.1 puts
-          in the top bar, and ahead of the page. Both halves of that matter: it
-          is global chrome rather than page content, and its input is then the
-          document's first text entry, so "the overlay's input" is the first
-          one on any page rather than whichever quick-add row 9.1 happened to
-          put above it. Added by the Complex Interaction session. */}
+    <>
+      {/* 9.9's overlay, ahead of everything for the reason in this file's
+          header: it is fixed-position chrome, so its place in the tree costs
+          nothing, and being first makes its field the document's first
+          textbox on every page whatever else is open. Added by the Complex
+          Interaction session, which owns the overlay itself. */}
       <SearchOverlay />
-      <OfflineBanner />
-      <UpdatePrompt />
-      <Sidebar settings={settings.data} folders={folders.data} />
-      <main>
-        <Outlet />
-      </main>
-      {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
+      <div className="app-shell">
+        <Sidebar settings={settings.data} folders={folders.data} />
+        {/* `relative` positions the floating action against this column
+            rather than the viewport, so it clears the sidebar instead of
+            sitting over it. */}
+        <div className="shell-main relative">
+          <TopBar
+            displayName={me.data?.user.display_name ?? null}
+            onSignOut={() => {
+              void mutateApi(null, { method: 'POST', path: '/auth/logout' }).finally(() => {
+                // A full document load rather than a client navigation: the
+                // query cache holds the previous person's rows, and 10.1
+                // destroys their session, so nothing in it is theirs to keep.
+                window.location.assign(paths.landing)
+              })
+            }}
+          />
+          {pageName === null ? null : (
+            <div className="shell-pagebar">
+              <div className="shell-pagebar-tab">{pageName}</div>
+            </div>
+          )}
+          <OfflineBanner />
+          <UpdatePrompt />
+          {/* The one region that scrolls, and still the `main` landmark it
+              was. `shell-content` inside it is the measure every page is laid
+              out in, which belongs to the layout rather than to each page:
+              thirteen pages each choosing their own width is thirteen chances
+              to disagree. */}
+          <main className="shell-scroll">
+            <div className="shell-content">
+              <Outlet />
+            </div>
+          </main>
+          {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
+        </div>
+      </div>
       <ToastRegion />
       {/* 9.3's form, mounted once and last. Once, because it opens over
           whatever page is beneath it and a per-page copy would be two of them
@@ -130,6 +210,6 @@ export function AppLayout(): React.JSX.Element {
           than a row's. Added by the Complex Interaction session, which owns
           both overlay directories. */}
       <TaskFormOverlay />
-    </div>
+    </>
   )
 }

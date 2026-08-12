@@ -45,6 +45,18 @@ function byName(a: Folder, b: Folder): number {
   return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
 }
 
+/**
+ * Every row in this column, in the two states the design gives it.
+ *
+ * `NavLink` hands its own active state in, which is the only thing that knows
+ * which page is open without this file reading the route itself. The active
+ * treatment is weight and fill together rather than colour alone, which is the
+ * accessibility floor the design states for every state it draws.
+ */
+function rowClass({ isActive }: { isActive: boolean }): string {
+  return isActive ? 'shell-sidebar-row shell-sidebar-row-active' : 'shell-sidebar-row'
+}
+
 export function groupFolders(folders: readonly Folder[]): {
   readonly inbox: Folder | null
   readonly groups: readonly LabelGroup[]
@@ -100,7 +112,7 @@ reader announcing "magenta" before every folder would be reading the paint.
 function FolderLink({ folder }: { readonly folder: Folder }): React.JSX.Element {
   return (
     <li>
-      <NavLink to={paths.folder(folder.id)}>
+      <NavLink className={rowClass} to={paths.folder(folder.id)}>
         <span
           className="folder-dot"
           aria-hidden="true"
@@ -108,9 +120,23 @@ function FolderLink({ folder }: { readonly folder: Folder }): React.JSX.Element 
             folder.my_color === null ? undefined : { backgroundColor: folder.my_color }
           }
         />
+        {/* Truncated rather than wrapped, which is what keeps every row in this
+            column exactly one line tall at the design's 32 pixels. The text
+            node is untouched by that, so AC-155 still reads the whole name out
+            of the link and AC-173 still finds the row by it. */}
+        <span className="truncate">{folder.name}</span>
+        {/*
+        The space is deliberate and is not decoration. This link's accessible
+        name is its own text, and wrapping the name and the count in adjacent
+        inline elements concatenates them: measured in the browser, the row
+        announced "Inbox0" where P8 announced "Inbox 0". A whitespace-only text
+        node is not rendered as a flex item, so it restores the announcement
+        and costs nothing in the layout.
+        */}
+        {' '}
         {/* The badge is the pending count and nothing else (8.11, AC-155). The
             completed count is on the same object and is not what this is. */}
-        {folder.name} {folder.counts.pending}
+        <span className="meta ml-auto">{folder.counts.pending}</span>
       </NavLink>
     </li>
   )
@@ -156,12 +182,20 @@ function NewFolderAction(): React.JSX.Element {
   const create = useCreateFolder()
   return (
     <div>
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {/* The same 13px semibold action tier the navigation rows use, which is
+          the design's own rule for this control. */}
+      <button
+        type="button"
+        className="shell-sidebar-row"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
         New folder
       </button>
       {open ? (
         <input
           type="text"
+          className="input-base"
           aria-label="Folder name"
           value={name}
           disabled={create.isPending}
@@ -195,7 +229,7 @@ export function Sidebar({
 }): React.JSX.Element {
   const { inbox, groups, unlabeled } = groupFolders(folders ?? [])
   return (
-    <nav aria-label="Pages and folders">
+    <nav className="shell-sidebar" aria-label="Pages and folders">
       <ul>
         {sidebarPages
           .filter((page) => page.setting === null || settings?.[page.setting] === true)
@@ -203,13 +237,20 @@ export function Sidebar({
             <li key={page.path}>
               {/* `end` on My Day alone: /app is a prefix of every other route
                   here, so without it the app link is active everywhere. */}
-              <NavLink to={page.path} end={page.path === paths.myDay}>
+              <NavLink className={rowClass} to={page.path} end={page.path === paths.myDay}>
                 {page.name}
               </NavLink>
             </li>
           ))}
       </ul>
-      <hr />
+      {/* 9.1's divider, kept because that section names it, drawn with the
+          hairline the design uses between grouped items. */}
+      <hr className="menu-separator" />
+      {/* The design's section label over the folder list. A `span` and never a
+          heading: a heading here would be the first one on every page, and
+          AC-172 asserts that an invite row precedes the first heading on My
+          Day. Its name is announced by the region it labels either way. */}
+      <span className="shell-sidebar-section">Folders</span>
       <ul>
         {inbox === null ? null : <FolderLink folder={inbox} />}
         {groups.map((group) => (
@@ -220,12 +261,18 @@ export function Sidebar({
         ))}
       </ul>
       <NewFolderAction />
-      <ul>
+      {/* Pushed to the foot of the column, which is where 9.1 puts People and
+          Settings and where the design keeps the account block. */}
+      <ul className="mt-auto">
         <li>
-          <NavLink to={paths.people}>People</NavLink>
+          <NavLink className={rowClass} to={paths.people}>
+            People
+          </NavLink>
         </li>
         <li>
-          <NavLink to={paths.settings}>Settings</NavLink>
+          <NavLink className={rowClass} to={paths.settings}>
+            Settings
+          </NavLink>
         </li>
       </ul>
     </nav>
