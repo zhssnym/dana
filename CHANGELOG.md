@@ -10,6 +10,106 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **The P8D mid-package change control, 2026-08-12: three owner rulings
+  transcribed, six audit findings ruled, and two sessions added to a package
+  that owned none of its pages.** Nothing here is application code and nothing
+  here touches a frozen section. The kickoff at 05a8e52 stands unchanged; this
+  is the docket that arrived after it, three rulings from the owner and six
+  findings from the co-lead's audit, each verified against the artifacts before
+  it was written down.
+  **The pages had no session, which is the finding the rest hangs on.** The P8D
+  row described a role 07 session covering the sidebar, the top bar and the page
+  canvas, then role 09's three surfaces, and stopped. Persona 07 owns the pages,
+  the shared page states and `index.html`, so thirteen pages and
+  `src/client/states/` sat between those two cells with nobody told to touch
+  them, in a package whose entire subject is appearance. `PageStates.tsx`
+  renders loading as a "Loading" span over three empty list items where the
+  design gives skeleton lists, and its empty branch has no icon where `notes.md`
+  asks for one restrained contextual Lucide glyph. The owner approved two role
+  07 sessions and they are in the row: the list pages plus the shared states,
+  then the management and public pages, bounded against each other by file, both
+  after the shell and before role 09, so that seat runs contiguously and the
+  states file lands before the pages that consume it.
+  **A findings return is now a step rather than a discovery.** The owner
+  approved a loop between the item 33 human review and the merge review:
+  findings route back to the persona owning each surface, the merge review
+  follows them, and the merge condition is that every one is applied or recorded
+  as declined with its reason. Every merge review of this build has produced
+  returns, so this schedules something that happens anyway. It is in the P8D
+  row's session order, in its acceptance cell, and in section 13 item 33, which
+  defined the review and said nothing about where its output went.
+  **Section 13 item 32 is answered: v1 ships desktop-first.** The owner ruled
+  the first of the three options on 2026-08-12, accepting the designer's
+  deferral. The item does not close on it and its revisit trigger survives
+  deliberately, for the reason the co-lead put and the owner heard: this is v1's
+  answer and P8D's rather than Dana's permanent one, and 10.6 still makes Dana
+  installable on a phone, so the product now keeps a promise its layout does
+  not. The P8D half ruled at the kickoff is untouched and still binds, the
+  `min-width: 1180px` prohibition included.
+  **Five things in the prototype do not port, listed rather than left to five
+  separate escalations.** The folder page's one open list with a due-presence
+  filter (DES-062) against 9.6's three sections and 9.1's named regions; the
+  sidebar's 56px collapsed rail and its 224 to 360px resize; the task form's
+  horizontal resize handle (DES-025), where the right-side sheet it sits on is
+  appearance and does port; and the five-second completion Undo, where the undo
+  this product specifies is Done's "Mark as not done" of 9.5. The fifth was
+  found at this change control rather than by the audit, and it is the one a
+  session would have walked into: the prototype has no top bar at all,
+  `app-sidebar.tsx` carrying the mark, the wordmark and the global search
+  control in the sidebar header and the profile menu in its footer, where 9.1
+  puts the app name, the search control and the avatar menu in the top bar.
+  Three named controls relocated is structure and not a skin, so section 9 wins,
+  the top bar keeps all three, and what ports is the mark, rendered as the app
+  name 9.1 already puts there. One correction to the audit's evidence, because a
+  session should not over-trust it: no browser case addresses the Scheduled or
+  Unscheduled regions by name. `rendered-halves.spec.ts` asserts both open
+  sections' rows and the Completed collapsible, and AC-093 and AC-166 turn on
+  which section a quick-add sits in, but the refusal rests on 9.6 and 9.1 being
+  normative, not on the suite catching a breach.
+  **Three transcriptions into session cells that had no home for them.** The
+  brand assets ride the shell session: `index.html` has never carried a favicon,
+  and the two manifest icons are correctly sized placeholders whose art differs
+  by hash from the approved DES-030 exports, which `vite.config.ts` already
+  called "design's to replace", so this was a handoff the row failed to pick up
+  rather than a defect found late. The motion values ride the role 08 session,
+  existing today only as prose in `notes.md`, 100, 150, 200 and the 240ms
+  completion collapse plus reduced-motion suppression, with neither token file
+  carrying one of them; they belong in `tokens.css` under the reading of 11.4
+  the P8 merge already recorded, that the rule governs the values the design
+  fixes, and the row says so because 11.4's own list of colour, type, spacing
+  and radius names no duration and is not widened here. That session also
+  settles OPEN-3 and OPEN-4, both of which the artifacts already answer, so what
+  is owed is transcription: the foundation board gives `--color-accent-600` for
+  checked controls with DES-044's neutral completed checkbox as the named
+  exception, and DES-029 was approved at `#FFFFFF` on 2026-08-10, which is what
+  both PWA tokens already hold. The manifest's copy of that pair is Platform's
+  file, its values are already right and its comment still calls DES-029
+  unsigned, so the correction is routed to P9 and the P9 row names it, per the
+  lesson item 31 taught at the kickoff.
+  **The calendar starts the week on Monday.** The P6 change control left the
+  week start to the designer and the 11.13 artifacts because nothing in the
+  specification turns on it; his `planned-screen.tsx` answers Monday and our
+  `PlannedCalendar` sets nothing, taking FullCalendar's locale default. The role
+  09 cell now carries it. It is cheap: the six-week range of 9.5 is computed
+  from the calendar's own `datesSet` rather than by hand, and AC-082's file
+  header already records that the Monday-start six weeks carry the same ghost as
+  the Sunday-start six.
+  **And section 13 gains item 34, for four surfaces this package cannot reach.**
+  `screen-registry.csv` has twenty-eight rows and P8D's sessions reach
+  twenty-four. The three transactional emails render from Platform's
+  `notify/templates.ts` and the unverified-email refusal from Security's
+  `auth/pages.ts`, and P8D's roster is roles 07, 08 and 09, all client. The
+  owner approved that list without an email session, so this is a deferral, and
+  it is a comfortable one: DES-034 is still OPEN and all three email rows say
+  "exact body unresolved", the templates render the plain text 10.7 fixes, and
+  the refusal page carries 9.2's copy exactly. Recorded in section 13 rather
+  than in the row alone, because a merged RFC row is not where a later reader
+  looks for why the emails are not designed, and named in the row too so the
+  roster does not read as complete. The item carries the fact that is not
+  scheduling: neither surface can import `tokens.css`, so styling either
+  duplicates values 11.4 puts in one file, and that reading is owed before the
+  work rather than during it.
+
 - **The P8D kickoff, 2026-08-12: spec 11.13 rewritten, two open questions
   opened as items 32 and 33, and the package retraced.** P8D ports the
   designer's appearance onto the client P8 built, and it exists because
