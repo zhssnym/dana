@@ -1,0 +1,108 @@
+/*
+The button, in the two shapes this client has: one with words on it and one
+with a glyph on it.
+
+Both are `<button type="button">` and neither is a `div` with a click handler,
+which is the whole reason the component exists. A button is reachable by tab,
+activates on space and enter, announces its name, and shows the focus ring the
+brief's accessibility floor requires; each of those is something a page would
+otherwise have to remember, and section 9 addresses every control it names by
+role, so a control that is not a button is not the control the specification
+described.
+
+`type="button"` is not decoration either. The default is `submit`, and a
+button inside a form that ever grows around one of these rows would submit it.
+
+`IconButton` exists separately because an icon-only control owes two things a
+labelled one does not: a name for a screen reader, which is required rather
+than optional in its props, and a target of at least 44 pixels, which the
+`icon-control` utility carries. Its glyph is `aria-hidden`, so the name is the
+only thing announced and a glyph swap is never a rename.
+
+Every class below is a token utility from `styles/tokens.css`. No component
+in this directory spells a colour, a size or a radius; that is 11.4's rule and
+this file is the one most tempted to break it.
+*/
+import type { ReactNode } from 'react'
+
+type Tone = 'default' | 'primary' | 'danger' | 'quiet'
+
+const TONE_CLASS: Record<Tone, string> = {
+  default: 'button-default',
+  primary: 'button-primary',
+  danger: 'button-danger',
+  quiet: 'button-quiet',
+}
+
+interface ButtonProps {
+  readonly children: ReactNode
+  readonly onClick: () => void
+  readonly tone?: Tone
+  /** Where the visible words are not the name a screen reader should hear. */
+  readonly label?: string
+  readonly title?: string
+  readonly disabled?: boolean
+}
+
+export function Button({
+  children,
+  onClick,
+  tone = 'default',
+  label,
+  title,
+  disabled = false,
+}: ButtonProps): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={`button-base ${TONE_CLASS[tone]}`}
+      aria-label={label}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
+interface IconButtonProps {
+  /** Required: an icon-only control that announces nothing is invisible. */
+  readonly label: string
+  readonly glyph: string
+  readonly onClick: () => void
+  /**
+   * The tooltip, where it differs from the name. Q4's outward star is the one
+   * control in this client where the two are deliberately different: the name
+   * stays the control's own state and the tooltip points at another page.
+   */
+  readonly title?: string
+  readonly pressed?: boolean
+  readonly expanded?: boolean
+  readonly hasPopup?: 'menu'
+}
+
+export function IconButton({
+  label,
+  glyph,
+  onClick,
+  title,
+  pressed,
+  expanded,
+  hasPopup,
+}: IconButtonProps): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className="icon-control"
+      aria-label={label}
+      aria-pressed={pressed}
+      aria-expanded={expanded}
+      aria-haspopup={hasPopup}
+      title={title ?? label}
+      onClick={onClick}
+    >
+      <span aria-hidden="true">{glyph}</span>
+    </button>
+  )
+}

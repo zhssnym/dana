@@ -10,6 +10,479 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **Package P8 of RFC 0001, the web client, merged into main on 2026-08-12.**
+  The largest row in the plan and the first that renders anything: the shell,
+  the router over 9.1's route table, the TanStack Query data layer sending tz
+  on every view request and the CSRF header on every mutation, the component
+  set and the design foundation transcribed into `tokens.css`, the calendar,
+  the task form and the search overlay, the pages of 9.4 to 9.8, the landing
+  page, and the PWA layer of 10.6. Section 9 had never been implemented before
+  this package, and implementing it is what turned a great deal of it from
+  describable into assertable: the route table, the addressing sentence, eight
+  control names, the named regions, and nineteen appended criteria that each
+  close a rule the specification states and nothing asserted.
+  Merged at the commit below. Every leg green: lint, typecheck, 1476 tests
+  across 188 files on PGlite and the same on real Postgres 18, build, and the
+  browser leg at 97 of 97, which is the leg AC-091 to AC-100 and AC-155 to
+  AC-173 run in and the reason protocol section 4 now names CI's workflow as
+  the authority on the gate's set rather than listing four commands.
+- **9.1's colour dot, the item the merge review held on, and the two readings
+  it raised.** The review of 2026-08-12 found one element of 9.1's folder list
+  sentence implemented by nothing and asserted by nothing at once, ruled it
+  P8's rather than P9's because the P9 row names roles 06 and 10 and neither
+  owns the sidebar or the tokens file, numbered it AC-173 from the ruling
+  rather than from a proposal, and held the merge. Role 11 wrote it red and
+  role 07 closed it in one file, which is the separation the swarm's first
+  structural rule exists for and the reason the number is worth anything.
+  *Inbox shows a dot like every other folder row.* 9.1's sentence is genuinely
+  readable both ways, Inbox having its own clause naming only the badge while
+  "each folder" is universal, so the reading is written into 9.1 rather than
+  left for the next reader. The design brief this sentence was written from
+  puts the three adornments in a final sentence of their own, after Inbox, the
+  label groups and the unlabeled folders have each been placed, so they are a
+  property of a folder row rather than of a group, and Inbox's clause fixes
+  where it sits rather than what it carries. Frozen 4.4 settles it: it gives
+  `folder_members.color` a free-form #RRGGBB check with no exclusion for the
+  default folder, and 7.4's my-membership accepts a colour on any membership,
+  so the other reading would take a colour from a person and never show it
+  back. AC-173's "each folder row" already reaches that row, so no criterion
+  text moves. *The inline colour is ratified, and recorded in 11.4 as a
+  reading rather than as a deviation, because it is not one.* That rule
+  governs the values the design fixes. A folder's colour is a person's runtime
+  choice carried on the wire, per member and free-form, and the sidebar writes
+  no colour at all: only the fill comes from the response, while the dot's
+  size and shape stay in `tokens.css` where the rule puts them. Obeying the
+  rule literally would mean mapping a free-form hex onto the ten swatches that
+  file carries, which would paint a folder a colour its owner did not pick,
+  and it would buy nothing, because the hazard the rule exists to prevent is a
+  design that cannot be changed in one place and changing `tokens.css` must
+  never change what colour somebody's own folder is.
+
+- **P8's merge review, 2026-08-12, and the merge is held on one sentence of
+  9.1.** Five of the six docket items closed cleanly and the sixth did not.
+  *Section 13 item 14 closes*: the landing copy was the designer's to write and
+  the human owner wrote it himself on 2026-08-11, which is his to do, the
+  constraint that item recorded having always been 9.2's no-AI-claim rule
+  rather than whose pen it came from, and AC-159 now pins the page including
+  that rule. *The crossing into `app/vite.config.ts` is ratified rather than
+  reverted.* The Frontend Architect changed one literal in Platform's file,
+  theme_color from #1f2933 to #ffffff, and disclosed it under ESCALATION with
+  a comment at the site rather than leaving it to be found. Ratified because
+  10.6 makes the theme and background colours the design's choice, so the
+  value is the design's and only the file is Platform's, and because the
+  revert would put back a colour the design no longer contains, which trades a
+  boundary tidy for a defect. The crossing itself stands as one: the route was
+  a Platform session by request, which the P8 row already names, and
+  ratification here rests on the change being a single literal whose value
+  another section fixes. *The two departures from 11.4 were recorded nowhere,
+  which protocol section 1 makes a defect even where the code works, and they
+  are recorded now as section 13 items 30 and 31.* The client hand-rolled the
+  components 11.4 says are copied in from shadcn/ui, and its task form holds
+  six `useState` hooks where 11.4 names react-hook-form 7 with
+  @hookform/resolvers. Neither sentence of 11.4 moves. A rule is not rewritten
+  to match what was built, so what is recorded is the departure and its cost,
+  which is the shape protocol section 1 asks for and the opposite of the drift
+  the Steward exists to prevent. Both are recorded rather than routed because
+  the criteria measure these from the outside and the browser leg is green at
+  94 across every confirmation, overflow menu and collapsible section, so
+  rewriting the package's hardest component at its merge gate would trade a
+  measured state machine for an unmeasured one. One half is routed rather than
+  recorded, and it is the half 11.4's sentence was actually guarding: without
+  the resolver the form restates 10.3's limits, `TITLE_LIMIT = 300` and
+  `NOTES_LIMIT = 10000`, beside the shared zod schema that already carries
+  both, and nothing fails if the two drift because 7.11 makes the client's
+  copy advisory. No criterion in this suite can see that, every one of them
+  asserting the server's refusal, so it goes to P9's limits sweep, where the
+  fix is an import rather than a library.
+- **9.1's folder colour dot is P8's, numbered AC-173, and the merge waits on
+  it.** 9.1's folder list sentence names three things every folder row shows,
+  a colour dot, a name and a pending count, and the client renders two:
+  `my_color` appears nowhere under `app/src/client`, and AC-155, this
+  package's own criterion for that sentence, asserts the pinning, the grouping
+  and both orderings and stops short of the dot. One element of a section 9
+  sentence is implemented by nothing and asserted by nothing at once, which is
+  the class the P4 change control swept for. *It is P8's rather than P9's and
+  the persona files decide it, not convenience.* The RFC 0001 P9 row names
+  `06-security-and-privacy.md` with `10-platform.md` for AC-104, and neither
+  owns `app/src/client/shell/Sidebar.tsx` or `styles/tokens.css`, so routing
+  the dot there would either be a boundary violation by construction or would
+  add P8's own two client personas to a later row, which is this package's
+  sessions running under another package's name. Nothing about the work argues
+  for deferral either: `my_color` has ridden the 7.4 Folder object since P2,
+  the sidebar already maps every folder, and `tokens.css` has carried the ten
+  folder swatches since the design foundation landed at 34c0b29, two commits
+  before the branch tip, so the one dependency that could have blocked this
+  cleared before the review opened. The number is appended here rather than
+  left to the session that writes the test, the AC-124 and AC-141 shape where
+  the Steward appends from a ruling rather than from a proposal, so the tester
+  writes against settled text instead of inheriting a debt. What it asserts is
+  identification rather than a colour value, which is what the tokens file
+  itself says the swatches are for: the dot is present, it carries the
+  folder's own colour rather than one colour for every row, and a folder with
+  no colour still renders. *The merge is held rather than taken with the gap
+  recorded*, because a package that delivers section 9 and leaves a sentence
+  of 9.1 unimplemented has not met the first line of the definition of done,
+  and recording a gap is not the same as closing one. The gate is green on the
+  merged tree with the dot missing, which is the whole argument for the
+  criterion: no leg can see a sentence nothing asserts.
+
+- **Package P8 of RFC 0001, the web client, kicked off on branch `p8-client`
+  on 2026-08-10.** The P8 row is traced into its session list in the form
+  every package since P2 has carried, and with one thing no earlier list
+  needed: every session is marked blocked or not against the committed 11.13
+  artifacts. The plan already drew that line, structure does not wait for
+  them and fidelity does, and no session list expressed it, so the operator
+  could not tell which work was startable with `docs/design/` holding
+  `brief.md` and nothing else. It is now two sessions that are blocked and no
+  others: the Component role's fidelity pass, which transcribes the
+  foundations page into `tokens.css` and restyles every state against the
+  screens, and a small Frontend Architect return carrying the manifest's 192
+  and 512 icons with the theme and background colors of 10.6 and the landing
+  copy that closes section 13 item 14. The Complex Interaction role is not
+  blocked at all, its four criteria being 9.3's dependency table, its six
+  entry-point default sets and the ghost banner, none of which an image
+  decides. Both blocked sessions are separated from the unblocked work rather
+  than folded into it, so that a missing PNG does not hold the PWA layer, and
+  the fidelity pass is a required session rather than a follow-up, because a
+  provisional token file that no session is scheduled to revisit is how
+  placeholder values ship.
+- **Five P8 kickoff rulings, 2026-08-10, grounds recorded here.** *Tests
+  first holds as written.* The tension the kickoff was asked to settle, this
+  row's permission to start page structure against the frozen contract with
+  mocked data against the standing rule that the tester precedes the
+  implementer, is not a conflict once each sentence is read against what it
+  contrasts: the permission contrasts P8 with the packages it integrates
+  against and with the 11.13 artifacts and is about package dependencies,
+  while tests before implementation is about session order inside a package
+  and binds through protocol section 8 and the first structural rule of
+  `docs/team/README.md`. One consequence is a rule rather than a preference,
+  and it is the hole the permission would otherwise open: *no acceptance test
+  runs against mocked data*, 11.10 putting end to end tests on the seed
+  dataset and the development login endpoint, and a criterion satisfied
+  against a fixture the client itself supplied asserting nothing about the
+  contract it exists to measure. What tests first needed to become executable
+  is in section 9 rather than in this entry, because every earlier tester
+  wrote against a frozen section 7 whose paths and keys were text while
+  section 9 named neither a URL nor any way to address a control: 9.1 now
+  carries the route table AC-095 asserts and the sentence that every control
+  the section names is reachable by its accessible role and its normative
+  name, both landed before any test asserts either, the P4 session 1b order
+  and its reason. *One inversion, bounded.* P0 inverted tester and
+  implementer once because the scaffold its tester needed was part of P0, and
+  that ground reaches exactly one session here: a Playwright run needs a
+  configuration, a browser and a server to point at. What bounds it is what
+  makes it safe, that the session writes no test, asserts no criterion, and
+  encodes no sentence of section 9, so it anchors nothing. *The Playwright
+  seam splits by file*, the P2 routes-directory precedent and the P6 one for
+  `src/shared/recurrence.ts`: `app/playwright.config.ts` with the dependency,
+  the browser install and the npm script are Platform's, a runner
+  configuration of the kind persona 10 enumerates beside Vitest's, whose
+  consuming CI step is Platform's and has existed since P0 keyed on that
+  exact path; every end to end test and every harness it needs is the
+  Adversarial Test role's under `app/tests/e2e/`. The two collectors are
+  disjoint without touching `vitest.config.ts`, whose include takes
+  `*.test.ts` while Playwright's specs take `*.spec.ts`. Two consequences
+  bite at a gate rather than at a keyboard: the P8 gate is five commands, not
+  protocol section 4's four, since AC-091 to AC-100 pass in the Playwright
+  leg alone; and that leg self-activates on the first push carrying the
+  config, so it can turn red having never run. *What "exercised end to end"
+  obliges.* Ten criteria for the largest package is a floor by construction,
+  the sentence P4's row carried and which produced AC-125 to AC-131, and the
+  obligation is already itemized in the repository rather than something the
+  plan must invent: every clause a P0 to P7 test file or the suite's own
+  `README.md` recorded as P8's half is P8's to close, AC-039's faded home,
+  AC-048's unassigned chip, AC-053's fading in Tasks and All, AC-058's
+  collapsed section. It is not renumbering those criteria, whose server
+  halves stay green where they are, and it is not re-asserting server
+  behavior through a browser, which buys latency rather than truth; it is the
+  clause each states about what the viewer sees, asserted once against the
+  rendered page, plus at least one whole path through the development login
+  against the seed dataset. The tester's judgment on further numbers works as
+  it did at P4, P5 and P6, authored with their tests on the branch and
+  numbered by a mid-package change control from AC-144 onward on the
+  Steward's authority. *And 9.1's sidebar grouping is presentation rather
+  than a rule 7.11 forbids*, settled at the kickoff because 7.11's closing
+  sentence, that any rule found only in the client is a specification
+  violation and as specified there are none, would otherwise make a session
+  either escalate the regrouping or answer it by asking the server for an
+  order frozen 7.4 does not name. 7.11 divides rules by authority and both of
+  its lists are decisions the server also makes; a grouping the server never
+  makes and cannot be wrong about is a rendering of fields the Folder object
+  already carries, in the section that owns rendering.
+- **Section 9's sections are named regions, ruled 2026-08-11 on the tester
+  return's routed recommendation.** Two closures made the same day interacted
+  and neither session could have seen it alone: 9.3 gave a folder page's two
+  quick-add rows different due dates, Scheduled opening with today and
+  Unscheduled with empty, while 9.1's control table gave the inline quick-add
+  input one name for the control class. A folder page carries two of them, so
+  a test could address "a quick-add row" and not "the Scheduled section's",
+  and the only remaining distinguisher was DOM position, which is the
+  implementer's internals and the one thing the addressing sentence exists to
+  keep out of this suite. Until it was ruled, the two dates the change
+  control had just written were asserted by nothing. *The container is named
+  rather than the control, and the decisive argument is not cost but scale.*
+  Qualifying the input, "the Scheduled section's quick-add", would put a
+  per-page variation into a table whose other seven entries are one control
+  each, which is the reason the return gave; the stronger one is that it
+  cannot be done at all for Tasks, which carries one quick-add row per folder
+  group, so its instances number as many folders as hold undated tasks and no
+  table of names can enumerate a set the data decides. Naming containers
+  costs almost nothing extra because section 9 already names most of them:
+  9.4's three headings, All's two, 9.7's three and 9.9's three are normative
+  strings today, and the rest take the datum they are generated from, a
+  folder, a label, a day. *Generalized once rather than per page*, because
+  the alternative is a session discovering it on Tasks, coming back, and a
+  second one discovering it on All. The rule is that every section a page's
+  structure names is a named region and a control inside one is addressed
+  within it, with three consequences written down: a collapsible section is a
+  region plus a control of the same name whose expanded state is what
+  collapsed means, which is what AC-058's clause now reads and which covers
+  9.4's recap and 9.1's label groups with it; a region's name is announced
+  rather than rendered, so Tasks' Inbox block is named without acquiring the
+  heading 9.5 deliberately denies it; and where the name comes from data
+  whose rendering this section leaves free, Done's day groups being the case,
+  a test asks for the text the page rendered rather than a string fixed here.
+  *Completed is named beside the two open sections*, which the routed item
+  raised and left open. Naming only where the collision was would have been
+  arbitrary, 9.6's body being three sections, and AC-058's half was reaching
+  a heading-shaped button by regex, which is exactly the loose description
+  matching the naming ruling exists to remove. *And one adjacent silence is
+  closed with them*, recorded because it sits inside the same table: the
+  Inbox block carries a quick-add row like every folder group beside it. 9.1
+  places the row at the bottom of Tasks groups and 9.5 calls that block
+  ungrouped, which between them left the one folder every account has as the
+  only one on that page that could not be captured into, on the page whose
+  whole purpose is capture without a date.
+- **P8's mid-package change control, 2026-08-11.** Twelve criteria numbered,
+  four silences ruled, two properties recorded in section 13, one CI edit
+  routed to Platform, and a tester return declared owed. *The numbering
+  crossed two trees, which is new.* Every earlier batch was numbered by one
+  Steward reading one section 12; this one was authored while package P7 was
+  numbering its own batch in a second working tree, so the proposing session
+  numbered from AC-154 on a brief already stale when written and two of its
+  twelve collided with numbers P7 had since assigned. The coordinating
+  session holds the ledger across both trees and ruled the allocation, which
+  is recorded rather than merely applied: ten stand exactly as authored, the
+  file claiming AC-154 becomes AC-166 and the one claiming AC-164 becomes
+  AC-167, and section 12 says why the range has gaps at those two. Appending
+  is safe precisely because these are identifiers rather than a sequence, and
+  renumbering something another branch has already assigned is the one move
+  that would make it unsafe. The same arithmetic reaches section 13, whose
+  new items are 26 and 27 because P7 holds 25; that gap is deliberately not
+  explained in section 13 itself, since it closes at P7's merge, where
+  section 12's two do not and are explained there.
+- **The four P8 silences, ruled 2026-08-11, three closed and one recorded.**
+  All four were routed by the tester rather than guessed at, and section 9
+  not being frozen is what let three of them be answered here. *The
+  entry-point table's folder-page cell* stated no due date, its value being
+  "per that folder's section context" while the floating add button belongs
+  to no section. 9.6's two open sections are now the context, Scheduled
+  opening with today and Unscheduled with empty, and the button opens empty,
+  which is what having no section context means in every other row of that
+  table. The reason is that a folder is not a dated page: My Day, the Planned
+  list and a calendar cell default to a date because the page is about that
+  date, Tasks and All default to none because they are not, and a folder
+  holds both kinds at once, so a defaulted today files a task into a section
+  nobody aimed at. *The star's inward tooltip* had no string at all, so
+  AC-099 could assert only that it did not point outward. It is now the
+  star's own state, "Important" filled and "Mark as important" not, both
+  states rather than one because the star is an icon-only toggle that owes a
+  screen reader something true in each, and because AC-055's un-star needs a
+  control it can ask for by name. *Eight controls this section described
+  without naming* are named, and this is the largest of the four and the
+  cheapest. The addressing sentence added at the kickoff reaches only named
+  controls, so the suite had been matching descriptions and escalating each
+  gap; a description matched loosely is a locator that finds the wrong
+  control the day a second one resembles it. Every name is lifted or
+  minimal: "Add a task" is the brief's own words for the quick-add row, "Add
+  task" separates the floating button from it on a page carrying both, the
+  two overflow menus take "More actions" because 9.3 spends "More options" on
+  the form's expander, and every confirmation offers "Continue" and "Cancel",
+  "Continue" being this section's own word in 9.5's un-complete confirm and
+  uniform because the destructive verb already sits in the normative message
+  above the buttons. These are accessible names, so nothing visual moves: an
+  icon-only control still shows an icon, and design may restyle and may not
+  rename, exactly as it may restyle and not reword. *And AC-138's "Deleted
+  user" clause is neither closed nor deleted.* The P5 row routed the
+  rendering half of 8.10's surviving-references sentence here, and section 9
+  names no page that displays created_by, completed_by or accepted_by. That
+  is not section 9's omission: 8.10's own ordering empties every path a page
+  renders a display_name through, clearing the assignment at step 4, dropping
+  the membership with it, and 7.3 excluding soft-deleted users from the
+  roster. The clause in frozen 4.1 and in 8.10 is correct and dormant, AC-138
+  pins the server half unchanged, and the obligation lifts from this package
+  as section 13 item 27, recorded as a reading of frozen text rather than a
+  change to it, the shape 11.9 took for UNTIL at P6.
+- **The Playwright leg's CI guard and its twenty-minute ceiling, both routed
+  to Platform on 2026-08-11.** The step's second condition, a matching spec
+  beside the config, is removed and the first is kept. The window it covered
+  opened at the Platform session's own commit and closed at `1a79a9b`, and it
+  cannot reopen: specs are only ever added, and a branch deleting every spec
+  while keeping the config is a branch deleting ten acceptance criteria,
+  which is what this leg exists to turn red for. Platform's own reason for
+  rejecting a no-tests-found flag, that it makes an empty collection
+  permanently indistinguishable from a passing one, applies verbatim to the
+  condition it kept instead, a skipped step being green. Riding the same
+  request is a fact measured from the runs rather than inferred: the first
+  two to reach this leg, on `5d46ce0` and `89d7470`, were both cancelled at
+  the job's `timeout-minutes: 20`, with lint, typecheck, both vitest legs and
+  build green in each. The cause is not the browser leg alone. The four legs
+  ahead of it spent 13 minutes 59 seconds and 14 minutes 28 seconds of the
+  twenty, the PGlite vitest leg about ten on its own, so the browser leg was
+  handed under six minutes and was cut off rather than concluding, and that
+  does not self-resolve when the pages render, since the fourteen minutes
+  ahead of it do not shrink while P9 and P10 add cases to the legs spending
+  them. It is a note to Platform and not a section 13 item, that section
+  holding unresolved external facts and assumptions the specification rests
+  on, and a job's ceiling being neither. It is not nothing either: a
+  cancelled run is worse than a failed one, branch protection reading it as
+  not green while the report names no assertion, so a session reading CI to
+  learn whether its own work passed learns nothing.
+- **P8's second change control, 2026-08-11.** Seven items ruled, four criteria
+  numbered from AC-169, one section 13 item recorded, two amendments to
+  section 11, and nothing routed to the human owner: every item turned out to
+  sit in section 9 or section 11, and neither is frozen. Two returns already
+  declared owed grow rather than two new sessions being added, which is the
+  cheaper shape and the one this row has used since its first return. The
+  items came from three places, which is worth naming because no single
+  session could have raised them: the tester escalated one from a locator it
+  could not write, the co-lead found one by reading the client against
+  section 7 endpoint by endpoint, and five were recorded as open silences and
+  readings in `app/src/client/README.md` by the sessions that met them. One
+  further item was noted rather than escalated and is agreed with here:
+  AC-100 appends one comment to `dist/client` during its run and restores the
+  bytes in a `finally`, which is a fixture action on the running system of
+  the same kind as seeding rows, over build output that is gitignored and
+  rebuilt at the start of every run. The one thing it is not is a fixture
+  written through section 7, so if it ever failed to restore, the next case
+  would read a modified worker; the `finally` and the rebuild bound that, and
+  the alternative that session measured is worse, `context.route()` not
+  intercepting the browser's fetch of a worker script at all.
+- **The reminder the client never sent, found by the co-lead and numbered as
+  AC-169 and AC-170.** `api/mutations.ts` carries a hook for every write of
+  section 7 except frozen 7.9's, so a reminder set in the task form was held
+  in the form's state and discarded at save, silently, with the whole suite
+  green. That last part is the finding rather than the missing hook: AC-092
+  asserts the form's state and says so in its own text, AC-146 to AC-150
+  assert the endpoints, and no criterion read the two together, which is the
+  gap shape AC-132 and AC-142 were written for one and two packages earlier.
+  Nothing frozen has to move, the endpoints having landed with P7, so this is
+  the client's obligation alone and 9.3 now states it: a reminder set while
+  creating rides the reminder arm of frozen 7.6's create body, and a reminder
+  set or changed while editing is 7.9's PUT, with DELETE
+  /tasks/:id/reminder for removal because no task body expresses one. *Two
+  numbers rather than one*, because create and edit are two paths to two
+  endpoints, which is the split section 12 already carries on the server side
+  with AC-149 against AC-146 and AC-148; one number covering both would pass
+  on an implementation that wired whichever path its author happened to test,
+  which is exactly the failure that produced the pair. Neither criterion
+  names a transport beyond what section 7 fixes, the stored reminder being
+  the assertion, so a client using the reminder arm of a PATCH body that 8.6
+  also names satisfies them.
+- **Section 9 gains the copy it had been implying, five strings in three
+  places.** All five were recorded as open silences by the sessions that met
+  them and none is invented to fill a gap in the abstract. *Two inline page
+  states* are written into 9.1: the failed read's "Couldn't load this.
+  Nothing was changed." with a "Try again" control, and the 404 answer's
+  "Not found. This may have been deleted, or it may never have been yours to
+  see." Section 9 gives every page five states and had spelled the toast
+  alone, while 10.2's chokepoint makes an inaccessible resource answer as a
+  missing one, so a client with no words there tells the person something
+  false about their own account. AC-171 asserts both. *The truncation notice*
+  is written beside them, "This list is long, so only the first part is
+  shown. Narrow it down to see the rest.", with no number interpolated
+  because the flag reports that rows were dropped and never how many, and a
+  client spelling "1000" would transcribe a limit of 10.3 the response does
+  not carry. It is deliberately asserted by no criterion, and the reason is
+  recorded in section 12 rather than left to look like an oversight:
+  producing it takes a thousand and one rows through section 7, and section
+  13 item 6 records that the cap is unreachable at v1 scale. The copy sits in
+  section 9 rather than section 6 because these are page states and page
+  states are section 9's; the cap rule that produces the flag does not move.
+  *And 9.6's two missing confirmations* are written word for word, before a
+  member is removed and before one leaves, each stating the R-CLEAN of 5.3
+  that a person cannot see from where they are standing, which is what the
+  four confirmations section 9 already wrote exist to state. They add no
+  criterion: AC-162's text is every destructive action section 9 puts a
+  confirm on rather than a list of four, so it reaches them as written and
+  what is owed is two cases in its file.
+- **The folder header is a region and the invite list is not, ruled the same
+  day and deliberately in opposite directions.** The tester escalated a
+  locator it could not write: 9.1's control table gives "More actions" to the
+  task form's overflow menu and to a task row's, 9.6's folder header carries
+  a third, and AC-162 reaches it as the first match on the page, which is
+  position and which that suite's own rule forbids. Of the two answers
+  offered, the tester preferred giving that menu a name of its own and this
+  change control took the other, applying the sections rule added to 9.1 on
+  the same date: the header and the sharing panel are named regions, "Folder
+  header" and "Sharing panel", both 9.6's own words, and the menu is
+  addressed as "More actions" within the first. *Why the tester's preference
+  lost*: the two named menus share one name deliberately, being the same
+  control pointed at different objects, so a third name would assert a
+  difference in kind that is not there, and the sections ruling's own
+  argument applies unchanged, that naming containers scales where qualifying
+  controls does not. Naming the header also reaches further for less, since
+  AC-058's 8.11 ratio, the Share button and the inline rename all sit in it
+  and are all addressed today by looking anywhere on the page. *And the
+  opposite ruling on the invite list*, which the page assembly session
+  recorded as owed rather than escalated, expecting disagreement: it stays
+  unnamed, because the sections rule takes a region's name from the heading
+  the section gives it or from the datum it is generated from, and this list
+  has neither, being one list with no heading. Its rows are addressed the way
+  a task row's controls are, from the row's own sentence, which is what
+  "Hassan invited you to Wedding" is for. A rule that produces a name where
+  the specification has one and produces none where it does not is one rule;
+  inventing a string here would have been a second.
+- **Two readings where two sentences agreed about one case and were silent
+  about the next.** *Where the Q12 invite surface lives*: 9.8 renders the
+  invite list "before anything else" after callback and 9.2 lands first-run
+  on My Day, which between them fix the first load and say nothing about the
+  second. It is a standing section of My Day, and of the People screen, for
+  as long as Q12 is non-empty, and AC-172 asserts it, because both wrong
+  implementations are plausible and silent: a surface rendered once leaves
+  anyone who reloads before answering with no invite in front of them, and a
+  band above every page invents global chrome 9.1 does not name. *Whether
+  9.3's assignee dropdown offers unassignment*: it does not, and 9.3 now says
+  so. Section 4 makes assignee_id nullable and INV-5 permits the null in a
+  folder of two or more, but AC-094 asserts the dropdown lists exactly the
+  members plus the invite option, so a "Nobody" entry would close a silence
+  by falsifying a criterion that passes, which trades the wrong way round.
+  The field is hidden in single-member folders, where AC-032's 409 lives, so
+  nothing is lost at the only place the refusal bites, and the form defaults
+  the assignee to the viewer, the null arriving from events rather than
+  choices: a move whose target the assignee is not a member of, and 5.3's
+  R-CLEAN. What it costs is recorded as section 13 item 28 rather than left
+  implicit, that a task in a shared folder can be reassigned from the
+  interface and not unassigned.
+- **Two carried items closed in section 11, neither of them frozen.** *The
+  CSRF cookie's name* is fixed: `dana_session` and `dana_csrf`, which is what
+  the server has set since P1. 11.6 fixed that the token cookie is readable
+  and fixed no name, so `api/csrf.ts` preferred a guess and fell back to
+  whatever the sole readable cookie turned out to be, a fallback worse than
+  the guess it protects, being correct exactly until something else sets a
+  readable cookie and then sending the wrong value on every mutation for a
+  403 that says nothing about why. The recommendation carried with the item,
+  moving both names into `app/src/shared`, is declined: that directory is the
+  contract as code, the section 7 schemas and types both sides import, and a
+  transport detail of 11.6 is not part of it. With the name in the
+  specification each side transcribes one specified constant, which is the
+  discipline the acceptance suite already runs on for section 9's copy,
+  restating rather than importing so that neither side takes its definition
+  of correct from the other. Removing the fallback is one line and is routed
+  with the client return. *And 11.4's `virtual:pwa-register` parenthesis*
+  names the flow rather than the import, which is the reading the shell
+  session recommended and which is now recorded in 11.4 so that a client not
+  importing that module is not read later as a deviation. The bullet's
+  obligation is 10.6's non-forcing update; the parenthesis identifies which
+  of the plugin's registration flows satisfies it, prompt-for-update rather
+  than autoUpdate, and a module specifier is how the plugin's own
+  documentation names that flow. The measured reason it is not merely a
+  preference: the virtual module exists only while the plugin is configured,
+  so a static import of it fails the build outright, and this package's
+  client had to be green on a tree where `vite.config.ts` was not yet wired.
+  Nothing forbids the import to a later session and the swap is one file.
+  Recorded as a reading of 11.4 rather than a change to it, the shape 11.9
+  took for UNTIL's spelling at P6.
 - **Package P7 of RFC 0001, reminders: 8.6's fire instants with both DST rules,
   all five recompute triggers, frozen 7.9's two endpoints, and 11.7's delivery
   pass with Resend behind it.** The fire-instant module implements the gap
@@ -1401,7 +1874,7 @@ Planning and design. No software has been released yet.
     having no glibc and substituting the Windows NLS implementation under the same
     name, and the ICU provider, which is stable only within one ICU major version
     and would be a third ordering agreeing with nothing. What the ruling gives up
-    is section 13 item 26: no leg now runs a linguistic collation, so the ordering
+    is section 13 item 29: no leg now runs a linguistic collation, so the ordering
     a production Render Postgres serves is checked by nothing, and the one place
     that is visible is 7.3's unfolded display_name. Closing it is the owner's
     choice among three, and the cheapest two touch no frozen section.

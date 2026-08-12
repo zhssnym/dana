@@ -329,3 +329,165 @@ carried since P1. That file is the Security engineer's path, and the P5 ruling
 above covers exactly this shape, an entry whose executor cannot write in the
 file that holds it. Reported in `198a672`'s message; the Steward annotates it at
 the merge.
+
+## The 10.6 PWA layer (P8, Frontend Architect)
+
+Not a router and not the boot file. It is in this ledger because this is where
+requests to the Platform engineer live, and by the P5 ruling above a ledger
+entry whose request is not the boot file's is reported by its executor and
+annotated by the Steward at merge. What it asks for is `vite.config.ts`, which
+is Platform's under protocol section 3, and it is the only thing standing
+between the client that is committed and the four criteria measured below.
+
+Requested: the `vite-plugin-pwa` plugin, already in `package.json` as a
+devDependency (added with the client shell, named and reasoned in that commit),
+plus one `publicDir` line. Verbatim, and measured in exactly this shape:
+
+```ts
+import { VitePWA } from 'vite-plugin-pwa'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: 'prompt',
+      injectRegister: null,
+      manifest: {
+        name: 'Dana',
+        short_name: 'Dana',
+        display: 'standalone',
+        start_url: '/app',
+        scope: '/',
+        theme_color: '#1f2933',
+        background_color: '#ffffff',
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        clientsClaim: true,
+        skipWaiting: false,
+        directoryIndex: null,
+        navigateFallback: 'index.html',
+        navigateFallbackAllowlist: [/^\/app(\/|$)/],
+        navigateFallbackDenylist: [/^\/api\//],
+        cleanupOutdatedCaches: true,
+      },
+    }),
+  ],
+  publicDir: 'src/client/public',
+  build: { outDir: 'dist/client' },
+  server: { proxy: { '/api': 'http://localhost:3000' } },
+})
+```
+
+Six of those values are load-bearing, and each was measured rather than
+chosen. The rest are the plugin's defaults spelled out.
+
+- **`navigateFallbackAllowlist: [/^\/app(\/|$)/]`** is AC-160, which is 9.1's
+  closing sentence: "Every /app path falls back to the cached shell per 10.6;
+  / does not." A fallback registered at the origin catches `/` too, and an
+  offline visitor who has been here once then lands on a signed-out
+  application instead of the public page 9.2 wrote for them.
+- **`directoryIndex: null`** is the other half of that same criterion, and it
+  is the one that is invisible until it fails. Workbox defaults it to
+  `'index.html'`, which makes a request for `/` match the precached
+  `/index.html` through the precache route rather than through the navigation
+  fallback, so the allowlist above is bypassed and `/` opens the shell offline
+  anyway. Measured: with the default, AC-160's first case fails on its second
+  assertion while every other criterion here still passes.
+- **`clientsClaim: true`** is what makes the worker control the page that
+  registered it, without waiting for a second navigation. Without it,
+  `navigator.serviceWorker.controller` is null for the whole of a first visit,
+  which is the precondition AC-091, AC-100 and AC-160 each assert before
+  anything else; measured, all six of those cases failed on that one
+  assertion with the plugin otherwise correctly configured.
+- **`skipWaiting: false`** is 10.6's no-forced-reload rule and is the plugin's
+  default for `registerType: 'prompt'`. It is spelled out because it sits
+  beside `clientsClaim` and the pair reads as one decision: the first worker
+  claims immediately, and every later one waits for the person. Claiming does
+  not activate a waiting worker, so the two do not fight.
+- **`injectRegister: null`** because the client registers the worker itself,
+  in `src/client/pwa/registerServiceWorker.ts`. Left at its default the plugin
+  injects a second registration into the built HTML, and the page then has two
+  registrations for one worker with only one of them able to raise the update
+  prompt.
+- **`publicDir: 'src/client/public'`** is where the two manifest icons live.
+  They are committed at `app/src/client/public/icon-192.png` and
+  `icon-512.png`, inside this role's owned paths, which is the reason for the
+  line: the alternative, Vite's default `app/public/`, is a directory no
+  persona owns and would have needed a ruling of its own. **The two files are
+  placeholders**, flat 192 and 512 squares in the theme colour, and they are
+  design's to replace under 11.13; AC-163 fetches them and asserts the
+  manifest lists both sizes, which they satisfy, and asserts nothing about
+  what is drawn on them, which is the part that is still owed.
+
+Facts the wiring can rely on:
+
+- Nothing in `src/client` imports `virtual:pwa-register`, so the tree builds
+  green with the plugin absent and builds green with it present. The reason
+  and the recorded deviation from 11.4's parenthetical are in
+  `src/client/pwa/registerServiceWorker.ts` and in `src/client/README.md`;
+  the flow is 11.4's, the import is not, and the swap is that one file if the
+  Steward rules the other way.
+- The generated worker carries workbox's `SKIP_WAITING` message listener,
+  which is what `applyUpdate` posts to. Verified in the built `sw.js`.
+- No server change is owed. `createApp` already serves `dist/client`
+  statically ahead of its SPA catch-all, so `sw.js`, `workbox-*.js`,
+  `manifest.webmanifest` and both icons are served as files with their own
+  content types, and `/api` stays ahead of the catch-all so no API path can
+  reach the shell.
+
+Measured before this request was written, by adding the block above locally
+and running the four browser specs it concerns, then reverting `vite.config.ts`
+so the tree this request describes is the tree Platform will meet. With the
+block: **AC-091 3 of 3, AC-160 2 of 2, AC-163 2 of 2**. Without it, all seven
+fail on the same first assertion, that no service worker controls the page.
+
+AC-100 is the exception and it is not this wiring's to fix. Its one case fails
+with the block in place, and the cause was measured rather than inferred:
+`context.route()` does not intercept the browser's fetch of the service worker
+script during `registration.update()`, so the spec's simulated new build never
+happens, the script comes back byte-identical, and no update is found. Driven
+instead by appending one comment to the built `dist/client/sw.js` and calling
+`registration.update()`, every clause of AC-100 holds against this client: the
+registration goes to `waiting`, the "Update available, reload" button appears,
+the mark set on the document survives, and the URL does not change. Routed to
+the Adversarial Test Engineer with that measurement and the recommendation
+that the spec make the new build real on disk rather than on the wire.
+
+Fulfilled as requested, every value verbatim, in `vite.config.ts`. Annotated by
+the Platform engineer under the P2 ruling above, which gives this right to the
+role that executes the request, and reported in the commit as well, which is
+what the P5 ruling asks of an entry the boot file does not own; the two rulings
+name different halves of one act here, because for once the executor and the
+annotator are the same role.
+
+The measurement, taken on this tree rather than copied from the request. Before
+the block, on the committed tree, the whole browser leg ran 63 passed and 16
+failed in CI. After it, the four specs this entry concerns run **AC-091 3 of 3,
+AC-160 2 of 2, AC-163 2 of 2**, which is the request's own figure reproduced,
+and the seven cases moved from red to green.
+The whole browser leg moved with them, and CI rather than this machine is the
+authority on that: 63 passed and 16 failed at `06b1ebe`, 70 passed and 9 failed
+at `de479b6`, the same nine reds either way.
+
+AC-100 stays red and its red moved, which is the part worth recording. Before
+the block it failed on the precondition every PWA criterion shares, that no
+service worker controlled the page. It now reaches its own sentence and fails
+waiting twenty seconds for the "Update available, reload" control, which is
+exactly what this entry predicts: `context.route()` never intercepted the
+worker script, so no new build was ever offered and there was nothing for the
+affordance to announce. The cause is the criterion's mechanism and not this
+configuration, and it sits with the Adversarial Test Engineer where the entry
+routed it.
+
+Six values were checked against the installed plugin rather than trusted.
+`directoryIndex` is typed `string | null` in workbox-build, so the `null` this
+entry requires is expressible and not a cast. The build emits `sw.js`,
+`workbox-*.js`, `manifest.webmanifest` and both icons into `dist/client`,
+precaching 9 entries, and `createApp` serves all of them with no server change,
+as the entry said it would.

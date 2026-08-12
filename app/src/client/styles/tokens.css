@@ -1,0 +1,613 @@
+/*
+Dana's design tokens: the single file of 11.4, and the only place in this
+client where a raw colour, type size, spacing step or radius may be written.
+
+**These are the design's values, transcribed from
+`docs/design/visual-foundation.html` section 08**, which is a complete token
+table its author wrote for this file specifically. The placeholder that stood
+here until now said of itself that every value in it was invented by an
+engineer and that a later session would replace them wholesale; this is that
+session, and the placeholder is gone.
+
+It said one more thing, which turned out to be the interesting one: that if
+the replacement did its job, no component file would change, and that this was
+the test of whether the vocabulary had been right. **It was not right, and the
+owner ruled that the design's vocabulary wins rather than being flattened into
+the placeholder's.** The gap is not a matter of taste. The placeholder carried
+five semantic colour slots where the design carries thirteen graphite steps,
+six accent steps and four semantic families as tint, border and text triples;
+five spacing steps against ten; three radii against five; one shadow against
+three elevation levels; and no icon size, stroke width or focus-ring token at
+all. The sharpest symptom was that the placeholder gave `--color-danger` and
+`--color-overdue` one value, so a destructive button and an overdue date were
+the same red. In the design they are not: destructive is `danger-600` carrying
+white text, and overdue is `danger-700` ink on a `danger-100` tint inside a
+`danger-200` border, which is a chip rather than a colour.
+
+Three rules this file encodes for everything downstream:
+
+- **Tailwind 4 is configured in CSS.** There is no `tailwind.config.js` and v3
+  configuration idioms are defects (11.15). `@theme` below is the whole
+  configuration, compiled by `@tailwindcss/vite`.
+- **Every colour a state signals also has a non-colour cue** in the markup
+  that carries it. The design states the same rule in its own words, that
+  status is never colour alone: overdue adds weight and a label, completed
+  adds the check, abandoned adds the strike and a chip. The tokens here are
+  the colour half of pairs whose other half is in `components/ui/`.
+- **Dark mode is out of scope for v1** and the brief says not to design it.
+  The graphite scale runs light to dark by step number, which is the
+  indirection a later theme would inverta rather than a set of names that bake
+  the current one in.
+
+Two transcription details, recorded so a reader comparing this file to section
+08 does not think either is a divergence.
+
+**The spacing scale is spelled `--spacing-N` here and `--space-N` there.**
+`--spacing-*` is the namespace Tailwind 4 generates `gap-*`, `p-*` and `m-*`
+from, so a step written under any other name is a value the framework cannot
+see and a component would have to write in pixels. The ten steps and their
+values are the design's exactly, and there is one definition of each rather
+than an alias pair, because two names for one value are two things that can
+drift.
+
+**The type roles carry their weight as a companion property.** Section 08
+writes each role as one string, "600 24px / 32px". Tailwind's `--text-*`
+namespace takes the size, with `--text-*--line-height` and
+`--text-*--font-weight` beside it, so each role is transcribed into the three
+properties the framework reads. `--text-meta` is the exception the design
+itself makes: it writes "400-500", a range rather than a weight, so no weight
+is fixed here and the call site chooses.
+
+**Five values below rest on an item the design's author marked OPEN and has
+not signed off.** They are transcribed as the table states them, and each is
+marked `OPEN-n` at its definition so that a change after sign-off is a lookup
+rather than an excavation. The five, in the author's own numbering: OPEN-1,
+metadata ink inside tinted fills; OPEN-2, warning never being a filled button;
+OPEN-3, whether checked controls take `accent-600` or `graphite-950`; OPEN-4,
+the PWA theme and background colours; OPEN-5, the type scale's approval, which
+reaches every `--text-*` role in this file.
+*/
+
+@import 'tailwindcss';
+
+/*
+Automatic source detection already finds these files; the line is explicit so
+that a change to where the build runs from cannot silently empty the
+stylesheet, which fails as a page with correct markup and no styling at all.
+*/
+@source '../**/*.{ts,tsx}';
+
+@theme {
+  /* ---------------------------------------------------------------- *
+   * Typography. OPEN-5: the scale is proposed and awaiting approval.
+   * Inter, weights 400, 500 and 600 only.
+   * ---------------------------------------------------------------- */
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+
+  --text-title: 24px;
+  --text-title--line-height: 32px;
+  --text-title--font-weight: 600;
+
+  --text-heading: 16px;
+  --text-heading--line-height: 24px;
+  --text-heading--font-weight: 600;
+
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-body--font-weight: 400;
+
+  --text-body-medium: 14px;
+  --text-body-medium--line-height: 20px;
+  --text-body-medium--font-weight: 500;
+
+  --text-label: 14px;
+  --text-label--line-height: 20px;
+  --text-label--font-weight: 500;
+
+  /* 400 to 500 in the design, a range rather than a weight, so the call site
+     chooses and none is fixed here. */
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+
+  /* ---------------------------------------------------------------- *
+   * Neutral: graphite. Thirteen steps, each with the job the design
+   * gives it, because a step used for the wrong job is how a scale
+   * stops meaning anything.
+   * ---------------------------------------------------------------- */
+  --color-graphite-0: #ffffff; /* cards, content surfaces, top bar */
+  --color-graphite-25: #fafafb; /* app canvas, sidebar */
+  --color-graphite-50: #f4f5f6; /* hover fill */
+  --color-graphite-100: #ebecee; /* pressed fill, skeletons, neutral chips */
+  --color-graphite-200: #dddee2; /* borders, dividers */
+  --color-graphite-300: #c6c8cd; /* strong borders, off switch track */
+  --color-graphite-400: #999ca3; /* disabled text and icons only, never body */
+  --color-graphite-500: #6e7076; /* metadata, placeholders, 5.0:1 on white */
+  --color-graphite-600: #585a60; /* secondary text, default icons, 6.8:1 */
+  --color-graphite-700: #44464c; /* hover text, icon emphasis */
+  --color-graphite-800: #2f3136; /* primary text, 12.9:1 */
+  --color-graphite-900: #1b1c20; /* titles, headings */
+  --color-graphite-950: #0a0a0a; /* locked Dana Mark ink */
+
+  /* ---------------------------------------------------------------- *
+   * Accent: cobalt, and the only colour that means "you can act here".
+   * ---------------------------------------------------------------- */
+  --color-accent-50: #f2f4fc; /* selected row background */
+  --color-accent-100: #e3e8f9; /* active and selected fills */
+  --color-accent-200: #c9d3f2; /* selected borders */
+  --color-accent-600: #3c5bbf; /* primary actions, links, focus ring, 6.0:1 */
+  --color-accent-700: #334da3; /* hover */
+  --color-accent-800: #2b4088; /* pressed */
+
+  /* ---------------------------------------------------------------- *
+   * Semantic status. Each family is a triple: a tint to fill with, a
+   * border to sit in, and an ink dark enough to read on the tint.
+   * ---------------------------------------------------------------- */
+  --color-success-100: #ddf2e2;
+  --color-success-200: #bfe5ca;
+  --color-success-600: #1f7a3f; /* white text 5.4:1 */
+  --color-success-700: #1a6635; /* text on tint, 6.1:1 */
+
+  --color-warning-100: #faeeda;
+  --color-warning-200: #f2dcb4;
+  --color-warning-500: #b97514; /* non-text accents only */
+  /* OPEN-2: no amber carries white text at 4.5:1, so warning is badge and
+     inline text only and never a filled button. Proposed, not signed off. */
+  --color-warning-700: #8f5300; /* 6.2:1 on white, 5.4:1 on tint */
+
+  --color-danger-100: #fbe5e2; /* overdue and danger tint */
+  --color-danger-200: #f3ccc7;
+  --color-danger-600: #be372f; /* destructive actions, white text 5.5:1 */
+  --color-danger-700: #a32c25; /* overdue text on tint, 5.9:1 */
+
+  --color-info-100: #dff0f6;
+  --color-info-200: #c2e2ee;
+  --color-info-700: #0f6e8c; /* 6.0:1 on white, 5.2:1 on tint */
+
+  /* ---------------------------------------------------------------- *
+   * Folder swatches: identification only, always beside a label or a
+   * name. Ten, capped in one OKLCH lightness and chroma band so a full
+   * sidebar reads as one column rather than ten competing dots.
+   *
+   * Ten rather than the placeholder's eight, which the brief admits: it
+   * asks for any number from 8 to 16 and no spec section fixes a count.
+   * Nothing in the client reads these yet, so widening breaks nothing;
+   * a folder's colour rides the wire as the hex of 7.4's my_color, and
+   * this set is the palette a colour picker will offer.
+   * ---------------------------------------------------------------- */
+  --color-folder-clay: #c4705d;
+  --color-folder-ochre: #b08034;
+  --color-folder-olive: #8a8a3a;
+  --color-folder-fern: #52975d;
+  --color-folder-teal: #3d998c;
+  --color-folder-sky: #4292bc;
+  --color-folder-cobalt: #6683d6;
+  --color-folder-violet: #8e71cf;
+  --color-folder-plum: #b562a9;
+  --color-folder-rose: #c4627b;
+
+  /* ---------------------------------------------------------------- *
+   * Spacing: 4px base, ten steps, no half-steps. Spelled in Tailwind's
+   * own namespace for the reason in this file's header.
+   * ---------------------------------------------------------------- */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* ---------------------------------------------------------------- *
+   * Sizes. The 44px floor is the design's and the brief's together:
+   * compactness comes from restrained gaps, never from small controls.
+   * ---------------------------------------------------------------- */
+  --size-target: 44px; /* minimum interactive target, all pointers */
+  --size-row: 44px; /* task row minimum height */
+  --size-control: 44px; /* button and input height */
+  --size-avatar: 28px;
+  --size-avatar-chip: 20px; /* an avatar inside a chip */
+
+  /* ---------------------------------------------------------------- *
+   * Radius: five steps, each named for what it is put on.
+   * ---------------------------------------------------------------- */
+  --radius-sm: 4px; /* checkboxes, small tags */
+  --radius-md: 6px; /* buttons, inputs, menu items */
+  --radius-lg: 10px; /* cards, menus, popovers */
+  --radius-xl: 14px; /* dialogs */
+  --radius-full: 9999px; /* chips, badges, dots, avatars, switch */
+
+  /* ---------------------------------------------------------------- *
+   * Elevation. Borders structure the page and shadows are reserved for
+   * layers that float above it, which is why there are only three and
+   * why the first of them is a border.
+   * ---------------------------------------------------------------- */
+  --elevation-0: none;
+  --elevation-1:
+    0 1px 2px oklch(0.145 0 0 / 0.06), 0 4px 16px oklch(0.145 0 0 / 0.1);
+  --elevation-2:
+    0 2px 6px oklch(0.145 0 0 / 0.08), 0 16px 40px oklch(0.145 0 0 / 0.16);
+
+  /* ---------------------------------------------------------------- *
+   * Icons and focus.
+   * ---------------------------------------------------------------- */
+  --icon-size-sm: 16px; /* inline with metadata, chips */
+  --icon-size-md: 20px; /* controls, navigation, row actions */
+  --icon-stroke: 1.75;
+
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-accent-600);
+
+  /* ---------------------------------------------------------------- *
+   * PWA shell. OPEN-4: proposed as DES-029 and finalised at session 8.
+   * `vite.config.ts` carries the manifest's own copy of these two, which
+   * a build reads and a stylesheet cannot; they are here so the pair has
+   * one place to be compared.
+   * ---------------------------------------------------------------- */
+  --pwa-theme-color: #ffffff;
+  --pwa-background-color: #ffffff;
+
+  /* ---------------------------------------------------------------- *
+   * State fades. Not section 08's, and marked as this file's own: the
+   * design renders completed and abandoned rows as faded and says so in
+   * section 05, and gives no number for either.
+   * ---------------------------------------------------------------- */
+  --opacity-abandoned: 0.55;
+  --opacity-completed: 0.65;
+
+  --width-menu: 12rem;
+  --width-dialog: 22rem;
+}
+
+/*
+Base rules, and deliberately few. Everything here is a consequence of a token
+above rather than a style of its own.
+*/
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-graphite-800);
+    background-color: var(--color-graphite-25);
+  }
+
+  body {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    font-weight: var(--text-body--font-weight);
+  }
+
+  /* The design's own words: on every interactive element. */
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+/*
+The component utilities. They exist so a component file can say what a thing
+is rather than what it looks like, which is what keeps every value in this
+file: `task-title-abandoned` is a name a designer can restyle, where
+`opacity-55 text-slate-500` would be two values living in a `.tsx`.
+*/
+
+/*
+9.5's abandoned row: "faded and struck". The strike is the `s` element, which
+computes a line-through with no stylesheet at all, so what is owed here is the
+fade, and it is applied to the element carrying the row's title rather than to
+the row.
+
+That is not a detail. `opacity` does not inherit, so a fade set on the row
+leaves every descendant computing 1, and a reader (or an acceptance test)
+comparing an abandoned row's title against a pending row's title beside it
+would find the two identical while the page looked correct. Colour is set with
+it for the same reason from the other side: colour does inherit, so the pair
+holds whichever property is read.
+*/
+@utility task-title-abandoned {
+  opacity: var(--opacity-abandoned);
+  color: var(--color-graphite-500);
+}
+
+/* Completed rows are faded and checked (section 6's state table, and the
+   design's section 05). */
+@utility task-title-completed {
+  opacity: var(--opacity-completed);
+  color: var(--color-graphite-500);
+}
+
+/*
+The button, in its base shape and its tones. Defined here rather than
+assembled from utilities at each call site, so that "what a primary button
+looks like" is one line a designer can change and not a string repeated in six
+`.tsx` files.
+
+The disabled treatment is the design's and belongs to the base rather than to
+a tone: graphite-100 fill, graphite-400 text, no border, whichever tone the
+control was. `graphite-400` is the one place that step is allowed, the scale
+naming it "disabled text and icons only".
+*/
+@utility button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  min-height: var(--size-control);
+  padding: 0 var(--spacing-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+  cursor: pointer;
+
+  &:disabled {
+    border-color: transparent;
+    background-color: var(--color-graphite-100);
+    color: var(--color-graphite-400);
+    cursor: default;
+  }
+}
+
+@utility button-default {
+  border-color: var(--color-graphite-200);
+  background-color: var(--color-graphite-0);
+  color: var(--color-graphite-800);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-graphite-50);
+    color: var(--color-graphite-700);
+  }
+  &:active:not(:disabled) {
+    background-color: var(--color-graphite-100);
+  }
+}
+
+@utility button-primary {
+  background-color: var(--color-accent-600);
+  color: var(--color-graphite-0);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-accent-700);
+  }
+  &:active:not(:disabled) {
+    background-color: var(--color-accent-800);
+  }
+}
+
+/*
+Destructive, and deliberately not the overdue colour. The placeholder gave the
+two one value; the design separates them, this being the filled control that
+carries white text at 5.5:1 and overdue being ink on a tint (see `chip-alert`).
+*/
+@utility button-danger {
+  background-color: var(--color-danger-600);
+  color: var(--color-graphite-0);
+}
+
+@utility button-quiet {
+  background-color: transparent;
+  color: var(--color-graphite-600);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-graphite-50);
+    color: var(--color-graphite-700);
+  }
+}
+
+/*
+Chips and badges. 12/16 at weight 500, which is the design's rule for every
+one of them.
+
+OPEN-1 is why the ink is graphite-600 and not graphite-500: the metadata step
+passes 4.5:1 on white and on the two lightest greys but not inside a filled
+chip, and the design proposes as a hard rule that metadata inside a tinted fill
+takes graphite-600 or the family's own 700 ink. Transcribed as proposed and
+awaiting sign-off.
+*/
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--spacing-5);
+  padding: 0 var(--spacing-2);
+  border: 1px solid var(--color-graphite-200);
+  border-radius: var(--radius-full);
+  background-color: var(--color-graphite-100);
+  color: var(--color-graphite-600);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/*
+The overdue treatment: the danger family as its full triple, tint inside
+border with the 700 ink on top, rather than the placeholder's red text on a
+grey chip. The weight is the design's second cue and the label beside it is
+the third, so nothing here depends on the colour being seen.
+*/
+@utility chip-alert {
+  border-color: var(--color-danger-200);
+  background-color: var(--color-danger-100);
+  color: var(--color-danger-700);
+  font-weight: 600;
+}
+
+/*
+The icon-only controls of a row. Sized to the target floor rather than to the
+glyph, because a 16 pixel star is not a 44 pixel target; the design draws that
+as a dashed square around a 20 pixel control and it is the same rule.
+*/
+@utility icon-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-target);
+  min-height: var(--size-target);
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--color-graphite-600);
+  font-size: var(--icon-size-md);
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-graphite-50);
+    color: var(--color-graphite-700);
+  }
+}
+
+/* A member's initials. Graphite fills keep identity quiet, and folder colour
+   is never reused for a person. */
+@utility avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-avatar);
+  height: var(--size-avatar);
+  border-radius: var(--radius-full);
+  background-color: var(--color-graphite-100);
+  color: var(--color-graphite-700);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+
+/* The same, inside a chip, where the design shrinks it. */
+@utility avatar-chip {
+  width: var(--size-avatar-chip);
+  height: var(--size-avatar-chip);
+}
+
+/* A folder's colour dot: identification only, never alone. */
+@utility folder-dot {
+  display: inline-block;
+  width: var(--spacing-2);
+  height: var(--spacing-2);
+  border-radius: var(--radius-full);
+}
+
+/*
+The overflow menu's popup and the confirmation's panel: the two floating
+layers, at the two elevations the design reserves shadows for.
+
+The focus ring goes inset inside a menu, which is the design's own note on its
+menu example. An outset ring on a full-width item is clipped by the panel it
+sits in, so the person sees three sides of it.
+*/
+@utility menu-panel {
+  position: absolute;
+  z-index: 40;
+  min-width: var(--width-menu);
+  padding: var(--spacing-1);
+  background-color: var(--color-graphite-0);
+  border: 1px solid var(--color-graphite-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+}
+
+@utility menu-item {
+  display: block;
+  width: 100%;
+  min-height: var(--size-target);
+  padding: 0 var(--spacing-3);
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--color-graphite-800);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  text-align: start;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-graphite-50);
+  }
+  &:focus-visible {
+    outline-offset: calc(-1 * var(--focus-ring-offset));
+  }
+}
+
+@utility dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-6);
+  background-color: color-mix(in srgb, var(--color-graphite-900) 40%, transparent);
+}
+
+@utility dialog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  width: var(--width-dialog);
+  max-width: 100%;
+  padding: var(--spacing-6);
+  background-color: var(--color-graphite-0);
+  border: 1px solid var(--color-graphite-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elevation-2);
+}
+
+/*
+The row itself. The design's compactness rule is here rather than anywhere
+else: rows use 8 to 12 pixels internally and the height floor is the target
+floor, so a dense list never costs a reachable control.
+*/
+@utility task-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--size-row);
+  padding: var(--spacing-1) 0;
+  border-bottom: 1px solid var(--color-graphite-200);
+}
+
+/*
+The title, and the design's central claim about scanning: it is the only
+14/400 element on the row, and everything else is 12 pixel metadata or sits
+inside a quiet chip, so the eye ladders titles without reading anything else.
+*/
+@utility task-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-graphite-900);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-weight: var(--text-body--font-weight);
+}
+
+/* Weight rather than size or colour carries urgency, which is what lets an
+   overdue row read in peripheral vision without adding height or noise. */
+@utility task-title-overdue {
+  font-weight: var(--text-body-medium--font-weight);
+}
+
+@utility meta {
+  color: var(--color-graphite-500);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+@utility quick-add {
+  width: 100%;
+  min-height: var(--size-control);
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--color-graphite-200);
+  border-radius: var(--radius-md);
+  background-color: var(--color-graphite-0);
+  color: var(--color-graphite-800);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+
+  &::placeholder {
+    color: var(--color-graphite-500);
+  }
+}

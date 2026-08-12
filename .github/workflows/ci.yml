@@ -78,20 +78,41 @@ jobs:
           npm test
       - name: Build
         run: npm run build
-      # Self-activates when P8 lands the Playwright configuration; until then
-      # the step is skipped, keeping the 11.11 order in place from P0 on.
+      # The fifth leg. The condition is P0's design and it guards history:
+      # a commit predating the config has no runner to invoke, and skipping
+      # is the honest answer there.
       #
-      # The shell is declared for the same reason as the step above, and this is
-      # the step that earned the rule. && is a PowerShell 7 pipeline chain
+      # A second condition stood beside it until P8, requiring a matching
+      # spec to exist as well, because the P8 kickoff split this seam by file
+      # and between the config's commit and the first spec's commit
+      # playwright test treats finding no spec as an error rather than an
+      # empty pass. That gap has closed: the specs are committed and specs
+      # can only be added, so the condition can no longer be false while the
+      # config is true. It is removed rather than left standing, and the
+      # reason is the one this comment used to give for rejecting the
+      # no-tests-found flag. A skipped step is green, so a condition that can
+      # only ever be true is a live way for this leg to go quiet without
+      # anyone reading a red: it is that flag written in YAML, and this leg
+      # is the only one any browser acceptance criterion runs in.
+      #
+      # The shell is declared for the same reason as the step above, and this
+      # is the step that earned the rule. && is a PowerShell 7 pipeline chain
       # operator and a parser error in Windows PowerShell 5.1, which is what a
-      # Windows runner falls back to when pwsh is absent. Leaving the interpreter
-      # to whatever happens to be on PATH makes the gate's behaviour a function of
-      # what is installed rather than of what is written here, and it would fail
-      # on the one step whose whole purpose is to prove the browser criteria ran.
-      # pwsh ships on GitHub-hosted runners, so this text is identical on both
-      # forms 11.11 admits; on the self-hosted form it is a stated prerequisite
-      # instead of a lucky accident.
+      # Windows runner falls back to when pwsh is absent. Leaving the
+      # interpreter to whatever happens to be on PATH makes the gate's
+      # behaviour a function of what is installed rather than of what is
+      # written here, and it would fail on the one step whose whole purpose is
+      # to prove the browser criteria ran. PowerShell 7 is installed on this
+      # machine, so the declaration is satisfiable on the self-hosted form as
+      # well as on the hosted one.
+      #
+      # Two halves of the install command come from different branches and
+      # both are deliberate. chromium is p8-client's, naming the one browser
+      # the config's single project uses, because installing the other two
+      # costs minutes of this job for something nothing runs. The dropped
+      # --with-deps is main's: that flag installs Linux system packages
+      # through apt and does nothing a Windows runner can use.
       - name: Playwright
         if: hashFiles('app/playwright.config.ts') != ''
         shell: pwsh
-        run: npx playwright install && npx playwright test
+        run: npx playwright install chromium && npx playwright test

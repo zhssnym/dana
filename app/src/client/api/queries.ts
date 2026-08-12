@@ -1,0 +1,326 @@
+/*
+Every read this client makes, one hook per surface.
+
+The convention this file exists to establish: **a page declares its data
+dependency by calling exactly one hook from here, and nothing below a page
+fetches anything.** Components take rows as props and callbacks as props. That
+is 11.4's "data fetching belongs to the query layer alone" read as a rule about
+where a `useQuery` may appear, and it is what keeps a component reusable
+between the two pages that render it.
+
+Every hook here is `getView` or `getPlain` from `http.ts`, so the tz rule of
+7.0 is decided by which of the two an endpoint takes rather than by anyone
+remembering. The split is 7.0's own: view endpoints evaluate dates and take
+tz, the roster and the folder list and settings do not and carry none.
+*/
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
+
+import { getConnectionsResponse } from '../../shared/connections.js'
+import type { GetConnectionsResponse } from '../../shared/connections.js'
+import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
+import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
+import { getInvitesPendingResponse } from '../../shared/invites.js'
+import type { GetInvitesPendingResponse } from '../../shared/invites.js'
+import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
+import type { MeResponse, Settings } from '../../shared/me.js'
+import { getTaskResponse } from '../../shared/tasks.js'
+import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
+import {
+  getAllResponse,
+  getDoneResponse,
+  getFolderTasksCompletedResponse,
+  getFolderTasksOpenResponse,
+  getImportantResponse,
+  getMyDayResponse,
+  getPlannedCalendarResponse,
+  getPlannedResponse,
+  getSearchResponse,
+  getTasksViewResponse,
+} from '../../shared/views.js'
+import type {
+  GetAllResponse,
+  GetDoneResponse,
+  GetFolderTasksOpenResponse,
+  GetImportantResponse,
+  GetMyDayResponse,
+  GetPlannedCalendarResponse,
+  GetPlannedResponse,
+  GetSearchResponse,
+  GetTasksViewResponse,
+} from '../../shared/views.js'
+
+import { getPlain, getView } from './http.js'
+import { queryKeys } from './keys.js'
+
+export function useMe(): UseQueryResult<MeResponse> {
+  return useQuery({
+    queryKey: queryKeys.me(),
+    queryFn: () => getPlain(meResponse, '/me'),
+  })
+}
+
+export function useSettings(): UseQueryResult<Settings> {
+  return useQuery({
+    queryKey: queryKeys.settings(),
+    queryFn: () => getPlain(getMeSettingsResponse, '/me/settings'),
+  })
+}
+
+export function useFolders(): UseQueryResult<GetFoldersResponse> {
+  return useQuery({
+    queryKey: queryKeys.folders(),
+    queryFn: () => getPlain(getFoldersResponse, '/folders'),
+  })
+}
+
+/**
+ * The accessible folders holding more than one member.
+ *
+ * Q3's "unassigned" chip is conditional on the folder having more than one
+ * member, and 7.0's TaskCard carries the {id, name, is_default} folder stub
+ * rather than the Folder object, deliberately: a group heading needs what a
+ * card's label needs and no more. member_count is on the Folder object, which
+ * is the folder list the chrome already reads, so the condition is answered
+ * from a query that is in the cache on every page rather than from a second
+ * request or from a widened frozen shape.
+ */
+export function useMultiMemberFolderIds(): ReadonlySet<string> {
+  const folders = useFolders()
+  return new Set(
+    (folders.data ?? []).filter((f) => f.member_count > 1).map((f) => f.id),
+  )
+}
+
+export function useFolder(id: string): UseQueryResult<GetFolderResponse> {
+  return useQuery({
+    queryKey: queryKeys.folder(id),
+    queryFn: () => getPlain(getFolderResponse, `/folders/${id}`),
+  })
+}
+
+export function useConnections(): UseQueryResult<GetConnectionsResponse> {
+  return useQuery({
+    queryKey: queryKeys.connections(),
+    queryFn: () => getPlain(getConnectionsResponse, '/connections'),
+  })
+}
+
+export function usePendingInvites(): UseQueryResult<GetInvitesPendingResponse> {
+  return useQuery({
+    queryKey: queryKeys.pendingInvites(),
+    queryFn: () => getPlain(getInvitesPendingResponse, '/invites/pending'),
+  })
+}
+
+export function useMyDayView(): UseQueryResult<GetMyDayResponse> {
+  return useQuery({
+    queryKey: queryKeys.view('my-day'),
+    queryFn: () => getView(getMyDayResponse, '/views/my-day'),
+  })
+}
+
+export function useTasksView(): UseQueryResult<GetTasksViewResponse> {
+  return useQuery({
+    queryKey: queryKeys.view('tasks'),
+    queryFn: () => getView(getTasksViewResponse, '/views/tasks'),
+  })
+}
+
+export function usePlannedView(): UseQueryResult<GetPlannedResponse> {
+  return useQuery({
+    queryKey: queryKeys.view('planned'),
+    queryFn: () => getView(getPlannedResponse, '/views/planned'),
+  })
+}
+
+export function useImportantView(): UseQueryResult<GetImportantResponse> {
+  return useQuery({
+    queryKey: queryKeys.view('important'),
+    queryFn: () => getView(getImportantResponse, '/views/important'),
+  })
+}
+
+export function useAllView(): UseQueryResult<GetAllResponse> {
+  return useQuery({
+    queryKey: queryKeys.view('all'),
+    queryFn: () => getView(getAllResponse, '/views/all'),
+  })
+}
+
+/**
+ * A day-grouped page of completed rows, which is the shape Q6 answers and the
+ * shape Q7's third section answers, one page at a time.
+ *
+ * The two hooks below are one function because section 6 says they are one
+ * query: "Completed: Q6 predicate, order, and pagination, folder_id = F". 7.10
+ * settled the consequence on 2026-08-07, that a cursor's kind names the order
+ * it pages rather than the endpoint that issued it, so the same cursor is
+ * legal at both endpoints. One hook body for one order is that sentence as
+ * code.
+ */
+type CompletedPage = GetDoneResponse
+
+/**
+ * The cursor rules of 7.10, in the three lines a client owes them.
+ *
+ * A cursor is opaque, so `undefined` is the first page and every later page is
+ * the previous response's `next_cursor` handed back byte for byte; nothing
+ * here reads a character of it. A null `next_cursor` is the only end-of-list
+ * signal, and returning `undefined` for it is what tells TanStack Query there
+ * is no next page: an empty final page is not an end signal and would leave a
+ * "load more" control offering a page that does not exist.
+ */
+function nextPageParam(page: CompletedPage): string | undefined {
+  return page.next_cursor ?? undefined
+}
+
+/**
+ * The pages of a completed list, flattened back into the day groups 9.5 and
+ * 9.6 render.
+ *
+ * A day is not a page. Q6 pages by 50 rows on (completed_at desc, id desc) and
+ * groups for display by the completed date, so a busy day spans two pages and
+ * arrives as two groups carrying one date. Concatenating the pages' `days`
+ * arrays would render that day's heading twice with the rows split under it,
+ * which is 9.1's region table broken as well: Done's regions are named by the
+ * day each one groups, and two regions cannot carry one name.
+ *
+ * Merging by date is safe rather than a re-sort, which section 6's preamble
+ * forbids. The pages arrive in the server's own order and each page's days are
+ * in it, so a date's second appearance is always immediately after its first
+ * across the seam; this appends within the existing group and never reorders
+ * either the days or the rows inside one.
+ */
+export interface CompletedDay {
+  readonly date: string
+  readonly rows: readonly TaskCard[]
+}
+
+export function mergeCompletedDays(
+  pages: readonly CompletedPage[] | undefined,
+): readonly CompletedDay[] {
+  const order: string[] = []
+  const byDate = new Map<string, TaskCard[]>()
+  for (const page of pages ?? []) {
+    for (const day of page.days) {
+      const existing = byDate.get(day.date)
+      if (existing === undefined) {
+        order.push(day.date)
+        byDate.set(day.date, [...day.rows])
+        continue
+      }
+      existing.push(...day.rows)
+    }
+  }
+  return order.map((date) => ({ date, rows: byDate.get(date) ?? [] }))
+}
+
+/**
+ * Done, as the infinite scroll 9.5 asks for.
+ *
+ * `useInfiniteQuery` rather than a page-index scheme because Q6 is keyset
+ * paginated: there is no page two to ask for, only the position the last
+ * response reported. The pages accumulate in the cache, so 8.3's unfiltered
+ * invalidation refetches every page a person has scrolled through rather than
+ * dropping them back to the first, which is what keeps a completion made in
+ * another tab from moving the ground under them.
+ */
+export function useDoneView(): UseInfiniteQueryResult<
+  { readonly pages: readonly CompletedPage[] },
+  Error
+> {
+  return useInfiniteQuery({
+    queryKey: queryKeys.view('done'),
+    queryFn: ({ pageParam }) =>
+      getView(getDoneResponse, '/views/done', { cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
+  })
+}
+
+export function useFolderOpenTasks(id: string): UseQueryResult<GetFolderTasksOpenResponse> {
+  return useQuery({
+    queryKey: queryKeys.folderTasks(id, 'open'),
+    queryFn: () =>
+      getView(getFolderTasksOpenResponse, `/folders/${id}/tasks`, { section: 'open' }),
+  })
+}
+
+export function useFolderCompletedTasks(
+  id: string,
+  enabled: boolean,
+): UseInfiniteQueryResult<{ readonly pages: readonly CompletedPage[] }, Error> {
+  return useInfiniteQuery({
+    queryKey: queryKeys.folderTasks(id, 'completed'),
+    queryFn: ({ pageParam }) =>
+      getView(getFolderTasksCompletedResponse, `/folders/${id}/tasks`, {
+        section: 'completed',
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
+    // Q7 renders the Completed section collapsed, and a collapsed section that
+    // fetched anyway would make the collapse cosmetic. AC-058's P8 half reads
+    // on the control's expanded state; this is what that state controls.
+    enabled,
+  })
+}
+
+/**
+ * Q3C's range, which the calendar of 9.5 asks for and this hook carries.
+ *
+ * The range is the client's to choose and Q3C answers whatever it receives;
+ * 9.5 fixes the month zoom's at the whole six weeks overlapping the month,
+ * which is 42 days and never approaches Q3C's 62-day refusal. The dates are
+ * part of the key rather than of the hook's identity, so changing zoom or
+ * paging a month is a different cache entry rather than a refetch of the same
+ * one, and going back to a month already seen is answered from the cache.
+ *
+ * Disabled while the range is unknown: the calendar reports its own dates
+ * after it has laid them out, so the first render has none, and a request
+ * without start and end is a 422 naming the pair.
+ */
+export function usePlannedCalendarView(
+  start: string | null,
+  end: string | null,
+): UseQueryResult<GetPlannedCalendarResponse> {
+  return useQuery({
+    queryKey: [...queryKeys.view('planned-calendar'), start, end],
+    queryFn: () =>
+      getView(getPlannedCalendarResponse, '/views/planned/calendar', {
+        start: start ?? '',
+        end: end ?? '',
+      }),
+    enabled: start !== null && end !== null,
+  })
+}
+
+/**
+ * One task in full, which 9.3's edit mode pre-fills from.
+ *
+ * `getPlain` rather than `getView`: 7.0 scopes its tz sentence to the view
+ * endpoints, and GET /tasks/:id evaluates no date. It answers TaskDetail,
+ * whose eight extra fields over TaskCard are exactly what the form needs and
+ * no list response carries: notes, the rule, the reminder and the steps.
+ */
+export function useTask(id: string | null): UseQueryResult<TaskDetail> {
+  return useQuery({
+    queryKey: queryKeys.task(id ?? ''),
+    queryFn: () => getPlain(getTaskResponse, `/tasks/${id ?? ''}`),
+    enabled: id !== null,
+  })
+}
+
+/**
+ * The 9.9 overlay's results. The overlay itself is the Complex Interaction
+ * engineer's; this is the read it consumes, here because every read in this
+ * client is here.
+ */
+export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearchResponse> {
+  return useQuery({
+    queryKey: [...queryKeys.view('search'), q],
+    queryFn: () => getView(getSearchResponse, '/search', { q }),
+    enabled,
+  })
+}

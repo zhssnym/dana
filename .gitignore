@@ -2,6 +2,10 @@ node_modules/
 .next/
 .data/
 dist/
+# Playwright's own output: the default outputDir for traces and screenshots,
+# and the html report the CI leg writes.
+test-results/
+playwright-report/
 desktop.ini
 Thumbs.db
 .DS_Store

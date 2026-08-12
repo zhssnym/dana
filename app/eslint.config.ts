@@ -2,7 +2,16 @@ import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist/**', '.data/**'] },
+  // Playwright writes generated bundles into its html report, and eslint .
+  // would otherwise lint them as if someone here had written them.
+  {
+    ignores: [
+      'dist/**',
+      '.data/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
+  },
   eslint.configs.recommended,
   tseslint.configs.recommended,
   {
