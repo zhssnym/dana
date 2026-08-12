@@ -193,6 +193,52 @@ contract does not give it.
    directly, so every row action invalidates and reports the same way.
 7. Put nothing global on the page. The top bar, sidebar, banner, floating add
    button, toasts and update affordance are all `AppLayout`'s.
+8. **Set no page width, no page padding and no page scroll.** Those are the
+   layout's, below, and thirteen pages each choosing their own is thirteen
+   chances to disagree.
+
+## The layout, and what it means for a page
+
+**Settled**, by P8D session 2. Until then this file's shell was a bare `div`
+holding a bare `main`, which is the recorded reason P8 shipped its sidebar as a
+full-width block. The shape is the designer's, in the class vocabulary role 08
+landed at P8D session 1 and indexed in `components/README.md`.
+
+```
+app-shell            the viewport-height box, and the app canvas colour
+├── shell-sidebar    fixed 256px, scrolls on its own
+└── shell-main       the content column
+    ├── shell-topbar 9.1's top bar: app name, search, avatar menu
+    ├── shell-pagebar    the designer's static current-page strip
+    ├── the offline and update banners
+    ├── main.shell-scroll    the ONE region that scrolls
+    │   └── shell-content    the measure: capped, centred, padded
+    │       └── the page
+    └── the floating add button
+```
+
+Three consequences a page or an overlay has to know.
+
+**The page is already inside its measure.** `shell-content` caps the column at
+`--shell-content-max` and centres it, so a page renders its own content and
+never a width, a horizontal padding or a max-width of its own.
+
+**Only `shell-scroll` scrolls, and the document does not.** That is the
+design's own rule and it is what keeps the top bar, the strip, the banners and
+the floating action still while the page moves. A page that made itself a
+scroll container would nest a second scrollbar inside the first.
+
+**A floating layer opened inside the page is clipped by that scroll region, and
+one of them is clipped today.** This is the honest cost of the fixed shell and
+it is worth knowing before it is rediscovered: an `overflow` ancestor clips its
+absolutely-positioned descendants, so a `menu-panel` that extends past the
+column's left edge is sliced at `x = 256` and the sidebar is what is painted
+underneath. Measured on the folder page, whose header menu opens leftward from
+a trigger 40 pixels inside the column: the panel spans 148 to 340 and the
+sidebar receives the pointer. Every other floating layer in `tokens.css` is
+`position: fixed` and escapes this; `menu-panel` and `popover-panel` are the
+two that are not. Raised to the Steward at that session's close with a
+recommendation, and it is role 08's file rather than a page's to change.
 
 ## Named regions
 
