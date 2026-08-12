@@ -49,7 +49,13 @@ import {
   useMultiMemberFolderIds,
 } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
-import { ConfirmDialog, OverflowMenu, QuickAddRow, TaskList } from '../components/ui/index.js'
+import {
+  ConfirmDialog,
+  initialsOf,
+  OverflowMenu,
+  QuickAddRow,
+  TaskList,
+} from '../components/ui/index.js'
 import type { MenuEntry } from '../components/ui/index.js'
 import { paths } from '../routes.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -172,7 +178,7 @@ export function FolderPage(): React.JSX.Element {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
@@ -188,14 +194,17 @@ export function FolderPage(): React.JSX.Element {
             it for free, all four having been addressable only by looking
             anywhere on the page. */}
         <PageSection name="Folder header">
+        <header className="page-header">
+        <div className="min-w-0 space-y-1">
         {/* 9.6: "name (inline rename for owner)". The heading becomes a field
             in place rather than opening a dialog, which is what inline means,
             and the field is offered only while the menu has put it there. */}
         {renaming === null ? (
-          <h1 className="text-title">{detail?.name}</h1>
+          <h1 className="page-title">{detail?.name}</h1>
         ) : (
-          <h1 className="text-title">
+          <h1 className="page-title">
             <input
+              className="input-base"
               type="text"
               aria-label="Folder name"
               value={renaming}
@@ -222,26 +231,37 @@ export function FolderPage(): React.JSX.Element {
           {detail?.counts.completed ?? 0} of{' '}
           {(detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)} done
         </p>
-        <ul>
+        <ul className="flex flex-wrap items-center gap-2">
           {(detail?.members ?? []).map((member) => (
-            <li key={member.user.id}>{member.user.display_name ?? 'Someone'}</li>
+            <li key={member.user.id} className="chip chip-outline">
+              <span className="avatar avatar-chip" aria-hidden="true">
+                {initialsOf(member.user.display_name)}
+              </span>
+              {member.user.display_name ?? 'Someone'}
+            </li>
           ))}
         </ul>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
         <OverflowMenu entries={entries} />
         {/* 9.6's Share button, which is the entry point Q7's header names and
             the panel below is what it opens. */}
         <button
           type="button"
+          className="button-base button-default"
           aria-expanded={sharing}
           onClick={() => setSharing(!sharing)}
         >
           Share
         </button>
+        </div>
+        </header>
         {labelling === null ? null : (
-          <div>
+          <div className="space-y-2">
             <label className="text-label" htmlFor="folder-personal-label">Label</label>
             <input
               id="folder-personal-label"
+              className="input-base"
               type="text"
               value={labelling}
               autoFocus
@@ -276,12 +296,14 @@ export function FolderPage(): React.JSX.Element {
             emptyCopy={FOLDER_EMPTY}
             truncated={open.data?.truncated ?? false}
           >
-            <TaskList
-              tasks={scheduled}
-              viewerId={viewerId}
-              multiMemberFolders={multiMember}
-              {...actions}
-            />
+            <div className="list-card">
+              <TaskList
+                tasks={scheduled}
+                viewerId={viewerId}
+                multiMemberFolders={multiMember}
+                {...actions}
+              />
+            </div>
           </PageBody>
           <QuickAddRow
             defaults={{ folder_id: id, due_date: todayInBrowserZone() }}
@@ -289,12 +311,14 @@ export function FolderPage(): React.JSX.Element {
         </PageSection>
 
         <PageSection name="Unscheduled" heading="Unscheduled">
-          <TaskList
-            tasks={unscheduled}
-            viewerId={viewerId}
-            multiMemberFolders={multiMember}
-            {...actions}
-          />
+          <div className="list-card">
+            <TaskList
+              tasks={unscheduled}
+              viewerId={viewerId}
+              multiMemberFolders={multiMember}
+              {...actions}
+            />
+          </div>
           <QuickAddRow defaults={{ folder_id: id }} />
         </PageSection>
 
@@ -309,8 +333,10 @@ export function FolderPage(): React.JSX.Element {
             onOpenChange={setCompletedOpen}
           >
             {completedDays.map((day) => (
-              <PageSection key={day.date} name={day.date} heading={day.date}>
-                <TaskList tasks={day.rows} viewerId={viewerId} {...actions} />
+              <PageSection key={day.date} name={day.date} heading={day.date} tone="day">
+                <div className="list-card">
+                  <TaskList tasks={day.rows} viewerId={viewerId} {...actions} />
+                </div>
               </PageSection>
             ))}
             <MorePages query={completed} />

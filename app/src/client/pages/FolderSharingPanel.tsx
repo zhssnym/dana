@@ -40,7 +40,7 @@ import {
   useRemoveFolderMember,
   useResendInvite,
 } from '../api/mutations.js'
-import { ConfirmDialog } from '../components/ui/index.js'
+import { ConfirmDialog, initialsOf } from '../components/ui/index.js'
 import { PageSection } from '../states/PageSection.js'
 
 /** 9.6, the roster picker's own label. */
@@ -103,16 +103,28 @@ export function FolderSharingPanel({
     region is what says which one a test means.
     */
     <PageSection name="Sharing panel" heading="Sharing panel">
-      <ul role="list">
+      {/*
+      DES-026 draws this as a 440px sheet. It stays a region on the page here,
+      which is what 9.6 and 9.1's regions ruling both give it, and it is drawn
+      as a card: `sheet-panel` is fixed at the task form's own width and no
+      token carries 440, so taking it would have been the wrong value and
+      minting one is role 08's. Recorded for row 4b.
+      */}
+      <div className="list-card space-y-4 p-4">
+      <ul role="list" className="space-y-1">
         {folder.members.map((member) => (
-          <li key={member.user.id}>
-            <span>{member.user.display_name ?? 'Someone'}</span>
+          <li key={member.user.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="avatar" aria-hidden="true">
+              {initialsOf(member.user.display_name)}
+            </span>
+            <span className="flex-1">{member.user.display_name ?? 'Someone'}</span>
             {/* "joined dates": the membership row's own timestamp. The format
                 is the design's, so the value is rendered as 7.4 carries it. */}
             <span className="meta">{member.joined_at.slice(0, 10)}</span>
             {folder.is_owner && !member.is_owner ? (
               <button
                 type="button"
+                className="button-base button-quiet"
                 onClick={() => {
                   setRemoving({
                     userId: member.user.id,
@@ -130,9 +142,11 @@ export function FolderSharingPanel({
         ))}
       </ul>
 
+      <div className="space-y-2">
       <label className="text-label" htmlFor="folder-roster-picker">{ROSTER_PICKER}</label>
       <select
         id="folder-roster-picker"
+        className="input-base"
         value={picked}
         disabled={addMember.isPending}
         onChange={(event) => {
@@ -149,10 +163,13 @@ export function FolderSharingPanel({
           </option>
         ))}
       </select>
+      </div>
 
+      <div className="space-y-2">
       <label className="text-label" htmlFor="folder-invite-by-email">{INVITE_BY_EMAIL}</label>
       <input
         id="folder-invite-by-email"
+        className="input-base"
         type="email"
         value={email}
         disabled={invite.isPending}
@@ -170,18 +187,21 @@ export function FolderSharingPanel({
           invite.mutate({ email: trimmed, folder_id: folder.id })
         }}
       />
+      </div>
 
       {folder.pending_invites.length === 0 ? null : (
-        <ul role="list">
+        <ul role="list" className="space-y-1">
           {folder.pending_invites.map((row) => (
-            <li key={row.id}>
+            <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
               {/* "exact email": the address as it was invited, never a
                   display name, because the point of this list is that a
                   mistyped address can be seen and repaired. */}
-              <span>{row.email}</span>
+              <span className="flex-1">{row.email}</span>
+              <span className="chip chip-info">Invite pending</span>
               <span className="meta">{row.last_sent_at}</span>
               <button
                 type="button"
+                className="button-base button-quiet"
                 onClick={() => {
                   cancel.mutate(row.id)
                 }}
@@ -190,6 +210,7 @@ export function FolderSharingPanel({
               </button>
               <button
                 type="button"
+                className="button-base button-default"
                 disabled={!resendable(row.last_sent_at)}
                 title={resendable(row.last_sent_at) ? undefined : RESENT_RECENTLY}
                 onClick={() => {
@@ -202,6 +223,8 @@ export function FolderSharingPanel({
           ))}
         </ul>
       )}
+
+      </div>
 
       {removing === null ? null : (
         <ConfirmDialog

@@ -67,12 +67,16 @@ export function PendingInviteList({
   if (invites.length === 0) return null
 
   return (
-    <ul role="list">
+    <ul role="list" className="list-card space-y-1">
       {invites.map((invite) => (
-        <li key={invite.id}>
-          <span>{inviteSentence(invite)}</span>
+        <li
+          key={invite.id}
+          className="flex flex-wrap items-center gap-2 px-2 py-2"
+        >
+          <span className="flex-1">{inviteSentence(invite)}</span>
           <button
             type="button"
+            className="button-base button-primary"
             disabled={accept.isPending}
             onClick={() => {
               accept.mutate(invite.id, {
@@ -91,6 +95,7 @@ export function PendingInviteList({
           </button>
           <button
             type="button"
+            className="button-base button-quiet"
             disabled={decline.isPending}
             onClick={() => {
               decline.mutate(invite.id)

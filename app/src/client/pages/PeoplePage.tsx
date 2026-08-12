@@ -24,7 +24,9 @@ import { useState } from 'react'
 
 import { useCreateInvite, useRemoveConnection } from '../api/mutations.js'
 import { useConnections, usePendingInvites } from '../api/queries.js'
-import { ConfirmDialog } from '../components/ui/index.js'
+import { UsersRound } from 'lucide-react'
+
+import { ConfirmDialog, initialsOf } from '../components/ui/index.js'
 import { PageBody } from '../states/PageStates.js'
 import { PendingInviteList } from './PendingInvites.js'
 
@@ -41,8 +43,10 @@ export function PeoplePage(): React.JSX.Element {
   const [removing, setRemoving] = useState<string | null>(null)
 
   return (
-    <div>
-      <h1 className="text-title">People</h1>
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">People</h1>
+      </header>
 
       {/* 9.8's login surface, above the roster: an unanswered invite is the
           one thing on this screen a person can still act on. */}
@@ -52,17 +56,25 @@ export function PeoplePage(): React.JSX.Element {
         query={connections}
         isEmpty={(connections.data?.length ?? 0) === 0}
         emptyCopy="No one yet. Invite someone by email to share a folder with them."
+        emptyIcon={UsersRound}
       >
-        <ul role="list">
+        <ul role="list" className="list-card space-y-1">
           {(connections.data ?? []).map((entry) => (
-            <li key={entry.user.id}>
-              <span>{entry.user.display_name ?? entry.user.email}</span>
-              <span>{entry.user.email}</span>
+            <li
+              key={entry.user.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2"
+            >
+              <span className="avatar" aria-hidden="true">
+                {initialsOf(entry.user.display_name ?? entry.user.email)}
+              </span>
+              <span className="flex-1">{entry.user.display_name ?? entry.user.email}</span>
+              <span className="meta">{entry.user.email}</span>
               {/* 9.8: "roster list with remove control". Either side may call
                   it (7.3), so it is offered on every row rather than on the
                   rows one of the two happens to have created. */}
               <button
                 type="button"
+                className="button-base button-quiet"
                 onClick={() => setRemoving(entry.user.id)}
               >
                 Remove connection
@@ -72,9 +84,11 @@ export function PeoplePage(): React.JSX.Element {
         </ul>
       </PageBody>
 
-      <label className="text-label" htmlFor="invite-by-email">Invite by email</label>
-      <input
+      <div className="space-y-2">
+        <label className="text-label" htmlFor="invite-by-email">Invite by email</label>
+        <input
         id="invite-by-email"
+        className="input-base"
         type="email"
         value={email}
         disabled={invite.isPending}
@@ -87,7 +101,8 @@ export function PeoplePage(): React.JSX.Element {
           invite.mutate({ email: trimmed })
         }}
         onChange={(event) => setEmail(event.target.value)}
-      />
+        />
+      </div>
 
       {removing === null ? null : (
         <ConfirmDialog
