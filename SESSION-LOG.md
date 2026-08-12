@@ -286,13 +286,55 @@ before starting the next.
 | 2 | Shell and layout: the fixed shell measured at 256 and 1120, the top bar keeping all three controls section 9 gives it, the locked mark and the approved icons. Reported red at 95 of 97 rather than green, the cause diagnosed to a clip in role 08's menu panel and routed | 07 | Implementers | Done, escalated |
 | 2a | The six list pages and the four shared states, the skeleton and the contextual empty icon arriving without one page changing to get them, and row 4's three routed attributes applied to the toast region. Found the switch treatment inexpressible against a native checkbox and recorded it rather than working around it | 07 | Implementers | Done |
 | 2b | The seven management and public pages, the switch applied to both its consumers, and the folder page held to 9.6's three sections against DES-062. Declined two things section 9 does not name and recorded both rather than skipping them quietly | 07 | Implementers | Done |
-| 3 | The form, the calendar and the search overlay against his screens, on session 1's vocabulary, with the week start ruled Monday | 09 | Implementers | Planned |
+| 3 | The form, the calendar and the search overlay against his screens, on session 1's vocabulary, with the week start ruled Monday | 09 | Implementers | Superseded, never ran |
 | 4 | Pulled forward ahead of 2a on the co-lead's routing, a red gate being a thing three sessions must not inherit. The clip fixed as a modifier rather than on the base class, which is what kept the top bar's own menu from silently dropping below the fold; two names minted, two reuses ratified; the gate back to 97 of 97. The P4 row 6a shape, where a later row runs early and keeps its address | 08 | Implementers | Done, escalated |
 | 4a | Pulled ahead of 2b, the switch treatment 2a could not express blocking Settings on the same native checkbox: one treatment keyed on `:checked` replacing the unusable pair, an icon rule on the two heading classes, the truncation notice's register ratified as the weaker of two ratifications and said so, and the vocabulary index brought up to date. Reported one unreproduced failure on the Postgres leg rather than smoothing it over | 08 | Implementers | Done |
-| 4b | Contingency: whatever names 2b and 3 find missing. Run only if asked for, recorded as skipped otherwise | 08 | Implementers | Planned |
-| 5 | The built pages reviewed against the running prototype. Required by spec 13 item 33; the row records who looked, at what, when and with what verdict | owner | not a session | Planned |
-| 5a | The review's findings returned to the persona owning each surface, applied or declined with a reason | 07, 08, 09 | Implementers | Planned |
-| 6 | Merge review, then merge. Refuses on a missing row 5, or on findings still open, as it would on a red leg | 12 | Steward | Planned |
+| 4b | Contingency: whatever names 2b and 3 find missing. Run only if asked for, recorded as skipped otherwise | 08 | Implementers | Superseded, never ran |
+| 5 | The built pages reviewed against the running prototype. Required by spec 13 item 33 | owner | not a session | Superseded by the review of 2026-08-13 |
+| 5a | The review's findings returned to the persona owning each surface | 07, 08, 09 | Implementers | Superseded, never ran |
+| 6 | Merge review, then merge | 12 | Steward | Superseded, never ran |
+
+**This package was stopped on 2026-08-13 and is not merging as built.** The owner opened
+the designer's prototype beside the built client and rejected the result. Six sessions had
+executed the row exactly as written and the row was wrong: RFC 0001 generalised a narrow
+ruling about component provenance, twenty of the designer's `components/ui/` files against
+our seven, into "his pages are read and never copied" for the whole package, on the ground
+that his screens run on fixtures rather than our query layer. That ground argues against
+copying his data wiring and not against taking his visual composition, and the difference
+is the package. What shipped wears his colours, type and spacing over compositions that are
+not his: his landing screen is 451 lines with a hero and a product preview, ours was a 24px
+heading and a bullet list.
+
+Two process facts are worth more than the rows above. **Nobody ran the prototype.** Not the
+kickoff, not the audit, not one of the six sessions; every one of them read his files and
+none of them opened his application, in a package whose entire subject was appearance. And
+**every session did what it was told**: the failure is in the instruction, which the co-lead
+wrote six times without challenging it. The rows stay because they are what happened.
+
+The replacement is RFC 0002, below, on the same branch. The token, component and shell work
+above is superseded by it; the documentation the package produced is not, and stands:
+11.13's rewrite, section 13 items 32 to 34, and `CLAUDE.md`'s two measured machine traps.
+
+## P8R: the UI replacement (`p8d-design`)
+
+Named provisionally by the co-lead; RFC 0002's author fixes the identifier. Rows R0 to R12
+are a forecast and the operator's, revised whenever a session's findings revise the plan.
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| R0 | Author RFC 0002: the section 9 delta, the calendar onto 11.4, the dependency approvals, the three criteria to rewrite, new criteria and items numbered | 12 | Steward | Planned |
+| R1 | AC-093, AC-166 and AC-172 rewritten against the amended text, plus whatever the RFC numbers, all red | 11 | Testers | Planned |
+| R2 | The dependencies, his `tokens.css` and `app.css` without the 1180px floor, his twenty `components/ui/` primitives | 08 | Implementers | Planned |
+| R3 | His presentational components, relabelled to section 9's names per the owner's ruling | 08 | Implementers | Planned |
+| R4 | `parts/presenters.ts`, the layer that maps our API shapes onto his display props, with its own unit tests | 07 | Implementers | Planned |
+| R5 | His shell and sidebar on our router, our folders, and 9.7's visibility gates | 07 | Implementers | Planned |
+| R6 | The six list screens on our view hooks through the presenters | 07 | Implementers | Planned |
+| R7 | His task form: the sheet, the date picker, the dependency graph, steps, the invite row, task history | 09 | Implementers | Planned |
+| R8 | His search overlay and sharing panel | 09 | Implementers | Planned |
+| R9 | His calendar grid, replacing FullCalendar | 09 | Implementers | Planned |
+| R10 | Landing, unverified-email and invite gate, with his copy and his preview panel | 07 | Implementers | Planned |
+| R11 | The visual review, still a merge precondition under spec 13 item 33 | owner | not a session | Planned |
+| R12 | Findings returns, then the merge review | 12 | Steward | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
