@@ -3,6 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+    The locked Dana Mark, as the favicon this document has never carried. It is
+    DES-030's own SVG, copied unmodified into the client's public directory:
+    not redrawn, outlined, ringed, shadowed, or put in a decorative container.
+
+    An SVG rather than a generated .ico, because the mark is vector and every
+    browser this product targets takes image/svg+xml. The manifest's own icons
+    are the two PNG rasters beside it, which vite.config.ts declares and which
+    the installed shell uses; a favicon and a manifest icon are different
+    surfaces and neither substitutes for the other.
+    -->
+    <link rel="icon" href="/dana-mark.svg" type="image/svg+xml" />
     <title>Dana</title>
   </head>
   <body>
