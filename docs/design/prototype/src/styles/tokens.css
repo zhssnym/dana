@@ -1,0 +1,200 @@
+/* Dana v1 — approved light-theme tokens, including the Session 4 desktop
+ * compact-control refinement.
+ * Hex values are authoritative. Dark mode is intentionally out of scope.
+ */
+
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --font-heading: var(--font-family-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+  --radius-full: 9999px;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --font-family-sans: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --text-title-size: 24px;
+  --text-title-line: 32px;
+  --text-heading-size: 16px;
+  --text-heading-line: 24px;
+  --text-body-size: 14px;
+  --text-body-line: 20px;
+  --text-meta-size: 12px;
+  --text-meta-line: 16px;
+
+  /* Graphite neutral ramp */
+  --color-graphite-0: #ffffff;
+  --color-graphite-25: #fafafb;
+  --color-graphite-50: #f4f5f6;
+  --color-graphite-100: #ebecee;
+  --color-graphite-200: #dddee2;
+  --color-graphite-300: #c6c8cd;
+  --color-graphite-400: #999ca3;
+  --color-graphite-500: #6e7076;
+  --color-graphite-600: #585a60;
+  --color-graphite-700: #44464c;
+  --color-graphite-800: #2f3136;
+  --color-graphite-900: #1b1c20;
+  --color-graphite-950: #0a0a0a;
+
+  /* Dana cobalt: interaction only, never task status or folder identity */
+  --color-dana-accent-50: #f2f4fc;
+  --color-dana-accent-100: #e3e8f9;
+  --color-dana-accent-200: #c9d3f2;
+  --color-dana-accent-600: #3c5bbf;
+  --color-dana-accent-700: #334da3;
+  --color-dana-accent-800: #2b4088;
+
+  /* Semantic colors */
+  --color-success-100: #ddf2e2;
+  --color-success-200: #bfe5ca;
+  --color-success-600: #1f7a3f;
+  --color-success-700: #1a6635;
+  --color-warning-100: #faeeda;
+  --color-warning-200: #f2dcb4;
+  --color-warning-500: #b97514;
+  --color-warning-700: #8f5300;
+  --color-danger-100: #fbe5e2;
+  --color-danger-200: #f3ccc7;
+  --color-danger-600: #be372f;
+  --color-danger-700: #a32c25;
+  --color-info-100: #dff0f6;
+  --color-info-200: #c2e2ee;
+  --color-info-700: #0f6e8c;
+
+  /* Folder identity swatches; always pair with a visible folder name */
+  --color-folder-clay: #c4705d;
+  --color-folder-ochre: #b08034;
+  --color-folder-olive: #8a8a3a;
+  --color-folder-fern: #52975d;
+  --color-folder-teal: #3d998c;
+  --color-folder-sky: #4292bc;
+  --color-folder-cobalt: #6683d6;
+  --color-folder-violet: #8e71cf;
+  --color-folder-plum: #b562a9;
+  --color-folder-rose: #c4627b;
+
+  /* shadcn/ui semantic role mapping */
+  --background: var(--color-graphite-25);
+  --foreground: var(--color-graphite-800);
+  --card: var(--color-graphite-0);
+  --card-foreground: var(--color-graphite-800);
+  --popover: var(--color-graphite-0);
+  --popover-foreground: var(--color-graphite-800);
+  --primary: var(--color-dana-accent-600);
+  --primary-foreground: var(--color-graphite-0);
+  --secondary: var(--color-graphite-50);
+  --secondary-foreground: var(--color-graphite-800);
+  --muted: var(--color-graphite-50);
+  --muted-foreground: var(--color-graphite-600);
+  --accent: var(--color-graphite-50);
+  --accent-foreground: var(--color-graphite-800);
+  --destructive: var(--color-danger-600);
+  --destructive-foreground: var(--color-graphite-0);
+  --border: var(--color-graphite-200);
+  --input: var(--color-graphite-300);
+  --ring: var(--color-dana-accent-600);
+  --sidebar: var(--color-graphite-25);
+  --sidebar-foreground: var(--color-graphite-800);
+  --sidebar-primary: var(--color-dana-accent-600);
+  --sidebar-primary-foreground: var(--color-graphite-0);
+  --sidebar-accent: var(--color-graphite-50);
+  --sidebar-accent-foreground: var(--color-graphite-800);
+  --sidebar-border: var(--color-graphite-200);
+  --sidebar-ring: var(--color-dana-accent-600);
+
+  /* Spacing: 4px base, no half-steps */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shape */
+  --radius: 6px;
+  --radius-full: 9999px;
+
+  /* Elevation: borders structure pages; shadows are for floating layers */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgb(10 10 10 / 6%),
+    0 4px 16px rgb(10 10 10 / 10%);
+  --elevation-2: 0 2px 6px rgb(10 10 10 / 8%),
+    0 16px 40px rgb(10 10 10 / 16%);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Repeated control sizes: primary desktop controls are 40px; dense
+   * navigation and property rows use their own application-specific rhythm. */
+  --control-height: 40px;
+  --shell-sidebar-row-height: 32px;
+  --task-form-property-row-height: 36px;
+  --task-row-height: 44px;
+  --checkbox-size: 20px;
+  --switch-width: 40px;
+  --switch-height: 22px;
+  --avatar-size: 28px;
+  --icon-size-compact: 16px;
+  --icon-size-default: 20px;
+  --icon-stroke-width: 1.75;
+
+  /* Session 4 approved desktop shell */
+  --shell-sidebar-width: 256px;
+  --shell-sidebar-item-height: var(--control-height);
+  --shell-sidebar-section-font-size: 11px;
+  --shell-sidebar-row-font-size: 13px;
+  --shell-pagebar-height: 24px;
+  --shell-content-max: 1120px;
+
+  /* Installed light shell */
+  --pwa-theme-color: #ffffff;
+  --pwa-background-color: #ffffff;
+}
+
+/* Accessibility guardrails approved with the palette:
+ * - Small text inside a tint uses graphite-600 or the relevant semantic-700.
+ * - Warning is inline/badge treatment only, never an amber button with white text.
+ * - Status and folder colors always travel with a text or icon cue.
+ */

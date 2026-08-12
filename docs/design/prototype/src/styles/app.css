@@ -1,0 +1,119 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 1180px;
+  background: var(--background);
+  font-family: var(--font-family-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 1180px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-family-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--color-dana-accent-100);
+  color: var(--color-graphite-900);
+}
+
+/* The desktop TaskForm is deliberately wider than the shadcn Sheet default so
+ * its compact field rows do not collapse into a mobile-density layout. */
+[data-slot="sheet-content"].task-form-sheet {
+  width: var(--task-form-width, 540px) !important;
+  max-width: var(--task-form-width, 540px) !important;
+}
+
+/* Semantic sidebar type tiers intentionally override shadcn's generic
+ * text-xs/text-sm menu defaults. Hierarchy comes from role, weight and color
+ * without introducing unrelated font sizes between sibling rows. */
+[data-sidebar-tier="section"] {
+  font-size: var(--shell-sidebar-section-font-size);
+  font-weight: 600;
+}
+
+[data-sidebar-tier="primary"],
+[data-sidebar-tier="group"],
+[data-sidebar-tier="action"] {
+  font-size: var(--shell-sidebar-row-font-size);
+  font-weight: 600;
+}
+
+[data-sidebar-tier="folder"] {
+  font-size: var(--shell-sidebar-row-font-size);
+  font-weight: 500;
+}
+
+[data-sidebar-tier="folder"][data-active] {
+  font-weight: 600;
+}
+
+/* Rows touch structurally; their 1px top and bottom inset creates the exact
+ * 2px visual separation between neighboring hover/selected surfaces. */
+[data-sidebar="menu"] {
+  gap: 0;
+}
+
+/* The collapsed rail has a fractional inner width after its divider is
+ * resolved. Center the complete 32px cell in that available column so every
+ * glyph shares the Dana Mark's optical axis. */
+[data-collapsible="icon"][data-state="collapsed"]
+  [data-sidebar="menu-button"] {
+  justify-content: center;
+  margin-inline: auto;
+}
+
+[data-task-form-title] {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+[data-task-form-tier="disclosure"] {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
