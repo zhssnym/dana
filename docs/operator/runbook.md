@@ -397,6 +397,19 @@ that consume it puts its first independent reader downstream of its own mistakes
 by phase, a commit per phase so CI attributes a failure to the session that caused
 it, and a full stop before anything irreversible, which always includes the merge.
 
+**Where the report goes: `D:\dana-reports\`, never the drive root.** Six of them had
+accumulated at `D:\` by 2026-08-12, one per grouped run since P5, 165 kilobytes of
+markdown sitting beside the working trees with nothing naming what they were. Name
+the directory in the prompt, because a run told only to write "one report file"
+writes it wherever its working directory happens to be.
+
+They stay outside the repository deliberately and they are disposable once their
+package merges. Protocol section 2 names five sources of project state and a report
+is not one of them: what a run decides reaches `CHANGELOG.md`, the specification and
+`SESSION-LOG.md` through the Steward and the co-lead, and the report is the working
+paper those were written from. Delete them when the package merges, or keep them if
+you like reading the prose, but never let a later session treat one as current.
+
 ### Two working trees
 
 One clone holds one checkout, so two packages in flight at once need a second
