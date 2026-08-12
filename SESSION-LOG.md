@@ -280,13 +280,13 @@ before starting the next.
 
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
-| 0 | Kickoff: 11.13 amended to admit a prototype, items 30 and 31 ruled, the dependency set ratified | 12 | Steward | Planned |
-| 1 | The dependencies added, his `tokens.css` reconciled against ours from the same board | 08 | Implementers | Planned |
-| 2 | The component port, every role, name and region preserved | 08 | Implementers | Planned |
-| 3 | Shell and layout: the sidebar beside the content, the top bar, the page canvas | 07 | Implementers | Planned |
-| 4 | The form, the calendar and the search overlay against his screens | 09 | Implementers | Planned |
-| 5 | The built pages reviewed against the sixteen screens | owner | not a session | Planned |
-| 6 | Merge review, then merge | 12 | Steward | Planned |
+| 0 | Kickoff: 11.13 rewritten, item 30 held open with its reason, item 31's routing landed at P9, the dependency set ruled, mobile packaged as item 32, the human review made a precondition as item 33 | 12 | Steward | Done, escalated |
+| 1 | The foundation and the blocker for everything after it: dependencies, the token reconciliation plus the layout layer ours never had, the seven components restyled, the class vocabulary 07 and 09 will apply | 08 | Implementers | Planned |
+| 2 | Shell and layout: the sidebar beside the content, the top bar, the page canvas. Markup and class names only | 07 | Implementers | Planned |
+| 3 | The form, the calendar and the search overlay against his screens, on session 1's vocabulary | 09 | Implementers | Planned |
+| 4 | Contingency: the names sessions 2 and 3 found missing. Run only if asked for, recorded as skipped otherwise | 08 | Implementers | Planned |
+| 5 | The built pages reviewed against the running prototype. Required by spec 13 item 33; the row records who looked, at what, when and with what verdict | owner | not a session | Planned |
+| 6 | Merge review, then merge. Refuses on a missing row 5 as it would on a red leg | 12 | Steward | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)
 

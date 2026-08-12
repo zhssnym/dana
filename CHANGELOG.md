@@ -10,6 +10,53 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **The P8D kickoff, 2026-08-12: spec 11.13 rewritten, two open questions
+  opened as items 32 and 33, and the package retraced.** P8D ports the
+  designer's appearance onto the client P8 built, and it exists because
+  section 9's first sentence excludes colour, typography and spacing, so no
+  acceptance criterion can see appearance and P8 shipped 173 green criteria
+  over a client whose sidebar was a full-width block. Nothing here is
+  application code.
+  11.13 named `docs/design/screens/*.png`, deleted at 552d4a5 on the owner's
+  call, and did not name the two artifacts that now matter most. It is
+  replaced by a table of six artifacts and what each is authoritative for,
+  plus the reconciliation of the two files that carry token values: the
+  foundation board adjudicates a value, `app/src/client/styles/tokens.css`
+  stays the single tokens file of 11.4 and is where that value lives, and the
+  designer's `prototype/src/styles/tokens.css` is read for the two things the
+  board never carried, the layout dimensions and the role mapping. The two
+  agree on every primitive they share, checked value by value; they differ in
+  spelling. The missing layout layer is the direct cause of what P8 shipped:
+  a tokens file that described every colour correctly and never said how wide
+  the sidebar is.
+  Section 13 item 30 now records that the shadcn provenance departure does
+  **not** close in this package, the owner having ruled restyle over
+  replacement on 2026-08-12; the RFC row had left that between two options and
+  a reader would have inferred the wrong one. Item 31's routing to P9 was
+  checked and had not landed: the P9 row named a limits sweep written before
+  that item existed and named neither `TaskForm.tsx` nor the item, so a P9
+  session would have found no instruction. The P9 row now names it.
+  Two new items. **Item 32, whether Dana v1 owes a mobile layout, is packaged
+  for the human owner and not ruled.** The phrase in 11.13 naming exported
+  screens at phone and desktop was the only mention of a phone layout in the
+  whole specification and its subject was deleted; section 9 fixes no
+  responsive behaviour, no criterion runs at any width, and 10.6 implies
+  phones without specifying a layout, while the designer has answered by
+  default, DES-037 deferring mobile and 23 of the registry's 28 surfaces
+  reading "MOBILE DEFERRED". This package's own half is ruled: P8D ports
+  desktop artifacts, owes no mobile layout, and must not carry the prototype's
+  `min-width: 1180px` into an installable PWA. **Item 33 rules the human
+  visual review a precondition of the merge**, waivable by the owner and by
+  nobody else, on the ground that this package can never have a criterion and
+  a fully green gate is therefore capable of certifying exactly what was false
+  at P8. Its evidence is one recorded line, not a document.
+  Also ruled at the kickoff and transcribed into the RFC row: the dependency
+  set, where restyle refuses six of the prototype's seven and approves
+  `@fontsource-variable/inter`, which is owed rather than optional because
+  both token files name Inter and the client loads no font at all today; and
+  the session order, where the finding that every visual value lives in one
+  file with one owner makes role 08 wide and first and collapses two forecast
+  sessions into one.
 - **Package P8 of RFC 0001, the web client, merged into main on 2026-08-12.**
   The largest row in the plan and the first that renders anything: the shell,
   the router over 9.1's route table, the TanStack Query data layer sending tz
