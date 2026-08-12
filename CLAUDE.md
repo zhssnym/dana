@@ -72,10 +72,28 @@ protocol points here rather than repeating them.
   an embedded Postgres 18 needing no setup, selected by the single seam in
   `app/db/client.ts`. The second leg runs against the PostgreSQL 18 installed here:
   service `postgresql-x64-18`, binaries in `C:\Program Files\PostgreSQL\18\bin`,
-  port 5432. Set `TEST_DATABASE_URL` in the shell to reach it. Nothing loads
-  `app/.env` for a test run, only the server boot does, so exporting the variable is
-  the only way in and a value sitting in that file will not be picked up by
-  `npm test`.
+  port 5432, reached through `TEST_DATABASE_URL`. Nothing loads `app/.env` for a
+  test run, only the server boot does, so a value sitting in that file will not be
+  picked up by `npm test`.
+- **`TEST_DATABASE_URL` is already set machine-wide here, so a bare `npm test` is
+  the Postgres leg and not the PGlite one.** Running `npm test` twice measures one
+  leg twice and reports both green, which is the false green the CI workflow's own
+  guard exists to stop. Select the leg explicitly rather than by habit: the PGlite
+  leg is `env -u TEST_DATABASE_URL npm test` (`$env:TEST_DATABASE_URL=''` in
+  PowerShell), the Postgres leg is a plain `npm test`.
+- **The browser leg must have that variable unset for the whole run**, and the
+  reason is a seam that treats its two processes differently. `npm run e2e:app`
+  seeds through `app/db/client.ts`, which prefers `TEST_DATABASE_URL`, and then
+  boots the server through `app/src/server/index.ts`, which deletes it per 11.10
+  and falls back to `.data`. With the variable set, the seed writes to `dana_test`
+  while the browser is shown a `.data` nothing truncated, so the leg fails on
+  missing fixtures with a count that drifts as that directory accumulates. Run it
+  as `env -u TEST_DATABASE_URL npx playwright test`. Measured 2026-08-12 at the
+  P8D session 1 verification: 97 of 97 in 1.2 minutes, run immediately after the
+  five other legs with no cooldown and no process kill. The older belief that this
+  leg needs a quiet machine, and the counts recorded for it, were this fault
+  rather than load; `C:\Users\hassan\gate.ps1` still carries the superseded
+  explanation and a stale count of 94.
 - The cluster's own locale is French_France.1252 under libc, which is not what the
   suite runs on and must never become it. The `dana_test` database is created with
   the builtin C.UTF-8 locale so that it orders text exactly as PGlite does; spec

@@ -41,9 +41,14 @@ back and writing what goes out next.
 - This folder, `docs/operator/`: this contract, the runbook, and the prompting guide.
 - Every prompt handed to a build session. You write them; Hassan delivers them.
 - The verification of every final block, before its claims are believed by anyone.
-- Administrative corrections to documentation, under the standing authorization in
-  the runbook: a stale status line, a wrong label, an obvious slip, fixed directly
-  and disclosed afterwards.
+- Administrative corrections to documentation: a stale status line, a wrong label,
+  an obvious slip, fixed directly and disclosed afterwards. This extends to
+  measured facts about this machine in the root `CLAUDE.md`, which is Platform's
+  file and whose "Commands and this machine" section is the recorded home of
+  exactly those; the precedent is P5's session 6, where the co-lead landed the
+  suite timings and two Vitest 4 traps. Write only what you measured yourself, and
+  disclose it in the same turn. Everything beyond that shape still routes to the
+  role that owns the file.
 
 ## First moves
 

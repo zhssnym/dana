@@ -282,7 +282,7 @@ before starting the next.
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: 11.13 rewritten, item 30 held open with its reason, item 31's routing landed at P9, the dependency set ruled, mobile packaged as item 32, the human review made a precondition as item 33 | 12 | Steward | Done, escalated |
 | 0a | Change control: the pages given two sessions, five non-ports named including the sidebar brand header nobody had noticed, the brand assets and the motion values assigned, item 32 ruled desktop-first, item 34 recorded, the findings return scheduled | 12 | Steward | Done |
-| 1 | The foundation and the blocker for everything after it: dependencies, the token reconciliation plus the layout layer ours never had, the motion values that existed only as prose, the seven components restyled, the class vocabulary 07 and 09 will apply | 08 | Implementers | Planned |
+| 1 | The foundation: the layout layer and the motion values, the seven components restyled, the vocabulary indexed for the four sessions after it, and the browser leg's false red diagnosed to a database seam rather than to load | 08 | Implementers | Done, escalated |
 | 2 | Shell and layout: the sidebar beside the content, the top bar, the page canvas, and the brand assets no cell had named. Markup and class names only | 07 | Implementers | Planned |
 | 2a | The list pages and the shared page states, where a "Loading" span stands in for a skeleton | 07 | Implementers | Planned |
 | 2b | The management and public pages, bounded against 2a by file | 07 | Implementers | Planned |
