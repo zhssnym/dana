@@ -24,11 +24,45 @@ open.
 **The menu owns no action.** Every entry is a label and a callback, so what
 "Delete" means, and whether it confirms first, belongs to the caller. 9.4's
 row and 9.6's header put different things behind the same three words.
+
+**The panel is placed against the viewport, and that is the fix for the two
+browser cases the fixed shell turned red.** Until P8D's return session this
+panel was `position: absolute` with `top-full right-0`, which put it below the
+trigger and right-aligned with it. The shell built at session 2 made the page's
+scroll region a clipping container, and a menu opening leftward from a trigger
+near the column's left edge was sliced at the sidebar's boundary, with the
+sidebar receiving the clicks that landed in the missing part. `panel-floating`
+takes the panel out of that clip by making it fixed, and a fixed layer cannot
+be placed by a stylesheet, because nothing in CSS knows where the trigger is.
+So this file measures.
+
+Three things the measurement owes, none of which is a behaviour change and all
+of which the browser leg would notice if they were wrong. It repositions while
+the menu is open, on scroll and on resize, so a fixed panel tracks the trigger
+instead of hanging in space; the scroll listener is a capturing one, because
+the element that actually scrolls is the shell's inner region and a bubbling
+listener on the window never hears it. It flips above the trigger when the
+panel is taller than the room below it, which the absolute version got for free
+by being inside something scrollable and would otherwise lose. And it renders
+hidden for exactly one frame before it has a rectangle: the placement runs in a
+layout effect, which is before paint, so nothing is ever drawn in the wrong
+place and nothing can observe the hidden state.
+
+The two numbers this file writes into a style attribute are a measured `top`
+and `right` in pixels. They are the layout's own coordinates read back at
+runtime, not values the design fixes, so 11.4 leaves them here rather than in
+`tokens.css`, on the same ground as the sidebar's folder colour.
 */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 
 import { MORE_ACTIONS } from './copy.js'
+
+/** Where the panel sits, in viewport pixels, once the trigger is measured. */
+interface Placement {
+  readonly top: number
+  readonly right: number
+}
 
 export interface MenuEntry {
   readonly label: string
@@ -48,8 +82,44 @@ export function OverflowMenu({
   readonly entries: readonly MenuEntry[]
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
+  const [placement, setPlacement] = useState<Placement | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
   const popup = useRef<HTMLDivElement | null>(null)
+
+  /*
+  Placement, in a layout effect so it lands before the first paint. The deps
+  are `[open]` alone and `place` sets state, so the effect does not re-run on
+  its own result and there is no loop.
+  */
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlacement(null)
+      return undefined
+    }
+    function place(): void {
+      const anchor = trigger.current?.getBoundingClientRect()
+      const panel = popup.current
+      if (anchor === undefined || panel === null) return
+      const height = panel.offsetHeight
+      const below = window.innerHeight - anchor.bottom
+      // Above the trigger only when it does not fit below and does fit above,
+      // so a menu that fits nowhere still opens downward from where it was.
+      const flip = height > below && anchor.top > below
+      setPlacement({
+        top: flip ? Math.max(0, anchor.top - height) : anchor.bottom,
+        right: Math.max(0, window.innerWidth - anchor.right),
+      })
+    }
+    place()
+    // Capturing, because the scroll that moves this trigger happens on the
+    // shell's inner region and never reaches the window by bubbling.
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return undefined
@@ -123,7 +193,12 @@ export function OverflowMenu({
           ref={popup}
           role="menu"
           aria-label={MORE_ACTIONS}
-          className="menu-panel top-full right-0"
+          className="menu-panel panel-floating"
+          style={
+            placement === null
+              ? { visibility: 'hidden' }
+              : { top: placement.top, right: placement.right }
+          }
           onKeyDown={onMenuKeyDown}
         >
           {entries.map((entry) => (

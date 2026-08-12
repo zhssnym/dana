@@ -933,6 +933,52 @@ sits in, so the person sees three sides of it.
   box-shadow: var(--elevation-1);
 }
 
+/*
+The modifier a floating layer takes when it opens inside something that
+scrolls, and the fix for the two red browser cases P8D session 2 left.
+
+**The problem, measured rather than reasoned.** The fixed shell that session
+built makes `main.shell-scroll` a clipping container: `overflow-y: auto` forces
+`overflow-x` to `auto`, and an overflow ancestor clips its absolutely
+positioned descendants. The folder header's "More actions" trigger sits about
+40 pixels inside the content column, and `menu-panel` above opens leftward from
+it, so the panel spanned roughly x=148 to x=340 against a sidebar ending at
+x=256. The left two thirds of it were never painted, and
+`document.elementFromPoint` at a menu item's centre returned the sidebar row
+underneath. A person could still click the sliced right-hand strip; a test
+clicking the centre could not, which is what AC-162 hit twice.
+
+**Why a modifier rather than making every menu fixed.** The Frontend
+Architect's session recommended fixing `menu-panel` itself, on the ground that
+every other floating layer in this file is `position: fixed`. The
+recommendation is right about the direction and would have broken something it
+could not see: `menu-panel` has two consumers, and the other is the avatar menu
+in `shell/TopBar.tsx`, which sits above the scroll region, is clipped by
+nothing, and positions itself with `top-full right-0`. Those two utilities
+resolve against the trigger while the panel is absolute and against the
+viewport once it is fixed, so making the base class fixed would have sent that
+menu below the fold, silently, on a surface no browser case addresses. The
+modifier fixes every clipped layer and leaves every unclipped one alone.
+
+`position: fixed` escapes an overflow ancestor because a fixed element's
+containing block is the viewport rather than any box inside it, so clipping
+that applies to the containing-block chain no longer reaches it. The price is
+that a fixed layer cannot be placed by CSS alone: nothing in a stylesheet knows
+where the trigger is. The consumer measures it and sets `top` and `right`,
+which are runtime coordinates read off the layout and not values the design
+fixes, so they belong at the call site and not in this file (11.4). See
+`components/ui/OverflowMenu.tsx` for the placement, including the reposition on
+scroll and the flip upward when there is no room below.
+
+Composes with `menu-panel` and with `popover-panel`, which is the other layer
+in this file that is absolute and therefore clippable. Role 09's three surfaces
+have not landed yet; a popover of theirs that opens inside a scrolling region
+takes this modifier and places itself the same way.
+*/
+@utility panel-floating {
+  position: fixed;
+}
+
 @utility menu-item {
   display: flex;
   align-items: center;
