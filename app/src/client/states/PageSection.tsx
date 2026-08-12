@@ -26,23 +26,45 @@ visible heading. A region's name is announced and addressed, not rendered, so
 */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+
+/**
+ * Which register a section's heading is drawn in.
+ *
+ * `section` is the default and is 9.1's own section headings, "Carried over",
+ * "Today", "Planned", a folder group's name. `day` is the quieter label a
+ * group generated from a date takes, which is Done's day groups: the design
+ * draws those small and quiet because the date is a divider between runs of
+ * rows rather than a title over a part of the page. Nothing about the region
+ * changes with it, so a criterion addressing a section by name is unaffected.
+ */
+export type HeadingTone = 'section' | 'day'
+
+const HEADING_CLASS: Record<HeadingTone, string> = {
+  section: 'section-heading',
+  day: 'day-heading',
+}
 
 interface PageSectionProps {
   /** The region's accessible name. 9.1's table decides it. */
   readonly name: string
   /** The visible heading, where the section gives one. */
   readonly heading?: string
+  readonly tone?: HeadingTone
   readonly children: ReactNode
 }
 
 export function PageSection({
   name,
   heading,
+  tone = 'section',
   children,
 }: PageSectionProps): React.JSX.Element {
   return (
     <section aria-label={name}>
-      {heading === undefined ? null : <h2 className="text-heading">{heading}</h2>}
+      {heading === undefined ? null : (
+        <h2 className={HEADING_CLASS[tone]}>{heading}</h2>
+      )}
       {children}
     </section>
   )
@@ -51,6 +73,7 @@ export function PageSection({
 interface CollapsibleSectionProps {
   readonly name: string
   readonly defaultOpen: boolean
+  readonly tone?: HeadingTone
   readonly children: ReactNode
   /** Told when the section opens, so a page can defer the section's fetch. */
   readonly onOpenChange?: (open: boolean) => void
@@ -59,16 +82,17 @@ interface CollapsibleSectionProps {
 export function CollapsibleSection({
   name,
   defaultOpen,
+  tone = 'section',
   children,
   onOpenChange,
 }: CollapsibleSectionProps): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <section aria-label={name}>
-      <h2 className="text-heading">
+      <h2 className={HEADING_CLASS[tone]}>
         <button
           type="button"
-          className="text-heading"
+          className="flex items-center gap-2"
           aria-expanded={open}
           onClick={() => {
             const next = !open
@@ -76,6 +100,18 @@ export function CollapsibleSection({
             onOpenChange?.(next)
           }}
         >
+          {/*
+          The disclosure glyph, `aria-hidden` because `aria-expanded` on the
+          button is what actually carries the state and is what AC-058 reads.
+          It is the second cue rather than the only one, which is the design's
+          rule for every state it draws: the arrow is what a sighted reader
+          sees and the expanded state is what everything else does.
+          */}
+          {open ? (
+            <ChevronDown aria-hidden="true" className="size-4" />
+          ) : (
+            <ChevronRight aria-hidden="true" className="size-4" />
+          )}
           {name}
         </button>
       </h2>

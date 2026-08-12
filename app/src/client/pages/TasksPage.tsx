@@ -27,6 +27,8 @@ folder groups below are data and are absent until they arrive.
 The rendering is exported because 9.5's All page renders its Tasks section by
 this page's own rules, carrying these same regions inside it.
 */
+import { ListTodo } from 'lucide-react'
+
 import type { GetTasksViewResponse } from '../../shared/views.js'
 import { useMe, useTasksView } from '../api/queries.js'
 import { QuickAddRow, TaskList } from '../components/ui/index.js'
@@ -74,9 +76,12 @@ export function TasksGroups({
             (view?.groups.length ?? 0) === 0
           }
           emptyCopy={emptyCopy ?? ''}
+          emptyIcon={ListTodo}
           truncated={truncated}
         >
-          <TaskList tasks={view?.inbox ?? []} viewerId={viewerId} {...actions} />
+          <div className="list-card">
+            <TaskList tasks={view?.inbox ?? []} viewerId={viewerId} {...actions} />
+          </div>
         </PageBody>
         {/* Undated and into this group's folder: 9.5's own words for the row,
             and the entry-point defaults of 9.3 for the bare Tasks page. The
@@ -92,7 +97,9 @@ export function TasksGroups({
           name={group.folder.name}
           heading={group.folder.name}
         >
-          <TaskList tasks={group.rows} viewerId={viewerId} {...actions} />
+          <div className="list-card">
+            <TaskList tasks={group.rows} viewerId={viewerId} {...actions} />
+          </div>
           <QuickAddRow defaults={{ folder_id: group.folder.id }} />
         </PageSection>
       ))}
@@ -106,15 +113,19 @@ export function TasksPage(): React.JSX.Element {
   const actions = useRowActions()
 
   return (
-    <div>
-      <h1 className="text-title">Tasks</h1>
-      <TasksGroups
-        query={view}
-        view={view.data}
-        viewerId={me.data?.user.id ?? null}
-        actions={actions}
-        truncated={view.data?.truncated ?? false}
-      />
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">Tasks</h1>
+      </header>
+      <div className="space-y-6">
+        <TasksGroups
+          query={view}
+          view={view.data}
+          viewerId={me.data?.user.id ?? null}
+          actions={actions}
+          truncated={view.data?.truncated ?? false}
+        />
+      </div>
     </div>
   )
 }

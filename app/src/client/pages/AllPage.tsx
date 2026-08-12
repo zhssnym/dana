@@ -12,6 +12,8 @@ several.
 
 Section headers are static labels, not links (9.5).
 */
+import { Layers3 } from 'lucide-react'
+
 import { useAllView, useMe, useMultiMemberFolderIds } from '../api/queries.js'
 import { TaskList } from '../components/ui/index.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -29,8 +31,10 @@ export function AllPage(): React.JSX.Element {
   const data = view.data
 
   return (
-    <div>
-      <h1 className="text-title">All</h1>
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">All</h1>
+      </header>
       <PageBody
         query={view}
         isEmpty={
@@ -39,17 +43,21 @@ export function AllPage(): React.JSX.Element {
           (data?.tasks_groups.length ?? 0) === 0
         }
         emptyCopy={ALL_EMPTY}
+        emptyIcon={Layers3}
         // One flag for both sections: the cap is per response, so All's two
         // arrays share it and the notice belongs above the pair.
         truncated={data?.truncated ?? false}
       >
+        <div className="space-y-6">
         <PageSection name="Planned" heading="Planned">
-          <TaskList
-            tasks={data?.planned ?? []}
-            viewerId={viewerId}
-            multiMemberFolders={multiMember}
-            {...actions}
-          />
+          <div className="list-card">
+            <TaskList
+              tasks={data?.planned ?? []}
+              viewerId={viewerId}
+              multiMemberFolders={multiMember}
+              {...actions}
+            />
+          </div>
         </PageSection>
         <PageSection name="Tasks" heading="Tasks">
           <TasksGroups
@@ -64,6 +72,7 @@ export function AllPage(): React.JSX.Element {
             emptyCopy={null}
           />
         </PageSection>
+        </div>
       </PageBody>
     </div>
   )

@@ -10,6 +10,7 @@ which is Q1's own sentence: "it changes no query". AC-167 measures that from
 the wire, so a toggle that refetched would fail it while looking correct.
 */
 import { useMemo, useState } from 'react'
+import { CalendarCheck2 } from 'lucide-react'
 
 import type { TaskCard } from '../../shared/tasks.js'
 import { useMe, useMyDayView, usePendingInvites } from '../api/queries.js'
@@ -53,20 +54,36 @@ export function MyDayPage(): React.JSX.Element {
   const recap = view.data?.recap ?? []
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* 9.2 and 9.8: before anything else on the page the callback lands on. */}
       <PendingInviteList invites={invites.data ?? []} />
-      <h1 className="text-title">My Day</h1>
-      <p className="meta">{todayInBrowserZone()}</p>
-      <label className="text-label">
-        <input
-          type="checkbox"
-          role="switch"
-          checked={importantOnly}
-          onChange={(event) => setImportantOnly(event.target.checked)}
-        />
-        Important only
-      </label>
+      <header className="page-header">
+        <div>
+          <h1 className="page-title">My Day</h1>
+          <p className="meta">{todayInBrowserZone()}</p>
+        </div>
+        {/*
+        9.4's important-only filter, still the native checkbox with
+        `role="switch"` it has always been. The design draws a switch and the
+        vocabulary carries `switch-track` and `switch-thumb` for one, but those
+        want a two-element control whose state is an explicit `aria-checked`,
+        which a native checkbox cannot give them: its checked state is implicit
+        and a stylesheet cannot read it. Restyling this into a button would
+        change the element behind a role AC-167 drives, which this package does
+        not do, so the box takes the design's checkbox treatment and the switch
+        treatment is recorded for the next Component session.
+        */}
+        <label className="flex items-center gap-2 text-label">
+          <input
+            type="checkbox"
+            className="checkbox"
+            role="switch"
+            checked={importantOnly}
+            onChange={(event) => setImportantOnly(event.target.checked)}
+          />
+          Important only
+        </label>
+      </header>
 
       <PageBody
         query={view}
@@ -75,24 +92,33 @@ export function MyDayPage(): React.JSX.Element {
         // a day with nothing on it.
         isEmpty={(view.data?.carried.length ?? 0) + (view.data?.today.length ?? 0) === 0}
         emptyCopy={MY_DAY_EMPTY}
+        emptyIcon={CalendarCheck2}
         // Section 6's cap counts across a response's arrays rather than per
         // array (ruled 2026-08-07), which is why one flag serves three
         // sections and the notice sits above all of them.
         truncated={view.data?.truncated ?? false}
       >
-        <PageSection name="Carried over" heading="Carried over">
-          <TaskList tasks={carried} viewerId={viewerId} showPullMarker {...actions} />
-        </PageSection>
-        <PageSection name="Today" heading="Today">
-          <TaskList tasks={today} viewerId={viewerId} showPullMarker {...actions} />
-        </PageSection>
+        <div className="space-y-6">
+          <PageSection name="Carried over" heading="Carried over">
+            <div className="list-card">
+              <TaskList tasks={carried} viewerId={viewerId} showPullMarker {...actions} />
+            </div>
+          </PageSection>
+          <PageSection name="Today" heading="Today">
+            <div className="list-card">
+              <TaskList tasks={today} viewerId={viewerId} showPullMarker {...actions} />
+            </div>
+          </PageSection>
+        </div>
       </PageBody>
 
       {/* Q1R: the section is hidden entirely while empty, so it is absent
           rather than rendered with a zero. AC-158 reads that absence. */}
       {recap.length === 0 ? null : (
         <CollapsibleSection name={`Done today (${recap.length})`} defaultOpen={false}>
-          <TaskList tasks={recap} viewerId={viewerId} {...actions} />
+          <div className="list-card">
+            <TaskList tasks={recap} viewerId={viewerId} {...actions} />
+          </div>
         </CollapsibleSection>
       )}
     </div>

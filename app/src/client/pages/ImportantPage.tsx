@@ -11,6 +11,8 @@ The star's outward tooltip of Q4 ("Also in Planned, due ...") is the row's,
 which is the Component engineer's file, and is recorded as owed in
 `src/client/README.md`.
 */
+import { Star } from 'lucide-react'
+
 import { useImportantView, useMe } from '../api/queries.js'
 import { TaskList } from '../components/ui/index.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -22,19 +24,24 @@ export function ImportantPage(): React.JSX.Element {
   const me = useMe()
   const actions = useRowActions()
   return (
-    <div>
-      <h1 className="text-title">Important</h1>
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">Important</h1>
+      </header>
       <PageBody
         query={view}
         isEmpty={(view.data?.rows.length ?? 0) === 0}
         emptyCopy={IMPORTANT_EMPTY}
+        emptyIcon={Star}
         truncated={view.data?.truncated ?? false}
       >
-        <TaskList
-          tasks={view.data?.rows ?? []}
-          viewerId={me.data?.user.id ?? null}
-          {...actions}
-        />
+        <div className="list-card">
+          <TaskList
+            tasks={view.data?.rows ?? []}
+            viewerId={me.data?.user.id ?? null}
+            {...actions}
+          />
+        </div>
       </PageBody>
     </div>
   )

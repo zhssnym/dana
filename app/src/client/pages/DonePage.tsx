@@ -31,6 +31,7 @@ for byte (7.10), and `mergeCompletedDays` puts a day split across two pages
 back into one region, because two regions cannot carry one name.
 */
 import { useEffect, useState } from 'react'
+import { CircleCheck } from 'lucide-react'
 
 import { mergeCompletedDays, useDoneView, useTask } from '../api/queries.js'
 import { useTransitionTask } from '../api/mutations.js'
@@ -100,14 +101,24 @@ export function DonePage(): React.JSX.Element {
   }, [probe, detail.data, transition])
 
   return (
-    <div>
-      <h1 className="text-title">Done</h1>
-      <PageBody query={view} isEmpty={days.length === 0} emptyCopy={DONE_EMPTY}>
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">Done</h1>
+      </header>
+      <PageBody
+        query={view}
+        isEmpty={days.length === 0}
+        emptyCopy={DONE_EMPTY}
+        emptyIcon={CircleCheck}
+      >
+        {/* The day groups take the quieter heading register: a date here
+            divides one run of rows from the next rather than titling a part of
+            the page, which is how the design draws them. */}
         {days.map((day) => (
-          <PageSection key={day.date} name={day.date} heading={day.date}>
-            <ul role="list">
+          <PageSection key={day.date} name={day.date} heading={day.date} tone="day">
+            <ul role="list" className="list-card">
               {day.rows.map((task) => (
-                <li key={task.id} className="task-row">
+                <li key={task.id} className="task-row task-row-completed">
                   {/* Q6's row adornments: folder name, the due date it had,
                       the star when important, and the un-complete affordance.
                       The star is the library's, so its two names and its
@@ -122,6 +133,7 @@ export function DonePage(): React.JSX.Element {
                   />
                   <button
                     type="button"
+                    className="button-base button-quiet ml-auto"
                     onClick={() => {
                       setProbe(task.id)
                     }}

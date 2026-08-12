@@ -14,6 +14,7 @@ mode, and a named place for the grid to land, so the toggle is a real control
 rather than one that appears when its target does.
 */
 import { useState } from 'react'
+import { CalendarDays } from 'lucide-react'
 
 import { useMe, useMultiMemberFolderIds, usePlannedView } from '../api/queries.js'
 import { PlannedCalendar } from '../components/calendar/index.js'
@@ -54,18 +55,41 @@ export function PlannedPage(): React.JSX.Element {
   }
 
   return (
-    <div>
-      <h1 className="text-title">Planned</h1>
-      <button type="button" aria-pressed={mode === 'list'} onClick={() => choose('list')}>
-        List
-      </button>
-      <button
-        type="button"
-        aria-pressed={mode === 'calendar'}
-        onClick={() => choose('calendar')}
-      >
-        Calendar
-      </button>
+    <div className="space-y-6">
+      <header className="page-header">
+        <h1 className="page-title">Planned</h1>
+        {/*
+        9.5's two modes, drawn as the pair of controls they are: the one you
+        are in takes the filled treatment and the other the quiet one, so the
+        current mode is legible without reading either label. `aria-pressed`
+        is what actually carries it and is untouched, which is why the tone is
+        a second cue and never the only one.
+        */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className={
+              mode === 'list' ? 'button-base button-primary' : 'button-base button-quiet'
+            }
+            aria-pressed={mode === 'list'}
+            onClick={() => choose('list')}
+          >
+            List
+          </button>
+          <button
+            type="button"
+            className={
+              mode === 'calendar'
+                ? 'button-base button-primary'
+                : 'button-base button-quiet'
+            }
+            aria-pressed={mode === 'calendar'}
+            onClick={() => choose('calendar')}
+          >
+            Calendar
+          </button>
+        </div>
+      </header>
 
       {mode === 'calendar' ? (
         // The named place the shell session left for Q3C's grid, filled by the
@@ -79,14 +103,17 @@ export function PlannedPage(): React.JSX.Element {
             query={view}
             isEmpty={(view.data?.rows.length ?? 0) === 0}
             emptyCopy={PLANNED_EMPTY}
+            emptyIcon={CalendarDays}
             truncated={view.data?.truncated ?? false}
           >
-            <TaskList
-              tasks={view.data?.rows ?? []}
-              viewerId={me.data?.user.id ?? null}
-              multiMemberFolders={multiMember}
-              {...actions}
-            />
+            <div className="list-card">
+              <TaskList
+                tasks={view.data?.rows ?? []}
+                viewerId={me.data?.user.id ?? null}
+                multiMemberFolders={multiMember}
+                {...actions}
+              />
+            </div>
           </PageBody>
           {/* 9.1 puts the quick-add row at the bottom of the Planned list, and
               9.3's table gives that entry point due date today. */}
