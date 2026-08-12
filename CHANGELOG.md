@@ -10,6 +10,51 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **RFC 0002 ACCEPTED by the human owner, 2026-08-13, with both open questions
+  closed and every provisional number confirmed as final.** Nothing here is
+  application code and nothing here amends the specification: an RFC's delta
+  merges when its package is implemented, which is the preamble's lifecycle and
+  which this RFC's own implementation plan schedules at R1 to R12. The status
+  line at `docs/rfcs/0002-client-ui-replacement.md` reads Accepted from this
+  date.
+  **The numbers are final and not one moved.** The preamble makes a Draft's
+  numbering provisional and has the Steward renumber at acceptance if another RFC
+  claimed any number first, so this was checked rather than assumed: section 12
+  still ends at AC-173, section 13 still ends at item 34, AC-174 to AC-183 appear
+  nowhere in this repository outside the RFC itself, items 35 to 37 are
+  unclaimed, and RFC 0001 is the only other RFC and adds no criterion of its own.
+  AC-174 to AC-183 and items 35 to 37 are therefore assigned exactly as authored,
+  and nothing downstream that cites one has to be revisited.
+  **Open question 1 closes on the comma.** The designer's landing subheading
+  carried an em dash, and the delta already transcribed it as a comma. The owner
+  confirmed the substitution on the ground that protocol section 7's convention
+  holds across the whole corpus, including copy adopted from outside it, and that
+  the sentence's meaning is unchanged; the alternative he declined was ruling the
+  designer's punctuation part of the approved copy and letting the convention
+  yield to it. No delta text moves. What closed is whether the comma was allowed
+  to be there, which is worth the entry because the copy is normative and a later
+  reader comparing 9.2 against the prototype will find the two punctuated
+  differently and needs to know which is deliberate.
+  **Open question 2 closes with section 13 item 33's human visual review
+  standing, unchanged and unwaived.** The item was ruled for P8D, a package that
+  added no acceptance criterion, and the case for it was that a green gate
+  certified nothing about appearance. RFC 0002 adds ten criteria, which weakens
+  that case without answering it: every one of the ten asserts a landmark, a
+  link, a grid cell, a region or a copy string, and none of them can see whether
+  the product looks right, while this package's subject is still appearance. The
+  owner affirmed the requirement in writing on 2026-08-13, which is the form item
+  33 demands of a decision either way. So R12's review remains a precondition of
+  the merge, the Steward refuses on its absence exactly as on a red leg, and the
+  evidence is unchanged: one recorded line naming who looked, on what date, at
+  which built pages against which prototype screens, and what verdict they gave.
+  The affirmation is written into the RFC's own Open questions section, which is
+  where item 33 says a waiver would be written, and for the reason that item
+  gives: a reader of it should find the decision rather than a silence to
+  interpret.
+  **With this, package P8R is unblocked at R1**, the tester session that writes
+  AC-093, AC-166 and AC-172 rewritten plus AC-174 to AC-183, all red, against the
+  amended text the delta carries.
+
 - **RFC 0002 authored as a Draft, 2026-08-13: the client user interface is
   replaced by the designer's prototype, four owner rulings are transcribed into
   section 9, and ten prototype affordances are ruled rather than left to arrive
