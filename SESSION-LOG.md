@@ -281,12 +281,16 @@ before starting the next.
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
 | 0 | Kickoff: 11.13 rewritten, item 30 held open with its reason, item 31's routing landed at P9, the dependency set ruled, mobile packaged as item 32, the human review made a precondition as item 33 | 12 | Steward | Done, escalated |
-| 1 | The foundation and the blocker for everything after it: dependencies, the token reconciliation plus the layout layer ours never had, the seven components restyled, the class vocabulary 07 and 09 will apply | 08 | Implementers | Planned |
-| 2 | Shell and layout: the sidebar beside the content, the top bar, the page canvas. Markup and class names only | 07 | Implementers | Planned |
-| 3 | The form, the calendar and the search overlay against his screens, on session 1's vocabulary | 09 | Implementers | Planned |
-| 4 | Contingency: the names sessions 2 and 3 found missing. Run only if asked for, recorded as skipped otherwise | 08 | Implementers | Planned |
+| 0a | Change control: the pages given two sessions, five non-ports named including the sidebar brand header nobody had noticed, the brand assets and the motion values assigned, item 32 ruled desktop-first, item 34 recorded, the findings return scheduled | 12 | Steward | Done |
+| 1 | The foundation and the blocker for everything after it: dependencies, the token reconciliation plus the layout layer ours never had, the motion values that existed only as prose, the seven components restyled, the class vocabulary 07 and 09 will apply | 08 | Implementers | Planned |
+| 2 | Shell and layout: the sidebar beside the content, the top bar, the page canvas, and the brand assets no cell had named. Markup and class names only | 07 | Implementers | Planned |
+| 2a | The list pages and the shared page states, where a "Loading" span stands in for a skeleton | 07 | Implementers | Planned |
+| 2b | The management and public pages, bounded against 2a by file | 07 | Implementers | Planned |
+| 3 | The form, the calendar and the search overlay against his screens, on session 1's vocabulary, with the week start ruled Monday | 09 | Implementers | Planned |
+| 4 | Contingency: the names sessions 2 to 3 found missing. Run only if asked for, recorded as skipped otherwise | 08 | Implementers | Planned |
 | 5 | The built pages reviewed against the running prototype. Required by spec 13 item 33; the row records who looked, at what, when and with what verdict | owner | not a session | Planned |
-| 6 | Merge review, then merge. Refuses on a missing row 5 as it would on a red leg | 12 | Steward | Planned |
+| 5a | The review's findings returned to the persona owning each surface, applied or declined with a reason | 07, 08, 09 | Implementers | Planned |
+| 6 | Merge review, then merge. Refuses on a missing row 5, or on findings still open, as it would on a red leg | 12 | Steward | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
