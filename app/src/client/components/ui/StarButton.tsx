@@ -42,6 +42,8 @@ Naming by content leaves the accessible name identical and takes this button
 out of that collision; the glyph stays `aria-hidden`, so a glyph swap is still
 never a rename.
 */
+import { Star } from 'lucide-react'
+
 import { STAR_OFF, STAR_ON } from './copy.js'
 import type { TaskCard } from '../../../shared/tasks.js'
 
@@ -72,12 +74,27 @@ export function StarButton({
   return (
     <button
       type="button"
-      className="icon-control"
+      className={
+        task.important ? 'icon-control icon-control-active' : 'icon-control'
+      }
       aria-pressed={task.important}
       title={starTooltip(task, mode)}
       onClick={() => onToggle?.(task)}
     >
-      <span aria-hidden="true">{task.important ? '★' : '☆'}</span>
+      {/*
+      The design's own star, at the foundation's stroke. It replaces the ★ and
+      ☆ characters this control drew until P8D: a text glyph has no stroke
+      width, its shape and weight coming from whichever font the platform
+      resolves for that codepoint, so it could not be made to match the rest of
+      the interface by any amount of CSS. The filled state is `fill:
+      currentcolor` from `icon-control-active`, which is the design's cue and
+      not a second glyph, so nothing here depends on two characters existing.
+
+      Still `aria-hidden`, so this swap changed no accessible name: the control
+      announces "Important" or "Mark as important" from the span below exactly
+      as it did before.
+      */}
+      <Star aria-hidden="true" />
       {/* The accessible name, as content. `sr-only` keeps the control icon-only
           to the eye while the name is still the button's own text. */}
       <span className="sr-only">{name}</span>

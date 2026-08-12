@@ -39,6 +39,7 @@ something that does nothing. The two entries not offered yet, and what they
 wait on, are recorded in `components/README.md`.
 */
 import { useState } from 'react'
+import { CircleAlert, Folder, Repeat2 } from 'lucide-react'
 
 import { todayInBrowserZone } from '../../api/tz.js'
 import { Button } from './Button.js'
@@ -207,23 +208,50 @@ export function TaskRow({
   if (onDelete !== undefined) {
     entries.push({
       label: 'Delete',
+      destructive: true,
       onSelect: () => {
         setConfirm({ message: DELETE_TASK_CONFIRM, run: () => onDelete(task) })
       },
     })
   }
 
+  /*
+  The row's own quieting, which is the design's "faded" read at row level. The
+  title carries the opacity (see `TaskTitle` and the tokens file), and this
+  drops the metadata beside it a step so the whole row reads as finished
+  rather than a bright row with one dim word in it.
+  */
+  const rowTone = completed
+    ? 'task-row task-row-completed'
+    : abandoned
+      ? 'task-row task-row-abandoned'
+      : 'task-row'
+
   return (
-    <li className="task-row">
-      <input
-        type="checkbox"
-        aria-label="Complete"
-        checked={completed}
-        onChange={(event) => {
-          setAsked(event.target.checked)
-          onToggleComplete?.(task)
-        }}
-      />
+    <li className={rowTone}>
+      {/*
+      The 20 pixel control inside the 44 pixel target the design draws around
+      it. Still a native `input[type=checkbox]`: `checkbox` removes the
+      platform appearance and draws the design's box, and nothing about the
+      element's role, its name, or its space-bar activation moves.
+
+      `checkbox-neutral` is DES-044, the one exception to accent-600 for a
+      checked control: a completed row's box is monochrome, because a finished
+      list should not be a column of blue and the accent means "you can act
+      here".
+      */}
+      <span className="checkbox-target">
+        <input
+          type="checkbox"
+          className={completed ? 'checkbox checkbox-neutral' : 'checkbox'}
+          aria-label="Complete"
+          checked={completed}
+          onChange={(event) => {
+            setAsked(event.target.checked)
+            onToggleComplete?.(task)
+          }}
+        />
+      </span>
       {/*
       9.5: "click on any row opens the task". Recorded as owed in
       `components/README.md` while the edit arm of the overlay seam did not
@@ -257,11 +285,19 @@ export function TaskRow({
           <TaskTitle task={task} overdue={overdue} />
         </span>
       )}
-      <span className="meta">{task.folder.name}</span>
+      {/* The folder glyph is neutral graphite and carries no folder colour:
+          a folder's colour is the viewer's own `my_color` from 7.4 and this
+          card does not carry it. The name beside it is the identification. */}
+      <span className="meta">
+        <Folder aria-hidden="true" />
+        {task.folder.name}
+      </span>
       {task.due_date === null ? null : (
         <Chip tone={overdue ? 'alert' : 'default'}>
-          {/* The non-colour cue the accessibility floor requires beside the
-              colour: the badge says the word rather than only turning red. */}
+          {/* The non-colour cues the accessibility floor requires beside the
+              colour: the badge says the word and carries the alert glyph
+              rather than only turning red. */}
+          {overdue ? <CircleAlert aria-hidden="true" /> : null}
           {overdue ? 'Overdue ' : ''}
           {task.due_date}
           {task.due_time === null ? '' : ` ${task.due_time.slice(0, 5)}`}
@@ -274,7 +310,7 @@ export function TaskRow({
       )}
       {task.is_recurring ? (
         <span className="meta">
-          <span aria-hidden="true">↻</span>
+          <Repeat2 aria-hidden="true" />
           <span className="sr-only">Repeats</span>
         </span>
       ) : null}
@@ -283,14 +319,14 @@ export function TaskRow({
         // the initial is never shown alone. It rides the glyph seam, which
         // is aria-hidden and inside the chip's own element, so the chip
         // stays one element carrying one readable text node.
-        <Chip glyph={initialsOf(otherAssignee.display_name)}>
+        <Chip tone="outline" glyph={initialsOf(otherAssignee.display_name)}>
           {otherAssignee.display_name ?? 'Someone'}
         </Chip>
       )}
-      {unassigned ? <Chip>Unassigned</Chip> : null}
+      {unassigned ? <Chip tone="outline">Unassigned</Chip> : null}
       {task.pending_invite_email === null ? null : (
         // 9.8: the chip a row shows while an assignment invite is outstanding.
-        <Chip>{`Invite pending: ${task.pending_invite_email}`}</Chip>
+        <Chip tone="info">{`Invite pending: ${task.pending_invite_email}`}</Chip>
       )}
       <StarButton task={task} mode={starTooltipMode} onToggle={onToggleImportant} />
       {abandoned ? (

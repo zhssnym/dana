@@ -19,6 +19,14 @@ than optional in its props, and a target of at least 44 pixels, which the
 `icon-control` utility carries. Its glyph is `aria-hidden`, so the name is the
 only thing announced and a glyph swap is never a rename.
 
+**`glyph` was widened from `string` to `ReactNode` at P8D**, deliberately
+widened rather than changed: this role's handoff rule is that a component prop
+is an interface two other roles build on, and `task-form/StepsEditor.tsx`
+passes three text glyphs today. A string is a `ReactNode`, so every existing
+call site is untouched and a Lucide element is now also admissible. The
+`icon-control` utility sizes an `svg` child to the design's control icon size,
+so a caller passes the element and never a size.
+
 Every class below is a token utility from `styles/tokens.css`. No component
 in this directory spells a colour, a size or a radius; that is 11.4's rule and
 this file is the one most tempted to break it.
@@ -69,7 +77,8 @@ export function Button({
 interface IconButtonProps {
   /** Required: an icon-only control that announces nothing is invisible. */
   readonly label: string
-  readonly glyph: string
+  /** A Lucide element or a text glyph; either way `aria-hidden` below. */
+  readonly glyph: ReactNode
   readonly onClick: () => void
   /**
    * The tooltip, where it differs from the name. Q4's outward star is the one

@@ -24,6 +24,7 @@ import '../../styles/tokens.css'
 
 export { Button, IconButton } from './Button.js'
 export { Chip, initialsOf } from './Chip.js'
+export type { ChipTone } from './Chip.js'
 export { ConfirmDialog } from './ConfirmDialog.js'
 export { OverflowMenu } from './OverflowMenu.js'
 export type { MenuEntry } from './OverflowMenu.js'

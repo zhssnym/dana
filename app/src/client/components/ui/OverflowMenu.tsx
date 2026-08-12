@@ -26,12 +26,20 @@ open.
 row and 9.6's header put different things behind the same three words.
 */
 import { useEffect, useRef, useState } from 'react'
+import { MoreHorizontal } from 'lucide-react'
 
 import { MORE_ACTIONS } from './copy.js'
 
 export interface MenuEntry {
   readonly label: string
   readonly onSelect: () => void
+  /**
+   * The design draws a destructive entry in the danger ink with a danger tint
+   * on hover, rather than as a filled row. Optional and defaulting to false,
+   * so no existing caller changes; the colour is never the only signal, the
+   * word on the entry being the other half.
+   */
+  readonly destructive?: boolean
 }
 
 export function OverflowMenu({
@@ -108,7 +116,7 @@ export function OverflowMenu({
           setOpen((was) => !was)
         }}
       >
-        <span aria-hidden="true">⋯</span>
+        <MoreHorizontal aria-hidden="true" />
       </button>
       {open ? (
         <div
@@ -123,7 +131,11 @@ export function OverflowMenu({
               key={entry.label}
               type="button"
               role="menuitem"
-              className="menu-item"
+              className={
+                entry.destructive === true
+                  ? 'menu-item menu-item-danger'
+                  : 'menu-item'
+              }
               onClick={() => {
                 // Closed before the action runs, and without pulling focus
                 // back to the trigger: an entry that opens a confirmation

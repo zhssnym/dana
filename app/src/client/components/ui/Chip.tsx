@@ -30,12 +30,31 @@ export function initialsOf(name: string | null): string | undefined {
   return (first.charAt(0) + (last === undefined ? '' : last.charAt(0))).toUpperCase()
 }
 
+/**
+ * The four shapes the design's section 04 draws, and no more.
+ *
+ * `default` is the filled neutral pill, `alert` the danger tint carrying its
+ * own 700 ink, `info` the same construction in the info family (9.8's
+ * invite-pending chip), and `outline` the bordered pill with no fill, which is
+ * what an assignee chip and Q3's "unassigned" chip are drawn as. Widened from
+ * two tones at P8D; `default` and `alert` mean exactly what they did, so no
+ * caller changed.
+ */
+export type ChipTone = 'default' | 'alert' | 'info' | 'outline'
+
+const TONE_CLASS: Record<ChipTone, string> = {
+  default: 'chip',
+  alert: 'chip chip-alert',
+  info: 'chip chip-info',
+  outline: 'chip chip-outline',
+}
+
 interface ChipProps {
   readonly children: ReactNode
   /** A decorative glyph. Hidden from the accessibility tree; never the cue. */
   readonly glyph?: string
   /** The overdue and alerting treatment; the label beside it is the cue. */
-  readonly tone?: 'default' | 'alert'
+  readonly tone?: ChipTone
   readonly title?: string
 }
 
@@ -46,7 +65,7 @@ export function Chip({
   title,
 }: ChipProps): React.JSX.Element {
   return (
-    <span className={tone === 'alert' ? 'chip chip-alert' : 'chip'} title={title}>
+    <span className={TONE_CLASS[tone]} title={title}>
       {glyph === undefined ? null : (
         <span aria-hidden="true" className="avatar avatar-chip">
           {glyph}

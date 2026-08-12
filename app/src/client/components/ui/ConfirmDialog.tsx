@@ -103,7 +103,7 @@ export function ConfirmDialog({
         className="dialog-panel"
       >
         <p id="dana-confirm-message">{message}</p>
-        <div className="flex justify-end gap-2">
+        <div className="dialog-actions">
           <button
             type="button"
             ref={cancel}
