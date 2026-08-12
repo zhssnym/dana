@@ -330,6 +330,7 @@ relabelling, and every row now runs the prototype before it writes anything.
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
 | R0 | RFC 0002 authored as a Draft at `docs/rfcs/0002-client-ui-replacement.md`, with both applications run first: the section 9 delta, the calendar off 11.4, the dependencies approved, three criteria rewritten, AC-174 to AC-183 and items 35 to 37 numbered provisionally, items 27 and 30 closed | 12 | Steward | Done, three research claims corrected |
+| R0a | RFC 0002 accepted by the owner on 2026-08-13, both open questions closed: the landing's em dash takes a comma, and item 33's visual review stands unwaived. All thirteen numbers final and none moved from provisional | 12 | Steward | Done |
 | R1 | AC-093, AC-166 and AC-172 rewritten against the amended text, plus AC-174 to AC-183, all red | 11 | Testers | Planned |
 | R2 | The dependencies, his `tokens.css` and `app.css` without the 1180px floor, his twenty `components/ui/` primitives | 08 | Implementers | Planned |
 | R3 | His presentational components, relabelled to section 9's names and corrected to 9.1's new roles table | 08 | Implementers | Planned |
