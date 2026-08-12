@@ -928,6 +928,65 @@ export async function computedStyle(
 }
 
 /**
+ * `#RRGGBB` as the browser reports a computed colour, so a hex from the wire
+ * can be compared with what was painted.
+ */
+export function hexToRgb(hex: string): string {
+  const value = hex.replace('#', '')
+  const part = (at: number): number => Number.parseInt(value.slice(at, at + 2), 16)
+  return `rgb(${part(0)}, ${part(2)}, ${part(4)})`
+}
+
+/**
+ * Every colour the browser painted anywhere inside one element.
+ *
+ * 9.1's colour dot is not a control and not a region, so neither the
+ * addressing sentence nor the sections rule reaches it, and it is decorative
+ * enough that an accessible implementation may give it no role at all. What
+ * can be held to without naming an implementation is the paint: whether this
+ * folder's own colour appears somewhere in this folder's row, and whether two
+ * rows carrying different colours were painted differently.
+ *
+ * Several properties rather than `background-color` alone, because a dot is
+ * as reasonably a bordered span, a filled SVG or a bullet as it is a filled
+ * box, and which of those it is belongs to the implementer. Reading the
+ * computed value covers a colour delivered through a custom property too,
+ * since the browser resolves it before reporting.
+ */
+export async function paintedColors(locator: Locator): Promise<string[]> {
+  return locator.evaluate((element) => {
+    const view = globalThis as unknown as {
+      getComputedStyle: (el: unknown) => Record<string, string>
+    }
+    const root = element as unknown as {
+      querySelectorAll: (s: string) => Iterable<unknown>
+    }
+    const properties = [
+      'backgroundColor',
+      'color',
+      'borderTopColor',
+      'borderRightColor',
+      'borderBottomColor',
+      'borderLeftColor',
+      'outlineColor',
+      'fill',
+      'stroke',
+    ]
+    const found = new Set<string>()
+    const collect = (node: unknown): void => {
+      const style = view.getComputedStyle(node)
+      for (const property of properties) {
+        const value = String(style[property] ?? '')
+        if (value !== '' && value !== 'none') found.add(value)
+      }
+    }
+    collect(element)
+    for (const child of root.querySelectorAll('*')) collect(child)
+    return [...found]
+  })
+}
+
+/**
  * The text a tooltip announces for a control, however the tooltip is built.
  *
  * Three mechanisms are faithful to "tooltip" and section 9 chooses none of
