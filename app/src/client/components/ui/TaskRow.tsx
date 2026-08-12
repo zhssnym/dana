@@ -42,7 +42,7 @@ import { useState } from 'react'
 import { CircleAlert, Folder, Repeat2 } from 'lucide-react'
 
 import { todayInBrowserZone } from '../../api/tz.js'
-import { Button } from './Button.js'
+import { Button } from './LegacyButton.js'
 import { Chip, initialsOf } from './Chip.js'
 import { ConfirmDialog } from './ConfirmDialog.js'
 import { ABANDON_CONFIRM, ABANDONED_CHIP, DELETE_TASK_CONFIRM, REMOVE_FROM_MY_DAY, RESTORE } from './copy.js'

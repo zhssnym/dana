@@ -1,4 +1,25 @@
 /*
+**This file was `Button.tsx` until package P8R session R2, and it is on its
+way out.** RFC 0002 replaces this client's markup with the designer's, and his
+`button.tsx` now sits beside this file as the shadcn primitive every one of
+his other nineteen primitives imports. Two files cannot both be `button.tsx`
+here: this filesystem is case-insensitive, so his name and the old one are the
+same path, and copying his in would have overwritten this one silently.
+
+The rename went this way round rather than the other because his is the file
+with a future. His siblings import `./button.js` by that exact name, every
+later copy-in from that distribution will do the same, and this one is
+retired by R3 to R10 as the pages that call it are replaced.
+
+Nothing outside `components/` changed for it. Every consumer reaches these two
+exports through `index.ts`, which still names them `Button` and `IconButton`,
+and the only direct importer was `TaskRow.tsx` beside it. The barrel does not
+export his `Button`, because the two names would collide there; his is
+consumed by path, `components/ui/button.js`, which is how shadcn components
+are consumed and how his own prototype consumes them.
+
+What follows is this component's own reasoning, unchanged.
+
 The button, in the two shapes this client has: one with words on it and one
 with a glyph on it.
 
