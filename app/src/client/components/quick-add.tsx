@@ -16,10 +16,18 @@ gives the reason the two differ by an article: "Add task" was chosen to
 separate the floating button from the quick-add beneath it on the same page.
 AC-166 addresses both states by that name, exactly.
 
-The escalation control keeps his description, "Open full task form for
-{folder}". 9.1 describes it and names it nowhere, so inventing a string here
-would be the unrecorded deviation this package's own RFC lists as its most
-likely failure. It is deliberately not "More options": 9.3 spends that name
+**The escalation control is "Open full form", and the correction is worth its
+sentence.** This file shipped his description, "Open full task form for
+{folder}", on the ground that 9.1 named the control nowhere and inventing a
+string would be an unrecorded deviation. 9.1 names it now: the P8R
+mid-package change control of 2026-08-13 added it to that section's names
+table, and the owner re-accepted RFC 0002 on that amendment the same day. The
+fault the correction removes is not the wording but the interpolation. A name
+in that table is a fixed string, and what tells two instances of one control
+apart is 9.1's region rule, the quick-add on a Tasks group being addressed
+inside the region that group names. A name carrying the folder does that job
+twice and does it where a test cannot know the string before it reads the
+fixture. The name is still deliberately not "More options": 9.3 spends that
 on the task form's expander, and the form is a dialog over the page, so both
 controls are in one document whenever the escalation is used.
 
@@ -30,7 +38,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus, SlidersHorizontal } from 'lucide-react'
 
 import { Button } from './ui/button.js'
-import { ADD_A_TASK } from './ui/copy.js'
+import { ADD_A_TASK, OPEN_FULL_FORM } from './ui/copy.js'
 import { Input } from './ui/input.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip.js'
 
@@ -125,7 +133,9 @@ export function QuickAdd({
                 variant="ghost"
                 size="icon"
                 className="size-8 text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]"
-                aria-label={`Open full task form for ${folderName}`}
+                // 9.1's names table: a fixed string, the region the quick-add
+                // sits in being what separates two instances of it.
+                aria-label={OPEN_FULL_FORM}
                 onClick={onOpenFullForm}
               >
                 <SlidersHorizontal
@@ -136,7 +146,7 @@ export function QuickAdd({
               </Button>
             }
           />
-          <TooltipContent>Open full task form</TooltipContent>
+          <TooltipContent>{OPEN_FULL_FORM}</TooltipContent>
         </Tooltip>
       </div>
       {error ? (

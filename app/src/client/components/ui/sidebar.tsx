@@ -6,6 +6,7 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { useIsMobile } from "./use-mobile.js"
+import { COLLAPSE_SIDEBAR, EXPAND_SIDEBAR } from "./copy.js"
 import { cn } from "./utils.js"
 import { Button } from "./button.js"
 import { Input } from "./input.js"
@@ -251,12 +252,29 @@ function Sidebar({
   )
 }
 
+/*
+The two controls below are the sidebar's rail control of 9.1, and their names
+are the one place this file departs from the shadcn distribution it was copied
+in from at P8R session R2.
+
+That distribution names both "Toggle Sidebar", one string across both states.
+9.1's names table took this control at the P8R mid-package change control on
+2026-08-13 and gave it two, "Collapse sidebar" when expanded and "Expand
+sidebar" when collapsed, for the reason it gives the completion checkbox and
+9.5 gives the star: the control is an icon-only toggle, so each state owes a
+screen reader something true. `useSidebar` already carries that state, so the
+correction is the name and nothing else, and AC-182 reads the control by it.
+
+Both still accept an overriding `aria-label` from the caller, which is how the
+shell would say something else if a later section ever asked it to.
+*/
 function SidebarTrigger({
   className,
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+  const { state, toggleSidebar } = useSidebar()
+  const name = state === "expanded" ? COLLAPSE_SIDEBAR : EXPAND_SIDEBAR
 
   return (
     <Button
@@ -272,22 +290,23 @@ function SidebarTrigger({
       {...props}
     >
       <PanelLeftIcon strokeWidth={1.75} />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">{name}</span>
     </Button>
   )
 }
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
-  const { toggleSidebar } = useSidebar()
+  const { state, toggleSidebar } = useSidebar()
+  const name = state === "expanded" ? COLLAPSE_SIDEBAR : EXPAND_SIDEBAR
 
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
+      aria-label={name}
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title={name}
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",

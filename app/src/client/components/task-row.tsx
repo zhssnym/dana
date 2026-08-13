@@ -65,6 +65,8 @@ import { Button } from './ui/button.js'
 import { Checkbox } from './ui/checkbox.js'
 import {
   ABANDONED_CHIP,
+  COMPLETE_TASK,
+  MARK_AS_NOT_DONE,
   MORE_ACTIONS,
   REMOVE_FROM_MY_DAY,
   RESTORE,
@@ -164,9 +166,9 @@ function CompletionControl({
       checked={completed}
       onCheckedChange={onToggle}
       onClick={(event) => event.stopPropagation()}
-      // 9.5 names the Done page's control "Mark as not done"; the other
-      // direction is named by no section, so his own string stands.
-      aria-label={completed ? 'Mark as not done' : 'Complete task'}
+      // 9.1's names table, which took both directions at the P8R change
+      // control of 2026-08-13; 9.5 had already fixed the second for Done.
+      aria-label={completed ? MARK_AS_NOT_DONE : COMPLETE_TASK}
       className="size-[var(--control-height)] !border-transparent !bg-transparent after:inset-auto after:size-[var(--checkbox-size)] after:rounded-[4px] after:border after:border-input after:bg-background after:content-[''] focus-visible:ring-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/30 data-checked:!border-transparent data-checked:!bg-transparent data-checked:after:border-[var(--color-graphite-700)] data-checked:after:bg-[var(--color-graphite-700)] [&_[data-slot=checkbox-indicator]]:z-10"
     />
   )

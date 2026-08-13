@@ -27,12 +27,19 @@ design fixes, and the dot's size and shape are still there. AC-173 reads the
 paint inside the row and would fail a client that painted every dot from one
 swatch.
 
-**The menu's names are his and section 9 names none of them.** 9.6 supplies
-"Rename" and "Label and color" as its own words; "Move to group" and "Delete
-folder" are 9.1's folder-group sentences said as a control. The row's menu is
-deliberately not "More actions": that name belongs to the task row's overflow,
-the task form's and the folder header's, which are the same control pointed at
-different objects, and this one is not that control.
+**The menu is "More actions", corrected here.** This file shipped his
+`Manage {folder} folder` on the reading that the row's menu was not the
+control the task row's overflow is. 9.1 ruled the other way at the P8R
+mid-package change control of 2026-08-13, re-accepted by the owner the same
+day: a sidebar folder row's menu and a folder group's menu take "More
+actions", making four controls that share it, because they are the same
+control pointed at different objects and a fourth name would assert a
+difference in kind that is not there. The interpolation is the other half of
+the fault and the general one: a name in that table is a fixed string, and
+what tells four instances apart is 9.1's region rule, this one being reached
+inside the row that names its folder. The menu's entries are unchanged, 9.6
+supplying "Rename" and "Label and color" as its own words and "Move to group"
+being one of the four folder-group actions that table names.
 
 **The move-to-group submenu renders `menuitemradio`, which is accurate and
 which AC-180 cannot address.** A folder carries exactly one personal label, so
@@ -52,6 +59,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from './ui/button.js'
+import { MORE_ACTIONS } from './ui/copy.js'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -194,7 +202,10 @@ export function FolderRow({
                     variant="ghost"
                     size="icon"
                     className="size-6 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)]"
-                    aria-label={`Manage ${name} folder`}
+                    // 9.1's names table: a fixed string, the row that names
+                    // this folder being what separates it from the other
+                    // three controls answering to it.
+                    aria-label={MORE_ACTIONS}
                   />
                 }
               >

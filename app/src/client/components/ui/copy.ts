@@ -34,6 +34,35 @@ export const MORE_ACTIONS = 'More actions'
 export const ADD_A_TASK = 'Add a task'
 
 /**
+ * 9.1's control table, added there at the P8R mid-package change control on
+ * 2026-08-13: the quick-add's escalation control.
+ *
+ * A fixed string and never interpolated with the folder the quick-add sits
+ * beside, which is that table's own sentence: "a name in this table is a
+ * fixed string and the region rule below is what tells two instances apart".
+ * Deliberately not "More options", which 9.3 spends on the task form's
+ * expander; the form is a dialog over the page, so both are in one document
+ * whenever the escalation is used.
+ */
+export const OPEN_FULL_FORM = 'Open full form'
+
+/**
+ * 9.1's control table: a task row's completion checkbox and the task form's
+ * completion control, which are one control pointed at one object from two
+ * places. Two names rather than one for 9.5's reason at the star: the control
+ * is an icon-only toggle, so each state owes a screen reader something true.
+ */
+export const COMPLETE_TASK = 'Complete task'
+export const MARK_AS_NOT_DONE = 'Mark as not done'
+
+/**
+ * 9.1's control table: the sidebar's rail control, two names for the same
+ * reason the completion control has two.
+ */
+export const COLLAPSE_SIDEBAR = 'Collapse sidebar'
+export const EXPAND_SIDEBAR = 'Expand sidebar'
+
+/**
  * 9.5, closed at the P8 change control on 2026-08-11: off Important the
  * star's name is its own state, and that name is also its tooltip. Two
  * strings rather than one because the star is an icon-only toggle, so each

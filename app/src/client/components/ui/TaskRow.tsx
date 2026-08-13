@@ -45,7 +45,7 @@ import { todayInBrowserZone } from '../../api/tz.js'
 import { Button } from './LegacyButton.js'
 import { Chip, initialsOf } from './Chip.js'
 import { ConfirmDialog } from './ConfirmDialog.js'
-import { ABANDON_CONFIRM, ABANDONED_CHIP, DELETE_TASK_CONFIRM, REMOVE_FROM_MY_DAY, RESTORE } from './copy.js'
+import { ABANDON_CONFIRM, ABANDONED_CHIP, COMPLETE_TASK, DELETE_TASK_CONFIRM, MARK_AS_NOT_DONE, REMOVE_FROM_MY_DAY, RESTORE } from './copy.js'
 import { OverflowMenu } from './OverflowMenu.js'
 import type { MenuEntry } from './OverflowMenu.js'
 import { StarButton } from './StarButton.js'
@@ -239,12 +239,17 @@ export function TaskRow({
       checked control: a completed row's box is monochrome, because a finished
       list should not be a column of blue and the accent means "you can act
       here".
+
+      Its two names are 9.1's, which took the row's completion checkbox into
+      that section's names table at the P8R mid-package change control on
+      2026-08-13. This row shipped one name, "Complete", for both states, so
+      a completed row announced the transition it had already made.
       */}
       <span className="checkbox-target">
         <input
           type="checkbox"
           className={completed ? 'checkbox checkbox-neutral' : 'checkbox'}
-          aria-label="Complete"
+          aria-label={completed ? MARK_AS_NOT_DONE : COMPLETE_TASK}
           checked={completed}
           onChange={(event) => {
             setAsked(event.target.checked)

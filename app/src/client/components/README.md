@@ -79,18 +79,32 @@ reword", and a paraphrase here is a specification change nobody recorded.
 
 ## The names section 9 fixes, and where they are
 
-**Settled**, from 9.1's control table and 9.5. Each is exact, because three of
-that table's eight names begin with "add" and two of them are "More actions".
+**Settled**, from 9.1's control table and 9.5. Each is exact, because four of
+that table's names begin with "add" and four of them are "More actions".
 
 | Control | Name | Role | Where |
 | - | - | - | - |
-| A row's overflow menu | `More actions` | button, `aria-haspopup`, `aria-expanded` | `ui/OverflowMenu.tsx` |
+| A row's overflow menu | `More actions` | button, `aria-haspopup`, `aria-expanded` | `ui/OverflowMenu.tsx`, `task-row.tsx` |
+| A sidebar folder row's menu | `More actions` | button | `folder-row.tsx` |
 | Every confirmation's two controls | `Continue` and `Cancel` | button | `ui/ConfirmDialog.tsx` |
-| Inline quick-add input | `Add a task` | textbox | `ui/QuickAddRow.tsx` |
+| Inline quick-add input | `Add a task` | textbox | `ui/QuickAddRow.tsx`, `quick-add.tsx` |
+| The quick-add's escalation control | `Open full form` | button | `quick-add.tsx` |
+| A row's completion checkbox, open | `Complete task` | checkbox | `ui/TaskRow.tsx`, `task-row.tsx` |
+| A row's completion checkbox, complete | `Mark as not done` | checkbox | `ui/TaskRow.tsx`, `task-row.tsx` |
 | A row's star, starred | `Important` | button, `aria-pressed` | `ui/StarButton.tsx` |
 | A row's star, not starred | `Mark as important` | button, `aria-pressed` | `ui/StarButton.tsx` |
 | The un-pull control | `Remove from My Day` | button | `ui/TaskRow.tsx` |
 | An abandoned row's restore | `Restore` | button | `ui/TaskRow.tsx` |
+| The sidebar's rail control, expanded | `Collapse sidebar` | button | `ui/sidebar.tsx` |
+| The sidebar's rail control, collapsed | `Expand sidebar` | button | `ui/sidebar.tsx` |
+| The "New folder" dialog's field | `Folder name` | textbox | `new-folder-dialog.tsx` |
+| A folder-group dialog's field | `Group name` | textbox | `folder-group-dialog.tsx` |
+
+Every string above is a constant in `ui/copy.ts` or, for the two dialog
+fields, the `label` element beside the input. None of them is interpolated
+with the object the control acts on, and that is the rule rather than a habit:
+9.1's names table says in its own words that a name there is a fixed string
+and its region rule is what tells two instances apart.
 
 **What R3 corrected in the ported set, and where each name came from.** His
 prototype satisfies every name in 9.1's control table nowhere and four of them
@@ -108,6 +122,41 @@ labels, so nothing but the text moved.
 | The quick-add, expanded | `Task title for {folder}` | `Add a task` | the same row, one name across two states |
 | The inline retry control | `Retry` | `Try again` | 9.1's control table |
 | The failed-read line | the global error toast | `Couldn't load this. Nothing was changed.` | 9.1's inline state copy, and AC-183 reads it as one text run |
+
+**What the P8R naming change control corrected after R3 had shipped, and the
+one fault both corrections share.** 9.1's names table gained eleven rows at the
+mid-package change control of 2026-08-13, on the Adversarial Test Engineer's
+escalation, and the owner re-accepted RFC 0002 on that amendment the same day.
+R3 had already shipped four of the controls it names, checked before the ruling
+rather than after. Three agree and stand: the quick-add's two states are
+"Add a task", the completion checkbox is "Complete task" and "Mark as not
+done", and a task row's overflow is "More actions". Two disagreed, and both
+disagreed the same way, by interpolating the object the control acts on.
+
+| Control | What R3 shipped | The ruled name | Where |
+| - | - | - | - |
+| The quick-add's escalation control | `Open full task form for {folder}` | `Open full form` | `quick-add.tsx` |
+| A sidebar folder row's menu | `Manage {folder} folder` | `More actions` | `folder-row.tsx` |
+
+Two more sites were corrected in the same sweep, neither of them R3's and both
+inside this directory. The P8 client's own row, `ui/TaskRow.tsx`, named its
+completion checkbox `Complete` in both states, so a completed row announced a
+transition it had already made; it now carries the same two names the ported
+row does. And `ui/sidebar.tsx`, copied in from the shadcn distribution at R2,
+names the rail control `Toggle Sidebar` in both states where 9.1 now gives it
+two; that is the one string in the twenty vendored primitives this client
+changes, and the file says so where it changes it.
+
+**The general lesson, stated because it outlives these four sites.** A name in
+9.1's table is a fixed string. A control that appears once per folder, once per
+row or once per group is separated from its siblings by the region it sits in,
+which is 9.1's sections rule, and never by folding the folder's name into the
+control's. An interpolated name also puts fixture data into the one namespace a
+criterion has to know before it reads the fixture. The exceptions in this
+directory are the controls section 9 does not name at all, `Add task to
+{folder}` on a folder row and `Open task: {title}` on a task row, which are the
+designer's own strings on controls no table reaches; inventing fixed names for
+those would be the unrecorded deviation, not the fix.
 
 **The star's name and its tooltip are two attributes and his component drove
 them off one string.** That is settled and is restated here because it is the
