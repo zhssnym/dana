@@ -101,7 +101,7 @@ when the day holds seven or fewer, and six rows plus the "+N more" control
 when it holds more. That is what makes the height constant, which is what 9.5
 asks the layout for and the reason the control exists at all.
 
-**Seven rather than the designer's two, and the number came from measurement
+**Six rather than the designer's two, and the number came from measurement
 rather than from taste.** His prototype slices a month cell at two, which his
 fixtures never exceed. Ours draws a ghost per pending series per day, so what
 fills a cell is the number of live repeats rather than the number of tasks
@@ -111,20 +111,24 @@ cells holding 3, 4, 5, 6 and 16 rows, thirty-three of them holding four, and
 the six sixes being the Mondays that carry a weekly series on top of the daily
 ones. Only one of those days was crowded on purpose and AC-177 asserts exactly
 one overflow control, so any cap below six answers a month nobody crowded with
-seven controls. Seven leaves one line over the measured maximum.
+overflow controls on every Monday. Six is that measured maximum exactly: the
+polish pass trimmed the seventh line the R9 session had left as headroom,
+because the headroom bought nothing a person can see and cost every month
+twenty-two pixels a week.
 
-The cost is a tall month, about 1160 pixels for six weeks, which scrolls on a
-720-pixel viewport where the designer's two-row cell did not. It is the price
-of a calendar that shows a week of repeats without an overflow control on
-every weekday, and it is flagged for the human visual review of section 13
-item 33.
+The cost that remains is a tall month, about 1030 pixels for six weeks, which
+scrolls on a 720-pixel viewport where the designer's two-row cell did not. It
+is the price of a calendar that shows a week of repeats without an overflow
+control on every weekday, and it is flagged for the human visual review of
+section 13 item 33: the durable fix is fewer projected rows per day, not a
+shorter lid on the same stack.
 */
-const MONTH_CELL_LINES = 7
+const MONTH_CELL_LINES = 6
 
 const CELL_MIN_HEIGHT: Record<Zoom, string> = {
   // Padding and the day-number line, then MONTH_CELL_LINES rows of 20 with a
-  // 2-pixel gap between them: 12 + 30 + 140 + 12.
-  month: 'min-h-[194px]',
+  // 2-pixel gap between them: 12 + 30 + 120 + 10.
+  month: 'min-h-[172px]',
   week: 'min-h-[420px]',
   day: 'min-h-[480px]',
 }

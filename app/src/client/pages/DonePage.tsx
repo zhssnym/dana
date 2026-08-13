@@ -11,8 +11,10 @@ where "every page except Done" belongs; this file simply has no quick-add.
 9.1's region table names Done's regions by the day each one groups, and adds
 that where a region's name comes from data rather than from the section, a test
 addresses it by the text the page rendered. The format of a date is the
-design's and section 9 has never spelled one, so the region's name here is the
-date exactly as the row carries it.
+design's and section 9 has never spelled one, so the heading is the designer's
+own form for this screen, "Today", "Yesterday", then "August 6, 2026", from
+`parts/format-dates.ts`; the region's name is that rendered text, exactly as
+the rule says.
 
 **The row is this file's own rather than `components/task-row.tsx`, and the
 affordance 9.5 names is that row's completion checkbox.** Every other page hands
@@ -51,21 +53,14 @@ import { CircleCheck, Folder as FolderIcon, Star } from 'lucide-react'
 
 import { mergeCompletedDays, useDoneView, useTask } from '../api/queries.js'
 import { useTransitionTask } from '../api/mutations.js'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../components/ui/alert-dialog.js'
 import { Button } from '../components/ui/button.js'
 import { Checkbox } from '../components/ui/checkbox.js'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { MARK_AS_NOT_DONE, STAR_OFF, STAR_ON } from '../components/ui/copy.js'
 import { Item, ItemContent, ItemMedia, ItemTitle } from '../components/ui/item.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { cn } from '../components/ui/utils.js'
+import { formatDayHeading } from '../parts/format-dates.js'
 import { dueDisplay, folderDisplay } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { MorePages, PageBody } from '../states/PageStates.js'
@@ -262,7 +257,12 @@ export function DonePage(): React.JSX.Element {
       >
         <div className="space-y-7">
           {days.map((day) => (
-            <PageSection key={day.date} name={day.date} heading={day.date} tone="day">
+            <PageSection
+              key={day.date}
+              name={formatDayHeading(day.date, basis.today)}
+              heading={formatDayHeading(day.date, basis.today)}
+              tone="day"
+            >
               <div role="list" className="space-y-0.5">
                 {day.rows.map((task) => (
                   <DoneRow
@@ -291,30 +291,19 @@ export function DonePage(): React.JSX.Element {
         </div>
       </PageBody>
 
-      <AlertDialog
-        open={confirming !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirming(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{UNCOMPLETE_SERIES_CONFIRM}</AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const id = confirming
-                setConfirming(null)
-                if (id !== null) transition.mutate({ id, event: 'uncomplete' })
-              }}
-            >
-              Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {confirming === null ? null : (
+        <ConfirmDialog
+          message={UNCOMPLETE_SERIES_CONFIRM}
+          onContinue={() => {
+            const id = confirming
+            setConfirming(null)
+            transition.mutate({ id, event: 'uncomplete' })
+          }}
+          onCancel={() => {
+            setConfirming(null)
+          }}
+        />
+      )}
     </div>
   )
 }

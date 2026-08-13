@@ -101,6 +101,14 @@ interface CollapsibleSectionProps {
   readonly children: ReactNode
   /** Told when the section opens, so a page can defer the section's fetch. */
   readonly onOpenChange?: (open: boolean) => void
+  /**
+   * A visible count beside the name, `aria-hidden` so the control's accessible
+   * name stays exactly the section's. The folder page's "Completed" needs
+   * this: AC-176 matches that name exact, its own comment saying a control
+   * named "Completed (2)" would be a different string, while My Day's recap
+   * carries its count inside the name because 9.4's heading spells one there.
+   */
+  readonly count?: number
 }
 
 export function CollapsibleSection({
@@ -108,6 +116,7 @@ export function CollapsibleSection({
   defaultOpen,
   children,
   onOpenChange,
+  count,
 }: CollapsibleSectionProps): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen)
   return (
@@ -142,6 +151,11 @@ export function CollapsibleSection({
             aria-hidden="true"
           />
           {name}
+          {count === undefined ? null : (
+            <span aria-hidden="true" className="font-normal text-[var(--color-graphite-500)]">
+              ({count})
+            </span>
+          )}
         </button>
       </h2>
       {/* Absent rather than hidden while collapsed. 6 Q7 asserts the completed

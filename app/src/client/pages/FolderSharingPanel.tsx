@@ -72,6 +72,7 @@ import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Badge } from '../components/ui/badge.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
+import { NativeSelect } from '../components/ui/native-select.js'
 import {
   Sheet,
   SheetContent,
@@ -84,7 +85,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../components/ui/tooltip.js'
-import { initialsOf } from '../parts/presenters.js'
+import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
+import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 
 /** 9.1's sections table for this page. */
@@ -184,30 +186,21 @@ export function FolderSharingPanel({
       }}
     >
       {/*
-      DES-026's 440px sheet, his class string unchanged, plus the one inline
-      declaration that makes it 440.
-
-      **Measured, because his own class string does not reach that width.** The
-      sheet primitive carries `data-[side=right]:sm:max-w-sm`, and Tailwind
-      orders two utilities of one property by their place in the generated
-      stylesheet rather than by their order in a class attribute, so
-      `max-w-sm` wins over his `sm:max-w-none` and the panel renders 384px
-      wide. It renders 384px in his prototype too, measured there on
-      2026-08-13 before this port was written, which means DES-026's 440 is
-      reached by neither application and his source is the only place it
-      exists. An inline declaration is the narrowest thing that delivers it:
-      it beats a class without an `!important`, and it touches nothing outside
-      this element.
-
-      The durable home for the value is `tokens.css`, beside the
-      `--task-form-width` rule R7 uses to defeat the identical collision on
-      the other sheet. That file has one owner and it is not this role, so the
-      request is in this session's report rather than in this file.
+      DES-026's 440px sheet. The width lives in `tokens.css` as
+      `--sharing-panel-width`, the home this file's R9 comment requested and
+      the polish pass granted; the inline declaration is still what carries
+      it, because the sheet primitive's `data-[side=right]:sm:max-w-sm` beats
+      any class here by stylesheet order (measured at R9: the prototype's own
+      `sm:max-w-none` loses the same collision and his panel renders 384,
+      which is why DES-026's number existed only in his source).
       */}
       <SheetContent
         side="right"
-        className="w-[440px] sm:max-w-none"
-        style={{ width: '440px', maxWidth: '440px' }}
+        className="w-[var(--sharing-panel-width)] sm:max-w-none"
+        style={{
+          width: 'var(--sharing-panel-width)',
+          maxWidth: 'var(--sharing-panel-width)',
+        }}
         overlayClassName="bg-black/20 backdrop-blur-none"
       >
         {/* The region 9.1's sections table names, inside the dialog rather
@@ -246,13 +239,13 @@ export function FolderSharingPanel({
                             The format is the design's, so the value is
                             rendered as 7.4 carries it. */}
                         <p className="text-xs text-muted-foreground">
-                          Joined {member.joined_at.slice(0, 10)}
+                          Joined {formatCompactDate(member.joined_at.slice(0, 10))}
                         </p>
                       </div>
                       {folder.is_owner && !member.is_owner ? (
                         <Button
-                          variant="ghost"
-                          className="h-8 px-2 text-xs text-muted-foreground"
+                          variant="outline"
+                          className="h-8 px-3 text-xs"
                           onClick={() => {
                             confirm.ask(removeMemberConfirm(name, folder.name), () => {
                               removeMember.mutate({
@@ -274,11 +267,11 @@ export function FolderSharingPanel({
             <div className="mt-7">
               <PanelHeading icon={UserPlus}>{ROSTER_PICKER}</PanelHeading>
               <div className="flex gap-2">
-                <select
+                <NativeSelect
                   aria-label={ROSTER_PICKER}
                   value={picked}
                   disabled={addMember.isPending}
-                  className="h-[var(--control-height)] min-w-0 flex-1 rounded-md border border-[var(--color-graphite-200)] bg-white px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                  className="min-w-0 flex-1"
                   onChange={(event) => {
                     setPicked(event.target.value)
                   }}
@@ -289,7 +282,7 @@ export function FolderSharingPanel({
                       {entry.user.display_name ?? entry.user.email}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 <Button
                   className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-4 text-white hover:bg-[var(--color-graphite-800)]"
                   disabled={picked === '' || addMember.isPending}
@@ -352,9 +345,11 @@ export function FolderSharingPanel({
                             that a mistyped address can be seen and repaired. */}
                         <p className="truncate text-sm font-medium">{row.email}</p>
                         <p className="text-xs text-muted-foreground">
-                          Sent {row.last_sent_at.slice(0, 10)}
+                          Sent {formatRelativeDay(row.last_sent_at, presenterToday())}
                         </p>
                       </div>
+                      {/* 9.6's own word for the control, as the prototype
+                          draws it; the email beside it says which invite. */}
                       <Button
                         variant="ghost"
                         className="h-8 px-2 text-xs text-muted-foreground"
@@ -362,7 +357,7 @@ export function FolderSharingPanel({
                           cancel.mutate(row.id)
                         }}
                       >
-                        Cancel invite
+                        Cancel
                       </Button>
                       {resendable(row.last_sent_at) ? (
                         <Button

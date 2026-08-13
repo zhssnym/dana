@@ -32,12 +32,12 @@ carries them", so this page carries none: the surface is
 `pages/InviteGate.tsx`, mounted by `shell/app-shell.tsx`, and AC-172's last
 clause asserts the absence here.
 
-**One presenter this page wanted and did not find.** 9.4 heads the page with
-the date and the design writes it long, "Monday, 10 August". `presenters.ts`
-formats a date as "10 Aug" and offers no long or weekday form, and computing
-one here would be the second clock and the second formatter that module exists
-to prevent. So the header shows the presenter's own format and the gap is a
-request against R4's file, in the session report.
+**The header date is the design's long form**, "Monday, 10 August", from
+`parts/format-dates.ts`. That module arrived at the polish pass to answer
+exactly the request this header used to record: the R6 port showed the due
+badge's own "13 Aug" here because the presenter offered no weekday form and
+computing one in a page would have been the second clock and the second
+formatter `presenters.ts` exists to prevent.
 */
 import { useMemo, useState } from 'react'
 import { CalendarCheck2, Star, SunMedium } from 'lucide-react'
@@ -45,7 +45,7 @@ import { CalendarCheck2, Star, SunMedium } from 'lucide-react'
 import type { TaskCard } from '../../shared/tasks.js'
 import { useMyDayView } from '../api/queries.js'
 import { Switch } from '../components/ui/switch.js'
-import { formatDueDate } from '../parts/presenters.js'
+import { formatLongDayDate } from '../parts/format-dates.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
@@ -84,7 +84,7 @@ export function MyDayPage(): React.JSX.Element {
       <PageHeading
         icon={SunMedium}
         title="My Day"
-        subtitle={formatDueDate(basis.today, basis.today)}
+        subtitle={formatLongDayDate(basis.today, basis.today)}
         actions={
           /* 9.4's important-only filter, drawn as the switch it announces
              itself to be. The label is a `label` because the design draws the

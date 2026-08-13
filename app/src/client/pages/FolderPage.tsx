@@ -80,6 +80,7 @@ import {
 } from '../api/queries.js'
 import { FolderLabelDialog } from '../components/folder-label-dialog.js'
 import { QuickAdd } from '../components/quick-add.js'
+import { NativeSelect } from '../components/ui/native-select.js'
 import {
   Avatar,
   AvatarFallback,
@@ -94,6 +95,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { Input } from '../components/ui/input.js'
+import { formatDayHeading } from '../parts/format-dates.js'
 import { folderLabelFields, initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -341,10 +343,9 @@ export function FolderPage(): React.JSX.Element {
             <div className="flex items-center gap-2">
               {/* 9.6's filter, above the one open list. A select and not his
                   menu, for the reason in this file's header. */}
-              <select
+              <NativeSelect
                 aria-label={FILTER_OPEN_TASKS}
                 value={filter}
-                className="h-[var(--control-height)] rounded-md border border-[var(--color-graphite-200)] bg-white px-2 text-[13px] font-medium text-[var(--color-graphite-700)] outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                 onChange={(event) => {
                   setFilter(event.target.value as OpenFilter)
                 }}
@@ -354,7 +355,7 @@ export function FolderPage(): React.JSX.Element {
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
 
               {/* 9.6's member avatar stack. */}
               <AvatarGroup>
@@ -485,11 +486,17 @@ export function FolderPage(): React.JSX.Element {
           {(detail?.counts.completed ?? 0) === 0 ? null : (
             <CollapsibleSection
               name="Completed"
+              count={detail?.counts.completed ?? 0}
               defaultOpen={false}
               onOpenChange={setCompletedOpen}
             >
               {completedDays.map((day) => (
-                <PageSection key={day.date} name={day.date} heading={day.date} tone="day">
+                <PageSection
+                  key={day.date}
+                  name={formatDayHeading(day.date, basis.today)}
+                  heading={formatDayHeading(day.date, basis.today)}
+                  tone="day"
+                >
                   <TaskRows
                     tasks={day.rows}
                     context={context}

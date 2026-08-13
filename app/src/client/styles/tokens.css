@@ -274,6 +274,9 @@ typeface only while online.
 
   /* Session 4 approved desktop shell */
   --shell-sidebar-width: 256px;
+  /* DES-026's sharing panel, the width neither stylesheet collision reached;
+   * requested a home here by the R9 session's report and granted at polish. */
+  --sharing-panel-width: 440px;
   --shell-sidebar-item-height: var(--control-height);
   --shell-sidebar-section-font-size: 11px;
   --shell-sidebar-row-font-size: 13px;

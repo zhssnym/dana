@@ -17,8 +17,11 @@ Section headers are static labels, not links (9.5).
 */
 import { CalendarDays, Layers3, ListTodo } from 'lucide-react'
 
+import { useCreateTask } from '../api/mutations.js'
 import { useAllView, useMultiMemberFolderIds } from '../api/queries.js'
+import { QuickAdd } from '../components/quick-add.js'
 import { useRowActions } from '../parts/useRowActions.js'
+import { openTaskForm } from '../shell/overlays.js'
 import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import { ALL_EMPTY } from './empty-states.js'
@@ -31,6 +34,7 @@ export function AllPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
+  const create = useCreateTask()
   const multiMemberFolderIds = useMultiMemberFolderIds()
   const data = view.data
 
@@ -68,6 +72,20 @@ export function AllPage(): React.JSX.Element {
               context={{ ...basis, multiMemberFolderIds }}
               actions={actions}
               onAsk={confirm.ask}
+            />
+            {/* 9.1 puts the quick-add at the bottom of the Planned list, and
+                this section renders by that page's rules, its entry point
+                included: dated today. The region around it is what tells this
+                row apart from the Tasks groups' rows below (9.1's sections
+                ruling). */}
+            <QuickAdd
+              folderName="Inbox"
+              onAdd={(title) => {
+                create.mutate({ title, due_date: basis.today })
+              }}
+              onOpenFullForm={() => {
+                openTaskForm({ due_date: basis.today })
+              }}
             />
           </PageSection>
           <PageSection
