@@ -795,6 +795,40 @@ export function quickAddInput(page: Page): Locator {
 }
 
 /**
+ * Activates the first inline quick-add on the page and hands back its text
+ * box.
+ *
+ * 9.1 made the quick-add a disclosure at the RFC 0002 change control on
+ * 2026-08-13: collapsed it is a single control, and activating it is what
+ * reveals the input. AC-166 asserts both states and asserts that escape
+ * leaves no box on the page at all, so a client whose box is present
+ * unactivated has no collapsed state and fails that criterion by
+ * construction; the two cannot both be satisfied.
+ *
+ * This exists because four cases in this leg were written against the row
+ * that sentence replaced and reached for the box directly. Every one of them
+ * is about something other than the quick-add's resting state, so what they
+ * owe is the activation and nothing else, and none of their assertions
+ * moves. Stated here rather than four times so that the leg has one answer
+ * to what opening this control means, which is the same reason
+ * `quickAddControl` and `quickAddInput` are one pair rather than a locator
+ * per file.
+ *
+ * AC-166 does not call this. That criterion is the one whose subject is the
+ * two states, so its assertions about the collapsed control and about focus
+ * belong in its own file where a reader of it can see them.
+ */
+export async function openQuickAdd(page: Page, why: string): Promise<Locator> {
+  await clickControl(
+    quickAddControl(page).first(),
+    `${why}. Since the RFC 0002 change control of 2026-08-13 the inline quick-add of 9.1 is ` +
+      'collapsed by default to a single control named "Add a task", so it is activated before ' +
+      'there is a text box to type into',
+  )
+  return quickAddInput(page).first()
+}
+
+/**
  * A named region of 9.1's sections rule, which is how a control inside a
  * page section is addressed: that control within that region.
  *

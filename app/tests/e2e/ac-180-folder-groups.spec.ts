@@ -33,17 +33,44 @@ order.
 string; a client that sends the empty string instead would put every
 ungrouped folder into a group named "" and 4.4 has no opinion about it.
 
-**The controls have no name in any numbered section and are matched by 9.1's
-own descriptions.** 9.1 names the "New folder" action and names no control
-for creating, renaming, deleting or moving a group, and it says only that a
-folder is moved "from its own menu". This file matches those descriptions and
-the gap is routed to the Integration Steward with the rest of this package's,
-on the P8 precedent where eight controls described but not named were
-escalated rather than guessed at.
+**The controls are addressed by the names 9.1 now gives them.** This file
+matched descriptions when it was written, because that section named the "New
+folder" action and named no control for creating, renaming, deleting or moving
+a group, saying only that a folder is moved "from its own menu"; the gap was
+routed to the Integration Steward on the P8 precedent where eight controls
+described but not named were escalated rather than guessed at. The P8R
+mid-package change control of 2026-08-13 answered it, on this role's own
+escalation, and the owner re-accepted the same day: the four actions are "New
+folder group", "Rename group", "Delete group" and "Move to group", a folder
+row's menu and a folder group's menu are both "More actions", and a
+folder-group dialog's field is "Group name". Every locator below is those
+strings, exactly. A description matched loosely is a locator that finds the
+wrong control on the day a second one resembles it, which is 9.1's own reason
+for naming anything.
 
-Spec: 9.1 (folder groups and their four operations, the delete-group confirm,
-the folder list's order), frozen 7.4 (my-membership, which a group is the
-label of), 4.4, 8.11, AC-023, AC-155.
+Two controls are still descriptions and are marked where they are used,
+because that table reaches neither. A dialog's commit control is named nowhere
+in section 9 outside 9.3's "Save" and the "Continue" of a confirmation, and
+the entry that clears a folder's label has no string at all, 9.1 calling the
+unlabeled folders a place in the list rather than an action.
+
+**The move-to-group entries are matched across the three roles a menu-borne
+single choice takes.** 9.1's roles table fixes six elements and this is not one
+of them, and its own preamble says a control it does not reach "is reached by
+its role in the ordinary sense of the word". A group choice inside a menu is a
+menu item in that ordinary sense; where the choice is single-valued and reports
+which one is current, `menuitemradio` is the ARIA role for exactly that, and a
+listbox rendering of the same choice is `option`. All three are true of it, the
+way 9.1 says of its own search input that a search box and a text box are both
+true of it. The third was missing and the installed primitive renders it, which
+took this case red on an addressing guess rather than on the behaviour it
+asserts; the assertion, that choosing a group rewrites `my_label` and that
+choosing none clears it to null, is unchanged.
+
+Spec: 9.1 (folder groups and their four operations, their names, the
+delete-group confirm, the folder list's order, the roles table and its
+preamble), frozen 7.4 (my-membership, which a group is the label of), 4.4,
+8.11, AC-023, AC-155.
 */
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
@@ -54,6 +81,7 @@ import {
   createTask,
   csrfToken,
   fillControl,
+  regionOf,
   routes,
   seedSubs,
   sidebar,
@@ -117,31 +145,49 @@ async function ensureFolder(page: Page, name: string): Promise<string> {
 
 /**
  * A folder row's own menu in the sidebar, which 9.1 describes as "its own
- * menu" and does not name.
+ * menu" and names "More actions" since the P8R change control of 2026-08-13.
  *
  * Scoped to the row, which is 9.1's sections rule applied where it applies:
  * the row is generated from the folder, so the folder is what identifies it.
- * The control inside it is matched on the words section 9 uses for an
- * overflow menu elsewhere, "More actions" being the name it gives the two it
- * does name. This is a description match pending a name and is part of this
- * package's escalation, exactly as eight controls were before the P8 change
- * control named them.
+ * Four controls now share that name deliberately, being the same control
+ * pointed at different objects, and the section's answer to telling them
+ * apart is the container rather than a fourth string. So the scope is the
+ * assertion here and the name is exact.
  */
 function folderMenu(page: Page, folder: string): Locator {
   return sidebar(page)
     .getByRole('listitem')
     .filter({ hasText: folder })
-    .getByRole('button', { name: /more|manage|action|option/i })
+    .getByRole('button', { name: 'More actions', exact: true })
 }
 
 /**
- * A group's own menu in the sidebar, matched on 9.1's own word for the thing
- * it acts on. The collapsible control carries the label exactly (9.1's
- * sections rule), so a name that merely contains the label is the other one.
- * Description match, escalated with the rest.
+ * A group's own menu in the sidebar, the fourth control answering to "More
+ * actions" and reached inside the region its object names.
+ *
+ * 9.1's sections table gives the sidebar "one per personal label group, named
+ * by that label", so a label group is a named region and a control inside one
+ * is addressed as that control within that region. That is the same rule the
+ * folder page's header and sharing panel are reached by, and it is what makes
+ * the shared name unambiguous without a fourth string.
  */
 function groupMenu(page: Page, label: string): Locator {
-  return sidebar(page).getByRole('button', { name: new RegExp(`group|${label}\\s+\\S`, 'i') })
+  return regionOf(page, label).getByRole('button', { name: 'More actions', exact: true })
+}
+
+/**
+ * One destination inside the "Move to group" submenu.
+ *
+ * Three roles because a menu-borne single choice is all three in the ordinary
+ * sense 9.1's roles table sends an unlisted control to, and because the
+ * criterion is about what choosing one writes rather than about which of them
+ * an implementation renders. See this file's header.
+ */
+function moveDestination(page: Page, name: string | RegExp): Locator {
+  return page
+    .getByRole('menuitemradio', { name })
+    .or(page.getByRole('menuitem', { name }))
+    .or(page.getByRole('option', { name }))
 }
 
 test.beforeEach(async ({ page }) => {
@@ -158,18 +204,22 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       "spec 9.1: a folder is moved between groups from its own menu, so the row carries one",
     )
     await clickControl(
-      page.getByRole('menuitem', { name: /group/i }),
+      page.getByRole('menuitem', { name: 'New folder group', exact: true }),
       'spec 9.1: "a group is created by naming it", which is an action on a folder because a ' +
-        'group is the label of that folder\'s membership and nothing else',
+        'group is the label of that folder\'s membership and nothing else. The action is named ' +
+        '"New folder group" by that section\'s names table since 2026-08-13',
     )
     await fillControl(
-      page.getByRole('dialog').getByRole('textbox').first(),
+      page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
       GROUP,
-      'spec 9.1: creating a group is naming it',
+      'spec 9.1: creating a group is naming it, and that section names the field "Group name". ' +
+        'The dialog names its field and not itself, a dialog being announced by its own title',
     )
     await clickControl(
       page.getByRole('dialog').getByRole('button', { name: /save|create|continue/i }).first(),
-      'spec 9.1: the name is committed',
+      'spec 9.1: the name is committed. A description rather than a name, this being one of ' +
+        "the two controls this file still matches loosely: section 9 names a dialog's commit " +
+        'control nowhere outside 9.3\'s "Save" and a confirmation\'s "Continue"',
     )
 
     expect(
@@ -204,17 +254,17 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: a group is renamed, so the group carries a control that renames it',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: /rename/i }),
-      'spec 9.1: a group is renamed',
+      page.getByRole('menuitem', { name: 'Rename group', exact: true }),
+      'spec 9.1: a group is renamed, and that section names the action "Rename group"',
     )
     await fillControl(
-      page.getByRole('dialog').getByRole('textbox').first(),
+      page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
       RENAMED,
-      'spec 9.1: renaming a group is naming it again',
+      'spec 9.1: renaming a group is naming it again, through the same "Group name" field',
     )
     await clickControl(
       page.getByRole('dialog').getByRole('button', { name: /save|rename|continue/i }).first(),
-      'spec 9.1: the new name is committed',
+      'spec 9.1: the new name is committed. A description for the reason given at the case above',
     )
 
     expect(
@@ -245,15 +295,16 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: "a folder is moved between groups from its own menu"',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: /move/i }),
-      'spec 9.1: the folder\'s own menu carries the move',
+      page.getByRole('menuitem', { name: 'Move to group', exact: true }),
+      'spec 9.1: the folder\'s own menu carries the move, named "Move to group" by that ' +
+        "section's names table",
     )
     await clickControl(
-      page.getByRole('menuitem', { name: OTHER_GROUP }).or(
-        page.getByRole('option', { name: OTHER_GROUP }),
-      ),
+      moveDestination(page, OTHER_GROUP),
       `spec 9.1: the move offers the other groups, and ${OTHER_GROUP} is one this account ` +
-        'carries',
+        'carries. Matched across the three roles a menu-borne single choice takes, per this ' +
+        "file's header: 9.1's roles table does not reach this control and sends it to its role " +
+        'in the ordinary sense, which menuitemradio, menuitem and option are each true of',
     )
     expect(
       await labelOf(page, FOLDER_B),
@@ -265,15 +316,15 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: the folder\'s own menu again, for the move out',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: /move/i }),
+      page.getByRole('menuitem', { name: 'Move to group', exact: true }),
       'spec 9.1: the folder\'s own menu carries the move',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: /ungrouped|no group|none/i }).or(
-        page.getByRole('option', { name: /ungrouped|no group|none/i }),
-      ),
+      moveDestination(page, /ungrouped|no group|none/i),
       'spec 9.1: a folder can move out of every group, the unlabeled folders being a place in ' +
-        'that list rather than the absence of one',
+        'that list rather than the absence of one. The second of the two controls this file ' +
+        'still matches by description: that section names the four group actions and names no ' +
+        'string for the entry that clears the label',
     )
     expect(
       await labelOf(page, FOLDER_B),
@@ -298,8 +349,8 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: a group is deleted, so the group carries a control that deletes it',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: /delete/i }),
-      'spec 9.1: a group is deleted',
+      page.getByRole('menuitem', { name: 'Delete group', exact: true }),
+      'spec 9.1: a group is deleted, and that section names the action "Delete group"',
     )
     await expect(
       page.getByText(/Delete folder group\? \d+ folders keep their tasks and move to the ungrouped list\./),

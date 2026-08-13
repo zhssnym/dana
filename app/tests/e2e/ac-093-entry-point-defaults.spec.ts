@@ -34,24 +34,33 @@ rows read "Inbox", and Inbox is 4.3's default folder rather than a folder
 called Inbox: the seeded viewer's default is named Inbox, so the two agree
 here and the assertion is on the name the table writes.
 
-**The quick-add arm of the sixth row is escalated and is not asserted below.**
-This criterion now requires the form opened from the folder page's quick-add
-as well as from its floating button, and 9.1's amended quick-add bullet gives
-the expanded row "an escalation control opening the full task form at the
-same entry point" without naming it. 9.1's Names table names the quick-add
-itself, collapsed and expanded alike, and names no control inside it, so the
-only ways to reach the escalation control are by its position in the row or
-by a string this specification does not carry, and 9.1's own addressing
-paragraph forbids both. The gap is routed to the Integration Steward with a
-recommendation, on the P8 precedent where eight controls described without
-being named were escalated rather than guessed at. Everything else this
-criterion asserts is below, including the floating-button arm of the same
-row, so what is missing is one opening and not the row.
+**The quick-add arm of the sixth row is asserted, and the escalation that
+held it back is answered.** This criterion requires the form opened from the
+folder page's quick-add as well as from its floating button, and the case was
+missing because 9.1's amended quick-add bullet gave the expanded row "an
+escalation control opening the full task form at the same entry point"
+without naming it: the only ways to reach an unnamed control are by its
+position or by a string the specification does not carry, and 9.1's addressing
+paragraph forbids both. The P8R mid-package change control of 2026-08-13
+answered it, on this role's own escalation, with the row `The quick-add's
+escalation control (9.1) | "Open full form"`, and the owner re-accepted the
+same day. So the sixth case below opens the form the way that row now says,
+and this criterion asserts every opening its sentence names rather than five
+of six.
+
+The control is reached inside the opened quick-add rather than beside it,
+because the quick-add is a disclosure since the same change control: the
+collapsed control is activated first, and the escalation control exists only
+in the state that activation produces. 9.1's paragraph explains why the name
+is its own rather than "More options": the two are alternatives at the same
+instant, the form's expander sitting on the page behind the dialog's scrim
+while the form is open, so a page can hold both.
 
 Spec: 9.3 (the entry-point table as RFC 0002 amends it, the More options
-expander), 9.1 (the floating add button, the quick-add, the route table),
-9.5 (the calendar's mode toggle, its next control, the click on an empty
-cell), 9.6 (the single open list this row now reads against), 4.3.
+expander), 9.1 (the floating add button, the quick-add and its two states,
+its escalation control, the route table), 9.5 (the calendar's mode toggle,
+its next control, the click on an empty cell), 9.6 (the single open list this
+row now reads against), 4.3.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -64,6 +73,7 @@ import {
   firstOfMonth,
   floatingAddButton,
   formField,
+  quickAddControl,
   routes,
   seedDate,
   seedIds,
@@ -251,6 +261,41 @@ test.describe('AC-093: the six entry points of 9.3', () => {
     // and undated tasks at once, and clearing a date that was added for you
     // costs more than adding one that was not.
     await expectDefaults(page, "a folder page's floating button", {
+      dueDate: '',
+      important: false,
+      folder: 'Groceries',
+    })
+  })
+
+  test("AC-093: a folder page's quick-add opens with that folder and no date", async ({
+    page,
+  }) => {
+    await page.goto(routes.folder(seedIds.groceries))
+
+    // The other opening of the sixth row, which this criterion's own sentence
+    // requires: "whether the form was opened from its quick-add or from the
+    // floating button". The two arms are asserted separately because they are
+    // two code paths to one set of defaults, and an implementation that reads
+    // the entry point off the page for one and off the control for the other
+    // passes whichever of them a single case happened to choose.
+    await clickControl(
+      quickAddControl(page).first(),
+      'spec 9.1: the inline quick-add is collapsed to a single control named "Add a task", and ' +
+        '9.6 gives this page one open list and therefore one quick-add rather than two',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'Open full form', exact: true }),
+      'spec 9.1: the expanded quick-add carries "an escalation control opening the full task ' +
+        'form at the same entry point", named "Open full form" by that section\'s names table ' +
+        'at the P8R change control on 2026-08-13. A fixed string rather than one interpolating ' +
+        'the folder, that section says, because the region rule is what tells two instances ' +
+        'apart',
+    )
+
+    // The same three columns and the same values as the arm above, which is
+    // what "at the same entry point" means: the opening changes and the row
+    // does not.
+    await expectDefaults(page, "a folder page's quick-add", {
       dueDate: '',
       important: false,
       folder: 'Groceries',

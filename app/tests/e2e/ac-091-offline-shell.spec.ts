@@ -36,8 +36,18 @@ it as the control.
 This spec creates no rows on the success path. The write it attempts is the
 one it needs to fail.
 
+**The write is attempted through the quick-add's opened state**, corrected on
+2026-08-13 after 9.1 made that control a disclosure at the RFC 0002 change
+control. This case was written when the row was always on the page and reached
+for its text box directly, which AC-166 now forbids: that criterion asserts a
+collapsed state and asserts that escape leaves no box on the page at all, so a
+client satisfying this case as it stood could not satisfy that one. What the
+case owes is one activation. Every assertion below is unchanged, and none of
+them was ever about the control's resting state.
+
 Spec: 10.6 (the PWA and offline contract), 9.1 (the banner, the quick-add
-row, the toast), 9.1's route table, 6 Q2, 11.4 (vite-plugin-pwa).
+and its two states, the toast), 9.1's route table, 6 Q2, 11.4
+(vite-plugin-pwa).
 */
 import { expect, test } from '@playwright/test'
 
@@ -46,7 +56,7 @@ import {
   copy,
   expectServiceWorkerControl,
   fillControl,
-  quickAddInput,
+  openQuickAdd,
   routes,
   seedIds,
   seedSubs,
@@ -118,19 +128,27 @@ test.describe('AC-091: the installed app opens offline', () => {
     await context.setOffline(true)
     await page.goto(routes.tasks)
 
-    // 9.1's quick-add row: a single title input, enter saves immediately.
-    // The shortest write path the specification offers, and the one that
-    // needs no dialog to reach.
-    const quickAdd = quickAddInput(page).first()
+    // 9.1's quick-add: collapsed to a single control, activated to reveal a
+    // title input, enter saves immediately. The shortest write path the
+    // specification offers, and the one that needs no dialog to reach. The
+    // activation is the disclosure 9.1 gained on 2026-08-13 and AC-166
+    // asserts; this case is about what an offline write does, not about the
+    // control's resting state, so opening it changes nothing it says.
+    const quickAdd = await openQuickAdd(
+      page,
+      'spec 9.1 puts an inline quick-add at the bottom of Tasks groups, and 10.6 renders the ' +
+        'shell offline, so the control a write is attempted through is on the page',
+    )
     await expect(
       quickAdd,
-      'spec 9.1 puts an inline quick-add row at the bottom of Tasks groups, and 10.6 ' +
-        'renders the shell offline, so the row a write is attempted through is on the page',
+      'spec 9.1: activating the collapsed control reveals the title input, which is the write ' +
+        'path this case attempts offline. A shell that rendered without it would leave this ' +
+        'criterion with nothing to write through',
     ).toBeVisible()
     await fillControl(
       quickAdd,
       OFFLINE_TITLE,
-      'spec 9.1: the inline quick-add row is a single title input',
+      'spec 9.1: the expanded quick-add is a single title input',
     )
     await quickAdd.press('Enter')
 

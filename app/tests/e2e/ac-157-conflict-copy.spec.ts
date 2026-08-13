@@ -30,8 +30,16 @@ showing both satisfies the criterion while burying the sentence that
 matters, and a page showing the general one alone fails only for the
 assertion nobody wrote.
 
-Spec: 9.1 (both toasts and the 409 rule), 5.1 (the copy, verbatim), 8.3
-(staleness between refetches), 7.6, 7.0.
+**The third case writes through the quick-add's opened state**, corrected on
+2026-08-13 after 9.1 made that control a disclosure at the RFC 0002 change
+control. It was written when the row was always on the page and reached for
+its text box directly, which AC-166 now forbids: that criterion asserts a
+collapsed state and asserts that escape leaves no box on the page at all. What
+the case owes is one activation, and what it asserts, that an ordinary failed
+request shows the general toast, does not move.
+
+Spec: 9.1 (both toasts, the 409 rule, and the quick-add's two states), 5.1
+(the copy, verbatim), 8.3 (staleness between refetches), 7.6, 7.0.
 */
 import { expect, test } from '@playwright/test'
 
@@ -43,7 +51,7 @@ import {
   copy,
   createTask,
   fillControl,
-  quickAddInput,
+  openQuickAdd,
   routes,
   seedIds,
   seedSubs,
@@ -171,11 +179,15 @@ test.describe('AC-157: a 409 shows 5.1\'s copy', () => {
       })
     })
 
-    const quickAdd = quickAddInput(page).first()
+    const quickAdd = await openQuickAdd(
+      page,
+      'spec 9.1: the inline quick-add is the shortest write path this section offers, and this ' +
+        'case needs a write the server can be made to fail',
+    )
     await fillControl(
       quickAdd,
       'ac-157 a request that fails',
-      'spec 9.1: the inline quick-add row is a single title input',
+      'spec 9.1: the expanded quick-add is a single title input',
     )
     await quickAdd.press('Enter')
 

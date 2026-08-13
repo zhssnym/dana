@@ -40,6 +40,35 @@ the same number three times, or rendering the 8.11 pending count where the
 copy asks for open and abandoned separately, passes any assertion that only
 looks for digits.
 
+**Done's "Mark as not done" is the task row's completion checkbox**, corrected
+on 2026-08-13 and recorded here because an implementing session raised it as a
+question this role owes an answer to. This case addressed the control as a
+button, which was the reading available while nothing named it. The P8R
+mid-package change control of 2026-08-13 named it, and the row it added is
+`A task row's completion checkbox, and the task form's completion control
+(9.3, 9.4) | "Complete task" when open, "Mark as not done" when complete`, so
+the affordance 9.5 puts on a Done row is that checkbox in its complete state
+and not a second control that happens to share its words. Three sentences
+agree and none of them is this table: 9.4 lists "complete checkbox" among a
+row's elements, 9.1's own paragraph calls the pair "one control pointed at one
+object from two places", and 9.3 as RFC 0002 rewrites it says its completion
+control "is the same transition 9.4's row checkbox and 9.5's 'Mark as not
+done' make, and takes 9.5's confirmation unchanged on the G-SERIES successor
+branch".
+
+That last sentence answers the objection the implementation raised, which was
+that a checkbox cannot confirm before it acts and that hiding a dialog inside
+the one control every other page uses unconditionally is worse than a named
+button. It is a real objection about the product and it is not a reading of
+the specification: 9.3 has the completion control confirm on exactly that
+branch, AC-179 asserts it doing so, and so the confirming behaviour is a
+property of the transition rather than of a role. Two roles for one named
+control is what 9.1's addressing sentence does not admit, and this leg already
+reaches the same control as a checkbox in AC-157 and in `session-path`. So the
+role here is corrected rather than the client's; what this case asserts, that
+the G-SERIES confirm carries 9.5's copy and that declining runs nothing, does
+not move.
+
 Spec: 9.3 (the delete confirm), 9.4 (the abandon confirm), 9.5 (the
 G-SERIES un-complete confirm), 9.6 (the folder delete confirm and its
 counts, and the leave and remove confirms), 9.1 (the regions the folder
@@ -287,9 +316,12 @@ test.describe('AC-162: the four confirms of section 9', () => {
 
     await page.goto(routes.done)
     await clickControl(
-      taskRow(page, title).getByRole('button', { name: 'Mark as not done' }),
+      taskRow(page, title).getByRole('checkbox', { name: 'Mark as not done', exact: true }),
       'spec 9.5: each Done row has "Mark as not done", which runs uncomplete and, on the ' +
-        'G-SERIES successor branch, confirms first',
+        'G-SERIES successor branch, confirms first. A checkbox because 9.1\'s names table gives ' +
+        "that string to a task row's completion checkbox in its complete state and 9.4 lists " +
+        'that checkbox among a row\'s elements; see this file\'s header for why the confirm ' +
+        'does not make it something else',
     )
 
     await expect(

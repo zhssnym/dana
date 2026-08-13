@@ -37,11 +37,16 @@ and no page's ordering, grouping or paging is re-checked here: those are
 green in the vitest leg, by number, where they belong.
 
 The one mutation is a completion of a task this file creates, so nothing
-seeded transitions and no later spec sees a changed row.
+seeded transitions and no later spec sees a changed row. It is written through
+the quick-add's opened state, corrected on 2026-08-13 after 9.1 made that
+control a disclosure at the RFC 0002 change control: this file reached for the
+text box directly, which AC-166 now forbids, and what it owes is one
+activation. Nothing about the three properties above moves, none of them being
+about that control at all.
 
 Spec: 11.10 (the development login as this leg's session source), 7.0 (the
 tz rule and the envelope), 11.6 (CSRF), 10.2 (the chokepoint), 9.1 (the
-sidebar and the route table), 8.3.
+sidebar, the route table and the quick-add's two states), 8.3.
 */
 import { expect, test } from '@playwright/test'
 
@@ -50,7 +55,7 @@ import {
   checkControl,
   clickControl,
   fillControl,
-  quickAddInput,
+  openQuickAdd,
   routes,
   seedIds,
   seedSubs,
@@ -151,16 +156,20 @@ test.describe('The signed-in path', () => {
     // This file's own row, so nothing seeded transitions.
     const title = 'session path completes this one'
     await page.goto(routes.tasks)
-    const quickAdd = quickAddInput(page).first()
+    const quickAdd = await openQuickAdd(
+      page,
+      'spec 9.1: this case needs a create and a complete, and the inline quick-add is the ' +
+        'shortest create path the section offers',
+    )
     await fillControl(
       quickAdd,
       title,
-      'spec 9.1: the inline quick-add row is a single title input',
+      'spec 9.1: the expanded quick-add is a single title input',
     )
     await quickAdd.press('Enter')
     await expect(
       taskRow(page, title),
-      'spec 9.1: the inline quick-add row saves on enter, and 8.3 refetches the active view ' +
+      'spec 9.1: the inline quick-add saves on enter, and 8.3 refetches the active view ' +
         'after an own mutation, so the row is on the page without a reload',
     ).toBeVisible()
 

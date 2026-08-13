@@ -32,16 +32,21 @@ reachable by its role and its name. A client that leaves a second copy in a
 bar above satisfies "inside the sidebar" while still carrying the chrome this
 criterion says is gone.
 
-**The avatar menu is addressed by the viewer, which is the datum it is
-generated from.** 9.1 names the search control "Search" in its control table
-and names the avatar menu nowhere, describing it only as the avatar menu with
-Settings and Sign out inside it. An avatar is the person, so the viewer's own
-display name is what generates this control exactly as a folder's name
-generates its row, which is 9.1's sections rule applied one level out; the
-prototype and the current client both satisfy it. The naming gap is routed to
-the Integration Steward all the same, because a description is a locator that
-finds the wrong control on the day a second one resembles it, and that is the
-reason 9.1 named eight controls in the first place.
+**The avatar menu is addressed as "Account", exactly.** Two cases below asked
+for a control whose name contained the viewer's display name, on the ground
+that 9.1 named the avatar menu nowhere and that an avatar is the person, so
+the viewer's own name generated the control the way a folder's name generates
+its row. That ground held when this file was written and stopped holding four
+commits later: the P8R mid-package change control of 2026-08-13 added the row
+`The avatar menu (9.1) | "Account"` to that section's names table, and the
+owner re-accepted it the same day. The paragraph beneath the row refuses the
+reading this file had, in the terms it falls foul of: "a name carrying the
+display name would make the one control in this table whose string a test
+cannot know before it reads the fixture." So the locator is corrected to the
+ruled string and nothing this criterion asserts moves. The person's name is
+still rendered inside the control and still read by anyone looking at it;
+what changed is what the control answers to. Exact, for the reason every
+control match in this leg is exact.
 
 Spec: 9.1 (the sidebar as the only chrome and what its header and footer
 carry, the roles table, the control table, the routes table), 9.2 (the
@@ -65,8 +70,13 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-/** The seeded viewer's display name, which generates the avatar menu. */
-const VIEWER = 'Hassan'
+/**
+ * The avatar menu's name, ruled by 9.1's names table at the P8R mid-package
+ * change control on 2026-08-13 and re-accepted by the owner the same day.
+ * There is exactly one of this control and it opens the viewer's account, so
+ * the string is fixed rather than generated from the fixture.
+ */
+const AVATAR_MENU = 'Account'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
@@ -114,18 +124,21 @@ test.describe('AC-174: the sidebar is the application\'s only chrome', () => {
     ).toHaveCount(1)
 
     await expect(
-      nav.getByRole('button', { name: new RegExp(VIEWER) }),
-      "spec 9.1: the sidebar's footer carries the avatar menu. Addressed by the viewer because " +
-        'an avatar is the person and this section names no string for it, which is the same ' +
-        "rule 9.1's sections table uses where a region's name comes from data",
+      nav.getByRole('button', { name: AVATAR_MENU, exact: true }),
+      "spec 9.1: the sidebar's footer carries the avatar menu, named \"Account\" by that " +
+        "section's names table at the P8R change control on 2026-08-13. Exactly one of it, " +
+        'which is the count that reads the removed top bar: a client leaving a second copy in ' +
+        'a bar above satisfies "inside the sidebar" while still carrying the chrome this ' +
+        'criterion says is gone',
     ).toHaveCount(1)
   })
 
   test('AC-174: the avatar menu offers Settings and Sign out', async ({ page }) => {
     await page.goto(routes.myDay)
     await clickControl(
-      sidebar(page).getByRole('button', { name: new RegExp(VIEWER) }),
-      'spec 9.1: the avatar menu is in the sidebar footer and it opens',
+      sidebar(page).getByRole('button', { name: AVATAR_MENU, exact: true }),
+      'spec 9.1: the avatar menu is in the sidebar footer, is named "Account" by that ' +
+        "section's names table, and it opens",
     )
 
     await expect(

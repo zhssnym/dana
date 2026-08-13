@@ -32,19 +32,32 @@ Both controls are addressed by the names 9.1's control table gave them at
 the P8 change control on 2026-08-11, "Add task" and "Add a task", and both
 matches are exact. Before that table this file matched descriptions and
 escalated the gap: the button by `/add/i`, which also catches the quick-add
-row and the steps editor's "Add step", and the row by "any text box that is
+and the steps editor's "Add step", and the quick-add by "any text box that is
 not the search box". The second assertion below is the one the naming
-improved most, because it now states the criterion, no quick-add row on
-Done, where it used to state a proxy for it, no text entry of any kind.
+improved most, because it now states the criterion, no quick-add on Done,
+where it used to state a proxy for it, no text entry of any kind.
 
-Spec: 9.1 (the floating add button and the quick-add row), 9.5 (Done), 6 Q6,
-9.1's route table.
+**The second case reads the collapsed control and asserts both states
+absent**, corrected on 2026-08-13 after 9.1 made the quick-add a disclosure at
+the RFC 0002 change control. Its positive half reached for the text box on
+Tasks, which is not what that page renders until somebody activates the
+control, so the half whose whole job is to prove the absence below
+discriminates had stopped finding anything on a page that carries the
+affordance; and its negative half asserted the absence of the box alone, which
+a Done page carrying the collapsed control would satisfy while carrying the
+add affordance 9.5 forbids. So the positive control becomes the control, and
+the absence is asserted of both states. The quick-add is one affordance with
+two of them, so a page carrying either carries it.
+
+Spec: 9.1 (the floating add button, and the quick-add with its two states),
+9.5 (Done), 6 Q6, 9.1's route table.
 */
 import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
   floatingAddButton,
+  quickAddControl,
   quickAddInput,
   routes,
   seedSubs,
@@ -80,20 +93,29 @@ test.describe('AC-096: Done carries no add affordance', () => {
     ).toHaveCount(0)
   })
 
-  test('AC-096: the quick-add row is on Tasks and not on Done', async ({ page }) => {
+  test('AC-096: the quick-add is on Tasks and not on Done', async ({ page }) => {
     await page.goto(routes.tasks)
     await expect(
-      quickAddInput(page).first(),
-      'spec 9.1 puts an inline quick-add row at the bottom of every Tasks group, and the 9.1 ' +
-        'control table names its input "Add a task"',
+      quickAddControl(page).first(),
+      'spec 9.1 puts an inline quick-add at the bottom of every Tasks group, collapsed by ' +
+        'default to a single control carrying the name that section gives both its states, ' +
+        '"Add a task". This half is the positive control that makes the absence below ' +
+        'discriminate, so it reads the state the page is actually in rather than the text box ' +
+        'no page renders until the control is activated',
     ).toBeVisible()
 
     await page.goto(routes.done)
     await expect(
+      quickAddControl(page),
+      'spec 9.1 lists the quick-add on Tasks groups, the Planned list and the folder page\'s ' +
+        'open list, and 9.5 forbids any add affordance on Done, so the collapsed control is ' +
+        'not on this page',
+    ).toHaveCount(0)
+    await expect(
       quickAddInput(page),
-      'spec 9.1 lists the quick-add row on Tasks groups, the Planned list and folder ' +
-        'sections, and 9.5 forbids any add affordance on Done, so no control named "Add a ' +
-        'task" is on this page',
+      'and neither is the text box it opens into. Both states are asserted absent because the ' +
+        'quick-add is one affordance with two of them, so a page carrying either carries the ' +
+        'affordance 9.5 says is nowhere on this page',
     ).toHaveCount(0)
   })
 
