@@ -81,7 +81,7 @@ const UNCOMPLETE_SERIES_CONFIRM =
 
 /** His resting treatment for a row's action controls, transparent until hover. */
 const REVEAL_ON_ROW_HOVER =
-  'opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 focus-visible:opacity-100'
+  'pointer-events-none opacity-0 group-hover/task:pointer-events-auto group-hover/task:opacity-100 group-focus-within/task:pointer-events-auto group-focus-within/task:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100'
 
 function DoneRow({
   task,

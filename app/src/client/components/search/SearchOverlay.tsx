@@ -291,8 +291,14 @@ export function SearchOverlay(): React.JSX.Element {
               {grouped.map((group) =>
                 group.rows.length === 0 ? null : (
                   <section key={group.status} aria-label={group.heading}>
-                    <h3 className="flex h-7 items-center px-2 text-[0.625rem] font-semibold tracking-[0.08em] text-[var(--color-graphite-500)] uppercase">
+                    <h3 className="flex h-7 items-center gap-1.5 px-2 text-[0.625rem] font-semibold tracking-[0.08em] text-[var(--color-graphite-500)] uppercase">
                       {group.heading}
+                      {/* The prototype's count beside the group name,
+                          aria-hidden so AC-156's heading name stays the
+                          group's own word. */}
+                      <span aria-hidden="true" className="font-medium text-[var(--color-graphite-400)]">
+                        {group.rows.length}
+                      </span>
                     </h3>
                     <div className="space-y-0.5">
                       {group.rows.map((row) => {

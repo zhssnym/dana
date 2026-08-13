@@ -193,7 +193,7 @@ export function FolderRow({
         // records at length: a control with an empty bounding box is not
         // visible to anything that addresses it by role and name, which is
         // what 9.1's addressing sentence requires of every control.
-        <div className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100">
+        <div className="pointer-events-none absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:pointer-events-auto group-hover/folder-row:opacity-100 group-focus-within/folder-row:pointer-events-auto group-focus-within/folder-row:opacity-100">
           {onAddTask ? (
             <Button
               type="button"

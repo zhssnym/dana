@@ -222,7 +222,7 @@ function dayAfter(civilDate: string): string {
 
 /** The class every field control wears so his rows read as one column. */
 const FIELD_CONTROL =
-  'h-[var(--task-form-property-row-height)] w-full min-w-0 rounded-md border-0 bg-transparent px-2 text-sm text-foreground outline-none hover:bg-[var(--color-graphite-50)] focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:text-[var(--color-graphite-400)] disabled:hover:bg-transparent'
+  'h-[var(--task-form-property-row-height)] w-full min-w-0 rounded-md border-0 bg-transparent px-2 text-sm text-foreground outline-none hover:bg-[var(--color-graphite-50)] focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:text-[var(--color-graphite-400)] disabled:hover:bg-transparent [&::-webkit-calendar-picker-indicator]:opacity-55 [&:hover::-webkit-calendar-picker-indicator]:opacity-100'
 
 /**
  * The designer's property row: a glyph, the field's name, and the control.
@@ -828,15 +828,19 @@ export function TaskForm({
                   prototype puts notes last; the section fixes what the form
                   holds and in what order, so the order is the section's. */}
               <PropertyRow icon={AlignLeft} label={FIELD_NOTES} htmlFor={`${ids}-notes`}>
+                {/* Compact at rest like every sibling row, growing with its
+                    content: an empty three-line block above six single-line
+                    rows read as a hole in the column, and the design's own
+                    notes row opens at one line. */}
                 <textarea
                   id={`${ids}-notes`}
-                  rows={3}
+                  rows={1}
                   value={values.notes}
                   placeholder="Add notes"
                   onChange={(event) => {
                     set('notes', event.target.value)
                   }}
-                  className="min-h-20 w-full resize-y rounded-md border-0 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground hover:bg-[var(--color-graphite-50)] focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/30"
+                  className="max-h-56 min-h-[var(--task-form-property-row-height)] w-full resize-y rounded-md border-0 bg-transparent px-2 py-2 text-sm [field-sizing:content] outline-none placeholder:text-muted-foreground hover:bg-[var(--color-graphite-50)] focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/30"
                 />
               </PropertyRow>
 

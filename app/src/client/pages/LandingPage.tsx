@@ -258,6 +258,18 @@ function ProductPreview(): React.JSX.Element {
 
 export function LandingPage(): React.JSX.Element {
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
+  /*
+  The callback's failure marker (auth/pages.ts): every refusal that is not the
+  unverified page returns here carrying ?signin=failed, and until the polish
+  pass the page said nothing, so a cancelled consent screen bounced a person
+  back with zero feedback. The sentence is 9.1's own global failure copy
+  rather than a new string, because a failed sign-in is a failed request and
+  section 9 has not yet written this surface its own words; flagged in the
+  session report for section 9 to adopt or replace.
+  */
+  const signInFailed =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('signin') === 'failed'
   return (
     <main className="grid min-h-screen grid-cols-[minmax(0,1fr)_minmax(0,1fr)] bg-white">
       <section className="flex min-h-screen flex-col px-[clamp(48px,5vw,80px)] py-10">
@@ -274,7 +286,13 @@ export function LandingPage(): React.JSX.Element {
           <p className="text-xs font-semibold tracking-[0.1em] text-[var(--color-graphite-500)] uppercase">
             {COPY.eyebrow}
           </p>
-          <h1 className="mt-5 text-[clamp(46px,4.2vw,62px)] leading-[1.03] font-semibold tracking-[-0.045em]">
+          {/* One step under his clamp(46px,4.2vw,62px): his page never loads
+              the Inter it declares (tokens.css records the measurement), so
+              his sizes were authored against a narrower fallback and the first
+              line overflows its own 600px measure once the real face renders.
+              This is the largest size at which the designed font holds his
+              one-line composition across common widths. */}
+          <h1 className="mt-5 text-[clamp(42px,3.9vw,58px)] leading-[1.03] font-semibold tracking-[-0.045em]">
             <span className="block text-[var(--color-graphite-950)]">{COPY.headingFirst}</span>{' '}
             <span className="mt-1 block text-[var(--color-graphite-500)]">
               {COPY.headingSecond}
@@ -283,6 +301,15 @@ export function LandingPage(): React.JSX.Element {
           <p className="mt-7 max-w-[46ch] text-base leading-7 text-[var(--color-graphite-600)]">
             {COPY.subheading}
           </p>
+
+          {signInFailed ? (
+            <p
+              role="status"
+              className="mt-7 flex max-w-[46ch] items-center gap-2.5 rounded-md border border-[var(--color-warning-200)] bg-[var(--color-warning-100)] px-3 py-2.5 text-sm leading-5 text-[var(--color-warning-700)]"
+            >
+              Something went wrong. Nothing was saved. Try again.
+            </p>
+          ) : null}
 
           <Button
             className="mt-9 h-11 min-w-56 gap-3 bg-[var(--color-graphite-950)] px-5 text-sm font-medium text-white shadow-none hover:bg-[var(--color-graphite-800)]"

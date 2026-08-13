@@ -479,7 +479,7 @@ function FolderGroupBlock({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                  className="pointer-events-none mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 group-hover/folder-group:pointer-events-auto group-hover/folder-group:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] focus-visible:pointer-events-auto focus-visible:opacity-100 data-popup-open:pointer-events-auto data-popup-open:opacity-100"
                   aria-label={MORE_ACTIONS}
                 />
               }
