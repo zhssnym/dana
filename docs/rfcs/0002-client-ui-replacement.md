@@ -1,11 +1,17 @@
 # RFC 0002: Replace the client user interface with the designer's prototype
 
-- **Status:** Accepted
+- **Status:** Draft, returned from Accepted on 2026-08-13 for re-acceptance
 - **Created:** 2026-08-13
 - **Accepted:** 2026-08-13 by the human owner; numbers finalised and both open
   questions closed by the Integration Steward on the same date
+- **Returned to Draft:** 2026-08-13 at the P8R mid-package change control. Three
+  amendments change the specification delta, which the preamble says returns an
+  Accepted RFC to Draft for re-acceptance. They are listed under **Amendments
+  after acceptance** below. Nothing else about the RFC moves, no number changes,
+  and the implementation plan is unaffected, so a session already building
+  against this delta needs only the three
 - **Target release:** v1, in place of the remainder of package P8D
-- **Spec sections touched:** 9.1, 9.2, 9.3, 9.5, 9.6, 9.8, 11.4, 11.13, 12, 13
+- **Spec sections touched:** 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.8, 11.4, 11.13, 12, 13
 - **Frozen interfaces touched:** none
 
 ## Summary
@@ -130,9 +136,40 @@ copied in as that project distributes them. Adopting them is what 11.4's own
 sentence has asked for since it was written, so section 13 item 30 closes here
 rather than widening.
 
+## Amendments after acceptance
+
+Three, all made at the P8R mid-package change control on 2026-08-13, all inside
+section 9 and none touching a frozen section. Each changes the specification
+delta, so the RFC returns to Draft for re-acceptance under the preamble's own
+rule, and the owner's decision is on these three alone rather than on the RFC
+again. Two of them block the sessions after R4 and the third is already costing
+one, which is why they arrive mid-package rather than at a merge review.
+
+1. **Ten unnamed controls get normative names**, added as eleven rows to 9.1's
+   names table with their reasons beside it. The Adversarial Test Engineer
+   escalated them after writing criteria it could not fully express: a control
+   this specification does not name is reachable only by position, which 9.1's
+   addressing sentence exists to forbid, so a criterion written against one would
+   assert the implementation rather than the contract. R3 has already shipped
+   four of them, and what it shipped was checked before these names were ruled
+   rather than after. Three agree and stand: the quick-add's two states are
+   already "Add a task", the task row's completion checkbox is already "Complete
+   task" and "Mark as not done", and its overflow menu is already "More actions".
+   Four disagree and are corrections owed to role 08, listed in the changelog
+   entry and in this session's final block.
+2. **9.8 loses the People screen's invite list, and AC-172 loses its third
+   clause.** The gate renders at every /app path while Q12 is non-empty and
+   /app/people is an /app path, so the sentence described a surface no person
+   could reach. The reasoning and the rejected alternative are in the 9.8 unit.
+3. **9.4 gains the rule that a task row opens its form**, on every page and
+   whatever the task's status. It was stated once, in 9.5's Planned bullet, where
+   it read as a property of the calendar, and the status half was never stated at
+   all, which left AC-178 and AC-179 asserting a form they had no specified way
+   to open.
+
 ## Specification delta
 
-Fifteen units. Three of them replace something smaller than a numbered section:
+Sixteen units. Three of them replace something smaller than a numbered section:
 one table row in 11.13, three acceptance criteria by number, and two items of
 section 13. The criterion form is the preamble's own, which says an invalidated
 criterion is never deleted and a Replace unit names it and rewrites it, and the
@@ -203,12 +240,35 @@ Names, added at the P8 change control on 2026-08-11. The addressing sentence abo
 | A task row's overflow menu (9.4) | "More actions" |
 | The two controls of every confirmation (9.3 to 9.9) | "Continue" and "Cancel" |
 | The inline retry control (9.4) | "Try again" |
+| The quick-add's escalation control (9.1) | "Open full form" |
+| A task row's completion checkbox, and the task form's completion control (9.3, 9.4) | "Complete task" when open, "Mark as not done" when complete |
+| A sidebar folder row's menu, and a folder group's menu (9.1) | "More actions" |
+| The folder page's open-list filter (9.6) | "Filter open tasks", offering "All open tasks", "With a due date" and "Without a due date" |
+| The folder-group actions (9.1) | "New folder group", "Rename group", "Delete group", "Move to group" |
+| The "New folder" dialog's field (9.1) | "Folder name" |
+| A folder-group dialog's field (9.1) | "Group name" |
+| The "Label and color" dialog's two fields (9.6) | "Label" and "Color" |
+| The sidebar's rail control (9.1) | "Collapse sidebar" when expanded, "Expand sidebar" when collapsed |
+| The two resize handles (9.1, 9.3) | "Resize sidebar" and "Resize task form" |
+| The avatar menu (9.1) | "Account" |
 
 The last row arrived later, at the second change control of 2026-08-11 that wrote the inline state copy below; the eight above it are the first pass and the four sentences that follow are about them.
 
 Four of those eight are worth their reason. The floating add button is called "the + button" by Q5's empty state, which is a glyph rather than a name, and "Add task" separates it from the quick-add beneath it on the same page. That quick-add takes "Add a task", the words the design brief already uses for it. The overflow menus take "More actions" rather than "More options" because 9.3 spends the second on the form's expander, and a page carrying both would otherwise have two different controls answering to one name. And every confirmation offers "Continue" and "Cancel" uniformly, "Continue" being this section's own word in 9.5's un-complete confirm: the destructive verb is already in the normative message the person is reading, so spelling it again on the button buys nothing and costs four more strings to keep in step with four messages.
 
 The quick-add's row carries one name across two states, amended at the RFC 0002 change control on 2026-08-13 when the row became a disclosure. Collapsed it is a control and expanded it is a text box, they are never on the page at the same time, and they are one affordance to the person using them, so one name is what is true. The distinction the name has to survive is against the floating add button on the same page, which is what "Add task" against "Add a task" was chosen for and which is unaffected by the state.
+
+The last eleven rows were added at the P8R mid-package change control on 2026-08-13, on the Adversarial Test Engineer's escalation after it wrote criteria it could not fully express. RFC 0002 admits ten controls this section had never named, and a control with no name is reachable only by position, which the addressing sentence above exists to forbid; a criterion written against one would be asserting the implementation. Six of them apply the rules this table already states rather than adding anything, and five are worth their reason.
+
+The quick-add's escalation control takes a name of its own rather than "More options", which is 9.3's word for the form's expander. The two are not alternatives on the same page, they are alternatives at the same instant: the escalation control opens the form, and while the form is open its expander is on the page behind the dialog's scrim, so a page can hold both. "Open full form" is the shortest thing the control does, and it is not interpolated with the folder it sits beside, because a name in this table is a fixed string and the region rule below is what tells two instances apart.
+
+The completion control of 9.3 and the completion checkbox of 9.4 share both of their names, being one control pointed at one object from two places. They carry two names rather than one for 9.5's reason at the star: the control is a toggle and icon-only, so each state owes a screen reader something true, and "Mark as not done" is the name 9.5 already fixes for the same transition on Done. The rail control takes two names for the same reason.
+
+A sidebar folder row's menu and a folder group's menu take "More actions", making four controls that share it. That is this section's own argument at the folder header, applied again rather than reconsidered: they are the same control pointed at different objects, a fourth name would assert a difference in kind that is not there, and each is reached the way a task row's menu is reached, inside the row or the region that names its object.
+
+The avatar menu takes "Account" rather than a name interpolating the person's own name. What the control opens is the viewer's account, there is exactly one of it, and a name carrying the display name would make the one control in this table whose string a test cannot know before it reads the fixture.
+
+The three dialogs name their fields and not themselves. A dialog is announced by its own title, which this specification writes elsewhere; what a test and a screen reader need is the field inside it, which is what 9.3's ten form fields already establish for the form and what these three follow.
 
 Sections, added at the same change control on 2026-08-11 and routed back by the tester return that took the names above. A name identifies a control that appears once on a page, and three of these appear more than once: the quick-add sits at the bottom of every Tasks group, the Planned list and the folder page's open list, "More actions" opens on every task row, and a task row repeats down every page. That was tolerable while every instance behaved identically and stopped being tolerable the moment 9.3 gave two quick-adds on one page different due dates, since two are one control with one name in two sections and no property of either input tells them apart.
 
@@ -338,6 +398,18 @@ The assignee dropdown offers no unassignment, ruled at the second P8 change cont
 The reminder is saved like every other field of this form, ruled at the same change control after the co-lead found that it was not. The control implements the two modes above and its dependency on the date; what the two write paths differ over is where it goes. A reminder set while creating rides the reminder arm of frozen 7.6's create body, and a reminder set or changed while editing is frozen 7.9's PUT, whose removal arm is DELETE /tasks/:id/reminder because no task body expresses a removal; 8.6 names all three of those writes. This is stated because it is the one field of the ten above whose write reaches an endpoint the rest of the form does not, which is how it came to be held in the form and dropped at save with every test green: AC-092 reads the form's state and says so itself, AC-146 to AC-150 read the endpoints, and nothing read the two together until AC-169 and AC-170.
 ```
 
+### Replace section 9.4
+
+```markdown
+### 9.4 My Day
+
+Structure: header with the date; important-only toggle switch; Carried group (heading "Carried over"); Today group (heading "Today"); recap collapsed at bottom (heading "Done today (N)").
+Row elements: complete checkbox, title, folder label, due badge (overdue styled when due_date < today), assignee chip when not the viewer, star, pulled marker with un-pull control when inclusion came from an entry ("Remove from My Day"; absent when the row also qualifies automatically), overflow (edit, abandon, delete).
+Abandon from here uses copy: "Abandon this task? It stops appearing in My Day but stays everywhere else." Empty state: per Q1. Error state: global toast plus inline retry.
+
+A task row opens that task's form, on every page that draws one and whatever the task's status, added at the P8R mid-package change control on 2026-08-13. This is written here because the row is defined here and the rule is the row's rather than any page's; it was previously stated once, in 9.5's Planned bullet, where it read as a property of the calendar. Three things need it stated generally. 9.3's form is one artifact for create and edit and this is how a person reaches the edit half, so a page whose rows did not open would have tasks that can be made and never changed. The status clause is the part that was actually missing: a completed row opens too, which is what 9.3's completion control and its history block are reached through, and what AC-178 and AC-179 assert; an abandoned row opens for the same reason, its "Restore" control being one way back and its form the other. And the rule is what makes the row's own accessible name meaningful, a row being a thing that is opened rather than only read.
+```
+
 ### Replace section 9.5
 
 ```markdown
@@ -361,7 +433,7 @@ The month zoom's six weeks, ruled at the P6 mid-package change control on 2026-0
 ### 9.6 Folder page
 
 Header: name (inline rename for owner), completion ratio, member avatar stack, Share button, overflow menu (Rename owner-only, Label and color personal, Leave non-owner, Delete owner-only with confirm listing counts: "Delete Work? This permanently deletes 28 open, 12 completed, and 3 abandoned tasks for every member."). "Label and color" opens a dialog taking the folder's personal label and its colour together, both being the two fields of 7.4's my-membership and neither meaning anything without the other.
-Body: one open list holding every open task in the folder, dated and undated together, ordered per Q7; above it a filter offering all open tasks, those with a due date, and those without; then a collapsed Completed section, per Q7. Inline quick-add at the foot of the open list; FAB present.
+Body: one open list holding every open task in the folder, dated and undated together, ordered per Q7; above it a filter, "Filter open tasks", offering "All open tasks", "With a due date" and "Without a due date"; then a collapsed Completed section, per Q7. Inline quick-add at the foot of the open list; FAB present.
 Sharing panel: member list with joined dates and remove controls per the 5.4 matrix; roster picker ("Share with someone you're connected to"); email field ("Invite by email"); pending invites list with exact email, sent time, Cancel, Resend (disabled within 24 hours, tooltip "Resent recently").
 
 One open list rather than two, transcribed here from the owner's ruling of 2026-08-13 and recording the designer's DES-062, which `design-contract.md` carries as superseding DES-060. This section fixed a Scheduled section and an Unscheduled section from the day it was written, and the P8D kickoff refused the prototype's single list on the ground that 9.6 is normative and an artifact does not amend it, which was the correct reading of the rule and is why the change arrives here as text rather than as a port. What the owner ruled on is the merits: a folder is the one page in Dana that holds both kinds of task, section 6's Q7 already returns them as one ordered result, and splitting that result into two headed lists asks a person to know which half a task is in before they can find it. The filter is what the two sections were doing that the single list would otherwise lose, and it does it as a question the person asks rather than as a shape the page imposes.
@@ -384,12 +456,14 @@ Each of the three confirmations above renders as one sentence, restated at the R
 ### 9.8 People and invites
 
 People screen (reachable from the sidebar footer or Settings): roster list with remove control ("Remove connection? You can still see shared folders; you'll just need a fresh invite to share new ones."); bare invite by email, refused when the address is already a connection ("You're already connected to this person. They're in your People list.", the 409 of 7.5 entered by owner ruling on 2026-08-09).
-Invite gate: when Q12 is non-empty, the pending invites render in place of the application rather than inside it. It is one screen, headed "Invitations", carrying each invite as a row reading "Hassan invited you to Wedding" (or "Hassan invited you to connect") with Accept and Decline; the sidebar, the page beneath and the rest of the chrome are not rendered. Answering the last invite ends the gate, and accepting a folder invite lands inside that folder. The People screen carries the same list as an ordinary section for as long as Q12 is non-empty, which is where a person returns to an invite they have not answered.
+Invite gate: when Q12 is non-empty, the pending invites render in place of the application rather than inside it. It is one screen, headed "Invitations", carrying each invite as a row reading "Hassan invited you to Wedding" (or "Hassan invited you to connect") with Accept and Decline; the sidebar, the page beneath and the rest of the chrome are not rendered. Answering the last invite ends the gate, and accepting a folder invite lands inside that folder. The gate is the only surface that lists pending invites, and no page inside the application carries them.
 Assignment chip: rows and the form show "Invite pending: sara@example.com" while an assignment-invite is outstanding.
 
 Where that list lives was ruled at the second P8 change control on 2026-08-11 and is changed here by the owner's ruling of 2026-08-13, recording the designer's DES-081. The earlier ruling made it a section of My Day above everything else on that page, choosing that over two rejected readings: a band above every page, which would have been global chrome 9.1 did not name, and a surface appearing once after callback, which would have left anyone reloading before answering with no invite in front of them. The gate answers the second objection the same way, being a standing condition on the account rather than a moment after a callback, and it answers the first by not being chrome at all. What changed is the weighing of the first: this section says the invites render before anything else, and a section at the top of one page is before anything else only for a person who happens to be looking at that page, while a gate is what that phrase plainly says. The cost, stated because it is real, is that a person holding an unanswered invite cannot reach the rest of Dana without answering or declining it, which is the thing a gate is and the thing a section is not.
 
 The gate is a region with no name, which is a decision and not an omission, and it is the earlier ruling's reasoning unchanged. 9.1's sections rule takes a region's name from the heading this section gives it or from the datum it is generated from, and this list has neither: it is one list rather than one per folder. Its rows are addressed the way a task row's controls are addressed, from the row's own sentence, which is what that sentence is for: "Hassan invited you to Wedding" tells a reader and a test which Accept belongs to which invite. AC-172 asserts the gate and is rewritten by RFC 0002, its present text asserting the section this ruling replaces.
+
+The People screen carries no invite list, corrected at the P8R mid-package change control on 2026-08-13 on the Adversarial Test Engineer's escalation, which found that it could not be asserted because it could not be reached. When the gate arrived at acceptance, the sentence giving the People screen the same list was carried over from the ruling the gate replaced, and the two do not fit: the gate renders at every /app path while Q12 is non-empty, /app/people is an /app path, so the one page that was to hold the list is the one page unreachable exactly while the list would have anything in it. The sentence described a surface no person could ever see. Two repairs were available and the other is recorded so it is not reintroduced: exempting /app/people from the gate would have kept the list at the cost of a hole in a gate whose entire point is that invites come first, and it would have given a person two places to answer an invite where the ruling's argument was that they should have one that finds them. The list goes instead, which costs nothing, because what it was for was "where a person returns to an invite they have not answered" and the gate is now that place by construction: a person who reloads, or who navigates anywhere in the application, arrives at it.
 ```
 
 ### Replace section 11.4
@@ -433,7 +507,7 @@ The virtual:pwa-register parenthesis names the flow rather than the import, read
 ### Replace AC-172
 
 ```markdown
-- AC-172 Given an account holding a pending invite, then a request for any /app path renders the invite gate of 9.8 in place of the application, with no sidebar and no page beneath it, and each invite's row carries Accept and Decline; given the last invite answered, then the same path renders the application; and the People screen lists pending invites for as long as any exist.
+- AC-172 Given an account holding a pending invite, then a request for any /app path renders the invite gate of 9.8 in place of the application, with no sidebar and no page beneath it, and each invite's row carries Accept and Decline; given the last invite answered, then the same path renders the application, and no page inside it lists pending invites.
 ```
 
 ### Append to section 12
