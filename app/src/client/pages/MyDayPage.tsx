@@ -25,14 +25,12 @@ named, which his is not: his switch sits inside a `label` whose text names
 nothing a screen reader can reach, and 9.1's addressing sentence makes the
 control reachable by its name. "Important only" is the label he already draws.
 
-**The pending-invite list this page carries is on its way out and is kept
-deliberately.** 9.8 as RFC 0002 amends it renders the invites as a gate in
-place of the application, "and no page inside the application carries them", so
-this block is specified away. It is still here because R10 delivers that gate
-and AC-172 asserts an invite row reachable at /app in the meantime: removing it
-now would take a passing criterion red and leave an account holding an invite
-with no surface at all to answer it. It goes with the gate, in R10's hands, and
-this paragraph is the note that says so.
+**The pending-invite list this page used to carry is gone**, removed at P8R
+session R10 with the gate that replaces it. 9.8 as RFC 0002 amends it renders
+the invites in place of the application, "and no page inside the application
+carries them", so this page carries none: the surface is
+`pages/InviteGate.tsx`, mounted by `shell/app-shell.tsx`, and AC-172's last
+clause asserts the absence here.
 
 **One presenter this page wanted and did not find.** 9.4 heads the page with
 the date and the design writes it long, "Monday, 10 August". `presenters.ts`
@@ -45,7 +43,7 @@ import { useMemo, useState } from 'react'
 import { CalendarCheck2, Star, SunMedium } from 'lucide-react'
 
 import type { TaskCard } from '../../shared/tasks.js'
-import { useMyDayView, usePendingInvites } from '../api/queries.js'
+import { useMyDayView } from '../api/queries.js'
 import { Switch } from '../components/ui/switch.js'
 import { formatDueDate } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -53,7 +51,6 @@ import { CollapsibleSection, PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import { MY_DAY_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
-import { PendingInviteList } from './PendingInvites.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 
 /** 9.4's own words for the switch, which is also its accessible name. */
@@ -65,7 +62,6 @@ function onlyImportant(rows: readonly TaskCard[], on: boolean): readonly TaskCar
 
 export function MyDayPage(): React.JSX.Element {
   const view = useMyDayView()
-  const invites = usePendingInvites()
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
@@ -85,8 +81,6 @@ export function MyDayPage(): React.JSX.Element {
 
   return (
     <div className="space-y-7">
-      {/* The surface 9.8 replaces with a gate at R10; see this file's header. */}
-      <PendingInviteList invites={invites.data ?? []} />
       <PageHeading
         icon={SunMedium}
         title="My Day"

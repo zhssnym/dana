@@ -29,9 +29,11 @@ import {
   folderGroupLabels,
   folderGroupOptions,
   folderIdsForNames,
+  folderLabelFields,
   folderRowDisplay,
   formatDueDate,
   initialsOf,
+  inviteRowDisplay,
   personDisplay,
   presenterToday,
   taskRowDisplay,
@@ -383,6 +385,78 @@ describe('folder groups: his dialog is keyed by name and ours by id', () => {
 
   test('a folder in no group contributes no label', () => {
     expect(folderGroupLabels([twin])).toEqual([])
+  })
+})
+
+describe('folderLabelFields: 9.6 takes the label and the colour together', () => {
+  /*
+  4.4 makes both columns nullable and 7.4 takes them in one body, so this
+  mapping is null-to-absent in both directions and nothing else. The colour's
+  absence is `undefined` rather than a hex of this module's own, which is
+  11.4's ruling: a client that supplied one from its own swatches would tell a
+  person they picked a colour they did not. AC-181 reads both values back
+  through 7.4 and asserts the colour is the one that was chosen.
+  */
+  test('a folder carrying both hands both back', () => {
+    expect(
+      folderLabelFields({ my_label: 'Personal', my_color: '#7B2D8E' }),
+    ).toEqual({ label: 'Personal', color: '#7B2D8E' })
+  })
+
+  test('no label is the empty string, which is what a text box holds', () => {
+    expect(folderLabelFields({ my_label: null, my_color: '#7B2D8E' }).label).toBe('')
+  })
+
+  test('no colour is undefined and never the token a dot is painted with', () => {
+    const fields = folderLabelFields({ my_label: 'Personal', my_color: null })
+    expect(fields.color).toBeUndefined()
+    expect(fields.color).not.toBe(DEFAULT_FOLDER_COLOR)
+  })
+})
+
+describe('inviteRowDisplay: 9.8\'s row sentence, in its two forms', () => {
+  const inviter = { display_name: 'Hassan' }
+
+  /*
+  The sentence is normative in 9.8 and it is also how AC-172 tells one row's
+  Accept from another's, the gate being a region the ruling deliberately left
+  unnamed. So the two forms are pinned character for character.
+  */
+  test('a folder invite names the folder', () => {
+    expect(
+      inviteRowDisplay({ id: 'i1', inviter, folder_name: 'Wedding' }).sentence,
+    ).toBe('Hassan invited you to Wedding')
+  })
+
+  test('a bare invite says connect, which is 7.5\'s null discriminator', () => {
+    const row = inviteRowDisplay({ id: 'i1', inviter, folder_name: null })
+    expect(row.sentence).toBe('Hassan invited you to connect')
+    expect(row.isFolder).toBe(false)
+  })
+
+  /*
+  7.5's element makes the inviter's display name nullable like every other
+  person in this API. "Someone" and not "Deleted user": 8.10 scrubs an
+  account's own invites, so a null here is a person who never set a name.
+  */
+  test('an inviter with no display name is Someone', () => {
+    const row = inviteRowDisplay({
+      id: 'i1',
+      inviter: { display_name: null },
+      folder_name: 'Wedding',
+    })
+    expect(row.sentence).toBe('Someone invited you to Wedding')
+    expect(row.initials).toBe('S')
+  })
+
+  test('the initials come from the rendered name, so the two cannot disagree', () => {
+    expect(
+      inviteRowDisplay({
+        id: 'i1',
+        inviter: { display_name: 'Sara Khan' },
+        folder_name: null,
+      }).initials,
+    ).toBe('SK')
   })
 })
 

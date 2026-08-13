@@ -46,6 +46,7 @@ export function FolderGroupDialog({
   mode,
   currentLabel,
   folders,
+  preselected,
   existingLabels,
   onOpenChange,
   onSubmit,
@@ -54,6 +55,18 @@ export function FolderGroupDialog({
   mode: 'create' | 'rename'
   currentLabel?: string
   folders: FolderGroupOption[]
+  /**
+   * The folders already checked when the create dialog opens, which is the
+   * folder whose menu opened it.
+   *
+   * Added at P8R session R10 with the sidebar wiring, because 9.1 makes
+   * creating a group "naming it on a folder": the action is taken from a
+   * folder's own menu, so that folder is the group's first member and a dialog
+   * that opened with nothing selected would ask a person to choose the folder
+   * they had just pointed at. Rename ignores it and checks the whole group,
+   * there being nothing else a rename could mean.
+   */
+  preselected?: readonly string[]
   existingLabels: string[]
   onOpenChange: (open: boolean) => void
   onSubmit: (label: string, folderNames: string[]) => void
@@ -66,10 +79,12 @@ export function FolderGroupDialog({
   useEffect(() => {
     if (!open) return
     setName(mode === 'rename' ? (currentLabel ?? '') : '')
-    setSelectedFolders(mode === 'rename' ? folders.map((folder) => folder.name) : [])
+    setSelectedFolders(
+      mode === 'rename' ? folders.map((folder) => folder.name) : [...(preselected ?? [])],
+    )
     setError('')
     window.requestAnimationFrame(() => inputRef.current?.focus())
-  }, [currentLabel, folders, mode, open])
+  }, [currentLabel, folders, mode, open, preselected])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

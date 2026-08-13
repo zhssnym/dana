@@ -32,6 +32,7 @@ import { createQueryClient, setQueryClient } from './api/queryClient.js'
 import { TooltipProvider } from './components/ui/tooltip.js'
 import { Router } from './Router.js'
 import { getFoldersResponse } from '../shared/folders.js'
+import { getInvitesPendingResponse } from '../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../shared/me.js'
 
 const queryClient = createQueryClient()
@@ -67,6 +68,23 @@ void queryClient.prefetchQuery({
 void queryClient.prefetchQuery({
   queryKey: queryKeys.folders(),
   queryFn: () => getPlain(getFoldersResponse, '/folders'),
+})
+/*
+The fourth, added at P8R session R10 with 9.8's invite gate.
+
+Q12 decides whether the application renders at all, so this read is the same
+kind of thing as the three above it rather than a page's: `app-shell.tsx`
+renders the gate in place of the application while it is non-empty. It is
+started here for a reason the other three do not have, and that reason is
+stated in the shell: the gate is conditioned on a non-empty answer and never on
+a pending read, because 10.6 opens every /app path from the cached shell with
+no network at all. So an account holding an invite sees the shell for exactly
+as long as this read takes, and starting it before the first render is what
+makes that window as small as this client can make it.
+*/
+void queryClient.prefetchQuery({
+  queryKey: queryKeys.pendingInvites(),
+  queryFn: () => getPlain(getInvitesPendingResponse, '/invites/pending'),
 })
 
 const rootElement = document.getElementById('root')

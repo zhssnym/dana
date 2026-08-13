@@ -368,6 +368,82 @@ export function folderGroupLabels(folders: readonly Folder[]): string[] {
   return [...labels].sort((a, b) => a.localeCompare(b))
 }
 
+/** What 9.6's "Label and color" dialog opens holding. */
+export interface FolderLabelFields {
+  /** The personal label, empty where the folder carries none. */
+  readonly label: string
+  /**
+   * The chosen colour as `#RRGGBB`, or undefined where none was chosen.
+   *
+   * Undefined rather than a hex of this module's own, and the distinction is
+   * 11.4's: a folder's colour is the person's runtime choice on 7.4's
+   * `my_color` and a client that supplied one from its own swatches would be
+   * telling them they picked a colour they did not. `DEFAULT_FOLDER_COLOR`
+   * above is the token a dot is *painted* with when there is no choice, which
+   * is a CSS variable and not a value a colour control can hold.
+   */
+  readonly color: string | undefined
+}
+
+/**
+ * A folder as 9.6's dialog takes it: the personal label and the colour
+ * together, "both being the two fields of 7.4's my-membership and neither
+ * meaning anything without the other".
+ *
+ * The mapping is null-to-absent in both directions, which is the whole of the
+ * shape: 4.4 makes each column nullable, a text box holds "" rather than null,
+ * and a colour control holds a hex or nothing at all.
+ */
+export function folderLabelFields(folder: {
+  my_label: string | null
+  my_color: string | null
+}): FolderLabelFields {
+  return {
+    label: folder.my_label ?? '',
+    color: folder.my_color ?? undefined,
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Invites
+ * ------------------------------------------------------------------ */
+
+/** One row of 9.8's invite gate, as the gate draws one. */
+export interface InviteRowDisplay {
+  readonly id: string
+  /** 9.8's row sentence, which is also how a test tells two rows apart. */
+  readonly sentence: string
+  /** The inviter's initials, for the row's avatar. */
+  readonly initials: string
+  /** Whether this invite grants a folder, which 7.5's null discriminates. */
+  readonly isFolder: boolean
+}
+
+/**
+ * The sentence 9.8 writes, in its two forms, with the row's avatar beside it.
+ *
+ * `folder_name` is null for a bare invite, which 7.5 makes the discriminator
+ * this whole surface turns on, so the fallback is the word "connect" rather
+ * than a folder that is not there. The inviter's display name is nullable in
+ * 7.5's element as it is everywhere else a person is rendered, and "Someone" is
+ * what this client says when it is absent: not `DELETED_USER`, because 8.10
+ * scrubs an account's own invites and a null here is a person who never set a
+ * name rather than one who is gone.
+ */
+export function inviteRowDisplay(invite: {
+  id: string
+  inviter: { display_name: string | null }
+  folder_name: string | null
+}): InviteRowDisplay {
+  const who = invite.inviter.display_name ?? 'Someone'
+  return {
+    id: invite.id,
+    sentence: `${who} invited you to ${invite.folder_name ?? 'connect'}`,
+    initials: initialsOf(who),
+    isFolder: invite.folder_name !== null,
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * The task row
  * ------------------------------------------------------------------ */

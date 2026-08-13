@@ -978,3 +978,94 @@ had missed. The distribution's `Tooltip.Root` waits 600ms without it.
   prevent. A `formatHeaderDate` there would close it.
 - **The pending-invite list is still on My Day** and 9.8 as amended says no
   page inside the application carries one. It goes with R10's gate.
+
+## Extended by P8R session R10, the landing, the pre-app pages and the dialogs
+
+Five surfaces, all of them the ones a person meets before the application or
+beside it: `pages/LandingPage.tsx` with his product preview panel,
+`pages/InviteGate.tsx`, `shell/folder-groups.tsx` with the folder-group dialogs
+it opens, and `components/folder-label-dialog.tsx` for 9.6's "Label and color".
+AC-159, AC-172, AC-180 and AC-181.
+
+**9.2's landing copy is no longer a placeholder and no longer this client's.**
+The owner ruled on 2026-08-13 that the designer's copy ships, which reopened
+section 13 item 14 and closed it again the same day; the seven strings are in
+one `COPY` block at the top of that file, exactly as the block of the owner's
+copy it replaces was. The subheading's em dash is a comma, which is RFC 0002's
+first open question closed by the owner on the ground that protocol section 7's
+convention holds over copy adopted from outside this corpus. The eyebrow and
+the preview panel's heading are written in capitals rather than lowercased and
+uppercased in CSS, because the delta writes them in capitals and what a reader
+of the document sees should be what that table spells.
+
+**9.8's invite list is a gate and is mounted in `shell/app-shell.tsx`**, which
+is what makes "every /app path" and "in place of the application" one condition
+instead of a rule every page has to remember. It replaced the reading this
+README recorded at P8 and the escalation beside it: the question "is the Q12
+surface the first screen after callback or a standing surface" was answered by
+the owner on 2026-08-13, and it is standing. `pages/PendingInvites.tsx` is
+gone, and neither My Day nor People carries a list any more.
+
+**The gate is conditioned on a non-empty answer and never on a pending read.**
+A gate that waited for `/invites/pending` would be a client that shows nothing
+until the network answers, and 10.6 opens every /app path from the cached shell
+with no network at all, where AC-091 and AC-160 read the sidebar's links. So a
+read in flight, a read that failed and an empty answer all render the
+application. The cost is a window in which an account holding an invite sees
+the shell, and `main.tsx` starts that read before the first render, beside the
+three chrome reads, to make the window as small as this client can.
+
+**A label group is a named region now**, `section aria-label={label}` in
+`shell/app-sidebar.tsx`, which is 9.1's sections table applied where it always
+reached and what makes the group's own "More actions" addressable: four
+controls in this application answer to that name and the region that names
+their object is the whole of what tells them apart.
+
+### Readings recorded
+
+- **The folder row's menu carries two of the five entries his prototype
+  draws.** 9.1 gives the sidebar row the move and, since the P8R change
+  control, "New folder group"; 9.6 gives rename, "Label and color" and delete
+  to the folder page's header, which builds all three. Wiring them here as well
+  would be two routes to one write with no section asking for either.
+- **Inbox carries no row menu.** 9.1 pins it above the label groups and gives
+  it a clause of its own, so a group action on that row would write a label the
+  sidebar cannot render.
+- **"New folder group" is on the folder row and not in a folder-directory
+  menu.** His sidebar has that menu and R5 declined it, its other entry being a
+  second "New folder" inside one landmark. 9.1 makes creating a group naming it
+  on a folder, so the folder's own menu is where the action belongs and where
+  AC-180 addresses it.
+- **The create dialog opens with the folder whose menu opened it already
+  checked.** The action was taken on that folder and it is what the label is
+  written to; a dialog opening with nothing selected would ask a person to
+  choose the folder they had just pointed at.
+
+### Owed after this session, and by whom
+
+- **9.6's colour half is a native colour control and not his seven swatches.**
+  His picker's values are the design's folder tokens, and a membership colour
+  is stored under 4.4's `#RRGGBB` check and sent through 7.4, so a CSS variable
+  is a 422 rather than a colour; resolving those tokens here would either copy
+  raw values out of `tokens.css`, which 11.4 forbids, or read the computed
+  stylesheet to paint a control. What would close it is a swatch list in
+  `styles/tokens.css` expressed as hexes a client may read, which is the
+  Component and Design System role's file. Flagged for the visual review of
+  section 13 item 33 as a real difference from his screen.
+- **The unverified-email page of 9.2 renders the delta's copy exactly and none
+  of the designer's design.** It is `src/server/auth/pages.ts`, a bare document
+  the callback answers with, and 9.1 fixes it there: "the server's response to
+  one request rather than a client route". Its heading, body and "Back to Dana"
+  action are character for character what 9.2 writes, verified rather than
+  assumed. Styling it as his screen draws it needs a file this role may not
+  write; escalated to the Integration Steward rather than reached into.
+- **The landing's two columns are `minmax(0,1fr)` where his are
+  `minmax(560px,1fr)` and `minmax(620px,1fr)`.** That pair is a 1180px floor by
+  arithmetic, and section 13 item 32 forbids exactly that number on exactly
+  that ground. No breakpoint was added either, item 32 also refusing a mobile
+  layout designed inside this package; what it requires is that a narrow
+  viewport be no worse than before, and a column that shrinks satisfies it.
+- **His landing footer's "© 2026 Dana" is not here.** 9.2 enumerates what that
+  footer owes and the delta's copy table transcribes seven strings from his
+  screen without it, so a copyright line is a legal statement no numbered
+  section carries, and the one he wrote hardcodes a year.

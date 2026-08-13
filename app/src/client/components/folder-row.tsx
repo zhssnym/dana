@@ -42,15 +42,26 @@ supplying "Rename" and "Label and color" as its own words and "Move to group"
 being one of the four folder-group actions that table names.
 
 **The move-to-group submenu renders `menuitemradio`, which is accurate and
-which AC-180 cannot address.** A folder carries exactly one personal label, so
-a radio group is what that choice is, and the state a screen reader announces
-is which group the folder is in. AC-180 reaches for `menuitem` or `option`.
-Escalated rather than degraded; see the session report.
+which AC-180 now admits.** A folder carries exactly one personal label, so a
+radio group is what that choice is, and the state a screen reader announces is
+which group the folder is in. That criterion reached for `menuitem` or `option`
+alone when this was written, so R3 escalated rather than degrading the
+primitive; the Adversarial Test Engineer corrected the locator on 2026-08-13,
+9.1's roles table not reaching this control and sending it to "its role in the
+ordinary sense of the word", which all three are true of. Nothing here changed.
+
+**The menu's entries are wired at R10 and each is a prop that may be absent.**
+9.1 puts "New folder group" and "Move to group" on a folder's own menu and 9.6
+puts rename, "Label and color" and delete in the folder page's header, so the
+sidebar supplies the first two and leaves the rest to that page rather than
+offering two routes to one write. The row renders only the entries whose
+callback it was given.
 */
 import type { ReactElement } from 'react'
 import {
   Folder,
   FolderInput,
+  Folders,
   MoreHorizontal,
   Palette,
   Pencil,
@@ -94,10 +105,12 @@ export interface FolderRowProps {
   nested?: boolean
   tree?: boolean
   treeLast?: boolean
-  groupLabels?: string[]
+  groupLabels?: readonly string[]
   currentLabel?: string | null
   onSelect?: () => void
   onAddTask?: () => void
+  /** 9.1's "New folder group", which is an action on this folder's label. */
+  onNewGroup?: () => void
   onMoveToLabel?: (label: string | null) => void
   onRename?: () => void
   onEditAppearance?: () => void
@@ -118,13 +131,14 @@ export function FolderRow({
   currentLabel = null,
   onSelect,
   onAddTask,
+  onNewGroup,
   onMoveToLabel,
   onRename,
   onEditAppearance,
   onDelete,
 }: FolderRowProps) {
   const hasFolderMenu = Boolean(
-    onRename || onEditAppearance || onMoveToLabel || onDelete,
+    onRename || onEditAppearance || onNewGroup || onMoveToLabel || onDelete,
   )
   const hasActions = Boolean(onAddTask || hasFolderMenu)
 
@@ -220,6 +234,17 @@ export function FolderRow({
                 {onEditAppearance ? (
                   <DropdownMenuItem onClick={onEditAppearance}>
                     <Palette className="size-4" aria-hidden="true" />Label and color
+                  </DropdownMenuItem>
+                ) : null}
+                {/* 9.1's names table, added to this menu at P8R session R10:
+                    "creating one is naming it on a folder", so the action that
+                    makes a group is an action on the folder whose label it
+                    will be. His prototype puts it in a folder-directory menu
+                    the sidebar does not carry; see `shell/folder-groups.tsx`
+                    for why that menu is not here. */}
+                {onNewGroup ? (
+                  <DropdownMenuItem onClick={onNewGroup}>
+                    <Folders className="size-4" aria-hidden="true" />New folder group
                   </DropdownMenuItem>
                 ) : null}
                 {onMoveToLabel ? (

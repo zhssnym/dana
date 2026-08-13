@@ -79,6 +79,7 @@ import {
   useFolderOpenTasks,
   useMultiMemberFolderIds,
 } from '../api/queries.js'
+import { FolderLabelDialog } from '../components/folder-label-dialog.js'
 import { QuickAdd } from '../components/quick-add.js'
 import {
   Avatar,
@@ -94,7 +95,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { Input } from '../components/ui/input.js'
-import { initialsOf } from '../parts/presenters.js'
+import { folderLabelFields, initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
@@ -187,7 +188,7 @@ export function FolderPage(): React.JSX.Element {
   const [completedOpen, setCompletedOpen] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
-  const [labelling, setLabelling] = useState<string | null>(null)
+  const [labelling, setLabelling] = useState(false)
   const [filter, setFilter] = useState<OpenFilter>('all')
   const completed = useFolderCompletedTasks(id, completedOpen)
   /*
@@ -413,7 +414,7 @@ export function FolderPage(): React.JSX.Element {
                   ) : null}
                   <DropdownMenuItem
                     onClick={() => {
-                      setLabelling(detail?.my_label ?? '')
+                      setLabelling(true)
                     }}
                   >
                     <Palette className="size-4" aria-hidden="true" />
@@ -436,48 +437,6 @@ export function FolderPage(): React.JSX.Element {
             </div>
           </header>
 
-          {/*
-          The personal label, still an inline field rather than 9.6's dialog
-          taking the label and the colour together. That dialog is AC-181's and
-          belongs to the row that builds this package's two folder dialogs; what
-          this entry owes until then is the behaviour the P8 client already had,
-          so the menu entry is not a control that does nothing.
-          */}
-          {labelling === null ? null : (
-            <div className="mt-4 space-y-2">
-              <label
-                className="text-xs font-medium text-foreground"
-                htmlFor="folder-personal-label"
-              >
-                Label
-              </label>
-              <Input
-                id="folder-personal-label"
-                value={labelling}
-                autoFocus
-                maxLength={40}
-                disabled={relabel.isPending}
-                className="h-[var(--control-height)]"
-                onChange={(event) => {
-                  setLabelling(event.target.value)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    setLabelling(null)
-                    return
-                  }
-                  if (event.key !== 'Enter') return
-                  event.preventDefault()
-                  const trimmed = labelling.trim()
-                  setLabelling(null)
-                  // 7.4 makes both fields nullable and null is what clears one,
-                  // so an emptied field clears the label rather than sending a
-                  // string 10.3 refuses for being shorter than one character.
-                  relabel.mutate({ id, body: { label: trimmed === '' ? null : trimmed } })
-                }}
-              />
-            </div>
-          )}
         </PageSection>
 
         <div className="mt-7 space-y-7">
@@ -554,6 +513,27 @@ export function FolderPage(): React.JSX.Element {
           }}
         />
       ) : null}
+
+      {/*
+      9.6's "Label and color", which takes the personal label and the colour
+      together "both being the two fields of 7.4's my-membership and neither
+      meaning anything without the other". It replaces the inline label field
+      the P8 client offered here, which wrote one of the two: AC-181 asserts
+      that both are taken and that both are written, and 7.4's PATCH takes them
+      in one body, so a dialog offering one writes a null over the other.
+      */}
+      <FolderLabelDialog
+        open={labelling}
+        folderId={id}
+        {...folderLabelFields({
+          my_label: detail?.my_label ?? null,
+          my_color: detail?.my_color ?? null,
+        })}
+        onOpenChange={setLabelling}
+        onSubmit={(next) => {
+          relabel.mutate({ id, body: next })
+        }}
+      />
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>

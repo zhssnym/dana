@@ -14,21 +14,24 @@ The removal confirm is 9.8's own sentence and is transcribed. It is the third
 of the four things that section names and the only one whose copy it writes,
 which is why it is the only string in this file.
 
-The pending list is 9.8's login surface, the same component My Day mounts.
-9.8 gives that surface no home outside the callback, and this is the screen a
-person returns to after navigating away from it; mounting it here is not a
-second reading of "before anything else", it is the same list on the screen
-this section devotes to the subject.
+**This screen carries no invite list**, removed at P8R session R10 on the P8R
+mid-package change control of 2026-08-13. 9.8 used to give the pending invites
+to this screen as well as to the callback, and the amendment struck that
+sentence for a reason nothing in this file could have fixed: the gate renders
+at every /app path while Q12 is non-empty, /app/people is an /app path, so the
+one page that was to hold the list is the one page unreachable exactly while
+the list would have anything in it. The surface is `pages/InviteGate.tsx`, and
+what this page was for, a place to return to an unanswered invite, the gate is
+by construction.
 */
 import { useState } from 'react'
 
 import { useCreateInvite, useRemoveConnection } from '../api/mutations.js'
-import { useConnections, usePendingInvites } from '../api/queries.js'
+import { useConnections } from '../api/queries.js'
 import { UsersRound } from 'lucide-react'
 
 import { ConfirmDialog, initialsOf } from '../components/ui/index.js'
 import { PageBody } from '../states/PageStates.js'
-import { PendingInviteList } from './PendingInvites.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
@@ -36,7 +39,6 @@ const REMOVE_CONNECTION =
 
 export function PeoplePage(): React.JSX.Element {
   const connections = useConnections()
-  const pending = usePendingInvites()
   const invite = useCreateInvite()
   const disconnect = useRemoveConnection()
   const [email, setEmail] = useState('')
@@ -47,10 +49,6 @@ export function PeoplePage(): React.JSX.Element {
       <header className="page-header">
         <h1 className="page-title">People</h1>
       </header>
-
-      {/* 9.8's login surface, above the roster: an unanswered invite is the
-          one thing on this screen a person can still act on. */}
-      <PendingInviteList invites={pending.data ?? []} />
 
       <PageBody
         query={connections}

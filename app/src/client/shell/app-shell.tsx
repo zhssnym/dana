@@ -59,18 +59,20 @@ import { CalendarDays, CheckCircle2, Folder as FolderIcon, Layers3, ListTodo, Se
 
 import { mutateApi } from '../api/http.js'
 import { useCreateFolder } from '../api/mutations.js'
-import { useFolders, useMe, useSettings } from '../api/queries.js'
+import { useFolders, useMe, usePendingInvites, useSettings } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog, PageBar } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskFormOverlay } from '../components/task-form/index.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
+import { InviteGate } from '../pages/InviteGate.js'
 import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { paths, sidebarPages } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
+import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { openSearch } from './overlays.js'
 import {
@@ -86,6 +88,15 @@ import type { Folder } from '../../shared/folders.js'
 
 /** The prefix 9.1's routes table gives a folder page. */
 const FOLDER_PREFIX = '/app/folders/'
+
+/**
+ * The folder list before it has arrived, held once so its identity is stable.
+ *
+ * `folders.data ?? []` would be a new array on every render, and the folder
+ * group dialogs below memoise on it: a fresh array each render would clear a
+ * half-typed group name the next time any chrome query settled.
+ */
+const NO_FOLDERS: readonly Folder[] = []
 
 /**
  * The entry-point defaults of 9.3, keyed by the page the button sits on.
@@ -176,8 +187,10 @@ export function AppShell(): React.JSX.Element {
   const me = useMe()
   const settings = useSettings()
   const folders = useFolders()
+  const invites = usePendingInvites()
   const createFolder = useCreateFolder()
   const update = useUpdateAffordance()
+  const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS)
 
   // 9.1's two view preferences, read once at the first render so the sidebar
   // paints at the width the viewer left it at rather than jumping to it.
@@ -229,6 +242,39 @@ export function AppShell(): React.JSX.Element {
       // nothing in it is theirs to keep.
       window.location.assign(paths.landing)
     })
+  }
+
+  /*
+  9.8's invite gate, in place of the application at every /app path while Q12
+  is non-empty.
+
+  This component is where it goes because this component is what /app renders,
+  so "every /app path" and "in place of the application" are one condition and
+  one return rather than a rule each page has to remember. AC-172 walks five
+  paths, including a folder page and Settings, and asserts on each of them that
+  the sidebar is not on the page.
+
+  **The condition is a non-empty answer and never a pending read.** A gate that
+  waited for `/invites/pending` before rendering anything would be a client
+  that shows nothing until the network answers, and 10.6 opens every /app path
+  from the cached shell with no network at all; AC-091 and AC-160 read the
+  sidebar's page links there. So a read in flight, a read that failed and an
+  empty answer all render the application, which is also the only one of the
+  four that a person with no invite can ever observe. The cost is that an
+  account holding an invite sees the shell for as long as that read takes, and
+  `main.tsx` starts it before this component mounts for exactly that reason.
+
+  The returned tree carries no chrome except the two global states; see
+  `pages/InviteGate.tsx` for why those two and not the rest.
+  */
+  if ((invites.data?.length ?? 0) > 0) {
+    return (
+      <>
+        <OfflineBanner />
+        <InviteGate invites={invites.data ?? []} />
+        <ToastRegion />
+      </>
+    )
   }
 
   return (
@@ -283,6 +329,7 @@ export function AppShell(): React.JSX.Element {
           <AppSidebar
             settings={settings.data}
             folders={folders.data}
+            groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
@@ -330,11 +377,11 @@ export function AppShell(): React.JSX.Element {
             </div>
             {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
           </SidebarInset>
-          {/* 9.1's "New folder" action. The folder-group dialogs and the
-              folder row's own menu arrive at R10 with the writes they need;
-              this one is here because 9.1 puts the action in the sidebar and
-              a control that opens nothing is worse than one that does the
-              smallest real thing. */}
+          {/* 9.1's "New folder" action, and beside it the three surfaces its
+              folder groups open: the create dialog, the rename dialog and the
+              delete confirm. They are mounted here rather than inside the rows
+              that open them, because a dialog inside a row is unmounted by the
+              refetch its own write causes. */}
           <NewFolderDialog
             open={newFolderOpen}
             onOpenChange={setNewFolderOpen}
@@ -342,6 +389,7 @@ export function AppShell(): React.JSX.Element {
               createFolder.mutate({ name })
             }}
           />
+          {groups.dialogs}
         </SidebarProvider>
       </div>
       <ToastRegion />

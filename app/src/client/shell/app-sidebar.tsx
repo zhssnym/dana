@@ -64,16 +64,17 @@ a rail is the primitive's own `size-8!` and `overflow-hidden`, which clips a
 row's label without removing it from the accessibility tree. The section
 headings, which name nothing a person can reach, are hidden there instead.
 
-**Three groups of controls his sidebar carries are not here yet, and one is
-not coming.** The folder row's own menu, the folder group menus and the folder
-directory menu each open a dialog that RFC 0002's plan gives to R10, and a
-control that opens nothing is worse than one that is not there, so they arrive
-with the dialogs they need. `folder-row.tsx` renders its action cluster only
-when a callback is supplied, so this is a prop that is absent rather than
-markup that was removed. The one not coming is the duplicate: his sidebar
-offers "New folder" twice, once in the directory menu and once as the footer
-action, and 9.1's addressing sentence does not admit two controls answering to
-one name inside one region.
+**Two of the three menus his sidebar carries arrived at R10 with the writes
+they need, and the third is not coming.** The folder row's own menu and the
+folder group's menu are wired below, each to `shell/folder-groups.tsx`, which
+holds 9.1's four operations and the dialogs they open; until R10 they were
+props that were absent rather than markup that had been removed, because a
+control that opens nothing is worse than one that is not there. The one not
+coming is his folder-directory menu: its two entries are "New folder", which
+would be a second control of that name inside this landmark, and "New folder
+group", which 9.1 makes an action on a folder and which is therefore on the
+folder row's menu instead. 9.1's addressing sentence does not admit the first
+and the P8R change control settled the second.
 
 **Two controls he draws are dropped as unnamed rather than renamed.** `Add
 task to {folder}` on a folder row and `Add folder to {group}` on a group
@@ -110,10 +111,13 @@ import {
   Layers3,
   ListTodo,
   LogOut,
+  MoreHorizontal,
+  Pencil,
   Search,
   Settings2,
   Star,
   SunMedium,
+  Trash2,
   UsersRound,
 } from 'lucide-react'
 
@@ -152,9 +156,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../components/ui/tooltip.js'
+import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
 import { paths, sidebarPages } from '../routes.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
+import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Settings } from '../../shared/me.js'
 
@@ -346,16 +352,28 @@ export function groupFolders(folders: readonly Folder[]): {
  * `folderRowDisplay` is R4's mapping and the only thing that knows how a 7.4
  * Folder becomes his four display props; the route and the active mark are
  * this file's, being the router's.
+ *
+ * **Two of the five entries his row menu carries are wired here and three are
+ * not**, added at P8R session R10. 9.1 gives this menu the move ("a folder is
+ * moved between groups from its own menu") and the P8R change control gave it
+ * "New folder group", creating a group being naming it on a folder. Rename,
+ * "Label and color" and delete belong to 9.6's folder header, which builds
+ * them, and offering a second route to the same three writes from here would
+ * be markup no section asks for. `folder-row.tsx` renders only the entries
+ * whose callback it is given, so this is a prop that is absent rather than a
+ * control that was removed.
  */
 function SidebarFolderRow({
   folder,
   activeId,
+  groups,
   nested = false,
   tree = false,
   treeLast = false,
 }: {
   readonly folder: Folder
   readonly activeId: string | null
+  readonly groups: FolderGroupActions
   readonly nested?: boolean
   readonly tree?: boolean
   readonly treeLast?: boolean
@@ -373,6 +391,27 @@ function SidebarFolderRow({
       nested={nested}
       tree={tree}
       treeLast={treeLast}
+      groupLabels={groups.labels}
+      currentLabel={folder.my_label}
+      // Inbox carries neither, so it carries no menu. 9.1 pins it first and
+      // gives it a clause of its own, above the label groups and never inside
+      // one, so a group action on this row would write a label the sidebar
+      // then cannot render. The three entries 9.6 owns are absent here for
+      // every row alike; see this function's header.
+      onNewGroup={
+        folder.is_default
+          ? undefined
+          : () => {
+              groups.onNewGroup(folder)
+            }
+      }
+      onMoveToLabel={
+        folder.is_default
+          ? undefined
+          : (label) => {
+              groups.onMoveToGroup(folder, label)
+            }
+      }
     />
   )
 }
@@ -386,50 +425,104 @@ function SidebarFolderRow({
  * name something no table fixes and no test can ask for. AC-155's third case
  * collapses it and asserts the folders inside are gone from the page, which
  * is why the panel unmounts rather than hides.
+ *
+ * **The region is a real one since P8R session R10**, and it is what makes the
+ * group's own menu addressable. 9.1's sections table gives the sidebar "one
+ * per personal label group, named by that label", and four controls in this
+ * application answer to "More actions"; the region that names their object is
+ * the whole of what tells them apart, which is that section's own answer at
+ * the folder header. So the `section` wraps the heading row and the folders
+ * together, and the menu sits inside it. AC-180 reaches this menu that way.
+ *
+ * **The menu's own name is the same "More actions" as the other three.** His
+ * prototype interpolates, `Manage {label} folder group`, measured on the
+ * running prototype on 2026-08-13; a name in 9.1's table is a fixed string and
+ * a fourth name would assert a difference in kind that is not there.
  */
 function FolderGroupBlock({
   group,
   activeId,
+  groups,
 }: {
   readonly group: LabelGroup
   readonly activeId: string | null
+  readonly groups: FolderGroupActions
 }): React.JSX.Element {
   const [open, setOpen] = useState(true)
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10">
-        <CollapsibleTrigger
-          data-sidebar-tier="group"
-          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-        >
-          <span className="relative size-4 shrink-0" aria-hidden="true">
-            <Folders
-              className="absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
-              strokeWidth={1.75}
-            />
-            <ChevronDown
-              className={`absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${open ? '' : '-rotate-90'}`}
-              strokeWidth={1.75}
-            />
-          </span>
-          <span className="truncate">{group.label}</span>
-        </CollapsibleTrigger>
-      </div>
-      <CollapsibleContent>
-        <SidebarMenu className="pb-1">
-          {group.folders.map((folder, index) => (
-            <SidebarFolderRow
-              key={folder.id}
-              folder={folder}
-              activeId={activeId}
-              nested
-              tree
-              treeLast={index === group.folders.length - 1}
-            />
-          ))}
-        </SidebarMenu>
-      </CollapsibleContent>
-    </Collapsible>
+    <section aria-label={group.label}>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10">
+          <CollapsibleTrigger
+            data-sidebar-tier="group"
+            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+          >
+            <span className="relative size-4 shrink-0" aria-hidden="true">
+              <Folders
+                className="absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
+                strokeWidth={1.75}
+              />
+              <ChevronDown
+                className={`absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${open ? '' : '-rotate-90'}`}
+                strokeWidth={1.75}
+              />
+            </span>
+            <span className="truncate">{group.label}</span>
+          </CollapsibleTrigger>
+          {/* Opacity and never a collapsed box, the rule `folder-row.tsx`
+              records: a control with an empty bounding box is not visible to
+              anything that addresses it by role and name. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                  aria-label={MORE_ACTIONS}
+                />
+              }
+            >
+              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                onClick={() => {
+                  groups.onRenameGroup(group.label)
+                }}
+              >
+                <Pencil className="size-4" aria-hidden="true" />Rename group
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => {
+                  groups.onDeleteGroup(group.label)
+                }}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />Delete group
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <CollapsibleContent>
+          <SidebarMenu className="pb-1">
+            {group.folders.map((folder, index) => (
+              <SidebarFolderRow
+                key={folder.id}
+                folder={folder}
+                activeId={activeId}
+                groups={groups}
+                nested
+                tree
+                treeLast={index === group.folders.length - 1}
+              />
+            ))}
+          </SidebarMenu>
+        </CollapsibleContent>
+      </Collapsible>
+    </section>
   )
 }
 
@@ -556,6 +649,7 @@ function AccountMenu({
 export function AppSidebar({
   settings,
   folders,
+  groups: groupActions,
   displayName,
   activeFolderId,
   currentPath,
@@ -571,6 +665,8 @@ export function AppSidebar({
   /** Absent while the read is in flight or has failed. */
   readonly settings: Settings | undefined
   readonly folders: readonly Folder[] | undefined
+  /** 9.1's four folder-group operations, held by the shell that mounts them. */
+  readonly groups: FolderGroupActions
   readonly displayName: string | null
   readonly activeFolderId: string | null
   readonly currentPath: string
@@ -671,7 +767,11 @@ export function AppSidebar({
               <SidebarGroupContent>
                 <SidebarMenu>
                   {inbox === null ? null : (
-                    <SidebarFolderRow folder={inbox} activeId={activeFolderId} />
+                    <SidebarFolderRow
+                      folder={inbox}
+                      activeId={activeFolderId}
+                      groups={groupActions}
+                    />
                   )}
                 </SidebarMenu>
 
@@ -680,6 +780,7 @@ export function AppSidebar({
                     key={group.label}
                     group={group}
                     activeId={activeFolderId}
+                    groups={groupActions}
                   />
                 ))}
 
@@ -689,6 +790,7 @@ export function AppSidebar({
                       key={folder.id}
                       folder={folder}
                       activeId={activeFolderId}
+                      groups={groupActions}
                     />
                   ))}
                 </SidebarMenu>
