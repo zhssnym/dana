@@ -20,37 +20,20 @@ That is a first pass rather than a rule. The tidier arrangement is one line in
 `components/README.md`; if it lands, this import comes out and nothing else
 changes.
 
-**What this barrel deliberately does not carry, as of package P8R session
-R2.** The twenty shadcn primitives that landed beside it are absent from every
-line below, and their absence is the decision rather than an oversight. Two of
-them would collide outright: his `button.tsx` exports `Button`, which is the
-name this file already gives the P8 client's own button, now at
-`LegacyButton.tsx`. Re-exporting his under a second name would invent an alias
-no section and no distribution uses, and would leave the two indistinguishable
-at the call site, which is the one thing a reader needs to be able to tell
-while both exist.
+**What this barrel deliberately does not carry.** The twenty shadcn
+primitives are imported by path, `components/ui/button.js` and its siblings,
+which is how shadcn components are meant to be consumed, how his own
+prototype consumes them, and how they already import each other.
 
-So his primitives are imported by path, `components/ui/button.js` and its
-nineteen siblings, which is how shadcn components are meant to be consumed,
-how his own prototype consumes them, and how they already import each other.
-The exports below are the P8 set, and they shrink to nothing as R3 to R10
-replace the markup that calls them; when the last consumer goes, so does this
-file's list.
+The P8 export list this file once held shrank exactly as its own note said it
+would: the polish pass after R11 retired the last legacy components
+(`LegacyButton`, `Chip`, `StarButton`, the P8 `TaskRow`, `QuickAddRow` and
+`OverflowMenu`), their consumers all rebuilt on the primitives. What remains
+is the one shared dialog every confirmation uses and the copy module.
 */
 import '../../styles/tokens.css'
 
-export { Button, IconButton } from './LegacyButton.js'
-export { Chip, initialsOf } from './Chip.js'
-export type { ChipTone } from './Chip.js'
 export { ConfirmDialog } from './ConfirmDialog.js'
-export { OverflowMenu } from './OverflowMenu.js'
-export type { MenuEntry } from './OverflowMenu.js'
-export { QuickAddRow } from './QuickAddRow.js'
-export type { QuickAddDefaults } from './QuickAddRow.js'
-export { StarButton, starTooltip } from './StarButton.js'
-export type { StarTooltipMode } from './StarButton.js'
-export { TaskList, TaskRow } from './TaskRow.js'
-export type { TaskListProps, TaskRowProps } from './TaskRow.js'
 export {
   ABANDONED_CHIP,
   ABANDON_CONFIRM,

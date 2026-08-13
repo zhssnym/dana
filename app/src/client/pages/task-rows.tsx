@@ -35,15 +35,7 @@ import { useState } from 'react'
 
 import { useFolders, useMe } from '../api/queries.js'
 import { TaskRow } from '../components/task-row.js'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../components/ui/alert-dialog.js'
+import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM } from '../components/ui/copy.js'
 import { presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
@@ -75,10 +67,6 @@ export function useRowBasis(): {
   }
 }
 
-/** 9.1's control table: the two controls of every confirmation. */
-const CONTINUE = 'Continue'
-const CANCEL = 'Cancel'
-
 interface PendingConfirm {
   /** The normative sentence section 9 writes for this action. */
   readonly message: string
@@ -86,12 +74,13 @@ interface PendingConfirm {
 }
 
 /**
- * The confirmation of 9.3 to 9.9, drawn from the distribution's alert dialog.
+ * The confirmation of 9.3 to 9.9, as the pages consume it: whichever action
+ * `useConfirm` holds, or nothing.
  *
- * `alertdialog` rather than `dialog` is the primitive's own role and is what
- * the specification wants here: a modal interrupting to get a confirmation
- * about a consequence, whose message is announced on arrival. It is also what
- * keeps it distinct from 9.3's form, which AC-162 addresses as `dialog`.
+ * The rendering is `ui/ConfirmDialog.tsx`'s, one component for every
+ * confirmation in this client, so a task confirm and the People screen's
+ * remove-connection confirm cannot drift apart. This adapter only maps the
+ * held-action shape onto that component's props.
  */
 export function ConfirmDialog({
   pending,
@@ -99,31 +88,17 @@ export function ConfirmDialog({
 }: {
   readonly pending: PendingConfirm | null
   readonly onClose: () => void
-}): React.JSX.Element {
+}): React.JSX.Element | null {
+  if (pending === null) return null
   return (
-    <AlertDialog
-      open={pending !== null}
-      onOpenChange={(open) => {
-        if (!open) onClose()
+    <UiConfirmDialog
+      message={pending.message}
+      onContinue={() => {
+        pending.run()
+        onClose()
       }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{pending?.message}</AlertDialogTitle>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{CANCEL}</AlertDialogCancel>
-          <AlertDialogAction
-            destructive
-            onClick={() => {
-              pending?.run()
-            }}
-          >
-            {CONTINUE}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      onCancel={onClose}
+    />
   )
 }
 

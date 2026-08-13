@@ -596,9 +596,13 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip),
     assignee,
-    // Q3: null assignee in a folder with more than one member.
+    // Q3: null assignee in a folder with more than one member. Pending rows
+    // only: the state lab scopes the chip ("Shared Planned context only"),
+    // and on an abandoned row the Abandoned chip is the state that matters.
     unassigned:
-      task.assignee === null && multiMemberFolderIds?.has(task.folder.id) === true,
+      task.status === 'pending' &&
+      task.assignee === null &&
+      multiMemberFolderIds?.has(task.folder.id) === true,
     pulled:
       showPullMarker &&
       task.pulled &&

@@ -51,7 +51,7 @@ import {
 } from '../api/mutations.js'
 import { openTask } from '../components/task-form/index.js'
 import { paths } from '../routes.js'
-import type { StarTooltipMode } from '../components/ui/index.js'
+import type { StarTooltipMode } from './presenters.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
 export interface RowActions {

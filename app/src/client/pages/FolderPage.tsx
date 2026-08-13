@@ -77,7 +77,6 @@ import {
   useFolder,
   useFolderCompletedTasks,
   useFolderOpenTasks,
-  useMultiMemberFolderIds,
 } from '../api/queries.js'
 import { FolderLabelDialog } from '../components/folder-label-dialog.js'
 import { QuickAdd } from '../components/quick-add.js'
@@ -179,7 +178,6 @@ export function FolderPage(): React.JSX.Element {
   const basis = useRowBasis()
   const actions = useRowActions()
   const confirm = useConfirm()
-  const multiMember = useMultiMemberFolderIds()
   const create = useCreateTask()
   const remove = useDeleteFolder()
   const rename = useRenameFolder()
@@ -217,9 +215,11 @@ export function FolderPage(): React.JSX.Element {
   const completedDays = mergeCompletedDays(completed.data?.pages)
   // Q7's rows are all in this folder, so the folder chip on each of them would
   // repeat the heading above the page. His screen drops it for the same reason.
+  // No member set is passed, so no Unassigned chip renders here: the state lab
+  // scopes that chip to the shared Planned context, and this page's roster is
+  // one avatar stack away.
   const context: RowContext = {
     ...basis,
-    multiMemberFolderIds: multiMember,
     showFolder: false,
     starTooltip: actions.starTooltipMode,
   }

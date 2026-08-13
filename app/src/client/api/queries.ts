@@ -20,8 +20,8 @@ import { getConnectionsResponse } from '../../shared/connections.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
-import { getInvitesPendingResponse } from '../../shared/invites.js'
-import type { GetInvitesPendingResponse } from '../../shared/invites.js'
+import { getInvitesPendingResponse, getInvitesSentResponse } from '../../shared/invites.js'
+import type { GetInvitesPendingResponse, GetInvitesSentResponse } from '../../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
 import type { MeResponse, Settings } from '../../shared/me.js'
 import { getTaskResponse } from '../../shared/tasks.js'
@@ -110,6 +110,19 @@ export function usePendingInvites(): UseQueryResult<GetInvitesPendingResponse> {
   return useQuery({
     queryKey: queryKeys.pendingInvites(),
     queryFn: () => getPlain(getInvitesPendingResponse, '/invites/pending'),
+  })
+}
+
+/**
+ * GET /invites/sent, frozen 7.5: the viewer's own invites, newest first, any
+ * status. The People screen shows the pending subset so a bare invite is
+ * visible somewhere after it is sent, the way a folder invite is visible in
+ * the sharing panel.
+ */
+export function useSentInvites(): UseQueryResult<GetInvitesSentResponse> {
+  return useQuery({
+    queryKey: queryKeys.sentInvites(),
+    queryFn: () => getPlain(getInvitesSentResponse, '/invites/sent'),
   })
 }
 

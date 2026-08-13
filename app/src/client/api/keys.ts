@@ -17,6 +17,7 @@ export const queryKeys = {
     ['folders', id, 'tasks', section] as const,
   connections: () => ['connections'] as const,
   pendingInvites: () => ['invites', 'pending'] as const,
+  sentInvites: () => ['invites', 'sent'] as const,
   view: (name: string) => ['views', name] as const,
   /** One task in full (7.6's GET), which the 9.3 form reads in edit mode. */
   task: (id: string) => ['tasks', id] as const,
