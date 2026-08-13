@@ -44,7 +44,44 @@ the human visual review of section 13 item 33.
 
 Icons pass `strokeWidth` at the call site. That is his idiom and it is now
 this client's: the global `.lucide` rule left with the old token file at R2.
+
+**Three repairs at the R6 return, all of them things the P8 components this
+file replaced already knew.** The port carried his markup faithfully, which is
+what it was for, and in doing so dropped three fixes that were measured against
+this suite rather than designed into his prototype. That is the failure mode of
+a port, and it is worth naming as one: his file was never wrong, it was only
+never subject to these measurements.
+
+1. **The star is named by its content, never by an `aria-label`.** The whole
+   argument is in `ui/StarButton.tsx`'s header, closed at P8 on 2026-08-11 and
+   lost here. An `aria-label` is a *label*, and the acceptance suite's
+   `formField` helper addresses 9.3's fields by label because those fields are
+   ten different roles. 9.3's own "important" field is one of them, so any page
+   holding a starred row with the form open had two elements answering to
+   "Important", and AC-093 opens that form from five pages the seed stars a row
+   on. The accessible name is unchanged, `getByRole('button', { name })` still
+   finds it, and AC-055 and AC-099 address it exactly as they did.
+2. **The tooltip is also a `title`, because a tooltip that exists only while it
+   is open cannot be read.** `tooltipText` in the suite's harness names three
+   faithful mechanisms and reads them immediately after a hover; the
+   distribution's tooltip supplies its two only once the popup has mounted, so
+   6 Q4's outward tooltip on Important read as the star's name instead. This is
+   already the pairing the recurrence chip below uses, an attribute for what
+   must be readable and his styled tooltip for the eye. The cost is that a
+   native tooltip now follows his styled one on hover, which is a visible
+   difference from his prototype and is flagged for section 13 item 33's review
+   rather than left to be found there.
+3. **The completion box shows what was asked for until the answer differs.** A
+   box controlled by `status` alone snaps back while the request is in flight,
+   which tells the person their click did nothing and is indistinguishable from
+   a click that missed. The product reason is the P8 row's, in
+   `ui/TaskRow.tsx`; the measured one is that 5.1 answers some transitions with
+   a 409 and the status never moves, so a refused completion left the box
+   unmoved and AC-157 could not reach its own assertion. The asked value is
+   held against the status it was asked from, so the server's answer clears it
+   and 8.3's refetch is still what decides.
 */
+import { useState } from 'react'
 import {
   Ban,
   CircleAlert,
@@ -147,6 +184,12 @@ function CompletionControl({
   status: TaskStatus
   onToggle?: (completed: boolean) => void
 }) {
+  // Held against the status it was asked from, so the server's answer clears
+  // it and a refusal, which moves no status, does not.
+  const [asked, setAsked] = useState<{ value: boolean; from: TaskStatus } | null>(
+    null,
+  )
+
   if (status === 'abandoned') {
     return (
       <span
@@ -159,12 +202,16 @@ function CompletionControl({
     )
   }
 
-  const completed = status === 'completed'
+  const completed =
+    asked !== null && asked.from === status ? asked.value : status === 'completed'
 
   return (
     <Checkbox
       checked={completed}
-      onCheckedChange={onToggle}
+      onCheckedChange={(next) => {
+        setAsked({ value: next, from: status })
+        onToggle?.(next)
+      }}
       onClick={(event) => event.stopPropagation()}
       // 9.1's names table, which took both directions at the P8R change
       // control of 2026-08-13; 9.5 had already fixed the second for Done.
@@ -199,7 +246,7 @@ function ImportanceControl({
               active || visible ? 'opacity-100' : revealOnRowHover,
               active && 'text-[var(--color-graphite-800)]',
             )}
-            aria-label={name}
+            title={tooltip}
             onClick={onToggle}
           >
             <Star
@@ -207,6 +254,9 @@ function ImportanceControl({
               strokeWidth={1.75}
               aria-hidden="true"
             />
+            {/* The name, as content rather than as a label. The glyph stays
+                `aria-hidden`, so a glyph swap is still never a rename. */}
+            <span className="sr-only">{name}</span>
           </Button>
         }
       />
