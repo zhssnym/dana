@@ -10,6 +10,91 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **The P8R mid-package change control, 2026-08-13: ten controls named, one
+  unreachable surface deleted, one silent rule stated, and RFC 0002 returned to
+  Draft because all three change its delta.** Nothing here is application code
+  and nothing here amends `docs/spec/`. These amend RFC 0002's specification
+  delta, which has not merged and is what package P8R builds against; the delta
+  merges at implementation, unchanged in that respect. The preamble returns an
+  Accepted RFC to Draft when its specification delta changes, and each of these
+  three does, so the RFC's status line now reads Draft and the owner's
+  re-acceptance is owed on these three items rather than on the RFC again. No
+  number moves, the implementation plan is untouched, and a session already
+  building against this delta needs only the three.
+  **Ten controls this package builds had no normative name, which is the item
+  that blocks the sessions after R4.** The Adversarial Test Engineer escalated
+  them after writing criteria it could not fully express. 9.1's addressing
+  sentence makes a control reachable by its role and its normative name, and a
+  control this specification never names is reachable only by position, so a
+  criterion written against one asserts the implementation rather than the
+  contract, which is the exact thing that sentence exists to prevent. Eleven rows
+  are added to 9.1's names table: "Open full form" for the quick-add's escalation
+  control; "Complete task" and "Mark as not done" for the completion checkbox of
+  9.4 and the completion control of 9.3; "More actions" for a sidebar folder
+  row's menu and a folder group's menu; "Filter open tasks" with "All open
+  tasks", "With a due date" and "Without a due date"; "New folder group",
+  "Rename group", "Delete group" and "Move to group"; "Folder name"; "Group
+  name"; "Label" and "Color"; "Collapse sidebar" and "Expand sidebar"; "Resize
+  sidebar" and "Resize task form"; and "Account" for the avatar menu.
+  **Four names in the tree are corrections owed to role 08 rather than silent
+  divergences**, which is why R3's output was read before these were ruled and
+  not after. R3 shipped four of the ten at f48b063. Three agree with what is
+  ruled here and stand untouched: the quick-add's collapsed control and its input
+  both read "Add a task", the task row's checkbox reads "Complete task" and "Mark
+  as not done", and its overflow reads "More actions". Four disagree. The
+  quick-add's escalation control ships as "Open full task form for {folder}" and
+  becomes "Open full form". A sidebar folder row's menu ships as "Manage {folder}
+  folder" and becomes "More actions". The two dialog fields ship as "Folder name"
+  and "Group name", which are the ruled names, so those two stand; what does not
+  is the pattern the first two share, an accessible name interpolating the object
+  it acts on. A name in this table is a fixed string, and the region rule beneath
+  it is what tells two instances apart, which is the same reason the folder
+  header got a region name rather than its menu getting a third one.
+  **"Open full form" rather than "More options", and the ground is sharper than
+  the escalation's.** The tester's reason was that 9.3 already spends "More
+  options" on the form's expander and both can be on the page at once. That
+  understates it: the two are not alternatives on a page, they are alternatives
+  at one instant, because the escalation control opens the form and the form's
+  expander then sits behind the dialog's scrim. A shared name there is not a
+  collision a test can scope its way out of.
+  **Four controls now answer to "More actions", which is not a new decision.** It
+  is this section's own argument at the folder header, applied again rather than
+  reconsidered: they are the same control pointed at different objects, a fourth
+  name would assert a difference in kind that is not there, and each is reached
+  the way a task row's menu is reached, inside the row or the region that names
+  its object.
+  **AC-172's third clause and 9.8's People-screen invite list are struck,
+  because they described a surface no person could reach.** RFC 0002's amended
+  9.8 renders the invite gate at every /app path while Q12 is non-empty, and it
+  also gave the People screen the same list for as long as any invite exists.
+  `/app/people` is an /app path. So the one page that was to hold the list is the
+  one page unreachable exactly while the list would have anything in it, and the
+  tester could not assert the clause because nothing could satisfy it. The
+  sentence was carried over from the ruling the gate replaced and does not fit
+  the gate. The alternative is recorded so it is not reintroduced: exempting
+  `/app/people` would have kept the list at the cost of a hole in a gate whose
+  entire point is that invites come first, and it would have given a person two
+  places to answer an invite where the ruling's own argument was that they should
+  have one that finds them. Deleting it costs nothing, because what the list was
+  for was "where a person returns to an invite they have not answered" and the
+  gate is now that place by construction.
+  **Section 9 never said that a task row opens its form, and 9.4 now says it**,
+  on every page that draws a row and whatever the task's status. It was stated
+  once, in 9.5's Planned bullet, where it reads as a property of the calendar,
+  and the status half was never stated anywhere. That silence was already costing
+  a session: AC-178's completion clause and AC-179's un-complete arm both need a
+  completed task's form, and 9.3's history block renders a completer that would
+  otherwise have no surface at all. It lands in 9.4 because the row is defined
+  there and the rule belongs to the row rather than to any page, which is the
+  tester's recommendation to restate it generally rather than per page. Section
+  9.4 is a new delta unit and the RFC's touched-sections line now carries it.
+  **One thing not reopened, recorded so nobody does.** AC-097 is red on this
+  branch because 8232e23 removed the abandoned-state tokens with the file it
+  retired, and it is not owed a fix. The designer's task row, landed at f48b063,
+  draws an abandoned row struck through and muted, so the criterion resolves when
+  the pages consume that component at R6. Restoring tokens from a file this
+  package deleted on purpose would put back the appearance it is deleting.
+
 - **RFC 0002 ACCEPTED by the human owner, 2026-08-13, with both open questions
   closed and every provisional number confirmed as final.** Nothing here is
   application code and nothing here amends the specification: an RFC's delta
