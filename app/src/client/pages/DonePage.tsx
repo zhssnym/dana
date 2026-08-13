@@ -14,18 +14,27 @@ addresses it by the text the page rendered. The format of a date is the
 design's and section 9 has never spelled one, so the region's name here is the
 date exactly as the row carries it.
 
-**The row is this file's own rather than `components/task-row.tsx`, and that is
-the one thing here worth reading twice.** Every other page hands its rows to
-that component, whose control for a completed row is the completion checkbox
-9.1's names table calls "Mark as not done". 9.5 gives this page a named
-affordance that does something a checkbox cannot: on the G-SERIES successor
-branch it confirms first, about a row nobody can see. A checkbox that sometimes
-opens a dialog would be that behaviour hidden inside the one control every
-other page uses unconditionally, and AC-162 addresses this one as a button. So
-the row is composed here from the same primitives his row is composed from, in
-his class strings, and the affordance 9.5 names is a named control. The tension
-between that criterion and 9.1's names table is real and is escalated in this
-session's report rather than resolved by either side going red.
+**The row is this file's own rather than `components/task-row.tsx`, and the
+affordance 9.5 names is that row's completion checkbox.** Every other page hands
+its rows to that component, whose control for a completed row is the checkbox
+9.1's names table calls "Mark as not done". This page draws its own row because
+Q6 gives it a different set of elements, and it composes that row from the same
+primitives his is composed from, in his class strings.
+
+That control was a named button until 2026-08-13, on the reading that a checkbox
+cannot confirm before it acts and that hiding a dialog inside the one control
+every other page uses unconditionally is worse than a named button. The reading
+is closed from both directions and neither of them is this file. 9.1's names
+table gives the string to a task row's completion checkbox in its complete
+state, 9.4 lists that checkbox among a row's elements, 9.3 as RFC 0002 rewrites
+it has the completion control confirm on exactly the G-SERIES branch, and AC-179
+asserts it doing so, so confirming is a property of the transition rather than of
+a role. And the designer's own Done screen, measured in the running prototype on
+2026-08-13, hands its rows to his `TaskRow` at `status="completed"` and branches
+to the confirm from `onToggleComplete`: it renders `checkbox "Mark as not done"`
+with `aria-checked` true, no second control beside it, and the box stays checked
+while the dialog is open. The checkbox is what the specification and the artifact
+were both already carrying; the button was this file's own.
 
 **A completed row opens its form**, which 9.4 gained at the P8R change control
 on 2026-08-13: a row opens that task's form on every page that draws one and
@@ -38,7 +47,7 @@ for byte (7.10), and `mergeCompletedDays` puts a day split across two pages
 back into one region, because two regions cannot carry one name.
 */
 import { useEffect, useState } from 'react'
-import { Check, CircleCheck, Folder as FolderIcon, RotateCcw, Star } from 'lucide-react'
+import { CircleCheck, Folder as FolderIcon, Star } from 'lucide-react'
 
 import { mergeCompletedDays, useDoneView, useTask } from '../api/queries.js'
 import { useTransitionTask } from '../api/mutations.js'
@@ -52,6 +61,7 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog.js'
 import { Button } from '../components/ui/button.js'
+import { Checkbox } from '../components/ui/checkbox.js'
 import { MARK_AS_NOT_DONE, STAR_OFF, STAR_ON } from '../components/ui/copy.js'
 import { Item, ItemContent, ItemMedia, ItemTitle } from '../components/ui/item.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
@@ -119,14 +129,24 @@ function DoneRow({
       data-task-status="completed"
       className="group/task grid h-[var(--task-row-height)] w-full cursor-pointer grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-0 overflow-hidden rounded-md border-0 bg-card p-0 transition-[background-color] hover:bg-[var(--color-graphite-100)] focus-within:bg-[var(--color-graphite-100)] focus-within:ring-2 focus-within:ring-ring/30"
     >
-      <ItemMedia className="size-[var(--control-height)]">
-        <span
-          role="img"
-          aria-label="Completed task"
-          className="flex size-[var(--control-height)] items-center justify-center text-[var(--color-graphite-500)]"
-        >
-          <Check className="size-5" strokeWidth={2} aria-hidden="true" />
-        </span>
+      <ItemMedia
+        className="size-[var(--control-height)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {/* Checked from the row and never from the click, which is what leaves
+            a declined confirm exactly where it found it: every row this page
+            draws is completed, and only the transition below moves that. His
+            own control holds the same shape, and his box was measured still
+            checked with the dialog open. */}
+        <Checkbox
+          checked
+          aria-label={MARK_AS_NOT_DONE}
+          onCheckedChange={(next) => {
+            if (next) return
+            onMarkNotDone()
+          }}
+          className="size-[var(--control-height)] !border-transparent !bg-transparent after:inset-auto after:size-[var(--checkbox-size)] after:rounded-[4px] after:border after:border-input after:bg-background after:content-[''] focus-visible:ring-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/30 data-checked:!border-transparent data-checked:!bg-transparent data-checked:after:border-[var(--color-graphite-700)] data-checked:after:bg-[var(--color-graphite-700)] [&_[data-slot=checkbox-indicator]]:z-10"
+        />
       </ItemMedia>
 
       <ItemContent className="min-w-0 flex-row items-center gap-0 pr-2">
@@ -136,21 +156,6 @@ function DoneRow({
         >
           {task.title}
         </ItemTitle>
-        {/* 9.5's own name for the un-complete affordance Q6 lists on every
-            row, drawn where his abandoned row draws "Restore". */}
-        <Button
-          variant="ghost"
-          className="h-[var(--control-height)] shrink-0 px-2 text-sm hover:!bg-transparent"
-          onClick={onMarkNotDone}
-        >
-          <RotateCcw
-            data-icon="inline-start"
-            className="size-4"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          {MARK_AS_NOT_DONE}
-        </Button>
       </ItemContent>
 
       <div
