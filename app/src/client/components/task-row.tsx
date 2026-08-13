@@ -132,7 +132,7 @@ const rowActionHover = 'hover:!bg-transparent aria-expanded:!bg-transparent'
  * the reason this is opacity rather than his width animation.
  */
 const revealOnRowHover =
-  'pointer-events-none opacity-0 group-hover/task:pointer-events-auto group-hover/task:opacity-100 group-focus-within/task:pointer-events-auto group-focus-within/task:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100'
+  'opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 focus-visible:opacity-100'
 
 export interface TaskRowProps {
   title: string
