@@ -23,15 +23,17 @@ provisional.
 | `pages/` | One file per surface of 9.2 and 9.4 to 9.8 | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |
-| `parts/` | **Provisional rows and inputs, to be replaced.** Replaced; see the page assembly section at the end | see below |
+| `parts/` | **The page layer.** The row callbacks, and since P8R session R4 the presenters that map our API shapes onto the designer's display props | Frontend Architect |
 | `components/ui/` | The component library of 11.4 | Component and Design System |
 | `styles/tokens.css` | The single token file of 11.4 | Component and Design System |
 | the calendar, task form and search overlay directories | 9.3, 9.5's calendar, 9.9 | Complex Interaction |
 
-`parts/` is not a component library and must not become one. It holds the least
-that lets a page render: a task row, a quick-add row, and the row callbacks.
-Its header says what it owes. When the Component engineer's library lands, the
-pages should import from there and `parts/` should shrink to nothing.
+`parts/` is not a component library and must not become one. It was the shell
+session's holding pen for the least that let a page render, and it did shrink
+to nothing once the component library landed. What it holds now is the page
+layer: the code every page calls and no component does. Two files, the row
+callbacks of `useRowActions.ts` and the presenters of `presenters.ts`, and
+the section at the end of this file is what the second one is for.
 
 ## How a page declares its data
 
@@ -686,3 +688,78 @@ both exist Vite emits one stylesheet either way.
   nothing about the second. Recommendation: 9.8 say whether the invite list is
   the first screen after callback or a standing surface until every invite is
   answered.
+
+## `parts/presenters.ts`, added at P8R session R4
+
+**Settled where a numbered section decides it, first pass where one does not,
+and every first pass below is named as one.** RFC 0002 replaces what renders
+the data and nothing that fetches it, so this client now has two halves
+written against different objects: ours answers 7.0 and the designer's
+components take what a row paints. This file is the whole of that mapping and
+the only place it happens.
+
+**No acceptance criterion reads it.** The criteria assert rendered roles,
+names, regions and copy, and each would still pass if a due label here read
+the wrong date, because they assert that a due badge exists and never what it
+says. That is why the module is pure and why its unit tests, 54 of them beside
+it, are the only check on it. Protocol section 8 makes them this role's.
+
+**The module is pure and takes today as an argument.** `presenterToday()` is a
+one-line pass-through to `api/tz.ts`, whose header records that it is the only
+place this client evaluates a date; nothing else here constructs a `Date`, and
+a unit test asserts the absence against the file's own source, because a
+missing second clock is not something a call can assert. A page reads today
+once and hands it to every row, so the answer is the one the `tz` parameter on
+the request that fetched those rows was computed against.
+
+**The three rules the module owns.**
+
+| Rule | What it is | Where it comes from |
+| - | - | - |
+| Due label | "Due today"; "Due 6 Aug"; "Overdue · 6 Aug"; the time appended as 24-hour HH:MM when the task has one | Three cases from 8.10's boundary statement; the format is the design's, which 9.1 says outright ("the format of a date is the design's and this section has never spelled one"); the time from Q4's "due date and time like a Planned row" |
+| Overdue | `status === 'pending' && due_date < today` | 8.10 "overdue when D < today(V)" and 9.4's due badge; the pending-only half is Q3C, "Pending renders normal (overdue styled on past dates), completed faded and checked, abandoned faded and struck" |
+| Initials | First letter of the first word plus the first letter of the last, upper-cased, at most two, taken from the rendered name | **First pass.** The specification is silent at every section; brief section 6 gives an assigned row "a small avatar chip with their name" and the running prototype renders "S" beside "Sara" |
+
+**Three first passes inside those rules, each a silence this session closed
+rather than a rule it found.** The year is appended only when it differs from
+the reader's year, because the design's screens settle the same-year form and
+say nothing about any other, and two dates twelve months apart would otherwise
+render identically. The month names are a fixed twelve-entry table rather than
+`Intl`, because a locale-driven formatter renders "août" beside section 9's
+normative English. And a null `display_name` renders 4.1's own "Deleted user"
+rather than the P8 client's "Someone", the first being this specification's
+string and the second being nowhere in it.
+
+**The folder colour is resolved by id and never by name.** 7.0's card carries
+a folder stub of `{id, name, is_default}` and no colour, the colour being the
+viewer's own `my_color` on 7.4's membership; his row takes a name and a colour
+and no id. So `useFolders()` is the table, the id is the key, and the stub's
+own name is the fallback for the window before that list arrives. A folder
+whose viewer set no colour takes `var(--color-graphite-900)`, which is the
+token the designer's own fixtures give every folder, so no raw colour is
+written outside `tokens.css` (11.4).
+
+**One relation of his really is keyed by a display name, and 4.3 does not make
+names unique.** `FolderGroupDialog` hands back `onSubmit(label, folderNames)`
+while the write is PATCH `/folders/:id/my-membership`. `folderIdsForNames`
+resolves one name to *every* id that carries it, deliberately: the alternative
+picks one of two identically named rows and writes to a folder the person did
+not choose, with nothing on the screen to say which. Everything else about a
+group needs no bridge, 9.1 making a group "the label of 7.4's my-membership
+and nothing else", which is a string on both sides.
+
+**Three orderings from his prototype are deliberately not here.**
+`plannedServerOrder`, `importantServerOrder` and `doneGroups` exist in his
+files because his screens run on `fixtures.ts` and have no server. Section 6's
+preamble says "every view returns rows already ordered; clients never
+re-sort", and 7.11 makes a rule found only in the client a specification
+violation.
+
+**One prop this module cannot fill, recorded as a request rather than filled
+with an invention.** `task-row.tsx` renders the repeating glyph only when its
+`recurrence` prop carries the rule as prose, announcing it as `Repeats
+{recurrence}`. Frozen 7.0 gives a card `is_recurring: boolean` and puts
+`recurrence_rule` on TaskDetail alone, so nothing a view hands this module can
+fill that string. The glyph is therefore absent until that component admits
+the boolean it can actually be given, which is the Component and Design System
+engineer's file and this session's one open request.
