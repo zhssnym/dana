@@ -1,11 +1,11 @@
 /*
 The surface 9.3's form is opened onto, and the only thing in this directory
-that reads or writes.
+that writes.
 
 `src/client/README.md` settles that a page calls exactly one hook per surface
 and that nothing below a page fetches. This overlay is a surface in that
 sense: it is opened over whatever page is beneath it and is mounted once by
-the layout, so the reads are here and `TaskForm` below takes values and
+the layout, so the writes are here and `TaskForm` below takes values and
 callbacks as props. That is what lets the same form serve creation and
 editing without either path knowing which endpoint the other uses.
 
@@ -20,11 +20,28 @@ page, so the wait is a cache hit in practice.
 **Two ways in, and the second is this role's addition.** `openTaskForm` is the
 chrome's, carrying 9.3's entry-point defaults, because that table keys them by
 where the person clicked. `openTask` is `open.ts`, carrying a task id, because
-9.5 opens a task from a row, a calendar cell and a search result. Its
-`upcoming` flag is 9.5's ghost path and puts the banner on that path alone: a
-client showing the banner for every repeating task passes AC-098 as written
-and tells the person something false every time they open a repeat from its
-own day.
+9.4 opens a task from a row on every page and whatever its status, and because
+the calendar and the search overlay open a row they drew. Its `upcoming` flag
+is 9.5's ghost path and puts the banner on that path alone: a client showing
+the banner for every repeating task passes AC-098 as written and tells the
+person something false every time they open a repeat from its own day.
+
+**The sheet is the designer's**, ported at P8R session R7 from
+`src/components/task-form.tsx`: `SheetContent` on the right, his backdrop, his
+resize handle on the inner edge, and the width delivered as the custom property
+`tokens.css` already reads at `[data-slot="sheet-content"].task-form-sheet`.
+The property is set on the element rather than on the document root, which is
+where his prototype sets it: an inline custom property resolves for that
+element's own `var()`, so the width arrives with the first paint and nothing
+outside this surface is touched. That matters for AC-182, which measures the
+dialog before and after a drag and again after a reload.
+
+**The dialog is the sheet and there is exactly one of it.** 9.1's roles table
+makes the task form a dialog; base-ui's popup carries that role and the three
+confirmations inside the form carry `alertdialog`, which is the role for a
+modal interrupting to ask about a consequence. So a criterion scoping to
+`getByRole('dialog')` reaches the form and only the form, whatever else is open
+over it.
 */
 import { useEffect, useRef, useState } from 'react'
 
@@ -34,6 +51,7 @@ import {
   useDeleteReminder,
   useDeleteStep,
   useDeleteTask,
+  useTransitionTask,
   useUpdateStep,
   usePutReminder,
   useUpdateTask,
@@ -46,9 +64,17 @@ import type {
   PostTasksBody,
   ReminderInput,
 } from '../../../shared/tasks.js'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet.js'
 import { UPCOMING_OCCURRENCE } from './copy.js'
 import { onOpenTask } from './open.js'
 import { initialForCreate, initialForEdit, TaskForm } from './TaskForm.js'
+import { TaskFormResizeHandle } from './TaskFormResizeHandle.js'
+import {
+  clampTaskFormWidth,
+  readTaskFormWidth,
+  TASK_FORM_DEFAULT_WIDTH,
+  writeTaskFormWidth,
+} from './width.js'
 
 interface OpenState {
   /** Bumped on every open, so the form remounts with fresh state. */
@@ -63,6 +89,7 @@ export function TaskFormOverlay(): React.JSX.Element | null {
   // A counter rather than state, so subscribing happens once: a listener set
   // that resubscribed on every open would drop the open that caused it.
   const seq = useRef(0)
+  const [width, setWidth] = useState(readTaskFormWidth)
 
   const me = useMe()
   const folders = useFolders()
@@ -73,6 +100,7 @@ export function TaskFormOverlay(): React.JSX.Element | null {
   const putReminder = usePutReminder()
   const dropReminder = useDeleteReminder()
   const remove = useDeleteTask()
+  const transition = useTransitionTask()
   const addStep = useAddStep()
   const patchStep = useUpdateStep()
   const removeStep = useDeleteStep()
@@ -97,32 +125,10 @@ export function TaskFormOverlay(): React.JSX.Element | null {
     }
   }, [])
 
-  useEffect(() => {
-    if (open === null) return undefined
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== 'Escape') return
-      setOpen(null)
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [open])
-
   if (open === null) return null
 
   const ready =
     folders.data !== undefined && (open.taskId === null || task.data !== undefined)
-  if (!ready) {
-    return (
-      <div className="dialog-scrim">
-        <div role="dialog" aria-modal="true" aria-label="Task" className="dialog-panel">
-          <p role="status">Loading</p>
-        </div>
-      </div>
-    )
-  }
-
   const detail = open.taskId === null ? null : (task.data ?? null)
   const initial =
     detail === null
@@ -211,49 +217,99 @@ export function TaskFormOverlay(): React.JSX.Element | null {
   }
 
   return (
-    <div className="dialog-scrim">
-      <div role="dialog" aria-modal="true" aria-label="Task" className="dialog-panel">
-        {/* 9.5: a ghost opens the current occurrence with this banner, and its
-            copy is normative like all copy in section 9. */}
-        {open.upcoming ? <p role="status">{UPCOMING_OCCURRENCE}</p> : null}
-
-        <TaskForm
-          key={`${String(open.seq)}-${open.taskId ?? 'new'}`}
-          initial={initial}
-          task={detail}
-          saving={
-            create.isPending ||
-            update.isPending ||
-            putReminder.isPending ||
-            dropReminder.isPending
-          }
-          onSave={onSave}
-          onDelete={() => {
-            if (detail === null) return
-            remove.mutate(detail.id, { onSuccess: close })
+    <Sheet
+      open
+      onOpenChange={(next) => {
+        if (!next) close()
+      }}
+    >
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-none"
+        className="task-form-sheet border-l border-border bg-card p-0 text-sm shadow-[var(--elevation-2)]"
+        // The width `tokens.css` reads back at
+        // `[data-slot="sheet-content"].task-form-sheet`. Inline on this element
+        // so it resolves for this element's own `var()` and arrives with the
+        // first paint, which is what AC-182 measures after a reload.
+        style={{ '--task-form-width': `${String(width)}px` } as React.CSSProperties}
+      >
+        <TaskFormResizeHandle
+          value={width}
+          onChange={(next) => {
+            setWidth(clampTaskFormWidth(next))
           }}
-          onAppendStep={(title) => {
-            if (detail === null) return
-            addStep.mutate({ taskId: detail.id, title })
-          }}
-          onToggleStep={(step) => {
-            if (step.id === null) return
-            patchStep.mutate({ stepId: step.id, body: { done: !step.done } })
-          }}
-          onDeleteStep={(step) => {
-            if (step.id === null) return
-            removeStep.mutate(step.id)
-          }}
-          onMoveStep={(step, position) => {
-            if (step.id === null) return
-            patchStep.mutate({ stepId: step.id, body: { position } })
+          onCommit={writeTaskFormWidth}
+          onReset={() => {
+            setWidth(TASK_FORM_DEFAULT_WIDTH)
+            writeTaskFormWidth(TASK_FORM_DEFAULT_WIDTH)
           }}
         />
 
-        <button type="button" className="button-base button-quiet" onClick={close}>
-          Close
-        </button>
-      </div>
-    </div>
+        {/* A dialog owes a name. Section 9 writes none for the form, so these
+            are the designer's and are announced rather than painted. */}
+        <SheetTitle className="sr-only">{detail === null ? 'New task' : 'Edit task'}</SheetTitle>
+        <SheetDescription className="sr-only">
+          {detail === null
+            ? "Create a task using Dana's task form."
+            : "Edit this task using Dana's task form."}
+        </SheetDescription>
+
+        {/* 9.5: a ghost opens the current occurrence with this banner, and its
+            copy is normative like all copy in section 9. */}
+        {open.upcoming ? (
+          <div
+            role="status"
+            className="mx-6 mt-4 flex min-h-9 items-center gap-2 rounded-md bg-[var(--color-graphite-50)] px-3 text-xs text-[var(--color-graphite-700)]"
+          >
+            {UPCOMING_OCCURRENCE}
+          </div>
+        ) : null}
+
+        {ready ? (
+          <TaskForm
+            key={`${String(open.seq)}-${open.taskId ?? 'new'}`}
+            initial={initial}
+            task={detail}
+            saving={
+              create.isPending ||
+              update.isPending ||
+              putReminder.isPending ||
+              dropReminder.isPending
+            }
+            onSave={onSave}
+            onClose={close}
+            onDelete={() => {
+              if (detail === null) return
+              remove.mutate(detail.id, { onSuccess: close })
+            }}
+            onToggleComplete={(event) => {
+              if (detail === null) return
+              transition.mutate({ id: detail.id, event })
+            }}
+            onAppendStep={(title) => {
+              if (detail === null) return
+              addStep.mutate({ taskId: detail.id, title })
+            }}
+            onToggleStep={(step) => {
+              if (step.id === null) return
+              patchStep.mutate({ stepId: step.id, body: { done: !step.done } })
+            }}
+            onDeleteStep={(step) => {
+              if (step.id === null) return
+              removeStep.mutate(step.id)
+            }}
+            onMoveStep={(step, position) => {
+              if (step.id === null) return
+              patchStep.mutate({ stepId: step.id, body: { position } })
+            }}
+          />
+        ) : (
+          <p role="status" className="px-6 py-5 text-sm text-muted-foreground">
+            Loading
+          </p>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }
