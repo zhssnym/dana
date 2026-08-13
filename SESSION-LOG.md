@@ -331,10 +331,11 @@ relabelling, and every row now runs the prototype before it writes anything.
 | --- | --- | --- | --- | --- |
 | R0 | RFC 0002 authored as a Draft at `docs/rfcs/0002-client-ui-replacement.md`, with both applications run first: the section 9 delta, the calendar off 11.4, the dependencies approved, three criteria rewritten, AC-174 to AC-183 and items 35 to 37 numbered provisionally, items 27 and 30 closed | 12 | Steward | Done, three research claims corrected |
 | R0a | RFC 0002 accepted by the owner on 2026-08-13, both open questions closed: the landing's em dash takes a comma, and item 33's visual review stands unwaived. All thirteen numbers final and none moved from provisional | 12 | Steward | Done |
-| R1 | AC-093, AC-166 and AC-172 rewritten against the amended text, plus AC-174 to AC-183, all red | 11 | Testers | Planned |
-| R2 | The dependencies, his `tokens.css` and `app.css` without the 1180px floor, his twenty `components/ui/` primitives | 08 | Implementers | Planned |
-| R3 | His presentational components, relabelled to section 9's names and corrected to 9.1's new roles table | 08 | Implementers | Planned |
-| R4 | `parts/presenters.ts`, the layer that maps our API shapes onto his display props, with its own unit tests | 07 | Implementers | Planned |
+| R1 | The thirteen criteria written red, taking the browser leg from 97 cases to 135. Corrected its own copy helper after measuring that `getByText` already refuses the split it was written to catch, and escalated ten controls section 9 does not name | 11 | Testers | Done, escalated |
+| R2 | The dependencies with `@base-ui/react` pinned exactly, the designer's token file replacing ours, and his twenty primitives. Found the 1180px floor entering the built CSS from its own prose, Tailwind scanning markdown, and found his self-hosted font never loading in his own prototype | 08 | Implementers | Done, escalated |
+| R3 | His seven presentational components, seven control names corrected against 9.1 and 9.5, the folder row rebuilt as a link, and 9.1's failed-read line restored over the toast string he used | 08 | Unattended | Done, escalated |
+| R4 | `parts/presenters.ts` and its 54 unit tests: the due label, the overdue rule read through `todayInBrowserZone()` alone, and initials. None of his three client-side orderings ported, 7.11 forbidding a rule found only in the client | 07 | Unattended | Done |
+| R4a | Inserted: the ten controls section 9 never named, AC-172's two clauses contradicting each other, and whether a completed row opens its form. Blocking R5 onward, and R3 has already built four of the ten without a name to build to | 12 | Steward | Planned |
 | R5 | His shell and sidebar on our router: the navigation landmark, the six page links, the three relocated controls, 9.7's visibility gates, the rail and the resize | 07 | Implementers | Planned |
 | R6 | The six list screens on our view hooks through the presenters, plus the shared page states | 07 | Implementers | Planned |
 | R7 | His task form: the sheet, the date picker, the dependency graph, steps, the invite row, the history block, the completion control | 09 | Implementers | Planned |
