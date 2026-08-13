@@ -340,8 +340,8 @@ relabelling, and every row now runs the prototype before it writes anything.
 | R4c | Four control names corrected against the amended table, two beyond the two it was sent for, both the same fault: an accessible name interpolating the object it acts on | 08 | Unattended | Done |
 | R5 | His shell and sidebar on our router, the top bar retired on the owner's ruling: six criteria green, nothing regressed, the browser leg 103 to 109 | 07 | Unattended | Done, escalated |
 | R6 | His six list screens on our view hooks through the presenters. Closed four and opened eleven, and reported the leg one worse than the run started rather than rounding it | 07 | Unattended | Done, escalated |
-| R6a | Inserted: three one-line defects in `task-row.tsx` that account for seven of R6's eleven, chief among them a star naming fix from the P8 change control that the port dropped | 08 | Implementers | Planned |
-| R6b | Inserted: AC-174's avatar-menu cases and four quick-add cases, both written against text the change control superseded four commits later | 11 | Testers | Planned |
+| R6a | Three one-line defects in `task-row.tsx` freeing all seven cases R6 routed, the leg 102 to 109. Proved three was the number by listing every label-addressed field against every `aria-label` in the file, and reported its own criterion AC-096 still red rather than claiming done | 08 | Implementers | Done, escalated |
+| R6b | Inserted: the criteria written against text the change control superseded, AC-174's avatar cases, the quick-add disclosure cases, AC-096's positive control and AC-180's `menuitemradio` | 11 | Testers | Planned |
 | R6 | The six list screens on our view hooks through the presenters, plus the shared page states | 07 | Implementers | Planned |
 | R7 | His task form: the sheet, the date picker, the dependency graph, steps, the invite row, the history block, the completion control | 09 | Implementers | Planned |
 | R8 | His search overlay, and the folder page with its single open list, its filter and the sharing panel | 09 | Implementers | Planned |
