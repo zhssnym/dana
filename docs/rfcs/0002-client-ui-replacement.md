@@ -1,6 +1,6 @@
 # RFC 0002: Replace the client user interface with the designer's prototype
 
-- **Status:** Draft, returned from Accepted on 2026-08-13 for re-acceptance
+- **Status:** Accepted
 - **Created:** 2026-08-13
 - **Accepted:** 2026-08-13 by the human owner; numbers finalised and both open
   questions closed by the Integration Steward on the same date
@@ -10,6 +10,9 @@
   after acceptance** below. Nothing else about the RFC moves, no number changes,
   and the implementation plan is unaffected, so a session already building
   against this delta needs only the three
+- **Re-accepted:** 2026-08-13 by the human owner, on those three amendments
+  alone rather than on the RFC again; numbering re-checked and unchanged by the
+  Integration Steward on the same date
 - **Target release:** v1, in place of the remainder of package P8D
 - **Spec sections touched:** 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.8, 11.4, 11.13, 12, 13
 - **Frozen interfaces touched:** none
@@ -166,6 +169,36 @@ one, which is why they arrive mid-package rather than at a merge review.
    it read as a property of the calendar, and the status half was never stated at
    all, which left AC-178 and AC-179 asserting a form they had no specified way
    to open.
+
+**Re-accepted on 2026-08-13 by the human owner, on all three.** The status line
+above reads Accepted from that date, and the decision was on these three items
+rather than on the RFC again, which is the whole of what returning it to Draft
+put in front of him.
+
+The preamble has the Steward assign final numbers at acceptance, a Draft's
+numbering being provisional, so the check was run again rather than inherited
+from the first acceptance. Verified on 2026-08-13 against the specification and
+against every other RFC in the repository: section 12 still ends at AC-173,
+section 13 still ends at item 34, AC-174 to AC-183 and items 35 to 37 are still
+claimed by nothing outside this file, and RFC 0001 is still the only other RFC
+and still adds no criterion of its own. The three amendments assign no number
+between them. The first is eleven rows inside a table the 9.1 unit already
+carried. The second strikes a sentence from the 9.8 unit and a clause from the
+text of AC-172, a criterion this RFC was already rewriting under its own number.
+The third is a new delta unit whose rule AC-178 and AC-179 already assert, which
+is why it was missing rather than new. Everything from the section 12 unit to
+the end of this file, the ten new criteria and the three section 13 items
+included, is unchanged, and so is the implementation plan.
+
+Two figures did move and neither is a number anything cites: the delta is
+sixteen units rather than fifteen, and the touched-sections line carries 9.4.
+One thing the plan does not carry is worth naming here rather than leaving to be
+found, because the plan is untouched by design and this is the reason somebody
+might think it should not have been. R3 has landed, and amendment 1 rules four
+names against what it shipped, so corrections are owed inside R3's own paths
+with no row scheduling them; they are enumerated in the changelog entry for the
+change control, and the sessions from R5 on build against the ruled names either
+way.
 
 ## Specification delta
 

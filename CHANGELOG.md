@@ -10,6 +10,50 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **RFC 0002 RE-ACCEPTED by the human owner, 2026-08-13, on the three amendments
+  of the P8R mid-package change control and on nothing else.** Nothing here is
+  application code and nothing here amends `docs/spec/`. The three amendments
+  changed RFC 0002's specification delta, which the preamble says returns an
+  Accepted RFC to Draft, so the RFC has been sitting at Draft since 6f8dbaf
+  waiting on exactly this decision. The status line at
+  `docs/rfcs/0002-client-ui-replacement.md` reads Accepted from this date, and
+  the header carries the return to Draft and the re-acceptance as separate lines
+  so that a later reader finds the round trip rather than a status that appears
+  never to have moved. The owner accepted all three: the eleven rows added to
+  9.1's names table, the striking of 9.8's People-screen invite list together
+  with AC-172's third clause, and the new 9.4 sentence that a task row opens
+  that task's form on every page and whatever its status.
+  **The numbers were re-checked rather than inherited, and again not one moved.**
+  The preamble makes a Draft's numbering provisional and has the Steward assign
+  final numbers at acceptance; a re-acceptance is an acceptance, so the check was
+  run against the specification and against every other RFC on this date rather
+  than carried over from 2026-08-13's first one. Section 12 still ends at AC-173,
+  section 13 still ends at item 34, AC-174 to AC-183 and items 35 to 37 are
+  claimed by nothing outside the RFC itself, and RFC 0001 is still the only other
+  RFC and still adds no criterion. The three amendments assign no number between
+  them: the first is eleven rows inside a table the 9.1 delta unit already
+  carried, the second strikes a sentence from the 9.8 unit and a clause from the
+  text of AC-172, which this RFC was already rewriting under its own number, and
+  the third is a new delta unit whose rule AC-178 and AC-179 already assert,
+  which is why it was a silence rather than an addition.
+  **The implementation plan is untouched, verified by comparison rather than by
+  reading.** Everything in the RFC from the section 12 unit to the end of the
+  file is byte for byte what it was at 32e51e0: the ten new criteria, the three
+  section 13 items, the two item replacements, the compatibility accounting, the
+  alternatives, the open questions and the twelve-row plan. Two figures did move
+  and neither is a number anything cites: the delta is sixteen units rather than
+  fifteen, and the touched-sections line gained 9.4.
+  **One thing the untouched plan does not carry, recorded so nobody reads its
+  absence as an oversight.** R3 has landed and amendment 1 rules four names
+  against what it shipped, so corrections are owed inside R3's own paths with no
+  row scheduling them. They are enumerated in the change control entry below, and
+  the sessions from R5 on build against the ruled names either way, so what is
+  owed is a correction to landed work rather than a dependency any later row
+  waits on.
+  **With this, package P8R is unblocked from R5 onward**, which is where two of
+  the three amendments were blocking, and the third stops costing the session it
+  was already costing.
+
 - **The P8R mid-package change control, 2026-08-13: ten controls named, one
   unreachable surface deleted, one silent rule stated, and RFC 0002 returned to
   Draft because all three change its delta.** Nothing here is application code
