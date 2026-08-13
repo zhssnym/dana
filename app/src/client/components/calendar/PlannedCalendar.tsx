@@ -1,217 +1,497 @@
 /*
 9.5's calendar mode for Planned, over Q3C.
 
-"calendar per Q3C with day, week, month zooms, previous/next/today controls,
-all-day banner lane, timed lane when due_time set, ghost styling for virtual
-instances, click on empty cell opens the form with that date, click on any row
-opens the task, click on a ghost opens the current occurrence with the banner
-'Upcoming occurrence of a repeating task'; the month zoom requests the whole
-weeks overlapping the month, six of them."
+The designer's `src/screens/planned-screen.tsx`, the `PlannedCalendar` and
+`CalendarEvent` halves of it, ported at P8R session R9. His layout, his
+spacing and his class strings are his; what changed is named here and nowhere
+else, because RFC 0002 makes his prototype the source this client is built
+from, so a silent difference between the two files is a defect in the port
+rather than a decision.
 
-**The plugins come from the @fullcalendar/react subpaths and nowhere else.**
-11.15 lists this first among the hazards agents get wrong: FullCalendar 7
-consolidated its standard plugins into the framework package, and the
-standalone @fullcalendar/daygrid package on npm is frozen at v6. Installing
-the package training data suggests is the first defect available in this
-directory, so the three imports below are the whole of it.
+**FullCalendar is gone, and this file is what replaces it.** 11.4's delta:
+"the grid is Dana's own, a fixed six-week month of day cells with week and day
+zooms, built from the designer's prototype." The library's own reasoning for
+going is in that bullet and the RFC's alternatives section, and the part that
+lands here is the last sentence of it: what is given up is the library's
+accessibility and keyboard handling in the grid, which is now ours to hold.
 
-**The controls are this file's, not the library's toolbar.** `headerToolbar`
-is off and previous, next, today and the three zooms are ordinary buttons,
-because 9.1's addressing rule reaches a control by its accessible role and its
-name: FullCalendar's own buttons announce themselves as "Next month", which is
-a name that changes with the view, and a control whose name depends on what it
-is showing is not addressable. The zoom buttons carry `aria-pressed`, which is
-what makes the current zoom something a reader observes rather than infers
-from a highlight.
+**The grid roles are this port's own correction, and the prototype needs
+them.** Measured against the running prototype on 2026-08-13, which is what
+running it was for: zero `role="grid"`, zero `gridcell`, zero `row` and zero
+`columnheader` in his month grid, which is composed of plain elements. 9.1's
+roles table fixes a calendar day as "a grid cell within a grid", on the ground
+that 9.5's month zoom is a fixed six-week grid of days, and AC-177 asserts the
+grid, the forty-two cells and the seven column headers. AC-093's calendar row,
+AC-098 and AC-158 each reach for a cell and would each fail without them. So
+the roles are added rather than inherited, and the row elements carry the
+layout: each week is its own seven-column CSS grid rather than the whole month
+being one, because `display: contents` on a row is the other way to get the
+same picture and it has a history of dropping the element out of the
+accessibility tree, which is the one thing this markup exists to put in.
 
-**The range is reported by the grid and asked of the server.** Q3C answers
-whatever inclusive range it receives and 9.5 fixes the month zoom's at the six
-whole weeks overlapping the month, which is what `fixedWeekCount` already
-gives: 42 days, which never approaches Q3C's 62-day refusal, and a grid that
-keeps its height as the months change. So `datesSet` reports what was laid out
-and the query follows it, rather than this file computing a month's boundaries
-a second time and disagreeing with the grid on the weeks around them.
+**Previous, next and today are named for what they do and not for what they
+are showing.** 9.5 names three controls and 9.1's addressing sentence reaches
+a control by its role and its name, so a control announcing itself as "Next
+month" would be a control whose name changes with the zoom. His prototype
+labels them "Previous period" and "Next period"; they are "Previous" and
+"Next" here, which is what AC-098 and AC-177 ask for by name and what the
+FullCalendar implementation this replaces already carried.
 
-**A ghost is drawn with `<i>` and a real row with `<span>`.** The strike on an
-abandoned row uses `<s>` for the same reason, recorded in
-`components/ui/TaskRow.tsx`: the element computes its own style with no
-stylesheet at all, so the distinction 9.5 requires survives a token file that
-has not been transcribed yet. AC-098 reads the computed style off the title of
-each and compares them, which is what "ghost styling" has to mean if it is to
-mean anything a reader can check.
+**A month cell draws seven lines and reveals the rest.** 9.5: "A day cell
+showing fewer rows than the day holds carries a control reading '+N more' for
+the remainder, which reveals them; the grid's constant height is what makes
+the control necessary, a cell that grew to fit its contents being the thing
+that height forbids." The number and how it was arrived at are at
+`MONTH_CELL_LINES` below, because it is a measurement rather than a taste.
+
+**Revealing is the day zoom, which is his own mechanism.** Pressing the
+control moves the anchor to that day and switches the zoom to it, where the
+cap does not apply and every row the day holds is drawn. The alternative, a
+popover over the cell, hides the grid behind it and answers "what else is on
+this day" with a second surface rather than with the one the calendar already
+has.
+
+**A ghost is a projection and is drawn as one.** 9.5 requires ghost styling
+for virtual instances, and his treatment is a dashed outline, a transparent
+fill, the quieter text colour and the repeat glyph in place of the folder dot.
+AC-098 reads the computed style off the title of a ghost and off the title of
+a real row and asserts they differ, which is what "ghost styling" has to mean
+if it is to mean anything a reader can check. Clicking one opens the series'
+current occurrence with 9.5's banner, and clicking a real row opens it
+without: the banner rides the ghost path alone because the opened row shows a
+date the person did not click.
 */
 import { useMemo, useState } from 'react'
+import {
+  Ban,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Folder as FolderIcon,
+  Plus,
+  Repeat2,
+} from 'lucide-react'
 
-import Calendar, { useCalendarController } from '@fullcalendar/react'
-import dayGridPlugin from '@fullcalendar/react/daygrid'
-import interactionPlugin from '@fullcalendar/react/interaction'
-import timeGridPlugin from '@fullcalendar/react/timegrid'
-import '@fullcalendar/react/skeleton.css'
-
-import { usePlannedCalendarView } from '../../api/queries.js'
+import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
+import { formatDueDate, presenterToday } from '../../parts/presenters.js'
 import { openTaskForm } from '../../shell/overlays.js'
+import { InlineError } from '../state-patterns.js'
+import { Button } from '../ui/button.js'
+import { cn } from '../ui/utils.js'
 import { openTask } from '../task-form/index.js'
-import { eventOrder, STATUS_RANK } from './order.js'
-import type { CellEventProps } from './order.js'
+import {
+  WEEKDAY_LABELS,
+  datesFor,
+  dayOfMonth,
+  monthOf,
+  periodTitle,
+  shiftAnchor,
+  weekdayIndex,
+} from './grid.js'
+import type { Zoom } from './grid.js'
+import { cellsByDate } from './order.js'
+import type { CellEvent } from './order.js'
 
-type Zoom = 'day' | 'week' | 'month'
+/*
+How many lines a month cell draws, and it is measured rather than chosen.
 
-const VIEW_OF: Record<Zoom, string> = {
-  day: 'timeGridDay',
-  week: 'timeGridWeek',
-  month: 'dayGridMonth',
+A cell renders exactly this many lines whether it overflows or not: seven rows
+when the day holds seven or fewer, and six rows plus the "+N more" control
+when it holds more. That is what makes the height constant, which is what 9.5
+asks the layout for and the reason the control exists at all.
+
+**Seven rather than the designer's two, and the number came from measurement
+rather than from taste.** His prototype slices a month cell at two, which his
+fixtures never exceed. Ours draws a ghost per pending series per day, so what
+fills a cell is the number of live repeats rather than the number of tasks
+anybody filed on that date. Measured on 2026-08-13, on the seeded database the
+browser leg runs against, at the moment AC-177 opens the month: forty-two
+cells holding 3, 4, 5, 6 and 16 rows, thirty-three of them holding four, and
+the six sixes being the Mondays that carry a weekly series on top of the daily
+ones. Only one of those days was crowded on purpose and AC-177 asserts exactly
+one overflow control, so any cap below six answers a month nobody crowded with
+seven controls. Seven leaves one line over the measured maximum.
+
+The cost is a tall month, about 1160 pixels for six weeks, which scrolls on a
+720-pixel viewport where the designer's two-row cell did not. It is the price
+of a calendar that shows a week of repeats without an overflow control on
+every weekday, and it is flagged for the human visual review of section 13
+item 33.
+*/
+const MONTH_CELL_LINES = 7
+
+const CELL_MIN_HEIGHT: Record<Zoom, string> = {
+  // Padding and the day-number line, then MONTH_CELL_LINES rows of 20 with a
+  // 2-pixel gap between them: 12 + 30 + 140 + 12.
+  month: 'min-h-[194px]',
+  week: 'min-h-[420px]',
+  day: 'min-h-[480px]',
 }
 
-/** The day before a half-open end, as a calendar date. Q3C's range is
- * inclusive at both ends and FullCalendar reports an exclusive end. */
-function dayBefore(date: string): string {
-  const at = new Date(`${date}T00:00:00Z`)
-  at.setUTCDate(at.getUTCDate() - 1)
-  return at.toISOString().slice(0, 10)
+/** 9.5's three zooms, as the buttons above the grid label them. */
+const ZOOM_LABEL: Record<Zoom, string> = { day: 'Day', week: 'Week', month: 'Month' }
+
+/**
+ * One row inside a day cell: his `CalendarEvent`.
+ *
+ * The glyph reports what the row is before the title is read: the repeat mark
+ * for a projection, the check for a completed row and the ban for an abandoned
+ * one, which are Q3C's three renderings ("Pending renders normal, completed
+ * faded and checked, abandoned faded and struck"), the clock for a timed row
+ * and the folder dot for everything else.
+ */
+function CalendarEvent({
+  event,
+  compact,
+  onOpen,
+}: {
+  readonly event: CellEvent
+  readonly compact: boolean
+  readonly onOpen: () => void
+}): React.JSX.Element {
+  const ghost = event.kind === 'ghost'
+  const completed = event.status === 'completed'
+  const abandoned = event.status === 'abandoned'
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        'flex w-full items-center gap-1.5 overflow-hidden rounded-[4px] border border-transparent bg-[var(--color-graphite-25)] px-1.5 text-left text-[var(--color-graphite-700)] transition-[background-color,border-color] hover:border-[var(--color-graphite-200)] hover:bg-white focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none',
+        compact ? 'min-h-5 text-[10px] leading-3' : 'min-h-7 text-xs leading-4',
+        completed && 'bg-white text-[var(--color-graphite-400)]',
+        abandoned && 'bg-white text-[var(--color-graphite-500)] line-through',
+        ghost &&
+          'border-dashed border-[var(--color-graphite-300)] bg-transparent text-[var(--color-graphite-500)]',
+      )}
+      onClick={(mouse) => {
+        mouse.stopPropagation()
+        onOpen()
+      }}
+      aria-label={`${ghost ? 'Upcoming repeating occurrence: ' : ''}${event.title}`}
+    >
+      {ghost ? (
+        <Repeat2 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      ) : completed ? (
+        <Check className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+      ) : abandoned ? (
+        <Ban className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      ) : event.dueTime !== null ? (
+        <Clock3 className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      ) : (
+        <FolderIcon
+          className="size-3.5 shrink-0"
+          style={event.folderColor === null ? undefined : { color: event.folderColor }}
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+      )}
+      {event.dueTime === null ? null : (
+        <span className="shrink-0 text-[var(--color-graphite-500)]">
+          {event.dueTime.slice(0, 5)}
+        </span>
+      )}
+      <span className="truncate">{event.title}</span>
+    </button>
+  )
 }
 
-interface Range {
-  readonly start: string
-  readonly end: string
+/** One day: 9.1's grid cell, and every affordance 9.5 puts on a day. */
+function DayCell({
+  date,
+  zoom,
+  today,
+  anchorMonth,
+  column,
+  lastColumn,
+  lastRow,
+  events,
+  onReveal,
+}: {
+  readonly date: string
+  readonly zoom: Zoom
+  readonly today: string
+  readonly anchorMonth: string
+  readonly column: number
+  readonly lastColumn: boolean
+  readonly lastRow: boolean
+  readonly events: readonly CellEvent[]
+  readonly onReveal: () => void
+}): React.JSX.Element {
+  /*
+  The control takes the last line rather than a line of its own, so a cell
+  that overflows is exactly as tall as one that does not. Reserving a line
+  that most cells never use would waste it on every cell of the month; adding
+  one only where it is needed would make that week's row taller than the
+  others, which is the growth the constant height forbids.
+  */
+  const overflows = zoom === 'month' && events.length > MONTH_CELL_LINES
+  const visible = overflows ? events.slice(0, MONTH_CELL_LINES - 1) : events
+  const hidden = events.length - visible.length
+  const outsideMonth = zoom === 'month' && monthOf(date) !== anchorMonth
+  const weekend = zoom !== 'day' && column > 4
+
+  return (
+    <div
+      role="gridcell"
+      className={cn(
+        'group/calendar-cell relative border-r border-b border-[var(--color-graphite-100)] p-1.5',
+        CELL_MIN_HEIGHT[zoom],
+        outsideMonth && 'bg-[var(--color-graphite-25)]',
+        weekend && !outsideMonth && 'bg-[var(--color-graphite-25)]/35',
+        lastColumn && 'border-r-0',
+        lastRow && 'border-b-0',
+      )}
+    >
+      {/*
+      The whole cell opens the form at this date: 9.5's "click on empty cell
+      opens the form with that date", and 9.3's calendar row gives it that
+      date, important off and Inbox, which the form resolves from the folder
+      list as it does everywhere that table writes "Inbox". A button rather
+      than a click handler on the cell, so the affordance is reachable by
+      keyboard and announces what it does; it is painted beneath the rows, so
+      a click on a row opens that task and never the form.
+      */}
+      <button
+        type="button"
+        className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-[var(--color-graphite-50)]/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
+        aria-label={`Create task on ${formatDueDate(date, today)}`}
+        onClick={() => {
+          openTaskForm({ due_date: date, important: false })
+        }}
+      />
+
+      <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
+        <span
+          className={cn(
+            'flex size-6 items-center justify-center rounded-md text-xs font-medium text-[var(--color-graphite-600)]',
+            date === today && 'bg-[var(--color-graphite-900)] text-white',
+            outsideMonth && date !== today && 'text-[var(--color-graphite-400)]',
+          )}
+        >
+          {/*
+          The trailing space is load-bearing and is measured rather than
+          stylistic. A cell's text is the concatenation of its descendants'
+          text with no separator inserted anywhere, so a cell holding the
+          fifth of the month and a row reads "5ac-098 daily series" as one
+          string and the day number stops being a word: any reader, a
+          person's eye included once the cell is narrow, loses the boundary
+          between the number and the first row. AC-093 and AC-098 address a
+          cell by the day it draws, which is what a word boundary makes
+          possible. The FullCalendar implementation this replaces carried the
+          same fix in the same words; the port dropped it and three cases of
+          AC-098 went red on the first measurement, which is what recorded it
+          here a second time. Trailing white space is removed at the end of a
+          line, so nothing about the number moves.
+          */}
+          {dayOfMonth(date)}{' '}
+        </span>
+        <Plus
+          className="size-3.5 text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+      </div>
+
+      <div className="relative z-10 space-y-0.5">
+        {visible.map((event) => (
+          <CalendarEvent
+            key={event.key}
+            event={event}
+            compact={zoom === 'month'}
+            onOpen={() => {
+              // 9.5: a ghost opens the series' current occurrence, and the
+              // banner rides that path alone.
+              openTask(event.taskId, { upcoming: event.kind === 'ghost' })
+            }}
+          />
+        ))}
+        {hidden > 0 ? (
+          <button
+            type="button"
+            className="flex h-5 items-center rounded-[4px] px-1.5 text-[10px] font-semibold text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+            onClick={onReveal}
+          >
+            +{hidden} more
+          </button>
+        ) : null}
+      </div>
+    </div>
+  )
 }
 
 export function PlannedCalendar(): React.JSX.Element {
-  const controller = useCalendarController()
+  const today = presenterToday()
   const [zoom, setZoom] = useState<Zoom>('month')
-  const [range, setRange] = useState<Range | null>(null)
+  const [anchor, setAnchor] = useState<string>(today)
 
-  const view = usePlannedCalendarView(range?.start ?? null, range?.end ?? null)
+  const dates = useMemo(() => datesFor(zoom, anchor), [zoom, anchor])
+  /*
+  The range is the client's to request and Q3C answers whatever inclusive
+  range it receives (9.5). It is read off the days actually laid out rather
+  than computed a second time, so the grid and the request cannot disagree
+  about the weeks around a month boundary. Six weeks is 42 days and never
+  approaches Q3C's 62-day refusal.
+  */
+  const start = dates[0] ?? anchor
+  const end = dates[dates.length - 1] ?? anchor
 
-  const events = useMemo(() => {
-    const real = (view.data?.real ?? []).map((task) => {
-      const props: CellEventProps = {
-        kind: 'real',
-        taskId: task.id,
-        statusRank: STATUS_RANK[task.status] ?? 0,
-        dueTime: task.due_time,
-        date: task.due_date ?? '',
-        allDay: task.due_time === null,
-      }
-      return {
-        id: `real:${task.id}`,
-        title: task.title,
-        start:
-          task.due_time === null
-            ? (task.due_date ?? '')
-            : `${task.due_date ?? ''}T${task.due_time}`,
-        allDay: task.due_time === null,
-        extendedProps: props,
-      }
-    })
-    const ghosts = (view.data?.virtual ?? []).map((instance) => {
-      const props: CellEventProps = {
-        kind: 'ghost',
-        taskId: instance.task_id,
-        // A projection has no status of its own: 8.5 projects from a pending
-        // task, and Q3C orders ghosts by date and task id rather than by rank.
-        statusRank: STATUS_RANK.pending ?? 0,
-        dueTime: instance.due_time,
-        date: instance.date,
-        allDay: instance.due_time === null,
-      }
-      return {
-        id: `ghost:${instance.task_id}:${instance.date}`,
-        title: instance.title,
-        start:
-          instance.due_time === null
-            ? instance.date
-            : `${instance.date}T${instance.due_time}`,
-        allDay: instance.due_time === null,
-        extendedProps: props,
-      }
-    })
-    return [...real, ...ghosts]
-  }, [view.data])
+  const view = usePlannedCalendarView(start, end)
+  const folders = useFolders()
+
+  const cells = useMemo(
+    () => cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? []),
+    [view.data, folders.data],
+  )
+
+  const columns = zoom === 'day' ? 1 : 7
+  const template = `repeat(${String(columns)}, minmax(0, 1fr))`
+  const headers =
+    zoom === 'day'
+      ? [WEEKDAY_LABELS[weekdayIndex(anchor)] ?? WEEKDAY_LABELS[0]]
+      : [...WEEKDAY_LABELS]
+  const weeks = useMemo(() => {
+    const rows: string[][] = []
+    for (let at = 0; at < dates.length; at += columns) {
+      rows.push(dates.slice(at, at + columns))
+    }
+    return rows
+  }, [dates, columns])
 
   return (
-    <div>
-      <div>
-        <button type="button" className="button-base button-default" onClick={() => controller.prev()}>
-          Previous
-        </button>
-        <button type="button" className="button-base button-default" onClick={() => controller.next()}>
-          Next
-        </button>
-        <button type="button" className="button-base button-default" onClick={() => controller.today()}>
-          Today
-        </button>
-        {(['day', 'week', 'month'] as const).map((level) => (
-          <button
-            key={level}
-            type="button"
-            className="button-base button-default"
-            aria-pressed={zoom === level}
-            onClick={() => {
-              setZoom(level)
-              controller.changeView(VIEW_OF[level])
-            }}
-          >
-            {level === 'day' ? 'Day' : level === 'week' ? 'Week' : 'Month'}
-          </button>
-        ))}
-      </div>
+    <div className="mt-5 mb-20 space-y-4">
+      {/*
+      9.1's inline failed-read line, beside the thing that failed. The grid
+      still draws underneath it: Q3C's empty state is the bare grid and a
+      failed read is a different state from an empty one, which is the whole
+      distinction that string exists to make.
+      */}
+      {view.status === 'error' ? (
+        <InlineError
+          onRetry={() => {
+            void view.refetch()
+          }}
+        />
+      ) : null}
 
-      <Calendar
-        controller={controller}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView={VIEW_OF[zoom]}
-        headerToolbar={false}
-        height="auto"
-        // 9.5 draws every row in the cell. A "+2 more" link would hide exactly
-        // the rows Q3C's cell order is about, and a ghost behind one is a
-        // projection the person never sees.
-        dayMaxEvents={false}
-        events={events}
-        eventOrder={eventOrder}
-        eventOrderStrict
-        datesSet={(info) => {
-          const start = info.startStr.slice(0, 10)
-          const end = dayBefore(info.endStr.slice(0, 10))
-          setRange((was) =>
-            was !== null && was.start === start && was.end === end ? was : { start, end },
-          )
-        }}
-        dateClick={(info) => {
-          // 9.3's calendar row: that cell's date, important off, Inbox, which
-          // the form resolves from the folder list as it does everywhere the
-          // table writes "Inbox".
-          openTaskForm({ due_date: info.dateStr.slice(0, 10), important: false })
-        }}
-        eventClick={(info) => {
-          const props = info.event.extendedProps as unknown as CellEventProps
-          // 9.5: a ghost opens the series' current occurrence, and the banner
-          // rides that path alone because the opened row shows a date the
-          // person did not click.
-          openTask(props.taskId, { upcoming: props.kind === 'ghost' })
-        }}
-        eventContent={(info) => {
-          const props = info.event.extendedProps as unknown as CellEventProps
-          const title =
-            props.kind === 'ghost' ? <i>{info.event.title}</i> : <span>{info.event.title}</span>
-          /*
-          The leading space is load-bearing and is measured rather than
-          stylistic. A day cell's text is the concatenation of its
-          descendants' text with no separator inserted anywhere, so a cell
-          holding the fifth of the month and a row reads "5ac-098 daily
-          series" as one string, and the day number stops being a word: any
-          reader, a person's eye included once the cell is narrow enough,
-          loses the boundary between the number and the first row. A space
-          text node before the title restores it, costs nothing to render, and
-          is what makes a cell addressable by the day it draws.
-          */
-          return (
-            <>
-              {' '}
-              {title}
-            </>
-          )
-        }}
-      />
+      <div className="overflow-hidden rounded-[10px] border border-[var(--color-graphite-200)] bg-white">
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="min-w-36 truncate px-2 text-base leading-6 font-semibold text-[var(--color-graphite-800)]">
+              {periodTitle(zoom, anchor)}
+            </h2>
+            <Button
+              variant="outline"
+              className="h-[var(--control-height)] border-[var(--color-graphite-200)] bg-white px-3 text-[13px] font-medium text-[var(--color-graphite-700)] shadow-none hover:bg-[var(--color-graphite-50)]"
+              onClick={() => {
+                setAnchor(today)
+              }}
+            >
+              Today
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-[var(--color-graphite-200)] bg-white">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-[var(--control-height)] rounded-none border-r border-[var(--color-graphite-200)] text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
+                aria-label="Previous"
+                onClick={() => {
+                  setAnchor((was) => shiftAnchor(zoom, was, -1))
+                }}
+              >
+                <ChevronLeft className="size-5" strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-[var(--control-height)] rounded-none text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
+                aria-label="Next"
+                onClick={() => {
+                  setAnchor((was) => shiftAnchor(zoom, was, 1))
+                }}
+              >
+                <ChevronRight className="size-5" strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+            </div>
+
+            {/* `aria-pressed` is what carries the current zoom; the raised
+                tone is a second cue and never the only one. */}
+            <div
+              className="flex h-11 items-center rounded-lg border border-[var(--color-graphite-200)] bg-white p-0.5"
+              role="group"
+              aria-label="Calendar zoom"
+            >
+              {(['day', 'week', 'month'] as const).map((level) => (
+                <Button
+                  key={level}
+                  variant="ghost"
+                  className={cn(
+                    'h-[var(--control-height)] rounded-md px-3 text-[13px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)]',
+                    zoom === level &&
+                      'bg-[var(--color-graphite-100)] text-[var(--color-graphite-900)] hover:bg-[var(--color-graphite-100)]',
+                  )}
+                  aria-pressed={zoom === level}
+                  onClick={() => {
+                    setZoom(level)
+                  }}
+                >
+                  {ZOOM_LABEL[level]}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div role="grid" aria-label="Planned calendar" className="bg-white">
+          <div
+            role="row"
+            className="grid border-b border-[var(--color-graphite-200)]"
+            style={{ gridTemplateColumns: template }}
+          >
+            {headers.map((label) => (
+              <div
+                key={label}
+                role="columnheader"
+                className="flex h-9 items-center px-2 text-[11px] font-semibold tracking-[0.04em] text-[var(--color-graphite-500)] uppercase"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {weeks.map((week, row) => (
+            <div
+              key={week[0] ?? ''}
+              role="row"
+              className="grid"
+              style={{ gridTemplateColumns: template }}
+            >
+              {week.map((date, column) => (
+                <DayCell
+                  key={date}
+                  date={date}
+                  zoom={zoom}
+                  today={today}
+                  anchorMonth={monthOf(anchor)}
+                  column={column}
+                  lastColumn={column === week.length - 1}
+                  lastRow={row === weeks.length - 1}
+                  events={cells.get(date) ?? []}
+                  onReveal={() => {
+                    // 9.5's reveal: the day zoom draws every row the day holds.
+                    setAnchor(date)
+                    setZoom('day')
+                  }}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
