@@ -1,0 +1,356 @@
+/*
+The designer's `src/components/app-shell.tsx`, ported at P8R session R5 onto
+our router, our reads and our overlays. It is the global chrome of 9.1 and the
+only place any of it exists.
+
+Everything here is global because section 9 says it is: the sidebar ("the
+application's only chrome"), the offline banner ("global, persistent while
+offline"), the toast region, the floating add button ("on every page except
+Done"), and 10.6's update affordance. A page renders inside the outlet and
+adds none of them.
+
+**There is no top bar, and that is the owner's ruling of 2026-08-13
+transcribed into 9.1 rather than a port taking a liberty.** Until that date
+this section opened with a bar carrying the app name, the global search
+control and the avatar menu; the designer's prototype has no bar at all and
+puts the first two in the sidebar header and the third in its footer. The
+ruling was on the merits, 9.1 changed, and `shell/TopBar.tsx` is retired with
+it. AC-174 asserts the removal as the absence of a banner landmark on every
+page, which is what an application header is; `page-bar.tsx`'s `header` sits
+inside `main` and is a page's own rather than the application's, so it is
+content and not chrome. That placement is a requirement of this file and
+`components/README.md` filed it as a request against this session.
+
+**The floor his root carries is absent, and this is the third instance of
+it.** Section 13 item 32 forbids a viewport floor; two lived in his
+stylesheets and were stripped at R2, and the third was this component's root
+element. It is not here. Item 32 is decided by grepping the built stylesheet
+rather than the source, because Tailwind's source detection scans prose too
+and a document that spelled the utility would emit it; so this comment
+describes it and does not write it.
+
+**The three chrome reads are made here rather than in the pages.** `/me`,
+`/me/settings` and `/folders` back the sidebar and the account menu on every
+page, so a page that fetched them would fetch them again on the next page for
+the same answer. `main.tsx` starts all three before this component mounts.
+The shell renders before any of them answers, and it has to: 10.6's
+navigation fallback opens every /app path from the cached shell with no
+network at all, and AC-091 and AC-160 read the sidebar's page links there.
+
+**Document order carries two contracts.** The search overlay is first, ahead
+of the sidebar, because the suite addresses its field as the document's first
+textbox and other surfaces carry text inputs of their own; being
+fixed-position, its place in the tree costs nothing. The task form is last,
+because it opens over whatever page is beneath it and a control inside it has
+to be the document's last of its name.
+
+**The two view preferences of 9.1 are `preferences.ts` and localStorage.**
+That file carries the argument. What is here is the one consequence a reader
+of this file needs: the vendored `SidebarProvider` writes the collapsed state
+into a cookie for a server-rendered host we do not have, and this component
+clears it, because a second readable cookie in this browser is a second
+answer to a question 11.6's double-submit expects one answer to.
+*/
+import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router'
+import type { LucideIcon } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Folder as FolderIcon, Layers3, ListTodo, Settings2, Star, SunMedium, UsersRound } from 'lucide-react'
+
+import { mutateApi } from '../api/http.js'
+import { useCreateFolder } from '../api/mutations.js'
+import { useFolders, useMe, useSettings } from '../api/queries.js'
+import { todayInBrowserZone } from '../api/tz.js'
+import { NewFolderDialog, PageBar } from '../components/index.js'
+import { SearchOverlay } from '../components/search/index.js'
+import { TaskFormOverlay } from '../components/task-form/index.js'
+import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
+import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
+import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
+import { paths, sidebarPages } from '../routes.js'
+import { ToastRegion } from '../state/ToastRegion.js'
+import { AppSidebar } from './app-sidebar.js'
+import { FloatingAddButton } from './FloatingAddButton.js'
+import { OfflineBanner } from './OfflineBanner.js'
+import { openSearch } from './overlays.js'
+import {
+  clampSidebarWidth,
+  clearSidebarWidth,
+  readSidebarCollapsed,
+  readSidebarWidth,
+  writeSidebarCollapsed,
+  writeSidebarWidth,
+} from './preferences.js'
+import type { TaskFormDefaults } from './overlays.js'
+import type { Folder } from '../../shared/folders.js'
+
+/** The prefix 9.1's routes table gives a folder page. */
+const FOLDER_PREFIX = '/app/folders/'
+
+/**
+ * The entry-point defaults of 9.3, keyed by the page the button sits on.
+ *
+ * The folder page's cell was closed at the P8 change control and restated by
+ * RFC 0002 when 9.6 lost its two sections: the value is an empty due date
+ * whether the form was opened from the page's quick-add or from this button,
+ * because a folder is not a dated page.
+ */
+function floatingDefaults(pathname: string): TaskFormDefaults | null {
+  if (pathname === paths.done) return null // 9.1: every page except Done.
+  if (pathname === paths.myDay) return { due_date: todayInBrowserZone(), important: false }
+  if (pathname === paths.planned) {
+    return { due_date: todayInBrowserZone(), important: false }
+  }
+  if (pathname === paths.important) return { due_date: null, important: true }
+  if (pathname.startsWith(FOLDER_PREFIX)) {
+    return {
+      due_date: null,
+      important: false,
+      folder_id: pathname.slice(FOLDER_PREFIX.length),
+    }
+  }
+  // Tasks, All, and the bare button: empty date, important off, Inbox, which
+  // the server supplies by defaulting folder_id to the viewer's Inbox (7.6).
+  return { due_date: null, important: false }
+}
+
+/** Whether a keystroke landed somewhere a person is typing. */
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || target.isContentEditable
+}
+
+/** The glyph the page strip shows, which is the designer's and not 9.1's. */
+const pageIcons: Record<string, LucideIcon> = {
+  [paths.myDay]: SunMedium,
+  [paths.tasks]: ListTodo,
+  [paths.planned]: CalendarDays,
+  [paths.important]: Star,
+  [paths.all]: Layers3,
+  [paths.done]: CheckCircle2,
+  [paths.settings]: Settings2,
+  [paths.people]: UsersRound,
+}
+
+/**
+ * What the designer's page strip carries for the route that is open.
+ *
+ * The strip is his static current-page indicator and his `notes.md` is
+ * explicit that it is not a tab system: nothing in it is clickable and
+ * nothing navigates. A folder's name and colour come from the same `/folders`
+ * read the sidebar uses, so an unopened folder or a failed read simply shows
+ * nothing rather than a flickering identifier.
+ */
+function currentPage(
+  pathname: string,
+  folders: readonly Folder[] | undefined,
+): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
+  const page = sidebarPages.find((candidate) =>
+    candidate.path === paths.myDay ? pathname === paths.myDay : pathname === candidate.path,
+  )
+  if (page !== undefined) {
+    return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }
+  }
+  if (pathname === paths.settings) {
+    return { title: 'Settings', icon: pageIcons[paths.settings], iconColor: undefined }
+  }
+  if (pathname === paths.people) {
+    return { title: 'People', icon: pageIcons[paths.people], iconColor: undefined }
+  }
+  if (pathname.startsWith(FOLDER_PREFIX)) {
+    const id = pathname.slice(FOLDER_PREFIX.length)
+    const folder = folders?.find((candidate) => candidate.id === id)
+    return {
+      title: folder?.name ?? '',
+      icon: FolderIcon,
+      iconColor: folder?.my_color ?? DEFAULT_FOLDER_COLOR,
+    }
+  }
+  return { title: '', icon: undefined, iconColor: undefined }
+}
+
+export function AppShell(): React.JSX.Element {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const me = useMe()
+  const settings = useSettings()
+  const folders = useFolders()
+  const createFolder = useCreateFolder()
+  const update = useUpdateAffordance()
+
+  // 9.1's two view preferences, read once at the first render so the sidebar
+  // paints at the width the viewer left it at rather than jumping to it.
+  const [railOpen, setRailOpen] = useState(() => !readSidebarCollapsed())
+  const [sidebarWidth, setSidebarWidth] = useState<number | null>(readSidebarWidth)
+  const [newFolderOpen, setNewFolderOpen] = useState(false)
+
+  // 9.1's shortcut for the search control. On the document rather than on the
+  // button, because a shortcut that only fires while its control has focus is
+  // not one. "/" is ignored while the person is typing, or every quick-add row
+  // on the page would swallow its own slashes.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      const ctrlK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k'
+      const slash = event.key === '/' && !isTyping(event.target)
+      if (!ctrlK && !slash) return
+      event.preventDefault()
+      openSearch()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
+
+  /*
+  The one line that fights the distribution, and the reason is in
+  `preferences.ts`. shadcn's `SidebarProvider` mirrors the collapsed state
+  into a `sidebar_state` cookie because it is built for a host that reads it
+  before painting; nothing on our server reads it, it would ride every
+  request to the section 7 API, and 11.6 leaves exactly one readable cookie in
+  this browser. The write happens inside the primitive's own state setter, so
+  it is undone here after the commit rather than prevented.
+  */
+  useEffect(() => {
+    document.cookie = 'sidebar_state=; path=/; max-age=0'
+  }, [railOpen])
+
+  const defaults = floatingDefaults(location.pathname)
+  const page = currentPage(location.pathname, folders.data)
+  const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
+    ? location.pathname.slice(FOLDER_PREFIX.length)
+    : null
+
+  function signOut(): void {
+    void mutateApi(null, { method: 'POST', path: '/auth/logout' }).finally(() => {
+      // A full document load rather than a client navigation: the query cache
+      // holds the previous person's rows, and 10.1 destroys their session, so
+      // nothing in it is theirs to keep.
+      window.location.assign(paths.landing)
+    })
+  }
+
+  return (
+    <>
+      {/*
+      9.9's overlay, ahead of everything for the reason in this file's header.
+      It belongs to the Complex Interaction engineer; the shell decides where
+      it is mounted, and until R7 and R8 replace both overlays it also has to
+      decide what they are mounted above.
+
+      **The stacking wrapper is interim scaffolding and is dated by design.**
+      Both P8 overlays draw themselves with `dialog-scrim` and `dialog-panel`,
+      two names from the class vocabulary that left with the old token file at
+      R2, so neither is positioned any more. That was invisible while the
+      chrome was unpositioned too, and it stops being invisible here: this
+      sidebar is `fixed`, so it paints over anything unpositioned beneath it
+      and takes the pointer events with it. Measured: the task form's "More
+      options" expander sat under the account menu and could not be clicked,
+      which is AC-092 and AC-093 failing on the chrome rather than on the
+      form. `z-50` on a positioned wrapper restores the paint order those
+      criteria were passing under, changes nothing else about either overlay,
+      and comes out the day each arrives as a base-ui portal of its own.
+      */}
+      <div className="relative z-50">
+        <SearchOverlay />
+      </div>
+      <div className="flex h-svh flex-col overflow-hidden bg-background">
+        <SidebarProvider
+          className="h-svh min-h-0"
+          open={railOpen}
+          onOpenChange={(open) => {
+            setRailOpen(open)
+            writeSidebarCollapsed(!open)
+          }}
+          style={
+            {
+              // The design's own width lives in `tokens.css` (11.4) and is
+              // only displaced once this viewer has chosen one of their own,
+              // which is data rather than a design value.
+              '--sidebar-width':
+                sidebarWidth === null ? 'var(--shell-sidebar-width)' : `${sidebarWidth}px`,
+              // His rail is the sidebar's item height plus the header's
+              // padding on each side. Expressed against the token rather
+              // than as a number; a rail-width token of its own is requested
+              // of the Component and Design System role.
+              '--sidebar-width-icon': 'calc(var(--shell-sidebar-item-height) + 1rem)',
+              '--sidebar': 'var(--color-graphite-50)',
+              '--sidebar-accent': 'var(--color-graphite-100)',
+            } as CSSProperties
+          }
+        >
+          <AppSidebar
+            settings={settings.data}
+            folders={folders.data}
+            displayName={me.data?.user.display_name ?? null}
+            activeFolderId={activeFolderId}
+            currentPath={location.pathname}
+            sidebarWidth={sidebarWidth}
+            onSidebarWidthChange={(width) => setSidebarWidth(clampSidebarWidth(width))}
+            onSidebarWidthCommit={(width) => {
+              const clamped = clampSidebarWidth(width)
+              setSidebarWidth(clamped)
+              writeSidebarWidth(clamped)
+            }}
+            onSidebarWidthReset={() => {
+              setSidebarWidth(null)
+              clearSidebarWidth()
+            }}
+            onOpenSearch={openSearch}
+            onOpenSettings={() => {
+              void navigate(paths.settings)
+            }}
+            onNewFolder={() => setNewFolderOpen(true)}
+            onSignOut={signOut}
+          />
+          {/* `SidebarInset` is the `main` landmark, which is what keeps the
+              page strip below it a page's header rather than the
+              application's banner (AC-174). */}
+          <SidebarInset className="min-w-0 overflow-hidden bg-card">
+            <PageBar
+              title={page.title}
+              icon={page.icon}
+              iconColor={page.iconColor}
+              showUpdate={update.showUpdate}
+              onUpdate={update.applyUpdate}
+            />
+            <OfflineBanner />
+            {/* The one region that scrolls. Put the overflow anywhere else
+                and either the document scrolls, taking the chrome with it, or
+                the chrome scrolls away inside its own column. */}
+            <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
+              {/* The measure is the layout's and never a page's: thirteen
+                  pages each choosing their own width is thirteen chances to
+                  disagree. His screens each carry this wrapper because they
+                  have no shell to put it in. */}
+              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
+                <Outlet />
+              </div>
+            </div>
+            {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
+          </SidebarInset>
+          {/* 9.1's "New folder" action. The folder-group dialogs and the
+              folder row's own menu arrive at R10 with the writes they need;
+              this one is here because 9.1 puts the action in the sidebar and
+              a control that opens nothing is worse than one that does the
+              smallest real thing. */}
+          <NewFolderDialog
+            open={newFolderOpen}
+            onOpenChange={setNewFolderOpen}
+            onCreate={(name) => {
+              createFolder.mutate({ name })
+            }}
+          />
+        </SidebarProvider>
+      </div>
+      <ToastRegion />
+      {/* 9.3's form, mounted once and last, for the reason in this file's
+          header, and inside the same interim stacking wrapper the search
+          overlay carries above. The Complex Interaction engineer owns both. */}
+      <div className="relative z-50">
+        <TaskFormOverlay />
+      </div>
+    </>
+  )
+}

@@ -763,3 +763,152 @@ with an invention.** `task-row.tsx` renders the repeating glyph only when its
 fill that string. The glyph is therefore absent until that component admits
 the boolean it can actually be given, which is the Component and Design System
 engineer's file and this session's one open request.
+
+## Extended by P8R session R5, the shell replacement
+
+Appended rather than woven in, on this file's own invitation, and by the rule
+the three sessions before this one followed: nothing above is reworded, and
+everything above that stops being true is named here. This session replaced
+the global chrome with the designer's, on our router and our data, under RFC
+0002.
+
+### What is in `shell/` now, and what left
+
+| File | What it is |
+| - | - |
+| `app-shell.tsx` | His `app-shell.tsx`. The layout element of the `/app` route, the three chrome reads, the 9.1 shortcut, both view preferences and the two overlay mounts |
+| `app-sidebar.tsx` | His `app-sidebar.tsx`. The navigation landmark, the six page links, the folder list, the three relocated controls |
+| `SidebarResizeHandle.tsx` | His handle out of that file, named "Resize sidebar" by 9.1 |
+| `preferences.ts` | The two persisted view preferences of 9.1, and the argument for where they are kept |
+| `FloatingAddButton.tsx` | His floating action, named "Add task" by 9.1 |
+| `OfflineBanner.tsx` | The connectivity read; the banner itself is R3's ported component |
+| `overlays.ts` | Unchanged |
+
+`AppLayout.tsx`, `Sidebar.tsx` and `TopBar.tsx` are gone. So is
+`pwa/UpdatePrompt.tsx`: the offer now renders inside his `page-bar.tsx`, which
+takes `showUpdate` and `onUpdate`, so what the shell needs is state rather
+than a second banner. `pwa/useUpdateAffordance.ts` is that state and
+`registerServiceWorker.ts` is untouched.
+
+**`shell/TopBar.tsx` is retired by a ruling and not by a refactor.** The owner
+ruled on 2026-08-13 that the designer's shell wins here, and 9.1 was amended:
+there is no top bar, the app name and the global search control are in the
+sidebar header, and the avatar menu is in its footer. AC-174 asserts the
+removal as the absence of a banner landmark on every page, which is what an
+application header is. The consequence for every page: **a page's own
+`header` must stay inside `main`**, which it is, `SidebarInset` being the
+`main` landmark and the outlet sitting inside it.
+
+### The layout, superseded
+
+The shape drawn earlier in this file is the P8D one and no longer exists; its
+three consequences survive almost unchanged and are restated against the shape
+that replaced it.
+
+```
+div.h-svh                        the viewport-height box
+└── SidebarProvider              carries the sidebar width and the rail's
+    ├── [role=navigation]        the sidebar: header, pages, folders, footer
+    └── SidebarInset             the `main` landmark
+        ├── PageBar              a page's own header, and 10.6's update offer
+        ├── the offline banner
+        ├── div[data-shell-scroll]   the ONE region that scrolls
+        │   └── the measure: capped at --shell-content-max, centred, padded
+        │       └── the page
+        └── the floating add button
+```
+
+**The page is still already inside its measure**, so a page renders its own
+content and never a width, a horizontal padding or a max-width of its own.
+This matters more than it did, because the designer's screens each carry that
+wrapper themselves: they have no shell to put it in, and ours does. **A screen
+ported at R6 to R10 drops its own centring-and-padding wrapper**, or the page
+is padded twice.
+
+**Only `data-shell-scroll` scrolls, and the document does not.** Unchanged in
+substance.
+
+**The clipping note about `menu-panel` is void**, that vocabulary having left
+with the old token file. Every floating layer in the ported set is a base-ui
+portal, which escapes the scroll container by construction.
+
+### The two view preferences of 9.1
+
+**Settled by 9.1 and asserted by AC-182.** The sidebar's width and whether it
+is collapsed to a rail are the viewer's and persist. Both are `localStorage`,
+one key each, read synchronously at the first render so the sidebar paints at
+the width it was left at rather than jumping to it.
+
+**Not a cookie, and this is the part worth knowing.** The shadcn primitive
+mirrors the collapsed state into a `sidebar_state` cookie because that
+distribution is built for a server-rendered host that reads it before
+painting. Nothing on our server reads it, it would ride every request to the
+section 7 API, and 11.6 leaves exactly one readable cookie in this browser,
+which the acceptance suite identifies by being the only one. `app-shell.tsx`
+clears it after every toggle.
+
+**The default width stays in `tokens.css`.** The custom property is set to
+`var(--shell-sidebar-width)` until this viewer has chosen a width of their
+own, and only their own choice is ever written as a number: a chosen width is
+data, the way a folder's colour is, and 11.4's rule governs the values the
+design fixes. The drag reads the width the browser painted rather than a
+constant, so nothing here mirrors that token.
+
+**The sidebar's width transition is off**, which is a correction rather than a
+preference and is flagged for the visual review of section 13 item 33. The
+distribution animates the same property both preferences set, so a drag lags
+the pointer by a fifth of a second and the rail arrives long after the click.
+
+### Accessible names, corrected here
+
+The table earlier in this file has three rows that named `shell/TopBar.tsx`
+and two that named `shell/Sidebar.tsx`. They are replaced rather than moved,
+because two of the strings changed with them.
+
+| Control | Name | Role | Where |
+| - | - | - | - |
+| Global search control | `Search` | button | `shell/app-sidebar.tsx` |
+| The avatar menu | `Account` | button | `shell/app-sidebar.tsx` |
+| The app name | its own text, `Dana` | link to `/app` | `shell/app-sidebar.tsx` |
+| Floating add button | `Add task` | button | `shell/FloatingAddButton.tsx` |
+| The sidebar's rail control | `Collapse sidebar`, `Expand sidebar` | button | `components/ui/sidebar.tsx` |
+| The sidebar's resize handle | `Resize sidebar` | separator | `shell/SidebarResizeHandle.tsx` |
+| Update affordance | `Update available, reload` | button | `components/page-bar.tsx` |
+| A sidebar page | its 9.1 name | link | `shell/app-sidebar.tsx` |
+| A label group | the label alone | button, `aria-expanded` | `shell/app-sidebar.tsx` |
+
+`Account` is 9.1's names table as the P8R change control amended it, and the
+row it replaces interpolated the viewer's display name. That table's own
+reason: what the control opens is the viewer's account, there is exactly one
+of it, and a name carrying the display name would be the one string in that
+table a test cannot know before it reads the fixture. **AC-174's second and
+third cases still address this control by the viewer's name and are red
+because of it**; that is an escalation to the Adversarial Test Engineer and
+the Steward, filed at this session's close, and the implementation follows the
+specification.
+
+### Owed after this session, and by whom
+
+- **The pending count is rendered inside the folder row's link by a wrapper in
+  `app-sidebar.tsx`**, because `components/folder-row.tsx` renders it as a
+  sibling of the anchor and AC-155 has asserted since P8 that it is inside.
+  The row is passed `pending` as zero so there is exactly one count. A request
+  against that component: render its badge inside the link, and the wrapper
+  here is deleted in one edit.
+- **Below 768px there is no navigation at all.** The vendored `Sidebar`
+  switches to an off-canvas sheet there, and the only control that opens it is
+  inside the sheet. The designer's viewport floor is what hid this and section
+  13 item 32 forbids the floor, so the gap is real and is not this file's to
+  close: it wants either a rule in `tokens.css` or a ruling on what Dana does
+  on a narrow window. The browser leg runs at 1280 and is unaffected.
+- **A rail-width token.** The rail is set to the sidebar item height plus the
+  header's padding, expressed against `--shell-sidebar-item-height` rather
+  than as a number. A token of its own would say it once.
+- **The folder row's menu, the folder group menus and the folder directory
+  menu are not rendered**, each opening a dialog that RFC 0002's plan gives to
+  R10. `folder-row.tsx` draws its action cluster only when a callback arrives,
+  so this is a prop that is absent rather than markup that was removed.
+- **The toast region is still P8's markup** and renders against a vocabulary
+  that no longer exists. His `SystemToast` takes a `kind` and this client's
+  toasts carry the server's own 409 message, so the two do not meet without a
+  decision about that case; R11's copy sweep is where it belongs.

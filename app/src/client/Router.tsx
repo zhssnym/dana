@@ -24,14 +24,14 @@ import { PeoplePage } from './pages/PeoplePage.js'
 import { PlannedPage } from './pages/PlannedPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { TasksPage } from './pages/TasksPage.js'
-import { AppLayout } from './shell/AppLayout.js'
+import { AppShell } from './shell/app-shell.js'
 
 export function Router(): React.JSX.Element {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/app" element={<AppLayout />}>
+        <Route path="/app" element={<AppShell />}>
           {/* My Day is the index of /app rather than /app/my-day, because 10.6
               fixes start_url there and a separate path would leave the
               installed app opening on a redirect. */}
