@@ -113,12 +113,34 @@ async function openForEdit(page: Page, title: string): Promise<void> {
     page.getByText(title),
     'spec 9.5: a click on any row opens the task, and 9.3 makes create and edit one artifact',
   )
+  // 9.5's "click on any row opens the task", which this file needs on Done as
+  // well as on Tasks: a completed task's row is on Done, and a client whose
+  // Done rows do not open has no surface for the un-complete arm at all.
+  // Section 9 does not restate the rule in its Done bullet, which is a
+  // silence raised with the Integration Steward rather than resolved here.
+  await expect(
+    page.getByRole('dialog'),
+    "spec 9.1's roles table: the task form is a dialog, and 9.3 makes create and edit one " +
+      'artifact, so a row that was clicked has a form over it',
+  ).toBeVisible()
   await expect(
     completionControl(page),
     'spec 9.3: in edit mode the form carries a completion control. With the "More options" ' +
       "expander closed, the steps editor's per-row checks are not on the page, so the form " +
       'holds exactly one checkbox and it is this one',
   ).toHaveCount(1)
+  // And it is the completion control rather than the important toggle, which
+  // 9.1's roles table makes a switch and not a checkbox. Without this the
+  // locator above resolves to the important field on any client that gave it
+  // the wrong role, and every assertion below then reports that the form
+  // completed the task wrongly when what happened is that it has no
+  // completion control at all. That is a red naming the wrong sentence, which
+  // is the failure mode this leg's whole message discipline exists against.
+  await expect(
+    completionControl(page),
+    "spec 9.1's roles table: a toggle switch is a switch, so the form's important field is not " +
+      'a checkbox and the one checkbox here is 9.3\'s completion control',
+  ).not.toHaveAccessibleName(/important/i)
 }
 
 test.beforeEach(async ({ page }) => {
@@ -220,7 +242,9 @@ test.describe('AC-179: the task form completes and un-completes', () => {
       assignee_id: seedIds.hassan,
       recurrence_rule: 'FREQ=DAILY',
     })
-    await page.goto(routes.tasks)
+    // My Day rather than Tasks: this row is dated, and 6 Q2 admits undated
+    // rows only, so Tasks is the one page it is deliberately not on.
+    await page.goto(routes.myDay)
     await clickControl(
       taskRow(page, title).getByRole('checkbox'),
       'spec 5.1: completing a rule-carrying row generates the successor in the same ' +

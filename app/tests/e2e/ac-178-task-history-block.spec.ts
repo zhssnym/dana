@@ -105,7 +105,17 @@ function dayAndYear(instant: string): { day: string; year: string } {
   }
 }
 
-/** Opens a task's form from the page it is on, which is how edit mode is reached. */
+/**
+ * Opens a task's form from the page it is on, which is how edit mode is
+ * reached.
+ *
+ * 9.5 gives the rule, "click on any row opens the task", and this criterion
+ * needs it on Done as well as on Tasks: a completed task's row is on Done,
+ * and a client where that row does not open cannot render the completion half
+ * of 9.3's history block anywhere at all. Section 9 does not restate the rule
+ * in its Done bullet, which is a silence this file reads the general way and
+ * has raised with the Integration Steward rather than resolved.
+ */
 async function openForEdit(page: Page, title: string): Promise<void> {
   await clickControl(
     page.getByText(title),
@@ -113,7 +123,9 @@ async function openForEdit(page: Page, title: string): Promise<void> {
   )
   await expect(
     page.getByRole('dialog'),
-    "spec 9.1's roles table: the task form is a dialog, 9.3 making it one artifact over a page",
+    "spec 9.1's roles table: the task form is a dialog, 9.3 making it one artifact over a " +
+      'page. A completed task is opened from Done, that being where its row is, so a client ' +
+      'whose Done rows do not open has no surface for the completion this block renders',
   ).toBeVisible()
 }
 
