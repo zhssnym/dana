@@ -341,13 +341,13 @@ relabelling, and every row now runs the prototype before it writes anything.
 | R5 | His shell and sidebar on our router, the top bar retired on the owner's ruling: six criteria green, nothing regressed, the browser leg 103 to 109 | 07 | Unattended | Done, escalated |
 | R6 | His six list screens on our view hooks through the presenters. Closed four and opened eleven, and reported the leg one worse than the run started rather than rounding it | 07 | Unattended | Done, escalated |
 | R6a | Three one-line defects in `task-row.tsx` freeing all seven cases R6 routed, the leg 102 to 109. Proved three was the number by listing every label-addressed field against every `aria-label` in the file, and reported its own criterion AC-096 still red rather than claiming done | 08 | Implementers | Done, escalated |
-| R6b | Inserted: the criteria written against text the change control superseded, AC-174's avatar cases, the quick-add disclosure cases, AC-096's positive control and AC-180's `menuitemradio` | 11 | Testers | Planned |
-| R6 | The six list screens on our view hooks through the presenters, plus the shared page states | 07 | Implementers | Planned |
-| R7 | His task form: the sheet, the date picker, the dependency graph, steps, the invite row, the history block, the completion control | 09 | Implementers | Planned |
-| R8 | His search overlay, and the folder page with its single open list, its filter and the sharing panel | 09 | Implementers | Planned |
-| R9 | His calendar grid replacing FullCalendar, with the grid roles and "+N more" | 09 | Implementers | Planned |
-| R10 | Landing, unverified-email, the invite gate and the folder dialogs, with his copy and his preview panel | 07 | Implementers | Planned |
-| R11 | The copy sweep: the nine normative strings his prototype omits, splits or rewords, restored at every site that renders one | 08 | Implementers | Planned |
+| R6b | Ten cases corrected against the re-accepted text, each reported in the three-part form the co-lead required because the check that normally follows a tester was skipped: what it asserts, what it now addresses, why it fails today. Six closed, two opened with named owners | 11 | Unattended | Done, escalated |
+| R7 | His task form, the largest file in the package: the sheet, the date picker, 9.3's dependency graph, steps, the invite row, the history block, the completion control. Eight closed, none opened | 09 | Unattended | Done |
+| R8 | His search overlay, and the folder page as one open list with its filter and the sharing panel. Four closed, none opened | 09 | Unattended | Done |
+| R9 | His calendar grid with the grid roles his prototype never had, and FullCalendar removed from the manifest, the lockfile and the tree | 09 | Unattended | Done |
+| R10 | The landing with his copy and preview panel, the invite gate, and the folder dialogs. Seven closed, none opened, taking the leg to one red | 07 | Unattended | Done, escalated |
+| R11 | The copy sweep, pinned at the one directory that owns it. Found an eleventh copy fault beyond the RFC's table of ten | 08 | Unattended | Done, escalated |
+| R11a | Inserted: AC-162's Done case, the one red left. Role 07's file, covered by no row of RFC 0002, so three phases declined to widen and recorded it instead | 07 | Implementers | Planned |
 | R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)
