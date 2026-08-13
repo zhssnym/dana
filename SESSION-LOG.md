@@ -347,8 +347,8 @@ relabelling, and every row now runs the prototype before it writes anything.
 | R9 | His calendar grid with the grid roles his prototype never had, and FullCalendar removed from the manifest, the lockfile and the tree | 09 | Unattended | Done |
 | R10 | The landing with his copy and preview panel, the invite gate, and the folder dialogs. Seven closed, none opened, taking the leg to one red | 07 | Unattended | Done, escalated |
 | R11 | The copy sweep, pinned at the one directory that owns it. Found an eleventh copy fault beyond the RFC's table of ten | 08 | Unattended | Done, escalated |
-| R11a | Inserted: AC-162's Done case, the one red left. Role 07's file, covered by no row of RFC 0002, so three phases declined to widen and recorded it instead | 07 | Implementers | Planned |
-| R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Planned |
+| R11a | The last red closed: 9.5's "Mark as not done" given back to the task row's completion checkbox, which 9.1's names table, 9.4's row elements, 9.3's confirming control and the designer's own measured Done screen had all already agreed on. The leg reaches 136 of 136 | 07 | Implementers | Done |
+| R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Ready |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
