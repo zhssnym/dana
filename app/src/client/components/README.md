@@ -13,12 +13,33 @@ first pass is one engineer's answer to something nothing has ruled on.
 
 | Path | What it is |
 | - | - |
+| the seven lower-case files in this directory | The designer's presentational components, copied from `docs/design/prototype/src/components/` at P8R session R3, relabelled to section 9's names and corrected to 9.1's roles table |
+| `index.ts` | The ported set's entry point, and the second import of `styles/tokens.css` |
 | `ui/`, the twenty lower-case files | The shadcn primitives of 11.4, copied from `docs/design/prototype/src/components/ui/` at P8R session R2. Behaviour under them is @base-ui/react |
 | `ui/utils.ts`, `ui/use-mobile.ts` | The designer's `cn` and his viewport predicate, which those primitives import |
 | `ui/copy.ts` | The strings section 9 writes word for word and a component renders |
-| `ui/index.ts` | The P8 set's entry point, and the one import of `styles/tokens.css` |
-| `ui/LegacyButton.tsx` and the five P8 files beside it | The hand-rolled set, retiring as R3 to R10 replace what calls them |
+| `ui/index.ts` | The P8 set's entry point, and the first import of `styles/tokens.css` |
+| `ui/LegacyButton.tsx` and the five P8 files beside it | The hand-rolled set, retiring as R5 to R10 replace what calls them |
 | the calendar, task form and search directories | Complex Interaction's, and not this role's |
+
+The seven ported files keep his file names, `task-row.tsx` and its six siblings,
+so that a reader can put each beside the prototype file it came from. That is
+11.13 as RFC 0002 amends it: his prototype is the source this client is built
+from rather than a reference it is compared against, so a difference between
+the two files is a defect in the port unless a numbered section says otherwise.
+Each departure is therefore named in the file that makes it, at the top, with
+the numbered sentence that forced it. His `task-form`, `search-overlay`,
+`sharing-panel`, `app-shell` and `app-sidebar` are not here: the first three
+are Complex Interaction's and the last two are the Frontend Architect's, and
+they arrive at R5 to R9.
+
+**`styles/tokens.css` is now imported twice, from `ui/index.ts` and from
+`index.ts`, and that is deliberate.** `ui/index.ts`'s export list shrinks to
+nothing as the P8 markup retires, so a page importing only from the new barrel
+would otherwise have built a client with no tokens at all and nothing saying
+so. Vite emits one stylesheet for the entry chunk, so the second import costs
+nothing. Both come out on the day the line lands in `main.tsx`, which is the
+request at the end of this file.
 
 `../styles/tokens.css` is the single token file of 11.4 and has one owner.
 **Since P8R session R2 it is the designer's `tokens.css` and his `app.css`
@@ -70,6 +91,55 @@ that table's eight names begin with "add" and two of them are "More actions".
 | A row's star, not starred | `Mark as important` | button, `aria-pressed` | `ui/StarButton.tsx` |
 | The un-pull control | `Remove from My Day` | button | `ui/TaskRow.tsx` |
 | An abandoned row's restore | `Restore` | button | `ui/TaskRow.tsx` |
+
+**What R3 corrected in the ported set, and where each name came from.** His
+prototype satisfies every name in 9.1's control table nowhere and four of them
+wrongly, measured against the running application on 2026-08-13. The owner
+ruled on that date that his design wins on structure and section 9 wins on
+labels, so nothing but the text moved.
+
+| Control | His string | Section 9's | Fixed by |
+| - | - | - | - |
+| A row's overflow menu | `More task actions` | `More actions` | 9.1's control table, "A task row's overflow menu (9.4)" |
+| A row's star, starred | `Remove from Important` | `Important` | 9.5 |
+| A row's star, not starred | `Mark important` | `Mark as important` | 9.5 |
+| An abandoned row's restore | `Restore task` on an element already reading "Restore" | `Restore` | 9.5, and the `aria-label` is gone rather than reworded |
+| The quick-add, collapsed | `Add task`, which is the floating button's name | `Add a task` | 9.1's control table, "collapsed and expanded alike" |
+| The quick-add, expanded | `Task title for {folder}` | `Add a task` | the same row, one name across two states |
+| The inline retry control | `Retry` | `Try again` | 9.1's control table |
+| The failed-read line | the global error toast | `Couldn't load this. Nothing was changed.` | 9.1's inline state copy, and AC-183 reads it as one text run |
+
+**The star's name and its tooltip are two attributes and his component drove
+them off one string.** That is settled and is restated here because it is the
+correction most easily undone: 6 Q4 turns the tooltip outward on Important
+while AC-055 and AC-099 both address the star by the name `Important` exactly,
+so a component that pointed the tooltip outward by renaming the control would
+lose the name on the one page the outward tooltip exists for. `task-row.tsx`
+takes `importantTooltip`, which moves the tooltip alone, and the page layer
+decides which way a page's stars point.
+
+**Roles, and the one this port had to add.** 9.1's roles table was written at
+the RFC 0002 change control precisely because his markup diverges from it.
+
+| Element | Role | State in his prototype | State here |
+| - | - | - | - |
+| Each folder row | link | `button` with `aria-current`; the only anchor in his sidebar is the brand | `folder-row.tsx` renders an anchor carrying `href`, and takes a `render` element so the router can supply its own |
+| A task row | list item, or row | `role="listitem"`, measured carrying | unchanged; the list around it is the page's |
+
+**And the departure a reader will see, recorded because it is a real
+difference from his files.** His star, overflow and un-pull controls animate
+from zero width and are revealed by hover or by focus within the row, so at
+rest each has a bounding box of 0 by 40. Four criteria act on those controls
+from a page they have just loaded, without hovering: AC-157, AC-162 and AC-183
+open a row's "More actions", and AC-165 asserts the un-pull control on My Day.
+9.1's addressing sentence is what settles it rather than the tests, every
+control section 9 names being reachable by its role and its name, and 9.4
+listing all three as row elements. So the reveal is opacity alone and the box
+is always reserved, in `task-row.tsx` and in `folder-row.tsx`'s action cluster
+alike. The visible cost is that a row's metadata sits a fixed distance from its
+right edge instead of sliding as the controls grow, which also removes the
+layout jitter that sliding produced. It is flagged for the visual review of
+section 13 item 33, which is the surface that can rule on it.
 
 **Settled.** `ConfirmDialog` takes neither name as a prop. 9.1 assigns
 "Continue" and "Cancel" to *every* confirmation of 9.3 to 9.9, and its
@@ -220,10 +290,45 @@ the role that owns the file.
   not this role's to edit. Repointing those imports at `components/ui` deletes
   both files, and `parts/` then holds only the row callbacks, which are the
   data layer's and belong in `api/`.
-- **`styles/tokens.css` is imported by `ui/index.ts`**, which is what puts it
-  in the built stylesheet at all. The tidier arrangement is one line in
-  `main.tsx` beside the query client and the router; that file is the Frontend
-  Architect's. If the line lands there, the import here comes out.
+- **`styles/tokens.css` is imported by `ui/index.ts` and, since R3, by
+  `index.ts` beside it**, which is what puts it in the built stylesheet at all.
+  The tidier arrangement is one line in `main.tsx` beside the query client and
+  the router; that file is the Frontend Architect's. If the line lands there,
+  both imports here come out.
+- **`page-bar.tsx` must be rendered inside `main`, and R5 owns where it goes.**
+  A `header` element maps to the `banner` landmark unless it is inside
+  `article`, `aside`, `main`, `nav` or `section`, and AC-174 asserts the removal
+  of 9.1's top bar as the absence of a banner on every page. Measured against
+  the running prototype on 2026-08-13: his shell renders it inside `main` and
+  exposes zero banners. The component cannot hold this on its own, so it is a
+  request rather than a note.
+- **`page-bar.tsx` takes `onUpdate` and falls back to reloading the window.**
+  His prototype has no service worker to activate, so it reloads directly.
+  10.6's non-forcing update wants the waiting worker applied on the click, which
+  is the registration's own path and lives in the shell.
+
+## One escalation open against this directory
+
+**AC-180 cannot address the move-to-group submenu that `folder-row.tsx`
+carries, and the component is right.** A folder holds exactly one personal
+label, so choosing its group is a single-valued choice and his submenu builds
+it as a radio group. Measured against the running prototype on 2026-08-13, its
+entries render `menuitemradio`, which is the accurate role and is what
+announces to a screen reader which group a folder is already in. AC-180 reaches
+for `getByRole('menuitem')` or `getByRole('option')`, and Playwright matches
+roles exactly rather than by superclass, so neither resolves.
+
+9.1's roles table fixes six elements and this is not one of them, and that
+section's own sentence says a control it does not list is reached by its role
+in the ordinary sense of the word. So the criterion's locator is narrower than
+the specification, rather than the component being wrong. It was not degraded
+to plain menu items to make the locator resolve: that is writing the
+implementation from the test, which protocol section 8 exists to prevent, and
+it would cost a real accessibility property to buy nothing. Raised to the
+Adversarial Test Engineer and then the Integration Steward at R3, with the
+recommendation that AC-180 admit `menuitemradio` beside the two roles it
+already admits. AC-180 is red until R10 either way, so nothing turns green or
+red on the timing.
 
 ## The browser leg needs one environment fact, or it reports a false red
 

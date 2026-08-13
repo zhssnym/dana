@@ -45,3 +45,23 @@ export const STAR_OFF = 'Mark as important'
 /** 9.5: an abandoned row's chip and its restore control. */
 export const ABANDONED_CHIP = 'Abandoned'
 export const RESTORE = 'Restore'
+
+/**
+ * 9.1's inline state copy: the line a page shows beside a read that failed,
+ * and the control 9.1's names table puts next to it.
+ *
+ * Never the global error toast, restated by RFC 0002 at the change control of
+ * 2026-08-13 because the designer's prototype renders the toast string here
+ * and annotates the substitution as an open decision on its own states page.
+ * It is not open. The two answer different questions: the toast reports that
+ * a write did not land, and this line reports that a read did not arrive, so
+ * a page showing "Nothing was saved" where nothing was being saved tells a
+ * person something false about their own data. AC-183 asserts this string as
+ * one text run, character for character.
+ *
+ * The other two strings of that table, the 404 line and the truncation
+ * notice, are page states rather than component states and stay with the page
+ * layer, which is the rule this file's header states.
+ */
+export const READ_FAILED = "Couldn't load this. Nothing was changed."
+export const TRY_AGAIN = 'Try again'
