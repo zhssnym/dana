@@ -4,10 +4,10 @@ The named regions of 9.1, added to that section at the P8 change control on
 
 "Every section a page's structure names is a named region, and a control
 inside one is addressed as that control within that region." The ruling exists
-because a folder page carries two quick-add rows with identical accessible
-names and different specified defaults, and nothing about either input tells
-them apart. A landmark is what tells them apart, so a section here is a
-landmark and not a `div` with a heading in it.
+because a page can carry two quick-adds with identical accessible names and
+different specified defaults, and nothing about either input tells them apart.
+A landmark is what tells them apart, so a section here is a landmark and not a
+`div` with a heading in it.
 
 Two rules this file encodes so no page has to remember them:
 
@@ -23,26 +23,36 @@ Two rules this file encodes so no page has to remember them:
 Tasks' Inbox block is the case that fixes the shape: a named region with no
 visible heading. A region's name is announced and addressed, not rendered, so
 `heading` is optional and `name` never is.
+
+**Restyled at P8R session R6 in the designer's vocabulary**, and restyled only:
+the classes below are his group heading and his collapsible trigger, read off
+`my-day-screen.tsx`, and the elements, the roles and the expanded state are
+untouched. The trigger is deliberately still this file's own button rather
+than his `Collapsible` primitive, because AC-058's browser half reads the
+`aria-expanded` on it and a swap of mechanism there buys nothing this section
+asks for.
 */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 /**
  * Which register a section's heading is drawn in.
  *
- * `section` is the default and is 9.1's own section headings, "Carried over",
- * "Today", "Planned", a folder group's name. `day` is the quieter label a
- * group generated from a date takes, which is Done's day groups: the design
- * draws those small and quiet because the date is a divider between runs of
- * rows rather than a title over a part of the page. Nothing about the region
- * changes with it, so a criterion addressing a section by name is unaffected.
+ * `section` is 9.1's own section headings, "Carried over", "Today", a folder
+ * group's name. `page` is the larger label All gives its two halves, which the
+ * design draws as a titled band with a rule beneath it because those two carry
+ * whole pages inside them. `day` is a group generated from a date, which is
+ * Done's day groups. Nothing about the region changes with any of them, so a
+ * criterion addressing a section by name is unaffected.
  */
-export type HeadingTone = 'section' | 'day'
+export type HeadingTone = 'section' | 'page' | 'day'
 
 const HEADING_CLASS: Record<HeadingTone, string> = {
-  section: 'section-heading',
-  day: 'day-heading',
+  section:
+    'mb-1 truncate px-2 text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
+  page: 'text-base leading-6 font-semibold text-foreground',
+  day: 'mb-1 px-2 text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
 }
 
 interface PageSectionProps {
@@ -51,6 +61,8 @@ interface PageSectionProps {
   /** The visible heading, where the section gives one. */
   readonly heading?: string
   readonly tone?: HeadingTone
+  /** Drawn beside the heading, which is where the design puts a page glyph. */
+  readonly headingMedia?: ReactNode
   readonly children: ReactNode
 }
 
@@ -58,12 +70,25 @@ export function PageSection({
   name,
   heading,
   tone = 'section',
+  headingMedia,
   children,
 }: PageSectionProps): React.JSX.Element {
   return (
     <section aria-label={name}>
-      {heading === undefined ? null : (
+      {heading === undefined ? null : tone === 'page' ? (
+        <div className="mb-2 flex h-8 items-center gap-2 border-b border-border px-2">
+          {headingMedia}
+          <h2 className={HEADING_CLASS[tone]}>{heading}</h2>
+        </div>
+      ) : headingMedia === undefined ? (
         <h2 className={HEADING_CLASS[tone]}>{heading}</h2>
+      ) : (
+        <div className="mb-1 flex h-7 items-center gap-2 px-2">
+          {headingMedia}
+          <h2 className="truncate text-[13px] font-semibold text-[var(--color-graphite-700)]">
+            {heading}
+          </h2>
+        </div>
       )}
       {children}
     </section>
@@ -73,7 +98,6 @@ export function PageSection({
 interface CollapsibleSectionProps {
   readonly name: string
   readonly defaultOpen: boolean
-  readonly tone?: HeadingTone
   readonly children: ReactNode
   /** Told when the section opens, so a page can defer the section's fetch. */
   readonly onOpenChange?: (open: boolean) => void
@@ -82,17 +106,22 @@ interface CollapsibleSectionProps {
 export function CollapsibleSection({
   name,
   defaultOpen,
-  tone = 'section',
   children,
   onOpenChange,
 }: CollapsibleSectionProps): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <section aria-label={name}>
-      <h2 className={HEADING_CLASS[tone]}>
+      {/*
+      A heading around the control, which 9.4 asks for outright ("recap
+      collapsed at bottom (heading 'Done today (N)')") and 9.6 asks for by
+      naming a section. The element is the heading and the button inside it is
+      the control, so both of 9.1's halves are true of one thing.
+      */}
+      <h2>
         <button
           type="button"
-          className="flex items-center gap-2"
+          className="group/collapse flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
           aria-expanded={open}
           onClick={() => {
             const next = !open
@@ -107,18 +136,18 @@ export function CollapsibleSection({
           rule for every state it draws: the arrow is what a sighted reader
           sees and the expanded state is what everything else does.
           */}
-          {open ? (
-            <ChevronDown aria-hidden="true" />
-          ) : (
-            <ChevronRight aria-hidden="true" />
-          )}
+          <ChevronRight
+            className={open ? 'size-4 rotate-90 transition-transform' : 'size-4 transition-transform'}
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
           {name}
         </button>
       </h2>
       {/* Absent rather than hidden while collapsed. 6 Q7 asserts the completed
           row is not on the page until the section is opened, and a hidden
           element is still on the page to everything but a screen reader. */}
-      {open ? children : null}
+      {open ? <div className="mt-0.5">{children}</div> : null}
     </section>
   )
 }

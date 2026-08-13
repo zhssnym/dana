@@ -29,6 +29,7 @@ import './styles/tokens.css'
 import { getPlain } from './api/http.js'
 import { queryKeys } from './api/keys.js'
 import { createQueryClient, setQueryClient } from './api/queryClient.js'
+import { TooltipProvider } from './components/ui/tooltip.js'
 import { Router } from './Router.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getMeSettingsResponse, meResponse } from '../shared/me.js'
@@ -73,10 +74,23 @@ if (rootElement === null) {
   throw new Error('index.html no longer carries the root element')
 }
 
+/*
+The tooltip provider his `main.tsx` mounts, added at P8R session R6 and part of
+the port rather than a decision.
+
+The distribution's `Tooltip.Root` waits 600 milliseconds before it opens unless
+a provider overrides the delay, and `ui/tooltip.tsx` sets that override to zero
+exactly as his does. Without it mounted, every tooltip in this client is a
+tooltip that appears only if the pointer rests, which is the difference between
+9.5's star confirming importance and a control that says nothing. AC-099 reads
+the star's tooltip on hover and is what measured the omission.
+*/
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <Router />
+      <TooltipProvider>
+        <Router />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

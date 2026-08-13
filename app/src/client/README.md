@@ -912,3 +912,69 @@ specification.
   that no longer exists. His `SystemToast` takes a `kind` and this client's
   toasts carry the server's own 409 message, so the two do not meet without a
   decision about that case; R11's copy sweep is where it belongs.
+
+## Extended by P8R session R6, the six list screens
+
+The designer's six list screens are ported onto our view hooks through
+`parts/presenters.ts`: `pages/MyDayPage.tsx`, `TasksPage.tsx`, `PlannedPage.tsx`
+(its list mode alone; the calendar is R9's), `ImportantPage.tsx`, `AllPage.tsx`
+and `DonePage.tsx`, plus the shared page states in `states/`.
+
+Three files are new or changed beyond the six pages.
+
+- `pages/task-rows.tsx` is one run of rows and the confirmations 9.3 and 9.4
+  put behind two overflow entries. His screens carry six copies of that and his
+  six already disagree about the abandon confirm's wording, which is one of the
+  ten copy faults RFC 0002 measured; here the sentence is written once, as one
+  text run in the dialog's title, with 9.1's "Continue" and "Cancel" beneath it.
+- `pages/page-heading.tsx` is the glyph, name and subtitle every one of his six
+  screens opens with. The subtitles are his own words and section 9 writes none.
+- `states/PageStates.tsx` and `states/PageSection.tsx` are restyled onto his
+  `SkeletonList`, `InlineError` and `Empty`, and onto his group heading. The
+  rule they existed for did not move: a page renders rows and declares its
+  empty copy, and no page writes a loading or an error treatment of its own.
+
+**His per-screen centring wrapper is dropped from all six.** The measure is
+`shell/app-shell.tsx`'s, verified there rather than taken on report.
+
+**`main.tsx` mounts `TooltipProvider`**, which his `main.tsx` does and this port
+had missed. The distribution's `Tooltip.Root` waits 600ms without it.
+
+### Owed after this session, and by whom
+
+- **`components/task-row.tsx` names its star with `aria-label`, and that takes
+  AC-093's four cases red.** `components/ui/StarButton.tsx` carries the reason
+  in its own header, measured at P8: an `aria-label` is a *label* to the
+  suite's `formField` helper, which addresses 9.3's ten fields by accessible
+  name across roles, so a page holding a starred row and an open task form has
+  two elements answering to "Important". The repair is that file's: carry the
+  name as `sr-only` content, exactly as `StarButton` does. The accessible name
+  does not change.
+- **The same file's star has no `title`, and AC-099's two outward cases read
+  the tooltip immediately after a hover.** The suite's `tooltipText` names three
+  faithful mechanisms, `title`, `aria-describedby` and `role="tooltip"`, and the
+  distribution's tooltip supplies the last two only while it is open, which it
+  is not yet when the read happens. Measured: with `TooltipProvider` mounted at
+  zero delay the popup is still absent at that instant. The repair is one
+  attribute, `title={starTooltip}` beside the existing `aria-label`.
+- **The same file's completion checkbox is controlled by `status` alone**, so
+  `locator.check()` fails when the server refuses the transition, which is
+  AC-157's first case. The P8 row held an `asked` state until the answer
+  arrived and its header gives the product reason: a box that snaps back while
+  the request is in flight tells the person their click did nothing.
+- **Four browser cases still reach for the quick-add's text box without opening
+  the disclosure**, which 9.1 made a disclosure at the RFC 0002 change control
+  and AC-166 now asserts in both states. They are AC-091's second case,
+  AC-096's second, AC-157's third and `session-path.spec.ts`'s CSRF case. Each
+  needs the collapsed control pressed first, or `quickAddControl` where it says
+  `quickAddInput`; no criterion text moves.
+- **AC-162's Done case addresses "Mark as not done" as a button** and 9.1's
+  names table makes it the row's completion checkbox. `pages/DonePage.tsx`
+  composes its own row so that both stay true today; the tension is the
+  tester's and the Steward's to settle.
+- **A long date for 9.4's header.** `parts/presenters.ts` formats "10 Aug" and
+  his My Day header reads "Monday, 10 August". The page shows the presenter's
+  format rather than computing a second one, which that module exists to
+  prevent. A `formatHeaderDate` there would close it.
+- **The pending-invite list is still on My Day** and 9.8 as amended says no
+  page inside the application carries one. It goes with R10's gate.
