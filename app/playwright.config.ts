@@ -130,6 +130,14 @@ export default defineConfig({
       // CI gets. Exporting DATABASE_URL before the run still redirects both,
       // together.
       DATABASE_URL: process.env.DATABASE_URL ?? '',
+
+      // The job-level TEST_DATABASE_URL belongs only to 11.11's real-
+      // Postgres vitest leg. createDbClient() otherwise treats it as a test
+      // fallback, so the seed process would fill that database while the
+      // boot path deliberately deletes the variable and opens PGlite. Pinning
+      // it empty here keeps the seed and server on the same .data directory.
+      // An explicit DATABASE_URL above still redirects both together.
+      TEST_DATABASE_URL: '',
     },
   },
 })
