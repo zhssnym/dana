@@ -59,10 +59,15 @@ One definition each, so the write path, the read path, and the client's
 convenience validation cannot drift. The lengths are 10.3's rows, and 4.5 and
 4.6 back each with a column of the same size.
 */
+export const TASK_TITLE_LIMIT = 300
+export const TASK_NOTES_LIMIT = 10000
+
 export const taskTitle = z
   .string({ error: 'must be a string' })
-  .min(1, { error: 'must be 1 to 300 characters' })
-  .max(300, { error: 'must be 1 to 300 characters' })
+  .min(1, { error: `must be 1 to ${String(TASK_TITLE_LIMIT)} characters` })
+  .max(TASK_TITLE_LIMIT, {
+    error: `must be 1 to ${String(TASK_TITLE_LIMIT)} characters`,
+  })
 
 // 10.3 writes task title and step title on one row, so they are one rule.
 // The second name exists for the call site, not for a second limit.
@@ -70,7 +75,9 @@ export const stepTitle = taskTitle
 
 export const taskNotes = z
   .string({ error: 'must be a string' })
-  .max(10000, { error: 'must be at most 10000 characters' })
+  .max(TASK_NOTES_LIMIT, {
+    error: `must be at most ${String(TASK_NOTES_LIMIT)} characters`,
+  })
 
 /*
 4.11 stores due_date as a floating calendar date, so the wire carries

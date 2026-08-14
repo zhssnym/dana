@@ -23,11 +23,14 @@
     "@base-ui/react": "1.7.0",
     "@electric-sql/pglite": "^0.5.4",
     "@fontsource-variable/inter": "^5.3.0",
+    "@sentry/node": "^10.70.0",
+    "@sentry/react": "^10.70.0",
     "@tanstack/react-query": "^5.101.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
     "lucide-react": "^1.31.0",
     "luxon": "^3.7.2",
     "openid-client": "^6.8.4",
@@ -68,5 +71,9 @@
     "vite": "^8.2.0",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "js-yaml": "4.3.1",
+    "nanoid": "3.3.18"
   }
 }

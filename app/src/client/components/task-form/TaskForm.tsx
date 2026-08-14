@@ -117,6 +117,10 @@ import type {
   ReminderInput,
   TaskDetail,
 } from '../../../shared/tasks.js'
+import {
+  TASK_NOTES_LIMIT,
+  TASK_TITLE_LIMIT,
+} from '../../../shared/tasks.js'
 import { RECURRENCE_WEEKDAYS } from '../../../shared/recurrence.js'
 import type { RecurrenceWeekday } from '../../../shared/recurrence.js'
 import {
@@ -185,10 +189,6 @@ import { STEP_CAP, StepsEditor } from './StepsEditor.js'
 import type { EditorStep } from './StepsEditor.js'
 import { TaskHistory } from './TaskHistory.js'
 import type { PeopleIndex } from './TaskHistory.js'
-
-/** 10.3's rows, which the over-limit copy reports by number. */
-const TITLE_LIMIT = 300
-const NOTES_LIMIT = 10000
 
 /** 9.3: with a due time the reminder is an offset picker, without it a
  * time-of-day picker. The offsets are this control's; 4.8 bounds them and
@@ -555,8 +555,10 @@ export function TaskForm({
   function validate(): string[] {
     const found: string[] = []
     if (values.title.trim() === '') found.push(TITLE_REQUIRED)
-    else if (values.title.length > TITLE_LIMIT) found.push(tooLong(TITLE_LIMIT))
-    if (values.notes.length > NOTES_LIMIT) found.push(tooLong(NOTES_LIMIT))
+    else if (values.title.length > TASK_TITLE_LIMIT)
+      found.push(tooLong(TASK_TITLE_LIMIT))
+    if (values.notes.length > TASK_NOTES_LIMIT)
+      found.push(tooLong(TASK_NOTES_LIMIT))
     return found
   }
 

@@ -350,6 +350,14 @@ relabelling, and every row now runs the prototype before it writes anything.
 | R11a | The last red closed: 9.5's "Mark as not done" given back to the task row's completion checkbox, which 9.1's names table, 9.4's row elements, 9.3's confirming control and the designer's own measured Done screen had all already agreed on. The leg reaches 136 of 136 | 07 | Implementers | Done |
 | R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Ready |
 
+## P9: hardening (`codex/p9-hardening`)
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Implemented the section 10.4 rate limits, the section 10.5 privacy-safe logging boundary, deletion counts, sanitized server and browser Sentry seams, AC-101 to AC-104 coverage, the shared task-limit constants, the shared database adapters, and the DES-029 comment correction. Verified 196 test files and 1,605 tests, lint, all three typechecks, the production build, and a zero-vulnerability npm audit; all work remained off `main` and production | 06, 10 | Implementers | Done, branch only |
+| 2 | Create and configure Sentry, Better Stack uptime and heartbeat, and a log drain retaining at least 30 days, following `docs/operator/p9-observability.md` without exposing credentials | owner with 10 | Manual | Planned |
+| 3 | Review the branch, obtain the owner decision, and only then merge and deploy | 12 | Steward | Planned |
+
 ## Outside the packages: infrastructure (`local-ci`)
 
 | # | Session | Role | Mode | Status |
