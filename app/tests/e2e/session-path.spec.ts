@@ -74,12 +74,12 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** Each surface, and one seeded row that proves it rendered. */
 const WALK = [
-  { link: 'My Day', row: 'Buy milk' },
-  { link: 'Tasks', row: 'Sort inbox' },
-  { link: 'Planned', row: 'Call plumber' },
-  { link: 'Important', row: 'Buy milk' },
-  { link: 'All', row: 'Water plants' },
-  { link: 'Done', row: 'Pay rent' },
+  { link: 'My Day', row: 'Buy milk', viewPath: '/api/v1/views/my-day' },
+  { link: 'Tasks', row: 'Sort inbox', viewPath: '/api/v1/views/tasks' },
+  { link: 'Planned', row: 'Call plumber', viewPath: '/api/v1/views/planned' },
+  { link: 'Important', row: 'Buy milk', viewPath: '/api/v1/views/important' },
+  { link: 'All', row: 'Water plants', viewPath: '/api/v1/views/all' },
+  { link: 'Done', row: 'Pay rent', viewPath: '/api/v1/views/done' },
 ] as const
 
 test.describe('The signed-in path', () => {
@@ -109,6 +109,16 @@ test.describe('The signed-in path', () => {
           'evidence of. This is not a re-assertion of the page\'s ordering, which is green in ' +
           'the vitest leg by number',
       ).toBeVisible()
+      await expect
+        .poll(
+          () => wire.viewCalls().map((call) => new URL(call.url).pathname),
+          {
+            message:
+              `spec 7.10: ${stop.link} reaches ${stop.viewPath} before the walk continues; ` +
+              'a row shared with the previous page must not let this case outrun the request',
+          },
+        )
+        .toContain(stop.viewPath)
     }
 
     await page.goto(routes.folder(seedIds.groceries))
@@ -116,6 +126,13 @@ test.describe('The signed-in path', () => {
       page.getByText('Buy milk'),
       'spec 9.1 route table: the folder page rendered, which 6 Q7 puts this seeded row on',
     ).toBeVisible()
+    const folderTasksPath = `/api/v1/folders/${seedIds.groceries}/tasks`
+    await expect
+      .poll(() => wire.viewCalls().map((call) => new URL(call.url).pathname), {
+        message:
+          `spec 7.10: the folder page reaches ${folderTasksPath} before the walk continues`,
+      })
+      .toContain(folderTasksPath)
 
     // The search overlay of 9.9, opened by the shortcut 9.1 gives it.
     await page.keyboard.press('Control+k')
@@ -124,19 +141,33 @@ test.describe('The signed-in path', () => {
       'milk',
       'spec 9.9: the overlay the shortcut opened carries the input its results come from',
     )
+    await expect
+      .poll(() => wire.viewCalls().map((call) => new URL(call.url).pathname), {
+        message:
+          'spec 7.10: the debounced search request starts before the overlay is dismissed; ' +
+          'a matching row behind the overlay must not let this case outrun the request',
+      })
+      .toContain('/api/v1/search')
     await expect(
-      page.getByText('Buy milk'),
+      page
+        .getByRole('dialog', { name: 'Search Dana' })
+        .getByRole('button', { name: /^Buy milk\b/ }),
       'spec 9.9: the overlay searches every folder the viewer can access',
     ).toBeVisible()
     await page.keyboard.press('Escape')
 
     const views = wire.viewCalls()
+    const expectedViewPaths = [
+      ...WALK.map((stop) => stop.viewPath),
+      folderTasksPath,
+      '/api/v1/search',
+    ]
     expect(
-      views.length,
+      [...new Set(views.map((call) => new URL(call.url).pathname))],
       'spec 7.10: walking six pages, a folder and the search overlay reaches the view ' +
-        'endpoints, so a run that recorded none walked nothing and the assertion below would ' +
-        'be vacuous',
-    ).toBeGreaterThan(5)
+        'endpoints; checking their paths makes the assertion non-vacuous without depending ' +
+        'on timing or on incidental extra requests',
+    ).toEqual(expect.arrayContaining(expectedViewPaths))
     const without = views.filter((call) => tzOf(call.url) === null)
     expect(
       without.map((call) => `${call.method} ${call.url}`),
