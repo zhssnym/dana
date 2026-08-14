@@ -116,6 +116,12 @@ export default defineConfig({
     env: {
       PORT: String(PORT),
 
+      // This process is the browser suite's temporary application, not a
+      // production server. createApp() already gives test processes unlimited
+      // counters so fixture setup cannot consume the user-facing P9 quotas;
+      // the focused rate-limit tests exercise the real limits directly.
+      NODE_ENV: 'test',
+
       // 11.10's session source. Read at createApp() call time, so setting it
       // here is enough (11.6).
       DANA_DEV_LOGIN: '1',
