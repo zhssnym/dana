@@ -14,6 +14,7 @@ import type { Db } from '../../../db/client.js'
 import { patchMeBody } from '../../shared/me.js'
 import type { MeResponse } from '../../shared/me.js'
 import { deleteAccountData } from '../domain/accountDeletion.js'
+import type { AccountDeletionCounts } from '../domain/accountDeletion.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
 import { inTransaction, rowsOf } from './provisioning.js'
@@ -183,9 +184,13 @@ export async function handleDeleteMe(
   db: Db,
   userId: string,
   res: Response,
-): Promise<void> {
-  await inTransaction(db, async (tx) => {
-    await deleteAccountData(tx, userId)
+): Promise<AccountDeletionCounts & { sessions: number }> {
+  const deleted = await inTransaction(db, async (tx) => {
+    const counts = await deleteAccountData(tx, userId)
+    const sessions = await rowsOf(
+      tx,
+      sql`SELECT count(*)::int AS n FROM sessions WHERE user_id = ${userId}`,
+    )
     await tx.execute(
       sql`UPDATE users
           SET google_sub = NULL,
@@ -196,7 +201,9 @@ export async function handleDeleteMe(
           WHERE id = ${userId}`,
     )
     await tx.execute(sql`DELETE FROM sessions WHERE user_id = ${userId}`)
+    return { ...counts, sessions: Number(sessions[0]?.n ?? 0) }
   })
   clearSessionCookies(res)
   res.status(204).end()
+  return deleted
 }

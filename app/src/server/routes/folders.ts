@@ -38,6 +38,10 @@ import {
 } from '../auth/index.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { notifierOf } from '../notify/index.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import {
   accessOf,
   addMember,
@@ -56,6 +60,8 @@ import {
 
 export interface FoldersRouterOptions {
   dbClient?: DbClient
+  rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 /*
@@ -78,6 +84,8 @@ export function createFoldersRouter(
   options: FoldersRouterOptions = {},
 ): Router {
   const router = Router()
+  const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   // 11.10: routes that touch the database require options.dbClient and
   // fail only when called without it (the auth router's convention).
@@ -125,6 +133,7 @@ export function createFoldersRouter(
     '/folders',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -176,6 +185,7 @@ export function createFoldersRouter(
     '/folders/:id',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -207,6 +217,7 @@ export function createFoldersRouter(
     '/folders/:id',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -231,6 +242,13 @@ export function createFoldersRouter(
         return
       }
       const deleted = await deleteFolder(db, folderId)
+      securityLog.deletionEvent('folder_deleted', {
+        actorId: viewer(req),
+        folderId,
+        tasksOpen: deleted.tasks_open,
+        tasksCompleted: deleted.tasks_completed,
+        tasksAbandoned: deleted.tasks_abandoned,
+      })
       res.status(200).json({ deleted })
     },
   )
@@ -243,6 +261,7 @@ export function createFoldersRouter(
     '/folders/:id/my-membership',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -274,6 +293,7 @@ export function createFoldersRouter(
     '/folders/:id/members',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -359,6 +379,7 @@ export function createFoldersRouter(
     '/folders/:id/members/:userId',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return

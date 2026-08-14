@@ -43,16 +43,15 @@ export default defineConfig({
         which was the old --color-text and is a colour the design no longer
         contains.
 
-        Both rest on DES-029, which the design's author marked OPEN and has
-        not signed off, so they are proposed rather than settled and a
-        sign-off may move them.
+        Both rest on DES-029, approved during the design sign-off. They are
+        settled values rather than an open proposal.
 
         styles/tokens.css carries the same two as --pwa-theme-color and
         --pwa-background-color, and the pair is deliberate rather than a
         duplicate: a manifest is built and cannot read a stylesheet, and a
         stylesheet is where every other colour in this client is defined. The
-        two agree today; a sign-off moves both, and this comment is here so
-        the second one is not forgotten.
+        two agree today; a future approved token change moves both, and this
+        comment is here so the second one is not forgotten.
         */
         theme_color: '#ffffff',
         background_color: '#ffffff',

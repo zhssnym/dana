@@ -41,6 +41,10 @@ import {
   sendValidationError,
 } from '../http/errors.js'
 import { notifierOf } from '../notify/index.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { folderView, membersOf } from '../domain/folders.js'
 import {
   acceptInvite,
@@ -56,6 +60,8 @@ import type { InviteActorFacts } from '../domain/invites.js'
 
 export interface InvitesRouterOptions {
   dbClient?: DbClient
+  rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 const uuidParam = z.uuid()
@@ -73,6 +79,10 @@ export function createInvitesRouter(
   options: InvitesRouterOptions = {},
 ): Router {
   const router = Router()
+  const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const inviteMinuteLimit = optionalLimit(options.rateLimits?.invitesPerMinute)
+  const inviteDayLimit = optionalLimit(options.rateLimits?.invitesPerDay)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   // 11.10: routes that touch the database require options.dbClient and fail
   // only when called without it (the auth and folders routers' convention).
@@ -110,6 +120,9 @@ export function createInvitesRouter(
     '/invites',
     requireSession,
     requireCsrf,
+    mutationLimit,
+    inviteMinuteLimit,
+    inviteDayLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -216,6 +229,11 @@ export function createInvitesRouter(
           // 5.2's create row: one email sent, last_sent_at stamped by the
           // insert. The send follows the commit, so a rolled-back create can
           // never have mailed anybody.
+          securityLog.inviteEvent('invite_created', {
+            inviteId: result.invite.id,
+            actorId: viewer(req),
+            status: 'pending',
+          })
           await notifierOf(req.app).send({
             template: 'invite',
             to: result.invite.email,
@@ -290,6 +308,7 @@ export function createInvitesRouter(
     '/invites/:id/accept',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -316,6 +335,11 @@ export function createInvitesRouter(
         )
         return
       }
+      securityLog.inviteEvent('invite_accepted', {
+        inviteId: facts.id,
+        actorId: viewer(req),
+        status: 'accepted',
+      })
       res.status(200).json({
         connection_created: result.connectionCreated,
         // Frozen 7.5 names the key and not its object. This answers what a
@@ -335,6 +359,7 @@ export function createInvitesRouter(
     '/invites/:id/decline',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -348,6 +373,11 @@ export function createInvitesRouter(
         notPending(res)
         return
       }
+      securityLog.inviteEvent('invite_declined', {
+        inviteId: facts.id,
+        actorId: viewer(req),
+        status: 'declined',
+      })
       // 5.2's decline row has no email side effect: the inviter is told
       // nothing, and sees it on their sent list when they look.
       res.status(200).json({ invite: await inviteById(db, facts.id) })
@@ -358,6 +388,7 @@ export function createInvitesRouter(
     '/invites/:id/cancel',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -388,6 +419,11 @@ export function createInvitesRouter(
         notPending(res)
         return
       }
+      securityLog.inviteEvent('invite_canceled', {
+        inviteId: facts.id,
+        actorId: viewer(req),
+        status: 'canceled',
+      })
       res.status(200).json({ invite: await inviteById(db, facts.id) })
     },
   )
@@ -396,6 +432,7 @@ export function createInvitesRouter(
     '/invites/:id/resend',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -435,6 +472,11 @@ export function createInvitesRouter(
         return
       }
       await notifierOf(req.app).send({ template: 'invite', to: result.email })
+      securityLog.inviteEvent('invite_resent', {
+        inviteId: facts.id,
+        actorId: viewer(req),
+        status: 'resent',
+      })
       res.status(200).json({ invite: await inviteById(db, facts.id) })
     },
   )

@@ -41,14 +41,17 @@ never revocation (11.6): its failure must not roll back a delivery that
 already happened.
 */
 import { sql } from 'drizzle-orm'
-import type { SQL } from 'drizzle-orm'
 import { pino } from 'pino'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import { pruneExpiredSessions } from '../auth/index.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { createNotifier } from '../notify/index.js'
 import type { NotificationSink, Notifier, OutboundMessage } from '../notify/index.js'
 import { recordSchedulerPass } from '../routes/health.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 
 /**
  * The log surface this module needs. Structural, so the boot file's own pino
@@ -149,36 +152,6 @@ const claimDueReminders = sql`
    ORDER BY r.fire_at
      FOR UPDATE OF r SKIP LOCKED`
 
-/** Whatever the caller is running inside. The fifth structural copy of this
- * pair in the tree, deliberately not imported from src/server/domain/db.ts,
- * which declares its scope as the modules in that directory; the note there
- * names folding them into a shared home as a P9 consolidation candidate, and
- * this is one more for that list. */
-interface Executor {
-  execute(statement: SQL): Promise<unknown>
-}
-
-interface Transactional {
-  transaction<T>(run: (tx: Executor) => Promise<T>): Promise<T>
-}
-
-function inTransaction<T>(
-  db: Db,
-  run: (tx: Executor) => Promise<T>,
-): Promise<T> {
-  return (db as unknown as Transactional).transaction(run)
-}
-
-async function rowsOf(
-  executor: Executor,
-  statement: SQL,
-): Promise<Record<string, unknown>[]> {
-  const result = (await executor.execute(statement)) as unknown as {
-    rows: Record<string, unknown>[]
-  }
-  return result.rows
-}
-
 /** The two drivers of 11.10 render a boolean column differently often enough
  * that reading it by identity is a bug waiting for the postgres:18 leg. */
 function isTrue(value: unknown): boolean {
@@ -249,7 +222,7 @@ The URL is a credential in URL form and is never logged, only its outcome.
 */
 async function pingHeartbeat(
   url: string,
-  logger: SchedulerLogger,
+  logger: SecurityLogger,
 ): Promise<void> {
   try {
     const response = await fetch(url, {
@@ -257,15 +230,17 @@ async function pingHeartbeat(
       signal: AbortSignal.timeout(5_000),
     })
     if (!response.ok) {
-      logger.warn(
+      logger.operation(
+        'warn',
+        'scheduler_heartbeat_refused',
         { status: response.status },
-        'scheduler heartbeat refused (spec 11.12)',
       )
     }
   } catch (err: unknown) {
-    logger.warn(
+    logger.operation(
+      'warn',
+      'scheduler_heartbeat_unreachable',
       { reason: err instanceof Error ? err.name : 'unknown' },
-      'scheduler heartbeat unreachable (spec 11.12)',
     )
   }
 }
@@ -278,10 +253,17 @@ async function pingHeartbeat(
  * on an ordering the specification does not fix.
  */
 export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
-  const logger = deps.logger ?? pino()
+  const logger = createSecurityLogger(deps.logger ?? pino())
   const notifier: Notifier = createNotifier({
     sink: deps.notifications,
-    logger,
+    logger: {
+      info: (fields) => {
+        logger.operation('info', 'outbound_email_suppressed', {
+          template:
+            typeof fields.template === 'string' ? fields.template : undefined,
+        })
+      },
+    },
   })
   const db = deps.dbClient.db
 
@@ -298,10 +280,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
         if (reason !== null) {
           await markSkipped(tx, taskId)
           skipped += 1
-          logger.info(
-            { event: 'reminder_skipped', task_id: taskId, reason },
-            'reminder skipped',
-          )
+          logger.reminderEvent('reminder_skipped', { taskId, reason })
           continue
         }
         try {
@@ -312,19 +291,15 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
           // whole transaction back instead would re-send every reminder this
           // batch already delivered.
           failed += 1
-          logger.error(
-            {
-              event: 'reminder_send_failed',
-              task_id: taskId,
-              reason: err instanceof Error ? err.message : 'unknown',
-            },
-            'reminder send failed',
-          )
+          logger.reminderEvent('reminder_send_failed', {
+            taskId,
+            reason: err instanceof Error ? err.name : 'unknown',
+          })
           continue
         }
         await markSent(tx, taskId)
         sent += 1
-        logger.info({ event: 'reminder_sent', task_id: taskId }, 'reminder sent')
+        logger.reminderEvent('reminder_sent', { taskId })
       }
     })
 

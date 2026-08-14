@@ -24,33 +24,11 @@ pass is caught and logged here, and a failed cycle pings no heartbeat, so
 repeated failure surfaces as heartbeat silence rather than as a quiet process
 that stopped delivering (11.12).
 */
-import { DrizzleQueryError } from 'drizzle-orm'
 import { pino } from 'pino'
 
 import { createReminderPass } from './pass.js'
 import type { ReminderPassDeps } from './pass.js'
-
-/*
-A stack safe to log, the boot file's own function copied rather than imported:
-that file composes this module, so importing back into it would point the
-scheduler at the entrypoint that runs main(), which is the cycle
-src/server/security/log.ts already refuses for the same reason. Section 13
-item 18 is why the function exists at all: Drizzle wraps a failed statement in
-an error whose message embeds the SQL and its bound parameters, and
-Error.stack opens with that message, so a background loop logging a database
-failure verbatim would put row content into the logs against 10.5. The
-message is dropped and the frames, which say where it failed, are kept. P9's
-logging policy module is where the two copies become one.
-*/
-function safeStack(err: unknown): string | undefined {
-  if (!(err instanceof Error)) return undefined
-  const stack = err.stack ?? ''
-  const carriesQuery =
-    err instanceof DrizzleQueryError || err.message.startsWith('Failed query: ')
-  if (!carriesQuery) return stack
-  const frames = stack.indexOf('\n    at ')
-  return frames === -1 ? err.name : `${err.name}${stack.slice(frames)}`
-}
+import { createSecurityLogger } from '../security/log.js'
 
 /** 11.7's interval, named rather than inlined so the sentence and the number
  * are in one place. */
@@ -71,28 +49,22 @@ export interface ReminderSchedulerHandle {
 export function startReminderScheduler(
   options: ReminderSchedulerOptions,
 ): ReminderSchedulerHandle {
-  const logger = options.logger ?? pino()
+  const logger = createSecurityLogger(options.logger ?? pino())
   const pass = createReminderPass(options)
   let inFlight = false
 
   const tick = (): void => {
     if (inFlight) {
-      logger.warn(
-        { event: 'reminder_pass_overlapped' },
-        'reminder pass still running, skipping this tick (spec 11.7)',
-      )
+      logger.operation('warn', 'reminder_pass_overlapped')
       return
     }
     inFlight = true
     void pass()
       .catch((err: unknown) => {
-        logger.error(
-          {
-            event: 'reminder_pass_failed',
-            reason: err instanceof Error ? err.name : 'unknown',
-            stack: safeStack(err),
-          },
-          'reminder pass failed',
+        logger.operation(
+          'error',
+          'reminder_pass_failed',
+          { reason: err instanceof Error ? err.name : 'unknown' },
         )
       })
       .finally(() => {
