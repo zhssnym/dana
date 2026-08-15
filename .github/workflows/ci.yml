@@ -20,6 +20,7 @@ concurrency:
 defaults:
   run:
     working-directory: app
+    shell: cmd
 
 jobs:
   ci:
@@ -70,11 +71,12 @@ jobs:
       # is exactly the seam's own fallback condition, so the two agree by
       # construction rather than by being kept in step.
       - name: Test on a real Postgres 18
-        shell: pwsh
+        shell: cmd
         run: |
-          if (-not $env:TEST_DATABASE_URL) {
-            throw 'TEST_DATABASE_URL is unset or empty, so this step would re-run the PGlite leg and report a green that measured nothing. Set it in the runner installation .env file (spec 11.11) and restart the runner service.'
-          }
+          if "%TEST_DATABASE_URL%"=="" (
+            echo TEST_DATABASE_URL is unset or empty, so this step would re-run the PGlite leg and report a green that measured nothing. Set it in the runner installation .env file ^(spec 11.11^) and restart the runner service.
+            exit /b 1
+          )
           npm test
       - name: Build
         run: npm run build
@@ -95,16 +97,11 @@ jobs:
       # anyone reading a red: it is that flag written in YAML, and this leg
       # is the only one any browser acceptance criterion runs in.
       #
-      # The shell is declared for the same reason as the step above, and this
-      # is the step that earned the rule. && is a PowerShell 7 pipeline chain
-      # operator and a parser error in Windows PowerShell 5.1, which is what a
-      # Windows runner falls back to when pwsh is absent. Leaving the
-      # interpreter to whatever happens to be on PATH makes the gate's
-      # behaviour a function of what is installed rather than of what is
-      # written here, and it would fail on the one step whose whole purpose is
-      # to prove the browser criteria ran. PowerShell 7 is installed on this
-      # machine, so the declaration is satisfiable on the self-hosted form as
-      # well as on the hosted one.
+      # The shell is declared for the same reason as the step above. cmd gives
+      # && one stable meaning on the Windows runner and does not depend on the
+      # machine-wide PowerShell execution policy. Leaving the interpreter to
+      # whatever happens to be on PATH would make the gate's behaviour a
+      # function of what is installed rather than of what is written here.
       #
       # Two halves of the install command come from different branches and
       # both are deliberate. chromium is p8-client's, naming the one browser
@@ -114,5 +111,5 @@ jobs:
       # through apt and does nothing a Windows runner can use.
       - name: Playwright
         if: hashFiles('app/playwright.config.ts') != ''
-        shell: pwsh
+        shell: cmd
         run: npx playwright install chromium && npx playwright test

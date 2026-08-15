@@ -1710,7 +1710,7 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
     ).toContain('restore the task first')
   })
 
-  test('an inaccessible task reads as 404 on every endpoint of the surface', async () => {
+  test('AC-102: an inaccessible task is indistinguishable from a nonexistent one', async () => {
     const { owner, strangerTaskId } = await stage()
     const probes: readonly [string, RawResponse][] = [
       ['GET /tasks/:id', await api(owner, `/tasks/${strangerTaskId}`)],
@@ -1771,6 +1771,9 @@ describe('the 7.0 taxonomy on the 7.6 to 7.8 surface', () => {
         `${what} on a task the caller cannot see must read as nonexistent, never 403 (10.2)`,
       ).toBe(404)
     }
+    const nonexistent = await api(owner, `/tasks/${randomUUID()}`)
+    expect(nonexistent.status).toBe(404)
+    expect(nonexistent.json()).toEqual(probes[0]?.[1].json())
   })
 
   test("the pull's tz is judged before the task is, and leaks nothing by it", async () => {

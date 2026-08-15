@@ -49,7 +49,7 @@ npx playwright test -g "AC-095"
 | P8 | The halves of AC-039, AC-047, AC-048, AC-053, AC-058 and AC-141 that earlier files recorded as arriving here | Covered, passing in the Playwright leg. Those criteria stay in their own packages with their server halves green where they are |
 | P8 gate | AC-155 to AC-163, AC-165 to AC-167 | Covered, passing in the Playwright leg; proposed here with their tests and numbered by the section 12 amendment of 2026-08-11. The gaps at 154 and 164 belong to package P7 and are deliberate |
 | P8 gate | AC-169 to AC-172 | Covered in the Playwright leg; appended by the second section 12 amendment of 2026-08-11 from that change control's rulings rather than proposed here. AC-171 and AC-172 pass; AC-169 and AC-170 are red by design against the reminder write the client does not yet have |
-| P9 to P10 | AC-101 to AC-104 | Not yet written |
+| P9 | AC-101 to AC-104 | Covered: limiter and Retry-After probes in `src/server/security/rate-limit.test.ts`; task non-leakage in `src/server/http/tasks-contract.test.ts`; log-content exclusion in `src/server/security/log.test.ts`; health coverage in `src/server/routes/health.test.ts`; and deliberate tracker capture in `src/server/observability/error-tracker.test.ts` |
 
 P2's range was written before its implementation, per the RFC 0001 P2 row,
 and failed on sentences naming the missing endpoints until the package

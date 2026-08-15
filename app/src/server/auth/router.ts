@@ -48,7 +48,10 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { deleteMeBody } from '../../shared/me.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
 import { sendError, sendValidationError } from '../http/errors.js'
-import { logAuthEvent } from '../security/log.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import {
   handleDeleteMe,
   handleGetMe,
@@ -76,6 +79,8 @@ import { csrfTokenFor, newSessionToken } from './tokens.js'
 export interface AuthRouterOptions {
   dbClient?: DbClient
   auth?: AuthConfig
+  rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 /*
@@ -138,6 +143,8 @@ function refuse(res: Response): void {
 export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   const router = Router()
   const pending = new PendingAuthorizations()
+  const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   // Configuration is resolved once per application, and lazily: an
   // application constructed without auth configuration (the AC-114 probe, a
@@ -299,14 +306,17 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       // account collides with users_email_active_idx, and which account
       // should win is a product decision, not this module's. Refusing is the
       // safe half of every reading of it.
-      logAuthEvent('sign_in_failed', { reason: 'provisioning_failed' })
+      securityLog.authEvent('sign_in_failed', { reason: 'provisioning_failed' })
       refuse(res)
       return
     }
 
     await establishSession(db, res, user.id)
     clearPendingCookie(res)
-    logAuthEvent('sign_in', { userId: user.id, provisioned: user.created })
+    securityLog.authEvent('sign_in', {
+      userId: user.id,
+      provisioned: user.created,
+    })
 
     // Into the app (7.1), which 10.6 fixes at /app, and on this origin by
     // construction (AC-109).
@@ -317,6 +327,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     '/auth/logout',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -326,7 +337,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         // plural, so signing out here must not touch the person's other
         // clients.
         await destroySession(db, session.token)
-        logAuthEvent('sign_out', { userId: session.userId })
+        securityLog.authEvent('sign_out', { userId: session.userId })
       }
       clearSessionCookies(res)
       res.status(204).end()
@@ -347,6 +358,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     '/me',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -358,6 +370,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     '/me',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -368,8 +381,17 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         return
       }
       const userId = sessionOf(req)?.userId ?? ''
-      await handleDeleteMe(db, userId, res)
-      logAuthEvent('account_deleted', { userId })
+      const deleted = await handleDeleteMe(db, userId, res)
+      securityLog.deletionEvent('account_deleted', {
+        actorId: userId,
+        invites: deleted.invites,
+        foldersTransferred: deleted.foldersTransferred,
+        foldersDeleted: deleted.foldersDeleted,
+        memberships: deleted.memberships,
+        connections: deleted.connections,
+        myDayEntries: deleted.myDayEntries,
+        sessions: deleted.sessions,
+      })
     },
   )
 
@@ -389,6 +411,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     '/me/settings',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return

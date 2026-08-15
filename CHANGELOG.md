@@ -10,6 +10,30 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **RFC 0003 implements the free 30-day application-log route chosen for the
+  basic MVP.** Dana keeps every privacy-approved structured event on stdout
+  and, when both private production settings are present, mirrors the same
+  Pino record directly to the scoped `dana-production-logs` Axiom dataset over
+  HTTPS. Missing or partial configuration remains stdout-only and never logs
+  the token. This replaces the paid Render-to-Secure-Syslog path without
+  changing stored data or APIs; Render build and platform logs keep Render's
+  own shorter retention. The new destination remains inactive until the two
+  settings are added together during P10.
+
+- **P9 hardening is implemented on `codex/p9-hardening`, without a production
+  merge or deploy.** Authenticated mutations, invite creation, and search now
+  have the per-user limits fixed by section 10.4 and return `429` with
+  `Retry-After`. A typed logging boundary records the events section 10.5
+  requires while excluding task content, invite addresses, credentials, and
+  session identifiers. Server and browser Sentry adapters send sanitized
+  errors only; account and folder deletion logs include row counts; scheduler
+  delivery logs and heartbeat outcomes use the same policy. AC-101 to AC-104
+  now have executable coverage. The task-form limits import their shared schema
+  constants, the duplicated database adapters have one server-level home, and
+  the stale DES-029 manifest comment is corrected. The external Sentry,
+  uptime, heartbeat, and 30-day log-retention setup remains an operator step
+  documented at `docs/operator/p9-observability.md`.
+
 - **RFC 0002 RE-ACCEPTED by the human owner, 2026-08-13, on the three amendments
   of the P8R mid-package change control and on nothing else.** Nothing here is
   application code and nothing here amends `docs/spec/`. The three amendments

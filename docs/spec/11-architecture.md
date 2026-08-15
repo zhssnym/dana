@@ -130,7 +130,7 @@ Resend, one provider for the three templates (invite, share grant, reminder), be
 
 - Sentry (free tier) receives server and client errors; AC-104 proves the wiring.
 - Better Stack (free tier): an uptime monitor on /api/health, and a heartbeat the scheduler pass pings after each successful cycle; heartbeat silence beyond 10 minutes alerts. /api/health also reports seconds since the last completed pass.
-- Logs go to stdout. Render retains them 7 days on the Hobby workspace, which does not meet 10.5's 30-day retention, so a workspace log stream must drain them to an external store holding at least 30 days. The store is chosen at P9 (candidates to verify at that point: Axiom, Better Stack Logs); any syslog-compatible store satisfying 10.5 may substitute without amending this section.
+- Dana's privacy-policy logger continues to write its structured application events to stdout, which leaves Render's deploy diagnostics and seven-day Hobby log explorer intact. When both `AXIOM_DATASET` and an ingest-only `AXIOM_TOKEN` are present, the same Pino records are also sent directly over HTTPS to that Axiom dataset, whose retention is at least 30 days; with neither setting the external destination is disabled, and an incomplete pair records only the missing variable name and remains stdout-only. Only the closed, whitelisted logging surface of 10.5 reaches Axiom. Render platform and build logs are not copied and retain Render's own plan period. This direct destination is v1's accepted substitute for a Render workspace log stream because the free Axiom plan does not include its Secure Syslog endpoint and the free Better Stack Logs plan does not meet 10.5's retention period.
 
 ### 11.13 Design artifacts
 

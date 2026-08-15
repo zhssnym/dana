@@ -41,12 +41,17 @@ import type { Executor } from './db.js'
 export async function deleteAccountData(
   tx: Executor,
   userId: string,
-): Promise<void> {
+): Promise<AccountDeletionCounts> {
   // 1. The invites the account had offered. Invalidated is 5.2's terminal
   // state for exactly this transition, and responded_at is set because 4.9
   // gives it to any terminal transition. The sweep is by inviter and pending
   // status and nothing wider: an invite merely addressed to this account's
   // email belongs to somebody else's decision and keeps waiting (AC-133).
+  const pendingInvites = await rowsOf(
+    tx,
+    sql`SELECT count(*)::int AS n FROM invites
+        WHERE inviter_id = ${userId} AND status = 'pending'`,
+  )
   await tx.execute(
     sql`UPDATE invites SET status = 'invalidated', responded_at = now()
         WHERE inviter_id = ${userId} AND status = 'pending'`,
@@ -99,6 +104,11 @@ export async function deleteAccountData(
   // from the other side too. The rows are deleted rather than left for 7.3's
   // soft-deleted exclusion to hide, which is what 4.2 records the deletion
   // transaction doing explicitly.
+  const connections = await rowsOf(
+    tx,
+    sql`SELECT count(*)::int AS n FROM connections
+        WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
+  )
   await tx.execute(
     sql`DELETE FROM connections
          WHERE user_a_id = ${userId} OR user_b_id = ${userId}`,
@@ -108,7 +118,29 @@ export async function deleteAccountData(
   // folders and memberships accounted for; this takes any that outlived
   // both, so the end state is zero rows for the account whichever step
   // reached each one.
+  const myDayEntries = await rowsOf(
+    tx,
+    sql`SELECT count(*)::int AS n FROM my_day_entries WHERE user_id = ${userId}`,
+  )
   await tx.execute(
     sql`DELETE FROM my_day_entries WHERE user_id = ${userId}`,
   )
+
+  return {
+    invites: Number(pendingInvites[0]?.n ?? 0),
+    foldersTransferred: transferable.length,
+    foldersDeleted: doomed.length,
+    memberships: memberships.length,
+    connections: Number(connections[0]?.n ?? 0),
+    myDayEntries: Number(myDayEntries[0]?.n ?? 0),
+  }
+}
+
+export interface AccountDeletionCounts {
+  invites: number
+  foldersTransferred: number
+  foldersDeleted: number
+  memberships: number
+  connections: number
+  myDayEntries: number
 }
