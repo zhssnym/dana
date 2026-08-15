@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { DrizzleQueryError } from 'drizzle-orm'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import { pino } from 'pino'
@@ -15,6 +14,10 @@ import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier, notifierOf } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
 import { resolveEmailTransport } from './notify/resend.js'
+import { createServerErrorTracker } from './observability/error-tracker.js'
+import type { ErrorTracker } from './observability/error-tracker.js'
+import { createApplicationLogger } from './observability/logger.js'
+import { createRequestErrorHandler } from './observability/request-errors.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
@@ -22,8 +25,13 @@ import { createInvitesRouter } from './routes/invites.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createViewsRouter } from './routes/views.js'
 import { startReminderScheduler } from './scheduler/index.js'
+import { createRateLimits } from './security/rate-limit.js'
+import type { RateLimits } from './security/rate-limit.js'
+import { createSecurityLogger } from './security/log.js'
+import type { SecurityLogger } from './security/log.js'
 
 export const logger = pino()
+const bootLog = createSecurityLogger(logger)
 
 /**
  * Construction-time configuration for the 11.6 authentication module,
@@ -61,6 +69,12 @@ export interface AppOptions {
    * through the Resend transport P7 landed in notify/resend.ts in production.
    */
   notifications?: NotificationSink
+  /** Privacy-safe structured log sink, injectable for AC-103. */
+  securityLog?: SecurityLogger
+  /** Error tracker seam used by AC-104; production resolves Sentry from env. */
+  errorTracker?: ErrorTracker
+  /** Explicit limiter set for focused tests. Production constructs its own. */
+  rateLimits?: RateLimits
   /**
    * Directory of the built client, present only after npm run build. The
    * boot path performs the existence check and passes the result, because
@@ -69,37 +83,40 @@ export interface AppOptions {
   clientDist?: string
 }
 
-/*
-A stack safe to log, which a raw one is not once a database is behind the API.
-Drizzle wraps every failed statement in an error whose message embeds the SQL
-and its bound parameters, and Error.stack begins with that message: verified
-here against the installed version, a failed insert put the invite email
-address it was carrying straight into err.stack. Section 10.5 names invite
-email addresses, tokens, and session identifiers as things Dana never logs, so
-the wrapper's message is dropped and its frames, which say where the failure
-happened, are kept. Other errors keep their message, which carries no
-parameters.
-
-The acceptance harness documents the same wrapper for its own reasons
-(app/tests/helpers.ts). P9 folds this into the single 10.5 policy module that
-all emission passes through; until then this is the one place the boot file
-turns an error into a log line.
-*/
-function safeStack(err: unknown): string | undefined {
-  if (!(err instanceof Error)) return undefined
-  const stack = err.stack ?? ''
-  const carriesQuery =
-    err instanceof DrizzleQueryError || err.message.startsWith('Failed query: ')
-  if (!carriesQuery) return stack
-  const frames = stack.indexOf('\n    at ')
-  return frames === -1 ? err.name : `${err.name}${stack.slice(frames)}`
-}
-
 // createApp is synchronous, performs no I/O, and opens no database (11.10):
 // everything a route needs arrives through options, already opened.
 export function createApp(options: AppOptions = {}): express.Express {
   const app = express()
   app.disable('x-powered-by')
+  const runningTests =
+    process.env.NODE_ENV === 'test' || process.env.VITEST === 'true'
+  const rateLimits =
+    options.rateLimits ??
+    createRateLimits(
+      runningTests
+        ? {
+            limits: {
+              invitePerMinute: Number.MAX_SAFE_INTEGER,
+              invitePerDay: Number.MAX_SAFE_INTEGER,
+              searchPerMinute: Number.MAX_SAFE_INTEGER,
+              mutationsPerMinute: Number.MAX_SAFE_INTEGER,
+            },
+          }
+        : {},
+    )
+  const securityLog = options.securityLog ?? createSecurityLogger(logger)
+  const errorTracker = options.errorTracker ?? createServerErrorTracker()
+  const notifyLogger = {
+    info(fields: Record<string, unknown>): void {
+      securityLog.operation('info', 'notification_configuration', {
+        configured:
+          typeof fields.configured === 'boolean' ? fields.configured : undefined,
+        template:
+          typeof fields.template === 'string' ? fields.template : undefined,
+        missing: typeof fields.missing === 'string' ? fields.missing : undefined,
+      })
+    },
+  }
 
   // The 11.8 notify module is constructed with the application so the 11.10
   // sink can replace its log transport. The call sites are the Collaboration
@@ -117,8 +134,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     app,
     createNotifier({
       sink: options.notifications,
-      transport: resolveEmailTransport({ logger }),
-      logger,
+      transport: resolveEmailTransport({ logger: notifyLogger }),
+      logger: notifyLogger,
     }),
   )
 
@@ -162,26 +179,37 @@ export function createApp(options: AppOptions = {}): express.Express {
   // tsconfig.build.json excludes (11.15).
   app.use(
     '/api/v1',
-    createAuthRouter({ dbClient: options.dbClient, auth: options.auth }),
+    createAuthRouter({
+      dbClient: options.dbClient,
+      auth: options.auth,
+      rateLimits,
+      securityLog,
+    }),
   )
 
   // The P2 folders router, mounted by the request recorded in
   // src/server/routes/README.md: after the auth router, whose session
   // attachment then serves both, and ahead of the catch-all.
-  app.use('/api/v1', createFoldersRouter({ dbClient: options.dbClient }))
+  app.use(
+    '/api/v1',
+    createFoldersRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
 
   // The P3 tasks router, by the request beside the folders one in that same
   // ledger: the 7.6, 7.7 and 7.8 surfaces. Same position and the same reason,
   // and its paths (/tasks, /steps) meet nothing the folders router claims, so
   // the pair is order-independent between themselves.
-  app.use('/api/v1', createTasksRouter({ dbClient: options.dbClient }))
+  app.use(
+    '/api/v1',
+    createTasksRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
 
   // The P4 views router, by the third request in that same ledger: the 7.10
   // read surface. Same position and the same reason. It shares the /folders
   // prefix with the folders router but no whole path with it, and Express
   // matches on the whole path, so that pair is order-independent too; every
   // endpoint on it is a GET, which 7.0 makes safe, so it takes no CSRF link.
-  app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient }))
+  app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient, rateLimits }))
 
   // The P5 invites and connections routers, by the fourth request in that same
   // ledger: the 7.5 invite surface with its five transitions and two lists, and
@@ -191,8 +219,14 @@ export function createApp(options: AppOptions = {}): express.Express {
   // five are order-independent among themselves; their mutations carry the CSRF
   // link and their two GETs do not, which is 7.0's split. Both reach the notify
   // module through notifierOf(app), already attached above.
-  app.use('/api/v1', createInvitesRouter({ dbClient: options.dbClient }))
-  app.use('/api/v1', createConnectionsRouter({ dbClient: options.dbClient }))
+  app.use(
+    '/api/v1',
+    createInvitesRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+  app.use(
+    '/api/v1',
+    createConnectionsRouter({ dbClient: options.dbClient, rateLimits }),
+  )
 
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json(errorBody('not_found', 'Not found.'))
@@ -208,39 +242,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     })
   }
 
-  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-    // The other ruled 7.0 edge: the parser refuses an over-limit body with
-    // its own 413, but 413 is not in the taxonomy, and the ruling reads
-    // over-limit as a body that did not parse. Remapped before the status
-    // is read; the type marker was verified against the installed
-    // raw-body, which is where express.json's limit rejection is built.
-    const overLimit =
-      typeof err === 'object' &&
-      err !== null &&
-      'type' in err &&
-      err.type === 'entity.too.large'
-    const status = overLimit
-      ? 400
-      : typeof err === 'object' &&
-          err !== null &&
-          'status' in err &&
-          typeof err.status === 'number'
-        ? err.status
-        : 500
-    // Only method, path, and status: request bodies and headers may carry
-    // fields the 10.5 never-log list forbids, and req.path excludes the query
-    // string, which on the auth callback carries the code and state.
-    if (status >= 500) {
-      logger.error(
-        { method: req.method, path: req.path, status, stack: safeStack(err) },
-        'request failed',
-      )
-      res.status(status).json(errorBody('internal_error', 'Something went wrong.'))
-      return
-    }
-    const message = status === 400 ? 'Malformed request body.' : 'Request failed.'
-    res.status(status).json(errorBody('bad_request', message))
-  })
+  app.use(createRequestErrorHandler(securityLog, errorTracker))
 
   return app
 }
@@ -280,6 +282,25 @@ async function main(): Promise<void> {
     process.loadEnvFile()
   }
 
+  // The direct Axiom destination is resolved only after the local .env has
+  // loaded. Production already has these values in its process environment;
+  // CI and ordinary local development omit them and keep the stdout-only
+  // logger. A partial configuration never exposes the token and never removes
+  // Render's stdout logs: it records the missing variable and stays local.
+  const applicationLog = createApplicationLogger()
+  const runtimeLogger = applicationLog.logger
+  const runtimeBootLog = createSecurityLogger(runtimeLogger)
+  if (applicationLog.axiom.state === 'enabled') {
+    runtimeBootLog.operation('info', 'axiom_logging_configured', {
+      configured: true,
+    })
+  } else if (applicationLog.axiom.state === 'incomplete') {
+    runtimeBootLog.operation('warn', 'axiom_logging_incomplete', {
+      configured: false,
+      missing: applicationLog.axiom.missing,
+    })
+  }
+
   // Before the database, because a misconfigured deploy should fail on the
   // cheap check rather than after migrating.
   assertSignInIsPossible()
@@ -304,7 +325,9 @@ async function main(): Promise<void> {
     dataDir: '.data',
   })
   await dbClient.runMigrations()
-  logger.info({ database: dbClient.kind }, 'migrations applied')
+  runtimeBootLog.operation('info', 'migrations_applied', {
+    database: dbClient.kind,
+  })
 
   // The existence check lives here rather than in createApp, which performs
   // no I/O (11.10). Absent means a source checkout that never built the
@@ -313,11 +336,14 @@ async function main(): Promise<void> {
   const hasClientBuild = existsSync(path.join(clientDist, 'index.html'))
 
   const port = Number(process.env.PORT ?? 3000)
+  const runtimeSecurityLog = createSecurityLogger(runtimeLogger)
   const app = createApp(
-    hasClientBuild ? { dbClient, clientDist } : { dbClient },
+    hasClientBuild
+      ? { dbClient, clientDist, securityLog: runtimeSecurityLog }
+      : { dbClient, securityLog: runtimeSecurityLog },
   )
   const server = app.listen(port, () => {
-    logger.info({ port }, 'dana listening')
+    runtimeBootLog.operation('info', 'server_listening', { port })
   })
 
   // 11.7's delivery loop, the only background execution in v1 (8.6) and the
@@ -338,14 +364,14 @@ async function main(): Promise<void> {
   const scheduler = startReminderScheduler({
     dbClient,
     notifications: notifierOf(app),
-    logger,
+    logger: runtimeLogger,
     heartbeatUrl: process.env.SCHEDULER_HEARTBEAT_URL,
   })
   // Binding errors (port in use, no permission) fire on the server after
   // main() resolves, so they need their own route into the structured
   // boot-failed log; without it they surface as a raw uncaught exception.
   server.on('error', (err: Error) => {
-    logger.error({ stack: err.stack }, 'boot failed')
+    runtimeBootLog.operation('error', 'boot_failed', { reason: err.name })
     process.exit(1)
   })
   const shutdown = (): void => {
@@ -367,8 +393,9 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((err: unknown) => {
-    const stack = err instanceof Error ? err.stack : String(err)
-    logger.error({ stack }, 'boot failed')
+    bootLog.operation('error', 'boot_failed', {
+      reason: err instanceof Error ? err.name : 'unknown',
+    })
     process.exit(1)
   })
 }

@@ -45,6 +45,10 @@ import {
   sessionOf,
 } from '../auth/index.js'
 import { sendError, sendValidationError } from '../http/errors.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import {
   addStep,
   createTask,
@@ -63,6 +67,8 @@ import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
 
 export interface TasksRouterOptions {
   dbClient?: DbClient
+  rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 /*
@@ -123,6 +129,8 @@ function transitionBody(
 
 export function createTasksRouter(options: TasksRouterOptions = {}): Router {
   const router = Router()
+  const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   // 11.10: routes that touch the database require options.dbClient and fail
   // only when called without it (the auth router's convention).
@@ -160,6 +168,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -206,6 +215,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -284,6 +294,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -370,6 +381,11 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           res.status(200).json(transitionBody(result.task))
           return
         case 'transitioned':
+          securityLog.taskStatusEvent({
+            taskId: result.task.id,
+            actorId: viewer(req),
+            status: result.task.status,
+          })
           res
             .status(200)
             .json(
@@ -389,7 +405,13 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     'abandon',
     'restore',
   ] as const) {
-    router.post(`/tasks/:id/${event}`, requireSession, requireCsrf, transition(event))
+    router.post(
+      `/tasks/:id/${event}`,
+      requireSession,
+      requireCsrf,
+      mutationLimit,
+      transition(event),
+    )
   }
 
   /* ---------------------------------------------------------------- *
@@ -400,6 +422,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id/steps',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -433,6 +456,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/steps/:id',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -456,6 +480,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/steps/:id',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -478,6 +503,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id/my-day',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -512,6 +538,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id/my-day',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -549,6 +576,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id/reminder',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
@@ -582,6 +610,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     '/tasks/:id/reminder',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return

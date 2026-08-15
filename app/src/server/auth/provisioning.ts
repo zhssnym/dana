@@ -17,41 +17,13 @@ so a fault anywhere (AC-005 injects one on the last insert) takes the user,
 the folder, and the membership down with it.
 */
 import { sql } from 'drizzle-orm'
-import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import { inTransaction, rowsOf } from '../database.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
-/**
- * The one shape this module needs from a database handle or a transaction.
- * db/client.ts's Db is a union of two drizzle databases whose transaction and
- * execute signatures agree structurally; naming that shape here keeps the
- * union from forcing a cast at every call site.
- */
-export interface Executor {
-  execute(query: SQL): Promise<unknown>
-}
-
-interface Transactional {
-  transaction<T>(run: (tx: Executor) => Promise<T>): Promise<T>
-}
-
-export async function inTransaction<T>(
-  db: Db,
-  run: (tx: Executor) => Promise<T>,
-): Promise<T> {
-  return (db as unknown as Transactional).transaction(run)
-}
-
-export async function rowsOf(
-  executor: Executor,
-  statement: SQL,
-): Promise<Record<string, unknown>[]> {
-  const result = (await executor.execute(statement)) as unknown as {
-    rows: Record<string, unknown>[]
-  }
-  return result.rows
-}
+export { inTransaction, rowsOf } from '../database.js'
+export type { Executor } from '../database.js'
 
 export interface GoogleIdentity {
   sub: string

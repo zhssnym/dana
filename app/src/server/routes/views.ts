@@ -49,6 +49,8 @@ import {
   sendFieldValidationError,
   sendValidationError,
 } from '../http/errors.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
 import { checkCalendarRange, CALENDAR_RANGE_MAX_DAYS } from '../time/index.js'
 import {
   allView,
@@ -65,6 +67,7 @@ import {
 
 export interface ViewsRouterOptions {
   dbClient?: DbClient
+  rateLimits?: RateLimits
 }
 
 /* A path id that is not a uuid names nothing that exists, and letting it
@@ -75,6 +78,7 @@ const uuidParam = z.uuid()
 
 export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   const router = Router()
+  const searchLimit = optionalLimit(options.rateLimits?.search)
 
   // 11.10: routes that touch the database require options.dbClient and fail
   // only when called without it (the auth router's convention).
@@ -258,7 +262,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
    * Search
    * ---------------------------------------------------------------- */
 
-  router.get('/search', requireSession, async (req: Request, res: Response) => {
+  router.get('/search', requireSession, searchLimit, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
     const parsed = searchQuery.safeParse(req.query)

@@ -22,9 +22,12 @@ import {
 } from '../auth/index.js'
 import { sendError } from '../http/errors.js'
 import { listConnections, removeConnection } from '../domain/connections.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
 
 export interface ConnectionsRouterOptions {
   dbClient?: DbClient
+  rateLimits?: RateLimits
 }
 
 const uuidParam = z.uuid()
@@ -33,6 +36,7 @@ export function createConnectionsRouter(
   options: ConnectionsRouterOptions = {},
 ): Router {
   const router = Router()
+  const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
 
   const database = (res: Response): Db | null => {
     if (options.dbClient === undefined) {
@@ -76,6 +80,7 @@ export function createConnectionsRouter(
     '/connections/:userId',
     requireSession,
     requireCsrf,
+    mutationLimit,
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
