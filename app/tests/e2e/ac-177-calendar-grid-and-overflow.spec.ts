@@ -84,6 +84,13 @@ const CELLS = 42
 const CROWD = 12
 /** The tenth of next month: far from every seeded row, and never week one. */
 const CROWDED_DAY = `${firstOfMonth(1).slice(0, 8)}10`
+const crowdedDate = new Date(`${CROWDED_DAY}T00:00:00Z`)
+const CROWDED_CREATE_NAME = new RegExp(
+  `^Create task on ${String(crowdedDate.getUTCDate())} ${crowdedDate.toLocaleString('en-US', {
+    month: 'short',
+    timeZone: 'UTC',
+  })}(?: ${String(crowdedDate.getUTCFullYear())})?$`,
+)
 
 /** Opens Planned in its calendar mode at the month zoom. */
 async function openMonth(page: Page): Promise<void> {
@@ -152,10 +159,8 @@ test.describe('AC-177: the calendar month zoom', () => {
   test('AC-177: a crowded day carries "+N more" and it reveals the remainder', async ({
     page,
   }) => {
-    const titles: string[] = []
     for (let i = 0; i < CROWD; i += 1) {
       const title = `ac-177 crowded ${i}`
-      titles.push(title)
       await createTask(page, {
         title,
         folder_id: seedIds.groceries,
@@ -171,9 +176,13 @@ test.describe('AC-177: the calendar month zoom', () => {
     )
 
     // Other days can legitimately overflow as the seeded repeating series
-    // move with the current date. Scope this assertion to the day this test
-    // crowded instead of assuming it is the calendar's only busy day.
-    const crowdedCell = page.getByRole('gridcell').filter({ hasText: titles[0] })
+    // move with the current date. Address the full date this test crowded by
+    // its stable create control, not by a task title: any particular title
+    // can be one of the rows hidden behind the overflow control. The month is
+    // significant because a six-week grid can contain two different tenths.
+    const crowdedCell = page.getByRole('gridcell').filter({
+      has: page.getByRole('button', { name: CROWDED_CREATE_NAME }),
+    })
     await expect(crowdedCell).toHaveCount(1)
     const more = crowdedCell.getByRole('button', { name: /^\+\d+ more$/ })
     await expect(
