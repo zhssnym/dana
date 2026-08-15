@@ -16,6 +16,7 @@ import type { NotificationSink } from './notify/index.js'
 import { resolveEmailTransport } from './notify/resend.js'
 import { createServerErrorTracker } from './observability/error-tracker.js'
 import type { ErrorTracker } from './observability/error-tracker.js'
+import { createApplicationLogger } from './observability/logger.js'
 import { createRequestErrorHandler } from './observability/request-errors.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createFoldersRouter } from './routes/folders.js'
@@ -281,6 +282,25 @@ async function main(): Promise<void> {
     process.loadEnvFile()
   }
 
+  // The direct Axiom destination is resolved only after the local .env has
+  // loaded. Production already has these values in its process environment;
+  // CI and ordinary local development omit them and keep the stdout-only
+  // logger. A partial configuration never exposes the token and never removes
+  // Render's stdout logs: it records the missing variable and stays local.
+  const applicationLog = createApplicationLogger()
+  const runtimeLogger = applicationLog.logger
+  const runtimeBootLog = createSecurityLogger(runtimeLogger)
+  if (applicationLog.axiom.state === 'enabled') {
+    runtimeBootLog.operation('info', 'axiom_logging_configured', {
+      configured: true,
+    })
+  } else if (applicationLog.axiom.state === 'incomplete') {
+    runtimeBootLog.operation('warn', 'axiom_logging_incomplete', {
+      configured: false,
+      missing: applicationLog.axiom.missing,
+    })
+  }
+
   // Before the database, because a misconfigured deploy should fail on the
   // cheap check rather than after migrating.
   assertSignInIsPossible()
@@ -305,7 +325,9 @@ async function main(): Promise<void> {
     dataDir: '.data',
   })
   await dbClient.runMigrations()
-  bootLog.operation('info', 'migrations_applied', { database: dbClient.kind })
+  runtimeBootLog.operation('info', 'migrations_applied', {
+    database: dbClient.kind,
+  })
 
   // The existence check lives here rather than in createApp, which performs
   // no I/O (11.10). Absent means a source checkout that never built the
@@ -314,11 +336,14 @@ async function main(): Promise<void> {
   const hasClientBuild = existsSync(path.join(clientDist, 'index.html'))
 
   const port = Number(process.env.PORT ?? 3000)
+  const runtimeSecurityLog = createSecurityLogger(runtimeLogger)
   const app = createApp(
-    hasClientBuild ? { dbClient, clientDist } : { dbClient },
+    hasClientBuild
+      ? { dbClient, clientDist, securityLog: runtimeSecurityLog }
+      : { dbClient, securityLog: runtimeSecurityLog },
   )
   const server = app.listen(port, () => {
-    bootLog.operation('info', 'server_listening', { port })
+    runtimeBootLog.operation('info', 'server_listening', { port })
   })
 
   // 11.7's delivery loop, the only background execution in v1 (8.6) and the
@@ -339,14 +364,14 @@ async function main(): Promise<void> {
   const scheduler = startReminderScheduler({
     dbClient,
     notifications: notifierOf(app),
-    logger,
+    logger: runtimeLogger,
     heartbeatUrl: process.env.SCHEDULER_HEARTBEAT_URL,
   })
   // Binding errors (port in use, no permission) fire on the server after
   // main() resolves, so they need their own route into the structured
   // boot-failed log; without it they surface as a raw uncaught exception.
   server.on('error', (err: Error) => {
-    bootLog.operation('error', 'boot_failed', { reason: err.name })
+    runtimeBootLog.operation('error', 'boot_failed', { reason: err.name })
     process.exit(1)
   })
   const shutdown = (): void => {

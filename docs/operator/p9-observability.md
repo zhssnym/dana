@@ -34,18 +34,32 @@ reachable; the heartbeat proves the reminder loop is still completing work.
 
 ## 3. Thirty-day log retention
 
-1. Connect the Render service's stdout log stream to Better Stack Logs or
-   Axiom.
-2. Set retention to at least 30 days.
-3. Confirm a Dana operational line is searchable in the external store.
-4. Search the captured sample for a known test task title, note, step title,
+1. In Axiom, create the Events dataset `dana-production-logs` with at least
+   30 days of retention. The US region matches Dana's Virginia deployment.
+2. Create an ingest-only Axiom API token scoped only to
+   `dana-production-logs`. Do not put the token in Git, chat, an issue, or a
+   screenshot.
+3. During P10, after this branch is reviewed and merged, add both settings to
+   the Render `dana` service in the same edit:
+   - `AXIOM_DATASET=dana-production-logs`
+   - `AXIOM_TOKEN=<the private ingest-only token>`
+4. Deploy once. Confirm `axiom_logging_configured`, `migrations_applied`, or
+   `server_listening` is searchable in Axiom while the same structured lines
+   remain visible in Render.
+5. Search the captured sample for a known test task title, note, step title,
    invite address, OAuth token, and session id. None may appear.
+
+Do not create an Axiom Endpoint or upgrade for Secure Syslog. The free v1 route
+uses Axiom's official Pino transport inside Dana. It retains Dana's
+privacy-approved application events; Render build and platform logs remain in
+Render under its own shorter retention period.
 
 ## 4. Completion evidence
 
 - `/api/health` monitor is green.
 - Scheduler heartbeat is green.
 - A test server and browser error appear in Sentry.
-- A production stdout line appears in the log store.
+- A privacy-approved production application line appears in both Render and
+  Axiom.
 - The log store retains data for at least 30 days.
 - No secret value is present in Git or screenshots.
