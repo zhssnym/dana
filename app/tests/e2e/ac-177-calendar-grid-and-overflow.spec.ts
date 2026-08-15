@@ -152,10 +152,8 @@ test.describe('AC-177: the calendar month zoom', () => {
   test('AC-177: a crowded day carries "+N more" and it reveals the remainder', async ({
     page,
   }) => {
-    const titles: string[] = []
     for (let i = 0; i < CROWD; i += 1) {
       const title = `ac-177 crowded ${i}`
-      titles.push(title)
       await createTask(page, {
         title,
         folder_id: seedIds.groceries,
@@ -171,9 +169,12 @@ test.describe('AC-177: the calendar month zoom', () => {
     )
 
     // Other days can legitimately overflow as the seeded repeating series
-    // move with the current date. Scope this assertion to the day this test
-    // crowded instead of assuming it is the calendar's only busy day.
-    const crowdedCell = page.getByRole('gridcell').filter({ hasText: titles[0] })
+    // move with the current date. Address the tenth that this test crowded by
+    // its stable create control, not by a task title: any particular title
+    // can be one of the rows hidden behind the overflow control.
+    const crowdedCell = page.getByRole('gridcell').filter({
+      has: page.getByRole('button', { name: /^Create task on 10 / }),
+    })
     await expect(crowdedCell).toHaveCount(1)
     const more = crowdedCell.getByRole('button', { name: /^\+\d+ more$/ })
     await expect(
