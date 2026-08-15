@@ -355,7 +355,8 @@ relabelling, and every row now runs the prototype before it writes anything.
 | # | Session | Role | Mode | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Implemented the section 10.4 rate limits, the section 10.5 privacy-safe logging boundary, deletion counts, sanitized server and browser Sentry seams, AC-101 to AC-104 coverage, the shared task-limit constants, the shared database adapters, and the DES-029 comment correction. Verified 196 test files and 1,605 tests, lint, all three typechecks, the production build, and a zero-vulnerability npm audit; all work remained off `main` and production | 06, 10 | Implementers | Done, branch only |
-| 2 | Create and configure Sentry, Better Stack uptime and heartbeat, and a log drain retaining at least 30 days, following `docs/operator/p9-observability.md` without exposing credentials | owner with 10 | Manual | Planned |
+| 2 | Created the Sentry organization and Dana project, the green Better Stack production-health monitor, the paused reminder-scheduler heartbeat, and the 30-day `dana-production-logs` Axiom dataset without exposing credentials. Production Sentry, heartbeat, and Axiom activation remain deliberately deferred to P10 | owner with 10 | Manual | In progress, activation deferred |
+| 2a | Accepted and implemented RFC 0003 after Axiom Secure Syslog proved paid-only: Dana keeps structured stdout logs and can mirror the same privacy-approved events directly to Axiom through its official Pino transport when both scoped environment settings are present. Verified the final branch with 197 test files and 1,612 tests, lint, all three typechecks, the production build, and a zero-vulnerability production audit | 10 | Implementer | Done, branch only |
 | 3 | Review the branch, obtain the owner decision, and only then merge and deploy | 12 | Steward | Planned |
 
 ## Outside the packages: infrastructure (`local-ci`)

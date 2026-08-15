@@ -10,6 +10,16 @@ Planning and design. No software has been released yet.
 
 ### Added
 
+- **RFC 0003 implements the free 30-day application-log route chosen for the
+  basic MVP.** Dana keeps every privacy-approved structured event on stdout
+  and, when both private production settings are present, mirrors the same
+  Pino record directly to the scoped `dana-production-logs` Axiom dataset over
+  HTTPS. Missing or partial configuration remains stdout-only and never logs
+  the token. This replaces the paid Render-to-Secure-Syslog path without
+  changing stored data or APIs; Render build and platform logs keep Render's
+  own shorter retention. The new destination remains inactive until the two
+  settings are added together during P10.
+
 - **P9 hardening is implemented on `codex/p9-hardening`, without a production
   merge or deploy.** Authenticated mutations, invite creation, and search now
   have the per-user limits fixed by section 10.4 and return `429` with

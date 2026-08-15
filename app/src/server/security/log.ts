@@ -72,6 +72,8 @@ export type InviteLogEvent =
 export type DeletionLogEvent = 'folder_deleted' | 'account_deleted'
 export type OperationLogEvent =
   | 'notification_configuration'
+  | 'axiom_logging_configured'
+  | 'axiom_logging_incomplete'
   | 'outbound_email_suppressed'
   | 'scheduler_heartbeat_refused'
   | 'scheduler_heartbeat_unreachable'
