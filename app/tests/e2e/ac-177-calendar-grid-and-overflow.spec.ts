@@ -170,7 +170,12 @@ test.describe('AC-177: the calendar month zoom', () => {
         'is in next month so it cannot collide with a seeded row',
     )
 
-    const more = page.getByRole('button', { name: /^\+\d+ more$/ })
+    // Other days can legitimately overflow as the seeded repeating series
+    // move with the current date. Scope this assertion to the day this test
+    // crowded instead of assuming it is the calendar's only busy day.
+    const crowdedCell = page.getByRole('gridcell').filter({ hasText: titles[0] })
+    await expect(crowdedCell).toHaveCount(1)
+    const more = crowdedCell.getByRole('button', { name: /^\+\d+ more$/ })
     await expect(
       more,
       'spec 9.5: "A day cell showing fewer rows than the day holds carries a control reading ' +
