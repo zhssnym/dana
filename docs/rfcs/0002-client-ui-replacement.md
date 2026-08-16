@@ -1,6 +1,6 @@
 # RFC 0002: Replace the client user interface with the designer's prototype
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Created:** 2026-08-13
 - **Accepted:** 2026-08-13 by the human owner; numbers finalised and both open
   questions closed by the Integration Steward on the same date
