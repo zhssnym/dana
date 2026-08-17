@@ -10,9 +10,8 @@ Adding a concept is adding one entry to CONCEPTS below. Each carries the two
 sentences a reviewer needs: what it optimises for, and what it gives up.
 */
 
-import type { ReactNode } from "react"
-
 import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import { CONCEPTS as V3_CONCEPTS, type ConceptSpec } from "@/screens/row-concepts"
 
 /*
 One sample set for every concept, chosen so the hard cases are always on
@@ -63,33 +62,28 @@ const SAMPLE: TaskRowProps[] = [
   },
 ]
 
-interface Concept {
-  id: string
-  name: string
-  optimisesFor: string
-  givesUp: string
-  render: (tasks: TaskRowProps[]) => ReactNode
+/* C0 is the shipping row, present so every other concept is measured against
+   something real rather than against a memory of it. The rest arrive from
+   `row-concepts.tsx`, each drawing its own markup so that nothing in this lab
+   can change the shipping row by accident. */
+const BASELINE: ConceptSpec = {
+  id: "C0",
+  name: "Current",
+  optimisesFor: "What ships today: one 44px line, details packed right.",
+  givesUp: "Nothing yet; this is the baseline the others argue with.",
+  principle: "The row as approved at session V2. Every concept below argues with this one.",
+  render: () => (
+    <div className="flex flex-col">
+      {SAMPLE.map((task) => (
+        <TaskRow key={task.title} {...task} />
+      ))}
+    </div>
+  ),
 }
 
-/* C0 is the shipping row, present so every other concept is measured against
-   something real rather than against a memory of it. */
-const CONCEPTS: Concept[] = [
-  {
-    id: "C0",
-    name: "Current",
-    optimisesFor: "What ships today: one 44px line, details packed right.",
-    givesUp: "Nothing yet; this is the baseline the others argue with.",
-    render: (tasks) => (
-      <div className="flex flex-col">
-        {tasks.map((task) => (
-          <TaskRow key={task.title} {...task} />
-        ))}
-      </div>
-    ),
-  },
-]
+const CONCEPTS: ConceptSpec[] = [BASELINE, ...V3_CONCEPTS]
 
-function ConceptBlock({ concept }: { concept: Concept }) {
+function ConceptBlock({ concept }: { concept: ConceptSpec }) {
   return (
     <section className="mt-12 first:mt-0">
       <div className="mb-1 flex items-baseline gap-3">
@@ -110,8 +104,11 @@ function ConceptBlock({ concept }: { concept: Concept }) {
         </span>{" "}
         {concept.givesUp}
       </p>
+      <p className="mb-4 max-w-[68ch] text-[13px] leading-5 text-[var(--color-graphite-500)] italic">
+        {concept.principle}
+      </p>
       <div className="rounded-lg border border-[var(--color-graphite-200)] bg-card px-3 py-2">
-        {concept.render(SAMPLE)}
+        {concept.render()}
       </div>
     </section>
   )
@@ -131,7 +128,9 @@ export function RowLabPage() {
           <p className="mt-2 max-w-[70ch] text-sm leading-6 text-[var(--color-graphite-600)]">
             Every candidate row against the same six tasks: a bare one, a long
             title, an overdue one, one carrying nearly every detail at once, a
-            repeating one pulled into My Day, and an abandoned one.
+            repeating one pulled into My Day, and an abandoned one. Concept H
+            is the exception and says so: it needs tasks with machine work on
+            them, which none of the six have.
           </p>
         </header>
 
