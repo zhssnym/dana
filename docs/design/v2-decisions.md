@@ -64,12 +64,61 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-095 | Rename a task in place, in its row | OPEN | V3 | **Yes**, see below |
 | DES-096 | Details on a second line beneath the title | OPEN | V3 | Depends on DES-095 |
 | DES-097 | A motion scale in the tokens | OPEN | V3 | No |
+| DES-099 | The expanded card: one header strip, then Steps and Notes | OPEN | V3 | No |
 
 ## Lane 2: needs backend
 
 | ID | Proposal | Status | Recorded | Blocked on |
 | - | - | - | - | - |
-| — | *empty* | — | — | — |
+| DES-098 | Custom tags or labels on a task | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+
+### DES-098, custom tags or labels on a task
+
+Imran's idea, recorded 2026-08-17 at session V3, in the same breath as
+withdrawing the agent-states concept: machine states are not the direction,
+tags might be. **Not drawn.** It is recorded here first because the four facts
+below decide whether it is worth drawing at all, and because a Lane 2 idea
+that gets drawn before it gets priced is how a proposal turns into an
+assumption.
+
+1. **What the user does.** Puts one or more free-form labels on a task —
+   `errand`, `waiting on Sara`, `Q3` — and then finds every task carrying one,
+   across folders. The point of a tag is precisely that it crosses the folder
+   it lives in; a label that only works inside one folder is a folder.
+2. **What the product cannot do today.** Everything about this is missing.
+   There is no tag column, no tag table, no join. Section 7 has no tag
+   resource and no arm on any existing endpoint that would carry one. Folders
+   are the only classification a task has and a task belongs to exactly one,
+   which is the assumption the twelve queries of section 6 are written
+   against: every one of them scopes by folder membership first.
+3. **What it would need.** A guess, marked as one. A `tag` table plus a
+   `task_tag` join, rather than a text array on `task` — the array is much
+   cheaper and cannot be renamed, recoloured or listed without a full scan,
+   and every product that took that shortcut has migrated off it. Tag CRUD, or
+   tags embedded in the task write. New indexes for the crossing query. And
+   one genuine design question that has to be answered before any of it is
+   priced: **whose tags are they?** A task is shared, so a tag on it is either
+   shared with everyone who can see the task, or private to the person who
+   applied it. Those are different data models, different permission rules,
+   and different products. Shared tags also collide with DES-073, the search
+   proposal, which already owes mixed-result shapes and ordering.
+4. **What happens if it never ships.** Nothing breaks. Folders, Important and
+   My Day stay the only classification. But there is a live dependency on the
+   V3 row decision worth naming now rather than discovering later: **several
+   of the row concepts have no room left for a tag.** If tags are likely
+   within a year, that is an argument for a row with somewhere to put them —
+   concept J's second line, or the expanded card — and against the densest
+   single-line treatments. If tags are unlikely, that argument disappears.
+
+### Withdrawn at V3
+
+The **Actor and state** concept, which drew agent work in the row (waiting,
+working, blocked, ready for review), was removed from the lab on 2026-08-17 at
+Imran's direction. It never reached a DES entry and does not need one; it is
+noted here so that a later session finds the decision rather than the idea.
+The reasoning was that machine states are not the direction the product is
+being taken in right now, and a concept lab carrying a direction nobody is
+pursuing spends a reviewer's attention on a question that is not being asked.
 
 ### DES-093, expand a task inside its TaskRow
 
@@ -167,6 +216,26 @@ and it should be recorded as its own table in the contract, because the row is
 only the densest place the vocabulary appears. It is also **separable**: it can
 be adopted whichever row concept wins, including the current one.
 
+**Revised the same day, and the revision is the interesting part.** The glyphs
+were first drawn in reserved slots, one per detail type, present whether or not
+the task had anything to put in them, so that they lined up in columns down the
+list. The claim was that a column which always means one thing can be scanned
+vertically, and "which of these repeat?" stops being reading. Imran read the
+result as disorganised and asked for the icons packed to the right instead.
+
+He is right about what he saw, and it is worth writing down why, because the
+principle sounded good enough to survive a review it should not have. A task
+with two details rendered as two marks adrift in a field of empty slots, and
+the eye reads the gaps as legibly as the marks — so the row looked ragged at
+exactly the moment the theory promised order. The vertical scan only pays once
+you already know the alphabet cold, and it charges every reader on every row
+until then. A benefit deferred to fluency, paid for by everyone before it, is
+a bad trade for a product whose users open it a few times a day.
+
+So the concept is now packed right, tidy per row, with no vertical scan. That
+makes it a quieter idea than it was: what survives is the shared vocabulary
+and the density, which was always the half that generalises beyond the row.
+
 ### DES-095, rename a task in place, in its row
 
 Imran's idea, recorded 2026-08-17 at session V3. Arrived as half of concept J
@@ -224,6 +293,39 @@ it belongs in the token file rather than in the components that needed it.
 Nothing in the v1 contract sets durations, so this fills a gap rather than
 changing a decision, which is why it carries no ruling. It should be folded
 into the contract at V9 alongside the palette and spacing scales.
+
+### DES-099, the shape of the expanded card
+
+Imran's direction, 2026-08-17 at session V3. **Verdict: no backend. Lane 1, no
+ruling.** It applies to whichever concepts expand, so it is recorded
+separately from DES-093 rather than inside it.
+
+The card first drew every property as its own row: folder, assignee, due,
+reminder, repeat, then steps, then notes, seven bands of equal weight. That is
+what a form looks like when nobody has decided what matters, and it made the
+card tall enough that the two things a person actually opened the task to read
+were below the fold of the card itself.
+
+The card now has three parts, and the split is by kind rather than by taste:
+
+- **One header strip** carrying everything that is a single short value —
+  folder, assignee, due, reminder, repeat. Five answers, not five sections.
+  Each is a chip that opens its own menu, so the strip is also where those
+  values are changed.
+- **Steps**, then **Notes**, each as its own block with its own heading and its
+  own collapse. These two differ in kind from the five above: they hold as much
+  content as the task needs rather than one value, and they are the reason
+  somebody opens a task.
+
+Both blocks **start open**. Collapsing exists for the person who has already
+read the notes and wants them out of the way, which is a second-visit need; a
+card that opens tidy and makes you ask again has optimised for the wrong
+visit.
+
+One consequence worth keeping when this is ported: steps are the items
+themselves rather than a count, so ticking one inside the card moves the count
+in the row behind it. A number that cannot disagree with the thing it counts
+is worth more than the line of code it saves.
 
 ## Carried from v1, still unresolved
 
