@@ -6,7 +6,27 @@ follow Semantic Versioning.
 
 ## [Unreleased]
 
-Planning and design. No software has been released yet.
+Nothing yet.
+
+## [1.0.0] - 2026-08-16
+
+The first shipping release of Dana, the whole of RFC 0001's packages P0 to P10.
+
+**First restore drill, 2026-08-16, green.** Render's free instance type carries no
+point in time recovery, so the drill ran the runbook's other route: a custom
+format `pg_dump` of production, restored into a scratch `dana_restore_drill`
+database on the local PostgreSQL 18 created with the 11.10 builtin C.UTF-8
+locale, with AC-001's constraint catalog asserted against the restored copy. 24
+of 24 green. The run was proved to have used the restored database rather than
+falling back to PGlite by repeating it against a nonexistent database name and
+confirming it fails instead of passing. The scratch database was dropped and
+`dana_test` was not touched.
+
+**Production smoke, 2026-08-16, green**, including one reminder email that really
+arrived. That leg found the only defect the automated suite cannot see: a
+`RESEND_FROM` that was not an address, which Resend refused with HTTP 422 while
+the scheduler retried silently every 60 seconds. Configuration only, no code
+change.
 
 ### Added
 
