@@ -93,6 +93,11 @@ const CONCEPTS: ConceptSpec[] = [BASELINE, ...V3_CONCEPTS]
 const BASELINE_GOODS = [
   ["Rename in place", "click any task's name and type; Enter keeps it, Escape puts it back"],
   ["Complete it", "click any checkbox and watch the tick draw itself"],
+  [
+    "Open it in place",
+    "the chevron on the right opens the full card without leaving the list — every concept but F, whose whole idea is to answer without opening",
+  ],
+  ["Tick steps off", "inside any open card; the count in the row behind it follows"],
   ["Star and menu", "both reserved in the gutter, so nothing shifts when you hover a row"],
   ["Full name on hover", "every concept but J truncates, so every concept but J explains itself"],
   ["Motion on one scale", "three durations and two easings, shared, and all of it off under reduced motion"],
@@ -193,9 +198,9 @@ export function RowLabPage() {
               Dana is a shared to-do app. A <strong>task row</strong> is the one
               line that stands for a task in a list, and since a list is most of
               what anyone ever looks at, this single line is close to the whole
-              product. Seven candidates are below. They disagree about one
-              question: <em>how much should a row tell you, and what should it
-              cost to find out the rest?</em>
+              product. Six candidates are below, after the row Dana uses today.
+              They disagree about one question: <em>how much should a row tell
+              you, and what should it cost to find out the rest?</em>
             </p>
             <p>
               Every concept is shown against the same six tasks, chosen to be
