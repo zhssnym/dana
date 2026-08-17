@@ -600,6 +600,20 @@ Both blocks collapse, and both start open, because the default should be the
 answer to "what is this task" rather than a tidier card that makes you ask
 again. Collapsing is for the person who has read the notes and wants them out
 of the way, which is a second-visit need, not a first-visit one.
+
+REVISED 2026-08-17, third pass, at Imran's direction: no rules anywhere inside
+the card. It had a hairline above the property strip, above Steps, above Notes
+and above the footer, and four lines across a card this small compartmentalise
+it into a database record. Hierarchy is now carried by spacing and type alone —
+a 16px gap between sections against a 2px gap inside one, headings smaller and
+greyer than the content they own, and each section's content indented to sit
+under its heading. The reference is Notion, where a page is a stack of blocks
+that never needs a box drawn round it.
+
+This is the harder version to get right, which is why it is worth saying what
+"right" means: cover the headings and you should still see where one section
+ends. If you cannot, the spacing is wrong, and the fix is more spacing rather
+than a line put back.
 */
 
 function PropChip({
@@ -662,6 +676,20 @@ function PropChip({
   )
 }
 
+/*
+A section of the card. No rule above it, and none below.
+
+Rules were doing the work that spacing should do: five hairlines across a card
+this small chop it into compartments and make a task feel like a database
+record. Hierarchy here comes from three things instead — the gap above a
+section is larger than any gap inside it, the heading is smaller and greyer
+than the content it owns, and the content is indented to sit under the
+heading's icon so the indent itself says "this belongs to that".
+
+The test for whether it works: cover the headings and you should still see
+where one section ends. If you cannot, the spacing is wrong and the fix is
+spacing, not a line.
+*/
 function Disclosure({
   icon: Icon,
   label,
@@ -673,12 +701,12 @@ function Disclosure({
   badge?: string
   children: ReactNode
 }) {
-  /* Open by default. See the block comment above: the card's job on the first
-     visit is to answer, not to tidy. */
+  /* Open by default. See the block comment above TaskCard: the card's job on
+     the first visit is to answer, not to tidy. */
   const [open, setOpen] = useState(true)
 
   return (
-    <div className="border-t border-[var(--color-graphite-200)]">
+    <div>
       <button
         type="button"
         onClick={(e) => {
@@ -687,36 +715,40 @@ function Disclosure({
         }}
         aria-expanded={open}
         className={cn(
-          "flex h-9 w-full items-center gap-2 px-2 text-left transition-colors hover:bg-[var(--color-graphite-50)]",
+          "group/sec -ml-1 flex h-7 items-center gap-1.5 rounded-md px-1 text-left transition-colors hover:bg-[var(--color-graphite-50)]",
           T_FAST,
           FOCUS,
         )}
       >
         <ChevronDown
           className={cn(
-            "size-4 shrink-0 text-[var(--color-graphite-500)] transition-transform",
+            "size-3.5 shrink-0 text-[var(--color-graphite-400)] transition-[transform,opacity]",
             T_BASE,
             !open && "-rotate-90",
+            /* Quiet until you look at it, which is the Notion behaviour and
+               the reason the heading reads as a label rather than a control. */
+            open ? "opacity-40 group-hover/sec:opacity-100" : "opacity-100",
           )}
-          strokeWidth={1.75}
+          strokeWidth={2}
           aria-hidden="true"
         />
         <Icon
-          className="size-4 shrink-0 text-[var(--color-graphite-500)]"
+          className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        <span className="text-[13px] font-medium text-[var(--color-graphite-700)]">
+        <span className="text-[12px] font-medium text-[var(--color-graphite-500)]">
           {label}
         </span>
         {badge ? (
-          <span className="rounded-full bg-[var(--color-graphite-100)] px-1.5 text-[11px] font-medium text-[var(--color-graphite-600)] tabular-nums">
+          <span className="text-[12px] text-[var(--color-graphite-400)] tabular-nums">
             {badge}
           </span>
         ) : null}
       </button>
       <Reveal open={open}>
-        <div className="px-2 pb-2">{children}</div>
+        {/* Indented to sit under the heading's icon, not its chevron. */}
+        <div className="pt-0.5 pl-[18px]">{children}</div>
       </Reveal>
     </div>
   )
@@ -736,9 +768,11 @@ function TaskCard({
   const counts = stepCount(task)
 
   return (
-    <>
-      {/* One header strip, not five rows. */}
-      <div className="flex flex-wrap items-center gap-1 border-t border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-2 py-1.5">
+    <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
+      {/* One header strip, not five rows — and no tint behind it. The strip
+          reads as a group because its chips are tight together and the next
+          thing is a whole line away, which is what proximity is for. */}
+      <div className="-ml-1 flex flex-wrap items-center gap-0.5">
         <PropChip
           icon={Folder}
           value={task.folder?.name ?? "Inbox"}
@@ -872,7 +906,7 @@ function TaskCard({
       </Disclosure>
 
       <Disclosure icon={AlignLeft} label="Notes">
-        <p className="px-1 py-1 text-sm leading-6 text-[var(--color-graphite-700)]">
+        <p className="py-1 text-sm leading-6 text-[var(--color-graphite-700)]">
           {task.notes ?? (
             <span className="text-[var(--color-graphite-400)]">
               Nothing written yet
@@ -881,7 +915,7 @@ function TaskCard({
         </p>
       </Disclosure>
 
-      <div className="flex items-center justify-between border-t border-[var(--color-graphite-200)] px-3 py-2">
+      <div className="flex items-center justify-between pt-1">
         <span className="text-[11px] text-[var(--color-graphite-500)]">
           Created 4 Aug by Imran Wafa
         </span>
@@ -916,7 +950,7 @@ function TaskCard({
           </button>
         </span>
       </div>
-    </>
+    </div>
   )
 }
 
