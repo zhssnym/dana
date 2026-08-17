@@ -1,10 +1,10 @@
 /*
 Privacy and Terms, the two public pages the landing footer has always linked
-and production has never had (review B1; DES-032). Design-side draft: the
-layout is the public family's quiet light page, and every sentence below is
-DRAFT COPY awaiting Imran's approval — the visible ribbon says so and comes
-out only when he rules the text final. Facts stated here were taken from the
-shipping product (Google sign-in only, folder sharing, Resend email, sanitized
+and production has never had (review B1; DES-032). The layout is the public
+family's quiet light page. Imran approved this copy for v1 scope on
+2026-08-17 ("fine for now, we'll broaden it once we broaden the product"),
+so the draft ribbon is gone; the copy broadens with the product. Facts
+stated here were taken from the shipping product (Google sign-in only, folder sharing, Resend email, sanitized
 Sentry errors, 30-day Axiom logs, typed-DELETE hard deletion) and must be
 re-verified at the port if any of that moves.
 */
@@ -12,7 +12,7 @@ re-verified at the port if any of that moves.
 const PAGE_COPY = {
   privacy: {
     title: "Privacy",
-    updated: "Draft — 17 August 2026",
+    updated: "Updated 17 August 2026",
     sections: [
       {
         heading: "What Dana stores",
@@ -59,7 +59,7 @@ const PAGE_COPY = {
   },
   terms: {
     title: "Terms",
-    updated: "Draft — 17 August 2026",
+    updated: "Updated 17 August 2026",
     sections: [
       {
         heading: "The deal",
@@ -126,11 +126,8 @@ export function PublicLegalScreen({ page }: { page: LegalPage }) {
   return (
     <div className="min-h-screen bg-[var(--color-graphite-25)] text-[var(--color-graphite-800)]">
       <div className="mx-auto flex max-w-[640px] flex-col px-6 py-10">
-        <header className="flex items-center justify-between">
+        <header className="flex items-center">
           <BrandLink />
-          <span className="rounded-md bg-[var(--color-warning-100,#FBF3E4)] px-2.5 py-1 text-[11px] font-semibold tracking-wide text-[var(--color-warning-700,#8F5300)] uppercase">
-            Draft for review
-          </span>
         </header>
 
         <main className="mt-12">
