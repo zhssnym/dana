@@ -57,47 +57,73 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 
 ## Lane 1: design-only decisions
 
-| ID | Decision | Status | Session |
-| - | - | - | - |
-| — | *opens at session V1* | — | — |
+| ID | Decision | Status | Session | Ruling owed? |
+| - | - | - | - | - |
+| DES-093 | Expand a task in place, inside its row | OPEN | V3 | **Yes**, see below |
 
 ## Lane 2: needs backend
 
 | ID | Proposal | Status | Recorded | Blocked on |
 | - | - | - | - | - |
-| DES-093 | Expand a task in place, inside its row | OPEN | 2026-08-17 | Lane under investigation |
+| — | *empty* | — | — | — |
 
 ### DES-093, expand a task inside its TaskRow
 
-Imran's idea, recorded 2026-08-17 at the opening of session V3. **The lane is
-not yet decided**, which is why this sits here rather than in Lane 1: the
-question is being investigated rather than assumed, and it moves to Lane 1 if
-the answer is that nothing behind the API changes.
+Imran's idea, recorded 2026-08-17 at the opening of session V3, investigated
+the same day against the code, the specification and the acceptance suite.
+**Verdict: no backend. Lane 1, and a ruling.**
 
 1. **What the user does.** Opens a task without leaving the list: the row
    grows in place and shows everything `TaskForm` shows, notes, steps, folder,
    assignee, dates, reminder, repeat, history, completion, delete. The list
    around it stays where it is.
-2. **What the product cannot do today.** Nothing about the data, as far as the
-   design can see; the same task, the same fields. What it contradicts is
-   *presentation* that the specification fixes: 9.3 makes the form a dialog
-   over the page, 9.1's roles table makes a task row a list item or a row and
-   the form a dialog, and 9.4 says a row opens that task's form. An inline
-   form is a different structure, so this needs an owner ruling and spec text
-   under the item-37 route even if no backend moves.
-3. **What it would need.** Under investigation. The two candidates: nothing at
-   all beyond a per-task read that already exists, or a change to what the
-   view queries of section 6 return so a row can render its own detail
-   without a second request. The first is Lane 1 plus a ruling; the second is
-   Lane 2.
+2. **What the product cannot do today.** Nothing about the data. Measured:
+   the view queries return a `taskCard` (`app/src/shared/tasks.ts:858`) which
+   carries step *counts* and a recurring *flag* but no notes, no step rows, no
+   rule and no reminder; the full `taskDetail` (`:911`) carries all eight, and
+   `GET /tasks/:id` already serves it. The client already fetches it on every
+   edit-open through `useTask` (`app/src/client/api/queries.ts:312`), so an
+   expanded row would make the request the sheet makes today. Reads are not
+   rate-limited at v1 (10.4). **No new endpoint, no changed response, no new
+   permission rule, no column, no table.**
+3. **What it would need.** An owner ruling and spec text, because presentation
+   here is normative: 9.3 says "the form is a dialog over the page it was
+   opened from", 9.1's roles table fixes the form as a dialog, and 9.3's width
+   sentence and the "Resize task form" name lose their subject inside a row.
+   The route is 11.13's escalation, the one the four rulings of 2026-08-13
+   took. On the suite: AC-182's text needs amending; AC-178, AC-179, AC-162
+   and AC-182 have browser cases that address the form by its dialog role and
+   would be rewritten; the criterion *texts* otherwise say "the task form" and
+   not "the dialog", so the cost is tests rather than contract. One trap
+   recorded rather than discovered later: `harness.ts`'s save barrier waits
+   for the dialog to disappear, and with no dialog it would pass instantly and
+   vacuously, quietly destabilising AC-169 and AC-170, the two criteria minted
+   because a reminder was being dropped at save with the whole suite green.
 4. **What happens if it never ships.** Nothing breaks. The right-side sheet of
-   DES-025 remains, and this becomes one more explored concept in the V3
-   record rather than a gap.
+   DES-025 remains and this becomes one more explored concept in the V3
+   record.
+
+**The question this turns on, and it is Imran's rather than a designer's.**
+Seven of the places that open the form have no row to expand: the floating
+add button, the four quick-add escalations, a calendar empty cell, the
+calendar ghost (a projection whose real task sits elsewhere on the grid) and
+a search result (whose task is generally not on the page beneath). So either
+the sheet survives for those and the form becomes two artifacts, which
+contradicts 9.3's own heading that create and edit are the same artifact, or
+something else is invented for them. Every concept in V3 that carries inline
+expansion has to answer this, and the answer is a product decision.
+
+Three further problems worth knowing before choosing: the row's overflow menu
+and the form's overflow menu share the normative name "More actions" and the
+dialog's scrim is what currently separates them, a collision this repo has
+already been bitten by once and wrote down; a form nested inside a row nests
+list items inside a list item, which strains the accessibility shape 9.1
+fixes; and focus management, escape and focus-return come free from the
+dialog library today and would be hand-written for the first time.
 
 Note for whoever picks this up: DES-025 chose the right-side sheet
-deliberately in Session 5, so this is a reconsideration of a decided question
-rather than a blank one, and the reasoning there is owed a reading before this
-is decided either way.
+deliberately in Session 5, but no record anywhere rejects inline editing, so
+this is a fresh question rather than a re-litigated one.
 
 ## Carried from v1, still unresolved
 
