@@ -373,7 +373,17 @@ export function AppShell({
           onOpenSearch={onOpenSearch}
           pageVisibility={pageVisibility}
         />
-        <SidebarInset className="min-w-0 overflow-hidden bg-card">
+        {/* V1 measure comparison, temporary until Imran picks (v2-refresh-plan
+            session V1). The attribute sits here so the CSS variable cascades
+            over every screen's own content wrapper; the ?measure= param and
+            the losing variant leave with the decision. */}
+        <SidebarInset
+          data-measure={
+            new URLSearchParams(window.location.search).get("measure") ??
+            undefined
+          }
+          className="min-w-0 overflow-hidden bg-card"
+        >
           <PageBar
             title={pageTitle}
             icon={pageIcon}

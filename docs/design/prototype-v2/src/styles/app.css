@@ -117,3 +117,24 @@ button:not(:disabled),
   font-weight: 500;
   line-height: 20px;
 }
+
+/* V1 measure comparison, temporary until Imran picks (v2-refresh-plan session
+   V1). Candidate A narrows the reading measure; candidate B keeps the width
+   and packs metadata beside the title, actions staying at the far edge. The
+   losing rules and the ?measure= param leave with the decision, and the
+   winner is formalised as a token. */
+[data-measure="narrow"] {
+  --shell-content-max: 800px;
+}
+
+[data-measure="pulled"] [data-task-status] {
+  grid-template-columns: var(--control-height) minmax(0, auto) minmax(0, 1fr);
+}
+
+[data-measure="pulled"] [data-task-metadata] {
+  justify-content: flex-start;
+}
+
+[data-measure="pulled"] [data-task-actions] {
+  margin-left: auto;
+}
