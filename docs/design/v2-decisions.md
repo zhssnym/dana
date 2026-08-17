@@ -60,6 +60,10 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | ID | Decision | Status | Session | Ruling owed? |
 | - | - | - | - | - |
 | DES-093 | Expand a task in place, inside its row | OPEN | V3 | **Yes**, see below |
+| DES-094 | One icon vocabulary, shared by the row and the form | OPEN | V3 | No |
+| DES-095 | Rename a task in place, in its row | OPEN | V3 | **Yes**, see below |
+| DES-096 | Details on a second line beneath the title | OPEN | V3 | Depends on DES-095 |
+| DES-097 | A motion scale in the tokens | OPEN | V3 | No |
 
 ## Lane 2: needs backend
 
@@ -124,6 +128,102 @@ dialog library today and would be hand-written for the first time.
 Note for whoever picks this up: DES-025 chose the right-side sheet
 deliberately in Session 5, but no record anywhere rejects inline editing, so
 this is a fresh question rather than a re-litigated one.
+
+### DES-094, one icon vocabulary shared by the row and the form
+
+Imran's idea, recorded 2026-08-17 at session V3, drawn as concept I in the row
+lab. **Verdict: no backend. Lane 1, and no ruling either.**
+
+The idea as put: the row's detail chips become single icons, hovering one
+gives you its words, and the icons are the same everywhere in the app,
+including inside the expanded card.
+
+The investigation turned up the thing that makes this worth doing, which is
+that **the vocabulary already half-exists and nobody decided it**.
+`components/task-row.tsx` and `components/task-form.tsx` independently reached
+for the same three glyphs, Folder, ListChecks and Repeat2, and then diverged
+where no one was comparing them: the form uses CalendarDays for a due date and
+AlignLeft for notes, while the row draws a due date as bare text and has no
+notes glyph at all. So this is not a proposal to invent an icon language. It
+is a proposal to finish one and write it down, and concept I therefore adopts
+the form's existing choices rather than nicer new ones.
+
+Two exceptions are built into the concept rather than left to be discovered.
+The due date keeps its words, because a date is the fact people scan a list
+*for* and an icon you must hover to answer "when" trades the row's whole job
+for tidiness. The assignee stays a round avatar rather than becoming a
+UserRound glyph, because faces are recognised rather than decoded, and because
+concept H's rule that shape carries kind has to hold.
+
+**The cost that has to be weighed, not waved at.** Hover does not exist on
+touch and Dana is a PWA. Icon-only detail is learned rather than read, so the
+first week is worse than today's row even if the second month is better. And
+reserving a slot per detail type — which is the whole point, because it is
+what makes the glyphs line up in columns down the list — spends horizontal
+width on details a given task does not have.
+
+If this is approved it is a design-system decision rather than a row decision,
+and it should be recorded as its own table in the contract, because the row is
+only the densest place the vocabulary appears. It is also **separable**: it can
+be adopted whichever row concept wins, including the current one.
+
+### DES-095, rename a task in place, in its row
+
+Imran's idea, recorded 2026-08-17 at session V3. Arrived as half of concept J
+and was promoted to every concept in the lab once it existed, because it is
+not really a property of any one row treatment. **Verdict: no backend. Lane 1,
+and a ruling.**
+
+1. **What the user does.** Clicks a task's name in the list and types. Enter
+   keeps it, Escape puts it back. No sheet opens.
+2. **What the product cannot do today.** Nothing about the data. Renaming is a
+   title change through the same endpoint the form already uses.
+3. **What it would need.** A ruling on the gesture, which is the whole of the
+   cost. Today a click anywhere on a row opens the task. If a click on the
+   title edits the title, then the row has two meanings depending on where in
+   it you press, and the place you press for the commonest edit is the place
+   you used to press to open. The lab assumes title-edits / elsewhere-opens,
+   which is what Notion and Linear do, but nothing in section 9 says so and
+   the browser cases that open a task by clicking its row text would need
+   rewriting. Also unresolved: whether renaming in place is undoable, and what
+   a rename does to a row that another person is editing at the same time.
+4. **What happens if it never ships.** Nothing breaks; renaming stays a sheet.
+
+Worth noting for whoever rules on it: this is the single most frequent edit a
+to-do list receives, and it currently costs open, focus, type, save, close.
+
+### DES-096, details on a second line beneath the title
+
+Concept J, recorded 2026-08-17 at session V3. **Verdict: no backend. Lane 1.**
+
+The title takes a full-width line of its own and the details sit beneath it,
+quieter and smaller. It buys the one thing every other concept on the page
+pays for: the title stops being truncated. It costs height, 64px against 44px,
+so a viewport that held sixteen tasks holds eleven, and that trade is the
+whole decision. It is entangled with DES-095 rather than independent of it,
+because the reason a full-width title matters most is that you can then read
+a long name *while you are renaming it*.
+
+### DES-097, a motion scale in the tokens
+
+Opened 2026-08-17 at session V3 because the row concepts needed durations and
+`styles/tokens.css` had none. **Verdict: no backend. Lane 1, no ruling.**
+
+Three durations and three easings, with the rule keyed to what moves rather
+than how far: `--duration-fast` (120ms) for a colour or an opacity,
+`--duration-base` (200ms) for anything that changes size or position,
+`--duration-slow` (320ms) for a surface arriving from nowhere. Reaching for
+slow on a hover means the choice is wrong.
+
+The part that matters beyond the numbers: `prefers-reduced-motion` collapses
+the tokens themselves at the source, so a transition written against
+`--duration-base` stops moving without its component knowing anything about
+it, and no future component can forget to honour the preference. This is why
+it belongs in the token file rather than in the components that needed it.
+
+Nothing in the v1 contract sets durations, so this fills a gap rather than
+changing a decision, which is why it carries no ruling. It should be folded
+into the contract at V9 alongside the palette and spacing scales.
 
 ## Carried from v1, still unresolved
 

@@ -169,6 +169,26 @@
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
+  /* Motion. Opened at session V3, because the row concepts needed durations
+   * and there were none, and six components each inventing 200ms is how a
+   * product ends up feeling almost consistent.
+   *
+   * Three durations, and the rule is what moves rather than how far. A colour
+   * or an opacity is -fast; a thing that changes size or position is -base;
+   * -slow is for a surface arriving from nowhere, and if you reach for it on
+   * a hover you have chosen wrong.
+   *
+   * Two easings. -exit is symmetric because a thing leaving should not
+   * perform; -enter overshoots very slightly so that an expanding panel
+   * settles rather than stops, which is the difference people read as
+   * "polished" without being able to name it. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 0.6, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
   /* Repeated control sizes: primary desktop controls are 40px; dense
    * navigation and property rows use their own application-specific rhythm. */
   --control-height: 40px;
@@ -201,3 +221,25 @@
  * - Warning is inline/badge treatment only, never an amber button with white text.
  * - Status and folder colors always travel with a text or icon cue.
  */
+
+/* Reduced motion. The tokens are collapsed at the source rather than each
+ * component being asked to remember, so a transition written against
+ * --duration-base simply stops moving when the operating system says so and
+ * no animation can be forgotten. State still changes; only the travel is
+ * removed. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-slow: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

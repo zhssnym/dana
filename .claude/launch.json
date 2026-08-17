@@ -16,6 +16,22 @@
       "port": 5200
     },
     {
+      "name": "prototype-v2-share",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--config",
+        "vite.config.share.ts",
+        "--port",
+        "5201",
+        "--host",
+        "127.0.0.1"
+      ],
+      "cwd": "docs/design/prototype-v2",
+      "port": 5201
+    },
+    {
       "name": "imran-prototype",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
