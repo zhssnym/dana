@@ -76,12 +76,29 @@ protocol points here rather than repeating them.
   port 5432, reached through `TEST_DATABASE_URL`. Nothing loads `app/.env` for a
   test run, only the server boot does, so a value sitting in that file will not be
   picked up by `npm test`.
-- **`TEST_DATABASE_URL` is already set machine-wide here, so a bare `npm test` is
-  the Postgres leg and not the PGlite one.** Running `npm test` twice measures one
-  leg twice and reports both green, which is the false green the CI workflow's own
-  guard exists to stop. Select the leg explicitly rather than by habit: the PGlite
-  leg is `env -u TEST_DATABASE_URL npm test` (`$env:TEST_DATABASE_URL=''` in
-  PowerShell), the Postgres leg is a plain `npm test`.
+- **Never select a test leg by habit; select it explicitly and check which one
+  you got.** `TEST_DATABASE_URL` was set machine-wide when this file was first
+  written, which made a bare `npm test` the Postgres leg. It is no longer set in
+  any scope, verified 2026-08-16 at the P10 release session, so a bare `npm test`
+  is now the PGlite leg and `app/.env` carries the variable empty. Either way,
+  running `npm test` twice measures one leg twice and reports both green, which
+  is the false green the CI workflow's own guard exists to stop. Print the
+  variable before you trust a leg: the Postgres leg needs an explicit
+  `TEST_DATABASE_URL` in that process, the PGlite leg needs it unset
+  (`env -u TEST_DATABASE_URL npm test`, `$env:TEST_DATABASE_URL=''` in
+  PowerShell). CI runs both as separate named steps and is the authority.
+- **The browser leg cannot pass from a checkout whose path contains a directory
+  beginning with a dot, and this worktree's `.work` is one.** The SPA fallback
+  answers client routes with `res.sendFile()` on an absolute path, and Express
+  refuses any path carrying a dot segment, so `GET /app` returns 404 with a
+  `bad_request` body while `GET /` still succeeds through `express.static`.
+  Every spec then fails on a missing sidebar, which reads as a broken
+  application and is not one. Verified 2026-08-16 by serving one file from two
+  paths differing only in a dot directory: 404 against 200. CI's workspace and
+  Render's `/opt/render/project/src` carry no dot segment, so both are green and
+  only a local run under `.work` is red. To run this leg locally, copy or clone
+  the tree to a path with no dot directory; otherwise read CI's Playwright step
+  as the verdict.
 - **The browser leg must have that variable unset for the whole run**, and the
   reason is a seam that treats its two processes differently. `npm run e2e:app`
   seeds through `app/db/client.ts`, which prefers `TEST_DATABASE_URL`, and then
