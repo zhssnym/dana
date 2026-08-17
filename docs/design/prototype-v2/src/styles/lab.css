@@ -1,0 +1,28 @@
+/*
+Share-build overrides for the row concept lab.
+
+`app.css` pins html and body to a 1180px minimum, which is correct for the
+prototype: Dana v2's shell is a desktop design and letting it reflow would
+show reviewers a layout that is not the one being proposed.
+
+The lab is not the shell. It is mostly prose, it is read by people on whatever
+machine they happen to have, and its one wide element — the row list — already
+scrolls inside its own container. Inheriting the 1180px floor would make the
+whole page scroll sideways on any laptop narrower than that, which is how a
+carefully built page gets read as a broken one.
+
+So the floor is lifted here, in a file only the share entry imports, rather
+than in `app.css` where it would change every other screen.
+*/
+
+html,
+body {
+  min-width: 0;
+}
+
+/* The row lists are the only thing that still needs real width, and each one
+ * carries its own overflow-x. Belt and braces: nothing else may push the
+ * document sideways. */
+body {
+  overflow-x: hidden;
+}
