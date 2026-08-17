@@ -769,10 +769,14 @@ function TaskCard({
 
   return (
     <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
-      {/* One header strip, not five rows — and no tint behind it. The strip
-          reads as a group because its chips are tight together and the next
-          thing is a whole line away, which is what proximity is for. */}
-      <div className="-ml-1 flex flex-wrap items-center gap-0.5">
+      {/* One header strip, not five rows, and the only shaded thing in the
+          card. The shade is doing what the removed rules were not: it groups
+          the five short values into one object by filling a region rather than
+          by drawing an edge, which is why it can be the single exception to
+          the no-lines rule without reopening it. It also earns its keep twice,
+          because the chips turn white on hover and a white chip needs
+          something to be white against. */}
+      <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-[var(--color-graphite-50)] px-1.5 py-1.5">
         <PropChip
           icon={Folder}
           value={task.folder?.name ?? "Inbox"}

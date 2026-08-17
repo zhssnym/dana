@@ -410,6 +410,18 @@ The check on whether it is working, for whoever ports it: cover the headings
 and you should still see where one section ends. If you cannot, the spacing is
 wrong, and the fix is more spacing rather than a line put back.
 
+**One shaded exception, added the same day: the details strip.** The five short
+values sit on a graphite-50 band with a 10px radius, and it is the only filled
+region in the card. This does not reopen the no-lines decision, it is the same
+decision applied properly — the strip needs to read as one object rather than
+five loose chips, and filling a region says that without drawing an edge. It
+pays a second time on interaction, because the chips turn white on hover and a
+white chip needs something to be white against.
+
+The rule that falls out of it, for the port: **fill a region to group, never to
+decorate, and never fill two regions in the same card.** A second band would
+turn the shade back into the compartment the rules were removed for being.
+
 ## Carried from v1, still unresolved
 
 These are `design-contract.md`'s existing Lane 2 items, listed so a v2 session
