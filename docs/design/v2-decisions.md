@@ -65,7 +65,39 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 
 | ID | Proposal | Status | Recorded | Blocked on |
 | - | - | - | - | - |
-| — | *empty* | — | — | — |
+| DES-093 | Expand a task in place, inside its row | OPEN | 2026-08-17 | Lane under investigation |
+
+### DES-093, expand a task inside its TaskRow
+
+Imran's idea, recorded 2026-08-17 at the opening of session V3. **The lane is
+not yet decided**, which is why this sits here rather than in Lane 1: the
+question is being investigated rather than assumed, and it moves to Lane 1 if
+the answer is that nothing behind the API changes.
+
+1. **What the user does.** Opens a task without leaving the list: the row
+   grows in place and shows everything `TaskForm` shows, notes, steps, folder,
+   assignee, dates, reminder, repeat, history, completion, delete. The list
+   around it stays where it is.
+2. **What the product cannot do today.** Nothing about the data, as far as the
+   design can see; the same task, the same fields. What it contradicts is
+   *presentation* that the specification fixes: 9.3 makes the form a dialog
+   over the page, 9.1's roles table makes a task row a list item or a row and
+   the form a dialog, and 9.4 says a row opens that task's form. An inline
+   form is a different structure, so this needs an owner ruling and spec text
+   under the item-37 route even if no backend moves.
+3. **What it would need.** Under investigation. The two candidates: nothing at
+   all beyond a per-task read that already exists, or a change to what the
+   view queries of section 6 return so a row can render its own detail
+   without a second request. The first is Lane 1 plus a ruling; the second is
+   Lane 2.
+4. **What happens if it never ships.** Nothing breaks. The right-side sheet of
+   DES-025 remains, and this becomes one more explored concept in the V3
+   record rather than a gap.
+
+Note for whoever picks this up: DES-025 chose the right-side sheet
+deliberately in Session 5, so this is a reconsideration of a decided question
+rather than a blank one, and the reasoning there is owed a reading before this
+is decided either way.
 
 ## Carried from v1, still unresolved
 
