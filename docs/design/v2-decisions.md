@@ -71,6 +71,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | ID | Proposal | Status | Recorded | Blocked on |
 | - | - | - | - | - |
 | DES-098 | Custom tags or labels on a task | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-100 | A step as a first-class object: its own menu, promote to task | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-101 | Notes that can contain check items | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 
 ### DES-098, custom tags or labels on a task
 
@@ -109,6 +111,64 @@ assumption.
    within a year, that is an argument for a row with somewhere to put them —
    concept J's second line, or the expanded card — and against the densest
    single-line treatments. If tags are unlikely, that argument disappears.
+
+### DES-100, a step as a first-class object
+
+Imran's idea, recorded 2026-08-17 at session V3. **Recorded only. Explicitly
+not to be drawn or built yet, at his direction** — it is here so the thought
+survives the session, not so it becomes work.
+
+The observation was that a step row in the expanded card has no affordances of
+its own. It can be ticked and that is all. It wants an overflow menu, and the
+most interesting thing in that menu is **promote this step to a task of its
+own**, for the very common case where something written as a step turns out to
+be a job in its own right.
+
+1. **What the user does.** Opens the menu on a step and picks Promote. The step
+   becomes a real task and stops being a step.
+2. **What the product cannot do today.** There is no endpoint that turns a step
+   into a task. Section 7 has task arms and step arms and nothing that crosses
+   between them, and the crossing is not a client-side sequence of two calls
+   that anyone should be happy with: create-then-delete across two resources
+   with no transaction leaves a duplicate on any failure between them.
+3. **What it would need.** A guess, marked as one. Most likely one endpoint that
+   does both halves in a single transaction, because the two-call version is a
+   correctness problem rather than a convenience one. Then a pile of product
+   questions that are cheap to ask now and expensive to discover later: which
+   folder does the new task land in, the parent's or the inbox; does it inherit
+   the parent's due date, assignee, or neither; is the parent left with a
+   reference to it or is the link severed; and what a person sees if they were
+   looking at that step on another device while it stopped existing. The
+   ordinary menu items — rename, delete, reorder — are Lane 1 and need nothing,
+   but reorder collides with DES-071.
+4. **What happens if it never ships.** Nothing breaks. Retyping the step as a
+   task and deleting the step is the current workaround and it is fine, which
+   is a reason to be honest that this is a nicety rather than a gap.
+
+### DES-101, notes that can contain check items
+
+Imran's idea, recorded 2026-08-17 at session V3, in the same breath as DES-100.
+**Recorded only, not to be drawn or built yet.** It is closely related to
+DES-055, the v1 proposal for custom fields, attachments and content blocks, and
+should probably be resolved as part of it rather than separately.
+
+1. **What the user does.** Writes a note on a task and puts tickable items
+   inside it, the way any modern editor lets you.
+2. **What the product cannot do today.** Notes are a single plain text column.
+   There is no structure in them to tick.
+3. **What it would need.** A document model rather than a string: stored
+   structure, a schema for it, an editor, and a migration for existing notes.
+   This is the expensive kind of change, and DES-055 is where the cost was
+   already acknowledged.
+4. **What happens if it never ships.** Nothing breaks. Steps already exist and
+   already tick.
+
+**The question to settle before any of it is priced**, because it decides
+whether this is one feature or two: if a note can hold check items, what is the
+difference between a note check item and a step? Two tickable lists on one task
+with no rule about which to use is a product that has to explain itself. Either
+notes get checkboxes *and* steps go away, or steps stay and notes stay prose.
+Answering that is cheaper than building either.
 
 ### Withdrawn at V3
 
@@ -326,6 +386,29 @@ One consequence worth keeping when this is ported: steps are the items
 themselves rather than a count, so ticking one inside the card moves the count
 in the row behind it. A number that cannot disagree with the thing it counts
 is worth more than the line of code it saves.
+
+**Revised the same day: no rules inside the card.** The first version of this
+structure still drew a hairline above the property strip, above Steps, above
+Notes and above the footer. Imran asked for them gone, and for the card to feel
+like a Notion page: spacing and hierarchy doing the organising, nothing boxed.
+
+He is right, and the reason is worth keeping because it generalises past this
+card. A rule is the cheapest possible way to say "these things are different",
+and cheap is exactly the problem — it works without requiring the layout to be
+correct, so it hides a spacing system that has not been thought through. Four
+rules across a card this small also compartmentalise it into a database record,
+which is the opposite of the feeling wanted from a task you opened to read.
+
+What replaces them: a 16px gap between sections against a 2px gap inside one,
+so proximity alone groups; headings a size smaller and a step greyer than the
+content they own; and each section's content indented to sit under its heading,
+so the indent says what the line used to. The section chevron sits at 40%
+opacity until hover, which is what keeps a heading reading as a label rather
+than a control.
+
+The check on whether it is working, for whoever ports it: cover the headings
+and you should still see where one section ends. If you cannot, the spacing is
+wrong, and the fix is more spacing rather than a line put back.
 
 ## Carried from v1, still unresolved
 
