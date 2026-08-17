@@ -250,6 +250,16 @@ before the surfaces that repeat it. V2 may run any time after V1.
 - **Records:** the two SESSION-LOG lines are the record this plan exists to
   produce.
 
+## The decision register
+
+`v2-decisions.md` is the running record of what this refresh decides, opened
+2026-08-17 at Imran's instruction that ideas needing a backend be recorded and
+marked as such. It carries two lanes: design-only work, which follows the
+normal flow through the sessions above, and **NEEDS BACKEND** proposals, which
+may be drawn on fixtures for review but never reach `app/` without an RFC. A
+session that finds itself designing something the shipping product cannot do
+has found a Lane 2 entry, not a task.
+
 ## Rulings track (parallel, not blocking)
 
 Runs beside the sessions, Imran with Hassan, independent of the restyle:
