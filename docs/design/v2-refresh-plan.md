@@ -250,6 +250,14 @@ before the surfaces that repeat it. V2 may run any time after V1.
 - **Records:** the two SESSION-LOG lines are the record this plan exists to
   produce.
 
+## The naming map
+
+`v2-naming.md` is the shared vocabulary, opened 2026-08-17 after a layout
+discussion stalled for want of a word. Sessions, findings and DES entries name
+things from it; where the spec, the contract or the code already had a name,
+that name is what it carries. Its picture, `v2-refs/naming-map.png`, is
+regenerated at V9 with the rest of the reference set.
+
 ## The decision register
 
 `v2-decisions.md` is the running record of what this refresh decides, opened
