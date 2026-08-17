@@ -380,19 +380,28 @@ export function TaskRow({
           isAbandoned && "text-[var(--color-graphite-500)]",
         )}
       >
+        {/* One canonical slot order on every page (review L2): state chips,
+            folder, pulled, recurrence, steps, assignee, then due as the
+            right-aligned final data column, actions outermost. */}
+        {isAbandoned ? <Badge variant="secondary">Abandoned</Badge> : null}
+
+        {invitePending ? (
+          <Badge
+            variant="outline"
+            className="max-w-64 border-[var(--color-info-200)] bg-[var(--color-info-100)] text-[var(--color-info-700)]"
+          >
+            <span className="truncate">Invite pending: {invitePending}</span>
+          </Badge>
+        ) : null}
+
+        {unassigned ? <Badge variant="outline">Unassigned</Badge> : null}
+
         {folder ? <FolderMeta {...folder} /> : null}
 
         {pulled ? (
           <span className="inline-flex shrink-0 items-center gap-1.5">
             <Pin className="size-4" strokeWidth={1.75} aria-hidden="true" />
             Pulled
-          </span>
-        ) : null}
-
-        {steps ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5">
-            <ListChecks className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            {steps.complete}/{steps.total}
           </span>
         ) : null}
 
@@ -417,25 +426,19 @@ export function TaskRow({
           </Tooltip>
         ) : null}
 
-        {isAbandoned ? <Badge variant="secondary">Abandoned</Badge> : null}
-
-        {invitePending ? (
-          <Badge
-            variant="outline"
-            className="max-w-64 border-[var(--color-info-200)] bg-[var(--color-info-100)] text-[var(--color-info-700)]"
-          >
-            <span className="truncate">Invite pending: {invitePending}</span>
-          </Badge>
+        {steps ? (
+          <span className="inline-flex shrink-0 items-center gap-1.5">
+            <ListChecks className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            {steps.complete}/{steps.total}
+          </span>
         ) : null}
-
-        {unassigned ? <Badge variant="outline">Unassigned</Badge> : null}
 
         {assignee ? <AssigneeMeta {...assignee} /> : null}
 
         {due ? (
           <span
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5",
+              "inline-flex min-w-[5.5rem] shrink-0 items-center justify-end gap-1.5",
               due.overdue && "font-medium text-[var(--color-danger-700)]",
             )}
           >
