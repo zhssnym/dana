@@ -264,4 +264,4 @@ Runs beside the sessions, Imran with Hassan, independent of the restyle:
 
 | # | Date | Who | Delivered | Verdict |
 | - | - | - | - | - |
-| — | — | — | *log opens at V0* | — |
+| V0 | 2026-08-17 | Claude, for Imran | prototype-v2 forked; font stack fixed so Inter Variable actually renders (A4); build green; deterministic capture tool at `prototype-v2/tools/capture.sh` with a duplicate check; 19 baseline captures in `v2-refs/baseline/` including the first real Search export; Privacy and Terms drafted as `?view=privacy` / `?view=terms` with a visible draft ribbon (B1, copy awaiting Imran). One review correction found during the fork: v1's stale exports are 02-11, not 01; the committed code matches 01 | Awaiting Imran: font side-by-side, and the draft legal copy |
