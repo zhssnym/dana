@@ -268,6 +268,19 @@ may be drawn on fixtures for review but never reach `app/` without an RFC. A
 session that finds itself designing something the shipping product cannot do
 has found a Lane 2 entry, not a task.
 
+## Notes for the port
+
+Findings that cost nothing here and cost something in `app/`, recorded as they
+are found so the port session meets them as a list rather than as a surprise.
+
+- **Production carries two task rows; the design carries one.** Every
+  prototype screen that draws a task uses `components/task-row.tsx`, Done
+  included. Production forked a second implementation, `DoneRow` in
+  `app/src/client/pages/DonePage.tsx:86`, whose class string duplicates
+  `task-row.tsx`'s line for line. So a row change agreed here is two edits
+  there, and the two can drift without any check noticing. Found 2026-08-17
+  while investigating DES-093. The port should reunify them or record why not.
+
 ## Rulings track (parallel, not blocking)
 
 Runs beside the sessions, Imran with Hassan, independent of the restyle:
