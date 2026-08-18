@@ -49,8 +49,10 @@ import {
   Image as ImageIcon,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   Pin,
   Play,
+  Plus,
   Repeat2,
   Redo2,
   Share2,
@@ -2045,6 +2047,42 @@ function newFolderChoice(onPick: () => void) {
   }
 }
 
+/*
+An empty block is the control that fills it.
+
+"No steps yet" is a status report, and a status report is a strange thing to
+put in a card whose every other line can be edited where it sits. It tells you
+what is not there and leaves you to work out what to do about it — usually by
+looking elsewhere for a button.
+
+So the empty state is the affordance: it sits where the first item will
+appear, it is the same height as the row it will become, and it says the
+action rather than the absence. Phrased as the thing that happens — "Add a
+step" — because a control should say what it does.
+*/
+function EmptyAction({
+  icon: Icon,
+  label,
+}: {
+  icon: LucideIcon
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        "flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-[14px] leading-5 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+        T_FAST,
+        FOCUS,
+      )}
+    >
+      <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      {label}
+    </button>
+  )
+}
+
 function DestinationChoice({
   icon: Icon,
   name,
@@ -2131,11 +2169,7 @@ function StepList({
   }, [selecting])
 
   if (steps.length === 0) {
-    return (
-      <p className="py-1 text-[14px] leading-5 text-[var(--color-graphite-400)]">
-        No steps yet
-      </p>
-    )
+    return <EmptyAction icon={Plus} label="Add a step" />
   }
 
   function clearPress() {
@@ -2681,13 +2715,13 @@ function TaskCard({
             icon={AlignLeft}
             label="Notes"
           >
-            <p className="py-1 text-sm leading-6 text-[var(--color-graphite-700)]">
-              {task.notes ?? (
-                <span className="text-[var(--color-graphite-400)]">
-                  Nothing written yet
-                </span>
-              )}
-            </p>
+            {task.notes ? (
+              <p className="py-1 text-[14px] leading-6 text-[var(--color-graphite-700)]">
+                {task.notes}
+              </p>
+            ) : (
+              <EmptyAction icon={Pencil} label="Write a note" />
+            )}
           </Disclosure>
     ),
     attachments: (
@@ -2701,9 +2735,7 @@ function TaskCard({
             {task.attachments && task.attachments.length > 0 ? (
           <AttachmentList files={task.attachments} />
         ) : (
-          <p className="py-1 text-sm text-[var(--color-graphite-400)]">
-            Nothing attached
-          </p>
+          <EmptyAction icon={Paperclip} label="Add a file" />
         )}
           </Disclosure>
     ),
