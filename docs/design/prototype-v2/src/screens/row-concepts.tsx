@@ -34,14 +34,26 @@ import {
   CircleAlert,
   Folder,
   ListChecks,
+  FileText,
+  Film,
+  GripVertical,
+  Image as ImageIcon,
   MoreHorizontal,
+  Paperclip,
   Pin,
+  Play,
   Repeat2,
   Star,
   UserRound,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -72,6 +84,21 @@ export interface ConceptTask {
      derived and ticking one in an expanded card moves the number in the row
      behind it. A count that cannot be wrong is better than a count. */
   steps?: ConceptStep[]
+  /* Drawn but never shippable as it stands: attachments need storage,
+     permissions and a virus story that DES-055 has owed since v1. Here so the
+     card can be judged with a third block in it rather than two.
+
+     `kind` is what decides whether the file can be shown or only handed over,
+     and it is deliberately a small closed set rather than a MIME type. The
+     server has to decide this by sniffing the bytes anyway — a browser will
+     happily run a script that a client labelled image/png — so the client
+     never sees a MIME type it might be tempted to trust. */
+  attachments?: {
+    name: string
+    meta: string
+    kind: "image" | "video" | "document" | "file"
+    preview?: string
+  }[]
   recurrence?: boolean
   pulled?: boolean
   important?: boolean
@@ -86,6 +113,32 @@ function stepCount(task: ConceptTask) {
     total: task.steps.length,
   }
 }
+
+/* Fake thumbnails, drawn as inline SVG so the shared build stays a single file
+   that asks the network for nothing. A real one is a server-generated preview;
+   what is being judged here is the layout, not the picture. */
+function thumb(from: string, to: string, marks: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/>${marks}</svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+const SEATING_PLAN = thumb(
+  "#e8e4f5",
+  "#cfc6ea",
+  '<g fill="none" stroke="#6b5ca5" stroke-width="2"><circle cx="20" cy="22" r="7"/><circle cx="44" cy="22" r="7"/><circle cx="20" cy="44" r="7"/><circle cx="44" cy="44" r="7"/></g>',
+)
+
+const VENUE_PHOTO = thumb(
+  "#cfe3ef",
+  "#8fb9d0",
+  '<path d="M0 46l16-14 12 10 14-16 22 20v18H0z" fill="#4b7f9c"/><circle cx="46" cy="16" r="7" fill="#fdf3d0"/>',
+)
+
+const WALKTHROUGH = thumb(
+  "#d8d9de",
+  "#9fa2ab",
+  '<circle cx="32" cy="32" r="15" fill="#2f3136" opacity=".72"/><path d="M28 24l12 8-12 8z" fill="#fff"/>',
+)
 
 const VIOLET = "var(--color-folder-violet)"
 const FERN = "var(--color-folder-fern)"
@@ -130,6 +183,21 @@ export const SAMPLE: ConceptTask[] = [
       { title: "Send the final count to the caterer", done: false },
       { title: "Pay the balance", done: false },
     ],
+    attachments: [
+      {
+        name: "seating-plan-v3.png",
+        meta: "PNG · 240 KB",
+        kind: "image",
+        preview: SEATING_PLAN,
+      },
+      {
+        name: "venue-walkthrough.mp4",
+        meta: "MP4 · 18.4 MB",
+        kind: "video",
+        preview: WALKTHROUGH,
+      },
+      { name: "caterer-quote.pdf", meta: "PDF · 96 KB", kind: "document" },
+    ],
     notes: "The caterer needs the final number by Thursday lunchtime.",
   },
   {
@@ -152,6 +220,20 @@ export const SAMPLE: ConceptTask[] = [
     ],
     assignee: { initials: "SK", name: "Sara" },
     recurrence: true,
+    attachments: [
+      {
+        name: "venue-photo.jpg",
+        meta: "JPEG · 1.8 MB",
+        kind: "image",
+        preview: VENUE_PHOTO,
+      },
+      {
+        name: "grant-application-draft-2.docx",
+        meta: "Word · 1.2 MB",
+        kind: "file",
+      },
+      { name: "budget-2026.xlsx", meta: "Excel · 88 KB", kind: "file" },
+    ],
     notes: "Second draft is in the shared folder.",
   },
   {
@@ -186,6 +268,56 @@ function useTaskList(initial: ConceptTask[]) {
     setTasks((list) => list.map((t) => (t.id === id ? { ...t, ...fields } : t)))
   }
 
+  /* Reorder by dropping one row on another. The dropped row lands where the
+     target was, which is what people expect from a list and is not what a
+     naive swap does. */
+  function reorder(fromId: string, toId: string) {
+    setTasks((list) => {
+      const from = list.findIndex((t) => t.id === fromId)
+      const to = list.findIndex((t) => t.id === toId)
+      if (from < 0 || to < 0 || from === to) return list
+      const next = [...list]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved!)
+      return next
+    })
+  }
+
+  /* Two tasks become a folder: both are moved into it, neither is destroyed.
+     The reversible version of the idea, and the one worth drawing first. */
+  function groupIntoFolder(ids: string[], name: string) {
+    setTasks((list) =>
+      list.map((t) =>
+        ids.includes(t.id)
+          ? { ...t, folder: { name, color: "var(--color-folder-sky)" } }
+          : t,
+      ),
+    )
+  }
+
+  /* A task becomes a folder and its steps become the tasks inside it. This one
+     destroys the original, which is exactly why it is drawn: seeing one row
+     turn into four is the fastest way to judge whether that is a good idea. */
+  function taskToFolder(id: string) {
+    setTasks((list) => {
+      const at = list.findIndex((t) => t.id === id)
+      if (at < 0) return list
+      const source = list[at]!
+      const folder = { name: source.title, color: "var(--color-folder-sky)" }
+      const promoted: ConceptTask[] = (source.steps ?? []).map((step, i) => ({
+        id: `${source.id}-promoted-${i}`,
+        title: step.title,
+        done: step.done,
+        folder,
+        due: source.due,
+        assignee: source.assignee,
+      }))
+      const next = [...list]
+      next.splice(at, 1, ...promoted)
+      return next
+    })
+  }
+
   function toggleStep(id: string, index: number) {
     setTasks((list) =>
       list.map((t) =>
@@ -201,7 +333,7 @@ function useTaskList(initial: ConceptTask[]) {
     )
   }
 
-  return { tasks, patch, toggleStep }
+  return { tasks, patch, toggleStep, reorder, groupIntoFolder, taskToFolder }
 }
 
 /* --------------------------------------------------------------- motion -- */
@@ -234,6 +366,350 @@ function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
       </div>
     </div>
   )
+}
+
+/* ------------------------------------------------------------ dragging -- */
+/*
+Dragging a row, and the 1.5 second dwell that turns a reorder into a folder.
+
+Imran's idea, 2026-08-17. Both halves need a backend and neither is approved;
+see DES-103. They are drawn because the only way to judge a dwell is to feel
+one, and 1.5s is either exactly right or obviously wrong within two attempts.
+
+The interaction has two meanings and the dwell is what separates them. Drop
+straight away and the row reorders. Hold over another row and after 1.5s the
+drop changes meaning: release now and the two tasks become a folder. A hidden
+mode is a bad idea unless the mode announces itself, so the target row fills a
+bar over exactly the dwell duration and then says what releasing will do. The
+bar is not decoration; it is the only reason the delay is not a mystery.
+
+Nothing is destroyed on drop. Releasing opens a panel that names the folder and
+can be cancelled, because "I dragged one task slightly onto another" and "I
+want a new folder" should not be the same gesture with no way back.
+*/
+
+const DWELL_MS = 1500
+
+/* Plain drag reorder, no dwell and no second meaning. Used for the blocks
+   inside a card, which only ever need to change places.
+
+   The dragged item lands where the target was rather than swapping with it,
+   because a swap is not what a list looks like it is doing when you drop
+   something in the middle of one. */
+function useSimpleDrag<T extends string>(
+  order: T[],
+  setOrder: (next: T[]) => void,
+) {
+  const [dragKey, setDragKey] = useState<T | null>(null)
+  const [overKey, setOverKey] = useState<T | null>(null)
+
+  function dragProps(key: T) {
+    return {
+      draggable: true,
+      onDragStart: (e: DragEvent) => {
+        e.stopPropagation()
+        e.dataTransfer.effectAllowed = "move"
+        e.dataTransfer.setData("text/plain", key)
+        setDragKey(key)
+      },
+      onDragEnd: (e: DragEvent) => {
+        e.stopPropagation()
+        setDragKey(null)
+        setOverKey(null)
+      },
+      onDragOver: (e: DragEvent) => {
+        /* stopPropagation so dragging a block never reads as dragging the row
+           the card belongs to. Two nested reorderable lists is exactly where
+           this goes wrong. */
+        e.preventDefault()
+        e.stopPropagation()
+        if (dragKey && dragKey !== key) setOverKey(key)
+      },
+      onDragLeave: (e: DragEvent) => {
+        e.stopPropagation()
+        setOverKey((current) => (current === key ? null : current))
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const from = dragKey
+        setDragKey(null)
+        setOverKey(null)
+        if (!from || from === key) return
+        const next = [...order]
+        const at = next.indexOf(from)
+        next.splice(at, 1)
+        next.splice(next.indexOf(key) + (order.indexOf(from) < order.indexOf(key) ? 1 : 0), 0, from)
+        setOrder(next)
+      },
+    }
+  }
+
+  return {
+    dragProps,
+    state: (key: T) => ({
+      isDragging: dragKey === key,
+      isOver: overKey === key,
+    }),
+  }
+}
+
+interface DragState {
+  dragId: string | null
+  /* The row currently under the pointer. Set the moment you arrive, which is
+     what starts the bar filling. */
+  hoverId: string | null
+  /* The row you have stayed on long enough. Set when the timer fires, which is
+     what changes what a release means. */
+  dwellId: string | null
+}
+
+/* The bar that makes the delay visible. Mounted only while a dwell is running,
+   so its width transition starts from zero every time. */
+function DwellBar() {
+  const [grown, setGrown] = useState(false)
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setGrown(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden rounded-full"
+    >
+      <span
+        className="block h-full rounded-full bg-[var(--color-dana-accent-600)]"
+        style={{
+          width: grown ? "100%" : "0%",
+          transition: `width ${DWELL_MS}ms linear`,
+        }}
+      />
+    </span>
+  )
+}
+
+type PendingAction =
+  | { kind: "merge"; ids: string[]; titles: string[] }
+  | { kind: "promote"; id: string; title: string; steps: number }
+
+function useRowDrag({
+  reorder,
+  onMerge,
+}: {
+  reorder: (fromId: string, toId: string) => void
+  onMerge: (ids: string[], titles: string[]) => void
+}) {
+  const EMPTY: DragState = { dragId: null, hoverId: null, dwellId: null }
+  const [state, setState] = useState<DragState>(EMPTY)
+  const timer = useRef<number | null>(null)
+  /* A ref mirror, because drag handlers fire far more often than React
+     re-renders and reading `state` inside one gives you the value from
+     whenever that handler was created. This is the bug that makes a drop land
+     on the wrong row roughly one time in five. */
+  const live = useRef<DragState>(EMPTY)
+
+  function apply(next: DragState) {
+    live.current = next
+    setState(next)
+  }
+
+  function clearTimer() {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current)
+      timer.current = null
+    }
+  }
+
+  useEffect(() => clearTimer, [])
+
+  function dragProps(task: ConceptTask, tasks: ConceptTask[]) {
+    return {
+      draggable: true,
+      onDragStart: (e: DragEvent) => {
+        e.dataTransfer.effectAllowed = "move"
+        /* Firefox refuses to start a drag with no payload. */
+        e.dataTransfer.setData("text/plain", task.id)
+        apply({ dragId: task.id, hoverId: null, dwellId: null })
+      },
+      onDragEnd: () => {
+        clearTimer()
+        apply(EMPTY)
+      },
+      onDragOver: (e: DragEvent) => {
+        e.preventDefault()
+        const current = live.current
+        if (!current.dragId || current.dragId === task.id) return
+        if (current.hoverId === task.id) return
+        /* Arriving at a new row restarts the clock, so dragging across a list
+           never accumulates dwell from rows merely passed over. */
+        clearTimer()
+        apply({ ...current, hoverId: task.id, dwellId: null })
+        timer.current = window.setTimeout(() => {
+          if (live.current.hoverId !== task.id) return
+          apply({ ...live.current, dwellId: task.id })
+        }, DWELL_MS)
+      },
+      onDragLeave: () => {
+        if (live.current.hoverId !== task.id) return
+        clearTimer()
+        apply({ ...live.current, hoverId: null, dwellId: null })
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault()
+        clearTimer()
+        const { dragId, dwellId } = live.current
+        apply(EMPTY)
+        if (!dragId || dragId === task.id) return
+        if (dwellId === task.id) {
+          const dragged = tasks.find((t) => t.id === dragId)
+          if (dragged) onMerge([dragId, task.id], [dragged.title, task.title])
+          return
+        }
+        reorder(dragId, task.id)
+      },
+    }
+  }
+
+  function rowState(id: string) {
+    return {
+      isDragging: state.dragId === id,
+      isHovered: state.hoverId === id && state.dragId !== id,
+      isDwelt: state.dwellId === id,
+    }
+  }
+
+  return { dragProps, rowState }
+}
+
+/* The panel both gestures land in. Deliberately not a dialog: the point of
+   these two ideas is that you never leave the list. */
+function PendingPanel({
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  pending: PendingAction
+  onConfirm: (name: string) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(
+    pending.kind === "promote" ? pending.title : "",
+  )
+
+  return (
+    <div
+      className={cn(
+        "mb-2 rounded-lg border border-[var(--color-dana-accent-200)] bg-[var(--color-dana-accent-50)] px-3 py-2.5",
+        T_BASE,
+      )}
+    >
+      <p className="text-[13px] leading-5 text-[var(--color-dana-accent-800)]">
+        {pending.kind === "merge" ? (
+          <>
+            Put <strong>{pending.titles[0]}</strong> and{" "}
+            <strong>{pending.titles[1]}</strong> in a new folder. Both tasks
+            move into it; neither is changed otherwise.
+          </>
+        ) : (
+          <>
+            Turn <strong>{pending.title}</strong> into a folder.{" "}
+            {pending.steps > 0 ? (
+              <>
+                Its {pending.steps} step{pending.steps > 1 ? "s" : ""} become{" "}
+                {pending.steps > 1 ? "tasks" : "a task"} inside it, and the task
+                itself stops existing.
+              </>
+            ) : (
+              <>It has no steps, so the folder starts empty and the task stops existing.</>
+            )}
+          </>
+        )}
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && name.trim()) onConfirm(name.trim())
+            if (e.key === "Escape") onCancel()
+          }}
+          placeholder="Folder name"
+          aria-label="Folder name"
+          className={cn(
+            "h-8 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-sm text-[var(--color-graphite-800)] outline-none",
+            "focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]",
+          )}
+        />
+        <button
+          type="button"
+          onClick={onCancel}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-[13px] text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)]",
+            T_FAST,
+            FOCUS,
+          )}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!name.trim()}
+          onClick={() => onConfirm(name.trim())}
+          className={cn(
+            "rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[13px] font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95 disabled:opacity-40",
+            T_FAST,
+            FOCUS,
+          )}
+        >
+          Create folder
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* Everything a concept needs: the task list, the drag layer, and the panel
+   both folder gestures land in. Shared so that dragging behaves identically in
+   every concept, for the same reason renaming does — a comparison should
+   measure the row, not which concept got the better drag. */
+function useConceptList() {
+  const list = useTaskList(SAMPLE)
+  const [pending, setPending] = useState<PendingAction | null>(null)
+
+  const drag = useRowDrag({
+    reorder: list.reorder,
+    onMerge: (ids, titles) => setPending({ kind: "merge", ids, titles }),
+  })
+
+  function requestPromote(task: ConceptTask) {
+    setPending({
+      kind: "promote",
+      id: task.id,
+      title: task.title,
+      steps: task.steps?.length ?? 0,
+    })
+  }
+
+  function confirm(name: string) {
+    if (!pending) return
+    if (pending.kind === "merge") list.groupIntoFolder(pending.ids, name)
+    else list.taskToFolder(pending.id)
+    setPending(null)
+  }
+
+  const panel = pending ? (
+    <PendingPanel
+      pending={pending}
+      onConfirm={confirm}
+      onCancel={() => setPending(null)}
+    />
+  ) : null
+
+  return { ...list, drag, panel, requestPromote }
 }
 
 /* --------------------------------------------------------------- pieces -- */
@@ -508,10 +984,12 @@ function ExpandButton({
 function Actions({
   task,
   onStar,
+  onMakeFolder,
   extra,
 }: {
   task: ConceptTask
   onStar: () => void
+  onMakeFolder?: () => void
   extra?: ReactNode
 }) {
   return (
@@ -567,6 +1045,11 @@ function Actions({
           <DropdownMenuItem>Open</DropdownMenuItem>
           <DropdownMenuItem>Duplicate</DropdownMenuItem>
           <DropdownMenuItem>Move to folder…</DropdownMenuItem>
+          {onMakeFolder ? (
+            <DropdownMenuItem onClick={onMakeFolder}>
+              Make this a folder…
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem>Delete</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -614,6 +1097,34 @@ This is the harder version to get right, which is why it is worth saying what
 "right" means: cover the headings and you should still see where one section
 ends. If you cannot, the spacing is wrong, and the fix is more spacing rather
 than a line put back.
+
+FOURTH PASS, 2026-08-17: the body is now an ordered list of blocks. Steps,
+Notes and Attachments can each be moved up or down from the menu on their
+heading, and each keeps its own open state across the move because the blocks
+are keyed rather than positional.
+
+Imran asked whether this could work "like a block in Notion, where the user
+writes it and it appears". The answer, and the reason this is built the way it
+is: **there are two different products behind that question, and this is the
+cheap one.**
+
+The expensive one is Notion's actual model — a document of arbitrary blocks,
+any type, any depth, created by typing. That needs a stored document schema, a
+rich text editor, collaborative editing rules for a shared task, and a
+migration for every note already written as a string. It is DES-055 and
+DES-101, and it has been owed since v1 precisely because it is that large.
+
+The cheap one is what is on screen: a **closed set of typed blocks** that can
+be reordered, each already knowing how to render and edit itself. It gives
+almost all of the feeling people mean by "Notion-like" — the card is a stack
+you arrange rather than a form somebody laid out for you — for a fraction of
+the cost, because the only thing that has to be stored is an order.
+
+The honest limit is worth stating rather than discovering: you cannot invent a
+block that Dana does not already have. If somebody wants a table, or three
+separate note blocks, this model says no and the expensive one is the only
+answer. Whether that limit is acceptable is a product question, and it is
+DES-102.
 */
 
 function PropChip({
@@ -695,61 +1206,221 @@ function Disclosure({
   label,
   badge,
   children,
+  drag,
+  isDragging = false,
+  isOver = false,
 }: {
   icon: LucideIcon
   label: string
   badge?: string
   children: ReactNode
+  drag?: Record<string, unknown>
+  isDragging?: boolean
+  isOver?: boolean
 }) {
   /* Open by default. See the block comment above TaskCard: the card's job on
      the first visit is to answer, not to tidy. */
   const [open, setOpen] = useState(true)
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((v) => !v)
-        }}
-        aria-expanded={open}
+    <div
+      {...drag}
+      className={cn(
+        "group/sec rounded-md transition-[opacity,box-shadow]",
+        T_FAST,
+        isDragging && "opacity-40",
+        /* The drop target is marked by a line where the block will land, not
+           by a filled box: a fill competes with the shaded details strip and
+           reads as a second grouped region. */
+        isOver &&
+          "shadow-[inset_0_2px_0_0_var(--color-dana-accent-600)]",
+      )}
+    >
+      {/* The heading is a row of controls rather than one, because a handle
+          inside a toggle button is a button inside a button, which the browser
+          silently repairs by dropping one of them. */}
+      <div
         className={cn(
-          "group/sec -ml-1 flex h-7 items-center gap-1.5 rounded-md px-1 text-left transition-colors hover:bg-[var(--color-graphite-50)]",
+          "-ml-1 flex h-7 items-center gap-1.5 rounded-md pr-1 pl-1 transition-colors group-hover/sec:bg-[var(--color-graphite-50)]",
           T_FAST,
-          FOCUS,
         )}
       >
-        <ChevronDown
+        {/* The grip is the whole affordance: it appears on hover, it is what
+            you grab, and it is why the heading does not need a menu. */}
+        <span
+          aria-hidden="true"
           className={cn(
-            "size-3.5 shrink-0 text-[var(--color-graphite-400)] transition-[transform,opacity]",
-            T_BASE,
-            !open && "-rotate-90",
-            /* Quiet until you look at it, which is the Notion behaviour and
-               the reason the heading reads as a label rather than a control. */
-            open ? "opacity-40 group-hover/sec:opacity-100" : "opacity-100",
+            "-ml-3.5 flex size-3.5 shrink-0 cursor-grab items-center justify-center text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/sec:opacity-100 active:cursor-grabbing",
+            T_FAST,
           )}
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-        <Icon
-          className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <span className="text-[12px] font-medium text-[var(--color-graphite-500)]">
-          {label}
+        >
+          <GripVertical className="size-3.5" strokeWidth={2} />
         </span>
-        {badge ? (
-          <span className="text-[12px] text-[var(--color-graphite-400)] tabular-nums">
-            {badge}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen((v) => !v)
+          }}
+          aria-expanded={open}
+          className={cn("flex flex-1 items-center gap-1.5 rounded-md text-left", FOCUS)}
+        >
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 text-[var(--color-graphite-400)] transition-[transform,opacity]",
+              T_BASE,
+              !open && "-rotate-90",
+              /* Quiet until you look at it, which is the Notion behaviour and
+                 the reason the heading reads as a label rather than a
+                 control. */
+              open ? "opacity-40 group-hover/sec:opacity-100" : "opacity-100",
+            )}
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          <Icon
+            className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <span className="text-[12px] font-medium text-[var(--color-graphite-500)]">
+            {label}
           </span>
-        ) : null}
-      </button>
+          {badge ? (
+            <span className="text-[12px] text-[var(--color-graphite-400)] tabular-nums">
+              {badge}
+            </span>
+          ) : null}
+        </button>
+      </div>
       <Reveal open={open}>
         {/* Indented to sit under the heading's icon, not its chevron. */}
         <div className="pt-0.5 pl-[18px]">{children}</div>
       </Reveal>
+    </div>
+  )
+}
+
+/*
+Attachments, and what "viewable" means.
+
+Imran asked whether people could attach images, GIFs, video and more or less
+any file, with the viewable ones openable in place. They can, and the design
+question underneath it is the one worth being precise about: **viewable is a
+decision the server makes, not a property of the file's name.**
+
+Three tiers, and every file lands in exactly one:
+
+- **Shown**: images and video. A thumbnail in the list, and the thing itself
+  when opened, inline, without leaving the task.
+- **Openable**: PDFs, and anything the browser can render in a viewer. Not
+  thumbnailed here, opened in place when asked.
+- **Handed over**: everything else. An icon, a name, a size, a download. No
+  pretence that Dana can show you a .docx.
+
+The trap, recorded because it is the one that turns an attachment feature into
+a security incident: a file's declared type is supplied by whoever uploaded it,
+and an SVG or an HTML file served inline from Dana's own origin runs as Dana.
+The type has to be decided by sniffing the bytes server-side, SVG has to be
+treated as a document rather than an image unless it is sanitised, and anything
+in the third tier has to be served with Content-Disposition: attachment. This
+is why `kind` above is a small closed set rather than a MIME string.
+*/
+
+/* The three block types the card can hold. A closed set, deliberately: see
+   the note on a Notion-style editor in this file's TaskCard comment. */
+type BlockKey = "steps" | "notes" | "attachments"
+
+const ATTACHMENT_ICON: Record<
+  NonNullable<ConceptTask["attachments"]>[number]["kind"],
+  LucideIcon
+> = {
+  image: ImageIcon,
+  video: Film,
+  document: FileText,
+  file: Paperclip,
+}
+
+function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments"]> }) {
+  const [openName, setOpenName] = useState<string | null>(null)
+
+  return (
+    <div className="flex flex-col">
+      {files.map((file) => {
+        const Icon = ATTACHMENT_ICON[file.kind]
+        const viewable = file.kind === "image" || file.kind === "video"
+        const isOpen = openName === file.name
+
+        return (
+          <div key={file.name}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (viewable) setOpenName(isOpen ? null : file.name)
+              }}
+              className={cn(
+                "flex h-11 w-full items-center gap-2.5 rounded-md px-1 text-left transition-colors hover:bg-[var(--color-graphite-50)]",
+                T_FAST,
+                FOCUS,
+              )}
+            >
+              {/* A thumbnail where there is something to see, a type mark
+                  where there is not. The two are the same size so the list
+                  keeps one left edge. */}
+              {file.preview ? (
+                <span className="relative size-8 shrink-0 overflow-hidden rounded-[5px] border border-[var(--color-graphite-200)]">
+                  <img src={file.preview} alt="" className="size-full object-cover" />
+                  {file.kind === "video" ? (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <Play
+                        className="size-3.5 fill-white text-white drop-shadow"
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                      />
+                    </span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-[5px] border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)]">
+                  <Icon
+                    className="size-4 text-[var(--color-graphite-500)]"
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-[var(--color-graphite-800)]">
+                  {file.name}
+                </span>
+                <span className="block text-[11px] text-[var(--color-graphite-400)]">
+                  {file.meta}
+                </span>
+              </span>
+              <span className="shrink-0 text-[11px] text-[var(--color-graphite-400)]">
+                {viewable ? (isOpen ? "Hide" : "View") : "Download"}
+              </span>
+            </button>
+            {/* Only a file that can actually be shown gets a viewer. The
+                guard is on `preview` rather than on `kind` because a viewable
+                kind with no generated preview is a real state — the thumbnail
+                job can fail or still be queued — and rendering an <img> with
+                no source produces a broken frame rather than an honest row. */}
+            {viewable && file.preview ? (
+              <Reveal open={isOpen}>
+                <div className="px-1 pb-2">
+                  <img
+                    src={file.preview}
+                    alt={file.name}
+                    className="w-full max-w-[320px] rounded-md border border-[var(--color-graphite-200)]"
+                  />
+                </div>
+              </Reveal>
+            ) : null}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -766,6 +1437,136 @@ function TaskCard({
   onClose: () => void
 }) {
   const counts = stepCount(task)
+  const [order, setOrder] = useState<BlockKey[]>([
+    "steps",
+    "notes",
+    "attachments",
+  ])
+
+  const blockDrag = useSimpleDrag<BlockKey>(order, setOrder)
+
+  /* Grab the heading and drop it where you want it. There is no menu for this
+     and there should not be: a list you can drag is understood without being
+     explained, and a Move up item is what a design reaches for when it has not
+     made dragging work. */
+  function moveProps(key: BlockKey) {
+    return {
+      drag: blockDrag.dragProps(key),
+      ...blockDrag.state(key),
+    }
+  }
+
+  /* The card body is an ordered list of blocks rather than a fixed layout, so
+     Notes can sit above Steps if that is how somebody thinks about this task.
+     Order lives in component state here and would need somewhere to live for
+     real: see DES-102. Each block keeps its own open/closed state across a
+     move because it is keyed, not positional. */
+  const blocks: Record<BlockKey, ReactNode> = {
+    steps: (
+          <Disclosure
+            key="steps"
+            {...moveProps("steps")}
+            icon={ListChecks}
+            label="Steps"
+            badge={counts ? `${counts.done}/${counts.total}` : undefined}
+          >
+            {task.steps && task.steps.length > 0 ? (
+              <div className="flex flex-col">
+                {task.steps.map((step, i) => (
+                  <button
+                    key={step.title}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleStep(task.id, i)
+                    }}
+                    className={cn(
+                      "flex h-8 items-center gap-2 rounded-md px-1 text-left text-sm transition-colors hover:bg-[var(--color-graphite-50)]",
+                      T_FAST,
+                      FOCUS,
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
+                        T_FAST,
+                        step.done
+                          ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
+                          : "border-input bg-background",
+                      )}
+                    >
+                      <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
+                        <path
+                          d="M4 10.5 L8.2 14.5 L16 5.8"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{
+                            strokeDasharray: 20,
+                            strokeDashoffset: step.done ? 0 : 20,
+                            transition:
+                              "stroke-dashoffset var(--duration-base) var(--ease-enter)",
+                          }}
+                        />
+                      </svg>
+                    </span>
+                    <span
+                      className={cn(
+                        "transition-colors",
+                        T_BASE,
+                        step.done
+                          ? "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]"
+                          : "text-[var(--color-graphite-800)]",
+                      )}
+                    >
+                      {step.title}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="px-1 py-1 text-sm text-[var(--color-graphite-400)]">
+                No steps yet
+              </p>
+            )}
+          </Disclosure>
+    ),
+    notes: (
+          <Disclosure
+            key="notes"
+            {...moveProps("notes")}
+            icon={AlignLeft}
+            label="Notes"
+          >
+            <p className="py-1 text-sm leading-6 text-[var(--color-graphite-700)]">
+              {task.notes ?? (
+                <span className="text-[var(--color-graphite-400)]">
+                  Nothing written yet
+                </span>
+              )}
+            </p>
+          </Disclosure>
+    ),
+    attachments: (
+          <Disclosure
+            key="attachments"
+            {...moveProps("attachments")}
+            icon={Paperclip}
+            label="Attachments"
+            badge={task.attachments ? String(task.attachments.length) : undefined}
+          >
+            {task.attachments && task.attachments.length > 0 ? (
+          <AttachmentList files={task.attachments} />
+        ) : (
+          <p className="py-1 text-sm text-[var(--color-graphite-400)]">
+            Nothing attached
+          </p>
+        )}
+          </Disclosure>
+    ),
+  }
 
   return (
     <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
@@ -841,83 +1642,7 @@ function TaskCard({
         />
       </div>
 
-      <Disclosure
-        icon={ListChecks}
-        label="Steps"
-        badge={counts ? `${counts.done}/${counts.total}` : undefined}
-      >
-        {task.steps && task.steps.length > 0 ? (
-          <div className="flex flex-col">
-            {task.steps.map((step, i) => (
-              <button
-                key={step.title}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggleStep(task.id, i)
-                }}
-                className={cn(
-                  "flex h-8 items-center gap-2 rounded-md px-1 text-left text-sm transition-colors hover:bg-[var(--color-graphite-50)]",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
-                    T_FAST,
-                    step.done
-                      ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
-                      : "border-input bg-background",
-                  )}
-                >
-                  <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-                    <path
-                      d="M4 10.5 L8.2 14.5 L16 5.8"
-                      fill="none"
-                      stroke="white"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        strokeDasharray: 20,
-                        strokeDashoffset: step.done ? 0 : 20,
-                        transition:
-                          "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-                      }}
-                    />
-                  </svg>
-                </span>
-                <span
-                  className={cn(
-                    "transition-colors",
-                    T_BASE,
-                    step.done
-                      ? "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]"
-                      : "text-[var(--color-graphite-800)]",
-                  )}
-                >
-                  {step.title}
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="px-1 py-1 text-sm text-[var(--color-graphite-400)]">
-            No steps yet
-          </p>
-        )}
-      </Disclosure>
-
-      <Disclosure icon={AlignLeft} label="Notes">
-        <p className="py-1 text-sm leading-6 text-[var(--color-graphite-700)]">
-          {task.notes ?? (
-            <span className="text-[var(--color-graphite-400)]">
-              Nothing written yet
-            </span>
-          )}
-        </p>
-      </Disclosure>
+      {order.map((key) => blocks[key])}
 
       <div className="flex items-center justify-between pt-1">
         <span className="text-[11px] text-[var(--color-graphite-500)]">
@@ -965,23 +1690,47 @@ function ExpandShell({
   open,
   row,
   card,
+  drag,
+  isDragging = false,
+  isHovered = false,
+  isDwelt = false,
 }: {
   open: boolean
   row: ReactNode
   card: ReactNode
+  drag?: Record<string, unknown>
+  isDragging?: boolean
+  isHovered?: boolean
+  isDwelt?: boolean
 }) {
   return (
     <div
+      {...drag}
       className={cn(
-        "rounded-lg border transition-[background-color,box-shadow,margin,border-color]",
+        "relative rounded-lg border transition-[background-color,box-shadow,margin,border-color,opacity]",
         T_BASE,
         open
           ? "my-1 border-[var(--color-graphite-300)] bg-card shadow-[var(--elevation-1)]"
           : "my-0 border-transparent",
+        isDragging && "opacity-40",
+        /* Hovered means "drop here to reorder". Dwelt means the release has
+            changed meaning, so it gets a different signal rather than a
+            stronger one — a ring and a fill, not a heavier line. */
+        isHovered && !isDwelt && "border-[var(--color-dana-accent-200)]",
+        isDwelt &&
+          "border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-50)]",
       )}
     >
       {row}
       <Reveal open={open}>{card}</Reveal>
+      {isHovered && !isDwelt ? <DwellBar /> : null}
+      {isDwelt ? (
+        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+          <span className="rounded-full bg-[var(--color-dana-accent-600)] px-2 py-0.5 text-[11px] font-medium text-white">
+            Release to make a folder
+          </span>
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -990,11 +1739,13 @@ function ExpandShell({
 /* Disciplined: at most three facts at rest, the rest behind one pill. */
 
 function ConceptA() {
-  const { tasks, patch, toggleStep } = useTaskList(SAMPLE)
+  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
+    useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col">
+      {panel}
       {tasks.map((task) => {
         const isOpen = open === task.id
         const counts = stepCount(task)
@@ -1002,12 +1753,15 @@ function ConceptA() {
           (counts ? 1 : 0) +
           (task.recurrence ? 1 : 0) +
           (task.pulled ? 1 : 0) +
-          (task.notes ? 1 : 0)
+          (task.notes ? 1 : 0) +
+          (task.attachments ? 1 : 0)
 
         return (
           <ExpandShell
             key={task.id}
             open={isOpen}
+            drag={drag.dragProps(task, tasks)}
+            {...drag.rowState(task.id)}
             card={
               <TaskCard
                 task={task}
@@ -1045,6 +1799,9 @@ function ConceptA() {
                           task.recurrence ? "Repeats weekly" : null,
                           task.pulled ? "In My Day" : null,
                           task.notes ? "Has notes" : null,
+                          task.attachments
+                            ? `${task.attachments.length} attached`
+                            : null,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -1058,6 +1815,7 @@ function ConceptA() {
                     <Actions
                       task={task}
                       onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                       extra={
                         <ExpandButton
                           open={isOpen}
@@ -1135,11 +1893,13 @@ function ChipMenu({
 }
 
 function ConceptE() {
-  const { tasks, patch, toggleStep } = useTaskList(SAMPLE)
+  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
+    useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col">
+      {panel}
       {tasks.map((task) => {
         const isOpen = open === task.id
         const counts = stepCount(task)
@@ -1148,6 +1908,8 @@ function ConceptE() {
           <ExpandShell
             key={task.id}
             open={isOpen}
+            drag={drag.dragProps(task, tasks)}
+            {...drag.rowState(task.id)}
             card={
               <TaskCard
                 task={task}
@@ -1287,6 +2049,7 @@ function ConceptE() {
                     <Actions
                       task={task}
                       onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                       extra={
                         <ExpandButton
                           open={isOpen}
@@ -1309,11 +2072,12 @@ function ConceptE() {
 /* Two-line on selection: the row breathes where you are looking. */
 
 function ConceptF() {
-  const { tasks, patch } = useTaskList(SAMPLE)
+  const { tasks, patch, drag, panel, requestPromote } = useConceptList()
   const [selected, setSelected] = useState<string | null>("t4")
 
   return (
     <div className="flex flex-col">
+      {panel}
       {tasks.map((task) => {
         const isSelected = selected === task.id
         const counts = stepCount(task)
@@ -1372,6 +2136,7 @@ function ConceptF() {
                 <Actions
                   task={task}
                   onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                 />
               </span>
             </div>
@@ -1452,6 +2217,15 @@ const VOCAB: VocabEntry[] = [
     icon: Repeat2,
     name: "Repeats",
     describe: (t) => (t.recurrence ? "Repeats weekly" : null),
+  },
+  {
+    key: "attachments",
+    icon: Paperclip,
+    name: "Attachments",
+    describe: (t) =>
+      t.attachments && t.attachments.length > 0
+        ? `${t.attachments.length} attachment${t.attachments.length > 1 ? "s" : ""}`
+        : null,
   },
   {
     key: "pulled",
@@ -1539,13 +2313,15 @@ function VocabLegend() {
 }
 
 function ConceptI() {
-  const { tasks, patch, toggleStep } = useTaskList(SAMPLE)
+  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
+    useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
     <>
       <VocabLegend />
       <div className="flex flex-col">
+        {panel}
         {tasks.map((task) => {
           const isOpen = open === task.id
 
@@ -1553,6 +2329,8 @@ function ConceptI() {
             <ExpandShell
               key={task.id}
               open={isOpen}
+              drag={drag.dragProps(task, tasks)}
+              {...drag.rowState(task.id)}
               card={
                 <TaskCard
                   task={task}
@@ -1623,6 +2401,7 @@ function ConceptI() {
                       <Actions
                         task={task}
                         onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                         extra={
                           <ExpandButton
                             open={isOpen}
@@ -1707,11 +2486,13 @@ function DetailWord({
 }
 
 function ConceptJ() {
-  const { tasks, patch, toggleStep } = useTaskList(SAMPLE)
+  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
+    useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col">
+      {panel}
       {tasks.map((task) => {
         const isOpen = open === task.id
         const counts = stepCount(task)
@@ -1723,12 +2504,15 @@ function ConceptJ() {
           !task.recurrence &&
           !task.pulled &&
           !task.notes &&
+          !task.attachments &&
           !task.abandoned
 
         return (
           <ExpandShell
             key={task.id}
             open={isOpen}
+            drag={drag.dragProps(task, tasks)}
+            {...drag.rowState(task.id)}
             card={
               <TaskCard
                 task={task}
@@ -1782,6 +2566,11 @@ function ConceptJ() {
                         </span>
                       </DetailWord>
                     ) : null}
+                    {task.attachments ? (
+                      <DetailWord icon={Paperclip}>
+                        {task.attachments.length}
+                      </DetailWord>
+                    ) : null}
                     {task.abandoned ? <DetailWord icon={Ban}>Abandoned</DetailWord> : null}
                     {bare ? (
                       /* A bare task keeps the line rather than collapsing to
@@ -1796,6 +2585,7 @@ function ConceptJ() {
                   <Actions
                     task={task}
                     onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                     extra={
                       <ExpandButton
                         open={isOpen}
@@ -1817,11 +2607,13 @@ function ConceptJ() {
 /* Expand in place, the list receding so the card reads as a new object. */
 
 function ConceptD() {
-  const { tasks, patch, toggleStep } = useTaskList(SAMPLE)
+  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
+    useConceptList()
   const [open, setOpen] = useState<string | null>("t2")
 
   return (
     <div className="flex flex-col gap-0.5">
+      {panel}
       {tasks.map((task) => {
         const isOpen = open === task.id
         const recedes = open !== null && !isOpen
@@ -1849,6 +2641,7 @@ function ConceptD() {
                   <Actions
                     task={task}
                     onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                   />
                 </span>
               </div>
@@ -1885,6 +2678,7 @@ function ConceptD() {
                 <Actions
                   task={task}
                   onStar={() => patch(task.id, { important: !task.important })}
+                      onMakeFolder={() => requestPromote(task)}
                 />
               </span>
             </div>

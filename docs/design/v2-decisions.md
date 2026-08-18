@@ -73,6 +73,10 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-098 | Custom tags or labels on a task | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-100 | A step as a first-class object: its own menu, promote to task | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-101 | Notes that can contain check items | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-102 | The card body as movable blocks, and an Attachments block | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-103 | Drag a task row; hold 1.5s on another to make a folder of both | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-104 | Make this task a folder; its steps become the tasks | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-105 | What an attachment may be, and which ones can be viewed | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 
 ### DES-098, custom tags or labels on a task
 
@@ -169,6 +173,171 @@ difference between a note check item and a step? Two tickable lists on one task
 with no rule about which to use is a product that has to explain itself. Either
 notes get checkboxes *and* steps go away, or steps stay and notes stay prose.
 Answering that is cheaper than building either.
+
+### DES-102, the card body as movable blocks, and an Attachments block
+
+Imran's idea, recorded 2026-08-17 at session V3. **Drawn in the lab, and marked
+here as a proposal because part of it cannot ship without a backend.** It is
+live in every concept that expands: Steps, Notes and Attachments each carry a
+menu on their heading with Move up and Move down, and each keeps its own
+open state across a move.
+
+Imran also asked whether the card could work "like a block in Notion, where
+the user writes it and it appears". The useful answer is that **the question
+contains two different products, and only one of them is affordable.**
+
+**The cheap one, which is what is drawn.** A closed set of typed blocks —
+Steps, Notes, Attachments — that the person can reorder. Each block already
+knows how to render and edit itself. This gives most of what people mean by
+"Notion-like", because the felt quality is that the card is a stack you arrange
+rather than a form somebody laid out for you. The only new thing that has to be
+stored is an order.
+
+**The expensive one.** Notion's actual model: a document of arbitrary blocks,
+any type, any depth, created by typing. That is a stored document schema, a
+rich text editor, collaborative editing rules for a task two people can hold at
+once, and a migration for every note ever written as a string. It is DES-055
+and DES-101 and it has been owed since v1 because it is that large.
+
+The limit of the cheap version, stated so it is chosen rather than discovered:
+**you cannot invent a block Dana does not already have.** No table, no second
+note block, no heading. Whether that is acceptable is the product question this
+entry is really asking.
+
+1. **What the user does.** Reorders the blocks in a task's card, and attaches
+   files to a task.
+2. **What the product cannot do today.** Two separate gaps. Block order has
+   nowhere to live: there is no column for it, and it is not obvious it belongs
+   on the task at all — see below. Attachments have nothing at all: no storage,
+   no upload endpoint, no size or type limits, no permission rule, no answer on
+   what happens to a file when its task is deleted, and no virus story. DES-055
+   has owed the attachment half since v1.
+3. **What it would need.** For order, one small decision that is bigger than it
+   looks: **is the order a property of the task or of the person looking at
+   it?** On the task, it is one column and everybody sharing the task sees the
+   arrangement somebody else chose. Per person, it is a preferences row per
+   task per user, which is a much larger table and a much smaller surprise. The
+   drawn version is per person in spirit, since nothing is shared. For
+   attachments: object storage, an upload path that never trusts a
+   client-supplied content type, quotas, and the deletion cascade.
+4. **What happens if it never ships.** The card falls back to a fixed order,
+   which is what it had this morning and which nobody complained about, so the
+   reordering half is a genuine nicety. Attachments are different: they are a
+   real gap that people will hit, and they are already recorded under DES-055.
+
+**Do not port the Attachments block from the prototype as if it worked.** It is
+fixtures, drawn so the card could be judged with three blocks in it rather than
+two, and it is excluded from the port by this entry rather than by anyone
+remembering.
+
+### DES-103, drag a row, and the 1.5 second dwell that makes a folder
+
+Imran's idea, recorded 2026-08-17 at session V3 and **drawn in the lab**, in
+every concept that expands. The gesture has two meanings and a dwell separates
+them: drop a row straight onto another and the list reorders; hold for 1.5
+seconds and releasing puts both tasks in a new folder instead.
+
+The design note worth keeping is about the dwell rather than the folder. **A
+gesture that changes meaning after a delay is a hidden mode**, and a hidden
+mode is a bad idea unless it announces itself. So the target row fills a bar
+over exactly the dwell duration and then says, in words, what releasing will
+now do. The bar is not decoration; it is the entire reason the delay is not a
+mystery, and if the ported version drops it, the feature should be dropped
+with it.
+
+Nothing happens on release. The drop opens a small panel that names the folder
+and can be cancelled, because "I dragged a task slightly too far" and "I want a
+new folder" must not be the same gesture with no way back.
+
+1. **What the user does.** Reorders tasks by dragging. Holds one over another
+   to group them.
+2. **What the product cannot do today.** Two gaps. Manual order has no
+   persistence at all and is DES-071, carried unresolved from v1: every view
+   sorts by its own rule, and there is no position column to write. Grouping
+   two tasks into a new folder has no endpoint that does it as one operation.
+3. **What it would need.** For order, DES-071's answer, whatever it turns out
+   to be, and it has to cover ordering inside *every* view rather than only the
+   one being dragged. For grouping, one transactional endpoint that creates a
+   folder and moves both tasks into it, plus the permission question: if the
+   two tasks come from two different folders with different members, who is in
+   the new one? That question has no obviously right answer and should be
+   settled before any of it is built.
+4. **What happens if it never ships.** Nothing breaks. Tasks are ordered by
+   the view's own rule, which is what happens today, and folders are made from
+   the sidebar.
+
+**On 1.5 seconds specifically:** the number is a guess made to be felt rather
+than defended. Judge it in the lab. Too short and a slow drag across a list
+starts making folders nobody asked for; too long and nobody discovers the
+gesture exists.
+
+### DES-104, make this task a folder, and its steps become the tasks
+
+Imran's idea, recorded 2026-08-17 at session V3, **drawn in the lab** on every
+concept's overflow menu. The task becomes a folder named after itself, each of
+its steps becomes a task inside that folder, and the original task stops
+existing. In the lab you can watch one row become five, which is the fastest
+way to judge whether it is a good idea.
+
+It is the same shape as DES-100 in the other direction — that one promotes a
+step to a task, this one promotes a task to a folder — and the two should be
+designed together, because a product with one and not the other has a ladder
+missing a rung.
+
+1. **What the user does.** Picks "Make this a folder…" and confirms.
+2. **What the product cannot do today.** No endpoint creates a folder from a
+   task, and none turns steps into tasks. As with DES-100, a client-side
+   sequence is not acceptable: this one creates a folder, creates N tasks,
+   and deletes the original, and a failure anywhere in the middle leaves a
+   person with a half-converted mess and no way to name what went wrong.
+3. **What it would need.** One transactional endpoint. Then the decisions:
+   what the new folder's members are (the task's assignee, the source folder's
+   members, or just the actor); what each new task inherits, since the drawn
+   version passes down the due date and assignee and that is a guess; whether
+   the original task's notes, attachments and history are carried anywhere or
+   destroyed with it; and whether this is undoable, which matters far more here
+   than for DES-103 because **this one destroys something**.
+4. **What happens if it never ships.** Nothing breaks; making a folder and
+   retyping the tasks is the current path.
+
+Recorded plainly: of everything drawn at V3 this is the most dangerous, because
+it is one menu click away from deleting a task and its notes, and the panel
+that confirms it is the only thing standing between a person and that.
+
+### DES-105, what an attachment may be, and which ones can be viewed
+
+Imran's question, 2026-08-17: can people attach images, GIFs, video and more or
+less any file, with the viewable ones openable in place? **Yes, and the useful
+part of the answer is what "viewable" has to mean.** The list side is drawn in
+the lab; the rest is recorded here.
+
+**Viewable is a decision the server makes, not a property of the file's name.**
+Three tiers, and every file lands in exactly one:
+
+- **Shown** — images and video: a thumbnail in the list, and the thing itself
+  inline when opened, without leaving the task.
+- **Openable** — PDFs and anything the browser has a viewer for: no thumbnail,
+  opened in place on request.
+- **Handed over** — everything else: an icon, a name, a size, a download, and
+  no pretence that Dana can display a .docx.
+
+1. **What the user does.** Attaches files to a task and views the ones that can
+   be viewed without downloading them.
+2. **What the product cannot do today.** Everything. No storage, no upload
+   path, no size or type limits, no thumbnail pipeline, no permission rule, no
+   deletion cascade. DES-055 has owed this since v1.
+3. **What it would need.** Object storage rather than the instance's disk,
+   because there is exactly one instance today and its disk is not a place to
+   keep the only copy of somebody's file. An upload endpoint that decides the
+   file's type by **sniffing the bytes**, never by trusting what the client
+   declared. A thumbnail job for the first tier. Quotas. And the security rule
+   that this whole entry exists to write down: **an SVG or an HTML file served
+   inline from Dana's own origin runs as Dana.** Either those are sanitised, or
+   they are demoted to the third tier and served with
+   `Content-Disposition: attachment`. Serving user files from a separate origin
+   is the version of this that is hard to get wrong.
+4. **What happens if it never ships.** Nothing breaks; links in notes are the
+   workaround, and they are a poor one.
 
 ### Withdrawn at V3
 
