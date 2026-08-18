@@ -349,18 +349,35 @@ conversation), the concept card bottom-left to flip comments placement, and
 
 ### Do these next, in this order
 
-1. **Imran walks the F1 concepts and rules.** DES-129 to DES-134 are all
-   PROPOSED; the two questions that gate everything else are **whose identity
-   a folder's look is** (DES-130) and **whether the folder conversation is
-   commentary or chat** (DES-134). DES-133 amends W5's reading and wants an
-   explicit yes.
-2. **Close V1** — the layout measure (L1, L2, L5, L6). Still open, still
-   first among the plan's own sessions; every export shows the old measure.
-3. **Finish V3's own brief.** Only R3 is done. R1, R2, R4–R7 and W2 remain,
-   and **the states page is still the deliverable** — it has not been rebuilt
-   on the new row at all.
-4. **V2, then V4–V8** in the plan's order. V2's L4 (quick-add rest state)
-   inherits DES-133's question for the remaining screens.
+Reordered 2026-08-18, after Imran reviewed F1 and found it under-refined.
+**`docs/design/f1-review.md` is the operative document now**: a hard critical
+review of all six F1 concepts — findings H/K/S/M/Y/P, severity-tagged,
+grounded in measurements against the contract — ending in the four-pass F2
+refinement plan (DRAFT, awaiting Imran). Its diagnosis in one line: the
+features are complete but speak four dialects where Dana has one voice.
+
+1. **V1's measure ruling** — one sitting, the plan's own V1 steps. It now
+   blocks all F2 layout work (review finding H6/P1: F1 repeated V3's mistake
+   of running ahead of the measure).
+2. **F2a — One voice.** Every F1 surface translated back into the tokens:
+   the 40px cluster as docked flat chrome, one section-heading tier, system
+   avatars/radii/badges, recording de-escalated. Exit: zero unexplained
+   computed styles.
+3. **F2b — Structure that works.** Positional insertion, sections and
+   paragraphs on the sort engine, W5's one-capture-point ruling applied, the
+   board reaching feature honesty or demoting to disabled.
+4. **F2c — The brand layer.** Covers from the mark's own ribbon geometry in
+   folder-colour tints (replacing the clip-art tier), the motion sweep, the
+   first-run empty state, the thread committed to one metaphor.
+5. **F2d — The verdict pass**, finding by finding; winners extract to
+   `components/` under DES-124.
+6. Then the standing queue: **V3's brief** (R1, R2, R4–R7, W2, the states
+   page) and **V2, V4–V8** in the plan's order.
+
+The rulings F2 needs, gathered in the review's last paragraph: commentary or
+chat (DES-134) · whose identity a folder wears (DES-130) · covers from the
+mark (H4) · the capture point's shape (S2/W5) · the measure (V1) · Rename's
+second route (K5) · board task naming (Y5).
 
 ### Known faults and honest edges of F1, so they are not rediscovered
 
@@ -424,3 +441,4 @@ first.
 | V3 (cont.) | 2026-08-18 | Claude, for Imran | **The row and its card declared finalised by Imran.** Three things were rebuilt on his direction after review. Dragging left HTML5 drag-and-drop for a pointer engine, `lib/use-sortable-list.ts`, shared by the task rows, a card's steps and a card's blocks: the carried row tracks the pointer, the rows it passes make space, it settles into the gap, and it brought auto-scroll, touch and arrow-key reordering. The folder gesture arms on stillness rather than hover and is drawn as a ring closing around a folder mark on the carried row, with a rebuilt naming panel. The three pickers were rebuilt twice — first onto presets-plus-calendar, then decluttered to one shape at 270px: resolved answers, a hairline, one expanding custom option. New rulings: DES-120 (picker shape), DES-121 (12/24-hour as a browser preference), DES-122 (a due date is a day, not a moment), DES-123 (the same pickers open from the folded row). DES-103, 102, 099 and 118 updated; DES-113 and DES-119 corrected where the revert had left them naming deleted modules. Four defects found and fixed, all invisible to a screenshot: the calendar never showed its selection (`/d+/` matched the letter d, not a digit), the row hardcoded "Weekly" whatever the rule was, the selection hook's `onPointerDown` overwrote the drag's so the new drag never started, and two time commits in one turn lost the first | **Row and card closed for now.** V3's brief is still open and unchanged: R1, R2, R4–R7, W2 and the states page. V1 is still open. **DES-122 carries a spec ruling that must be settled before the port** — production's due date has a time and removing it is a specification change, not a restyle |
 | V3 (final) | 2026-08-18 | Claude, for Imran | **The row and card are ported.** `row-concepts.tsx` fell 4,812 → ~1,200 lines and holds only the lab; `TaskRow`, `TaskCard`, `task-pickers`, `task-model`, `use-sortable-list`, `row-density`, `time-format` and `ui/calendar` are real modules the lab imports. `components/task-form.tsx` deleted — DES-093 put the task inside its row, so nothing opens a sheet. All seven task screens render `TaskList`, which owns reordering, the 1.5s folder hold, press-and-hold selection and the bulk bar; screens with bespoke row logic keep their row via `renderRow`. Icon family adopted (DES-125/126/127) after a parallel session was archived and its results ruled in. Steps, notes and attachments made real (DES-115, DES-128). New rulings: DES-124 (lab-then-extract, now the default flow), DES-125–128. Defects found and fixed: the step row was keyed by its own title so typing remounted the field after one character; the sidebar's collapsed state was never read back from its cookie; `isAnimated` is a gate not a trigger, and dropping the ref silently stopped every icon animating; `space-y-*` outranked every margin form on the expanded card | **Accepted by Imran, 2026-08-18.** Nothing committed yet. V3's own brief (R1, R2, R4–R7, W2, the states page) is still untouched, and V1 is still open — see "Where the next session starts" |
 | F1 | 2026-08-18 | Claude, for Imran, overnight | **Out-of-plan concepts session at Imran's direction; V3's tree first committed as the baseline (`3b1f34a`), concepts committed on top so either reverts alone.** Delivered as PROPOSED drawings: the card's Comments block — threads, one-level replies, files, voice notes that really record via MediaRecorder (DES-129); the folder page as a Notion-like page — cover picker in three honest tiers, 21-glyph animated icon library in the ten token colours following the folder into the sidebar, description, rename-in-place title, sticky top-right control cluster with List/Board/Calendar-disabled, sections and paragraphs behind the blank row, board view, FAB retired (DES-130–133); the folder conversation drawn in both placements, end-of-page and side panel, switchable live (DES-134, first drawn tenant for DES-117's freed panel). One thread component serves card, page and panel (DES-123's rule). Previous folder screen kept at `?folder-page=v1`. Typecheck, build and a scripted browser walk all green | **Open — everything awaits Imran's morning look.** The gating rulings: whose identity a folder's look is (DES-130) and commentary-versus-chat (DES-134); DES-133 amends W5's reading. V1 and V3's brief remain open behind it |
+| F1 (review) | 2026-08-18 | Claude, for Imran | **Imran's verdict on the F1 concepts: under-refined and underpolished — and the review agrees with him in writing.** `docs/design/f1-review.md`: 30 findings across six areas (header/cover, cluster, sections/board, comments, system/motion/access, process), severity-tagged, each classified polish vs ruling, every number measured off the running page against the contract (28px controls vs the 40px token, an 18px radius the scale does not contain, a 24px avatar nobody approved, a third section-heading style, three capture rows against W5). Diagnosis: complete features in four dialects; refinement is translation back into Dana's one voice, then interaction depth, then the brand layer. Ends in the F2 plan — V1's measure first, then F2a One voice, F2b Structure that works, F2c Brand layer (covers from the mark's ribbon geometry), F2d verdict pass. Also fixed this half-session: the v1-comparison URL param survived navigation and hid the whole concept, which is why the first look showed only comments (`553f25e`) | **F2 plan DRAFT, awaiting Imran.** The seven rulings it needs are gathered in the review's closing paragraph |
