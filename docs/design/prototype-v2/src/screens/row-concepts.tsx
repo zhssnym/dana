@@ -32,6 +32,8 @@ import {
   CalendarDays,
   Check as CheckIcon,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Copy,
   Folder,
@@ -60,6 +62,7 @@ import {
   Star,
   Trash2,
   Undo2,
+  UserPlus,
   UserRound,
   X,
 } from "lucide-react"
@@ -74,6 +77,7 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,6 +101,11 @@ export interface ConceptTask {
   done?: boolean
   folder?: { name: string; color: string }
   due?: { label: string; overdue?: boolean }
+  dueTime?: string
+  reminder?: string
+  repeatEvery?: string
+  repeatDays?: string[]
+  repeatEnds?: string
   assignee?: { initials: string; name: string; image?: string }
   /* Steps are the items themselves rather than a count, so the count is
      derived and ticking one in an expanded card moves the number in the row
@@ -1714,6 +1723,207 @@ answer. Whether that limit is acceptable is a product question, and it is
 DES-102.
 */
 
+/*
+The three pickers the card was missing, and why they are popovers rather than
+menus.
+
+A menu answers "which of these?", and that is the right shape for a folder or
+a person. A date is not a list — it is a month you look at — and a reminder or
+a recurrence is several answers at once. Forcing those into menu items is what
+produced the earlier version's problem: a stack of one-answer chips standing in
+for one fact.
+
+So each of these is one chip that opens the whole control for its fact, and
+each closes with the whole answer written back into the chip.
+*/
+
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+]
+
+/* A month grid. It takes and returns a plain label rather than a Date,
+   because everything in this lab is fixtures and a real one would take
+   whatever the date module of the day gives it. */
+function CalendarMonth({
+  selectedDay,
+  onPick,
+}: {
+  selectedDay: number | null
+  onPick: (day: number) => void
+}) {
+  const [month, setMonth] = useState(7) // August, the fixtures' month
+  const daysInMonth = new Date(2026, month + 1, 0).getDate()
+  const firstWeekday = (new Date(2026, month, 1).getDay() + 6) % 7
+
+  return (
+    <div className="w-[236px]">
+      <div className="flex items-center justify-between px-1 pb-2">
+        <button
+          type="button"
+          aria-label="Previous month"
+          onClick={() => setMonth((m) => (m + 11) % 12)}
+          className={cn(
+            "flex size-6 items-center justify-center rounded text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)]",
+            FOCUS,
+          )}
+        >
+          <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+        <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)]">
+          {MONTHS[month]} 2026
+        </span>
+        <button
+          type="button"
+          aria-label="Next month"
+          onClick={() => setMonth((m) => (m + 1) % 12)}
+          className={cn(
+            "flex size-6 items-center justify-center rounded text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)]",
+            FOCUS,
+          )}
+        >
+          <ChevronRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-0.5">
+        {WEEKDAYS.map((day) => (
+          <span
+            key={day}
+            className="flex h-6 items-center justify-center text-[10px] leading-3 font-semibold text-[var(--color-graphite-400)]"
+          >
+            {day}
+          </span>
+        ))}
+        {Array.from({ length: firstWeekday }).map((_, index) => (
+          <span key={`pad-${index}`} />
+        ))}
+        {Array.from({ length: daysInMonth }).map((_, index) => {
+          const day = index + 1
+          const selected = selectedDay === day && month === 7
+          return (
+            <button
+              key={day}
+              type="button"
+              onClick={() => {
+                setMonth(month)
+                onPick(day)
+              }}
+              className={cn(
+                "flex h-7 items-center justify-center rounded-md text-[12px] leading-4 tabular-nums transition-colors",
+                T_FAST,
+                FOCUS,
+                selected
+                  ? "bg-[var(--color-graphite-900)] font-medium text-white"
+                  : "text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+              )}
+            >
+              {day}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* A chip that opens a panel rather than a list. Same anatomy as PropChip so
+   the strip reads as one row of equals. */
+function PickerChip({
+  icon: Icon,
+  value,
+  tooltip,
+  muted = false,
+  color,
+  children,
+}: {
+  icon: LucideIcon
+  value: string
+  tooltip: string
+  muted?: boolean
+  color?: string
+  children: ReactNode
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={tooltip}
+            title={tooltip}
+            onClick={(event) => event.stopPropagation()}
+            className={cn("rounded-md", FOCUS)}
+          >
+            <span
+              className={cn(
+                "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[12px] leading-4 transition-[background-color,border-color]",
+                T_FAST,
+                "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
+                muted
+                  ? "text-[var(--color-graphite-500)]"
+                  : "text-[var(--color-graphite-800)]",
+              )}
+            >
+              <Icon
+                className="size-3.5 shrink-0"
+                style={color ? { color } : undefined}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+              <span className="truncate">{value}</span>
+            </span>
+          </button>
+        }
+      />
+      <PopoverContent align="start" className="w-auto p-2">
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/* A quiet row of choices inside a picker. */
+function PickerRow({
+  label,
+  options,
+  active,
+  onPick,
+}: {
+  label: string
+  options: { key: string; label: string }[]
+  active: string
+  onPick: (key: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <span className="w-16 shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-0.5">
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            onClick={() => onPick(option.key)}
+            className={cn(
+              "rounded-md px-2 py-1 text-[12px] leading-4 transition-colors",
+              T_FAST,
+              FOCUS,
+              active === option.key
+                ? "bg-[var(--color-graphite-900)] font-medium text-white"
+                : "text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PropChip({
   icon: Icon,
   value,
@@ -2086,7 +2296,14 @@ function CardFooter({ onClose }: { onClose: () => void }) {
           className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
         />
         <IconAction icon={History} label="History" />
-        <IconAction icon={Maximize2} label="Open full screen" />
+        {/* Not the sheet, and not a route: a separate window, which is why it
+            is disabled. It becomes real when Dana has tabs; until then an
+            enabled control here would promise something nothing implements. */}
+        <IconAction
+          icon={Maximize2}
+          label="Open in a new window — not yet available"
+          disabled
+        />
         <IconAction icon={X} label="Close" onClick={onClose} />
       </span>
     </div>
@@ -2870,40 +3087,201 @@ function TaskCard({
               </span>
             ),
             onSelect: () => patch(task.id, { assignee: person }),
-          }))}
+          })).concat({
+            key: "__invite",
+            label: (
+              <span className="inline-flex items-center gap-2">
+                <UserPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Invite and assign…
+              </span>
+            ),
+            onSelect: () => {},
+          })}
         />
-        <PropChip
+
+        {/* Due is a month, not a list of three presets. The quick answers stay
+            because most dates are today or tomorrow, but the calendar is there
+            for the ones that are not, and the time sits with it because a due
+            date and its time are one fact. */}
+        <PickerChip
           icon={task.due?.overdue ? CircleAlert : CalendarDays}
-          value={task.due?.label ?? "No date"}
+          tooltip="Due date and time"
+          value={
+            task.due
+              ? task.dueTime
+                ? `${task.due.label} at ${task.dueTime}`
+                : task.due.label
+              : "No date"
+          }
           muted={!task.due}
           color={task.due?.overdue ? "var(--color-danger-700)" : undefined}
-          items={DUES.map((d) => ({
-            key: d.label,
-            label: d.label,
-            onSelect: () =>
+        >
+          <PickerRow
+            label="Quick"
+            active={task.due?.label ?? "none"}
+            options={[
+              { key: "Due today", label: "Today" },
+              { key: "Due tomorrow", label: "Tomorrow" },
+              { key: "none", label: "No date" },
+            ]}
+            onPick={(key) =>
               patch(task.id, {
-                due: d.label === "No date" ? undefined : { label: d.label },
-              }),
-          }))}
-        />
-        <PropChip icon={Bell} value="No reminder" muted />
-        <PropChip
+                due: key === "none" ? undefined : { label: key },
+              })
+            }
+          />
+          <CalendarMonth
+            selectedDay={
+              task.due ? Number(task.due.label.match(/d+/)?.[0] ?? 0) : null
+            }
+            onPick={(day) =>
+              patch(task.id, { due: { label: `Due ${day} Aug` } })
+            }
+          />
+          <PickerRow
+            label="Time"
+            active={task.dueTime ?? ""}
+            options={[
+              { key: "09:00", label: "09:00" },
+              { key: "12:00", label: "12:00" },
+              { key: "15:00", label: "15:00" },
+              { key: "18:00", label: "18:00" },
+              { key: "", label: "None" },
+            ]}
+            onPick={(key) => patch(task.id, { dueTime: key })}
+          />
+        </PickerChip>
+
+        {/* A reminder is a moment, so it needs the same calendar and the same
+            clock. The presets are relative to the due date; the calendar is
+            for a reminder that has nothing to do with it. */}
+        <PickerChip
+          icon={Bell}
+          tooltip="Reminder"
+          value={task.reminder ?? "No reminder"}
+          muted={!task.reminder}
+        >
+          <PickerRow
+            label="Before"
+            active={task.reminder ?? ""}
+            options={[
+              { key: "At the time", label: "At the time" },
+              { key: "10 minutes before", label: "10 min" },
+              { key: "1 hour before", label: "1 hour" },
+              { key: "1 day before", label: "1 day" },
+              { key: "", label: "None" },
+            ]}
+            onPick={(key) => patch(task.id, { reminder: key || undefined })}
+          />
+          <CalendarMonth
+            selectedDay={Number(task.reminder?.match(/d+/)?.[0] ?? 0) || null}
+            onPick={(day) =>
+              patch(task.id, { reminder: `${day} Aug` })
+            }
+          />
+          <PickerRow
+            label="At"
+            active=""
+            options={[
+              { key: "08:00", label: "08:00" },
+              { key: "13:00", label: "13:00" },
+              { key: "17:00", label: "17:00" },
+            ]}
+            onPick={(key) =>
+              patch(task.id, {
+                reminder: `${task.reminder?.replace(/ at .*/, "") ?? "Reminder"} at ${key}`,
+              })
+            }
+          />
+        </PickerChip>
+        <PickerChip
           icon={Repeat2}
-          value={task.recurrence ? "Weekly" : "Does not repeat"}
+          tooltip="Repeat"
           muted={!task.recurrence}
-          items={[
-            {
-              key: "off",
-              label: "Does not repeat",
-              onSelect: () => patch(task.id, { recurrence: false }),
-            },
-            {
-              key: "weekly",
-              label: "Weekly",
-              onSelect: () => patch(task.id, { recurrence: true }),
-            },
-          ]}
-        />
+          value={
+            task.recurrence
+              ? [
+                  task.repeatEvery && task.repeatEvery !== "1"
+                    ? `Every ${task.repeatEvery} weeks`
+                    : "Weekly",
+                  task.repeatDays?.length
+                    ? `on ${task.repeatDays.join(", ")}`
+                    : null,
+                  task.repeatEnds ? `until ${task.repeatEnds}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+              : "Does not repeat"
+          }
+        >
+          <PickerRow
+            label="Repeats"
+            active={task.recurrence ? "on" : "off"}
+            options={[
+              { key: "off", label: "Never" },
+              { key: "on", label: "Weekly" },
+            ]}
+            onPick={(key) => patch(task.id, { recurrence: key === "on" })}
+          />
+          {task.recurrence ? (
+            <>
+              <PickerRow
+                label="Every"
+                active={task.repeatEvery ?? "1"}
+                options={[
+                  { key: "1", label: "1 week" },
+                  { key: "2", label: "2 weeks" },
+                  { key: "4", label: "4 weeks" },
+                ]}
+                onPick={(key) => patch(task.id, { repeatEvery: key })}
+              />
+              <div className="flex items-center gap-2 py-1">
+                <span className="w-16 shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                  On
+                </span>
+                <div className="flex flex-wrap gap-0.5">
+                  {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => {
+                    const on = task.repeatDays?.includes(day) ?? false
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() =>
+                          patch(task.id, {
+                            repeatDays: on
+                              ? (task.repeatDays ?? []).filter((d) => d !== day)
+                              : [...(task.repeatDays ?? []), day],
+                          })
+                        }
+                        className={cn(
+                          "size-7 rounded-md text-[12px] leading-4 transition-colors",
+                          T_FAST,
+                          FOCUS,
+                          on
+                            ? "bg-[var(--color-graphite-900)] font-medium text-white"
+                            : "text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+                        )}
+                      >
+                        {day}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <PickerRow
+                label="Until"
+                active={task.repeatEnds ?? ""}
+                options={[
+                  { key: "", label: "No end" },
+                  { key: "12 Sep", label: "12 Sep" },
+                  { key: "31 Dec", label: "31 Dec" },
+                ]}
+                onPick={(key) => patch(task.id, { repeatEnds: key || undefined })}
+              />
+            </>
+          ) : null}
+        </PickerChip>
       </div>
 
       {order.map((key) => blocks[key])}

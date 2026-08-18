@@ -104,7 +104,7 @@ that will cost time later.
 | DES-103 | Drag a task row; hold 1.5s on another to make a folder of both | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-104 | Make this task a folder; its steps become the tasks | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-105 | What an attachment may be, and which ones can be viewed | PROPOSED | V3 | **NEEDS BACKEND**, see below |
-| DES-106 | One verb for moving things between levels: **Move to…** | PROPOSED | V3 | **Owner ruling wanted**, see below |
+| DES-106 | One verb for moving things between levels: **Move to…** | APPROVED | V3 | Imran, 2026-08-18: five verbs |
 
 ### DES-098, custom tags or labels on a task
 
@@ -492,6 +492,24 @@ people complete things they meant to select.
    That is a smaller surface than the five commands it replaces, which is the
    main practical argument for it.
 4. **What happens if it never ships.** Nothing breaks. Steps stay steps.
+
+**RULED by Imran, 2026-08-18: five verbs.** Dana keeps explicit, separately
+named commands rather than one `Move to…` whose destination decides the
+outcome. DES-100 and DES-104 therefore stand as their own designs and each
+needs its own name, menu placement and confirmation.
+
+The case for the single verb is left below rather than deleted, because the
+argument that lost is the one a later session is most likely to re-open, and it
+should find the reasoning already weighed rather than fresh. The case against
+it, which decided it: an explicit command says what it will do before you
+choose it, and somebody reorganising twice a year should not have to know a
+rule to move a step.
+
+What the ruling does not change: the destination picker still has to be
+searchable, for the reason recorded below — every command that ends in "…to a
+folder" needs it the moment a person has more than about seven folders.
+
+**The original framing, kept for the record:**
 
 **What is being asked of Imran here is not which menu items to build, it is
 whether Dana has one verb or five.** DES-100 and DES-104 should be resolved
