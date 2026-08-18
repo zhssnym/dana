@@ -742,6 +742,28 @@ control that creates it, and it says the verb.** Where they cannot — an empty
 search result, a folder somebody else owns — a status report is correct,
 because there is nothing to offer.
 
+**Two corrections from the same review, both of which became rules.**
+
+*The placeholder sits at the metadata step, not the content step.* It was first
+drawn at 14px, the size of a real step, while the heading naming its own block
+was 12px — so an empty block was louder than the label telling you what it
+was, which is the hierarchy upside down. A placeholder is not content yet. At
+12/16 an empty block is quiet all the way through and grows a voice only when
+something real is in it. The 32px target survives the change, because type size
+is a typographic decision and touch target is not, and those two should never
+be allowed to argue.
+
+*The placeholder never repeats its block's icon.* The attachments placeholder
+used the same paperclip as the Attachments heading directly above it, saying
+the same thing twice while leaving the verb undrawn. The rule: **the heading's
+icon says what the block is, and the placeholder's icon says what you are about
+to do** — which is always add, so it is always a plus.
+
+Worth noting for the port: setting the placeholder to 12px required moving the
+class off the button and onto a span inside it, because of DES-108. This is the
+second time that cascade bug has cost real work in one session, which is part
+of the argument for fixing it.
+
 ### Withdrawn at V3
 
 Four concepts have left the lab, all on 2026-08-17 at Imran's direction. They
