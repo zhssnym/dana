@@ -74,6 +74,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-113 | Row density is a setting; two lines is the default | APPROVED | V3 | Imran, 2026-08-17, front end only |
 | DES-114 | Every folder list ends in "New folder…" | APPROVED | V3 | Carried by DES-113 |
 | DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
+| DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | OPEN | V3 | **Yes**, see below |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -940,7 +941,43 @@ class off the button and onto a span inside it, because of DES-108. This is the
 second time that cascade bug has cost real work in one session, which is part
 of the argument for fixing it.
 
-### Withdrawn at V3
+### DES-116, the card's metadata icons are 14px and DES-021 says 16px
+
+Surfaced 2026-08-17 when Imran asked which icon family Dana uses. The answer is
+settled — **Lucide**, by DES-021, "16px for metadata/chips, 20px for
+controls/navigation/actions, 1.75 stroke, round caps and joins, no library
+mixing" — and checking the row work against it found a deviation I introduced
+without recording it.
+
+**The expanded card sets its metadata icons at 14px**, not 16px: the details
+strip, the block headings, the footer actions and the second line's detail
+marks. It happened while quietening the card at Imran's request, twice, and
+each step was reasonable on its own — but the result is a third icon size that
+DES-021 does not allow.
+
+**Why it happened, which is the part that matters for the ruling.** DES-021
+pairs 16px icons with metadata, and DES-015 sets metadata type at 12px. The
+shipping row uses exactly that pairing and it works there, because the row is
+sparse — a folder mark, a date, a person. The card is dense: five property
+chips on one strip, three block headings, eight footer actions. At that density
+a 16px mark beside 12px text reads as the loudest thing in the card, which is
+what Imran reported twice before the sizes came down.
+
+So the two rules are not in conflict in general, only at density. The options:
+
+1. **Bring the card back to 16px.** Consistent with the contract and the
+   shipping row, and it undoes a change Imran twice asked for. Not recommended.
+2. **Amend DES-021 with a third size**, the way DES-015 was amended with 10/12.
+   A **14px compact step, for icons inside dense card metadata only**, never in
+   a row, never for a control that is not beside 12px text.
+
+Recommended: option 2, with that scope written into the amendment, because an
+unscoped third size is how an icon scale stops being a scale. The test for
+whether a mark qualifies: it sits beside 12px type inside a card, and there are
+more than three of its kind in view.
+
+Recorded rather than quietly kept, because a deviation nobody wrote down is
+indistinguishable from a mistake when somebody finds it later.
 
 Four concepts have left the lab, all on 2026-08-17 at Imran's direction. They
 are listed here so a later session finds the decision rather than re-proposing
