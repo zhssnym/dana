@@ -49,7 +49,6 @@ import {
   Image as ImageIcon,
   MoreHorizontal,
   Paperclip,
-  Pencil,
   Pin,
   Play,
   Plus,
@@ -2056,29 +2055,42 @@ what is not there and leaves you to work out what to do about it — usually by
 looking elsewhere for a button.
 
 So the empty state is the affordance: it sits where the first item will
-appear, it is the same height as the row it will become, and it says the
+appear, it keeps the target size of the row it will become, and it says the
 action rather than the absence. Phrased as the thing that happens — "Add a
 step" — because a control should say what it does.
+
+Two corrections from Imran's review, both worth keeping as rules.
+
+**It is set at the metadata step, not the content step.** It was 14px, the
+size of a real step, while the heading naming the block above it was 12px —
+so an empty block shouted louder than the label telling you what it was, which
+is the hierarchy upside down. A placeholder is not content yet. It is 12/16
+now, so an empty block is quiet all the way through and only grows a voice
+when something real is in it. The 32px target survives the change: type size
+is a typographic decision and touch target is not, and the two should not be
+allowed to argue.
+
+**It never repeats its block's icon.** The attachments placeholder used the
+same paperclip as the Attachments heading directly above it, which says the
+same thing twice and leaves the verb unillustrated. The rule instead: the
+heading's icon says what the block *is*, and the placeholder's icon says what
+you are about to *do* — which is always add, so it is always a plus.
 */
-function EmptyAction({
-  icon: Icon,
-  label,
-}: {
-  icon: LucideIcon
-  label: string
-}) {
+function EmptyAction({ label }: { label: string }) {
   return (
     <button
       type="button"
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-[14px] leading-5 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+        "flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
         T_FAST,
         FOCUS,
       )}
     >
-      <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      {label}
+      <Plus className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+      {/* The size lives on the span, not the button: per DES-108 an unlayered
+          reset makes a text-size utility on a control silently do nothing. */}
+      <span className="text-[12px] leading-4">{label}</span>
     </button>
   )
 }
@@ -2169,7 +2181,7 @@ function StepList({
   }, [selecting])
 
   if (steps.length === 0) {
-    return <EmptyAction icon={Plus} label="Add a step" />
+    return <EmptyAction label="Add a step" />
   }
 
   function clearPress() {
@@ -2720,7 +2732,7 @@ function TaskCard({
                 {task.notes}
               </p>
             ) : (
-              <EmptyAction icon={Pencil} label="Write a note" />
+              <EmptyAction label="Write a note" />
             )}
           </Disclosure>
     ),
@@ -2735,7 +2747,7 @@ function TaskCard({
             {task.attachments && task.attachments.length > 0 ? (
           <AttachmentList files={task.attachments} />
         ) : (
-          <EmptyAction icon={Paperclip} label="Add a file" />
+          <EmptyAction label="Add a file" />
         )}
           </Disclosure>
     ),
