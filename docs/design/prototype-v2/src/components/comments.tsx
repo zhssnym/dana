@@ -61,9 +61,26 @@ const ME = PEOPLE[0]!
 
 type Person = { initials: string; name: string; image?: string }
 
-function CommentFace({ person, className }: { person: Person; className?: string }) {
+/* Two sizes, both already in the system (F2a, review M2): the product's
+   `sm` avatar for a comment's author, and the card's 16px dense face for a
+   reply. Nothing in this thread introduces a size of its own. */
+function CommentFace({
+  person,
+  dense = false,
+  className,
+}: {
+  person: Person
+  dense?: boolean
+  className?: string
+}) {
   return (
-    <Avatar size="sm" className={cn("size-6 data-[size=sm]:size-6", className)}>
+    <Avatar
+      size="sm"
+      className={cn(
+        dense ? "size-4 data-[size=sm]:size-4" : "size-6 data-[size=sm]:size-6",
+        className,
+      )}
+    >
       {person.image ? <AvatarImage src={person.image} alt="" /> : null}
       <AvatarFallback className="text-[0.5rem] font-semibold">
         {person.initials}
@@ -249,32 +266,40 @@ const FILE_ICON: Record<string, LucideIcon> = {
   file: Paperclip,
 }
 
+/* A file on a comment renders as the Attachments block already renders a
+   file: a 32px tile, the name, the meta line (F2a, review M6). The markup is
+   restated rather than imported because task-card imports this module —
+   when comments graduate under DES-124, the file row extracts to a neutral
+   home and both call it. */
 function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }) {
   return (
-    <span className="mt-1.5 flex flex-wrap gap-1.5">
+    <span className="mt-1 flex flex-col">
       {files.map((file) => {
         const Icon = FILE_ICON[file.kind] ?? Paperclip
-        return file.preview ? (
-          <img
-            key={file.name}
-            src={file.preview}
-            alt={file.name}
-            title={`${file.name} · ${file.meta}`}
-            className="h-16 w-auto max-w-40 rounded-md border border-[var(--color-graphite-200)] object-cover"
-          />
-        ) : (
-          <span
-            key={file.name}
-            title={file.meta}
-            className="inline-flex h-7 max-w-52 items-center gap-1.5 rounded-md border border-[var(--color-graphite-200)] bg-card px-2"
-          >
-            <Icon
-              className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
-            <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-700)]">
-              {file.name}
+        return (
+          <span key={file.name} className="flex h-11 items-center gap-2.5">
+            {file.preview ? (
+              <img
+                src={file.preview}
+                alt=""
+                className="size-8 shrink-0 rounded-[5px] border border-[var(--color-graphite-200)] object-cover"
+              />
+            ) : (
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-[5px] border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)]">
+                <Icon
+                  className="size-4 text-[var(--color-graphite-500)]"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+              </span>
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm text-[var(--color-graphite-800)]">
+                {file.name}
+              </span>
+              <span className="block text-[12px] leading-4 text-[var(--color-graphite-400)]">
+                {file.meta}
+              </span>
             </span>
           </span>
         )
@@ -420,13 +445,17 @@ function Composer({
   }
 
   if (recording) {
+    /* Graphite, not danger (F2a, review M5): recording is an activity, not a
+       loss, and the palette's guardrails reserve danger for loss. The one
+       red thing is the dot — the universal convention — and the timer
+       carries the state. */
     return (
-      <div className="flex h-9 items-center gap-2 rounded-full border border-[var(--color-danger-200)] bg-[var(--color-danger-100)]/40 py-1 pr-1 pl-3">
+      <div className="flex h-9 items-center gap-2 rounded-md border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)] py-1 pr-1 pl-3">
         <span className="relative flex size-2 shrink-0" aria-hidden="true">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-danger-600)] opacity-60" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-danger-600)] opacity-50" />
           <span className="relative inline-flex size-2 rounded-full bg-[var(--color-danger-600)]" />
         </span>
-        <span className="text-[12px] leading-4 font-medium text-[var(--color-danger-700)] tabular-nums">
+        <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] tabular-nums">
           {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
         </span>
         {/* Live bars: the drawn promise that something is being taken down.
@@ -437,7 +466,7 @@ function Composer({
           {Array.from({ length: 24 }, (_, i) => (
             <span
               key={i}
-              className="w-[2px] animate-pulse rounded-full bg-[var(--color-danger-600)]/70"
+              className="w-[2px] animate-pulse rounded-full bg-[var(--color-graphite-400)]"
               style={{
                 height: `${5 + ((i * 7) % 13)}px`,
                 animationDelay: `${(i % 6) * 90}ms`,
@@ -454,7 +483,7 @@ function Composer({
             endRecording(true)
           }}
           className={cn(
-            "flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
+            "flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
             T_FAST,
             FOCUS,
           )}
@@ -470,9 +499,12 @@ function Composer({
     <div>
       <div className="flex items-start gap-2">
         <CommentFace person={ME} className="mt-1.5" />
+        {/* Dana's field, not a messenger's: radius-md from the tokens, the
+            input border, the accent focus ring (F2a, review M1/Y1 — the 18px
+            radius this replaces exists nowhere in the scale). */}
         <div
           className={cn(
-            "flex min-h-9 flex-1 items-end gap-1 rounded-[18px] border border-[var(--color-graphite-200)] bg-card py-1 pr-1 pl-3 transition-colors",
+            "flex min-h-9 flex-1 items-end gap-1 rounded-md border border-[var(--color-graphite-300)] bg-card py-1 pr-1 pl-3 transition-colors",
             T_FAST,
             "focus-within:border-[var(--color-dana-accent-600)] focus-within:ring-2 focus-within:ring-[var(--color-dana-accent-100)]",
           )}
@@ -522,7 +554,7 @@ function Composer({
                 submitText()
               }}
               className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-graphite-900)] text-white transition-colors hover:bg-[var(--color-graphite-800)]",
+                "flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-graphite-900)] text-white transition-colors hover:bg-[var(--color-graphite-800)]",
                 T_FAST,
                 FOCUS,
               )}
@@ -573,28 +605,6 @@ function Composer({
 
 /* ------------------------------------------------------------ the thread -- */
 
-function CommentBody({ comment }: { comment: ConceptComment }) {
-  return (
-    <>
-      <span className="flex items-baseline gap-2">
-        <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)]">
-          {comment.author.name}
-        </span>
-        <span className="text-[12px] leading-4 text-[var(--color-graphite-400)]">
-          {comment.at}
-        </span>
-      </span>
-      {comment.body ? (
-        <span className="mt-0.5 block text-[14px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-800)]">
-          {comment.body}
-        </span>
-      ) : null}
-      {comment.voice ? <VoiceNote voice={comment.voice} /> : null}
-      {comment.files ? <CommentFiles files={comment.files} /> : null}
-    </>
-  )
-}
-
 function CommentRow({
   comment,
   isReply = false,
@@ -607,24 +617,39 @@ function CommentRow({
   onDelete: () => void
 }) {
   return (
-    <div className="group/comment relative flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-[var(--color-graphite-50)]">
-      <CommentFace person={comment.author} className={cn("mt-0.5", isReply && "size-5 data-[size=sm]:size-5")} />
+    <div className="group/comment flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-[var(--color-graphite-50)]">
+      <CommentFace person={comment.author} dense={isReply} className="mt-0.5" />
       <div className="min-w-0 flex-1">
-        <CommentBody comment={comment} />
-      </div>
-      {/* The actions arrive with the pointer, in the row's own top-right, the
-          same place every other row in the product keeps them. */}
-      <span
-        className={cn(
-          "absolute top-1 right-1 flex items-center gap-0.5 rounded-md bg-card/95 opacity-0 shadow-[var(--elevation-0)] transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
-          T_FAST,
-        )}
-      >
-        {onReply ? <ThreadAction icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
-        {comment.mine ? (
-          <ThreadAction icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
+        {/* One header line: name, time, and the actions in a reserved
+            trailing slot — revealed by hover, never covering the time
+            (F2a, review M3; the task row's own rule). */}
+        <span className="flex h-5 items-center gap-2">
+          <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)]">
+            {comment.author.name}
+          </span>
+          <span className="text-[12px] leading-4 text-[var(--color-graphite-400)]">
+            {comment.at}
+          </span>
+          <span
+            className={cn(
+              "ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
+              T_FAST,
+            )}
+          >
+            {onReply ? <ThreadAction icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
+            {comment.mine ? (
+              <ThreadAction icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
+            ) : null}
+          </span>
+        </span>
+        {comment.body ? (
+          <span className="block text-[14px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-800)]">
+            {comment.body}
+          </span>
         ) : null}
-      </span>
+        {comment.voice ? <VoiceNote voice={comment.voice} /> : null}
+        {comment.files ? <CommentFiles files={comment.files} /> : null}
+      </div>
     </div>
   )
 }
@@ -672,9 +697,10 @@ export function CommentsThread({
             onDelete={() => onChange(comments.filter((c) => c.id !== comment.id))}
           />
           {(comment.replies?.length || replyingTo === comment.id) ? (
-            /* The rail says "these belong to that" the way the card's indent
-               does — geometry rather than a box. */
-            <div className="mt-0.5 ml-4 flex flex-col gap-0.5 border-l-2 border-[var(--color-graphite-100)] pl-2">
+            /* Indent and the dense face say "belongs to" — DES-099's own
+               mechanism. The rail this replaces was a rule inside the card,
+               which DES-099 exists to forbid (F2a, review M4). */
+            <div className="mt-0.5 ml-8 flex flex-col gap-0.5">
               {comment.replies?.map((reply) => (
                 <CommentRow
                   key={reply.id}

@@ -134,12 +134,14 @@ export function FolderIconPicker({
               onFocus={() => setPreview(key)}
               onClick={() => onPick({ glyph: key })}
               className={cn(
-                "flex size-8 items-center justify-center rounded-md border transition-[background-color,border-color]",
+                /* Selection is a ring, here and in the colour row below and
+                   in the cover grid — one language per popover (F2a, Y3). */
+                "flex size-8 items-center justify-center rounded-md transition-[background-color,box-shadow]",
                 T_FAST,
                 FOCUS,
                 selected
-                  ? "border-[var(--color-graphite-700)] bg-card"
-                  : "border-transparent hover:bg-[var(--color-graphite-50)]",
+                  ? "bg-card ring-2 ring-[var(--color-graphite-700)]"
+                  : "hover:bg-[var(--color-graphite-50)]",
               )}
             >
               <Icon

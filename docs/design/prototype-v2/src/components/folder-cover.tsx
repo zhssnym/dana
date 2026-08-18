@@ -295,7 +295,7 @@ export function FolderCoverPicker({
                 T_FAST,
                 FOCUS,
                 value === cover.key
-                  ? "border-[var(--color-graphite-700)] ring-1 ring-[var(--color-graphite-700)]"
+                  ? "border-transparent ring-2 ring-[var(--color-graphite-700)]"
                   : "border-[var(--color-graphite-200)] hover:border-[var(--color-graphite-400)]",
               )}
               style={cover.style}

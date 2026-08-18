@@ -146,7 +146,7 @@ button:not(:disabled),
    losing rules and the ?measure= param leave with the decision, and the
    winner is formalised as a token. */
 [data-measure="narrow"] {
-  --shell-content-max: 800px;
+  --shell-content-max: var(--content-list);
 }
 
 [data-measure="pulled"] [data-task-status] {

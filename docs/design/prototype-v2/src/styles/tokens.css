@@ -218,6 +218,17 @@
   --shell-pagebar-height: 24px;
   --shell-content-max: 1120px;
 
+  /* V1's measure tokens (review L6). Candidate A reads lists at ~800px —
+   * a task title is a sentence, and 1120px of sentence is a stretch no
+   * typographer would set — while candidate B keeps DES-023's 1120px with
+   * the two-line row already pulling metadata under the title. Until Imran
+   * picks, `?measure=narrow` shows A over every list screen through the
+   * data-measure hook in app-shell; the winner becomes the default and the
+   * losing variant leaves with the decision. --content-form is L6's second
+   * token, reserved here for V4 and V6 (the form sheet and Settings). */
+  --content-list: 800px;
+  --content-form: 640px;
+
   /* Installed light shell */
   --pwa-theme-color: #ffffff;
   --pwa-background-color: #ffffff;
