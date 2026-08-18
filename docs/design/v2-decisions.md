@@ -66,7 +66,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-097 | A motion scale in the tokens | APPROVED | V3 | Carried by DES-113 |
 | DES-099 | The expanded card: one header strip, then Steps and Notes | APPROVED | V3 | Carried by DES-113 |
 | DES-107 | A fifth type size the contract does not name | APPROVED | V3 | Imran, 2026-08-17 |
-| DES-108 | A CSS reset silently suppresses text sizes on every control | OPEN | V3 | **Yes**, see below |
+| DES-108 | A CSS reset silently suppresses text sizes on every control | APPROVED | V3 | Imran, 2026-08-17, applied |
 | DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
 | DES-110 | The V3 question, reduced: is a task row one line or two? | SUPERSEDED | V3 | By DES-113 |
 | DES-111 | A row is as tall as it needs to be | APPROVED | V3 | Imran, 2026-08-17 |
@@ -597,12 +597,38 @@ they sit:**
   One on the shell and all three on the states page: Restore, Remove from My
   Day, Retry.
 
-**Recommendation: apply the fix.** Six controls change across the two views
-measured, each by one or two pixels, and each change moves the control *to* the
-size its own code asks for. The risk that made this look like an owner decision
-was a measurement error, and with the real number the fix is ordinary
-maintenance. It should be done before V3's states work, since two of the six
-are on the states page itself.
+**APPLIED by Imran's instruction, 2026-08-17.** The reset now sits in
+`@layer base` in `app.css`, so it still does its job — controls inherit the
+page's font rather than the browser's — while a utility can override it.
+
+Verified after the change: the shell has 23 controls carrying a size class and
+**0 now render at a size they did not ask for**; the states page has 3 and 3
+correct. The six that moved:
+
+| Control | Was | Now |
+| - | - | - |
+| Account button, sidebar foot | 14 | **13** |
+| Done today (4) | 14 | **13** |
+| Remove from My Day | 12 | **14** |
+| Restore (states) | 12 | **14** |
+| Remove from My Day (states) | 12 | **14** |
+| Retry (states) | 12 | **14** |
+
+Two of those were chrome written at 13px to sit below body text and rendering
+at body size, so the intended hierarchy was simply not happening. The other
+four are inline row actions written to match the task title beside them, and
+they were rendering two pixels quieter than intended in exactly the place an
+action needs to be findable.
+
+**Three workarounds were removed with it**, which is the real payoff. The
+expanded title's size had been forced with an inline style; the block
+placeholders and the Move to… trigger had their labels wrapped in spans purely
+so the size would land somewhere the reset could not reach. All three are gone
+and the code says what it means again.
+
+The lesson worth carrying past this entry: **the bug's cost was never the six
+pixels, it was that the codebase had started growing workarounds for it.** Two
+appeared in a single session before anyone knew why.
 
 Note the overlap with DES-107: the suppressed sizes include 13px and 11px,
 neither of which DES-015 names. Fixing the cascade would make two off-scale
