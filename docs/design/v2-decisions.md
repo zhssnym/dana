@@ -77,6 +77,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-103 | Drag a task row; hold 1.5s on another to make a folder of both | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-104 | Make this task a folder; its steps become the tasks | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-105 | What an attachment may be, and which ones can be viewed | PROPOSED | V3 | **NEEDS BACKEND**, see below |
+| DES-106 | One verb for moving things between levels: **Move to…** | PROPOSED | V3 | **Owner ruling wanted**, see below |
 
 ### DES-098, custom tags or labels on a task
 
@@ -338,6 +339,70 @@ Three tiers, and every file lands in exactly one:
    is the version of this that is hard to get wrong.
 4. **What happens if it never ships.** Nothing breaks; links in notes are the
    workaround, and they are a poor one.
+
+### DES-106, one verb for moving things between levels
+
+Imran asked for movable steps, multi-select, and options to make a new task
+from a selection or to turn the selection into separate tasks here or in
+another folder — and said he had not decided. **This is the recommendation.**
+It is drawn in the lab so it can be rejected by using it rather than by
+reading about it.
+
+**The problem is not any of those commands. It is how many there are.**
+Counting only what has been asked for in this session, the menu was heading
+for: promote a step to a task (DES-100), make a task into a folder and its
+steps into tasks (DES-104), make a new task from these steps, make these steps
+into separate tasks here, and make these steps into separate tasks somewhere
+else. Five names for one idea, which is always the same idea: *this thing
+belongs somewhere else now.* A product that needs five verbs for one operation
+has not found the operation yet, and every one of those five needs its own
+menu wording, its own endpoint, its own confirmation and its own bug reports.
+
+**The recommendation: one verb, `Move to…`, and the destination decides what
+the thing becomes.**
+
+> A step moved into a **folder** becomes a task, because folders hold tasks.
+> The same steps moved into a **task** stay steps, because tasks hold steps.
+
+Level is a consequence of where something lands, never a separate command.
+Everything collapses into it: "make a new task from these" is Move to → New
+task; "make them separate tasks in another folder" is Move to → that folder;
+DES-100 is Move one step to a folder. The rule also extends without new menu
+items the day Dana can hold something new — which is the real test of whether
+a rule is a rule or just a tidier menu.
+
+What it buys beyond tidiness: one endpoint shape instead of five, one
+confirmation, one undo story, and one sentence in the help. What it costs: the
+destination picker has to be good, because it is now carrying five features. If
+it is a plain flat list of folders it will be worse than the five commands were.
+
+**The alternative, stated fairly.** Keep the explicit commands. They are more
+discoverable — "Make a new task from these" tells you exactly what will happen,
+where "Move to… → New task" asks you to know the rule. For a person who does
+this twice a year, the explicit version is genuinely kinder. The case for one
+verb is strongest if Dana expects people to reorganise often; the case for
+explicit commands is strongest if this is rare and the menu is where people
+learn what is possible.
+
+**Also drawn, and uncontroversial:** steps reorder by dragging their handle,
+and multi-select is by clicking a step's *text* while the tick box still only
+ticks. Those are two different intentions, and giving them one target is how
+people complete things they meant to select.
+
+1. **What the user does.** Selects one or more steps and moves them somewhere.
+2. **What the product cannot do today.** Steps have no manual order to persist
+   and no endpoint moves a step anywhere. Same gap as DES-100 and DES-104,
+   which is the point: three entries, one missing capability.
+3. **What it would need.** If this rule is adopted, one endpoint that takes a
+   set of things and a destination, and does the whole move in one transaction.
+   That is a smaller surface than the five commands it replaces, which is the
+   main practical argument for it.
+4. **What happens if it never ships.** Nothing breaks. Steps stay steps.
+
+**What is being asked of Imran here is not which menu items to build, it is
+whether Dana has one verb or five.** DES-100 and DES-104 should be resolved
+together with this one, because if the answer is one verb, both of them are
+already written and neither needs its own design.
 
 ### Withdrawn at V3
 
