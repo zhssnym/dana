@@ -67,14 +67,14 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-099 | The expanded card: one header strip, then Steps and Notes | APPROVED | V3 | Carried by DES-113 |
 | DES-107 | A fifth type size the contract does not name | APPROVED | V3 | Imran, 2026-08-17 |
 | DES-108 | A CSS reset silently suppresses text sizes on every control | APPROVED | V3 | Imran, 2026-08-17, applied |
-| DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
+| DES-109 | The card has no Save button; the footer is a toolbar | APPROVED | V3 | Imran, 2026-08-17, undo in scope |
 | DES-110 | The V3 question, reduced: is a task row one line or two? | SUPERSEDED | V3 | By DES-113 |
 | DES-111 | A row is as tall as it needs to be | APPROVED | V3 | Imran, 2026-08-17 |
-| DES-112 | What a selection can do, at both levels | OPEN | V3 | No |
+| DES-112 | What a selection can do, at both levels | APPROVED | V3 | Carried by DES-113 |
 | DES-113 | Row density is a setting; two lines is the default | APPROVED | V3 | Imran, 2026-08-17, front end only |
 | DES-114 | Every folder list ends in "New folder…" | APPROVED | V3 | Carried by DES-113 |
 | DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
-| DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | OPEN | V3 | **Yes**, see below |
+| DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | APPROVED | V3 | Imran, 2026-08-17 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -971,10 +971,28 @@ So the two rules are not in conflict in general, only at density. The options:
    A **14px compact step, for icons inside dense card metadata only**, never in
    a row, never for a control that is not beside 12px text.
 
-Recommended: option 2, with that scope written into the amendment, because an
-unscoped third size is how an icon scale stops being a scale. The test for
-whether a mark qualifies: it sits beside 12px type inside a card, and there are
-more than three of its kind in view.
+**APPROVED by Imran, 2026-08-17: option 2, DES-021 is amended.** The icon
+scale gains a third, scoped step:
+
+> **14px — dense.** Icons inside dense card metadata only. Never in a task row,
+> never on navigation, never away from 12px type.
+>
+> A mark qualifies when both are true: **it sits beside 12px text inside a
+> card, and more than three of its kind are in view at once.** If either is
+> false the mark is 16px compact or 20px default, as DES-021 already says.
+
+The two-condition test is the whole point of the amendment. A third size
+justified by "it looked better" spreads until there is no scale; a third size
+justified by a density that can be checked stays where it was put.
+
+Tokenised as `--icon-size-dense` in `styles/tokens.css`, beside the two
+DES-021 already named, so the scale is legible in one place. Components express
+it with the matching Tailwind step, which is the convention the existing two
+already follow rather than a new one.
+
+To fold into `design-contract.md` at V9 as an amendment to DES-021 rather than
+a new entry, since it extends that decision rather than standing beside it —
+the same treatment DES-107 gets for the 10/12 type step.
 
 Recorded rather than quietly kept, because a deviation nobody wrote down is
 indistinguishable from a mistake when somebody finds it later.
