@@ -290,6 +290,10 @@ export function AppShell({
     nextUrl.searchParams.set("folder", name)
     nextUrl.searchParams.delete("folder-state")
     nextUrl.searchParams.delete("folder-action")
+    /* The v1 comparison switch never survives a navigation. It stuck once —
+       every folder opened from the sidebar kept showing the previous screen,
+       silently — so ordinary navigation always returns to the concept. */
+    nextUrl.searchParams.delete("folder-page")
     window.location.assign(nextUrl)
   }
 

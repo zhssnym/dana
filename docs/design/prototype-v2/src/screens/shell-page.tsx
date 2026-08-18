@@ -769,6 +769,7 @@ export function ShellPage() {
   const navigateToPage = (nextPage: ShellPageName) => {
     const nextUrl = new URL(window.location.href)
     nextUrl.searchParams.delete("state")
+    nextUrl.searchParams.delete("folder-page")
     if (nextPage !== "My Day") {
       nextUrl.searchParams.set("page", nextPage.toLowerCase())
     } else {
@@ -1453,6 +1454,22 @@ export function ShellPage() {
         }))}
         onOpenResult={openTask}
       />
+      {/* On the previous folder page, the road back to the concept is drawn
+          rather than remembered. The compare link once became a one-way door:
+          the param survived every sidebar navigation, and the concept
+          silently vanished for whoever had clicked it. */}
+      {isFolder && folderPageVariant === "v1" ? (
+        <a
+          href={(() => {
+            const url = new URL(window.location.href)
+            url.searchParams.delete("folder-page")
+            return url.toString()
+          })()}
+          className="fixed bottom-4 left-4 z-40 flex h-8 items-center gap-2 rounded-lg border border-[var(--color-graphite-200)] bg-card/95 px-3 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] shadow-[var(--elevation-1)] backdrop-blur transition-colors hover:bg-card"
+        >
+          Viewing the previous folder page — back to the concept
+        </a>
+      ) : null}
     </>
   )
 }
