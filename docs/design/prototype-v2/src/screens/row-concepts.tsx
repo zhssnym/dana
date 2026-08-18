@@ -36,6 +36,7 @@ import {
   Copy,
   Folder,
   FolderInput,
+  FolderPlus,
   ListChecks,
   ListPlus,
   FileText,
@@ -717,6 +718,12 @@ function DwellBar() {
 type PendingAction =
   | { kind: "merge"; ids: string[]; titles: string[] }
   | { kind: "promote"; id: string; title: string; steps: number }
+  /* Every list of folders ends in "New folder…", so wanting one never means
+     leaving what you were doing to go and make it first. All three arrive
+     here, at the same naming panel, so a new folder is created one way rather
+     than three. */
+  | { kind: "folder-for"; ids: string[] }
+  | { kind: "steps-to-folder"; taskId: string; indices: number[] }
 
 function useRowDrag({
   reorder,
@@ -830,7 +837,18 @@ function PendingPanel({
       )}
     >
       <p className="text-[14px] leading-5 text-[var(--color-dana-accent-800)]">
-        {pending.kind === "merge" ? (
+        {pending.kind === "folder-for" ? (
+          <>
+            Name the new folder. {pending.ids.length} task
+            {pending.ids.length === 1 ? "" : "s"} will move into it.
+          </>
+        ) : pending.kind === "steps-to-folder" ? (
+          <>
+            Name the new folder. {pending.indices.length} step
+            {pending.indices.length === 1 ? " becomes a task" : "s become tasks"}{" "}
+            inside it.
+          </>
+        ) : pending.kind === "merge" ? (
           <>
             Put <strong>{pending.titles[0]}</strong> and{" "}
             <strong>{pending.titles[1]}</strong> in a new folder. Both tasks
@@ -915,11 +933,13 @@ a selection.
 */
 function useRowSelection({
   onMove,
+  onNewFolder,
   onBulk,
   onDuplicate,
   onDelete,
 }: {
   onMove: (ids: string[], folder: { name: string; color: string }) => void
+  onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
   onDuplicate: (ids: string[]) => void
   onDelete: (ids: string[]) => void
@@ -1088,6 +1108,20 @@ function useRowSelection({
                 />
               </DropdownMenuItem>
             ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                label="New folder"
+                onClick={() => {
+                  onNewFolder(selected)
+                  exit()
+                }}
+              >
+                <DestinationChoice
+                  icon={FolderPlus}
+                  name="New folder…"
+                  detail="Name it, and they move into it"
+                />
+              </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1140,12 +1174,29 @@ function useConceptList() {
   function confirm(name: string) {
     if (!pending) return
     if (pending.kind === "merge") list.groupIntoFolder(pending.ids, name)
-    else list.taskToFolder(pending.id)
+    else if (pending.kind === "promote") list.taskToFolder(pending.id)
+    else if (pending.kind === "folder-for")
+      list.groupIntoFolder(pending.ids, name)
+    else
+      list.moveStepsTo(pending.taskId, pending.indices, {
+        kind: "folder",
+        name,
+        color: "var(--color-folder-sky)",
+      })
     setPending(null)
+  }
+
+  function requestNewFolder(ids: string[]) {
+    setPending({ kind: "folder-for", ids })
+  }
+
+  function requestStepsToNewFolder(taskId: string, indices: number[]) {
+    setPending({ kind: "steps-to-folder", taskId, indices })
   }
 
   const selection = useRowSelection({
     onMove: (ids, folder) => list.patchMany(ids, { folder }),
+    onNewFolder: requestNewFolder,
     onBulk: (ids, fields) => list.patchMany(ids, fields),
     onDuplicate: list.duplicateTasks,
     onDelete: list.removeTasks,
@@ -1164,7 +1215,15 @@ function useConceptList() {
     </>
   )
 
-  return { ...list, drag, panel, requestPromote, selection }
+  return {
+    ...list,
+    drag,
+    panel,
+    requestPromote,
+    requestNewFolder,
+    requestStepsToNewFolder,
+    selection,
+  }
 }
 
 /* --------------------------------------------------------------- pieces -- */
@@ -1626,7 +1685,7 @@ function PropChip({
   const body = (
     <span
       className={cn(
-        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-2 text-[14px] leading-5 transition-[background-color,border-color]",
+        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[12px] leading-4 transition-[background-color,border-color]",
         T_FAST,
         "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
         muted
@@ -1635,10 +1694,10 @@ function PropChip({
       )}
     >
       {avatar ? (
-        <Face person={avatar} className="size-4 data-[size=sm]:size-4" />
+        <Face person={avatar} className="size-3.5 data-[size=sm]:size-3.5" />
       ) : (
         <Icon
-          className="size-4 shrink-0"
+          className="size-3.5 shrink-0"
           style={color ? { color } : undefined}
           strokeWidth={1.75}
           aria-hidden="true"
@@ -1973,6 +2032,19 @@ function MenuHeading({ children }: { children: ReactNode }) {
 /* One menu row: a mark, a name, and a sentence saying what choosing it does.
    Shared by the step menu and the task-row menu so the two never drift into
    describing the same operation differently. */
+function newFolderChoice(onPick: () => void) {
+  return {
+    key: "__new-folder",
+    label: (
+      <span className="inline-flex items-center gap-2">
+        <FolderPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        New folder…
+      </span>
+    ),
+    onSelect: onPick,
+  }
+}
+
 function DestinationChoice({
   icon: Icon,
   name,
@@ -2012,6 +2084,7 @@ function StepList({
   duplicateSteps,
   removeSteps,
   setStepsDone,
+  onStepsToNewFolder,
 }: {
   task: ConceptTask
   toggleStep: (id: string, index: number) => void
@@ -2026,6 +2099,7 @@ function StepList({
       | { kind: "new-task" }
       | { kind: "folder"; name: string; color: string },
   ) => void
+  onStepsToNewFolder: (taskId: string, indices: number[]) => void
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
@@ -2374,6 +2448,23 @@ function StepList({
                     />
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuItem
+                  label="New folder"
+                  onClick={() => {
+                    onStepsToNewFolder(task.id, [...selected])
+                    exit()
+                  }}
+                >
+                  <DestinationChoice
+                    icon={FolderPlus}
+                    name="New folder…"
+                    detail={
+                      selected.length === 1
+                        ? "Name it, and it becomes a task there"
+                        : "Name it, and each becomes a task there"
+                    }
+                  />
+                </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -2515,6 +2606,8 @@ function TaskCard({
   duplicateSteps,
   removeSteps,
   setStepsDone,
+  onNewFolder,
+  onStepsToNewFolder,
   onClose,
 }: {
   task: ConceptTask
@@ -2531,6 +2624,8 @@ function TaskCard({
   duplicateSteps: (id: string, indices: number[]) => void
   removeSteps: (id: string, indices: number[]) => void
   setStepsDone: (id: string, indices: number[], done: boolean) => void
+  onNewFolder: (ids: string[]) => void
+  onStepsToNewFolder: (taskId: string, indices: number[]) => void
   onClose: () => void
 }) {
   const counts = stepCount(task)
@@ -2575,6 +2670,7 @@ function TaskCard({
               duplicateSteps={duplicateSteps}
               removeSteps={removeSteps}
               setStepsDone={setStepsDone}
+              onStepsToNewFolder={onStepsToNewFolder}
             />
           </Disclosure>
     ),
@@ -2642,7 +2738,7 @@ function TaskCard({
               </span>
             ),
             onSelect: () => patch(task.id, { folder: f }),
-          }))}
+          })).concat(newFolderChoice(() => onNewFolder([task.id])))}
         />
         <PropChip
           icon={UserRound}
@@ -2829,6 +2925,8 @@ function ConceptE() {
     drag,
     panel,
     requestPromote,
+    requestNewFolder,
+    requestStepsToNewFolder,
     selection,
   } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
@@ -2861,6 +2959,8 @@ function ConceptE() {
                 duplicateSteps={duplicateSteps}
                 removeSteps={removeSteps}
                 setStepsDone={setStepsDone}
+                onNewFolder={requestNewFolder}
+                onStepsToNewFolder={requestStepsToNewFolder}
                 onClose={() => setOpen(null)}
               />
             }
@@ -2950,7 +3050,7 @@ function ConceptE() {
                           </span>
                         ),
                         onSelect: () => patch(task.id, { folder: f }),
-                      }))}
+                      })).concat(newFolderChoice(() => requestNewFolder([task.id])))}
                     >
                       <Chip>
                         <FolderBit folder={task.folder} />
@@ -3270,6 +3370,8 @@ function ConceptJ() {
     drag,
     panel,
     requestPromote,
+    requestNewFolder,
+    requestStepsToNewFolder,
     selection,
   } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
@@ -3314,6 +3416,8 @@ function ConceptJ() {
                 duplicateSteps={duplicateSteps}
                 removeSteps={removeSteps}
                 setStepsDone={setStepsDone}
+                onNewFolder={requestNewFolder}
+                onStepsToNewFolder={requestStepsToNewFolder}
                 onClose={() => setOpen(null)}
               />
             }
@@ -3392,7 +3496,7 @@ function ConceptJ() {
                             </span>
                           ),
                           onSelect: () => patch(task.id, { folder: f }),
-                        }))}
+                        })).concat(newFolderChoice(() => requestNewFolder([task.id])))}
                       >
                         <DetailChip>
                           <DetailWord icon={Folder} color={task.folder.color}>
