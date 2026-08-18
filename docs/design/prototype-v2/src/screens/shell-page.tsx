@@ -13,6 +13,8 @@ import {
 
 import { AppShell } from "@/components/app-shell"
 import type { ShellPageName } from "@/components/app-sidebar"
+import { voiceBars } from "@/components/comments"
+import { PEOPLE, type ConceptComment } from "@/lib/task-model"
 import type { ShellTaskDetails as TaskFormData } from "@/lib/shell-task"
 import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import { SearchOverlay } from "@/components/search-overlay"
@@ -31,6 +33,7 @@ import { MyDayScreen } from "@/screens/my-day-screen"
 import { PlannedScreen } from "@/screens/planned-screen"
 import { TasksScreen } from "@/screens/tasks-screen"
 import { FolderScreen } from "@/screens/folder-screen"
+import { FolderPageV2 } from "@/screens/folder-page-v2"
 import { ImportantScreen } from "@/screens/important-screen"
 import { AllScreen } from "@/screens/all-screen"
 import { DoneScreen } from "@/screens/done-screen"
@@ -139,6 +142,50 @@ function createTaskForm(
   }
 }
 
+/* Two tasks arrive with a conversation already going, so the Comments block
+   is judged as a thread between people rather than as an empty composer.
+   DES-129; fixtures only. The voice note here is a fixture and sweeps its
+   progress silently — one recorded live in the card plays for real. */
+const grantThread: ConceptComment[] = [
+  {
+    id: "comment-grant-1",
+    author: PEOPLE[1]!,
+    at: "Yesterday 16:12",
+    body: "The outcomes section feels thin — one paragraph covering all three grants. Should we push back?",
+    replies: [
+      {
+        id: "comment-grant-1r",
+        author: PEOPLE[0]!,
+        at: "Yesterday 16:40",
+        mine: true,
+        body: "Agreed. I'll draft questions tonight and tick them off here.",
+      },
+    ],
+  },
+  {
+    id: "comment-grant-2",
+    author: PEOPLE[2]!,
+    at: "Today 9:05",
+    voice: { seconds: 14, bars: voiceBars(14) },
+  },
+  {
+    id: "comment-grant-3",
+    author: PEOPLE[1]!,
+    at: "Today 9:12",
+    body: "Budget breakdown attached.",
+    files: [{ name: "grant-budget.xlsx", meta: "XLSX · 214 KB", kind: "file" }],
+  },
+]
+
+const venueThread: ConceptComment[] = [
+  {
+    id: "comment-venue-1",
+    author: PEOPLE[1]!,
+    at: "Mon 14:31",
+    body: "Half is already paid — double-check the payment reference before sending the rest.",
+  },
+]
+
 const myDayGoldenTasks: ShellTask[] = [
   {
     id: "task-4",
@@ -148,6 +195,7 @@ const myDayGoldenTasks: ShellTask[] = [
     folder: { name: "Wedding", color: "var(--color-graphite-900)" },
     due: { label: "Overdue · 6 Aug", overdue: true },
     important: true,
+    comments: venueThread,
     form: createTaskForm("task-4", "Send the venue deposit", "Wedding", {
       dueDate: "2026-08-06",
       important: true,
@@ -164,6 +212,7 @@ const myDayGoldenTasks: ShellTask[] = [
     },
     due: { label: "Overdue · 8 Aug", overdue: true },
     steps: { complete: 2, total: 4 },
+    comments: grantThread,
     form: createTaskForm(
       "task-5",
       "Review community grant application",
@@ -538,7 +587,7 @@ export function ShellPage() {
   const [folderPresentation, setFolderPresentation] =
     useState<PrototypeFolderPresentation>(() =>
       isCleanHandoffPreview
-        ? { names: {}, deleted: [] }
+        ? { names: {}, deleted: [], identity: {} }
         : readPrototypeFolderPresentation(),
     )
   const taskFormOpener = useRef<HTMLElement | null>(null)
@@ -551,6 +600,10 @@ export function ShellPage() {
   const isPeople = requestedPage === "people"
   const isSettings = requestedPage === "settings"
   const selectedFolderName = searchParams.get("folder") ?? "Wedding"
+  /* Which folder page renders: the Notion-page concept by default, the
+     previous screen behind ?folder-page=v1 for the side-by-side. */
+  const folderPageVariant =
+    searchParams.get("folder-page") === "v1" ? "v1" : "v2"
   const selectedFolderDisplayName =
     folderPresentation.names[selectedFolderName] ?? selectedFolderName
   const folderMemberships =
@@ -743,6 +796,7 @@ export function ShellPage() {
       pageTitle={pageTitle}
       pageIcon={PageIcon}
       pageIconColor={pageIconColor}
+      hideCreate={isFolder && folderPageVariant === "v2"}
       onCreateTask={() => {
         taskFormOpener.current = document.activeElement as HTMLElement | null
         setTaskFormContextBanner(undefined)
@@ -873,7 +927,7 @@ export function ShellPage() {
               )
             }
           />
-        ) : isFolder ? (
+        ) : isFolder && folderPageVariant === "v1" ? (
           <FolderScreen
             folderName={selectedFolderDisplayName}
             folderColor={selectedFolderColor}
@@ -924,6 +978,121 @@ export function ShellPage() {
                     ? "delete"
                     : undefined
             }
+            onAdd={(section, title) => {
+              const id = `task-${Date.now()}`
+              const scheduled = section === "scheduled"
+              setTasks((current) => [
+                ...current,
+                {
+                  id,
+                  title,
+                  status: "pending",
+                  tasksGroup: scheduled ? undefined : selectedFolderName,
+                  folderSection: scheduled ? "scheduled" : "unscheduled",
+                  folder: {
+                    name: selectedFolderName,
+                    color: selectedFolderColor,
+                  },
+                  due: scheduled ? { label: "Due today" } : undefined,
+                  form: createTaskForm(id, title, selectedFolderName, {
+                    dueDate: scheduled ? "2026-08-10" : "",
+                  }),
+                },
+              ])
+            }}
+            onOpenFullForm={(section) => {
+              taskFormOpener.current = document.activeElement as HTMLElement | null
+              setEditingTaskId(null)
+              setCreateFolderOverride(selectedFolderName)
+              setCreateDueDateOverride(
+                section === "scheduled" ? "2026-08-10" : "",
+              )
+              setTaskFormOpen(true)
+            }}
+            onOpenTask={openTask}
+            onToggleComplete={setTaskCompleted}
+            onToggleImportant={(taskId) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, {
+                  important: !task.important,
+                  form: { ...task.form, important: !task.important },
+                })
+              }
+            }}
+            onRestore={(taskId) => updateTask(taskId, { status: "pending" })}
+            onAbandon={(taskId) =>
+              updateTask(taskId, { status: "abandoned" })
+            }
+            onDelete={(taskId) =>
+              setTasks((current) =>
+                current.filter((task) => task.id !== taskId),
+              )
+            }
+            onDeleteFolder={() => {
+              window.dispatchEvent(
+                new CustomEvent("dana:prototype-delete-folder", {
+                  detail: { name: selectedFolderName },
+                }),
+              )
+              navigateToPage("My Day")
+            }}
+            onRenameFolder={(name) =>
+              renamePrototypeFolder(selectedFolderName, name)
+            }
+            onMoveToLabel={(label, color) =>
+              savePrototypeFolderMembership(selectedFolderName, {
+                label,
+                color,
+              })
+            }
+          />
+        ) : isFolder ? (
+          /* The Notion-page folder concept, the default since 2026-08-18.
+             `?folder-page=v1` above keeps the previous screen reachable so
+             the two are compared by looking (DES-130 to DES-134). */
+          <FolderPageV2
+            storageName={selectedFolderName}
+            folderName={selectedFolderDisplayName}
+            folderColor={selectedFolderColor}
+            folderLabel={selectedFolderLabel}
+            availableFolderLabels={availableFolderLabels}
+            isShared={isSharedFolder}
+            scheduled={
+              searchParams.get("folder-state") === "completed-only"
+                ? []
+                : tasks
+                    .filter(
+                      (task) =>
+                        task.form.folder === selectedFolderName &&
+                        Boolean(task.form.dueDate) &&
+                        task.status !== "completed",
+                    )
+                    .map((task) => ({ ...task, folder: undefined }))
+            }
+            unscheduled={
+              searchParams.get("folder-state") === "completed-only"
+                ? []
+                : tasks
+                    .filter(
+                      (task) =>
+                        task.form.folder === selectedFolderName &&
+                        !task.form.dueDate &&
+                        task.status !== "completed",
+                    )
+                    .map((task) => ({ ...task, folder: undefined }))
+            }
+            completed={tasks
+              .filter(
+                (task) =>
+                  task.status === "completed" &&
+                  task.form.folder === selectedFolderName,
+              )
+              .map((task) => ({ ...task, folder: undefined }))}
+            previewState={searchParams.get("folder-state")}
+            isOwner={searchParams.get("role") !== "member"}
+            isDefault={selectedFolderName === "Inbox"}
+            initialShareOpen={searchParams.get("share") === "open"}
             onAdd={(section, title) => {
               const id = `task-${Date.now()}`
               const scheduled = section === "scheduled"

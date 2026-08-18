@@ -26,6 +26,49 @@ export interface ConceptStep {
   done: boolean
 }
 
+/*
+A comment: who said it, when, and one of three kinds of what — words, a voice
+note, or files riding along. Replies are the same shape one level down, and
+one level is deliberate: a task's conversation is a short thread, not a forum,
+and unbounded nesting is how a card grows a scrollbar inside a scrollbar.
+
+Fixtures only, and further from shipping than most of what the card draws:
+there is no message table, no audio storage and no delivery story behind any
+of it. DES-129 carries the four facts.
+*/
+export interface ConceptComment {
+  id: string
+  author: { initials: string; name: string; image?: string }
+  /* Written words, fixture-style — "Yesterday 14:32" — like every other time
+     in the lab. A real comment carries a timestamp and the viewer's locale
+     writes it; a fixture pretending to be one would just be a worse fixture. */
+  at: string
+  body?: string
+  /* A voice note: how long it runs and the waveform to draw. A recording made
+     in the prototype also carries a real object URL and actually plays;
+     a fixture sweeps its progress and stays silent, which is as far as a
+     drawing can honestly go. */
+  voice?: { seconds: number; bars: number[]; url?: string }
+  files?: {
+    name: string
+    meta: string
+    kind: "image" | "video" | "document" | "file"
+    preview?: string
+  }[]
+  /* Mine, so the prototype knows which comments offer Delete without
+     pretending it has an identity system. */
+  mine?: boolean
+  replies?: ConceptComment[]
+}
+
+export function commentCount(comments: ConceptComment[] | undefined): number {
+  if (!comments) return 0
+  return comments.reduce(
+    (sum, comment) => sum + 1 + (comment.replies?.length ?? 0),
+    0,
+  )
+}
+
 export interface ConceptTask {
   id: string
   title: string
@@ -69,6 +112,9 @@ export interface ConceptTask {
   important?: boolean
   abandoned?: boolean
   notes?: string
+  /* The conversation about the task, pinned after the content blocks and
+     outside their order — commentary is not content. DES-129; fixtures only. */
+  comments?: ConceptComment[]
 }
 
 export function stepCount(task: ConceptTask) {

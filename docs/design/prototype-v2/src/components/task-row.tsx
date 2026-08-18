@@ -92,6 +92,7 @@ import {
   PEOPLE,
   repeatShort,
   stepCount,
+  type ConceptComment,
   type ConceptStep,
   type ConceptTask,
 } from "@/lib/task-model"
@@ -1584,6 +1585,9 @@ export interface TaskRowProps {
   steps?: { complete: number; total: number }
   recurrence?: string
   notes?: string
+  /* The conversation the card shows, passed through untouched. DES-129;
+     fixtures only — the shell has no message model behind this. */
+  comments?: ConceptComment[]
   /* Carried from the v1 row so the states page and the shell keep compiling.
      The new row draws its own hover and focus, so these no longer force a
      look. */
@@ -1640,6 +1644,7 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
     important: props.important,
     notes: props.notes,
     steps,
+    comments: props.comments,
     recurrence: Boolean(props.recurrence),
     repeatUnit: props.recurrence === "Daily" ? "day" : "week",
   }

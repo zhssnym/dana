@@ -117,6 +117,7 @@ export function AppShell({
   onNavigate,
   onOpenSearch,
   pageVisibility,
+  hideCreate = false,
 }: {
   children: ReactNode
   activePage?: ShellPageName | null
@@ -134,8 +135,13 @@ export function AppShell({
   onNavigate?: (page: ShellPageName) => void
   onOpenSearch?: () => void
   pageVisibility?: OptionalPageVisibility
+  /* The folder-page concept retires the floating New task button where a
+     quick-add row is the capture point (DES-133). A screen-by-screen ruling,
+     so it arrives as a prop rather than a policy here. */
+  hideCreate?: boolean
 }) {
   const showAdd =
+    !hideCreate &&
     activePage !== "Done" &&
     activePage !== "People" &&
     activePage !== "Settings"
@@ -155,7 +161,7 @@ export function AppShell({
   const [folderPresentation, setFolderPresentation] =
     useState<PrototypeFolderPresentation>(() =>
       isCleanHandoffPreview()
-        ? { names: {}, deleted: [] }
+        ? { names: {}, deleted: [], identity: {} }
         : readPrototypeFolderPresentation(),
     )
   const [folderGroupDialog, setFolderGroupDialog] = useState<

@@ -270,6 +270,49 @@ export const UsersRound = icon(Lu.UsersRound, Anim.UsersRoundIcon)
 export const WifiOff = icon(Lu.WifiOff, Anim.WifiOffIcon)
 export const X = icon(Lu.X, Anim.XIcon)
 
+/* ─── Conversation, added with the comments concept (DES-129) ──────────── */
+
+export const AudioLines = icon(Lu.AudioLines, Anim.AudioLinesIcon)
+export const MessageSquare = icon(Lu.MessageSquare, Anim.MessageSquareIcon)
+export const Mic = icon(Lu.Mic, Anim.MicIcon)
+export const Pause = icon(Lu.Pause, Anim.PauseIcon)
+export const Reply = icon(Lu.Reply, Anim.ReplyIcon)
+export const SendHorizontal = icon(Lu.SendHorizontal, Anim.SendHorizontalIcon)
+
+/* ─── The folder page's views (DES-131) ────────────────────────────────── */
+
+export const LayoutGrid = icon(Lu.LayoutGrid, Anim.LayoutGridIcon)
+export const List = icon(Lu.List, Anim.ListIcon)
+
+/* ─── The folder identity library (DES-130) ─────────────────────────────
+   Icons a person can put on a folder. Every one exists name-for-name in the
+   animated family, which is what bounded the choice: the library was picked
+   from what the family can animate, not trimmed down to it afterwards. None
+   of them is used by Dana's own chrome, so a folder's mark can never be
+   mistaken for a control. `FOLDER_GLYPHS` in `folder-icon-picker.tsx` is the
+   manifest; this file only owns the components, as it does for every icon. */
+
+export const Bike = icon(Lu.Bike, Anim.BikeIcon)
+export const BookOpen = icon(Lu.BookOpen, Anim.BookOpenIcon)
+export const Camera = icon(Lu.Camera, Anim.CameraIcon)
+export const Car = icon(Lu.Car, Anim.CarIcon)
+export const Flame = icon(Lu.Flame, Anim.FlameIcon)
+export const Gamepad = icon(Lu.Gamepad, Anim.GamepadIcon)
+export const Gift = icon(Lu.Gift, Anim.GiftIcon)
+export const Globe = icon(Lu.Globe, Anim.GlobeIcon)
+export const Heart = icon(Lu.Heart, Anim.HeartIcon)
+export const House = icon(Lu.House, Anim.HouseIcon)
+export const Lightbulb = icon(Lu.Lightbulb, Anim.LightbulbIcon)
+export const MapIcon = icon(Lu.Map, Anim.MapIcon)
+export const Mountain = icon(Lu.Mountain, Anim.MountainIcon)
+export const Music = icon(Lu.Music, Anim.MusicIcon)
+export const PiggyBank = icon(Lu.PiggyBank, Anim.PiggyBankIcon)
+export const Rocket = icon(Lu.Rocket, Anim.RocketIcon)
+export const ShoppingCart = icon(Lu.ShoppingCart, Anim.ShoppingCartIcon)
+export const Tent = icon(Lu.Tent, Anim.TentIcon)
+export const Utensils = icon(Lu.Utensils, Anim.UtensilsIcon)
+export const Wallet = icon(Lu.Wallet, Anim.WalletIcon)
+
 /* The `*Icon` spellings the shadcn primitives were generated with. */
 export const CheckIcon = Check
 export const ChevronRightIcon = ChevronRight

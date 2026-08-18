@@ -1,17 +1,44 @@
+import { useSyncExternalStore } from "react"
+
 export const PROTOTYPE_FOLDER_PRESENTATION_STORAGE_KEY =
   "dana:prototype-folder-presentation"
 export const PROTOTYPE_FOLDER_PRESENTATION_EVENT =
   "dana:prototype-folder-presentation-change"
 
+/*
+What a folder looks like, beyond its name: the glyph a person picked for it,
+the colour that glyph wears, the cover on its page, and the description under
+its title. All of it is DES-130 and Lane 2 — the shipping folder has none of
+these columns (DES-054 has owed the icon since v1) — so it lives here, in the
+prototype's own storage, beside the rename/delete presentation state that was
+already fixtures-only.
+
+An uploaded cover is the one thing that does not persist: it is an object URL,
+alive for the session, gone on reload. Persisting real image bytes into
+localStorage is how a prototype invents a worse version of the storage problem
+the real feature has to solve (DES-105); the picker's patterns and
+illustrations persist by key and uploads are honestly ephemeral.
+*/
+export interface PrototypeFolderIdentity {
+  glyph?: string
+  color?: string
+  cover?: string
+  description?: string
+}
+
 export interface PrototypeFolderPresentation {
   names: Record<string, string>
   deleted: string[]
+  identity: Record<string, PrototypeFolderIdentity>
 }
 
 const emptyPresentation: PrototypeFolderPresentation = {
   names: {},
   deleted: [],
+  identity: {},
 }
+
+const EMPTY_IDENTITY: PrototypeFolderIdentity = {}
 
 export function readPrototypeFolderPresentation(): PrototypeFolderPresentation {
   if (typeof window === "undefined") return emptyPresentation
@@ -35,13 +62,30 @@ export function readPrototypeFolderPresentation(): PrototypeFolderPresentation {
       deleted: Array.isArray(value.deleted)
         ? value.deleted.filter((name): name is string => typeof name === "string")
         : [],
+      identity:
+        value.identity &&
+        typeof value.identity === "object" &&
+        !Array.isArray(value.identity)
+          ? (value.identity as Record<string, PrototypeFolderIdentity>)
+          : {},
     }
   } catch {
     return emptyPresentation
   }
 }
 
+/* One parsed copy, kept true by savePresentation and by the change event, so
+   `useSyncExternalStore` gets stable snapshots instead of a fresh parse (and
+   a fresh object, and an infinite render) per read. */
+let cached: PrototypeFolderPresentation | null = null
+
+function snapshot(): PrototypeFolderPresentation {
+  if (!cached) cached = readPrototypeFolderPresentation()
+  return cached
+}
+
 function savePresentation(next: PrototypeFolderPresentation) {
+  cached = next
   window.localStorage.setItem(
     PROTOTYPE_FOLDER_PRESENTATION_STORAGE_KEY,
     JSON.stringify(next),
@@ -51,8 +95,47 @@ function savePresentation(next: PrototypeFolderPresentation) {
   )
 }
 
+function subscribe(onChange: () => void) {
+  function handle(event: Event) {
+    const detail = (event as CustomEvent<PrototypeFolderPresentation>).detail
+    cached = detail ?? readPrototypeFolderPresentation()
+    onChange()
+  }
+  window.addEventListener(PROTOTYPE_FOLDER_PRESENTATION_EVENT, handle)
+  return () =>
+    window.removeEventListener(PROTOTYPE_FOLDER_PRESENTATION_EVENT, handle)
+}
+
+/* A folder's picked look, live. The clean-handoff preview reads as unset so
+   exports stay deterministic, the same rule shell-page applies to names. */
+export function useFolderIdentity(name: string): PrototypeFolderIdentity {
+  return useSyncExternalStore(subscribe, () => {
+    if (
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("handoff") === "clean"
+    ) {
+      return EMPTY_IDENTITY
+    }
+    return snapshot().identity[name] ?? EMPTY_IDENTITY
+  })
+}
+
+export function savePrototypeFolderIdentity(
+  folderName: string,
+  patch: Partial<PrototypeFolderIdentity>,
+) {
+  const current = snapshot()
+  savePresentation({
+    ...current,
+    identity: {
+      ...current.identity,
+      [folderName]: { ...current.identity[folderName], ...patch },
+    },
+  })
+}
+
 export function renamePrototypeFolder(folderName: string, displayName: string) {
-  const current = readPrototypeFolderPresentation()
+  const current = snapshot()
   savePresentation({
     ...current,
     names: { ...current.names, [folderName]: displayName.trim() },
@@ -60,15 +143,15 @@ export function renamePrototypeFolder(folderName: string, displayName: string) {
 }
 
 export function deletePrototypeFolder(folderName: string) {
-  const current = readPrototypeFolderPresentation()
+  const current = snapshot()
   savePresentation({
-    names: current.names,
+    ...current,
     deleted: [...new Set([...current.deleted, folderName])],
   })
 }
 
 export function restorePrototypeFolder(folderName: string) {
-  const current = readPrototypeFolderPresentation()
+  const current = snapshot()
   if (!current.deleted.includes(folderName)) return
   savePresentation({
     ...current,
