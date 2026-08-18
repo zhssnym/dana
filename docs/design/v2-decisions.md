@@ -71,6 +71,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-110 | The V3 question, reduced: is a task row one line or two? | OPEN | V3 | **Yes**, and it is the one that matters |
 | DES-111 | A row is as tall as it needs to be | OPEN | V3 | **Yes**, see below |
 | DES-112 | What a selection can do, at both levels | OPEN | V3 | No |
+| DES-113 | Row density is a setting; two lines is the default | OPEN | V3 | **Yes**, and it supersedes DES-110 |
 
 ## Lane 2: needs backend
 
@@ -628,6 +629,61 @@ illustrative rather than photographic, and generated in the file so the shared
 build stays one document that asks the network for nothing. A fake photograph
 of somebody who does not exist is a worse thing to put into a design review
 than an obvious drawing.
+
+### DES-113, row density is a setting, and two lines is the default
+
+Imran's proposal, 2026-08-17, in answer to DES-110's question. **Ship both
+rows and let the person choose.** Drawn in the lab in the shape of a real
+settings row. **This supersedes DES-110**, which asked which row to pick.
+
+**Why it is a good answer here and not a dodge.** "Make it a setting" is
+usually how a team avoids deciding, and it usually costs two implementations
+for one feature. That is not the situation. The two rows converged over the
+course of V3 onto the same renaming, the same expansion, the same card, the
+same chips, the same selection, the same drag and the same motion. What is
+left between them is height and where the details sit. So this is **one layout
+switch over one row component**, which is the only condition under which a
+preference is cheap.
+
+**The costs, named rather than discovered later:**
+
+- Every future change to the row must be right in both. That is a permanent
+  tax on the most-touched component in the product.
+- The acceptance suite doubles at the seams: any criterion asserting a row's
+  geometry now has two answers, and browser cases measuring height must say
+  which density they are in.
+- **They will drift apart** unless it is forbidden. The rule that keeps this
+  affordable, and it should be written into the contract with the decision:
+  *the two densities may differ in height and in where the details sit, and in
+  nothing else.* The moment one grows a behaviour the other lacks, the tax
+  stops being layout and becomes logic.
+
+**Why two lines is the right default.** A default is for the person who has
+not thought about it, and the two failure modes are not symmetric. The cost of
+two lines is seeing fewer tasks at once — visible, and self-correcting: you
+scroll, you notice, you go and change it. The cost of one line is a truncated
+title, which is **invisible**, because you do not know what you did not read.
+Defaulting to the mode whose downside announces itself is the safer half of
+the choice.
+
+**The open question, and the only thing owed: where the preference lives.**
+
+- **In the browser** — Lane 1, ships with the refresh, and does not follow a
+  person from laptop to phone.
+- **On the account** — follows them everywhere, needs a column and an endpoint,
+  Lane 2, and waits on an RFC.
+
+Recommended: **the browser now.** A display preference that resets on a new
+device is a small annoyance; waiting on a backend to see the feature at all is
+a large one. Syncing it later is a clean, separate want and does not invalidate
+anything shipped in the meantime.
+
+One consequence for the port worth flagging: DES-111, the row that is only as
+tall as it needs to be, currently belongs to the two-line density. Whether the
+one-line density also collapses — it has nothing to collapse, being one line
+already — is not a question, but whether the *two-line* default should keep
+that behaviour is, and it should be answered with this entry rather than
+separately.
 
 ### Withdrawn at V3
 
