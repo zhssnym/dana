@@ -35,16 +35,24 @@ import {
   CircleAlert,
   Folder,
   ListChecks,
+  ListPlus,
   FileText,
   Film,
   GripVertical,
+  History,
+  Link2,
+  Mail,
+  Maximize2,
   Image as ImageIcon,
   MoreHorizontal,
   Paperclip,
   Pin,
   Play,
   Repeat2,
+  Redo2,
+  Share2,
   Star,
+  Undo2,
   UserRound,
   X,
 } from "lucide-react"
@@ -63,6 +71,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -750,6 +759,153 @@ function PendingPanel({
    both folder gestures land in. Shared so that dragging behaves identically in
    every concept, for the same reason renaming does — a comparison should
    measure the row, not which concept got the better drag. */
+/*
+Selecting task rows, with the same gesture the steps use.
+
+Press and hold a row to start, tap to add, Escape or the cross to leave, and
+emptying the selection leaves by itself. Holding one gesture across both
+levels is the point: a person learns it once in a card and it already works in
+the list, which is the only reason a hidden gesture is affordable at all.
+
+Dragging is suspended while selecting, because press-and-hold and press-and-
+drag begin identically and the list cannot serve both at once. That is a real
+cost of this choice and it is worth naming: you cannot reorder while you have
+a selection.
+*/
+function useRowSelection({
+  onMove,
+}: {
+  onMove: (ids: string[], folder: { name: string; color: string }) => void
+}) {
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
+  const pressTimer = useRef<number | null>(null)
+  const longPressAt = useRef(0)
+  const lastCount = useRef(0)
+
+  useEffect(() => {
+    if (!selecting) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelecting(false)
+        setSelected([])
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selecting])
+
+  function clearPress() {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current)
+      pressTimer.current = null
+    }
+  }
+
+  useEffect(() => clearPress, [])
+
+  function exit() {
+    setSelecting(false)
+    setSelected([])
+  }
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = current.includes(id)
+        ? current.filter((x) => x !== id)
+        : [...current, id]
+      if (next.length === 0) setSelecting(false)
+      else lastCount.current = next.length
+      return next
+    })
+  }
+
+  /* Handlers for one row. Spread alongside the drag props, which the caller
+     drops while `selecting` is true. */
+  function selectProps(id: string) {
+    return {
+      onPointerDown: () => {
+        if (selecting) return
+        clearPress()
+        pressTimer.current = window.setTimeout(() => {
+          longPressAt.current = Date.now()
+          lastCount.current = 1
+          setSelecting(true)
+          setSelected([id])
+        }, 400)
+      },
+      onPointerUp: clearPress,
+      onPointerLeave: clearPress,
+      onClick: () => {
+        /* Same timestamp guard as the steps: the click that belongs to the
+           press just made is ignored, and any later tap counts. */
+        if (selecting && Date.now() - longPressAt.current > 300) toggle(id)
+      },
+    }
+  }
+
+  const bar = (
+    <Reveal open={selecting}>
+      <div className="mb-2 flex items-center gap-2 rounded-md bg-[var(--color-dana-accent-50)] px-2 py-1.5">
+        <button
+          type="button"
+          onClick={exit}
+          aria-label="Leave selection"
+          className={cn(
+            "flex size-5 items-center justify-center rounded text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
+            T_FAST,
+            FOCUS,
+          )}
+        >
+          <X className="size-4" strokeWidth={2} aria-hidden="true" />
+        </button>
+        <span className="text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
+          {selected.length || lastCount.current} selected
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className={cn(
+                  "ml-auto rounded-md bg-card px-2 py-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-800)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                  T_FAST,
+                  FOCUS,
+                )}
+              >
+                Move to…
+              </button>
+            }
+          />
+          <DropdownMenuContent align="end" className="min-w-[16rem]">
+                          <MenuHeading>
+                Move {selected.length} task{selected.length === 1 ? "" : "s"} to
+              </MenuHeading>
+              {FOLDERS.map((f) => (
+                <DropdownMenuItem
+                  key={f.name}
+                  onClick={() => {
+                    onMove(selected, f)
+                    exit()
+                  }}
+                >
+                  <DestinationChoice
+                    icon={Folder}
+                    color={f.color}
+                    name={f.name}
+                    detail="Keeps everything else as it is"
+                  />
+                </DropdownMenuItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </Reveal>
+  )
+
+  return { selecting, selected, selectProps, bar }
+}
+
 function useConceptList() {
   const list = useTaskList(SAMPLE)
   const [pending, setPending] = useState<PendingAction | null>(null)
@@ -775,15 +931,25 @@ function useConceptList() {
     setPending(null)
   }
 
-  const panel = pending ? (
-    <PendingPanel
-      pending={pending}
-      onConfirm={confirm}
-      onCancel={() => setPending(null)}
-    />
-  ) : null
+  const selection = useRowSelection({
+    onMove: (ids, folder) =>
+      ids.forEach((id) => list.patch(id, { folder })),
+  })
 
-  return { ...list, drag, panel, requestPromote }
+  const panel = (
+    <>
+      {selection.bar}
+      {pending ? (
+        <PendingPanel
+          pending={pending}
+          onConfirm={confirm}
+          onCancel={() => setPending(null)}
+        />
+      ) : null}
+    </>
+  )
+
+  return { ...list, drag, panel, requestPromote, selection }
 }
 
 /* --------------------------------------------------------------- pieces -- */
@@ -869,11 +1035,15 @@ function TaskTitle({
   onRename,
   className,
   truncate = true,
+  heading = false,
 }: {
   task: ConceptTask
   onRename: (title: string) => void
   className?: string
   truncate?: boolean
+  /* An open row is the card's heading and takes the heading step of the type
+     scale; closed, it is a list item and stays at body size. */
+  heading?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task.title)
@@ -883,7 +1053,7 @@ function TaskTitle({
      across this box and a full-width box strikes a line across empty space to
      the right of a short title. max-w-full keeps truncation working. */
   const metrics = cn(
-    "block w-fit max-w-full min-w-0 text-sm leading-5",
+    "block w-fit max-w-full min-w-0 text-[14px] leading-5",
     truncate && "truncate",
     className,
   )
@@ -935,6 +1105,9 @@ function TaskTitle({
   const button = (
     <button
       type="button"
+      /* See DES-108: a text-size class on a button is suppressed by an
+         unlayered reset, so the one size that has to change is set here. */
+      style={heading ? { fontSize: "16px", lineHeight: "24px" } : undefined}
       onClick={(e) => {
         e.stopPropagation()
         setDraft(task.title)
@@ -1346,29 +1519,34 @@ function Disclosure({
           aria-expanded={open}
           className={cn("flex flex-1 items-center gap-1.5 rounded-md text-left", FOCUS)}
         >
-          <ChevronDown
-            className={cn(
-              "size-3.5 shrink-0 text-[var(--color-graphite-400)] transition-[transform,opacity]",
-              T_BASE,
-              !open && "-rotate-90",
-              /* Quiet until you look at it, which is the Notion behaviour and
-                 the reason the heading reads as a label rather than a
-                 control. */
-              open ? "opacity-40 group-hover/sec:opacity-100" : "opacity-100",
-            )}
-            strokeWidth={2}
-            aria-hidden="true"
-          />
-          <Icon
-            className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <span className="text-[12px] font-medium text-[var(--color-graphite-500)]">
+          {/* One slot, and the block's own icon is the disclosure control:
+              it is the icon at rest and becomes a chevron under the pointer.
+              Two marks side by side were saying the same thing twice, and the
+              chevron was the half nobody needed to see until they wanted it. */}
+          <span className="relative flex size-3.5 shrink-0 items-center justify-center">
+            <Icon
+              className={cn(
+                "absolute size-3.5 text-[var(--color-graphite-500)] transition-opacity group-hover/sec:opacity-0",
+                T_FAST,
+              )}
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <ChevronDown
+              className={cn(
+                "absolute size-3.5 text-[var(--color-graphite-500)] opacity-0 transition-[transform,opacity] group-hover/sec:opacity-100",
+                T_BASE,
+                !open && "-rotate-90",
+              )}
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+          </span>
+          <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
             {label}
           </span>
           {badge ? (
-            <span className="text-[12px] text-[var(--color-graphite-400)] tabular-nums">
+            <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
               {badge}
             </span>
           ) : null}
@@ -1411,6 +1589,172 @@ Selection is by clicking a step's text; the tick box still only ticks. Those
 are two different intentions and giving them one target is how people
 accidentally complete things they meant to select.
 */
+
+/*
+The card's footer, and why there is no Save button on it.
+
+Imran's call, 2026-08-17, and it is the right one for a reason worth writing
+down: **there was nothing for Save to do.** Every edit in this card already
+commits the moment it is made — a rename on Enter or blur, a property on
+choosing it, a step on ticking it. A Save button at the bottom of a card that
+has already saved is a promise the interface cannot keep, and the honest name
+for the thing people press afterwards is Close.
+
+Removing it costs the escape hatch, though, so the footer has to replace it
+rather than just delete it. That is what undo and redo are doing here: they
+are not a nicety, they are the safety net that Save-and-Cancel used to
+provide, and the reason it is safe to have no Cancel.
+
+The rest of the row, and my reasoning on each, since Imran asked:
+
+- **Expand** — recommended, and the most valuable icon here. The card lives
+  inside a list column, and DES-093's strongest objection is width: a form
+  comfortable at 540px has to stack into something much narrower. An expand
+  that opens the same task full-width answers that objection instead of
+  arguing with it, and it costs nothing to offer.
+- **Copy link** — recommended over email as the primary sharing action.
+  Sharing usually means putting a link where a conversation already is, and a
+  link works in every one of those places. Email is one destination; a link is
+  all of them.
+- **Share** and **email** — kept because they were asked for, but both are
+  Lane 2 and neither is small. Dana shares *folders*: membership is a property
+  of a folder and a task has no independent audience, so "share this task"
+  either invites somebody to the whole folder — which is not what the button
+  appears to promise — or it is a new sharing model. That is DES-109.
+- **History** — added. It is the only way to answer "who changed this", it is
+  where an undone change goes to be understood, and `task-form.tsx` already
+  reaches for the same icon.
+
+What is deliberately NOT here: Delete. The row's overflow menu already carries
+it, and the repository has already been bitten once by two menus both called
+"More actions"; putting a destructive action in a second place is how that
+happens again.
+*/
+function FooterAction({
+  icon: Icon,
+  label,
+  onClick,
+  disabled = false,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick?: () => void
+  disabled?: boolean
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={label}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClick?.()
+            }}
+            className={cn(
+              "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] disabled:pointer-events-none disabled:opacity-35",
+              T_FAST,
+              FOCUS,
+            )}
+          >
+            <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        }
+      />
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function CardFooter({ onClose }: { onClose: () => void }) {
+  /* Undo has nothing to undo until something is done, and saying so with a
+     disabled control is more honest than offering one that does nothing. */
+  const [undoDepth, setUndoDepth] = useState(0)
+
+  return (
+    <div className="flex items-center justify-between gap-2 pt-1">
+      <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
+        Edited just now by Imran Wafa · saved
+      </span>
+      <span className="flex shrink-0 items-center gap-0.5">
+        <FooterAction
+          icon={Undo2}
+          label="Undo"
+          disabled={undoDepth <= 0}
+          onClick={() => setUndoDepth((d) => d - 1)}
+        />
+        <FooterAction
+          icon={Redo2}
+          label="Redo"
+          disabled={undoDepth >= 0}
+          onClick={() => setUndoDepth((d) => d + 1)}
+        />
+        <span
+          aria-hidden="true"
+          className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
+        />
+        <FooterAction icon={Link2} label="Copy link" />
+        <FooterAction icon={Share2} label="Share" />
+        <FooterAction icon={Mail} label="Email" />
+        <span
+          aria-hidden="true"
+          className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
+        />
+        <FooterAction icon={History} label="History" />
+        <FooterAction icon={Maximize2} label="Open full screen" />
+        <FooterAction icon={X} label="Close" onClick={onClose} />
+      </span>
+    </div>
+  )
+}
+
+/* A heading inside a menu. Deliberately not Base UI's GroupLabel, which
+   requires a Group ancestor and throws if it does not have one — taking the
+   entire popup with it rather than losing a heading. Nothing about a caption
+   needs that risk. */
+function MenuHeading({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-2 py-1.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+      {children}
+    </div>
+  )
+}
+
+/* One menu row: a mark, a name, and a sentence saying what choosing it does.
+   Shared by the step menu and the task-row menu so the two never drift into
+   describing the same operation differently. */
+function DestinationChoice({
+  icon: Icon,
+  name,
+  detail,
+  color,
+}: {
+  icon: LucideIcon
+  name: string
+  detail: string
+  color?: string
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-2.5 py-0.5">
+      <Icon
+        className="size-4 shrink-0"
+        style={color ? { color } : undefined}
+        strokeWidth={1.75}
+        aria-hidden="true"
+      />
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-[14px] leading-5 text-[var(--color-graphite-800)]">
+          {name}
+        </span>
+        <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          {detail}
+        </span>
+      </span>
+    </span>
+  )
+}
 
 function StepList({
   task,
@@ -1502,26 +1846,8 @@ function StepList({
     setSelected([])
   }
 
-  const destinations = [
-    {
-      key: "new-task",
-      label: "New task  ·  they stay steps",
-      run: () =>
-        moveStepsTo(task.id, [...selected].sort((a, b) => a - b), {
-          kind: "new-task",
-        }),
-    },
-    ...FOLDERS.map((f) => ({
-      key: f.name,
-      label: `${f.name}  ·  they become tasks`,
-      run: () =>
-        moveStepsTo(task.id, [...selected].sort((a, b) => a - b), {
-          kind: "folder",
-          name: f.name,
-          color: f.color,
-        }),
-    })),
-  ]
+  const move = (destination: Parameters<typeof moveStepsTo>[2]) =>
+    moveStepsTo(task.id, [...selected].sort((a, b) => a - b), destination)
 
   return (
     <div className="flex flex-col">
@@ -1725,22 +2051,58 @@ function StepList({
                     FOCUS,
                   )}
                 >
-                  Move to…
+                  <span className="text-[12px] leading-4">Move to…</span>
                 </button>
               }
             />
-            <DropdownMenuContent align="end">
-              {destinations.map((d) => (
+            {/* Each choice says what it does in plain words on a second line,
+                because "New task" and "Wedding" look like the same kind of
+                answer and are not: one keeps these as steps, the other turns
+                each into a task of its own. That difference is the whole
+                design, so it is written down rather than left to be inferred
+                from the rule. */}
+            <DropdownMenuContent align="end" className="min-w-[16rem]">
+                              <MenuHeading>
+                  Move {selected.length} step{selected.length === 1 ? "" : "s"} to
+                </MenuHeading>
                 <DropdownMenuItem
-                  key={d.key}
                   onClick={() => {
-                    d.run()
+                    move({ kind: "new-task" })
                     exit()
                   }}
                 >
-                  {d.label}
+                  <DestinationChoice
+                    icon={ListPlus}
+                    name="A new task"
+                    detail={
+                      selected.length === 1
+                        ? "It stays a step inside it"
+                        : "They stay steps inside it"
+                    }
+                  />
                 </DropdownMenuItem>
-              ))}
+              <DropdownMenuSeparator />
+                              <MenuHeading>Or into a folder</MenuHeading>
+                {FOLDERS.map((f) => (
+                  <DropdownMenuItem
+                    key={f.name}
+                    onClick={() => {
+                      move({ kind: "folder", name: f.name, color: f.color })
+                      exit()
+                    }}
+                  >
+                    <DestinationChoice
+                      icon={Folder}
+                      color={f.color}
+                      name={f.name}
+                      detail={
+                        selected.length === 1
+                          ? "It becomes a task of its own"
+                          : "Each becomes a task of its own"
+                      }
+                    />
+                  </DropdownMenuItem>
+                ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -2047,41 +2409,7 @@ function TaskCard({
 
       {order.map((key) => blocks[key])}
 
-      <div className="flex items-center justify-between pt-1">
-        <span className="text-[12px] leading-4 text-[var(--color-graphite-500)]">
-          Created 4 Aug by Imran Wafa
-        </span>
-        <span className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-[14px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)]",
-              T_FAST,
-              FOCUS,
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            className={cn(
-              "rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[14px] leading-5 font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95",
-              T_FAST,
-              FOCUS,
-            )}
-          >
-            Save changes
-          </button>
-        </span>
-      </div>
+      <CardFooter onClose={onClose} />
     </div>
   )
 }
@@ -2097,6 +2425,7 @@ function ExpandShell({
   isDragging = false,
   isHovered = false,
   isDwelt = false,
+  isSelected = false,
 }: {
   open: boolean
   row: ReactNode
@@ -2105,6 +2434,7 @@ function ExpandShell({
   isDragging?: boolean
   isHovered?: boolean
   isDwelt?: boolean
+  isSelected?: boolean
 }) {
   return (
     <div
@@ -2115,6 +2445,8 @@ function ExpandShell({
         open
           ? "my-1 border-[var(--color-graphite-300)] bg-card shadow-[var(--elevation-1)]"
           : "my-0 border-transparent",
+        isSelected &&
+          "border-[var(--color-dana-accent-200)] bg-[var(--color-dana-accent-100)]",
         isDragging && "opacity-40",
         /* Hovered means "drop here to reorder". Dwelt means the release has
             changed meaning, so it gets a different signal rather than a
@@ -2139,113 +2471,6 @@ function ExpandShell({
 }
 
 /* ------------------------------------------------------------ concept A -- */
-/* Disciplined: at most three facts at rest, the rest behind one pill. */
-
-function ConceptA() {
-  const {
-    tasks,
-    patch,
-    toggleStep,
-    moveStep,
-    moveStepsTo,
-    drag,
-    panel,
-    requestPromote,
-  } = useConceptList()
-  const [open, setOpen] = useState<string | null>(null)
-
-  return (
-    <div className="flex flex-col">
-      {panel}
-      {tasks.map((task) => {
-        const isOpen = open === task.id
-        const counts = stepCount(task)
-        const extras =
-          (counts ? 1 : 0) +
-          (task.recurrence ? 1 : 0) +
-          (task.pulled ? 1 : 0) +
-          (task.notes ? 1 : 0) +
-          (task.attachments ? 1 : 0)
-
-        return (
-          <ExpandShell
-            key={task.id}
-            open={isOpen}
-            drag={drag.dragProps(task, tasks)}
-            {...drag.rowState(task.id)}
-            card={
-              <TaskCard
-                task={task}
-                patch={patch}
-                toggleStep={toggleStep}
-                moveStep={moveStep}
-                moveStepsTo={moveStepsTo}
-                onClose={() => setOpen(null)}
-              />
-            }
-            row={
-              <div className={cn(ROW, !isOpen && ROW_HOVER)}>
-                <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-                <TaskTitle
-                  task={task}
-                  onRename={(title) => patch(task.id, { title })}
-                />
-                <div className={cn("flex items-center justify-end gap-3 pr-2", META)}>
-                  {task.abandoned ? <Badge variant="secondary">Abandoned</Badge> : null}
-                  {extras > 0 ? (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span
-                            className={cn(
-                              "inline-flex h-[18px] shrink-0 items-center rounded-full bg-[var(--color-graphite-100)] px-2 text-[12px] leading-4 font-medium text-[var(--color-graphite-600)] transition-colors hover:bg-[var(--color-graphite-200)]",
-                              T_FAST,
-                            )}
-                          >
-                            +{extras}
-                          </span>
-                        }
-                      />
-                      <TooltipContent side="top">
-                        {[
-                          counts ? `${counts.done}/${counts.total} steps` : null,
-                          task.recurrence ? "Repeats weekly" : null,
-                          task.pulled ? "In My Day" : null,
-                          task.notes ? "Has notes" : null,
-                          task.attachments
-                            ? `${task.attachments.length} attached`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : null}
-                  {task.assignee ? <PersonBit assignee={task.assignee} /> : null}
-                  {task.folder ? <FolderBit folder={task.folder} /> : null}
-                  {task.due ? <DueBit due={task.due} /> : null}
-                  <span className="w-24">
-                    <Actions
-                      task={task}
-                      onStar={() => patch(task.id, { important: !task.important })}
-                      onMakeFolder={() => requestPromote(task)}
-                      extra={
-                        <ExpandButton
-                          open={isOpen}
-                          onToggle={() => setOpen(isOpen ? null : task.id)}
-                        />
-                      }
-                    />
-                  </span>
-                </div>
-              </div>
-            }
-          />
-        )
-      })}
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------ concept E -- */
 /* Editable chips: every fact is the control that changes it. */
@@ -2315,6 +2540,7 @@ function ConceptE() {
     drag,
     panel,
     requestPromote,
+    selection,
   } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
@@ -2329,8 +2555,13 @@ function ConceptE() {
           <ExpandShell
             key={task.id}
             open={isOpen}
-            drag={drag.dragProps(task, tasks)}
+            drag={
+              selection.selecting
+                ? selection.selectProps(task.id)
+                : { ...drag.dragProps(task, tasks), ...selection.selectProps(task.id) }
+            }
             {...drag.rowState(task.id)}
+            isSelected={selection.selected.includes(task.id)}
             card={
               <TaskCard
                 task={task}
@@ -2347,6 +2578,8 @@ function ConceptE() {
                 <TaskTitle
                   task={task}
                   onRename={(title) => patch(task.id, { title })}
+                  heading={isOpen}
+                  className={cn(T_BASE, isOpen && "font-semibold")}
                 />
                 <div className={cn("flex items-center justify-end gap-1 pr-2", META)}>
                   {task.abandoned ? <Badge variant="secondary">Abandoned</Badge> : null}
@@ -2709,6 +2942,7 @@ function ConceptJ() {
     drag,
     panel,
     requestPromote,
+    selection,
   } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
@@ -2735,8 +2969,13 @@ function ConceptJ() {
           <ExpandShell
             key={task.id}
             open={isOpen}
-            drag={drag.dragProps(task, tasks)}
+            drag={
+              selection.selecting
+                ? selection.selectProps(task.id)
+                : { ...drag.dragProps(task, tasks), ...selection.selectProps(task.id) }
+            }
             {...drag.rowState(task.id)}
+            isSelected={selection.selected.includes(task.id)}
             card={
               <TaskCard
                 task={task}
@@ -2760,6 +2999,8 @@ function ConceptJ() {
                     task={task}
                     onRename={(title) => patch(task.id, { title })}
                     truncate={false}
+                    heading={isOpen}
+                    className={cn(T_BASE, isOpen && "font-semibold")}
                   />
                   <div className="flex min-w-0 items-center gap-3 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]">
                     {task.due ? (
@@ -2847,19 +3088,6 @@ export interface ConceptSpec {
 }
 
 export const CONCEPTS: ConceptSpec[] = [
-  {
-    id: "A",
-    name: "Hold the line",
-    optimisesFor:
-      "Scanning speed. At most three facts at rest, everything else behind one quiet pill, and the action gutter reserved so no row shifts when a neighbour is hovered.",
-    givesUp:
-      "You cannot see everything about a task without asking. Busy rows lose their folder colour.",
-    principle:
-      "Working memory holds about four chunks, and a regular layout is searched faster than an irregular one.",
-    tryIt:
-      "Hover a +N pill to see what it is hiding, then open the same row with the chevron and see the whole thing.",
-    render: () => <ConceptA />,
-  },
   {
     id: "E",
     name: "Editable chips",

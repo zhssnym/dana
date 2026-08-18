@@ -66,6 +66,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-097 | A motion scale in the tokens | OPEN | V3 | No |
 | DES-099 | The expanded card: one header strip, then Steps and Notes | OPEN | V3 | No |
 | DES-107 | A fifth type size the contract does not name | OPEN | V3 | **Yes**, see below |
+| DES-108 | A CSS reset silently suppresses text sizes on every control | OPEN | V3 | **Yes**, see below |
+| DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
 
 ## Lane 2: needs backend
 
@@ -432,6 +434,84 @@ exist, which is how a type scale quietly stops being enforced.
 Recommendation: name it. 10px is genuinely useful for a two-character avatar
 inside a 20px circle, and 12px does not fit there. A scale that admits its
 exceptions is followed; one that pretends they are not there is edited around.
+
+### DES-108, a CSS reset that silently suppresses text sizes on every control
+
+Found 2026-08-17 at session V3, chasing why an expanded task title carrying
+`text-[16px]` kept rendering at 14px. **This is a bug rather than a design
+question, but the fix is an owner decision, which is why it is here.**
+
+`app.css` resets controls so they inherit the page's font:
+
+    button, input, textarea, select { font-size: inherit; ... }
+
+Those four lines are **unlayered**, and unlayered CSS beats layered CSS
+regardless of specificity. Tailwind 4 puts every utility in
+`@layer utilities`. So this rule silently wins against every text-size
+utility applied to a button, input, textarea or select anywhere in the
+prototype. The class is in the markup, the rule is in the stylesheet, and the
+rendered size is the inherited one. Nothing warns; the code reads as if it
+works.
+
+**The fix is one line** — wrap the block in `@layer base`, which keeps the
+reset doing its real job while letting a utility override it.
+
+**It is deliberately not applied, and this is the part that needs a ruling.**
+Measured on the shell the same day: **56 controls carry a text-size class this
+rule is currently suppressing, and 54 would change size** — 33 buttons from
+14px to 12px, 20 from 14px to 13px, one to 11px. Those screens were approved
+by looking at them, which means they were approved *as rendered* rather than
+as written. Correcting the cascade would restyle approved work, so it needs a
+before-and-after and a decision, not a quiet commit at the end of a session.
+
+Note the overlap with DES-107: the suppressed sizes include 13px and 11px,
+neither of which DES-015 names. Fixing the cascade would make two off-scale
+sizes visible for the first time. The two entries should be settled together.
+
+The concept lab does not depend on the outcome: the one size that had to
+change is set inline, with a comment pointing here.
+
+### DES-109, the card has no Save button, and its footer is a toolbar
+
+Imran's call, 2026-08-17. **Lane 1 for the removal, Lane 2 for two of the
+icons.**
+
+**Why removing Save is right rather than merely tidier.** Every edit in the
+card already commits the moment it is made: a rename on Enter or blur, a
+property on choosing it, a step on ticking it. A Save button at the bottom of
+a card that has already saved is a promise the interface cannot keep, and the
+honest name for the button people press afterwards is Close. Removing it also
+removes Cancel, because there is no uncommitted state for Cancel to discard.
+
+**What replaces the escape hatch.** Undo and redo, which are not decoration
+here: they are the safety net Save-and-Cancel used to provide, and the reason
+it is safe to have no Cancel. If undo is not built, Save should not be removed.
+
+**The row, and the reasoning per icon.** Undo, redo · copy link, share, email ·
+history, full screen, close.
+
+- **Full screen** is the most valuable of them and was Imran's own question.
+  The card lives inside a list column, and DES-093's strongest objection is
+  width: a form comfortable at 540px has to stack into something much
+  narrower. An expand that opens the same task full-width answers that
+  objection rather than arguing with it.
+- **Copy link** is recommended as the primary sharing action, over email.
+  Sharing usually means putting a link where a conversation already is, and a
+  link works in every one of those places; email is one destination.
+- **Share** and **email** are **Lane 2 and neither is small.** Dana shares
+  *folders*: membership is a property of a folder, and a task has no
+  independent audience. So "share this task" either invites somebody to the
+  whole folder — which is not what the button appears to promise — or it is a
+  new sharing model with its own permissions. Recorded rather than assumed.
+- **History** answers "who changed this" and is where an undone change goes to
+  be understood. `task-form.tsx` already reaches for the same icon.
+- **Delete is deliberately absent.** The row's overflow already carries it, and
+  this repository has been bitten once by two menus both called "More
+  actions"; a destructive action in a second place is how that happens again.
+
+**What is owed:** a ruling that the card is direct manipulation rather than a
+form, because 9.3 describes a form with Save, and an answer on whether undo is
+in scope — since the removal depends on it.
 
 ### Withdrawn at V3
 
