@@ -75,6 +75,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-114 | Every folder list ends in "New folder…" | APPROVED | V3 | Carried by DES-113 |
 | DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
 | DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | APPROVED | V3 | Imran, 2026-08-17 |
+| DES-117 | One form, two presentations; the right panel is freed | OPEN | V3 | **Yes**, see below |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
