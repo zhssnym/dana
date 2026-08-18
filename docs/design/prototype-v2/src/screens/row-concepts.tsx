@@ -318,6 +318,69 @@ function useTaskList(initial: ConceptTask[]) {
     })
   }
 
+  function moveStep(id: string, from: number, to: number) {
+    setTasks((list) =>
+      list.map((t) => {
+        if (t.id !== id || !t.steps) return t
+        if (to < 0 || to >= t.steps.length || from === to) return t
+        const steps = [...t.steps]
+        const [moved] = steps.splice(from, 1)
+        steps.splice(to, 0, moved!)
+        return { ...t, steps }
+      }),
+    )
+  }
+
+  /*
+  One verb, and the destination decides the result.
+
+  See DES-106. A step moved into a folder becomes a task, because a folder
+  holds tasks. The same steps moved into a task stay steps, because that is
+  what a task holds. Nothing here is a separate "promote" command; level is a
+  consequence of where a thing ends up.
+  */
+  function moveStepsTo(
+    id: string,
+    indices: number[],
+    destination: { kind: "new-task" } | { kind: "folder"; name: string; color: string },
+  ) {
+    setTasks((list) => {
+      const at = list.findIndex((t) => t.id === id)
+      const source = list[at]
+      if (at < 0 || !source?.steps) return list
+
+      const taken = indices.map((i) => source.steps![i]!).filter(Boolean)
+      if (taken.length === 0) return list
+      const kept = source.steps.filter((_, i) => !indices.includes(i))
+      const next = [...list]
+      next[at] = { ...source, steps: kept }
+
+      if (destination.kind === "new-task") {
+        /* Into a task: they stay steps. The new task is unnamed on purpose —
+           every row on this page renames in place, so the person names it
+           where they are rather than in a dialog first. */
+        next.splice(at + 1, 0, {
+          id: `${id}-extracted-${kept.length}-${taken.length}`,
+          title: "New task",
+          folder: source.folder,
+          due: source.due,
+          steps: taken,
+        })
+        return next
+      }
+
+      /* Into a folder: each becomes a task of its own. */
+      const promoted: ConceptTask[] = taken.map((step, i) => ({
+        id: `${id}-moved-${destination.name}-${kept.length}-${i}`,
+        title: step.title,
+        done: step.done,
+        folder: { name: destination.name, color: destination.color },
+      }))
+      next.splice(at + 1, 0, ...promoted)
+      return next
+    })
+  }
+
   function toggleStep(id: string, index: number) {
     setTasks((list) =>
       list.map((t) =>
@@ -333,7 +396,16 @@ function useTaskList(initial: ConceptTask[]) {
     )
   }
 
-  return { tasks, patch, toggleStep, reorder, groupIntoFolder, taskToFolder }
+  return {
+    tasks,
+    patch,
+    toggleStep,
+    moveStep,
+    moveStepsTo,
+    reorder,
+    groupIntoFolder,
+    taskToFolder,
+  }
 }
 
 /* --------------------------------------------------------------- motion -- */
@@ -1302,6 +1374,268 @@ function Disclosure({
 }
 
 /*
+Steps: draggable, selectable, and one verb for moving them anywhere.
+
+Imran asked for movable steps, multi-select, and options to make a new task
+from the selection or to turn them into separate tasks here or in another
+folder. He also said he had not decided. This is the recommendation, drawn so
+it can be rejected by using it; the alternative is in DES-106.
+
+The problem is not any one of those commands, it is that they were arriving one
+at a time and the menu was going to end up reading: promote step to task,
+promote task to folder, make new task from these steps, make these steps into
+tasks here, make these steps into tasks elsewhere. Five verbs, one idea. A
+product needing five names for one operation has not found the operation yet.
+
+So there is one verb, **Move to…**, and the destination decides what happens:
+
+    a step moved into a FOLDER becomes a task, because folders hold tasks
+    the same steps moved into a TASK stay steps, because tasks hold steps
+
+Level is a consequence of where a thing lands, never a separate command. "Make
+a new task from these" is then just Move to → New task, and "make them separate
+tasks in another folder" is Move to → that folder. Nothing needs a new name,
+and the rule extends without new menu items the day something else can hold
+something else.
+
+Selection is by clicking a step's text; the tick box still only ticks. Those
+are two different intentions and giving them one target is how people
+accidentally complete things they meant to select.
+*/
+
+function StepList({
+  task,
+  toggleStep,
+  moveStep,
+  moveStepsTo,
+}: {
+  task: ConceptTask
+  toggleStep: (id: string, index: number) => void
+  moveStep: (id: string, from: number, to: number) => void
+  moveStepsTo: (
+    id: string,
+    indices: number[],
+    destination:
+      | { kind: "new-task" }
+      | { kind: "folder"; name: string; color: string },
+  ) => void
+}) {
+  const [selected, setSelected] = useState<number[]>([])
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+
+  const steps = task.steps ?? []
+
+  if (steps.length === 0) {
+    return (
+      <p className="py-1 text-sm text-[var(--color-graphite-400)]">No steps yet</p>
+    )
+  }
+
+  function toggleSelected(index: number, additive: boolean) {
+    setSelected((current) => {
+      if (!additive) return current.length === 1 && current[0] === index ? [] : [index]
+      return current.includes(index)
+        ? current.filter((i) => i !== index)
+        : [...current, index]
+    })
+  }
+
+  const destinations = [
+    {
+      key: "new-task",
+      label: "New task  ·  they stay steps",
+      run: () => moveStepsTo(task.id, [...selected].sort((a, b) => a - b), { kind: "new-task" }),
+    },
+    ...FOLDERS.map((f) => ({
+      key: f.name,
+      label: `${f.name}  ·  they become tasks`,
+      run: () =>
+        moveStepsTo(task.id, [...selected].sort((a, b) => a - b), {
+          kind: "folder",
+          name: f.name,
+          color: f.color,
+        }),
+    })),
+  ]
+
+  return (
+    <div className="flex flex-col">
+      {steps.map((step, i) => {
+        const isSelected = selected.includes(i)
+
+        return (
+          <div
+            key={`${step.title}-${i}`}
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation()
+              e.dataTransfer.effectAllowed = "move"
+              e.dataTransfer.setData("text/plain", String(i))
+              setDragFrom(i)
+            }}
+            onDragEnd={(e) => {
+              e.stopPropagation()
+              setDragFrom(null)
+              setOverIndex(null)
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (dragFrom !== null && dragFrom !== i) setOverIndex(i)
+            }}
+            onDragLeave={(e) => {
+              e.stopPropagation()
+              setOverIndex((current) => (current === i ? null : current))
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (dragFrom !== null && dragFrom !== i) moveStep(task.id, dragFrom, i)
+              setDragFrom(null)
+              setOverIndex(null)
+            }}
+            className={cn(
+              "group/step flex h-8 items-center gap-2 rounded-md pr-1 transition-[background-color,opacity,box-shadow]",
+              T_FAST,
+              dragFrom === i && "opacity-40",
+              overIndex === i && "shadow-[inset_0_2px_0_0_var(--color-dana-accent-600)]",
+              isSelected
+                ? "bg-[var(--color-dana-accent-100)]"
+                : "hover:bg-[var(--color-graphite-50)]",
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "-ml-3.5 flex size-3.5 shrink-0 cursor-grab items-center justify-center text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/step:opacity-100 active:cursor-grabbing",
+                T_FAST,
+              )}
+            >
+              <GripVertical className="size-3.5" strokeWidth={2} />
+            </span>
+
+            {/* The tick only ticks. */}
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={step.done}
+              aria-label={`Mark "${step.title}" ${step.done ? "not done" : "done"}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleStep(task.id, i)
+              }}
+              className={cn("flex size-5 shrink-0 items-center justify-center rounded", FOCUS)}
+            >
+              <span
+                className={cn(
+                  "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
+                  T_FAST,
+                  step.done
+                    ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
+                    : "border-input bg-background",
+                )}
+              >
+                <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
+                  <path
+                    d="M4 10.5 L8.2 14.5 L16 5.8"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      strokeDasharray: 20,
+                      strokeDashoffset: step.done ? 0 : 20,
+                      transition:
+                        "stroke-dashoffset var(--duration-base) var(--ease-enter)",
+                    }}
+                  />
+                </svg>
+              </span>
+            </button>
+
+            {/* The text selects. Shift or Ctrl adds to the selection. */}
+            <button
+              type="button"
+              aria-pressed={isSelected}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleSelected(i, e.shiftKey || e.metaKey || e.ctrlKey)
+              }}
+              className={cn(
+                "flex-1 truncate rounded px-1 text-left text-sm transition-colors",
+                T_BASE,
+                FOCUS,
+                step.done
+                  ? "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]"
+                  : "text-[var(--color-graphite-800)]",
+              )}
+            >
+              {step.title}
+            </button>
+          </div>
+        )
+      })}
+
+      {/* The bar only exists when there is a selection, so the card is not
+          carrying a toolbar for something nobody is doing. */}
+      <Reveal open={selected.length > 0}>
+        <div className="mt-1 flex items-center gap-2 rounded-md bg-[var(--color-dana-accent-50)] px-2 py-1.5">
+          <span className="text-[12px] font-medium text-[var(--color-dana-accent-800)]">
+            {selected.length} selected
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "rounded-md bg-card px-2 py-1 text-[12px] font-medium text-[var(--color-graphite-800)] shadow-[var(--elevation-0)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                    T_FAST,
+                    FOCUS,
+                  )}
+                >
+                  Move to…
+                </button>
+              }
+            />
+            <DropdownMenuContent align="start">
+              {destinations.map((d) => (
+                <DropdownMenuItem
+                  key={d.key}
+                  onClick={() => {
+                    d.run()
+                    setSelected([])
+                  }}
+                >
+                  {d.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setSelected([])
+            }}
+            className={cn(
+              "ml-auto rounded-md px-2 py-1 text-[12px] text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
+              T_FAST,
+              FOCUS,
+            )}
+          >
+            Clear
+          </button>
+        </div>
+      </Reveal>
+    </div>
+  )
+}
+
+/*
 Attachments, and what "viewable" means.
 
 Imran asked whether people could attach images, GIFs, video and more or less
@@ -1429,11 +1763,21 @@ function TaskCard({
   task,
   patch,
   toggleStep,
+  moveStep,
+  moveStepsTo,
   onClose,
 }: {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
   toggleStep: (id: string, index: number) => void
+  moveStep: (id: string, from: number, to: number) => void
+  moveStepsTo: (
+    id: string,
+    indices: number[],
+    destination:
+      | { kind: "new-task" }
+      | { kind: "folder"; name: string; color: string },
+  ) => void
   onClose: () => void
 }) {
   const counts = stepCount(task)
@@ -1470,67 +1814,12 @@ function TaskCard({
             label="Steps"
             badge={counts ? `${counts.done}/${counts.total}` : undefined}
           >
-            {task.steps && task.steps.length > 0 ? (
-              <div className="flex flex-col">
-                {task.steps.map((step, i) => (
-                  <button
-                    key={step.title}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleStep(task.id, i)
-                    }}
-                    className={cn(
-                      "flex h-8 items-center gap-2 rounded-md px-1 text-left text-sm transition-colors hover:bg-[var(--color-graphite-50)]",
-                      T_FAST,
-                      FOCUS,
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
-                        T_FAST,
-                        step.done
-                          ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
-                          : "border-input bg-background",
-                      )}
-                    >
-                      <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-                        <path
-                          d="M4 10.5 L8.2 14.5 L16 5.8"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{
-                            strokeDasharray: 20,
-                            strokeDashoffset: step.done ? 0 : 20,
-                            transition:
-                              "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-                          }}
-                        />
-                      </svg>
-                    </span>
-                    <span
-                      className={cn(
-                        "transition-colors",
-                        T_BASE,
-                        step.done
-                          ? "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]"
-                          : "text-[var(--color-graphite-800)]",
-                      )}
-                    >
-                      {step.title}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="px-1 py-1 text-sm text-[var(--color-graphite-400)]">
-                No steps yet
-              </p>
-            )}
+            <StepList
+              task={task}
+              toggleStep={toggleStep}
+              moveStep={moveStep}
+              moveStepsTo={moveStepsTo}
+            />
           </Disclosure>
     ),
     notes: (
@@ -1739,8 +2028,16 @@ function ExpandShell({
 /* Disciplined: at most three facts at rest, the rest behind one pill. */
 
 function ConceptA() {
-  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
-    useConceptList()
+  const {
+    tasks,
+    patch,
+    toggleStep,
+    moveStep,
+    moveStepsTo,
+    drag,
+    panel,
+    requestPromote,
+  } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
@@ -1767,6 +2064,10 @@ function ConceptA() {
                 task={task}
                 patch={patch}
                 toggleStep={toggleStep}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
               />
             }
@@ -1893,8 +2194,16 @@ function ChipMenu({
 }
 
 function ConceptE() {
-  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
-    useConceptList()
+  const {
+    tasks,
+    patch,
+    toggleStep,
+    moveStep,
+    moveStepsTo,
+    drag,
+    panel,
+    requestPromote,
+  } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
@@ -1915,6 +2224,10 @@ function ConceptE() {
                 task={task}
                 patch={patch}
                 toggleStep={toggleStep}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
               />
             }
@@ -2313,8 +2626,16 @@ function VocabLegend() {
 }
 
 function ConceptI() {
-  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
-    useConceptList()
+  const {
+    tasks,
+    patch,
+    toggleStep,
+    moveStep,
+    moveStepsTo,
+    drag,
+    panel,
+    requestPromote,
+  } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
@@ -2486,8 +2807,16 @@ function DetailWord({
 }
 
 function ConceptJ() {
-  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
-    useConceptList()
+  const {
+    tasks,
+    patch,
+    toggleStep,
+    moveStep,
+    moveStepsTo,
+    drag,
+    panel,
+    requestPromote,
+  } = useConceptList()
   const [open, setOpen] = useState<string | null>(null)
 
   return (
@@ -2518,6 +2847,10 @@ function ConceptJ() {
                 task={task}
                 patch={patch}
                 toggleStep={toggleStep}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
               />
             }
@@ -2607,8 +2940,16 @@ function ConceptJ() {
 /* Expand in place, the list receding so the card reads as a new object. */
 
 function ConceptD() {
-  const { tasks, patch, toggleStep, drag, panel, requestPromote } =
-    useConceptList()
+  const {
+    tasks,
+    patch,
+    toggleStep,
+    moveStep,
+    moveStepsTo,
+    drag,
+    panel,
+    requestPromote,
+  } = useConceptList()
   const [open, setOpen] = useState<string | null>("t2")
 
   return (
@@ -2649,6 +2990,10 @@ function ConceptD() {
                 task={task}
                 patch={patch}
                 toggleStep={toggleStep}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
+                moveStep={moveStep}
+                moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
               />
             </div>
