@@ -199,6 +199,13 @@
   --switch-width: 40px;
   --switch-height: 22px;
   --avatar-size: 28px;
+  /* Three icon sizes, and the third is scoped. DES-021 set two: compact for
+   * metadata and chips, default for controls, navigation and actions. The
+   * dense step was added at V3 (DES-116) for icons inside dense card
+   * metadata only — never in a row, and never away from 12px type. The test:
+   * it sits beside 12px text inside a card, and more than three of its kind
+   * are in view at once. */
+  --icon-size-dense: 14px;
   --icon-size-compact: 16px;
   --icon-size-default: 20px;
   --icon-stroke-width: 1.75;
