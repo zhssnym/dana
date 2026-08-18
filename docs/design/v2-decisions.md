@@ -184,18 +184,36 @@ describes it:
 
 > steps → a task · a task → a folder · a folder → promoted
 
-**One thing that has to be settled before the ladder is drawn, and it is a
-model question rather than a design one.** The first two rungs have somewhere
-to go. The third does not: Dana's folders are **flat**, stated as recently as
-DES-088 ("None of this changes Dana's flat-folder model"), so there is no level
-above a folder for one to be promoted into. Promoting a folder means either
-nested folders — a real change to the data model, every one of the twelve
-section 6 queries, and the sidebar — or it means something else that has not
-been named yet.
+**The third rung looked like it had nowhere to go, and Imran's answer is that
+it already does.** Dana has folder groups. They are labels rather than
+containers — DES-086 gives every custom folder a `Move to group` submenu whose
+destinations are the viewer's existing labels plus `No group`, and the mutation
+is `PATCH /api/v1/folders/:id/my-membership` with `{ label }`. Selecting one
+moves the sidebar row and changes nothing else: not the folder, not its tasks,
+not sharing, not anybody else's organisation.
 
-Recorded as a question rather than assumed away: **what is a folder promoted
-into?** Until that is answered the ladder has two rungs, not three, and the
-two-rung version is buildable as one endpoint under DES-106.
+So the ladder is complete without a new level, and the third rung is a
+different kind of move from the first two:
+
+> **steps → a task** and **a task → a folder** are promotions: the thing
+> changes what it *is*, and the original stops existing.
+> **a folder → a group** is classification: the folder is unchanged and simply
+> gains a label.
+
+Worth keeping that distinction visible in whatever is built, because the two
+carry different risk. A promotion destroys something and needs the confirmation
+DES-104 already has; a grouping is reversible with one more click and needs
+none.
+
+**Nested folders are explicitly deferred, not rejected.** Imran, 2026-08-17:
+a real containment hierarchy is a separate future decision, to be taken on
+worth against cost rather than because the ladder looked incomplete. Its cost,
+sketched here so the later conversation does not start cold: a parent column
+and a cycle rule, every one of the twelve section 6 queries becoming recursive
+or being bounded to a depth, sharing and permission inheritance down the tree,
+and a sidebar that has to render and reorder arbitrary depth. It is named here
+so a later session recognises a deferred decision rather than opening it as a
+fresh idea.
 
 ### DES-101, notes that can contain check items
 
@@ -407,6 +425,12 @@ menu wording, its own endpoint, its own confirmation and its own bug reports.
 
 **The recommendation: one verb, `Move to…`, and the destination decides what
 the thing becomes.**
+
+Strengthened 2026-08-17 by DES-100's third rung: the rule already describes a
+move Dana ships today. A folder moved into a group keeps being a folder and
+gains a label, which is DES-086's `Move to group` — the same verb, a different
+destination, a different outcome, and no new command. A rule that turns out to
+cover behaviour written before the rule existed is a rule worth trusting.
 
 > A step moved into a **folder** becomes a task, because folders hold tasks.
 > The same steps moved into a **task** stay steps, because tasks hold steps.
