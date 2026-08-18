@@ -216,7 +216,11 @@
   --shell-sidebar-section-font-size: 11px;
   --shell-sidebar-row-font-size: 13px;
   --shell-pagebar-height: 24px;
-  --shell-content-max: 1120px;
+  /* The reading measure, adopted provisionally 2026-08-18 (DES-135): Imran
+   * expressed no preference when asked, so the studio recommendation stands
+   * until his eye rules at F2d — flip back with ?measure=wide. Supersedes
+   * DES-023's 1120px content area in part once confirmed. */
+  --shell-content-max: var(--content-list);
 
   /* V1's measure tokens (review L6). Candidate A reads lists at ~800px —
    * a task title is a sentence, and 1120px of sentence is a stretch no
