@@ -167,23 +167,55 @@ The fallback initials stay underneath. A real product has people who have not
 set a picture, and that state has to keep working, so it is still the thing
 the component falls back to.
 */
-function portrait(bg: string, skin: string, hair: string, shirt: string) {
+function portrait(
+  bgFrom: string,
+  bgTo: string,
+  skin: string,
+  shade: string,
+  hair: string,
+  shirt: string,
+  hairPath: string,
+) {
   const svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">',
-    '<rect width="64" height="64" fill="' + bg + '"/>',
-    '<circle cx="32" cy="27" r="13" fill="' + skin + '"/>',
-    '<path d="M19 25a13 13 0 0 1 26 0c0-10-5-15-13-15s-13 5-13 15z" fill="' +
-      hair +
-      '"/>',
-    '<path d="M7 64c0-13 11-20 25-20s25 7 25 20z" fill="' + shirt + '"/>',
+    "<defs>",
+    '<linearGradient id="b" x1="0" y1="0" x2="0" y2="1">',
+    '<stop offset="0" stop-color="' + bgFrom + '"/>',
+    '<stop offset="1" stop-color="' + bgTo + '"/>',
+    "</linearGradient>",
+    '<linearGradient id="s" x1="0" y1="0" x2="0" y2="1">',
+    '<stop offset="0" stop-color="' + skin + '"/>',
+    '<stop offset="1" stop-color="' + shade + '"/>',
+    "</linearGradient>",
+    "</defs>",
+    '<rect width="64" height="64" fill="url(#b)"/>',
+    /* Shoulders first, so the neck and jaw sit over them. */
+    '<path d="M4 64c0-14 12-21 28-21s28 7 28 21z" fill="' + shirt + '"/>',
+    '<path d="M26 36h12v9c0 3-12 3-12 0z" fill="' + shade + '"/>',
+    '<ellipse cx="32" cy="27" rx="12.5" ry="14" fill="url(#s)"/>',
+    '<path d="' + hairPath + '" fill="' + hair + '"/>',
     "</svg>",
   ].join("")
   return "data:image/svg+xml," + encodeURIComponent(svg)
 }
 
-const FACE_IMRAN = portrait("#e3e8f9", "#c98d63", "#2f2a24", "#3c5bbf")
-const FACE_SARA = portrait("#fbe5e2", "#e0ac82", "#4a2b1e", "#c4627b")
-const FACE_HASSAN = portrait("#ddf2e2", "#a9723f", "#1f1a16", "#1f7a3f")
+/* Short crop, long hair, and a beard-and-crop, so three people are told apart
+   at 16px by silhouette rather than by reading a name. */
+const HAIR_CROP = "M19 26c0-9 6-14 13-14s13 5 13 14c0-4-3-6-6-7-4-1-9 0-13-1-4-1-6 3-7 8z"
+const HAIR_LONG =
+  "M18 30c0-12 6-18 14-18s14 6 14 18c1-3 2-9 1-14-1-6-7-9-15-9s-14 3-15 9c-1 5 0 11 1 14z"
+const HAIR_SHORT =
+  "M20 25c1-8 6-12 12-12s11 4 12 12c1-6-1-13-5-15-3-2-11-2-14 0-4 2-6 9-5 15z"
+
+const FACE_IMRAN = portrait(
+  "#eef1fb", "#dfe5f7", "#d9a273", "#c07f4f", "#2b2620", "#3c5bbf", HAIR_CROP,
+)
+const FACE_SARA = portrait(
+  "#fdeeec", "#f8dcd8", "#eebb95", "#d99a6c", "#4a2b1e", "#c4627b", HAIR_LONG,
+)
+const FACE_HASSAN = portrait(
+  "#e6f4ea", "#d3ebda", "#b07a45", "#96632f", "#1c1713", "#1f7a3f", HAIR_SHORT,
+)
 
 const VIOLET = "var(--color-folder-violet)"
 const FERN = "var(--color-folder-fern)"
@@ -988,7 +1020,7 @@ function useRowSelection({
             FOCUS,
           )}
         >
-          <X className="size-4" strokeWidth={2} aria-hidden="true" />
+          <X className="size-4 data-[size=sm]:size-4" strokeWidth={2} aria-hidden="true" />
         </button>
         <span className="mr-auto text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
           {selected.length || lastCount.current} selected
@@ -1031,7 +1063,7 @@ function useRowSelection({
                   FOCUS,
                 )}
               >
-                <FolderInput className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                <FolderInput className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
               </button>
             }
           />
@@ -1175,7 +1207,7 @@ function Check({
         {/* The tick is drawn rather than switched on: a 20-unit dash offset
             retracting to zero over --duration-base. It is the one flourish on
             the page, and it is on the one action people take most. */}
-        <svg viewBox="0 0 20 20" className="size-3.5" aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="size-3.5 data-[size=sm]:size-3.5" aria-hidden="true">
           <path
             d="M4 10.5 L8.2 14.5 L16 5.8"
             fill="none"
@@ -1353,7 +1385,7 @@ function DueBit({ due }: { due: NonNullable<ConceptTask["due"]> }) {
       )}
     >
       {due.overdue ? (
-        <CircleAlert className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        <CircleAlert className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
       ) : null}
       {due.label}
     </span>
@@ -1368,9 +1400,12 @@ function Face({
   className?: string
 }) {
   return (
-    <Avatar size="sm" className={cn("size-5", className)}>
+    <Avatar
+      size="sm"
+      className={cn("size-4 data-[size=sm]:size-4", className)}
+    >
       {person.image ? <AvatarImage src={person.image} alt="" /> : null}
-      <AvatarFallback className="text-[0.625rem] font-medium">
+      <AvatarFallback className="text-[0.5rem] font-semibold">
         {person.initials}
       </AvatarFallback>
     </Avatar>
@@ -1600,7 +1635,7 @@ function PropChip({
       )}
     >
       {avatar ? (
-        <Face person={avatar} className="size-4" />
+        <Face person={avatar} className="size-4 data-[size=sm]:size-4" />
       ) : (
         <Icon
           className="size-4 shrink-0"
@@ -1713,7 +1748,7 @@ function Disclosure({
             T_FAST,
           )}
         >
-          <GripVertical className="size-3.5" strokeWidth={2} />
+          <GripVertical className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} />
         </span>
         <button
           type="button"
@@ -1872,7 +1907,7 @@ function IconAction({
                 : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
             )}
           >
-            <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         }
       />
@@ -2157,7 +2192,7 @@ function StepList({
                     T_FAST,
                   )}
                 >
-                  <GripVertical className="size-3.5" strokeWidth={2} />
+                  <GripVertical className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} />
                 </span>
               )}
             </span>
@@ -2253,7 +2288,7 @@ function StepList({
               FOCUS,
             )}
           >
-            <X className="size-4" strokeWidth={2} aria-hidden="true" />
+            <X className="size-4 data-[size=sm]:size-4" strokeWidth={2} aria-hidden="true" />
           </button>
           <span className="mr-auto text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
             {selected.length || lastCount.current} selected
@@ -2287,7 +2322,7 @@ function StepList({
                     FOCUS,
                   )}
                 >
-                  <FolderInput className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <FolderInput className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               }
             />
@@ -2598,7 +2633,7 @@ function TaskCard({
             label: (
               <span className="inline-flex items-center gap-2">
                 <Folder
-                  className="size-4"
+                  className="size-4 data-[size=sm]:size-4"
                   style={{ color: f.color }}
                   strokeWidth={1.75}
                   aria-hidden="true"
@@ -2617,7 +2652,7 @@ function TaskCard({
             key: person.name,
             label: (
               <span className="inline-flex items-center gap-2">
-                <Face person={person} className="size-4" />
+                <Face person={person} className="size-4 data-[size=sm]:size-4" />
                 {person.name}
               </span>
             ),
@@ -2859,7 +2894,7 @@ function ConceptE() {
                       }))}
                     >
                       <Chip>
-                        <ListChecks className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                        <ListChecks className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                         {counts.done}/{counts.total}
                       </Chip>
                     </ChipMenu>
@@ -2877,7 +2912,7 @@ function ConceptE() {
                       ]}
                     >
                       <Chip>
-                        <Repeat2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                        <Repeat2 className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                       </Chip>
                     </ChipMenu>
                   ) : null}
@@ -2893,7 +2928,7 @@ function ConceptE() {
                       ]}
                     >
                       <Chip>
-                        <Pin className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                        <Pin className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                         My Day
                       </Chip>
                     </ChipMenu>
@@ -2906,7 +2941,7 @@ function ConceptE() {
                         label: (
                           <span className="inline-flex items-center gap-2">
                             <Folder
-                              className="size-4"
+                              className="size-4 data-[size=sm]:size-4"
                               style={{ color: f.color }}
                               strokeWidth={1.75}
                               aria-hidden="true"
@@ -2929,7 +2964,7 @@ function ConceptE() {
                         key: person.name,
                         label: (
                           <span className="inline-flex items-center gap-2">
-                            <Face person={person} className="size-4" />
+                            <Face person={person} className="size-4 data-[size=sm]:size-4" />
                             {person.name}
                           </span>
                         ),
@@ -2955,9 +2990,9 @@ function ConceptE() {
                     >
                       <Chip tone={task.due.overdue ? "danger" : "neutral"}>
                         {task.due.overdue ? (
-                          <CircleAlert className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                          <CircleAlert className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                         ) : (
-                          <CalendarDays className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                          <CalendarDays className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                         )}
                         {task.due.label}
                       </Chip>
@@ -3119,7 +3154,7 @@ function VocabLegend() {
             key={entry.name}
             className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-graphite-500)]"
           >
-            <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
             {entry.name}
             <span className="text-[var(--color-graphite-400)]">({entry.note})</span>
           </span>
@@ -3348,7 +3383,7 @@ function ConceptJ() {
                           label: (
                             <span className="inline-flex items-center gap-2">
                               <Folder
-                                className="size-4"
+                                className="size-4 data-[size=sm]:size-4"
                                 style={{ color: f.color }}
                                 strokeWidth={1.75}
                                 aria-hidden="true"
@@ -3373,7 +3408,7 @@ function ConceptJ() {
                           key: person.name,
                           label: (
                             <span className="inline-flex items-center gap-2">
-                              <Face person={person} className="size-4" />
+                              <Face person={person} className="size-4 data-[size=sm]:size-4" />
                               {person.name}
                             </span>
                           ),
@@ -3382,7 +3417,7 @@ function ConceptJ() {
                       >
                         <DetailChip>
                           <span className="inline-flex min-w-0 shrink-0 items-center gap-1.5">
-                            <Face person={task.assignee} className="size-3.5" />
+                            <Face person={task.assignee} className="size-3.5 data-[size=sm]:size-3.5" />
                             <span className="truncate">{task.assignee.name}</span>
                           </span>
                         </DetailChip>
