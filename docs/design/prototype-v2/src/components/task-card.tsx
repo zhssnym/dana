@@ -31,7 +31,6 @@ import {
   AlignLeft,
   Bell,
   CalendarDays,
-  Clock3,
   ChevronDown,
   Folder,
   History,
@@ -141,6 +140,7 @@ export function Reveal({
 function PropChip({
   icon: Icon,
   value,
+  tooltip,
   color,
   muted = false,
   avatar,
@@ -148,6 +148,10 @@ function PropChip({
 }: {
   icon: LucideIcon
   value: string
+  /* What the chip is, not what it says. "Wedding" is a value; "Folder" is the
+     thing it answers, and a person meeting these marks for the first time
+     needs the second one. */
+  tooltip: string
   color?: string
   muted?: boolean
   avatar?: TaskCardPeople
@@ -183,7 +187,14 @@ function PropChip({
     </span>
   )
 
-  if (!items) return body
+  if (!items) {
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span>{body}</span>} />
+        <TooltipContent side="top">{tooltip}</TooltipContent>
+      </Tooltip>
+    )
+  }
 
   return (
     <DropdownMenu>
@@ -192,6 +203,8 @@ function PropChip({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
+            aria-label={tooltip}
+            title={tooltip}
             className={cn("rounded-md", FOCUS)}
           >
             {body}
@@ -359,18 +372,99 @@ export function TaskCard({
   onClose: () => void
   onOpenFull?: () => void
 }) {
-  const [advanced, setAdvanced] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const done = form.steps.filter((step) => step.done).length
   const assignee =
     people.find((person) => person.name === form.assignee) ?? people[0]
   const folder = folders.find((entry) => entry.name === form.folder)
 
+  /* A due date and its time are one fact, so they are one label. */
+  const dueLabel = form.dueDate
+    ? form.dueTime
+      ? `${form.dueDate} at ${form.dueTime}`
+      : form.dueDate
+    : "No date"
+
+  /* A recurrence and its detail are one fact too. The chip says the whole
+     rule rather than making somebody assemble it from four controls. */
+  const repeatLabel =
+    form.repeat === "none"
+      ? "Does not repeat"
+      : [
+          form.repeatInterval && form.repeatInterval !== "1"
+            ? `Every ${form.repeatInterval} ${form.repeat}`
+            : form.repeat,
+          form.repeat === "weekly" && form.repeatDays.length
+            ? `on ${form.repeatDays.join(", ")}`
+            : null,
+          form.repeat === "monthly" ? `on day ${form.repeatMonthlyDay}` : null,
+          form.repeatEnds ? `until ${form.repeatEnds}` : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+
+  /* One menu that configures the whole rule: the mode first, then only the
+     detail that mode actually has. A weekly rule is never asked which day of
+     the month it falls on. */
+  const repeatChoices = [
+    ...["none", "daily", "weekly", "monthly"].map((mode) => ({
+      key: `mode-${mode}`,
+      label: mode === "none" ? "Does not repeat" : `Repeat ${mode}`,
+      onSelect: () => onChange({ repeat: mode }),
+    })),
+    ...(form.repeat === "none"
+      ? []
+      : ["1", "2", "3"].map((interval) => ({
+          key: `every-${interval}`,
+          label: `Every ${interval}`,
+          onSelect: () => onChange({ repeatInterval: interval }),
+        }))),
+    ...(form.repeat === "weekly"
+      ? ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => ({
+          key: `day-${day}`,
+          label: form.repeatDays.includes(day) ? `${day} — remove` : `${day} — add`,
+          onSelect: () =>
+            onChange({
+              repeatDays: form.repeatDays.includes(day)
+                ? form.repeatDays.filter((entry) => entry !== day)
+                : [...form.repeatDays, day],
+            }),
+        }))
+      : []),
+    ...(form.repeat === "none"
+      ? []
+      : ["12 Dec", ""].map((ends) => ({
+          key: `ends-${ends || "never"}`,
+          label: ends ? `Until ${ends}` : "No end date",
+          onSelect: () => onChange({ repeatEnds: ends }),
+        }))),
+  ]
+
   return (
     <div className="flex flex-col gap-3 pt-1 pr-3 pb-3 pl-7">
+      {/*
+        Five chips, each one complete, and no More options behind them.
+
+        More options was the wrong shape here even though the form uses it,
+        and the reason is that the form's version hides *fields* while this
+        one was hiding *parts of fields*. Due time is not a separate thing
+        from due date; "every 2", "on Mo", "until December" are not separate
+        things from repeat. Splitting them produced eleven controls where
+        there are five facts, repeated CalendarDays four times, and made a
+        person open a disclosure to finish answering a question they had
+        already started.
+
+        So each chip now owns its whole fact and says it in full: the due chip
+        carries the time, the repeat chip carries its own interval, days and
+        end date. Five facts, five chips, five distinct marks.
+
+        Invite left the strip entirely. It is not a property of the task, it
+        is something you do to a person, so it sits with Share in the footer.
+      */}
       <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-[var(--color-graphite-50)] px-1.5 py-1.5">
         <PropChip
           icon={Folder}
+          tooltip="Folder"
           value={form.folder || "Inbox"}
           color={folder?.color}
           muted={!form.folder}
@@ -382,6 +476,7 @@ export function TaskCard({
         />
         <PropChip
           icon={UserRound}
+          tooltip="Assignee"
           avatar={assignee}
           value={form.assignee || "Unassigned"}
           items={people.map((person) => ({
@@ -392,111 +487,42 @@ export function TaskCard({
         />
         <PropChip
           icon={CalendarDays}
-          value={form.dueDate || "No date"}
+          tooltip="Due date and time"
+          value={dueLabel}
           muted={!form.dueDate}
+          items={[
+            ...["Today", "Tomorrow", "14 Aug", ""].map((date) => ({
+              key: `date-${date || "none"}`,
+              label: date || "No date",
+              onSelect: () => onChange({ dueDate: date }),
+            })),
+            ...["09:00", "12:00", "15:00", "18:00", ""].map((time) => ({
+              key: `time-${time || "none"}`,
+              label: time ? `at ${time}` : "No time",
+              onSelect: () => onChange({ dueTime: time }),
+            })),
+          ]}
         />
         <PropChip
           icon={Bell}
+          tooltip="Reminder"
           value={form.reminder === "none" ? "No reminder" : form.reminder}
           muted={form.reminder === "none"}
+          items={["none", "At the time", "10 minutes before", "1 hour before"].map(
+            (reminder) => ({
+              key: reminder,
+              label: reminder === "none" ? "No reminder" : reminder,
+              onSelect: () => onChange({ reminder }),
+            }),
+          )}
         />
         <PropChip
           icon={Repeat2}
-          value={form.repeat === "none" ? "Does not repeat" : form.repeat}
+          tooltip="Repeat"
+          value={repeatLabel}
           muted={form.repeat === "none"}
+          items={repeatChoices}
         />
-      </div>
-
-      {/*
-        More options, and it is deliberately the form's own disclosure rather
-        than a second pattern (DES-118). The form does not show due time or
-        the repeat editor by default either, so the card does not have to be
-        denser than the form to be as complete as it — it has to hide the same
-        things in the same place.
-
-        It sits directly under the strip because everything it reveals belongs
-        to that strip: a time belongs to the date, an interval belongs to the
-        repeat.
-      */}
-      <div className="-mt-1">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            setAdvanced((value) => !value)
-          }}
-          aria-expanded={advanced}
-          className={cn(
-            "-ml-1 flex h-6 items-center gap-1 rounded-md px-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
-            T_FAST,
-            FOCUS,
-          )}
-        >
-          More options
-          <ChevronDown
-            className={cn(
-              "size-3.5 transition-transform",
-              T_BASE,
-              advanced && "rotate-180",
-            )}
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-        </button>
-        <Reveal open={advanced}>
-          <div className="flex flex-wrap items-center gap-0.5 pt-1">
-            <PropChip
-              icon={Clock3}
-              value={form.dueTime || "No time"}
-              muted={!form.dueTime}
-              items={["09:00", "12:00", "15:00", "18:00", ""].map((time) => ({
-                key: time || "none",
-                label: time || "No time",
-                onSelect: () => onChange({ dueTime: time }),
-              }))}
-            />
-            <PropChip
-              icon={Repeat2}
-              value={`Every ${form.repeatInterval}`}
-              muted={form.repeat === "none"}
-              items={["1", "2", "3", "4"].map((interval) => ({
-                key: interval,
-                label: `Every ${interval}`,
-                onSelect: () => onChange({ repeatInterval: interval }),
-              }))}
-            />
-            <PropChip
-              icon={CalendarDays}
-              value={form.repeatDays.join(" ") || "No days"}
-              muted={form.repeat === "none"}
-              items={["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => ({
-                key: day,
-                label: form.repeatDays.includes(day) ? `${day} — remove` : `${day} — add`,
-                onSelect: () =>
-                  onChange({
-                    repeatDays: form.repeatDays.includes(day)
-                      ? form.repeatDays.filter((entry) => entry !== day)
-                      : [...form.repeatDays, day],
-                  }),
-              }))}
-            />
-            <PropChip
-              icon={CalendarDays}
-              value={`On day ${form.repeatMonthlyDay}`}
-              muted={form.repeat === "none"}
-            />
-            <PropChip
-              icon={CalendarDays}
-              value={form.repeatEnds ? `Ends ${form.repeatEnds}` : "No end date"}
-              muted={!form.repeatEnds}
-            />
-            <PropChip
-              icon={UserPlus}
-              value={form.invitePending ? `Invite: ${form.invitePending}` : "Invite someone"}
-              muted={!form.invitePending}
-            />
-          </div>
-        </Reveal>
       </div>
 
       <Block
@@ -616,6 +642,14 @@ export function TaskCard({
           />
           <FooterAction icon={Link2} label="Copy link" />
           <FooterAction icon={Share2} label="Share" />
+          <FooterAction
+            icon={UserPlus}
+            label={
+              form.invitePending
+                ? `Invite pending: ${form.invitePending}`
+                : "Invite someone"
+            }
+          />
           <FooterAction icon={Mail} label="Email" />
           <span
             aria-hidden="true"
