@@ -50,7 +50,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -143,13 +142,46 @@ function CompletionControl({
   const completed = status === "completed"
 
   return (
-    <Checkbox
-      checked={completed}
-      onCheckedChange={onToggle}
-      onClick={(event) => event.stopPropagation()}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={completed}
       aria-label={completed ? "Mark as not done" : "Complete task"}
-      className="size-[var(--control-height)] !border-transparent !bg-transparent after:inset-auto after:size-[var(--checkbox-size)] after:rounded-[4px] after:border after:border-input after:bg-background after:content-[''] focus-visible:ring-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/30 data-checked:!border-transparent data-checked:!bg-transparent data-checked:after:border-[var(--color-graphite-700)] data-checked:after:bg-[var(--color-graphite-700)] [&_[data-slot=checkbox-indicator]]:z-10"
-    />
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggle?.(!completed)
+      }}
+      className="flex size-[var(--control-height)] items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+    >
+      <span
+        className={cn(
+          "flex size-[var(--checkbox-size)] items-center justify-center rounded-[4px] border transition-[background-color,border-color,transform] duration-[var(--duration-fast)] active:scale-90",
+          completed
+            ? "border-[var(--color-graphite-700)] bg-[var(--color-graphite-700)]"
+            : "border-input bg-background hover:border-[var(--color-graphite-500)]",
+        )}
+      >
+        {/* Drawn rather than switched on: a 20-unit dash offset retracting to
+            zero. It is the one flourish in the row, and it is on the action
+            people take most. */}
+        <svg viewBox="0 0 20 20" className="size-3.5" aria-hidden="true">
+          <path
+            d="M4 10.5 L8.2 14.5 L16 5.8"
+            fill="none"
+            stroke="white"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              strokeDasharray: 20,
+              strokeDashoffset: completed ? 0 : 20,
+              transition:
+                "stroke-dashoffset var(--duration-base) var(--ease-enter)",
+            }}
+          />
+        </svg>
+      </span>
+    </button>
   )
 }
 
@@ -173,7 +205,7 @@ function TaskTitle({
   const [draft, setDraft] = useState(title)
 
   const metrics = cn(
-    "block min-w-0 text-[14px] leading-5",
+    "relative block min-w-0 text-[14px] leading-5",
     truncate ? "max-w-full truncate" : "w-full",
   )
 
@@ -214,15 +246,24 @@ function TaskTitle({
   }
 
   const colour = struck
-    ? "text-[var(--color-graphite-600)] line-through decoration-[var(--color-graphite-500)]"
+    ? "text-[var(--color-graphite-600)]"
     : dimmed
       ? "text-[var(--color-graphite-600)]"
       : "text-[var(--color-graphite-800)]"
 
+  const strikeRule = (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute top-1/2 left-0 h-px w-full origin-left bg-current transition-transform duration-[var(--duration-base)]"
+      style={{ transform: struck ? "scaleX(1)" : "scaleX(0)" }}
+    />
+  )
+
   if (!onRename) {
     return (
-      <span className={cn(metrics, colour)} title={title}>
+      <span className={cn(metrics, "relative", colour)} title={title}>
         {title}
+        {strikeRule}
       </span>
     )
   }
@@ -243,6 +284,7 @@ function TaskTitle({
       )}
     >
       {title}
+      {strikeRule}
     </button>
   )
 }

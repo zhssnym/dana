@@ -76,7 +76,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
 | DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | APPROVED | V3 | Imran, 2026-08-17 |
 | DES-117 | One form, two presentations; the right panel is freed | OPEN | V3 | **Yes**, see below |
-| DES-118 | The card is missing nine of the form's fields | APPROVED | V3 | Imran, 2026-08-17 |
+| DES-118 | The card is missing nine of the form's fields | APPROVED | V3 | Imran, 2026-08-17; header revised |
+| DES-119 | What the port left behind, and why | OPEN | V3 | No |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -1083,9 +1084,27 @@ control reveals in the form.
 That keeps the promise: same fields, same defaults, same progressive
 disclosure, two sizes.
 
-**APPROVED and closed by Imran, 2026-08-17: "the same things here, more
-options or advanced".** Implemented as exactly that — the form's own
-disclosure, not a second pattern.
+**SUPERSEDED the same day by the five-chip header, and the history is kept
+because the reasoning changed rather than the goal.**
+
+It was first implemented as the form's own More options disclosure. Imran then
+found it made the card harder rather than fuller, and the diagnosis holds up:
+**the form's disclosure hides whole fields, while this one was hiding parts of
+fields.** Due time is not separate from due date; "every 2", "on Mo" and "until
+December" are not separate from repeat. Splitting them produced eleven controls
+for five facts, repeated CalendarDays four times, and made a person open a
+disclosure to finish answering a question they had already started.
+
+**What replaced it, and what is true now:** five chips, each owning its whole
+fact and stating it in full — "14 Aug at 15:00", "Weekly on Mo until 12 Dec" —
+each with one menu that offers only the detail the chosen mode actually has, so
+a weekly rule is never asked which day of the month it falls on. Five facts,
+five chips, five distinct marks, and every chip names what it *is* on hover
+rather than only what it says. Invite left the strip for the footer beside
+Share, because it is not a property of a task but something you do to a person.
+
+The coverage claim below still holds — the card carries every field the form
+renders — but it holds without a disclosure.
 
 The card now covers every field the form renders. What sits behind **More
 options**, which is closed by default and placed directly under the strip
@@ -1112,7 +1131,52 @@ disclosure, two sizes. If a later change adds a field to the form and not to
 the card, that claim breaks — so the field-by-field comparison in this entry is
 worth re-running whenever either one changes.
 
-### Withdrawn at V3
+### DES-119, what the port left behind, and why
+
+Imran asked why the ported row and card do not carry the dragging, grouping,
+selection and other controls the concept lab had. The answer is in two parts
+and only one of them is a decision.
+
+**The part that is a decision.** Most of what the lab demonstrated cannot ship,
+because it has no backend and is parked under Imran's own Lane 2 rule — record,
+do not chase. Putting it into `task-row.tsx` would put unbuildable behaviour
+into the component that later ports to `app/`, which is the failure the two
+lanes exist to prevent.
+
+| Left out of the port | Why | Entry |
+| - | - | - |
+| Drag a row to reorder | No persisted order exists for any view | DES-071, DES-103 |
+| Hold 1.5s to make a folder of two tasks | Needs one transactional endpoint | DES-103 |
+| Select rows, bulk complete / star / My Day / move / duplicate / delete | Needs bulk endpoints and a partial-failure story | DES-112 |
+| Select steps, move them to a task or folder | Same, plus DES-106's unsettled verb | DES-100, DES-106 |
+| Make this task a folder | Destroys a task; needs a transaction and an undo | DES-104 |
+| Drag the card's blocks to reorder | Block order has nowhere to live | DES-102 |
+| Attachment thumbnails and inline viewing | No storage, no upload path, no viewing rules | DES-105 |
+
+**The part that was my omission, now fixed.** Three things were Lane 1,
+approved, and simply did not survive the port — which is different from being
+left out, and reads as loss rather than a decision:
+
+- the **drawn tick** on the row's checkbox, replaced by a plain shadcn Checkbox
+- the **drawn strike** on a completed or abandoned title, replaced by CSS
+  `line-through`
+- **New folder…** at the end of the card's folder picker (DES-114)
+
+All three are restored.
+
+**The process failure underneath, and the rule that follows.** The port commit
+listed what changed and not what was deliberately dropped, so a reader could
+not tell the two apart — and neither could I a day later. The rule, which
+belongs in the working practice rather than in any one entry:
+
+> **A change to the row or the card updates its DES entry in the same commit.**
+> If the change supersedes what an entry describes, the entry says so and keeps
+> the old reasoning; if it drops something an entry approved, the entry records
+> it as dropped and why.
+
+The structural half of this is already done: the lab renders `TaskRow` and
+`TaskCard` themselves, so the *code* can no longer drift. This rule covers the
+half that can still drift, which is the writing.
 
 Four concepts have left the lab, all on 2026-08-17 at Imran's direction. They
 are listed here so a later session finds the decision rather than re-proposing
