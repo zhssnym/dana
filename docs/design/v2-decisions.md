@@ -72,6 +72,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-111 | A row is as tall as it needs to be | OPEN | V3 | **Yes**, see below |
 | DES-112 | What a selection can do, at both levels | OPEN | V3 | No |
 | DES-113 | Row density is a setting; two lines is the default | OPEN | V3 | **Yes**, and it supersedes DES-110 |
+| DES-114 | Every folder list ends in "New folder…" | OPEN | V3 | No |
 
 ## Lane 2: needs backend
 
@@ -684,6 +685,33 @@ one-line density also collapses — it has nothing to collapse, being one line
 already — is not a question, but whether the *two-line* default should keep
 that behaviour is, and it should be answered with this entry rather than
 separately.
+
+### DES-114, every folder list ends in "New folder…"
+
+Imran's direction, 2026-08-17. Wherever Dana offers a list of folders — the
+row's folder chip, the expanded card's folder chip, the selection bar's move
+menu, and the step move menu — the list ends with **New folder…**, which opens
+the same naming panel the other folder gestures already use.
+
+The reason is small and general: **wanting a folder that does not exist yet is
+the most likely moment to want one at all.** A picker that only lists what
+exists makes a person abandon what they were doing, go to the sidebar, create
+the folder, come back, and start again. The option costs one row at the bottom
+of a menu and removes that whole detour.
+
+Two details the drawing settles, and a port should keep:
+
+- **All four routes end at one panel.** The panel that names a folder for a
+  drag-merge, for a promoted task, for a selection and for a step selection is
+  the same component with the same copy shape, so a new folder is created one
+  way rather than four.
+- **The panel says what will happen to what**, not just "name your folder" —
+  "1 task will move into it", "3 steps become tasks inside it". The sentence
+  changes with the route because the consequence does.
+
+Lane 1 in the prototype. In the product the naming panel is client-side but
+folder creation is not, so this rides on whatever the existing create-folder
+endpoint already does; it adds a new entry point rather than a new capability.
 
 ### Withdrawn at V3
 
