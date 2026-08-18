@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 
+import { DanaMark } from "@/components/dana-mark"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,7 +23,7 @@ function DanaIdentity() {
       className="inline-flex items-center gap-3 rounded-md text-sm font-semibold text-[var(--color-graphite-900)] outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
       aria-label="Dana home"
     >
-      <img src="/dana-mark.svg" alt="" className="size-8" />
+      <DanaMark className="size-8" />
       <span>Dana</span>
     </a>
   )
@@ -31,7 +32,7 @@ function DanaIdentity() {
 function DanaBrand() {
   return (
     <div className="inline-flex items-center gap-3 text-sm font-semibold text-[var(--color-graphite-900)]">
-      <img src="/dana-mark.svg" alt="" className="size-8" />
+      <DanaMark className="size-8" />
       <span>Dana</span>
     </div>
   )
@@ -101,10 +102,10 @@ function PreviewTask({
 function ProductPreview() {
   return (
     <div className="relative flex h-full min-h-[620px] items-center justify-center overflow-hidden border-l border-[var(--color-graphite-900)] bg-[var(--color-graphite-950)] px-[clamp(36px,4vw,72px)] py-14">
-      <img
-        src="/dana-mark.svg"
-        alt=""
+      <DanaMark
         className="pointer-events-none absolute -top-36 -right-36 size-[520px] opacity-[0.14]"
+        surface="dark"
+        plate={false}
       />
 
       <div className="relative z-10 w-full max-w-[560px]">
@@ -249,14 +250,14 @@ export function UnverifiedEmailScreen() {
       <section className="grid min-h-[520px] w-full max-w-[940px] grid-cols-[320px_minmax(0,1fr)] overflow-hidden rounded-[18px] border border-[var(--color-graphite-200)] bg-white shadow-[0_30px_90px_rgb(24_24_27/12%)]">
         <div className="relative overflow-hidden bg-[var(--color-graphite-950)] p-9 text-white">
           <div className="relative z-10 inline-flex items-center gap-3 text-sm font-semibold">
-            <img src="/dana-mark.svg" alt="" className="size-9" />
+            <DanaMark className="size-9" surface="dark" />
             <span>Dana</span>
           </div>
 
-          <img
-            src="/dana-mark.svg"
-            alt=""
+          <DanaMark
             className="pointer-events-none absolute top-20 -right-40 size-[440px] opacity-[0.14]"
+            surface="dark"
+            plate={false}
           />
 
           <div className="absolute right-9 bottom-9 left-9 h-px bg-white/15" aria-hidden="true" />
@@ -339,14 +340,14 @@ export function InviteGateScreen() {
       <section className="grid min-h-[520px] w-full max-w-[940px] grid-cols-[280px_minmax(0,1fr)] overflow-hidden rounded-[18px] border border-[var(--color-graphite-200)] bg-white shadow-[0_30px_90px_rgb(24_24_27/12%)]">
         <div className="relative overflow-hidden bg-[var(--color-graphite-950)] p-8 text-white">
           <div className="relative z-10 inline-flex items-center gap-3 text-sm font-semibold">
-            <img src="/dana-mark.svg" alt="" className="size-9" />
+            <DanaMark className="size-9" surface="dark" />
             <span>Dana</span>
           </div>
 
-          <img
-            src="/dana-mark.svg"
-            alt=""
+          <DanaMark
             className="pointer-events-none absolute top-20 -right-44 size-[440px] opacity-[0.14]"
+            surface="dark"
+            plate={false}
           />
 
           <div className="absolute right-8 bottom-8 left-8 border-t border-white/15 pt-5">

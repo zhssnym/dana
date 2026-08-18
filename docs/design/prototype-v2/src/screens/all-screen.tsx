@@ -3,7 +3,12 @@ import { CalendarDays, Folder, Layers3, ListTodo } from "lucide-react"
 
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import {
+  TaskList,
+  TaskRow,
+  type TaskListWiring,
+  type TaskRowProps,
+} from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,11 +76,15 @@ export function AllScreen({
     inbox.length > 0 ||
     groups.some((group) => group.tasks.length > 0)
 
-  function renderTask(task: AllTask) {
+  /* The screen keeps its own row, because its completion is conditional —
+     an abandoned task restores rather than completes — and hands the list
+     wiring straight through. See TaskList's renderRow. */
+  function renderTask(task: AllTask, wiring?: TaskListWiring) {
     return (
       <TaskRow
         key={task.id}
         {...task}
+        {...wiring}
         onOpen={() => onOpenTask(task.id)}
         onToggleComplete={(completed) =>
           task.status === "abandoned"
@@ -144,9 +153,11 @@ export function AllScreen({
                     Planned
                   </h2>
                 </div>
-                <div role="list" className="space-y-0.5">
-                  {planned.map(renderTask)}
-                </div>
+                <TaskList
+                    className=""
+                    tasks={planned}
+                    renderRow={renderTask}
+                  />
                 <QuickAdd
                   folderName="Inbox"
                   label="Add scheduled task"
@@ -175,9 +186,10 @@ export function AllScreen({
                 <div className="space-y-7">
                   {inbox.length > 0 ? (
                     <div aria-label="Inbox tasks">
-                      <div role="list" className="space-y-0.5">
-                        {inbox.map(renderTask)}
-                      </div>
+                      <TaskList
+                                                    tasks={inbox}
+                          renderRow={renderTask}
+                        />
                       <QuickAdd
                         folderName="Inbox"
                         onAdd={(title) => onAddUndated("Inbox", title)}
@@ -201,9 +213,10 @@ export function AllScreen({
                             {group.name}
                           </h3>
                         </div>
-                        <div role="list" className="space-y-0.5">
-                          {group.tasks.map(renderTask)}
-                        </div>
+                        <TaskList
+                                                        tasks={group.tasks}
+                            renderRow={renderTask}
+                          />
                         <QuickAdd
                           folderName={group.name}
                           onAdd={(title) => onAddUndated(group.name, title)}

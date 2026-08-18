@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react"
-import { AlertCircle, Clock3, RefreshCw, WifiOff, X } from "lucide-react"
+import type { LucideIcon } from "@/lib/icons"
+import { AlertCircle, Clock3, RefreshCw, WifiOff, X } from "@/lib/icons"
 
 import {
   Alert,

@@ -7,6 +7,7 @@ import {
   UserRoundPlus,
 } from "lucide-react"
 
+import { DanaMark } from "@/components/dana-mark"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -103,7 +104,9 @@ export function TransactionalEmailScreen() {
       <article className="w-full max-w-[600px] overflow-hidden rounded-[14px] border border-[var(--color-graphite-200)] bg-white shadow-[var(--elevation-1)]">
         <div className="h-1 bg-[var(--color-graphite-950)]" aria-hidden="true" />
         <header className="flex min-h-[68px] items-center gap-3 border-b border-[var(--color-graphite-200)] px-10">
-          <img src="/dana-mark.svg" alt="" className="size-8" />
+          {/* Still, deliberately: this is a mock-up of an email, and an
+              email cannot run the sweep. */}
+          <DanaMark className="size-8" animated={false} />
           <span className="text-sm font-semibold text-[var(--color-graphite-900)]">Dana</span>
           <Badge
             variant="secondary"

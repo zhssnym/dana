@@ -9,6 +9,8 @@ Sentry errors, 30-day Axiom logs, typed-DELETE hard deletion) and must be
 re-verified at the port if any of that moves.
 */
 
+import { DanaMark } from "@/components/dana-mark"
+
 const PAGE_COPY = {
   privacy: {
     title: "Privacy",
@@ -115,7 +117,7 @@ function BrandLink() {
       href="?view=landing"
       className="inline-flex items-center gap-3 rounded-md text-sm font-semibold text-[var(--color-graphite-900)] outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
     >
-      <img src="/dana-mark.svg" alt="" className="size-8" />
+      <DanaMark className="size-8" />
       Dana
     </a>
   )

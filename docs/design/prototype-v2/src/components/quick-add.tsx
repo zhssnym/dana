@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Plus, SlidersHorizontal } from "lucide-react"
+import { Plus, SlidersHorizontal } from "@/lib/icons"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

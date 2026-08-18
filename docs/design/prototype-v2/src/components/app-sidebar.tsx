@@ -4,7 +4,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react"
-import type { LucideIcon } from "lucide-react"
+import { IconMotion, type LucideIcon } from "@/lib/icons"
 import {
   CalendarDays,
   CheckCircle2,
@@ -24,8 +24,9 @@ import {
   SunMedium,
   Trash2,
   UsersRound,
-} from "lucide-react"
+} from "@/lib/icons"
 
+import { DanaMark } from "@/components/dana-mark"
 import { FolderRow } from "@/components/folder-row"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -280,14 +281,14 @@ function FolderGroup({
 
 function SidebarBrandHeader({ onOpenSearch }: { onOpenSearch?: () => void }) {
   return (
-    <SidebarHeader className="p-2 pb-1">
+    <SidebarHeader className="p-2 pb-1" >
       <div className="flex min-h-[var(--shell-sidebar-item-height)] items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
         <a
           href="/"
           className="flex min-w-0 items-center gap-3 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
           aria-label="Dana — go to My Day"
         >
-          <img src="/dana-mark.svg" alt="" className="size-7 shrink-0 group-data-[collapsible=icon]:size-6" />
+          <DanaMark className="size-7 group-data-[collapsible=icon]:size-6" />
           <span className="truncate text-base font-semibold text-[var(--color-graphite-900)] group-data-[collapsible=icon]:hidden">
             Dana
           </span>
@@ -589,13 +590,24 @@ export function AppSidebar({
   const [foldersOpen, setFoldersOpen] = useState(true)
 
   return (
+    /* Permanent furniture, so its icons render static rather than animated.
+       Two separate faults sat behind this: several of the family's icons
+       animate in from nothing, and — the blinking Imran saw — a tooltip
+       opening in the collapsed rail remounts its trigger, and a remounted
+       animated icon starts from its hidden state. Static components have
+       neither problem. See lib/icons.tsx. */
+    <IconMotion enabled={true}>
     <Sidebar
       collapsible="icon"
       className="h-full shrink-0 border-r border-sidebar-border bg-sidebar"
     >
       <SidebarBrandHeader onOpenSearch={onOpenSearch} />
 
-      <SidebarContent className="py-1">
+      {/* The sidebar is permanent furniture, so its icons do not animate. See
+          the note in lib/icons.tsx: several of the family's icons animate in
+          from nothing, which reads as vanishing when the icon was already
+          there. */}
+      <SidebarContent className="py-1" >
         <SidebarGroup className="py-0">
           <SidebarGroupContent>
             <SidebarMenu>
@@ -715,7 +727,7 @@ export function AppSidebar({
         </Collapsible>
       </SidebarContent>
 
-      <SidebarFooter className="gap-0 py-2">
+      <SidebarFooter className="gap-0 py-2" >
         <SidebarMenu className="mb-1">
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -767,5 +779,6 @@ export function AppSidebar({
         />
       ) : null}
     </Sidebar>
+    </IconMotion>
   )
 }

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Star } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,11 +87,14 @@ export function ImportantScreen({
             </EmptyHeader>
           </Empty>
         ) : (
-          <div role="list" className="space-y-0.5">
-            {tasks.map((task) => (
+          <TaskList
+            className=""
+            tasks={tasks}
+            renderRow={(task, wiring) => (
               <TaskRow
                 key={task.id}
                 {...task}
+                {...wiring}
                 onOpen={() => onOpenTask(task.id)}
                 onToggleComplete={(completed) =>
                   task.status === "abandoned"
@@ -106,8 +109,8 @@ export function ImportantScreen({
                   setPendingAction({ type: "delete", taskId: task.id })
                 }
               />
-            ))}
-          </div>
+            )}
+          />
         )}
       </div>
 

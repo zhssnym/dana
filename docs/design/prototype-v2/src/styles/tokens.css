@@ -221,6 +221,42 @@
   /* Installed light shell */
   --pwa-theme-color: #ffffff;
   --pwa-background-color: #ffffff;
+
+  /* The Dana mark's two colours. Previously hardcoded inside
+   * `components/dana-mark.tsx`, where they were copied from
+   * `public/dana-mark.svg`; they are here now because there are two colourways
+   * rather than one and a component picking its own hexes is how the second
+   * one drifts from the first. Hex values still match the source file. */
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
+}
+
+/* The reversed mark, for the dark panels. A logo whose plate is graphite-950
+ * disappears on a surface that is also graphite-950, which is exactly what the
+ * three dark panels on the public screens were showing: a bare white D with no
+ * tile under it, on every one of them, since the day the panels were drawn.
+ *
+ * `surface` names what the mark is sitting on rather than what colour it is,
+ * because at a call site "this is on a dark panel" is a fact one can check and
+ * "this one is the light version" is a thing one has to remember.
+ *
+ * The `.dark` rule is the prototype's only dark-mode-aware line, and it is
+ * here rather than waiting because it is what makes this a colourway for dark
+ * mode rather than a second asset somebody has to remember to reach for. It
+ * changes nothing today: no code adds that class, and this file's header still
+ * stands — a dark *theme* is out of scope, and one component being ready for
+ * one is not the same undertaking. */
+:root:is(.dark, .dark *),
+[data-dana-mark-surface="dark"] {
+  --dana-mark-plate: var(--color-graphite-0);
+  --dana-mark-glyph: var(--color-graphite-950);
+}
+
+/* Pinned back to the default for a mark on a light surface inside a dark
+ * document — the case the cascade would otherwise get wrong. */
+[data-dana-mark-surface="light"] {
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
 }
 
 /* Accessibility guardrails approved with the palette:

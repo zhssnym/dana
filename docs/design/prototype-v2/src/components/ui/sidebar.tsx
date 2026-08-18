@@ -23,9 +23,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { PanelLeftIcon } from "lucide-react"
+import { PanelLeftIcon } from "@/lib/icons"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
+
+function readStoredOpen() {
+  if (typeof document === "undefined") return true
+  const found = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(SIDEBAR_COOKIE_NAME + "="))
+  return found ? found.split("=")[1] !== "false" : true
+}
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
@@ -54,7 +63,12 @@ function useSidebar() {
 }
 
 function SidebarProvider({
-  defaultOpen = true,
+  /* The cookie the provider itself writes is the only record of this choice,
+     and in a client-only prototype nobody reads it back — shadcn expects a
+     server to and to pass `defaultOpen`. So a collapsed sidebar sprang open
+     again on every navigation, which is what Imran saw when pressing a nav
+     item while collapsed. Reading our own cookie is the whole fix. */
+  defaultOpen = readStoredOpen(),
   open: openProp,
   onOpenChange: setOpenProp,
   className,

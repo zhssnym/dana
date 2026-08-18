@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react"
-import { RefreshCw } from "lucide-react"
+import type { LucideIcon } from "@/lib/icons"
+import { RefreshCw } from "@/lib/icons"
 
 import { Button } from "@/components/ui/button"
 
