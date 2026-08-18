@@ -69,6 +69,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-108 | A CSS reset silently suppresses text sizes on every control | OPEN | V3 | **Yes**, see below |
 | DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
 | DES-110 | The V3 question, reduced: is a task row one line or two? | OPEN | V3 | **Yes**, and it is the one that matters |
+| DES-111 | A row is as tall as it needs to be | OPEN | V3 | **Yes**, see below |
+| DES-112 | What a selection can do, at both levels | OPEN | V3 | No |
 
 ## Lane 2: needs backend
 
@@ -557,6 +559,75 @@ about their own list. That is the question the shared page now puts.
 **What is owed:** the answer, and it is Imran's. Nothing else in V3 is
 blocked on it — DES-095, DES-099, DES-106 and DES-109 all apply whichever way
 it goes.
+
+### DES-111, a row is as tall as it needs to be
+
+Imran's refinement, 2026-08-17, on the two-line row: a task carrying no
+details, no steps and no notes should be one line rather than two with a gap
+in it. Drawn.
+
+It changes what the two-line concept costs. The height was being paid by every
+row in the list; it is now paid only by rows that have something to show for
+it. In the lab's own sample that is one row of six, and in a real list of
+quick captures it would be many more.
+
+**What it trades, and this is the thing to judge:** the list's rhythm stops
+being regular. A column of mixed 44px and 64px rows either reads as responsive
+— each row sized to its content — or as ragged. That is a genuine judgement
+about a real list rather than a sample of six, and it is the reason this is an
+entry rather than a tidy-up.
+
+Also done in the same pass, from the same observation that the chips were
+dominating the title: the title takes medium weight (500, on the approved
+scale) so it leads without changing size; the second line's icons go a step
+lighter than its own text; and the note preview is reduced to its glyph with
+the text in a tooltip. That preview was a whole sentence of prose competing
+with the title directly above it, and was the single heaviest thing on the
+line.
+
+### DES-112, what a selection can do, at both levels
+
+Imran's direction, 2026-08-17: "Move to…" alone was not enough on the
+selection bar. Drawn, and the reasoning generalises.
+
+**A selection is a held intention**, and the whole value of holding one is
+acting on all of it at once. Offering a single verb makes a person leave the
+mode and repeat themselves for everything else they meant to do, which is the
+opposite of why they selected anything.
+
+The set is what a to-do list can genuinely do to several things at once,
+rather than a set chosen to fill a bar:
+
+- **Tasks**: complete · important · add to My Day · move to a folder ·
+  duplicate · delete.
+- **Steps**: mark done · duplicate · move to (a new task or a folder, per
+  DES-106) · delete.
+
+Two rules the drawing follows and a port should keep. **Delete is last, behind
+a divider, and is the only control that colours on hover** — it is the one
+action here that loses work. And **the two levels offer the same verbs where
+the verbs exist**, because a gesture that means one thing on a step and a
+narrower thing on a task is a gesture people stop trusting.
+
+Everything here is Lane 2 in the same way DES-103 and DES-104 are: bulk
+operations need endpoints that apply to a set in one transaction, and a
+partial failure across six tasks is a state the UI has no way to describe
+today.
+
+### Faces on people, at V3
+
+Recorded here rather than as its own decision, because it is presentation with
+no ruling attached: people are drawn with a picture rather than initials,
+everywhere a person appears — the row, the second line, the card's assignee
+chip, and every menu that lists people. Initials remain as the fallback,
+because a real product has people who have not set a picture and that state
+has to keep working.
+
+The pictures in the prototype are inline SVG portraits, deliberately
+illustrative rather than photographic, and generated in the file so the shared
+build stays one document that asks the network for nothing. A fake photograph
+of somebody who does not exist is a worse thing to put into a design review
+than an obvious drawing.
 
 ### Withdrawn at V3
 

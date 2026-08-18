@@ -33,7 +33,9 @@ import {
   Check as CheckIcon,
   ChevronDown,
   CircleAlert,
+  Copy,
   Folder,
+  FolderInput,
   ListChecks,
   ListPlus,
   FileText,
@@ -52,6 +54,7 @@ import {
   Redo2,
   Share2,
   Star,
+  Trash2,
   Undo2,
   UserRound,
   X,
@@ -65,7 +68,7 @@ import {
   type ReactNode,
 } from "react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -90,7 +93,7 @@ export interface ConceptTask {
   done?: boolean
   folder?: { name: string; color: string }
   due?: { label: string; overdue?: boolean }
-  assignee?: { initials: string; name: string }
+  assignee?: { initials: string; name: string; image?: string }
   /* Steps are the items themselves rather than a count, so the count is
      derived and ticking one in an expanded card moves the number in the row
      behind it. A count that cannot be wrong is better than a count. */
@@ -151,6 +154,37 @@ const WALKTHROUGH = thumb(
   '<circle cx="32" cy="32" r="15" fill="#2f3136" opacity=".72"/><path d="M28 24l12 8-12 8z" fill="#fff"/>',
 )
 
+/*
+Avatars carry a real picture rather than initials.
+
+Drawn as inline SVG portraits so the shared build stays one file that asks the
+network for nothing — the same constraint the attachment thumbnails work
+under. They are deliberately illustrative rather than photographic: a fake
+photograph of a person who does not exist is a worse thing to put into a
+design review than an obvious drawing.
+
+The fallback initials stay underneath. A real product has people who have not
+set a picture, and that state has to keep working, so it is still the thing
+the component falls back to.
+*/
+function portrait(bg: string, skin: string, hair: string, shirt: string) {
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">',
+    '<rect width="64" height="64" fill="' + bg + '"/>',
+    '<circle cx="32" cy="27" r="13" fill="' + skin + '"/>',
+    '<path d="M19 25a13 13 0 0 1 26 0c0-10-5-15-13-15s-13 5-13 15z" fill="' +
+      hair +
+      '"/>',
+    '<path d="M7 64c0-13 11-20 25-20s25 7 25 20z" fill="' + shirt + '"/>',
+    "</svg>",
+  ].join("")
+  return "data:image/svg+xml," + encodeURIComponent(svg)
+}
+
+const FACE_IMRAN = portrait("#e3e8f9", "#c98d63", "#2f2a24", "#3c5bbf")
+const FACE_SARA = portrait("#fbe5e2", "#e0ac82", "#4a2b1e", "#c4627b")
+const FACE_HASSAN = portrait("#ddf2e2", "#a9723f", "#1f1a16", "#1f7a3f")
+
 const VIOLET = "var(--color-folder-violet)"
 const FERN = "var(--color-folder-fern)"
 const TEAL = "var(--color-folder-teal)"
@@ -163,9 +197,9 @@ const FOLDERS = [
 ]
 
 const PEOPLE = [
-  { initials: "IW", name: "Imran Wafa" },
-  { initials: "SK", name: "Sara" },
-  { initials: "HN", name: "Hassan" },
+  { initials: "IW", name: "Imran Wafa", image: FACE_IMRAN },
+  { initials: "SK", name: "Sara", image: FACE_SARA },
+  { initials: "HN", name: "Hassan", image: FACE_HASSAN },
 ]
 
 const DUES = [
@@ -187,6 +221,7 @@ export const SAMPLE: ConceptTask[] = [
     title: "Confirm final guest count and send it to the caterer before Thursday",
     folder: { name: "Wedding", color: VIOLET },
     due: { label: "Due 14 Aug" },
+    assignee: { initials: "IW", name: "Imran Wafa", image: FACE_IMRAN },
     steps: [
       { title: "Ask the venue for the final seating plan", done: true },
       { title: "Chase the four unanswered RSVPs", done: true },
@@ -229,7 +264,7 @@ export const SAMPLE: ConceptTask[] = [
       { title: "Write the covering note", done: false },
       { title: "Send it to the committee", done: false },
     ],
-    assignee: { initials: "SK", name: "Sara" },
+    assignee: { initials: "SK", name: "Sara", image: FACE_SARA },
     recurrence: true,
     attachments: [
       {
@@ -252,6 +287,7 @@ export const SAMPLE: ConceptTask[] = [
     title: "Water the balcony plants",
     folder: { name: "Home", color: TEAL },
     due: { label: "Due today" },
+    assignee: { initials: "HN", name: "Hassan", image: FACE_HASSAN },
     recurrence: true,
     pulled: true,
   },
@@ -392,6 +428,73 @@ function useTaskList(initial: ConceptTask[]) {
     })
   }
 
+  function duplicateTasks(ids: string[]) {
+    setTasks((list) => {
+      const next: ConceptTask[] = []
+      list.forEach((t) => {
+        next.push(t)
+        if (ids.includes(t.id)) {
+          next.push({
+            ...t,
+            id: `${t.id}-copy-${next.length}`,
+            title: `${t.title} (copy)`,
+            steps: t.steps?.map((step) => ({ ...step })),
+          })
+        }
+      })
+      return next
+    })
+  }
+
+  function removeTasks(ids: string[]) {
+    setTasks((list) => list.filter((t) => !ids.includes(t.id)))
+  }
+
+  function patchMany(ids: string[], fields: Partial<ConceptTask>) {
+    setTasks((list) =>
+      list.map((t) => (ids.includes(t.id) ? { ...t, ...fields } : t)),
+    )
+  }
+
+  function duplicateSteps(id: string, indices: number[]) {
+    setTasks((list) =>
+      list.map((t) => {
+        if (t.id !== id || !t.steps) return t
+        const steps: ConceptStep[] = []
+        t.steps.forEach((step, i) => {
+          steps.push(step)
+          if (indices.includes(i)) steps.push({ ...step, done: false })
+        })
+        return { ...t, steps }
+      }),
+    )
+  }
+
+  function removeSteps(id: string, indices: number[]) {
+    setTasks((list) =>
+      list.map((t) =>
+        t.id === id && t.steps
+          ? { ...t, steps: t.steps.filter((_, i) => !indices.includes(i)) }
+          : t,
+      ),
+    )
+  }
+
+  function setStepsDone(id: string, indices: number[], done: boolean) {
+    setTasks((list) =>
+      list.map((t) =>
+        t.id === id && t.steps
+          ? {
+              ...t,
+              steps: t.steps.map((step, i) =>
+                indices.includes(i) ? { ...step, done } : step,
+              ),
+            }
+          : t,
+      ),
+    )
+  }
+
   function toggleStep(id: string, index: number) {
     setTasks((list) =>
       list.map((t) =>
@@ -416,6 +519,12 @@ function useTaskList(initial: ConceptTask[]) {
     reorder,
     groupIntoFolder,
     taskToFolder,
+    duplicateTasks,
+    removeTasks,
+    patchMany,
+    duplicateSteps,
+    removeSteps,
+    setStepsDone,
   }
 }
 
@@ -774,8 +883,14 @@ a selection.
 */
 function useRowSelection({
   onMove,
+  onBulk,
+  onDuplicate,
+  onDelete,
 }: {
   onMove: (ids: string[], folder: { name: string; color: string }) => void
+  onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
+  onDuplicate: (ids: string[]) => void
+  onDelete: (ids: string[]) => void
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
@@ -844,61 +959,127 @@ function useRowSelection({
     }
   }
 
+  /*
+  The selection bar's controls.
+
+  "Move to…" alone was not enough, and the reason is worth stating: a selection
+  is a held intention, and the whole value of holding it is doing something to
+  all of it at once. Offering exactly one verb makes the person leave the mode
+  and repeat themselves for everything else they wanted.
+
+  The set is what a to-do list can actually do to several tasks at once —
+  complete them, star them, pull them into My Day, move them, copy them, delete
+  them — rather than a set chosen to fill a bar. Anything Dana cannot do in
+  bulk is deliberately absent.
+
+  Delete sits last, after a divider, and is the only control that colours on
+  hover. It is the one action here that loses work.
+  */
   const bar = (
     <Reveal open={selecting}>
-      <div className="mb-2 flex items-center gap-2 rounded-md bg-[var(--color-dana-accent-50)] px-2 py-1.5">
+      <div className="mb-2 flex items-center gap-1 rounded-md bg-[var(--color-dana-accent-50)] px-2 py-1.5">
         <button
           type="button"
           onClick={exit}
           aria-label="Leave selection"
           className={cn(
-            "flex size-5 items-center justify-center rounded text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
+            "flex size-6 items-center justify-center rounded text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
             T_FAST,
             FOCUS,
           )}
         >
           <X className="size-4" strokeWidth={2} aria-hidden="true" />
         </button>
-        <span className="text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
+        <span className="mr-auto text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
           {selected.length || lastCount.current} selected
         </span>
+
+        <IconAction
+          icon={CheckIcon}
+          label="Mark complete"
+          onClick={() => {
+            onBulk(selected, { done: true })
+            exit()
+          }}
+        />
+        <IconAction
+          icon={Star}
+          label="Mark important"
+          onClick={() => {
+            onBulk(selected, { important: true })
+            exit()
+          }}
+        />
+        <IconAction
+          icon={Pin}
+          label="Add to My Day"
+          onClick={() => {
+            onBulk(selected, { pulled: true })
+            exit()
+          }}
+        />
+
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <button
                 type="button"
+                aria-label="Move to a folder"
                 className={cn(
-                  "ml-auto rounded-md bg-card px-2 py-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-800)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                  "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
                   T_FAST,
                   FOCUS,
                 )}
               >
-                Move to…
+                <FolderInput className="size-4" strokeWidth={1.75} aria-hidden="true" />
               </button>
             }
           />
           <DropdownMenuContent align="end" className="min-w-[16rem]">
-                          <MenuHeading>
-                Move {selected.length} task{selected.length === 1 ? "" : "s"} to
-              </MenuHeading>
-              {FOLDERS.map((f) => (
-                <DropdownMenuItem
-                  key={f.name}
-                  onClick={() => {
-                    onMove(selected, f)
-                    exit()
-                  }}
-                >
-                  <DestinationChoice
-                    icon={Folder}
-                    color={f.color}
-                    name={f.name}
-                    detail="Keeps everything else as it is"
-                  />
-                </DropdownMenuItem>
-              ))}
+            <MenuHeading>
+              Move {selected.length} task{selected.length === 1 ? "" : "s"} to
+            </MenuHeading>
+            {FOLDERS.map((f) => (
+              <DropdownMenuItem
+                key={f.name}
+                label={f.name}
+                onClick={() => {
+                  onMove(selected, f)
+                  exit()
+                }}
+              >
+                <DestinationChoice
+                  icon={Folder}
+                  color={f.color}
+                  name={f.name}
+                  detail="Keeps everything else as it is"
+                />
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <IconAction
+          icon={Copy}
+          label="Duplicate"
+          onClick={() => {
+            onDuplicate(selected)
+            exit()
+          }}
+        />
+        <span
+          aria-hidden="true"
+          className="mx-0.5 h-4 w-px bg-[var(--color-dana-accent-200)]"
+        />
+        <IconAction
+          icon={Trash2}
+          label="Delete"
+          tone="danger"
+          onClick={() => {
+            onDelete(selected)
+            exit()
+          }}
+        />
       </div>
     </Reveal>
   )
@@ -932,8 +1113,10 @@ function useConceptList() {
   }
 
   const selection = useRowSelection({
-    onMove: (ids, folder) =>
-      ids.forEach((id) => list.patch(id, { folder })),
+    onMove: (ids, folder) => list.patchMany(ids, { folder }),
+    onBulk: (ids, fields) => list.patchMany(ids, fields),
+    onDuplicate: list.duplicateTasks,
+    onDelete: list.removeTasks,
   })
 
   const panel = (
@@ -1177,6 +1360,23 @@ function DueBit({ due }: { due: NonNullable<ConceptTask["due"]> }) {
   )
 }
 
+function Face({
+  person,
+  className,
+}: {
+  person: { initials: string; name: string; image?: string }
+  className?: string
+}) {
+  return (
+    <Avatar size="sm" className={cn("size-5", className)}>
+      {person.image ? <AvatarImage src={person.image} alt="" /> : null}
+      <AvatarFallback className="text-[0.625rem] font-medium">
+        {person.initials}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
 function PersonBit({
   assignee,
 }: {
@@ -1184,11 +1384,7 @@ function PersonBit({
 }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-2">
-      <Avatar size="sm" className="size-5">
-        <AvatarFallback className="text-[0.625rem] font-medium">
-          {assignee.initials}
-        </AvatarFallback>
-      </Avatar>
+      <Face person={assignee} />
       <span className="truncate">{assignee.name.split(" ")[0]}</span>
     </span>
   )
@@ -1379,12 +1575,17 @@ function PropChip({
   value,
   color,
   muted = false,
+  avatar,
   items,
 }: {
   icon: LucideIcon
   value: string
   color?: string
   muted?: boolean
+  /* When a chip stands for a person, the person's face replaces the generic
+     glyph. A name with a face beside it is recognised; a name with a
+     person-shaped icon beside it still has to be read. */
+  avatar?: { initials: string; name: string; image?: string }
   items?: { key: string; label: ReactNode; onSelect: () => void }[]
 }) {
   const body = (
@@ -1398,12 +1599,16 @@ function PropChip({
           : "text-[var(--color-graphite-800)]",
       )}
     >
-      <Icon
-        className="size-4 shrink-0"
-        style={color ? { color } : undefined}
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
+      {avatar ? (
+        <Face person={avatar} className="size-4" />
+      ) : (
+        <Icon
+          className="size-4 shrink-0"
+          style={color ? { color } : undefined}
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+      )}
       <span className="truncate">{value}</span>
     </span>
   )
@@ -1630,16 +1835,21 @@ it, and the repository has already been bitten once by two menus both called
 "More actions"; putting a destructive action in a second place is how that
 happens again.
 */
-function FooterAction({
+/* An icon button with its name in a tooltip. Used by the card's footer and by
+   both selection bars, so a Delete looks and reads the same wherever it is
+   offered. */
+function IconAction({
   icon: Icon,
   label,
   onClick,
   disabled = false,
+  tone = "neutral",
 }: {
   icon: LucideIcon
   label: string
   onClick?: () => void
   disabled?: boolean
+  tone?: "neutral" | "danger"
 }) {
   return (
     <Tooltip>
@@ -1654,9 +1864,12 @@ function FooterAction({
               onClick?.()
             }}
             className={cn(
-              "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] disabled:pointer-events-none disabled:opacity-35",
+              "flex size-7 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
               T_FAST,
               FOCUS,
+              tone === "danger"
+                ? "text-[var(--color-graphite-600)] hover:bg-[var(--color-danger-100)] hover:text-[var(--color-danger-700)]"
+                : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
             )}
           >
             <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -1679,13 +1892,13 @@ function CardFooter({ onClose }: { onClose: () => void }) {
         Edited just now by Imran Wafa · saved
       </span>
       <span className="flex shrink-0 items-center gap-0.5">
-        <FooterAction
+        <IconAction
           icon={Undo2}
           label="Undo"
           disabled={undoDepth <= 0}
           onClick={() => setUndoDepth((d) => d - 1)}
         />
-        <FooterAction
+        <IconAction
           icon={Redo2}
           label="Redo"
           disabled={undoDepth >= 0}
@@ -1695,16 +1908,16 @@ function CardFooter({ onClose }: { onClose: () => void }) {
           aria-hidden="true"
           className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
         />
-        <FooterAction icon={Link2} label="Copy link" />
-        <FooterAction icon={Share2} label="Share" />
-        <FooterAction icon={Mail} label="Email" />
+        <IconAction icon={Link2} label="Copy link" />
+        <IconAction icon={Share2} label="Share" />
+        <IconAction icon={Mail} label="Email" />
         <span
           aria-hidden="true"
           className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
         />
-        <FooterAction icon={History} label="History" />
-        <FooterAction icon={Maximize2} label="Open full screen" />
-        <FooterAction icon={X} label="Close" onClick={onClose} />
+        <IconAction icon={History} label="History" />
+        <IconAction icon={Maximize2} label="Open full screen" />
+        <IconAction icon={X} label="Close" onClick={onClose} />
       </span>
     </div>
   )
@@ -1761,10 +1974,16 @@ function StepList({
   toggleStep,
   moveStep,
   moveStepsTo,
+  duplicateSteps,
+  removeSteps,
+  setStepsDone,
 }: {
   task: ConceptTask
   toggleStep: (id: string, index: number) => void
   moveStep: (id: string, from: number, to: number) => void
+  duplicateSteps: (id: string, indices: number[]) => void
+  removeSteps: (id: string, indices: number[]) => void
+  setStepsDone: (id: string, indices: number[], done: boolean) => void
   moveStepsTo: (
     id: string,
     indices: number[],
@@ -2036,22 +2255,39 @@ function StepList({
           >
             <X className="size-4" strokeWidth={2} aria-hidden="true" />
           </button>
-          <span className="text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
+          <span className="mr-auto text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
             {selected.length || lastCount.current} selected
           </span>
+          <IconAction
+            icon={CheckIcon}
+            label="Mark done"
+            onClick={() => {
+              setStepsDone(task.id, [...selected], true)
+              exit()
+            }}
+          />
+          <IconAction
+            icon={Copy}
+            label="Duplicate"
+            onClick={() => {
+              duplicateSteps(task.id, [...selected])
+              exit()
+            }}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
                 <button
                   type="button"
                   onClick={(e) => e.stopPropagation()}
+                  aria-label="Move to"
                   className={cn(
-                    "ml-auto rounded-md bg-card px-2 py-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-800)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                    "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
                     T_FAST,
                     FOCUS,
                   )}
                 >
-                  <span className="text-[12px] leading-4">Move to…</span>
+                  <FolderInput className="size-4" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               }
             />
@@ -2241,6 +2477,9 @@ function TaskCard({
   toggleStep,
   moveStep,
   moveStepsTo,
+  duplicateSteps,
+  removeSteps,
+  setStepsDone,
   onClose,
 }: {
   task: ConceptTask
@@ -2254,6 +2493,9 @@ function TaskCard({
       | { kind: "new-task" }
       | { kind: "folder"; name: string; color: string },
   ) => void
+  duplicateSteps: (id: string, indices: number[]) => void
+  removeSteps: (id: string, indices: number[]) => void
+  setStepsDone: (id: string, indices: number[], done: boolean) => void
   onClose: () => void
 }) {
   const counts = stepCount(task)
@@ -2295,6 +2537,9 @@ function TaskCard({
               toggleStep={toggleStep}
               moveStep={moveStep}
               moveStepsTo={moveStepsTo}
+              duplicateSteps={duplicateSteps}
+              removeSteps={removeSteps}
+              setStepsDone={setStepsDone}
             />
           </Disclosure>
     ),
@@ -2366,11 +2611,17 @@ function TaskCard({
         />
         <PropChip
           icon={UserRound}
+          avatar={task.assignee ?? PEOPLE[0]}
           value={task.assignee?.name ?? "Imran Wafa"}
-          items={PEOPLE.map((p) => ({
-            key: p.name,
-            label: p.name,
-            onSelect: () => patch(task.id, { assignee: p }),
+          items={PEOPLE.map((person) => ({
+            key: person.name,
+            label: (
+              <span className="inline-flex items-center gap-2">
+                <Face person={person} className="size-4" />
+                {person.name}
+              </span>
+            ),
+            onSelect: () => patch(task.id, { assignee: person }),
           }))}
         />
         <PropChip
@@ -2537,6 +2788,9 @@ function ConceptE() {
     toggleStep,
     moveStep,
     moveStepsTo,
+    duplicateSteps,
+    removeSteps,
+    setStepsDone,
     drag,
     panel,
     requestPromote,
@@ -2569,6 +2823,9 @@ function ConceptE() {
                 toggleStep={toggleStep}
                 moveStep={moveStep}
                 moveStepsTo={moveStepsTo}
+                duplicateSteps={duplicateSteps}
+                removeSteps={removeSteps}
+                setStepsDone={setStepsDone}
                 onClose={() => setOpen(null)}
               />
             }
@@ -2668,10 +2925,15 @@ function ConceptE() {
                   {task.assignee ? (
                     <ChipMenu
                       label="Assignee"
-                      items={PEOPLE.map((p) => ({
-                        key: p.name,
-                        label: p.name,
-                        onSelect: () => patch(task.id, { assignee: p }),
+                      items={PEOPLE.map((person) => ({
+                        key: person.name,
+                        label: (
+                          <span className="inline-flex items-center gap-2">
+                            <Face person={person} className="size-4" />
+                            {person.name}
+                          </span>
+                        ),
+                        onSelect: () => patch(task.id, { assignee: person }),
                       }))}
                     >
                       <Chip>
@@ -2950,7 +3212,7 @@ function DetailWord({
       )}
     >
       <Icon
-        className="size-3.5 shrink-0"
+        className={cn("size-3.5 shrink-0", !color && "text-[var(--color-graphite-400)]")}
         style={color ? { color } : undefined}
         strokeWidth={1.75}
         aria-hidden="true"
@@ -2967,6 +3229,9 @@ function ConceptJ() {
     toggleStep,
     moveStep,
     moveStepsTo,
+    duplicateSteps,
+    removeSteps,
+    setStepsDone,
     drag,
     panel,
     requestPromote,
@@ -3011,13 +3276,22 @@ function ConceptJ() {
                 toggleStep={toggleStep}
                 moveStep={moveStep}
                 moveStepsTo={moveStepsTo}
+                duplicateSteps={duplicateSteps}
+                removeSteps={removeSteps}
+                setStepsDone={setStepsDone}
                 onClose={() => setOpen(null)}
               />
             }
             row={
               <div
                 className={cn(
-                  "group/row grid h-16 w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md transition-colors",
+                  "group/row grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md transition-[background-color,height]",
+                  T_BASE,
+                  /* A bare task costs one line, not two. The list's rhythm
+                     becomes irregular in exchange, which is the thing to
+                     judge: whether a column of mixed heights reads as
+                     responsive or as ragged. */
+                  bare ? "h-11" : "h-16",
                   !isOpen && ROW_HOVER,
                 )}
               >
@@ -3028,14 +3302,21 @@ function ConceptJ() {
                     onRename={(title) => patch(task.id, { title })}
                     truncate={false}
                     heading={isOpen}
-                    className={cn(T_BASE, isOpen && "font-semibold")}
+                    className={cn(T_BASE, isOpen ? "font-semibold" : "font-medium")}
                   />
                   {/* Editable, exactly as concept E's chips are. Making the
                       second line read-only would have handed E a win on a
                       question neither concept is actually asking: the two
                       differ on whether a row is one line or two, and nothing
-                      else should differ with them. */}
-                  <div className="-ml-1 flex min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                      else should differ with them.
+
+                      Not rendered at all when there is nothing to put on it,
+                      so a bare task is a one-line row rather than a two-line
+                      row with a gap in it. */}
+                  <div
+                    hidden={bare}
+                    className="-ml-1 flex min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]"
+                  >
                     {task.due ? (
                       <ChipMenu
                         label="Due date"
@@ -3088,14 +3369,22 @@ function ConceptJ() {
                     {task.assignee ? (
                       <ChipMenu
                         label="Assignee"
-                        items={PEOPLE.map((pp) => ({
-                          key: pp.name,
-                          label: pp.name,
-                          onSelect: () => patch(task.id, { assignee: pp }),
+                        items={PEOPLE.map((person) => ({
+                          key: person.name,
+                          label: (
+                            <span className="inline-flex items-center gap-2">
+                              <Face person={person} className="size-4" />
+                              {person.name}
+                            </span>
+                          ),
+                          onSelect: () => patch(task.id, { assignee: person }),
                         }))}
                       >
                         <DetailChip>
-                          <DetailWord icon={UserRound}>{task.assignee.name}</DetailWord>
+                          <span className="inline-flex min-w-0 shrink-0 items-center gap-1.5">
+                            <Face person={task.assignee} className="size-3.5" />
+                            <span className="truncate">{task.assignee.name}</span>
+                          </span>
                         </DetailChip>
                       </ChipMenu>
                     ) : null}
@@ -3147,28 +3436,29 @@ function ConceptJ() {
                       </DetailChip>
                     ) : null}
                     {task.notes ? (
-                      <DetailChip interactive={false}>
-                        <DetailWord icon={AlignLeft}>
-                          <span className="truncate text-[var(--color-graphite-400)]">
-                            {task.notes}
-                          </span>
-                        </DetailWord>
-                      </DetailChip>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span>
+                              <DetailChip>
+                                <AlignLeft
+                                  className="size-3.5 shrink-0 text-[var(--color-graphite-400)]"
+                                  strokeWidth={1.75}
+                                  aria-label="Has notes"
+                                />
+                              </DetailChip>
+                            </span>
+                          }
+                        />
+                        <TooltipContent side="top">{task.notes}</TooltipContent>
+                      </Tooltip>
                     ) : null}
                     {task.abandoned ? (
                       <DetailChip interactive={false}>
                         <DetailWord icon={Ban}>Abandoned</DetailWord>
                       </DetailChip>
                     ) : null}
-                    {bare ? (
-                      /* A bare task keeps the line rather than collapsing to
-                         one, so the list's rhythm survives. Whether that empty
-                         line is calm or wasteful is what this concept is here
-                         to be judged on. */
-                      <span className="pl-1 text-[var(--color-graphite-400)]">
-                        No details
-                      </span>
-                    ) : null}
+
                   </div>
                 </div>
                 <div className="flex items-center justify-end pr-2">
