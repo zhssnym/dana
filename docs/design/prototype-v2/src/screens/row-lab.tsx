@@ -95,7 +95,11 @@ const BASELINE_GOODS = [
   ["Complete it", "click any checkbox and watch the tick draw itself"],
   [
     "Open it in place",
-    "the chevron on the right opens the full card without leaving the list — every concept but F, whose whole idea is to answer without opening",
+    "the chevron on the right opens the full card without leaving the list",
+  ],
+  [
+    "Edit the details",
+    "click any date, folder or person in a row and change it from the menu",
   ],
   ["Tick steps off", "inside any open card; the count in the row behind it follows"],
   [
@@ -103,7 +107,7 @@ const BASELINE_GOODS = [
     "press and hold a step for a moment, the way you would in a messaging app, then tap the others",
   ],
   ["Star and menu", "both reserved in the gutter, so nothing shifts when you hover a row"],
-  ["Full name on hover", "every concept but J truncates, so every concept but J explains itself"],
+  ["Full name on hover", "the one-line row truncates, so it explains itself when you point at it"],
   ["Motion on one scale", "three durations and two easings, shared, and all of it off under reduced motion"],
 ]
 
@@ -202,9 +206,9 @@ export function RowLabPage() {
               Dana is a shared to-do app. A <strong>task row</strong> is the one
               line that stands for a task in a list, and since a list is most of
               what anyone ever looks at, this single line is close to the whole
-              product. Six candidates are below, after the row Dana uses today.
-              They disagree about one question: <em>how much should a row tell
-              you, and what should it cost to find out the rest?</em>
+              product. Two candidates are below, after the row Dana uses today.
+              They started as seven and converged on each other, so only one
+              question is left: <em>should a task row be one line or two?</em>
             </p>
             <p>
               Every concept is shown against the same six tasks, chosen to be
