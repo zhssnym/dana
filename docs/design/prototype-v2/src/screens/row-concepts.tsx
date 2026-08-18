@@ -3535,7 +3535,121 @@ export interface ConceptSpec {
   render: () => ReactNode
 }
 
+/*
+Both rows, chosen from settings, with two lines as the default.
+
+Imran's proposal, 2026-08-17, and it is a better answer than picking one —
+but for a specific reason rather than because settings are always kind.
+
+**A preference is cheap exactly when the options have converged, and expensive
+when they have not.** These two rows arrived at the same rename, the same
+expansion, the same card, the same chips, the same selection, the same drag
+and the same motion. What is left between them is height and where the details
+sit. So this is one layout switch over a single row component, not two
+implementations — which is the only condition under which "make it a setting"
+is not a way of avoiding a decision.
+
+The costs are real and worth naming rather than discovering:
+
+- **Every future row change has to be right in both.** That is a permanent tax
+  on the most-touched component in the product.
+- **The acceptance suite doubles at the seams.** Any criterion that asserts a
+  row's geometry now has two answers, and the browser cases that measure
+  height need to state which density they are in.
+- **They will drift** unless somebody forbids it. The rule that keeps this
+  affordable: *the two densities may differ in height and in where the details
+  sit, and in nothing else.* The moment one grows a behaviour the other lacks,
+  the tax stops being layout and starts being logic.
+
+**Two lines as the default is the right way round.** A default should be the
+one that is safe for somebody who has not thought about it, and the failure
+modes are not symmetric: the cost of two lines is seeing fewer tasks at once,
+which is visible and self-correcting — you scroll, you notice, you go and
+change it. The cost of one line is a truncated title, which is invisible: you
+do not know what you did not read. Defaulting to the mode whose downside
+announces itself is the safer of the two.
+
+**Where the preference lives** is the one open question. Held in the browser it
+is Lane 1 and ships with the refresh, at the price of not following a person
+between their laptop and their phone. Held on the account it follows them, and
+needs a column and an endpoint — Lane 2. Recommended: ship it in the browser
+now, and treat syncing it as a later and separate want, because a display
+preference that resets on a new device is a small annoyance while waiting for
+a backend is a large one.
+*/
+function ConceptSetting() {
+  const [density, setDensity] = useState<"two" | "one">("two")
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Drawn in the shape of Dana's own settings rows, so the proposal is
+          judged where it would actually live rather than as a toolbar. */}
+      <div className="flex min-h-14 items-center gap-4 rounded-lg border border-[var(--color-graphite-200)] px-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] leading-5 font-medium text-foreground">
+            Row density
+          </p>
+          <p className="mt-0.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+            Two lines shows the whole task name. One line shows more tasks at
+            once.
+          </p>
+        </div>
+        <div
+          role="radiogroup"
+          aria-label="Row density"
+          className="flex shrink-0 items-center gap-0.5 rounded-md bg-[var(--color-graphite-100)] p-0.5"
+        >
+          {(
+            [
+              ["two", "Two lines"],
+              ["one", "One line"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={density === value}
+              onClick={() => setDensity(value)}
+              className={cn(
+                "rounded-[5px] px-2.5 py-1 text-[12px] leading-4 font-medium transition-[background-color,color]",
+                T_FAST,
+                FOCUS,
+                density === value
+                  ? "bg-card text-[var(--color-graphite-900)] shadow-[var(--elevation-0)]"
+                  : "text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-800)]",
+              )}
+            >
+              {label}
+              {value === "two" ? (
+                <span className="ml-1 text-[var(--color-graphite-400)]">
+                  default
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {density === "two" ? <ConceptJ /> : <ConceptE />}
+    </div>
+  )
+}
+
 export const CONCEPTS: ConceptSpec[] = [
+  {
+    id: "S",
+    name: "The setting",
+    optimisesFor:
+      "Not choosing. Both rows ship and the person picks, which works here only because the two converged on everything except height — this is one layout switch, not two implementations.",
+    givesUp:
+      "Every future change to the row has to be right in both, and any test that asserts a row's geometry now has two answers. It stays affordable only while the densities differ in height alone.",
+    principle:
+      "Two lines is the default because the failure modes are not symmetric. Seeing fewer tasks is visible and self-correcting; a truncated title is invisible, because you do not know what you did not read.",
+    tryIt:
+      "Flip the control. This is the setting as it would appear in Dana, not a toolbar for this page.",
+    render: () => <ConceptSetting />,
+  },
   {
     id: "E",
     name: "One line",

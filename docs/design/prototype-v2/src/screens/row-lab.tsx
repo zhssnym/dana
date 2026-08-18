@@ -206,9 +206,12 @@ export function RowLabPage() {
               Dana is a shared to-do app. A <strong>task row</strong> is the one
               line that stands for a task in a list, and since a list is most of
               what anyone ever looks at, this single line is close to the whole
-              product. Two candidates are below, after the row Dana uses today.
-              They started as seven and converged on each other, so only one
-              question is left: <em>should a task row be one line or two?</em>
+              product. Seven candidates became two, because they converged on
+              each other — same renaming, same editing, same card. All that
+              separates them now is height, so <strong>Dana ships both and you
+              pick</strong>, with two lines as the default. The first block is
+              that setting; the two below it are the same rows on their own, to
+              look at closely.
             </p>
             <p>
               Every concept is shown against the same six tasks, chosen to be
