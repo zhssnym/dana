@@ -87,6 +87,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-126 | The logo is a component; its mark draws itself on hover | APPROVED | V3 | Imran, 2026-08-18 |
 | DES-127 | The mark has two colourways, for light and dark panels | APPROVED | V3 | Imran, 2026-08-18 |
 | DES-128 | A step is a label; a note is a field | APPROVED | V3 | Imran, 2026-08-18 |
+| DES-131 | The folder page's controls live in one small steady cluster | PROPOSED | F1 | Imran's look owed |
+| DES-133 | The floating New task button retires where a quick-add row lives | PROPOSED | F1 | **Yes** — W5 names a capture point |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -114,6 +116,10 @@ that will cost time later.
 | DES-104 | Make this task a folder; its steps become the tasks | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-105 | What an attachment may be, and which ones can be viewed | PROPOSED | V3 | **NEEDS BACKEND**, see below |
 | DES-106 | One verb for moving things between levels: **Move to…** | APPROVED | V3 | Imran, 2026-08-18: five verbs |
+| DES-129 | Comments on a task: words, voice notes, files, replies | PROPOSED | F1 | **NEEDS BACKEND**, see below |
+| DES-130 | A folder wears an identity: icon, colour, cover, description | PROPOSED | F1 | **NEEDS BACKEND**, see below |
+| DES-132 | Sections and paragraphs organise a folder page | PROPOSED | F1 | **NEEDS BACKEND**, see below |
+| DES-134 | A folder's conversation, and where it lives | PROPOSED | F1 | **NEEDS BACKEND**, see below |
 
 ### DES-098, custom tags or labels on a task
 
@@ -1156,6 +1162,11 @@ row-less entry points, since that is what lets the sheet be retired. The
 full-screen view itself is undrawn — it is an action in the card's footer and
 nothing behind it yet.
 
+**Addendum 2026-08-18, session F1.** The right panel has its first drawn
+candidate tenant: the folder conversation of DES-134, switchable on the
+folder page concept. Drawn is still not allocated — this entry's ruling stays
+open, and DES-134 carries the backend facts. AI remains not the direction.
+
 ### DES-118, the card is missing nine of the form's fields
 
 Imran asked, 2026-08-17, whether everything in the task form had made it into
@@ -2183,6 +2194,265 @@ a row by content the row can edit.** Keyed by position now.
 - **Removing one step required making a selection.** Each step now carries a
   remove control that appears on hover in its own trailing slot, which is where
   the task row keeps its actions too.
+
+### DES-129, comments on a task: words, voice notes, files, replies
+
+Imran's direction, 2026-08-18, opening session F1: the expanded card ends in a
+comments section — expandable, where people leave comments, share voice
+messages, reply to each other and share files. **Drawn in the card as a pinned
+block**, live on every task in the shell, with two tasks seeded so the thread
+is judged as a conversation rather than an empty composer.
+
+The design decisions taken in the drawing, each reversible by looking:
+
+- **Comments are pinned after the content blocks and sit outside their
+  order.** Steps, Notes and Attachments are what the task *is* and may be
+  arranged (DES-102); the conversation is what people *say about it*. A
+  conversation filed between two content blocks would read as neither content
+  nor commentary, so the block has no drag grip and always ends the card, the
+  way Linear and Notion both end in their threads.
+- **Replies nest one level and no further.** A task's conversation is a short
+  thread between a handful of people. Unbounded nesting is how a card grows a
+  forum inside it, and one level is enough to answer someone without starting
+  a second column of rails.
+- **The composer is one quiet line** — a face and a rounded field — because
+  the conversation must not out-shout the task above it. Attach, voice and
+  send live in the field's trailing slot, and send only appears once there is
+  something to send.
+- **Recording is real.** The mic button runs MediaRecorder: a pulsing mark,
+  the clock counting up, live bars, cancel or post. A voice note recorded in
+  the prototype actually plays back, because judging a voice-message design
+  that cannot make a sound is judging a picture of one (the DES-115
+  principle). Fixture voice notes sweep their progress silently, which is as
+  far as a drawing can honestly go. Where the microphone is refused, the
+  control says so in words rather than pretending.
+- **One thread component for every conversation surface.** The card's block,
+  the folder page's comments and the folder side panel all render
+  `components/comments.tsx` — DES-123's rule applied on day one, so a thread
+  can never disagree with itself across surfaces.
+- **Delete appears only on my own comments**, on hover, in the row's trailing
+  slot like every other row in the product. Editing is deliberately not drawn:
+  whether a comment is editable, for how long, and what edited history shows
+  is a product decision that belongs with the backend conversation.
+
+1. **What the user does.** Writes a comment on a task, replies to somebody
+   else's, records a voice message, attaches a file to a comment, and reads
+   the conversation on any device.
+2. **What the product cannot do today.** Everything. There is no comment
+   table, no arm on any section 7 endpoint, and `taskDetail` carries no
+   conversation. Voice and files additionally need the storage DES-055 and
+   DES-105 have owed since v1 — an audio clip is an attachment with a duration.
+   And nothing in the product delivers a message to somebody who is looking at
+   the same task, which is the half that is easy to underestimate.
+3. **What it would need.** A guess, marked as one. A `comment` table
+   (task_id, author, body, parent_id, created_at, deleted_at), list and write
+   arms scoped by the 10.2 chokepoint to folder membership, pagination for
+   long threads, and a deletion story when the task or a member goes. Voice
+   and file comments ride the DES-055/DES-105 storage machinery and add
+   nothing of their own beyond a duration column. Then the expensive half:
+   delivery. Polling is cheap and stale; push is realtime and is exactly the
+   infrastructure the one-instance architecture (spec 11) does not have.
+   Unread state and notification rules are their own product decisions —
+   recorded here as the questions Hassan should price, not answered.
+4. **What happens if it never ships.** The card stands without the block;
+   notes remain the one shared writing surface, which is what people use
+   today. Voice and files degrade away with the block. Nothing else in the
+   refresh depends on it.
+
+### DES-130, a folder wears an identity: icon, colour, cover, description
+
+Imran's direction, 2026-08-18. The folder page opens like a Notion page:
+a cover that can be changed, a folder mark from a small library in a colour
+the person picks, and an optional description paragraph under the title.
+**Drawn in the shell** — the folder page concept renders all of it, the
+picked mark follows the folder into the sidebar, and everything persists in
+the prototype's own storage so it survives navigation.
+
+- **The icon library is twenty-one glyphs and every one is animated.** The
+  plain folder plus twenty, all from the family DES-125 ruled in, chosen
+  *from* what the family can animate rather than trimmed to it afterwards.
+  None of them is a glyph Dana's chrome uses, so a folder's mark can never be
+  mistaken for a control. The picker names the glyph under the pointer,
+  because choosing is reading one word rather than decoding twenty-one small
+  drawings. Colours are the ten folder swatches the tokens have carried since
+  v1, plus graphite — no new colour enters the product here. This absorbs
+  DES-054, which has proposed the icon half since v1.
+- **Covers come in three honest tiers**: patterns (CSS), illustrations
+  (inline SVG generated in the file, so the shared build asks the network for
+  nothing — the portraits' rule), and upload (a real file into an object URL,
+  alive for the session, gone on reload, and the picker says so). Persisting
+  image bytes into localStorage would be inventing a worse version of the
+  storage problem the real feature has (DES-105), so it is deliberately not
+  done.
+- **On a cover the mark stands on a white plate; on a bare page there is no
+  plate**, because with nothing behind it a plate is decoration.
+- **The title renames in place** — DES-095's rule reaching the folder title —
+  and the description is a field in the header, quiet at 14px, following
+  DES-128's notes rule: prose you write into, not a label with an edit behind
+  it. "Add cover" and "Add description" are hover-revealed ghosts above the
+  title, present only while absent, which is DES-115 applied to a page.
+
+1. **What the user does.** Gives a folder a mark, a colour, a cover and a
+   sentence of context, and recognises it at a glance everywhere the folder
+   appears.
+2. **What the product cannot do today.** There is no icon column, no
+   description column, no cover anything. Folder colour exists only as the
+   *viewer's* label colour on their membership (DES-086's
+   `PATCH /folders/:id/my-membership`), which is a different fact from a
+   colour the folder itself wears.
+3. **What it would need.** A guess, marked as one. Columns on `folder` —
+   icon key (validated against a server-known set), colour, description text,
+   cover key — and arms on the folder endpoints to write them. A custom cover
+   image needs the DES-105 storage machinery; pattern and illustration covers
+   are just keys. And one genuine design question that has to be ruled before
+   pricing, the same shape as DES-102's: **whose identity is it?** A shared
+   folder's cover and icon are either the folder's (one look for every
+   member, anyone-or-owner-can-change rules needed) or the viewer's (a
+   per-member table, and the same folder looks different to each person).
+   The drawn version reads as the folder's; the shipping colour precedent
+   (DES-086) is per-viewer. Those pull in opposite directions and Hassan
+   should price the ruling, not both.
+4. **What happens if it never ships.** The page keeps the plain folder glyph
+   and no cover, which is exactly today. Nothing else depends on it; the
+   cluster, sections and comments all stand without it.
+
+### DES-131, the folder page's controls live in one small steady cluster
+
+Imran's direction, 2026-08-18: sharing, filtering, view type and the folder's
+other options want "a strong position — small and steady." **Drawn: one
+cluster, pinned top-right, sticky over the scroll.** It holds, in order: the
+view switcher (List, Board, Calendar), the open-task filter, the conversation
+button with its count, the member avatars, Share, and the overflow menu. It
+is the only chrome that does not scroll away, which is what steady means: the
+folder's controls are always exactly where they were.
+
+Lane 1 in substance — everything in it is presentation over behaviour the
+screens already had — with three honest edges:
+
+- **Board is real but rides DES-132**: its columns are the sections, so the
+  view ships when sections do. Drawn as cards with title, due and assignee,
+  a per-column capture point, and Done as the last column.
+- **Calendar is a disabled control saying where it comes from** (V5's C1–C4),
+  rather than a drawn view. An enabled control promising nothing is the
+  fault DES-118 removed from History; it is not reintroduced here.
+- **The Label-and-colour dialog does not exist on this page** — the icon
+  picker (DES-130) took colour, and rename moved into the title. The v1
+  screen keeps the dialog at `?folder-page=v1`, and the reconciliation with
+  DES-086's per-viewer label colour is inside DES-130's ruling, not a second
+  copy of it here.
+
+What is owed: Imran's look, and one honest question for it — whether the
+cluster should also absorb the page-bar strip's job when V2 (Chrome) rules on
+L3, or stay inside the content column as drawn.
+
+### DES-132, sections and paragraphs organise a folder page
+
+Imran's direction, 2026-08-18: after the blank task row, a block for adding
+**sections** — a section folds many tasks — and **paragraphs**, so the folder
+page can be organised the way a page is. **Drawn in the shell**: the Wedding
+fixture arrives with a paragraph and two sections, so the mechanism is judged
+inhabited.
+
+- **Capture stays first.** The blank row sits above the organising tier —
+  "Add section" and "Add a paragraph" are the ghost tier below it, in
+  DES-115's voice. A person in a hurry should never have to pass structure to
+  reach capture.
+- **A section is a collapsible heading with its own quick-add**, renamed in
+  place (DES-095's rule again), deleted from its hover slot — and deleting a
+  section returns its tasks to the folder rather than taking them along,
+  because a heading should never be a place tasks can die.
+- **A paragraph is a field, always** (DES-128's notes rule at page scale). An
+  emptied paragraph removes itself on blur, so there is no zombie block to
+  manage.
+- **Board view is the same structure turned sideways**: columns are the
+  sections. One model, two projections, which is the argument for sections
+  being worth a backend at all.
+
+1. **What the user does.** Groups tasks under named sections inside a folder,
+   collapses a section they are not working in, writes a paragraph of context
+   between sections, and sees the same sections as board columns.
+2. **What the product cannot do today.** There is no section entity, no
+   `section_id` on a task, no stored order for sections or for tasks within
+   one (DES-071 again — every ordering conversation lands on that entry), and
+   no storage for a free text block on a folder page.
+3. **What it would need.** A guess, marked as one. A `section` table
+   (folder_id, name, position), a nullable `task.section_id`, and the
+   paragraph blocks either as a minimal `page_block` table or as the smallest
+   honest slice of DES-055's content-block model — this is the entry where
+   that decision stops being avoidable. Ordering needs DES-071's answer.
+   And the same ruling DES-130 needs: **is the arrangement the folder's or
+   the viewer's?** Sections feel shared (they are the work's structure, like
+   the task list itself), which is the opposite pull from DES-086's
+   per-viewer labels; it should be ruled once for this entry and DES-130
+   together.
+4. **What happens if it never ships.** The folder stays a flat list with the
+   filter, which is today, and the header work (DES-130) still stands alone.
+   Board view dies with sections; the cluster (DES-131) simply loses one
+   switch position.
+
+### DES-133, the floating New task button retires where a quick-add row lives
+
+Imran's ruling, 2026-08-18: remove the floating "New task" button on the
+folder page, because a blank task row is already there. **Drawn: the concept
+page hides it, and the blank row is the page's capture point.**
+
+The reasoning, recorded because W5 is a standing constraint and this entry
+amends its reading rather than violating it: W5 requires **one always-visible
+capture point per page**, and the plan's V2 session notes assumed that point
+was the FAB. On the folder page it now is not — the quick-add row is always
+visible, nearer the tasks it adds to, already knows which section it feeds,
+and does not float over content. Two capture points on one page is one more
+than W5 asks for, and the one that leaves is the one that says less about
+where the task will land.
+
+What this does not decide: the other screens. My Day, Planned and the rest
+still show the FAB, and whether the retirement extends to every page with a
+quick-add row is a per-page look, not a policy — Planned's calendar mode, for
+instance, has no blank row at month zoom. The shell therefore takes the
+retirement as a per-page prop rather than a rule. **The ruling owed** is
+Imran confirming the folder page reading, and V2's L4 session (quick-add rest
+state) inherits the question for the remaining screens.
+
+### DES-134, a folder's conversation, and where it lives
+
+Imran's question, 2026-08-18: comments should also work at the folder level —
+"but where?" **Both credible answers are drawn**, switchable on the folder
+page so the choice is made by looking, and both render the same thread
+component as the card (DES-129, DES-123's rule):
+
+- **End of the page** — the Notion reading. The page runs: header, the work,
+  Completed, and then what everyone said about it. Comments belong to the
+  page like a document's margin notes; the cluster's conversation button
+  scrolls there.
+- **Side panel** — the chat reading. A 360px panel slides from the right,
+  non-modal on purpose (a conversation about the work should not cover the
+  work), toggled from the cluster. This is the first drawn candidate tenant
+  for the right panel DES-117 left "available, not allocated" — drawn is
+  still not allocated, and DES-117's ruling stays open.
+
+The honest difference: the page placement reads as *commentary* (slow,
+attached to the work, read when you visit), the panel reads as *messaging*
+(fast, presence-flavoured, glanced at while working). Which one Dana means
+decides more than layout — it decides whether unread counts and notification
+expectations follow, which is most of fact 3's cost. The count on the
+cluster button is drawn in both.
+
+1. **What the user does.** Talks to the folder's members about the folder —
+   not about one task — with the same words, voice notes and files as
+   DES-129, and finds that conversation where they expect it.
+2. **What the product cannot do today.** Everything DES-129 lists, keyed by
+   folder instead of task: no message table, no endpoint, no delivery, no
+   unread state.
+3. **What it would need.** DES-129's machinery with `folder_id` in place of
+   `task_id` — the two should be priced as one system, because two message
+   models is how a product ends up migrating one into the other. The panel
+   placement raises the delivery stakes: a surface that looks like chat will
+   be judged as chat, and chat without realtime and unread reads as broken
+   where page comments read as fine. That asymmetry is a real cost input,
+   recorded so the placement ruling and the infrastructure ruling are taken
+   together.
+4. **What happens if it never ships.** The cluster drops one button; the page
+   ends at Completed. Task comments (DES-129) are unaffected either way.
 
 ## Carried from v1, still unresolved
 

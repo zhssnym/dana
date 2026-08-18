@@ -307,12 +307,14 @@ Runs beside the sessions, Imran with Hassan, independent of the restyle:
 
 ## Where the next session starts
 
-Written 2026-08-18 at the close of V3's second stretch, for whoever opens the
-next chat. Read this, then `v2-decisions.md`, then run the prototype.
+Written 2026-08-18 at the close of session F1 (folder page and comments
+concepts, run overnight at Imran's direction while he slept). Read this, then
+`v2-decisions.md`, then run the prototype.
 
-**Read first, in order:** `docs/design/v2-decisions.md` (DES-093 to DES-128 are
-V3's; the two-lane rule at the top governs everything), this file's ground
-rules, then `docs/design/prototype-v2/src/screens/row-concepts.tsx` for the lab.
+**Read first, in order:** `docs/design/v2-decisions.md` (DES-093 to DES-134;
+the two-lane rule at the top governs everything), this file's ground rules,
+then the two concept surfaces: `src/screens/folder-page-v2.tsx` and
+`src/components/comments.tsx`.
 
 **Everything runs from `docs/design/prototype-v2`.** `npm run dev` is the
 prototype; `npm run typecheck` is `tsc -p tsconfig.app.json` — the root tsconfig
@@ -320,26 +322,60 @@ checks nothing. Nothing under `app/` changes in this plan.
 
 ### State
 
-The row and its card are **finalised and ported**. The shell's seven task
-screens render the real components; `components/task-form.tsx` is gone because
-a task now opens inside its own row. The icon family is animated Lucide. Steps,
-notes and attachments all work on fixtures.
+The row and its card are **finalised, ported, and committed** — the V3 tree
+landed as `3b1f34a`, so the baseline is reversible history rather than a
+working tree. On top of it, session F1 drew Imran's next round of ideas as
+concepts, committed separately so they can be reverted without touching V3:
 
-Nothing is committed. The working tree also carries an icon experiment from a
-session that was archived on 2026-08-18 — its results are ruled in (DES-125,
-DES-126, DES-127) and its scaffolding removed, so the tree is one coherent
-change, but it has never been reviewed as a diff.
+- **Comments on a task** (DES-129): a pinned block ending the expanded card —
+  threads, one-level replies, file chips, and voice notes that really record
+  and play. Two My Day tasks arrive with seeded threads (the grant review and
+  the venue deposit).
+- **The folder page as a page** (DES-130 to DES-133): cover (patterns /
+  illustrations / real upload), a 21-glyph animated icon library with the ten
+  token colours, a description field, rename-in-place title, one sticky
+  top-right control cluster (views · filter · conversation · people · share ·
+  overflow), sections and paragraphs after the blank row, a real board view,
+  and no floating New task button. The picked mark follows the folder into
+  the sidebar.
+- **The folder conversation in both placements** (DES-134): end-of-page and
+  side-panel, switchable live from the "Concept switches" card bottom-left.
+
+**How to look:** `npm run dev`, then `/?state=folder&folder=Wedding` for the
+folder page (the Wedding fixture is seeded with sections, a paragraph and a
+conversation), the concept card bottom-left to flip comments placement, and
+`?folder-page=v1` for the previous screen side by side. On My Day, expand
+"Review community grant application" for the card's Comments block.
 
 ### Do these next, in this order
 
-1. **Commit the tree.** One commit, design work only. Per the working rule, the
-   code and its DES entries land together, and they are already written.
-2. **Close V1** — the layout measure (L1, L2, L5, L6). It was skipped and V3
-   was run ahead of it, so every export still shows the old measure.
-3. **Finish V3's own brief.** Only R3 is done. R1, R2, R4–R7 and W2 remain, and
-   **the states page is still the deliverable** — it has not been rebuilt on the
-   new row at all.
-4. **V2, then V4–V8** in the plan's order.
+1. **Imran walks the F1 concepts and rules.** DES-129 to DES-134 are all
+   PROPOSED; the two questions that gate everything else are **whose identity
+   a folder's look is** (DES-130) and **whether the folder conversation is
+   commentary or chat** (DES-134). DES-133 amends W5's reading and wants an
+   explicit yes.
+2. **Close V1** — the layout measure (L1, L2, L5, L6). Still open, still
+   first among the plan's own sessions; every export shows the old measure.
+3. **Finish V3's own brief.** Only R3 is done. R1, R2, R4–R7 and W2 remain,
+   and **the states page is still the deliverable** — it has not been rebuilt
+   on the new row at all.
+4. **V2, then V4–V8** in the plan's order. V2's L4 (quick-add rest state)
+   inherits DES-133's question for the remaining screens.
+
+### Known faults and honest edges of F1, so they are not rediscovered
+
+- **Uploaded covers do not survive a reload** — deliberate (an object URL,
+  not storage; the picker says so). Patterns and illustrations persist.
+- **Sections, paragraphs and new comments reset on navigation**, like every
+  task fixture; the folder's icon, colour, cover and description persist in
+  localStorage with the rename/delete presentation state.
+- **The microphone path is verified by code reading, not by exercise** — the
+  preview browser cannot grant mic permission. Denial shows the inline
+  message; a grant records and plays back. Worth one manual try.
+- **Calendar in the view switcher is a disabled control on purpose**, saying
+  it arrives with V5.
+- **The side panel is viewport-fixed** and will want a look below ~1100px
+  width; the design phase is 1440px (this plan's scope line).
 
 ### Owed rulings, none blocking
 
@@ -387,3 +423,4 @@ first.
 | V3 | 2026-08-17/18 | Claude, for Imran | **In progress, not closed.** The row's shape was reopened before its states were touched, and settled first: seven concepts converged to one row at two densities, chosen from Settings with two lines as the default (DES-113). The expandable card is designed and complete against the task form — one header strip of five chips, then Steps, Notes and Attachments as collapsible blocks, a shaded footer band, no Save button because every edit commits as it is made. Drag, the 1.5s hold that makes a folder, press-and-hold selection and the bulk bar are drawn in the lab and marked Lane 2. Rulings taken: DES-093, 095, 106 (five verbs), 107, 108, 109, 111, 113, 116. A first port to the shell was made and then reverted, deliberately, so the lab is the single source until Imran finalises it | **Open.** V3's own brief is largely untouched: only R3 (Restore to the trailing slot) is done. R1, R2, R4–R7 and W2 remain, and the states page is still the deliverable. V1 is also still open, and V3 was started ahead of it |
 | V3 (cont.) | 2026-08-18 | Claude, for Imran | **The row and its card declared finalised by Imran.** Three things were rebuilt on his direction after review. Dragging left HTML5 drag-and-drop for a pointer engine, `lib/use-sortable-list.ts`, shared by the task rows, a card's steps and a card's blocks: the carried row tracks the pointer, the rows it passes make space, it settles into the gap, and it brought auto-scroll, touch and arrow-key reordering. The folder gesture arms on stillness rather than hover and is drawn as a ring closing around a folder mark on the carried row, with a rebuilt naming panel. The three pickers were rebuilt twice — first onto presets-plus-calendar, then decluttered to one shape at 270px: resolved answers, a hairline, one expanding custom option. New rulings: DES-120 (picker shape), DES-121 (12/24-hour as a browser preference), DES-122 (a due date is a day, not a moment), DES-123 (the same pickers open from the folded row). DES-103, 102, 099 and 118 updated; DES-113 and DES-119 corrected where the revert had left them naming deleted modules. Four defects found and fixed, all invisible to a screenshot: the calendar never showed its selection (`/d+/` matched the letter d, not a digit), the row hardcoded "Weekly" whatever the rule was, the selection hook's `onPointerDown` overwrote the drag's so the new drag never started, and two time commits in one turn lost the first | **Row and card closed for now.** V3's brief is still open and unchanged: R1, R2, R4–R7, W2 and the states page. V1 is still open. **DES-122 carries a spec ruling that must be settled before the port** — production's due date has a time and removing it is a specification change, not a restyle |
 | V3 (final) | 2026-08-18 | Claude, for Imran | **The row and card are ported.** `row-concepts.tsx` fell 4,812 → ~1,200 lines and holds only the lab; `TaskRow`, `TaskCard`, `task-pickers`, `task-model`, `use-sortable-list`, `row-density`, `time-format` and `ui/calendar` are real modules the lab imports. `components/task-form.tsx` deleted — DES-093 put the task inside its row, so nothing opens a sheet. All seven task screens render `TaskList`, which owns reordering, the 1.5s folder hold, press-and-hold selection and the bulk bar; screens with bespoke row logic keep their row via `renderRow`. Icon family adopted (DES-125/126/127) after a parallel session was archived and its results ruled in. Steps, notes and attachments made real (DES-115, DES-128). New rulings: DES-124 (lab-then-extract, now the default flow), DES-125–128. Defects found and fixed: the step row was keyed by its own title so typing remounted the field after one character; the sidebar's collapsed state was never read back from its cookie; `isAnimated` is a gate not a trigger, and dropping the ref silently stopped every icon animating; `space-y-*` outranked every margin form on the expanded card | **Accepted by Imran, 2026-08-18.** Nothing committed yet. V3's own brief (R1, R2, R4–R7, W2, the states page) is still untouched, and V1 is still open — see "Where the next session starts" |
+| F1 | 2026-08-18 | Claude, for Imran, overnight | **Out-of-plan concepts session at Imran's direction; V3's tree first committed as the baseline (`3b1f34a`), concepts committed on top so either reverts alone.** Delivered as PROPOSED drawings: the card's Comments block — threads, one-level replies, files, voice notes that really record via MediaRecorder (DES-129); the folder page as a Notion-like page — cover picker in three honest tiers, 21-glyph animated icon library in the ten token colours following the folder into the sidebar, description, rename-in-place title, sticky top-right control cluster with List/Board/Calendar-disabled, sections and paragraphs behind the blank row, board view, FAB retired (DES-130–133); the folder conversation drawn in both placements, end-of-page and side panel, switchable live (DES-134, first drawn tenant for DES-117's freed panel). One thread component serves card, page and panel (DES-123's rule). Previous folder screen kept at `?folder-page=v1`. Typecheck, build and a scripted browser walk all green | **Open — everything awaits Imran's morning look.** The gating rulings: whose identity a folder's look is (DES-130) and commentary-versus-chat (DES-134); DES-133 amends W5's reading. V1 and V3's brief remain open behind it |

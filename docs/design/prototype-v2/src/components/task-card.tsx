@@ -44,6 +44,7 @@ import {
   ListPlus,
   Mail,
   Maximize2,
+  MessageSquare,
   MoreHorizontal,
   Paperclip,
   Play,
@@ -77,9 +78,11 @@ import {
   ReminderPanel,
   RepeatPanel,
 } from "@/components/task-pickers"
+import { CommentsThread } from "@/components/comments"
 import {
   FOLDERS,
   PEOPLE,
+  commentCount,
   dueChipValue,
   reminderChipValue,
   repeatSummary,
@@ -325,24 +328,30 @@ function Disclosure({
         {/* The grip is the whole affordance: it appears on hover, it is what
             you grab, and it is why the heading does not need a menu. It is a
             button rather than a decorated span so that the block can also be
-            moved with the arrow keys. */}
-        <button
-          type="button"
-          aria-label={`Reorder ${label}`}
-          {...handle}
-          className={cn(
-            "flex size-3.5 shrink-0 cursor-grab items-center justify-center rounded text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/sec:opacity-100 focus-visible:opacity-100 active:cursor-grabbing",
-            T_FAST,
-            FOCUS,
-            isActive && "cursor-grabbing opacity-100",
-          )}
-        >
-          <GripVertical
-            className="size-3.5 data-[size=sm]:size-3.5"
-            strokeWidth={2}
-            aria-hidden="true"
-          />
-        </button>
+            moved with the arrow keys. A block with no handle is pinned —
+            Comments sits outside the content order, DES-129 — and keeps a
+            spacer so every heading's icon lands on one left edge. */}
+        {handle ? (
+          <button
+            type="button"
+            aria-label={`Reorder ${label}`}
+            {...handle}
+            className={cn(
+              "flex size-3.5 shrink-0 cursor-grab items-center justify-center rounded text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/sec:opacity-100 focus-visible:opacity-100 active:cursor-grabbing",
+              T_FAST,
+              FOCUS,
+              isActive && "cursor-grabbing opacity-100",
+            )}
+          >
+            <GripVertical
+              className="size-3.5 data-[size=sm]:size-3.5"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+          </button>
+        ) : (
+          <span className="size-3.5 shrink-0" aria-hidden="true" />
+        )}
         <button
           type="button"
           onClick={(e) => {
@@ -1733,6 +1742,27 @@ export function TaskCard({
       </div>
 
       {order.map((key) => blocks[key])}
+
+      {/* Comments, pinned after the content blocks and outside their order.
+          Steps, Notes and Attachments are what the task IS and may be
+          arranged; the conversation is what people SAY about it, it reads
+          bottom-up-most-recent like every thread anywhere, and a conversation
+          filed between two content blocks would read as neither. DES-129;
+          Lane 2, fixtures only. */}
+      <Disclosure
+        icon={MessageSquare}
+        label="Comments"
+        badge={
+          commentCount(task.comments) > 0
+            ? String(commentCount(task.comments))
+            : undefined
+        }
+      >
+        <CommentsThread
+          comments={task.comments ?? []}
+          onChange={(next) => patch(task.id, { comments: next })}
+        />
+      </Disclosure>
 
       <CardFooter onClose={onClose} />
     </div>

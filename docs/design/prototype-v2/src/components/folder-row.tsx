@@ -1,5 +1,4 @@
 import {
-  Folder,
   FolderInput,
   MoreHorizontal,
   Palette,
@@ -7,6 +6,9 @@ import {
   Plus,
   Trash2,
 } from "@/lib/icons"
+
+import { folderGlyph } from "@/components/folder-icon-picker"
+import { useFolderIdentity } from "@/lib/folder-presentation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -67,6 +69,11 @@ export function FolderRow({
     onRename || onEditAppearance || onMoveToLabel || onDelete,
   )
   const hasActions = Boolean(onAddTask || hasFolderMenu)
+  /* The mark a person put on the folder follows it into the sidebar
+     (DES-130); a folder nobody has touched keeps the plain folder glyph. */
+  const identity = useFolderIdentity(name)
+  const Glyph = folderGlyph(identity.glyph)
+  const glyphColor = identity.color ?? color
 
   return (
     <SidebarMenuItem
@@ -91,9 +98,9 @@ export function FolderRow({
           (pending > 0 || hasActions) && "pr-[4.75rem]",
         )}
       >
-        <Folder
+        <Glyph
           className="!size-4 shrink-0 opacity-90"
-          style={{ color }}
+          style={{ color: glyphColor }}
           strokeWidth={1.75}
           aria-hidden="true"
         />
