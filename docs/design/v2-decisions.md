@@ -1137,11 +1137,24 @@ Imran asked why the ported row and card do not carry the dragging, grouping,
 selection and other controls the concept lab had. The answer is in two parts
 and only one of them is a decision.
 
-**The part that is a decision.** Most of what the lab demonstrated cannot ship,
-because it has no backend and is parked under Imran's own Lane 2 rule — record,
-do not chase. Putting it into `task-row.tsx` would put unbuildable behaviour
-into the component that later ports to `app/`, which is the failure the two
-lanes exist to prevent.
+**Corrected 2026-08-18. The first version of this entry was wrong.** It argued
+that Lane 2 behaviour had no place in the prototype at all, which is the
+opposite of what this register says at the top: a Lane 2 idea *may* be drawn in
+`prototype-v2`, and is "excluded from the port by that mark rather than by
+being invisible". Leaving it out made the prototype look finished when it was
+not, and made a design decision look like a missing feature.
+
+The confusion was between two different things wearing the same words. **Needs
+a backend** means do not build it in `app/` yet. It does not mean do not show
+it in the prototype, which runs on fixtures and exists precisely so an idea can
+be seen before it is priced.
+
+**So the behaviour is restored**, in `lib/task-list-interactions.tsx` — its own
+module rather than inside `task-row.tsx`, so the exclusion is one decision at
+port time about one file, instead of a hunt through a component for behaviour
+that should not travel. Reordering, the 1.5-second folder gesture, press-and-
+hold selection and the bulk bar are all live in the lab again. What the port
+must still leave behind:
 
 | Left out of the port | Why | Entry |
 | - | - | - |
@@ -1152,6 +1165,9 @@ lanes exist to prevent.
 | Make this task a folder | Destroys a task; needs a transaction and an undo | DES-104 |
 | Drag the card's blocks to reorder | Block order has nowhere to live | DES-102 |
 | Attachment thumbnails and inline viewing | No storage, no upload path, no viewing rules | DES-105 |
+
+Each of those is drawn in the prototype and carries its entry. None of them may
+reach `app/` until its entry says so.
 
 **The part that was my omission, now fixed.** Three things were Lane 1,
 approved, and simply did not survive the port — which is different from being
