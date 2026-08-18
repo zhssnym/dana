@@ -2,7 +2,11 @@ import { useState } from "react"
 import { CheckCircle2 } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import {
+  TaskRow,
+  type TaskExpansion,
+  type TaskRowProps,
+} from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +41,7 @@ interface DoneScreenProps {
   onMarkNotDone: (taskId: string) => void
   onToggleImportant: (taskId: string) => void
   onRename: (taskId: string, title: string) => void
+  expansion?: TaskExpansion
   onDelete: (taskId: string) => void
 }
 
@@ -47,6 +52,7 @@ export function DoneScreen({
   onMarkNotDone,
   onToggleImportant,
   onRename,
+  expansion,
   onDelete,
 }: DoneScreenProps) {
   const [pendingAction, setPendingAction] = useState<{
@@ -119,6 +125,11 @@ export function DoneScreen({
                       }}
                       onToggleImportant={() => onToggleImportant(task.id)}
                       onRename={(title) => onRename(task.id, title)}
+                      expanded={expansion?.render(task.id)}
+                      isExpanded={expansion?.openId === task.id}
+                      onToggleExpanded={
+                        expansion ? () => expansion.toggle(task.id) : undefined
+                      }
                       onDelete={() =>
                         setPendingAction({ type: "delete", taskId: task.id })
                       }

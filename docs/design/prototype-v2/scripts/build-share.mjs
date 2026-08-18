@@ -33,13 +33,17 @@ import { fileURLToPath } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const dist = path.join(root, "dist-share")
-const outFile = path.join(dist, "dana-row-concepts.html")
+const outFile = path.join(
+  dist,
+  process.env.SHARE_ENTRY === "shell" ? "dana-prototype.html" : "dana-row-concepts.html",
+)
 
 function read(file) {
   return fs.readFileSync(file, "utf8")
 }
 
-const html = read(path.join(dist, "lab.html"))
+const entry = process.env.SHARE_ENTRY === "shell" ? "index.html" : "lab.html"
+const html = read(path.join(dist, entry))
 
 /* Vite emits <script type="module" crossorigin src="/assets/x.js"> and
    <link rel="stylesheet" crossorigin href="/assets/y.css">. Take the paths
@@ -94,7 +98,7 @@ if (leftover) {
   throw new Error(`Stylesheet still references files: ${leftover.join(", ")}`)
 }
 
-const out = `<title>Dana row concepts</title>
+const out = `<title>${process.env.SHARE_ENTRY === "shell" ? "Dana prototype" : "Dana row concepts"}</title>
 <style>
 ${css}
 </style>
