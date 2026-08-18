@@ -76,6 +76,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
 | DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | APPROVED | V3 | Imran, 2026-08-17 |
 | DES-117 | One form, two presentations; the right panel is freed | OPEN | V3 | **Yes**, see below |
+| DES-118 | The card is missing nine of the form's fields | OPEN | V3 | **Yes**, see below |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -1044,6 +1045,48 @@ it because it happened to be free.
 row-less entry points, since that is what lets the sheet be retired. The
 full-screen view itself is undrawn — it is an action in the card's footer and
 nothing behind it yet.
+
+### DES-118, the card is missing nine of the form's fields
+
+Imran asked, 2026-08-17, whether everything in the task form had made it into
+the expandable card. **It has not**, and the gap matters more than its size
+suggests, because DES-093 and DES-117 both rest on the card being *the same
+artifact* as the form rather than a lighter cousin of it.
+
+Compared field by field against what `task-form.tsx` actually renders:
+
+| In the form, not in the card | Why it matters |
+| - | - |
+| **Due time** | The card's date chip sets a day and nothing finer. A person with a 3pm task cannot express it. |
+| **Repeat interval**, **Every**, **On day**, **Ends on**, **Weekly repeat days** | The card's repeat chip picks a preset. Every custom recurrence is unreachable. |
+| **Invite** | The row shows an invite-pending badge; the card offers no way to act on it. |
+| **Task history** | The footer has a History icon with nothing behind it. |
+| **Resize task form** | Has no meaning inline, and is expected to go — flagged in DES-093 from the start. |
+
+Attachments go the other way: the card has a block the form has none of, which
+is fine because it is Lane 2 and drawn empty (DES-105).
+
+**Why this is not a to-do list of missing chips.** If the card cannot set a due
+time or a custom repeat, people will still open the form for those, and the
+form becomes the place where the *real* editing happens. That is precisely the
+two-artifact outcome 9.3's own heading forbids and DES-093 was approved to
+avoid. A card that handles the easy eighty percent and hands the rest to a
+sheet has not replaced the sheet; it has added a step in front of it.
+
+**The resolution is already in the form's own design.** `task-form.tsx` hides
+the same advanced fields behind a **More options** disclosure — it does not
+show due time and the repeat editor by default either. So the card does not
+need to be denser than the form; it needs the same disclosure. The chips stay
+as they are, and one **More options** in the card reveals exactly what the same
+control reveals in the form.
+
+That keeps the promise: same fields, same defaults, same progressive
+disclosure, two sizes.
+
+**What is owed:** approval to add More options to the card, and a decision on
+the two that do not fit that pattern — **Invite**, which is a sharing action
+rather than a field, and **Task history**, which the footer already gestures at
+with an icon that does nothing.
 
 ### Withdrawn at V3
 
