@@ -2903,6 +2903,34 @@ title-edits / elsewhere-opens, which is Notion's rule and Linear's, but it is
 a ruling.
 */
 
+/* The second line's chip. Same hover-to-reveal-a-border idea as concept E's,
+   sized for metadata rather than body text. `interactive` is false for the
+   facts you cannot change from a row — a step count, an attachment count, a
+   note — so nothing offers an edit it cannot perform. */
+function DetailChip({
+  children,
+  tone = "neutral",
+  interactive = true,
+}: {
+  children: ReactNode
+  tone?: "neutral" | "danger"
+  interactive?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 min-w-0 shrink-0 items-center rounded border border-transparent px-1 transition-[background-color,border-color]",
+        T_FAST,
+        interactive &&
+          "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
+        tone === "danger" && "font-medium text-[var(--color-danger-700)]",
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
 function DetailWord({
   icon: Icon,
   children,
@@ -3002,49 +3030,144 @@ function ConceptJ() {
                     heading={isOpen}
                     className={cn(T_BASE, isOpen && "font-semibold")}
                   />
-                  <div className="flex min-w-0 items-center gap-3 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                  {/* Editable, exactly as concept E's chips are. Making the
+                      second line read-only would have handed E a win on a
+                      question neither concept is actually asking: the two
+                      differ on whether a row is one line or two, and nothing
+                      else should differ with them. */}
+                  <div className="-ml-1 flex min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]">
                     {task.due ? (
-                      <DetailWord
-                        icon={task.due.overdue ? CircleAlert : CalendarDays}
-                        tone={task.due.overdue ? "danger" : "neutral"}
+                      <ChipMenu
+                        label="Due date"
+                        items={DUES.map((d) => ({
+                          key: d.label,
+                          label: d.label,
+                          onSelect: () =>
+                            patch(task.id, {
+                              due:
+                                d.label === "No date" ? undefined : { label: d.label },
+                            }),
+                        }))}
                       >
-                        {task.due.label}
-                      </DetailWord>
+                        <DetailChip tone={task.due.overdue ? "danger" : "neutral"}>
+                          <DetailWord
+                            icon={task.due.overdue ? CircleAlert : CalendarDays}
+                            tone={task.due.overdue ? "danger" : "neutral"}
+                          >
+                            {task.due.label}
+                          </DetailWord>
+                        </DetailChip>
+                      </ChipMenu>
                     ) : null}
                     {task.folder ? (
-                      <DetailWord icon={Folder} color={task.folder.color}>
-                        <span className="truncate">{task.folder.name}</span>
-                      </DetailWord>
+                      <ChipMenu
+                        label="Folder"
+                        items={FOLDERS.map((f) => ({
+                          key: f.name,
+                          label: (
+                            <span className="inline-flex items-center gap-2">
+                              <Folder
+                                className="size-4"
+                                style={{ color: f.color }}
+                                strokeWidth={1.75}
+                                aria-hidden="true"
+                              />
+                              {f.name}
+                            </span>
+                          ),
+                          onSelect: () => patch(task.id, { folder: f }),
+                        }))}
+                      >
+                        <DetailChip>
+                          <DetailWord icon={Folder} color={task.folder.color}>
+                            <span className="truncate">{task.folder.name}</span>
+                          </DetailWord>
+                        </DetailChip>
+                      </ChipMenu>
                     ) : null}
                     {task.assignee ? (
-                      <DetailWord icon={UserRound}>{task.assignee.name}</DetailWord>
+                      <ChipMenu
+                        label="Assignee"
+                        items={PEOPLE.map((pp) => ({
+                          key: pp.name,
+                          label: pp.name,
+                          onSelect: () => patch(task.id, { assignee: pp }),
+                        }))}
+                      >
+                        <DetailChip>
+                          <DetailWord icon={UserRound}>{task.assignee.name}</DetailWord>
+                        </DetailChip>
+                      </ChipMenu>
                     ) : null}
                     {counts ? (
-                      <DetailWord icon={ListChecks}>
-                        {counts.done}/{counts.total}
-                      </DetailWord>
+                      <DetailChip interactive={false}>
+                        <DetailWord icon={ListChecks}>
+                          {counts.done}/{counts.total}
+                        </DetailWord>
+                      </DetailChip>
                     ) : null}
-                    {task.recurrence ? <DetailWord icon={Repeat2}>Weekly</DetailWord> : null}
-                    {task.pulled ? <DetailWord icon={Pin}>My Day</DetailWord> : null}
-                    {task.notes ? (
-                      <DetailWord icon={AlignLeft}>
-                        <span className="truncate text-[var(--color-graphite-400)]">
-                          {task.notes}
-                        </span>
-                      </DetailWord>
+                    {task.recurrence ? (
+                      <ChipMenu
+                        label="Repeat"
+                        items={[
+                          {
+                            key: "off",
+                            label: "Does not repeat",
+                            onSelect: () => patch(task.id, { recurrence: false }),
+                          },
+                          { key: "w", label: "Weekly", onSelect: () => {} },
+                        ]}
+                      >
+                        <DetailChip>
+                          <DetailWord icon={Repeat2}>Weekly</DetailWord>
+                        </DetailChip>
+                      </ChipMenu>
+                    ) : null}
+                    {task.pulled ? (
+                      <ChipMenu
+                        label="My Day"
+                        items={[
+                          {
+                            key: "remove",
+                            label: "Remove from My Day",
+                            onSelect: () => patch(task.id, { pulled: false }),
+                          },
+                        ]}
+                      >
+                        <DetailChip>
+                          <DetailWord icon={Pin}>My Day</DetailWord>
+                        </DetailChip>
+                      </ChipMenu>
                     ) : null}
                     {task.attachments ? (
-                      <DetailWord icon={Paperclip}>
-                        {task.attachments.length}
-                      </DetailWord>
+                      <DetailChip interactive={false}>
+                        <DetailWord icon={Paperclip}>
+                          {task.attachments.length}
+                        </DetailWord>
+                      </DetailChip>
                     ) : null}
-                    {task.abandoned ? <DetailWord icon={Ban}>Abandoned</DetailWord> : null}
+                    {task.notes ? (
+                      <DetailChip interactive={false}>
+                        <DetailWord icon={AlignLeft}>
+                          <span className="truncate text-[var(--color-graphite-400)]">
+                            {task.notes}
+                          </span>
+                        </DetailWord>
+                      </DetailChip>
+                    ) : null}
+                    {task.abandoned ? (
+                      <DetailChip interactive={false}>
+                        <DetailWord icon={Ban}>Abandoned</DetailWord>
+                      </DetailChip>
+                    ) : null}
                     {bare ? (
                       /* A bare task keeps the line rather than collapsing to
                          one, so the list's rhythm survives. Whether that empty
                          line is calm or wasteful is what this concept is here
                          to be judged on. */
-                      <span className="text-[var(--color-graphite-400)]">No details</span>
+                      <span className="pl-1 text-[var(--color-graphite-400)]">
+                        No details
+                      </span>
                     ) : null}
                   </div>
                 </div>
@@ -3090,28 +3213,28 @@ export interface ConceptSpec {
 export const CONCEPTS: ConceptSpec[] = [
   {
     id: "E",
-    name: "Editable chips",
+    name: "One line",
     optimisesFor:
-      "The ninety percent edit. Every fact is the control that changes it, so a date or a person is one click and the list never moves.",
+      "Density. Everything fits on one 44px line, so a viewport holds sixteen tasks instead of eleven and a long list stays a list rather than a scroll.",
     givesUp:
-      "A chip that looks like text but behaves like a button is a small lie until you hover. Targets must grow to stay accessible.",
+      "The title. It truncates at about forty characters and it truncates while you are renaming it, because the details are sharing its line.",
     principle:
-      "Fitts's law: the fastest target is the thing itself. Zoho removed inline field editing, users objected, and it came back.",
+      "Fitts's law: the fastest target is the thing itself, which is why the details are the controls that change them. That is now true in both concepts, so it is no longer what separates them — the separation is height.",
     tryIt:
-      "Click any chip — the date, the folder, the person, the step count — and change it from the menu. Then expand the row and change the same things from the card.",
+      "Click any chip to change it. Then read the second task's title, and go and read the same title in J.",
     render: () => <ConceptE />,
   },
   {
     id: "J",
-    name: "Title first, one vocabulary",
+    name: "Two lines",
     optimisesFor:
-      "The title and the alphabet at once. The title gets a full line of its own, so it never truncates and stays readable while you rename it; the details sit beneath it in one shared icon vocabulary that reads the same here, in the card this opens, and everywhere else in the app.",
+      "The title, which gets a full line of its own and therefore never truncates — at rest or while you are renaming it. The details move to a second line, in one shared icon vocabulary that reads the same here and inside the card this opens.",
     givesUp:
-      "Height: 64px against 44px, so a viewport that held sixteen tasks holds eleven. And it needs a ruling, because if clicking the title edits it then clicking the title no longer opens the task.",
+      "Height: 64px against 44px, so a viewport that held sixteen tasks holds eleven. That is the whole trade, and for somebody with a long list it may be the wrong one.",
     principle:
       "Proximity groups the second line to the title above, so the pair reads as one object with a caption. The second line is also what makes the vocabulary affordable: an icon can keep its word beside it, so the alphabet is learned by reading rather than by hovering — which is the objection the icon-only version could never answer on touch.",
     tryIt:
-      "Compare the long second task here against the same task in A or E. Rename it and compare that too. Then open a row: every line inside the card is led by the same icon you just read on the row.",
+      "Read the second task's title, then read it in E. Rename it in both. The details here are editable exactly as E's are, so height is the only thing that differs.",
     render: () => <ConceptJ />,
   },
 ]

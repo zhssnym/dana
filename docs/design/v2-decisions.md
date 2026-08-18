@@ -68,6 +68,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-107 | A fifth type size the contract does not name | OPEN | V3 | **Yes**, see below |
 | DES-108 | A CSS reset silently suppresses text sizes on every control | OPEN | V3 | **Yes**, see below |
 | DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
+| DES-110 | The V3 question, reduced: is a task row one line or two? | OPEN | V3 | **Yes**, and it is the one that matters |
 
 ## Lane 2: needs backend
 
@@ -512,6 +513,50 @@ history, full screen, close.
 **What is owed:** a ruling that the card is direct manipulation rather than a
 form, because 9.3 describes a form with Save, and an answer on whether undo is
 in scope — since the removal depends on it.
+
+### DES-110, the V3 question reduced to one
+
+Recorded 2026-08-17 at the close of session V3, when the lab reached two
+candidates and Imran noticed. **Two is not what is left over; it is what the
+lab produced.**
+
+Seven treatments went in. They did not survive as seven separate answers
+because most of what each was arguing for turned out to be either right for
+all of them or wrong for all of them, and every time that happened the idea
+stopped being a concept and became part of the baseline:
+
+- **Renaming in place** was concept J's, and is now in both. Better than a
+  sheet, and no concept should lose for lacking it.
+- **Opening in place** was concept D's whole argument. Both rows do it, so D
+  had nothing left to argue.
+- **Editable details** were concept E's whole argument, and were the last
+  thing separating the two survivors. Making J's second line editable — done
+  the same day — removed the final confound.
+- **The icon vocabulary** was concept I's, and merged into J when it turned
+  out that a second line is exactly the room needed to put the word back
+  beside the icon, which was the objection I could never answer on touch.
+- **Actor and state** and **two lines on selection** were withdrawn outright.
+
+What is left is one variable, and the page now says so:
+
+> **Should a task row be one line or two?**
+
+Everything else is identical between them by construction — same rename, same
+expansion, same card, same chips, same selection, same drag, same motion. The
+measurement that states the trade: the long sample title is 68 characters;
+it truncates in the one-line row and does not in the two-line one, and the
+one-line row is 46px against 66px, which is sixteen tasks per screen against
+eleven.
+
+**Why this is the right shape for the question.** A reviewer asked to rank
+seven treatments compares finish, novelty and taste, and the answer is mostly
+noise. A reviewer asked whether they would rather see more tasks or more of
+each task's name is being asked something they actually know the answer to,
+about their own list. That is the question the shared page now puts.
+
+**What is owed:** the answer, and it is Imran's. Nothing else in V3 is
+blocked on it — DES-095, DES-099, DES-106 and DES-109 all apply whichever way
+it goes.
 
 ### Withdrawn at V3
 
