@@ -581,6 +581,35 @@ export function ShellPage() {
       : requestedPage !== "settings",
   }))
   const [editingTaskId, setEditingTaskId] = useState<string | null>(initialEditTaskId)
+  /* The tab strip's task tabs. Ids in sessionStorage so a tab survives the
+     full-page navigation the shell uses; titles resolve from the fixtures on
+     read, so a rename reaches the tab. Session-scoped on purpose — tabs are
+     working state, not data. */
+  const [taskTabIds, setTaskTabIds] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(
+        window.sessionStorage.getItem("dana:task-tabs") ?? "[]",
+      )
+      return Array.isArray(stored)
+        ? stored.filter((id): id is string => typeof id === "string")
+        : []
+    } catch {
+      return []
+    }
+  })
+  const [activeTaskTab, setActiveTaskTab] = useState<string | null>(null)
+  const persistTabs = (ids: string[]) => {
+    setTaskTabIds(ids)
+    window.sessionStorage.setItem("dana:task-tabs", JSON.stringify(ids))
+  }
+  const openTaskTab = (taskId: string) => {
+    if (!taskTabIds.includes(taskId)) persistTabs([...taskTabIds, taskId])
+    setActiveTaskTab(taskId)
+  }
+  const closeTaskTab = (taskId: string) => {
+    persistTabs(taskTabIds.filter((id) => id !== taskId))
+    if (activeTaskTab === taskId) setActiveTaskTab(null)
+  }
   const [createFolderOverride, setCreateFolderOverride] = useState<string | undefined>()
   const [createDueDateOverride, setCreateDueDateOverride] = useState<string | undefined>()
   const [taskFormContextBanner, setTaskFormContextBanner] = useState<string | undefined>()
@@ -798,6 +827,15 @@ export function ShellPage() {
       pageIcon={PageIcon}
       pageIconColor={pageIconColor}
       hideCreate={isFolder && folderPageVariant === "v2"}
+      taskTabs={taskTabIds
+        .map((id) => {
+          const task = tasks.find((candidate) => candidate.id === id)
+          return task ? { id, title: task.title } : null
+        })
+        .filter((tab): tab is { id: string; title: string } => tab !== null)}
+      activeTaskTab={activeTaskTab}
+      onSelectTab={setActiveTaskTab}
+      onCloseTab={closeTaskTab}
       onCreateTask={() => {
         taskFormOpener.current = document.activeElement as HTMLElement | null
         setTaskFormContextBanner(undefined)
@@ -818,7 +856,42 @@ export function ShellPage() {
       onOpenSearch={() => setSearchOpen(true)}
       pageVisibility={pageVisibility}
       >
-        {!isDone &&
+        {(() => {
+          /* A selected task tab replaces the page below the strip: the same
+             row, forced open, at the reading measure — the tab presentation
+             of DES-117's one form. */
+          const tabTask = activeTaskTab
+            ? tasks.find((task) => task.id === activeTaskTab)
+            : undefined
+          if (!tabTask) return null
+          return (
+            <div className="mx-auto w-full max-w-[var(--content-list)] px-10 py-6">
+              <div role="list">
+                <TaskRow
+                  key={tabTask.id}
+                  {...tabTask}
+                  defaultOpen
+                  onToggleComplete={(completed) =>
+                    setTaskCompleted(tabTask.id, completed)
+                  }
+                  onToggleImportant={() => {
+                    updateTask(tabTask.id, {
+                      important: !tabTask.important,
+                      form: { ...tabTask.form, important: !tabTask.important },
+                    })
+                  }}
+                  onAbandon={() => updateTask(tabTask.id, { status: "abandoned" })}
+                  onDelete={() => {
+                    closeTaskTab(tabTask.id)
+                    setTasks((current) =>
+                      current.filter((task) => task.id !== tabTask.id),
+                    )
+                  }}
+                />
+              </div>
+            </div>
+          )
+        })() ?? (!isDone &&
         !isFolder &&
         !isTasks &&
         !isPlanned &&
@@ -1054,6 +1127,7 @@ export function ShellPage() {
              the two are compared by looking (DES-130 to DES-134). */
           <FolderPageV2
             storageName={selectedFolderName}
+            onOpenInTab={openTaskTab}
             folderName={selectedFolderDisplayName}
             folderColor={selectedFolderColor}
             folderLabel={selectedFolderLabel}
@@ -1432,7 +1506,7 @@ export function ShellPage() {
           </div>
         </section>
         </div>
-        )}
+        ))}
       </AppShell>
       <SearchOverlay
         open={searchOpen}

@@ -1,11 +1,12 @@
 /*
 The folder identity picker: which mark a folder wears, and in which colour.
 
-DES-130, extending what DES-054 has proposed since v1. Twenty-one glyphs — the
-plain folder plus twenty — every one from the animated family DES-125 ruled in,
-and none of them an icon Dana's own chrome uses, so a folder's mark can never
-be mistaken for a control. The colours are the ten folder swatches the tokens
-have carried since v1, plus graphite; no new colour enters the product here.
+DES-130, extending what DES-054 has proposed since v1. Forty-two glyphs — the
+plain folder plus forty-one, expanded at Imran's direction — every one from
+the animated family DES-125 ruled in, and none of them an icon Dana's own
+chrome uses, so a folder's mark can never be mistaken for a control. The
+colours are the ten folder swatches the tokens have carried since v1, plus
+graphite; no new colour enters the product here.
 
 Lane 2: the shipping folder has no icon column and no colour column that
 follows the folder rather than the viewer's label. Fixtures only.
@@ -14,27 +15,47 @@ follows the folder rather than the viewer's label. Fixtures only.
 import { useState } from "react"
 
 import {
+  Banknote,
   Bike,
   BookOpen,
   Camera,
   Car,
+  Cat,
+  Cloud,
+  Code,
+  Coffee,
+  Compass,
+  Dog,
+  Drum,
+  Fish,
   Flame,
   Folder,
+  Footprints,
   Gamepad,
   Gift,
   Globe,
+  Guitar,
   Heart,
   House,
+  Key,
+  Laptop,
   Lightbulb,
   MapIcon,
+  MapPin,
+  Moon,
   Mountain,
   Music,
+  Piano,
   PiggyBank,
   Rocket,
+  ShoppingBag,
   ShoppingCart,
+  Swords,
   Tent,
+  Umbrella,
   Utensils,
   Wallet,
+  Zap,
   type LucideIcon,
 } from "@/lib/icons"
 import { cn } from "@/lib/utils"
@@ -52,19 +73,39 @@ export const FOLDER_GLYPHS: { key: string; label: string; icon: LucideIcon }[] =
   { key: "lightbulb", label: "Ideas", icon: Lightbulb },
   { key: "rocket", label: "Launch", icon: Rocket },
   { key: "flame", label: "Goals", icon: Flame },
+  { key: "zap", label: "Energy", icon: Zap },
+  { key: "key", label: "Keys", icon: Key },
   { key: "map", label: "Travel", icon: MapIcon },
+  { key: "map-pin", label: "Places", icon: MapPin },
+  { key: "compass", label: "Adventure", icon: Compass },
   { key: "tent", label: "Camping", icon: Tent },
   { key: "mountain", label: "Outdoors", icon: Mountain },
   { key: "globe", label: "World", icon: Globe },
+  { key: "cloud", label: "Weather", icon: Cloud },
+  { key: "moon", label: "Night", icon: Moon },
+  { key: "umbrella", label: "Rainy days", icon: Umbrella },
+  { key: "footprints", label: "Walks", icon: Footprints },
   { key: "car", label: "Car", icon: Car },
   { key: "bike", label: "Cycling", icon: Bike },
   { key: "shopping-cart", label: "Groceries", icon: ShoppingCart },
+  { key: "shopping-bag", label: "Shopping", icon: ShoppingBag },
   { key: "utensils", label: "Cooking", icon: Utensils },
+  { key: "coffee", label: "Coffee", icon: Coffee },
   { key: "piggy-bank", label: "Savings", icon: PiggyBank },
   { key: "wallet", label: "Money", icon: Wallet },
+  { key: "banknote", label: "Finance", icon: Banknote },
+  { key: "laptop", label: "Work", icon: Laptop },
+  { key: "code", label: "Code", icon: Code },
   { key: "camera", label: "Photos", icon: Camera },
   { key: "music", label: "Music", icon: Music },
+  { key: "guitar", label: "Guitar", icon: Guitar },
+  { key: "piano", label: "Piano", icon: Piano },
+  { key: "drum", label: "Drums", icon: Drum },
   { key: "gamepad", label: "Games", icon: Gamepad },
+  { key: "swords", label: "Duels", icon: Swords },
+  { key: "cat", label: "Cat", icon: Cat },
+  { key: "dog", label: "Dog", icon: Dog },
+  { key: "fish", label: "Fish", icon: Fish },
 ]
 
 export function folderGlyph(key: string | undefined): LucideIcon {

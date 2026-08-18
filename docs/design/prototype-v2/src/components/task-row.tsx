@@ -1616,6 +1616,10 @@ export interface TaskRowProps {
   }
   isSelected?: boolean
   selecting?: boolean
+  /* The task surface (full screen, sidebar, floating, a tab) renders the row
+     already expanded — the row is the task even there, which is DES-093
+     taken at its word. */
+  defaultOpen?: boolean
 }
 
 /* The shell's flat props into the shape the row and the card actually speak.
@@ -1652,7 +1656,7 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
 
 export function TaskRow(props: TaskRowProps) {
   const density = useRowDensity()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(props.defaultOpen ?? false)
   const [edits, setEdits] = useState<Partial<ConceptTask>>({})
 
   /* Props first, local edits over the top. A completion made from the screen

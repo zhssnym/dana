@@ -23,6 +23,8 @@ export interface PrototypeFolderIdentity {
   glyph?: string
   color?: string
   cover?: string
+  /* Vertical crop of a photographic cover, 0–100; gradients have no crop. */
+  coverPos?: number
   description?: string
 }
 

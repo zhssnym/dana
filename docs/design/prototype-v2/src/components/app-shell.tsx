@@ -118,6 +118,10 @@ export function AppShell({
   onOpenSearch,
   pageVisibility,
   hideCreate = false,
+  taskTabs,
+  activeTaskTab,
+  onSelectTab,
+  onCloseTab,
 }: {
   children: ReactNode
   activePage?: ShellPageName | null
@@ -139,6 +143,11 @@ export function AppShell({
      quick-add row is the capture point (DES-133). A screen-by-screen ruling,
      so it arrives as a prop rather than a policy here. */
   hideCreate?: boolean
+  /* The tab strip's task tabs — owned by the shell page, drawn by PageBar. */
+  taskTabs?: { id: string; title: string }[]
+  activeTaskTab?: string | null
+  onSelectTab?: (id: string | null) => void
+  onCloseTab?: (id: string) => void
 }) {
   const showAdd =
     !hideCreate &&
@@ -399,6 +408,10 @@ export function AppShell({
             icon={pageIcon}
             iconColor={pageIconColor}
             showUpdate={showUpdate}
+            taskTabs={taskTabs}
+            activeTaskTab={activeTaskTab}
+            onSelectTab={onSelectTab}
+            onCloseTab={onCloseTab}
           />
           {offline ? (
             <OfflineBanner className="rounded-none border-x-0 border-t-0" />
