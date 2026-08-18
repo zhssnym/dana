@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CheckCircle2 } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,11 +97,14 @@ export function DoneScreen({
                 >
                   {group.label}
                 </h2>
-                <div role="list" className="space-y-0.5">
-                  {group.tasks.map((task) => (
+                <TaskList
+                  className=""
+                  tasks={group.tasks}
+                  renderRow={(task, wiring) => (
                     <TaskRow
                       key={task.id}
                       {...task}
+                      {...wiring}
                       status="completed"
                       onOpen={() => onOpenTask(task.id)}
                       onToggleComplete={(completed) => {
@@ -120,8 +123,8 @@ export function DoneScreen({
                         setPendingAction({ type: "delete", taskId: task.id })
                       }
                     />
-                  ))}
-                </div>
+                  )}
+                />
               </section>
             ))}
             {previewState === "loading-more" ? (

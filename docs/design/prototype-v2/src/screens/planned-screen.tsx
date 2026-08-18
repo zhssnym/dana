@@ -14,7 +14,7 @@ import {
 
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -460,11 +460,14 @@ export function PlannedScreen({
         </Empty>
       ) : (
         <section className="mt-6" aria-label="Dated open tasks">
-          <div role="list" className="space-y-0.5">
-            {tasks.map((task) => (
+          <TaskList
+            className=""
+            tasks={tasks}
+            renderRow={(task, wiring) => (
               <TaskRow
                 key={task.id}
                 {...task}
+                {...wiring}
                 onOpen={() => onOpenTask(task.id)}
                 onToggleComplete={(completed) =>
                   task.status === "abandoned"
@@ -473,8 +476,8 @@ export function PlannedScreen({
                 }
                 onToggleImportant={() => onToggleImportant(task.id)}
               />
-            ))}
-          </div>
+            )}
+          />
           <QuickAdd folderName="Inbox" label="Add scheduled task" onAdd={onAdd} onOpenFullForm={onOpenFullForm} />
         </section>
       )}

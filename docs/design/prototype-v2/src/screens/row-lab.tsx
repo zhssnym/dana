@@ -17,12 +17,15 @@ who does not know an interaction exists is a reviewer voting on a picture.
 
 import { useState } from "react"
 
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import {
+  BaselineTaskRow,
+  type BaselineTaskRowProps,
+} from "@/components/task-row-baseline"
 import { CONCEPTS as V3_CONCEPTS, type ConceptSpec } from "@/screens/row-concepts"
 import { cn } from "@/lib/utils"
 
 /* The baseline's own sample, in the shipping row's props shape. */
-const SAMPLE: TaskRowProps[] = [
+const SAMPLE: BaselineTaskRowProps[] = [
   { title: "Renew the library card" },
   {
     title: "Confirm final guest count and send it to the caterer before Thursday",
@@ -79,7 +82,7 @@ const BASELINE: ConceptSpec = {
   render: () => (
     <div className="flex flex-col">
       {SAMPLE.map((task) => (
-        <TaskRow key={task.title} {...task} />
+        <BaselineTaskRow key={task.title} {...task} />
       ))}
     </div>
   ),

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Mail, UserPlus, UsersRound } from "lucide-react"
+import { Mail, UserPlus, UsersRound } from "@/lib/icons"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"

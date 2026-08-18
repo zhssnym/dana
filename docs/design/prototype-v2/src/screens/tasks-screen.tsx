@@ -3,7 +3,12 @@ import { Folder, ListTodo } from "lucide-react"
 
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import {
+  TaskList,
+  TaskRow,
+  type TaskListWiring,
+  type TaskRowProps,
+} from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,11 +67,15 @@ export function TasksScreen({
   } | null>(null)
   const hasTasks = inbox.length > 0 || groups.some((group) => group.tasks.length > 0)
 
-  function renderTask(task: TasksTask) {
+  /* The screen keeps its own row, because its completion is conditional —
+     an abandoned task restores rather than completes — and hands the list
+     wiring straight through. See TaskList's renderRow. */
+  function renderTask(task: TasksTask, wiring?: TaskListWiring) {
     return (
       <TaskRow
         key={task.id}
         {...task}
+        {...wiring}
         onOpen={() => onOpenTask(task.id)}
         onToggleComplete={(completed) =>
           task.status === "abandoned"
@@ -118,9 +127,11 @@ export function TasksScreen({
           <div className="space-y-7">
             {inbox.length > 0 ? (
               <section aria-label="Inbox tasks">
-                <div role="list" className="space-y-0.5">
-                  {inbox.map(renderTask)}
-                </div>
+                <TaskList
+                    className=""
+                    tasks={inbox}
+                    renderRow={renderTask}
+                  />
                 <QuickAdd
                   folderName="Inbox"
                   onAdd={(title) => onAdd("Inbox", title)}
@@ -149,9 +160,10 @@ export function TasksScreen({
                       {group.name}
                     </h2>
                   </div>
-                  <div role="list" className="space-y-0.5">
-                    {group.tasks.map(renderTask)}
-                  </div>
+                  <TaskList
+                                            tasks={group.tasks}
+                      renderRow={renderTask}
+                    />
                   <QuickAdd
                     folderName={group.name}
                     onAdd={(title) => onAdd(group.name, title)}

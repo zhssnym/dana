@@ -32,6 +32,20 @@ this plan.
   always-visible capture point per page.
 - **Every session runs the prototype before it changes anything** (RFC 0002's
   hard-learned rule), and ends with `npm run build` green in prototype-v2.
+- **Concepts are compared in a lab; the winner is extracted the moment it
+  wins.** Added 2026-08-18 at Imran's instruction, after session V3 learned it
+  the expensive way. A lab is the right place to *decide* — seven candidates
+  against one fixed set of awkward tasks, compared by scrolling rather than
+  from memory, which no screen can offer. But the moment one candidate wins it
+  moves into `prototype-v2/src/components/` and the lab **imports** it, so the
+  lab and the shell render the same code from that point on. Do not wait for
+  "final". A concept that is still living inside its own demo file has no
+  component to port, and "just move it to the shell" then means writing the
+  component first — which is what turned a day's work into a week's. See
+  DES-124 for the full reasoning, and DES-119 for the entry that predicted it
+  and was not acted on in time. The exception is anything where the
+  surroundings *are* the question — page measure, sidebar, chrome — which is
+  judged in the shell because there is nothing to isolate.
 - **Every session ends with Imran looking at it** — the running prototype
   and/or fresh `handoff=clean` exports — and saying yes or no. An unapproved
   session repeats or returns; it does not roll into the next.
@@ -291,6 +305,79 @@ Runs beside the sessions, Imran with Hassan, independent of the restyle:
   (signed-out surfaces stop mentioning the sidebar).
 - Anything a session escalates lands here with its finding ID.
 
+## Where the next session starts
+
+Written 2026-08-18 at the close of V3's second stretch, for whoever opens the
+next chat. Read this, then `v2-decisions.md`, then run the prototype.
+
+**Read first, in order:** `docs/design/v2-decisions.md` (DES-093 to DES-128 are
+V3's; the two-lane rule at the top governs everything), this file's ground
+rules, then `docs/design/prototype-v2/src/screens/row-concepts.tsx` for the lab.
+
+**Everything runs from `docs/design/prototype-v2`.** `npm run dev` is the
+prototype; `npm run typecheck` is `tsc -p tsconfig.app.json` — the root tsconfig
+checks nothing. Nothing under `app/` changes in this plan.
+
+### State
+
+The row and its card are **finalised and ported**. The shell's seven task
+screens render the real components; `components/task-form.tsx` is gone because
+a task now opens inside its own row. The icon family is animated Lucide. Steps,
+notes and attachments all work on fixtures.
+
+Nothing is committed. The working tree also carries an icon experiment from a
+session that was archived on 2026-08-18 — its results are ruled in (DES-125,
+DES-126, DES-127) and its scaffolding removed, so the tree is one coherent
+change, but it has never been reviewed as a diff.
+
+### Do these next, in this order
+
+1. **Commit the tree.** One commit, design work only. Per the working rule, the
+   code and its DES entries land together, and they are already written.
+2. **Close V1** — the layout measure (L1, L2, L5, L6). It was skipped and V3
+   was run ahead of it, so every export still shows the old measure.
+3. **Finish V3's own brief.** Only R3 is done. R1, R2, R4–R7 and W2 remain, and
+   **the states page is still the deliverable** — it has not been rebuilt on the
+   new row at all.
+4. **V2, then V4–V8** in the plan's order.
+
+### Owed rulings, none blocking
+
+- **DES-122 needs a spec ruling before the port to `app/`.** The design made a
+  due date a day rather than a moment; production's due date carries a time, in
+  the form, the section 7 API and the reminder tick. That is a specification
+  change, not a restyle. Until it is ruled, the port keeps production behaviour.
+- **DES-117** is still OPEN — one form, two presentations, and what the right
+  panel is for.
+- **Two icon substitutions** want a second look (DES-125): `GripVertical`
+  became a vertical ellipsis, which sits close to the overflow menu's
+  horizontal one; `Folders` became a closed folder, which says less than the
+  stack it replaced.
+- **The Lane 2 pile** (DES-098, 100–105, 112) is parked for a separate session
+  with Hassan, after the UI refresh closes. Row density and time format both
+  want the same account-sync conversation (DES-113, DES-121).
+
+### Known faults, written down so they are not rediscovered
+
+- **The card's collapse is not animated.** Opening fades in; closing is
+  immediate. Two height mechanisms were tried and both computed zero in the
+  shell while working in the lab. DES-119 carries the detail. It is a real loss
+  against DES-097 and wants eyes on the layout, not another DOM query.
+- **Vite's React plugin intermittently emits a broken absolute self-import** for
+  HMR on this Windows path, which blanks the dev server with a 500. `npm run
+  build` is unaffected. Restart the dev server to clear it.
+- **The collapsed sidebar hides folder rows entirely** — their whole ancestor
+  chain is zero-width. This predates all V3 work and is really a V2 (Chrome)
+  question about what a collapsed rail shows.
+
+### The rule that matters most
+
+DES-124: **compare concepts in a lab, but move the winner into `components/`
+the moment it wins — before finalising, not after.** V3 learned this the
+expensive way. A concept still living inside its own demo file has no component
+to port, and "just move it to the shell" then means writing the component
+first.
+
 ## Session log
 
 | # | Date | Who | Delivered | Verdict |
@@ -298,3 +385,5 @@ Runs beside the sessions, Imran with Hassan, independent of the restyle:
 | V0 | 2026-08-17 | Claude, for Imran | prototype-v2 forked; font stack fixed so Inter Variable actually renders (A4); build green; deterministic capture tool at `prototype-v2/tools/capture.sh` with a duplicate check; 19 baseline captures in `v2-refs/baseline/` including the first real Search export; Privacy and Terms drafted as `?view=privacy` / `?view=terms` with a visible draft ribbon (B1, copy awaiting Imran). One review correction found during the fork: v1's stale exports are 02-11, not 01; the committed code matches 01 | **Closed 2026-08-17.** Font settled by record rather than by eye: DES-015 fixes Inter Variable and the fork diff shows the stack line as the only rendering change. Legal copy approved by Imran for v1 scope, ribbon removed. Found during the citation check and escalated separately: RFC 0002's spec delta was never folded into docs/spec despite the Implemented status, and spec 13 item 35 is double-claimed |
 
 | V3 | 2026-08-17/18 | Claude, for Imran | **In progress, not closed.** The row's shape was reopened before its states were touched, and settled first: seven concepts converged to one row at two densities, chosen from Settings with two lines as the default (DES-113). The expandable card is designed and complete against the task form — one header strip of five chips, then Steps, Notes and Attachments as collapsible blocks, a shaded footer band, no Save button because every edit commits as it is made. Drag, the 1.5s hold that makes a folder, press-and-hold selection and the bulk bar are drawn in the lab and marked Lane 2. Rulings taken: DES-093, 095, 106 (five verbs), 107, 108, 109, 111, 113, 116. A first port to the shell was made and then reverted, deliberately, so the lab is the single source until Imran finalises it | **Open.** V3's own brief is largely untouched: only R3 (Restore to the trailing slot) is done. R1, R2, R4–R7 and W2 remain, and the states page is still the deliverable. V1 is also still open, and V3 was started ahead of it |
+| V3 (cont.) | 2026-08-18 | Claude, for Imran | **The row and its card declared finalised by Imran.** Three things were rebuilt on his direction after review. Dragging left HTML5 drag-and-drop for a pointer engine, `lib/use-sortable-list.ts`, shared by the task rows, a card's steps and a card's blocks: the carried row tracks the pointer, the rows it passes make space, it settles into the gap, and it brought auto-scroll, touch and arrow-key reordering. The folder gesture arms on stillness rather than hover and is drawn as a ring closing around a folder mark on the carried row, with a rebuilt naming panel. The three pickers were rebuilt twice — first onto presets-plus-calendar, then decluttered to one shape at 270px: resolved answers, a hairline, one expanding custom option. New rulings: DES-120 (picker shape), DES-121 (12/24-hour as a browser preference), DES-122 (a due date is a day, not a moment), DES-123 (the same pickers open from the folded row). DES-103, 102, 099 and 118 updated; DES-113 and DES-119 corrected where the revert had left them naming deleted modules. Four defects found and fixed, all invisible to a screenshot: the calendar never showed its selection (`/d+/` matched the letter d, not a digit), the row hardcoded "Weekly" whatever the rule was, the selection hook's `onPointerDown` overwrote the drag's so the new drag never started, and two time commits in one turn lost the first | **Row and card closed for now.** V3's brief is still open and unchanged: R1, R2, R4–R7, W2 and the states page. V1 is still open. **DES-122 carries a spec ruling that must be settled before the port** — production's due date has a time and removing it is a specification change, not a restyle |
+| V3 (final) | 2026-08-18 | Claude, for Imran | **The row and card are ported.** `row-concepts.tsx` fell 4,812 → ~1,200 lines and holds only the lab; `TaskRow`, `TaskCard`, `task-pickers`, `task-model`, `use-sortable-list`, `row-density`, `time-format` and `ui/calendar` are real modules the lab imports. `components/task-form.tsx` deleted — DES-093 put the task inside its row, so nothing opens a sheet. All seven task screens render `TaskList`, which owns reordering, the 1.5s folder hold, press-and-hold selection and the bulk bar; screens with bespoke row logic keep their row via `renderRow`. Icon family adopted (DES-125/126/127) after a parallel session was archived and its results ruled in. Steps, notes and attachments made real (DES-115, DES-128). New rulings: DES-124 (lab-then-extract, now the default flow), DES-125–128. Defects found and fixed: the step row was keyed by its own title so typing remounted the field after one character; the sidebar's collapsed state was never read back from its cookie; `isAnimated` is a gate not a trigger, and dropping the ref silently stopped every icon animating; `space-y-*` outranked every margin form on the expanded card | **Accepted by Imran, 2026-08-18.** Nothing committed yet. V3's own brief (R1, R2, R4–R7, W2, the states page) is still untouched, and V1 is still open — see "Where the next session starts" |

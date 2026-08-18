@@ -78,6 +78,15 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-117 | One form, two presentations; the right panel is freed | OPEN | V3 | **Yes**, see below |
 | DES-118 | The card is missing nine of the form's fields | APPROVED | V3 | Imran, 2026-08-17; header revised |
 | DES-119 | What the port left behind, and why | OPEN | V3 | No |
+| DES-120 | The three pickers open on the answer, not the instrument | APPROVED | V3 | Imran, 2026-08-18 |
+| DES-121 | The clock is a preference; 12-hour default, whole day reachable | APPROVED | V3 | Imran, 2026-08-18, browser only |
+| DES-122 | A due date is a day, not a moment | APPROVED | V3 | Imran, 2026-08-18; **spec ruling owed before the port** |
+| DES-123 | One picker, wherever it is opened from | APPROVED | V3 | Imran, 2026-08-18 |
+| DES-124 | Compare concepts in a lab; extract the winner the moment it wins | APPROVED | V3 | Imran, 2026-08-18, the default flow |
+| DES-125 | The icon family is animated Lucide | APPROVED | V3 | Imran, 2026-08-18; two substitutions owed a look |
+| DES-126 | The logo is a component; its mark draws itself on hover | APPROVED | V3 | Imran, 2026-08-18 |
+| DES-127 | The mark has two colourways, for light and dark panels | APPROVED | V3 | Imran, 2026-08-18 |
+| DES-128 | A step is a label; a note is a field | APPROVED | V3 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -300,6 +309,14 @@ fixtures, drawn so the card could be judged with three blocks in it rather than
 two, and it is excluded from the port by this entry rather than by anyone
 remembering.
 
+**Updated 2026-08-18.** The blocks moved onto the same pointer engine as the
+task rows and the steps, `lib/use-sortable-list.ts`, so one gesture is learned
+once at all three levels. The drop line went with it: the blocks either side
+now move out of the way, which says where this one lands without drawing
+anything, and the line had always competed with the shaded details strip above
+it. The Move up and Move down menu items are unchanged and remain the answer
+for anybody not using a pointer, alongside the grip's arrow keys.
+
 ### DES-103, drag a row, and the 1.5 second dwell that makes a folder
 
 Imran's idea, recorded 2026-08-17 at session V3 and **drawn in the lab**, in
@@ -340,6 +357,51 @@ new folder" must not be the same gesture with no way back.
 than defended. Judge it in the lab. Too short and a slow drag across a list
 starts making folders nobody asked for; too long and nobody discovers the
 gesture exists.
+
+**Rebuilt 2026-08-18, approved by Imran.** Three changes, in the order they
+were asked for.
+
+**The mechanics left HTML5 drag-and-drop** for a pointer engine,
+`lib/use-sortable-list.ts`. The old API was why the gesture never felt
+finished, and the faults were its own: a drag image the browser composites and
+we cannot style, a `dragleave` that fires when the pointer crosses onto a child
+so the target flickers, no auto-scroll, and nothing at all on touch. What it
+gave back was a drop target, which is the least interesting half of the
+problem. Now the carried row tracks the pointer exactly and the rows it passes
+slide out of its way by its own height, so where it will land is *shown* rather
+than outlined; on release it settles into the gap they left. The engine also
+brought auto-scroll, touch, `Escape` to abandon, and arrow-key reordering from
+the grips with focus following the moved item.
+
+**The dwell now arms on stillness rather than on hover**, which is what makes
+two gestures out of one drag legible: moving means reorder, stopping means
+folder. When it arms, the list relaxes back to its resting order — a list still
+holding a space open for a reorder you are no longer proposing is lying about
+what happens next.
+
+**The treatment is a folder rather than a sentence.** The bar this entry
+argued for was right about *why* and wrong about *what*: it was three pixels
+along the bottom edge of the target row, the least visible place on screen, and
+nothing anywhere in the gesture was a folder — the idea was carried entirely by
+the words "make a folder", which have to be read. The countdown and the folder
+are now the same object: a ring closing over exactly the dwell duration around
+the folder mark it is closing on, so what is about to happen needs no reading
+and how long is left needs no second glance. On completion the badge fills; a
+change of state, not of volume.
+
+The badge rides **the row being carried**, not the target. It was on the target
+first and was invisible there, because the carried row sits above it at exactly
+the pointer. Raising the target above the carried row would have put a tinted
+row on top of the one being moved, which reads as the wrong thing moving.
+
+The paragraph above still stands with one word changed: if the ported version
+drops **the ring**, the feature should be dropped with it.
+
+**The panel was rebuilt too.** It was prose, an empty field and a disabled
+button. It now carries the same folder mark the ring closes around, shows the
+two tasks as themselves rather than counting them in a sentence, and always
+has a name in the field — the longest word the two titles share, selected on
+open, so Enter accepts and typing replaces. Nothing starts disabled.
 
 ### DES-104, make this task a folder, and its steps become the tasks
 
@@ -873,7 +935,19 @@ the choice.
 - **On the account** — follows them everywhere, needs a column and an endpoint,
   Lane 2, and waits on an RFC.
 
-**Ported to the shell 2026-08-17.** The preference lives in `lib/density.tsx`, backed by localStorage, exposed through `useRowDensity()` and set from a new Appearance section in Settings. The row reads the context rather than taking a prop, which is why no screen had to change to gain the setting.
+**Ported to the shell 2026-08-17 and reverted the same night.** The preference
+lived in `lib/density.tsx`, backed by localStorage, exposed through
+`useRowDensity()` and set from a new Appearance section in Settings; the row
+read the context rather than taking a prop, which is why no screen had to
+change to gain the setting. **That module no longer exists.** The revert
+(`89ca018`) took the whole port back so the lab would be the single source
+until the design settled, and the density control now lives in the lab's own
+settings block in `row-concepts.tsx`.
+
+The shape is still the right one and the port should rebuild it that way.
+Recorded here on 2026-08-18 because the revert commit did not touch this
+entry, which left it naming a file the tree does not have — exactly the drift
+DES-119's rule exists to stop, in the one commit that did not apply it.
 
 Recommended: **the browser now.** A display preference that resets on a new
 device is a small annoyance; waiting on a backend to see the feature at all is
@@ -935,6 +1009,23 @@ The phrasing is the action rather than the absence, and singular rather than
 plural: "Add a step", not "Add steps here". A control should say what it does,
 and what it does is add one. "Here" is doing no work when the control is
 already in the place it refers to.
+
+**Drawn but dead until 2026-08-18, which is worth recording as its own
+lesson.** All three of these controls existed and none of them did anything:
+each was `onClick={(e) => e.stopPropagation()}` and nothing more, so pressing
+"Add a step" only stopped the click reaching the row. The empty state had been
+built as a *picture* of the affordance. They now add a step, fill the note, and
+open a real file picker respectively — see DES-128 for steps and notes, and the
+note on attachments below. A design that specifies an affordance is not
+finished until the affordance does the thing.
+
+**Attachments, specifically.** The block now takes real files: a picker, a drop
+target on the block itself, and a "From a link" field. A chosen image becomes
+an object URL so it previews exactly as a served thumbnail would. That is as
+far as a prototype can honestly go, and it is still Lane 2 for the port —
+there is no storage, no upload path, no quota and no virus story behind it
+(DES-055, DES-105). What it buys is a card judged with real files in it rather
+than three fixtures.
 
 This should be the rule for empty states across the refresh rather than a fix
 in one card: **where a person can create the thing, the empty state is the
@@ -1167,12 +1258,71 @@ a backend** means do not build it in `app/` yet. It does not mean do not show
 it in the prototype, which runs on fixtures and exists precisely so an idea can
 be seen before it is priced.
 
-**So the behaviour is restored**, in `lib/task-list-interactions.tsx` — its own
-module rather than inside `task-row.tsx`, so the exclusion is one decision at
-port time about one file, instead of a hunt through a component for behaviour
-that should not travel. Reordering, the 1.5-second folder gesture, press-and-
-hold selection and the bulk bar are all live in the lab again. What the port
-must still leave behind:
+**So the behaviour is restored.** Reordering, the 1.5-second folder gesture,
+press-and-hold selection and the bulk bar are all live in the lab again.
+
+**Where it lives, corrected 2026-08-18.** This entry said the behaviour sat in
+`lib/task-list-interactions.tsx`, its own module, "so the exclusion is one
+decision at port time about one file". That module was deleted by the revert
+(`89ca018`) along with the rest of the port, and the revert did not update this
+entry — the same omission recorded against DES-113, and the second half of the
+one process failure this entry was written about.
+
+The mechanics now live in **`lib/use-sortable-list.ts`**, which is a better
+version of the same idea: it is the engine rather than the policy, it is shared
+by the task rows, a card's steps and a card's blocks, and what the port must
+exclude is not the module but the two callbacks a caller passes it — `onDwell`
+and, until DES-071 has a persisted order, `onReorder`.
+
+**The module layout the port is building, recorded 2026-08-18 as it lands** —
+because the last port's whole failure was that nobody could tell what had moved
+where:
+
+| Module | Holds | Port |
+| - | - | - |
+| `lib/task-model.ts` | `ConceptTask`, the date ladder, the repeat and due summaries | Lane 1 |
+| `lib/use-sortable-list.ts` | The pointer sort engine | Lane 1; its two callbacks are not |
+| `lib/time-format.ts` | 12/24-hour preference, DES-121 | Lane 1 |
+| `lib/row-density.ts` | One line or two, DES-113 | Lane 1 |
+| `components/ui/calendar.tsx` | The month grid and the clock | Lane 1 |
+| `components/task-pickers.tsx` | Due, Reminder, Repeat, DES-120 and DES-123 | Lane 1 |
+| `components/task-card.tsx` | The expanded card, and `Reveal` and `Face` with it | Lane 1 |
+| `components/task-row.tsx` | The row at both densities, plus the selection and drag machinery the lab composes and the screens do not | Lane 1 |
+| `lib/shell-task.ts` | The shell's task record, which used to live inside the task form | Lane 1 |
+| `components/task-row-baseline.tsx` | The v1 row, frozen, for the lab's C0 control only | Never |
+
+**Done 2026-08-18.** Selection and the bulk bar came out with the row, so
+`row-concepts.tsx` is 4,812 lines lighter and holds only the lab: its fixtures,
+its concept prose and the two concepts. The task form went with them — DES-093
+put the whole of a task inside the row, so the prototype has nothing left to
+open a sheet for, and `components/task-form.tsx` is deleted.
+
+**The port is complete, 2026-08-18.** `row-concepts.tsx` fell from 4,812 lines
+to about 1,200 and holds only the lab — its fixtures, its concept prose and the
+two concepts. `components/task-form.tsx` is deleted: DES-093 put the whole of a
+task inside its row, so the prototype has nothing left to open a sheet for. All
+seven task screens render `TaskList`, which owns what belongs to a list rather
+than to a row — reordering, the 1.5-second hold that makes a folder, press-and-
+hold selection and the bulk bar. Screens whose rows carry logic of their own
+keep that row and are handed the list wiring through `renderRow`.
+
+**Lane 2 is drawn in the shell as well as the lab**, which is this entry's own
+rule and which the port initially got backwards a second time: the register
+says a Lane 2 idea *may* be drawn in `prototype-v2`, and excluding it made the
+prototype look finished when it was not. The table above is what keeps it out
+of `app/`.
+
+**One thing was lost on the way and is recorded rather than absorbed.** The
+card's reveal animated its height, first with the 0fr-to-1fr grid trick and
+then with a measured max-height. Both worked in the lab and both computed zero
+in the shell against 318px of real content — the max-height one held at zero
+even when set `!important`, which is not a cascade problem and was not worth
+more of the session to chase remotely. The card now mounts when it opens and
+fades in, so opening is animated and closing is immediate. That is a real loss
+against DES-097's motion scale. Reopening it needs the layout context
+understood with a screenshot rather than a DOM query.
+
+What the port must still leave behind:
 
 | Left out of the port | Why | Entry |
 | - | - | - |
@@ -1514,6 +1664,525 @@ No separator above it either. A shaded band already has an edge — the line
 where the shade begins — and a rule drawn along that line says the same thing
 twice, which is exactly the fault the block icons had before they were
 merged into one mark.
+
+
+**The header strip's five chips were rebuilt 2026-08-18** — the pickers
+behind them, not the strip itself. The strip is still five chips and still
+the shape this entry describes; what changed is what opens when one is
+clicked. See DES-120, and DES-122 for the due chip losing its clock.
+
+### DES-120, the three pickers open on the answer, not on the instrument
+
+Imran's direction, 2026-08-18, ruled and built in the same session. Due,
+Reminder and Repeat all now open on a short list of resolved answers, keep a
+hairline beneath it, and put everything exact behind **one** option that
+expands. Only that option can expand, and only one thing is ever expanded.
+
+**What was wrong.** The pickers this replaces were a label, a row of three or
+four pills, and a bare month grid. The fault was not that they were plain. It
+was that they **made the rare answer and the common one cost the same**: nearly
+every date anybody sets is today, tomorrow, this weekend or next week, and all
+four of those were being spelled out on a calendar. So each list now leads with
+those, and each shows the date it resolves to — "Tomorrow" is only useful next
+to the day it means, and "1 week before" should not be arithmetic somebody does
+in their head.
+
+**Why one shape for all three.** Learning one teaches the other two, and it is
+the shape the product's other menus already have. The three differ only in what
+their custom option opens:
+
+| Picker | Presets | The one expanding option |
+| - | - | - |
+| Due | Today, Tomorrow, This weekend, Next week, No date | **Custom date…** — a calendar, no clock |
+| Reminder | On the day it is due, 1 day / 2 days / 1 week before, No reminder | **Custom date & time…** — a calendar with the time row at its foot |
+| Repeat | Does not repeat, Daily, Weekly on ‹day›, Every weekday, Monthly on the ‹n›th, Yearly on ‹date› | **Custom repeat…** — interval, unit, weekdays, end |
+
+Every preset is resolved against **this task's own date** rather than written
+as a generic word: "Weekly on Thursday", "Monthly on the 13th". A preset that
+names the thing it will do is a preset nobody has to try first.
+
+**The size rule this settles.** A first version stood the calendar and two
+sixty-row time columns open at all times, and Imran's word for it was
+cluttered. Every panel was the size of its worst case. The rule is now: **a
+panel is the size of the question being asked, not the size of the largest
+question it could ask.** All three are 270px wide and open at about 210–240px
+tall.
+
+**Two defects fell out of the rebuild**, both worth recording because both were
+invisible and neither would have been found by looking at a screenshot:
+
+- The old calendar **never showed which day was selected.** It read the day out
+  of the label with `/d+/` — a pattern matching the letter d rather than a
+  digit — so the highlight had nothing to land on, in every picker, always.
+- The row **hardcoded the word "Weekly"** whatever the rule actually was, so
+  setting "Every weekday" in the card left the row two lines above it saying
+  something untrue. The row and the card now derive from one function, and the
+  same is true of the due chip. This is the second time in V3 that two places
+  each wrote their own copy of one fact and disagreed; it is worth treating as
+  a pattern rather than as two accidents.
+
+Behaviour is DES-109's: there is no Save and no Done. Choosing commits.
+
+The calendar itself is `components/ui/calendar.tsx`, written for this rather
+than taken from shadcn — shadcn's Calendar depends on `react-day-picker`, which
+this prototype does not install. It follows the same idiom and the same tokens:
+32px day targets, always six weeks so the popover never changes height as you
+page, adjacent-month days drawn rather than left as holes, today marked whether
+or not it is selected, and a roving-tabindex grid so the arrow keys walk it.
+**Selection is graphite** like every other selected thing in the lab; **today is
+cobalt**, which is one of the jobs DES-016 already gave the accent. That is one
+element of V7's work landing early, and Imran was told so rather than it being
+slipped in.
+
+### DES-121, the clock is a preference, and the picker offers the whole day
+
+Imran's ruling, 2026-08-18. **24-hour or 12-hour is the person's choice**, set
+from a control beside row density, and the picker reaches every hour and every
+minute whichever they chose. The setting decides how a time is *written*, never
+which times can be *reached*.
+
+**The control, and why it is shaped this way.** At rest it is two typed
+segments and, in 12-hour mode, an AM/PM pair. Clicking a segment opens that
+segment's grid beneath it, and only that one; picking an hour advances to the
+minutes on its own, and picking a minute closes. Typing works instead, arrow
+keys step and wrap.
+
+Two controls for one value, because **the two things a person does with a time
+are not the same job.** Typing is for the time you already know — 07:45, and
+you knew it before you opened anything. The grid is for the time you are
+choosing rather than recalling, where seeing the neighbours is the whole point.
+The version before this had only a list, of half-hours from 06:00 to 22:00, so
+a quarter past anything was unreachable and so was every hour before breakfast.
+
+Grids rather than columns: twenty-four things in four rows can be read at a
+glance where twenty-four things in a column cannot, and sixty minutes is ten
+rows instead of a scroll with no end in sight.
+
+**Times are stored as 24-hour and converted only when drawn.** Storing what is
+displayed is how a preference change quietly rewrites data, and 12-hour text
+cannot represent midnight without a convention nobody agreed to. One function,
+`formatTime`, is the only place a time becomes words, so the preference cannot
+be honoured in one place and forgotten in another.
+
+**The default is 12-hour**, ruled by Imran 2026-08-18. The setting moves it to
+24-hour, and the picker reaches every hour and every minute either way.
+
+**Where it lives: the browser**, in `lib/time-format.ts`, as a module store
+read through `useSyncExternalStore` rather than a context — times are written
+in the row, in two pickers and in a settings control, and a provider would have
+to wrap all of them. This is the shape `lib/density.tsx` used before the revert,
+and if row density comes back it should come back like this.
+
+Lane 1 as built. **Syncing it to the account is Lane 2** and is the same
+conversation DES-113 parked for row density: a column, an endpoint, an RFC.
+The two preferences should be taken to Hassan together, because one settings
+row that syncs and one that does not is worse than either answer applied twice.
+
+### DES-122, a due date is a day, not a moment
+
+Imran's ruling, 2026-08-18: **the Due picker offers no time at all.** A task is
+due on a day; a task that needs a time of day has a reminder, and a reminder
+carries one. "Due at 17:45" is a reminder wearing a due date's clothes.
+
+The field is gone from the lab's model rather than left unset, because a field
+nothing can write is a field the next person has to work out the fate of.
+
+**One consequence, which follows from the ruling rather than being a separate
+decision:** the reminder presets were minute-level — "at the time it is due",
+"10 minutes before", "1 hour before" — and with no due time there is nothing
+for them to be relative to. They are now day-level, and any exact moment is
+reached through Custom date & time.
+
+**This one is not only a design decision and must not be ported as though it
+were.** The shipping product's due date carries a time: it is in the task form,
+in the section 7 API, and in the reminder tick that fires against it. Removing
+it is a specification change, not a restyle. It goes to Imran and Hassan as a
+ruling with the Lane 2 pile, and until that ruling exists **the port keeps the
+production behaviour and takes only the picker's shape.** Recorded here so the
+port session meets it as a decision rather than as a missing field.
+
+### DES-123, one picker, wherever it is opened from
+
+Imran's direction, 2026-08-18. The date and repeat pickers open from the
+**folded row** as well as from the expanded card, and they are the same
+pickers.
+
+The row used to offer four preset labels for a due date while the card two
+pixels below it offered a calendar and five presets. That is two answers to one
+question, and the row's was the worse one often enough that changing a date
+meant opening the card first — which makes the row's editable details, DES-096
+and concept E's whole argument, a promise the row only half kept.
+
+The trigger is a button, so the row's drag surface ignores a press that lands
+on it and the two gestures never compete.
+
+**Imran's reason for accepting it, 2026-08-18, and it is the more general
+statement:** the date and time pickers are constant to the Dana brand. They
+are one component wherever they appear, so changing them changes every place
+that uses them at once. That is the standard the rest of the refresh should be
+held to — a picker copied into a second place is a picker that will one day
+disagree with itself, which is the fault DES-120 found twice in one session.
+This entry is therefore not only about the row: it is the rule that any new
+surface needing a date takes this picker rather than growing its own.
+
+**What is deliberately not in the row.** The reminder picker, because the row's
+own vocabulary says a reminder is card-only and never fits the row; and a due
+picker on a task that has no due date, because the row draws what exists and a
+row of empty affordances is a different design with a different argument. Both
+are open to change and neither was changed on a session's own say-so.
+
+### DES-124, concepts are compared in a lab; the winner is extracted the moment it wins
+
+Imran's ruling, 2026-08-18, made the default flow for every design session
+rather than advice for one. **Design in a concept lab. The moment a concept
+wins, move it into `components/` and have the lab import it — before
+finalising it, not after.**
+
+**Where this came from.** V3 designed the row and the card inside
+`screens/row-concepts.tsx`, a single file that reached 4,812 lines. Seven
+candidates lived there, and the row's markup lived *inside* the concept demos
+rather than in a component of its own. Imran's expectation, reasonably, was
+that finalising the design and moving it to the shell would be quick. It was
+not, and the reason had nothing to do with the design being unfinished: **there
+was no `TaskRow` and no `TaskCard` to move.** The port had to begin by writing
+the components that had never existed, out of a file where the row, the card,
+the pickers, the selection bar and the drag layer were all interleaved.
+
+The repository had already worked this out and written it down. DES-119, on the
+first port's failure, says extracting selection and the bulk bar is "worth
+doing **before** the port rather than during it". That entry was read, quoted
+and extended during this very session — and the extraction still happened
+during the port, which cost most of a day and produced two rounds of broken
+intermediate states that had to be repaired from backups.
+
+**Why the lab still exists.** Nothing here argues for designing in the shell.
+The lab is the only place a comparison is possible: seven rows against one
+fixed set of deliberately awkward tasks, judged by scrolling one page rather
+than by remembering what the last one looked like. A shell shows one row
+against nothing. The lab is also what Imran shares to collect opinions from
+people who have never seen Dana, which is why every concept states what to try.
+
+**What changes is only the timing of the extraction.** Once a candidate wins:
+
+1. It moves to `prototype-v2/src/components/`.
+2. The lab imports it and renders the real component.
+3. The losing concepts stay in the lab as prose and fixtures.
+
+From that moment the lab and the shell render the same code, so they cannot
+drift — the fault DES-119 exists to prevent — and "port it" becomes changing
+which screens call it, which is an afternoon rather than a week.
+
+**The one exception.** Where the surroundings *are* the question — the page
+measure, the sidebar, the chrome, anything whose whole argument is how it sits
+next to everything else — judge it in the shell. There is nothing to isolate,
+and a lab would be showing it without the thing being decided.
+
+**Evidence this is the right call, from the same session.** After the row and
+card were extracted, adding drag, dwell-to-folder and bulk selection to all
+seven screens took one new component and seven small edits, because
+`TaskRow`, `TaskCard` and `task-pickers` were by then real components with real
+call sites. The identical work, attempted before the extraction, was what had
+to be reverted at `89ca018`.
+
+Recorded in `v2-refresh-plan.md`'s ground rules as well as here, because a
+session reads the plan before it reads the register.
+
+### DES-125, the icon family is animated Lucide
+
+Imran's ruling, 2026-08-18: **`@animateicons/react/lucide` is Dana's icon
+family.** The same Lucide drawings the product already used, with a
+motion/react animation per icon. Where the animated set lacks an icon, another
+icon from the same family is substituted rather than falling back to static
+Lucide — the family is the decision, not the individual glyph.
+
+**How it was decided.** A session of its own built a three-way switcher —
+Lucide, animated, and Phosphor at six weights — behind `?icons=`, so the same
+shell could be looked at in each. That comparison is what produced this ruling.
+The switcher and the Phosphor dependency are gone now; there is nothing left to
+compare, and a comparison instrument left in the tree is a thing a later
+session mistakes for a feature.
+
+**One module owns it.** `lib/icons.tsx` exports every icon Dana uses, and
+nothing imports `lucide-react` directly. The family is therefore one decision in
+one file rather than four hundred import lines, which is the same argument
+DES-123 makes for the date pickers and should be the standing rule for anything
+that is a family rather than a component.
+
+**Two workarounds that are not obvious, kept from the experiment.**
+
+- An animated icon renders a `div` around its `svg`, takes a numeric `size`
+  rather than a class, and hardcodes `strokeWidth` at 2. The wrapper reads the
+  pixel size back off the Tailwind `size-*` class the call site used, and
+  swallows `strokeWidth` rather than spreading it onto a div. Every call site in
+  the shell still passes `strokeWidth={1.75}` from the Lucide days; accepting
+  and ignoring it beats four hundred edits that change nothing.
+- More subtly: because the size class lands on the wrapper, the `svg` inside is
+  left classless — and a classless svg is exactly what the shadcn primitives'
+  `[&_svg:not([class*='size-'])]:size-3.5` selector is looking for, so every
+  icon with its own size would silently collapse to the container's default.
+  The wrapper fills itself with `[&>svg]:!size-full` to put the size back.
+  Verified 2026-08-18: 44 icons on My Day, none zero-sized, at 14/16/18/20/24px
+  exactly as their call sites ask.
+
+**The animation plays from the control, not the glyph.** The library fires on
+the icon's own hover, and a 14px target inside a row is a target nobody hits.
+Attaching a ref disables the built-in hover and hands over an imperative
+handle, so the wrapper walks up to the enclosing button, link, menu item, list
+item or sidebar row and plays from there. This is what makes the family feel
+like it belongs to the interface rather than to the picture. Verified on the
+sidebar's Search button: the icon animates on the button's hover.
+
+**Nineteen substitutions.** Thirty-seven of Dana's fifty-six icons exist
+name-for-name; the rest are chosen by meaning and each carries its reason in
+`lib/icons.tsx`. Most are unremarkable — Clock3 to Clock, MoreHorizontal to
+Ellipsis, Settings2 to Settings, Link2 to Link, Share2 to Share, Film to Video,
+CircleAlert to TriangleAlert, Undo2 and Redo2 to CornerUpLeft and CornerUpRight.
+
+**Two are worth Imran's eye rather than being quietly accepted:**
+
+- **`GripVertical` becomes a vertical ellipsis.** A vertical ellipsis is a
+  common drag handle and reads well enough, but Dana's overflow menu is a
+  *horizontal* ellipsis, so the two now differ only in rotation while meaning
+  entirely different things. The drag handle and the menu sit within a few
+  pixels of each other on a step row.
+- **`Folders` becomes a closed folder.** It is used in one place — the badge
+  that says two tasks are about to become a folder — and a single closed folder
+  says less there than the original stack did.
+
+Neither blocks the ruling; both are a five-minute change if Imran wants
+something else, and they are written here so nobody has to rediscover that a
+choice was made.
+
+**How the library is actually driven, learned the hard way 2026-08-18 and
+written down because guessing it cost two rounds.** `isAnimated` is a **gate**,
+not a trigger: it defaults to true and only decides whether an icon *may*
+animate. The trigger is the imperative handle, and attaching a ref changes the
+contract — with a ref the component stops animating on its own hover and defers
+entirely to you. Setting `isAnimated` from hover state while dropping the ref,
+which this file did for one revision, leaves nothing driving anything and every
+icon in the product silently stops moving. The ref is not optional.
+
+**The sidebar animates.** It was made static for a while, to stop icons
+blinking; Imran asked for the motion back, and the blinking turned out to be
+the broken trigger above rather than the animation itself. `IconMotion` remains
+as the mechanism for switching a region to plain Lucide, because it is the
+right tool if a surface ever needs stillness — it renders the static component
+rather than suppressing a listener, so nothing can flash on a remount.
+
+**Not yet swept:** the icons on the public, email and settings surfaces were
+not part of the experiment's Inbox-screen scope and should be checked before
+V9's reference set is regenerated.
+
+### DES-126, the logo is a component, and its mark draws itself on hover
+
+Imran's request, 2026-08-18, following DES-125: **the D-like mark inside the
+Dana logo animates the way the icon family does.** It does so by inlining the
+drawing as `components/dana-mark.tsx` and revealing it with a swept mask, and
+every one of the nine places the logo appears now renders that component
+instead of `<img src="/dana-mark.svg">`.
+
+**An `<img>` cannot be animated**, which is the whole of why this is a
+component. The mark inside a referenced file is unreachable from the document:
+there is no element to mask, no path to stroke, nothing to move. The file
+stays where it is — `public/dana-mark.svg` is still what a favicon, a manifest
+icon or a real email points at — and the component carries a verbatim copy of
+its two paths, which is a duplication and is written down as one in the
+module's header so the pair are changed together.
+
+**A second, unlooked-for thing was wrong and is now fixed.** `build:share`
+flattens the prototype into a single self-contained HTML file precisely
+because the places it is shared to refuse every external request the page
+makes. Each `<img src="/dana-mark.svg">` was one such request. Verified by
+grepping the built file: **nine literal `/dana-mark.svg` hrefs before, zero
+after**, which means every shared copy of the prototype since the mark was
+introduced has been showing reviewers a missing logo where the brand should
+be. Nobody reported it, which is the useful part: a broken image in a corner
+is exactly the defect a reviewer edits out of their own perception.
+
+**Why the pen is a mask.** The family's vocabulary is drawing, wiggling and
+popping a 24px glyph, and the mark is not a glyph — it is a filled spiral.
+Tracing its outline puts a hairline pen around a contour that runs inward and
+back out, which is invisible at the 28px the sidebar renders it at. So the pen
+became the mask instead: a wide stroke laid along the ribbon's own centreline,
+drawn from the tail's inner tip outward, with the mark appearing wherever that
+stroke has reached. It reads at 28px because the moving edge is as wide as the
+ribbon it uncovers, and it holds up at the 520px watermark size because what it
+traces is real geometry rather than an effect laid over the top.
+
+**The centreline had to be measured, because it is in no file.** The drawing is
+a filled outline; nothing in it says where the middle of the ribbon runs. So the
+mark was rasterised and sampled along rays from its centre every two degrees,
+and the white bands on each ray followed from one to the next — the band nearest
+the last one is the same ribbon, one step on. That walk is also what finally
+said what the drawing *is*: a spiral of just under two turns, opening as a
+sliver at r≈218 pointing down-and-left, widening to about 105 units, closing as
+another sliver at r≈516 in the same direction, which is the D's opening. 368
+midpoints, reduced to 80 by Douglas–Peucker at a tolerance of 2 units, which is
+invisible under a stroke 150 wide.
+
+**150 wide, butt-capped, linear.** The ribbon is ~105 units across and the turns
+sit ~200 apart, so 150 clears the ribbon everywhere while leaving ~25 units to
+the neighbouring turn — the reveal must never uncover a stretch the pen has not
+reached. A round cap would push the leading edge 75 units past the pen; a butt
+cap keeps it square across the ribbon. And linear, which here is the considered
+answer rather than the unconsidered one: constant progress along a real
+centreline *is* constant pen speed. Every curve tried broke on the same rock —
+the inner turn is short and the outer turn is long, so any easing slow at one
+end spends its slowness where there is nothing to see. Measured at 25/50/75% of
+the duration, ease-in-out drew 7/50/93%, a quarter-second of apparent nothing
+while the pen inched off the tip; every ease-out drew 55/87/98%, whipping
+through the tail to crawl around the bowl. Linear draws 25/50/75%.
+
+**An earlier version of this entry described an angular sweep** — one enormous
+circular stroke pivoting clockwise from nine o'clock. It was built, checked and
+shown, and Imran's reading of it was exact: it moved the whole body of the mark
+at once rather than travelling along it. A wedge reveals every radius
+simultaneously, so all the turns brighten together; only a stroke that follows
+the ribbon reveals the logo in the order it was drawn. The sweep is recorded
+here rather than deleted because it is the obvious first answer, and the next
+person to reach for it should know it was reached for and found wanting.
+
+**What plays it** is the enclosing link, button or menu item — the same
+walk-up `lib/icons.tsx` does, for the same reason — or the mark itself where
+there is no such ancestor, which a 28px logo is a large enough target for in a
+way a 14px row icon is not. Deliberately one and never both: `mouseenter`
+fires on every element being entered, so a mark listening alongside its own
+link redraws from nothing the moment the pointer crosses from the wordmark to
+the glyph. The two decorative watermarks are `pointer-events-none` and have no
+interactive ancestor, so they stay still without being told to, and the
+transactional email mock-up is switched off by hand, because it is standing in
+for a surface that cannot run an animation at all.
+
+**Four things checked rather than assumed**, since a hover animation is the
+kind of change a screenshot cannot audit:
+
+- **That it finishes at the whole logo.** Anything the pen misses is a piece of
+  the mark that never arrives. Rasterised at full reveal and counted: 100.00% of
+  the mark's 62,385 pixels, with the path extended eight degrees past each
+  tapered tip so neither sliver is clipped.
+- **That it reveals in ribbon order.** Every revealed pixel was mapped back to
+  its position along the spiral. At five points across the animation the
+  revealed set always begins at the inner tip and its frontier only advances —
+  122°, 275°, 452°, 588°, 679° of 730°. This is the property Imran asked for,
+  and it is the one a still frame cannot show.
+- **The restart.** Entering the link and then crossing onto the glyph keeps
+  the same `Animation` object rather than replacing it.
+- **The nine call sites.** Each screen was walked: sizes 28, 32, 36, 440 and
+  520 as their classes ask, mask ids unique per instance, no `<img>` left, and
+  the watermarks and the email inert.
+
+The earlier angular version was also checked pixel-for-pixel against reference
+markup, and that check earned its keep: it found a rotation constant declared
+and never applied, so the wedge started at three o'clock and revealed the bowl
+before the stem — plausible enough in isolation to have passed on the eye.
+
+`prefers-reduced-motion` disables it, which is reasoned from the code path
+rather than exercised: the media query cannot be forced from inside the
+preview browser.
+
+### DES-127, the mark has two colourways, and the dark panels were showing neither
+
+Imran's request, 2026-08-18, following DES-126: **a light version of the mark
+for dark mode.** It is the inversion he expected — plate to graphite-0, glyph
+to graphite-950 — and the work in it was not the drawing.
+
+**The three dark panels were already broken, and had been since they were
+drawn.** The plate is `#0A0A0A` and `--color-graphite-950` is `#0a0a0a`, so on
+the ProductPreview panel and the two invitation panels the tile was not dark
+against the panel, it was *the panel*. What those screens have been showing is
+a bare white D with nothing under it. It reads as a deliberate treatment, which
+is why nobody caught it, and at the 14% watermarks it genuinely is the better
+picture — but on the two 36px lockups it is a logo missing half of itself.
+
+**So the prop names the surface, not the colour.** `surface="dark"` says the
+mark is sitting on a dark panel; the colourway follows. The alternative,
+`tone="light"`, requires whoever reads the call site to hold in their head
+which way round "light" points — the tile or the ground it sits on — and that
+is the sort of thing a person gets right until the day they do not. The
+default, `auto`, follows the document.
+
+**Two colourways, one pair of tokens.** `--dana-mark-plate` and
+`--dana-mark-glyph` live in `tokens.css` with the rest of the palette rather
+than in the component, because two colourways is where a component picking its
+own hex values starts to drift from the file it copied them from.
+
+**The watermarks keep their picture, and now ask for it.** They are
+`plate={false}`: the glyph alone. They had that by accident, from the plate
+happening to match the panel, and an accident is not a thing that survives the
+plate changing colour. Without a tile the glyph inherits the tile's job — it
+becomes the shape that must stand off the surface — so it takes the tile's
+colour, which is why one variable drives both.
+
+**One rule is dark-mode-aware, and it is the point of the exercise.** A `.dark`
+selector flips the default pair. Nothing in the prototype adds that class and
+`tokens.css` still says a dark theme is out of scope; that stands, and one
+component being ready for a theme is not the same undertaking as building one.
+Without it this would be a second asset somebody has to remember to reach for,
+which is the failure mode DES-125 wrote a whole module to avoid.
+
+**Saved as assets, and documented.** `docs/design/brand-mark.md` is the
+sheet to reach for while designing: the files, which surface each belongs on,
+the sizes it ships at and the two things not yet settled. The reversed
+colourway also exists as a standalone file, `public/dana-mark-reverse.svg`,
+for the places a React component cannot go — a deck, a favicon, a mail
+template. It is **generated rather than authored**: `scripts/make-mark-reverse.mjs`
+reads the original, swaps its two fill declarations and refuses to write if
+anything else differs, because a hand-edited copy is how two files stop being
+the same drawing. Verified by rasterising both against a mid-grey ground and
+counting: the dark and light pixel populations swap (27,966/9,200 to
+9,187/27,986) and the antialiased footprint between them does not move.
+
+**Checked:** every mark on every screen, with its panel colour read off the
+document rather than assumed — the shell, both invitation screens, the landing
+page, the legal pages and the email mock-up. In each case the front-most shape
+contrasts with what it sits on. Toggling `.dark` on the shell flips the
+sidebar's mark and flips back. The pinned panels do not move when it is
+toggled, which is correct: those panels are graphite-950 whatever the theme
+does. And the reveal is unchanged — the plate is not masked, so the tile is
+present from the first frame and only the D draws itself, measured at
+0/23/49/75/100% across the sweep on the reversed lockup.
+
+### DES-128, a step is a label; a note is a field
+
+Imran's ruling, 2026-08-18, after both were briefly made fields and one of them
+was clearly wrong.
+
+**Steps are labels that become fields when you click them.** The same
+rename-in-place rule the task title follows (DES-095): the thing itself is the
+control, but it still *looks* like the thing until somebody decides to change
+it. Click, and it is a field with its text selected, because renaming is
+usually replacing. Enter or blur commits, Escape reverts.
+
+**Notes is a field, always.** No label, no reveal, no edit affordance — the
+block is the note, it grows with its content, and you write into it the way you
+would write into any document.
+
+**The asymmetry is the decision, and it is not arbitrary.** A step name is a
+short thing you occasionally correct; a note is prose you sit down and write.
+Making the step permanently a field turned a checklist into a column of input
+boxes — the list stopped reading as a list. Making the note a label with an
+edit hidden behind it would put a step between wanting to write and writing,
+which is the one thing a notes field must not do.
+
+**A bug hid inside the wrong version and is worth recording**, because it is a
+general trap. The step row was keyed by its own title:
+
+    key={`${step.title}-${i}`}
+
+so every keystroke produced a new key, React unmounted and remounted the input,
+and the caret was thrown out after a single character. Typing was impossible
+and the cause was invisible — the field looked perfectly ordinary. **Never key
+a row by content the row can edit.** Keyed by position now.
+
+**Two gaps found while doing this, both closed:**
+
+- **"Add a step" only appeared when the list was empty.** Once a step existed
+  there was no way to add another without going through press-and-hold
+  selection first. It now sits at the foot of the list permanently. A checklist
+  you can start once and never extend is not a checklist.
+- **Removing one step required making a selection.** Each step now carries a
+  remove control that appears on hover in its own trailing slot, which is where
+  the task row keeps its actions too.
 
 ## Carried from v1, still unresolved
 

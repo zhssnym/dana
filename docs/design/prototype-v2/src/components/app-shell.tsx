@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
-import type { LucideIcon } from "lucide-react"
-import { Plus } from "lucide-react"
+import type { LucideIcon } from "@/lib/icons"
+import { Plus } from "@/lib/icons"
 
 import {
   AppSidebar,

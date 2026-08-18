@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CalendarCheck2, ChevronRight, Star, SunMedium } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,22 +71,20 @@ function TaskGroup({
       >
         {title}
       </h2>
-      <div role="list" className="space-y-0.5">
-        {tasks.map((task) => (
-          <TaskRow
-            key={task.id}
-            {...task}
-            onOpen={() => onOpenTask(task.id)}
-            onToggleComplete={(completed) =>
-              onToggleComplete(task.id, completed)
-            }
-            onToggleImportant={() => onToggleImportant(task.id)}
-            onRemoveFromMyDay={() => onRemoveFromMyDay(task.id)}
-            onAbandon={() => onRequestAbandon(task.id)}
-            onDelete={() => onRequestDelete(task.id)}
-          />
-        ))}
-      </div>
+      {/* A TaskList rather than a map, because reordering, the hold that makes
+          a folder and press-and-hold selection are facts about the list and
+          not about any row in it. Each section is its own list, so a task
+          carried inside Carried over cannot be dropped into Today — which is
+          right: those groups are computed, not arranged. */}
+      <TaskList
+        tasks={tasks}
+        onTaskOpen={onOpenTask}
+        onTaskToggleComplete={onToggleComplete}
+        onTaskToggleImportant={onToggleImportant}
+        onTaskRemoveFromMyDay={onRemoveFromMyDay}
+        onTaskAbandon={onRequestAbandon}
+        onTaskDelete={onRequestDelete}
+      />
     </section>
   )
 }
@@ -209,26 +207,22 @@ export function MyDayScreen({
                   Done today ({visibleDone.length})
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div role="list" className="mt-0.5 space-y-0.5">
-                    {visibleDone.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        {...task}
-                        status="completed"
-                        onOpen={() => onOpenTask(task.id)}
-                        onToggleComplete={(completed) =>
-                          onToggleComplete(task.id, completed)
-                        }
-                        onToggleImportant={() => onToggleImportant(task.id)}
-                        onAbandon={() =>
-                          setPendingAction({ type: "abandon", taskId: task.id })
-                        }
-                        onDelete={() =>
-                          setPendingAction({ type: "delete", taskId: task.id })
-                        }
-                      />
-                    ))}
-                  </div>
+                  <TaskList
+                    className="mt-0.5"
+                    tasks={visibleDone.map((task) => ({
+                      ...task,
+                      status: "completed" as const,
+                    }))}
+                    onTaskOpen={onOpenTask}
+                    onTaskToggleComplete={onToggleComplete}
+                    onTaskToggleImportant={onToggleImportant}
+                    onTaskAbandon={(taskId) =>
+                      setPendingAction({ type: "abandon", taskId })
+                    }
+                    onTaskDelete={(taskId) =>
+                      setPendingAction({ type: "delete", taskId })
+                    }
+                  />
                 </CollapsibleContent>
               </Collapsible>
             ) : null}

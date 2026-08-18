@@ -11,12 +11,17 @@ import {
   Pencil,
   Share2,
   Trash2,
-} from "lucide-react"
+} from "@/lib/icons"
 
 import { QuickAdd } from "@/components/quick-add"
 import { SharingPanel } from "@/components/sharing-panel"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import {
+  TaskList,
+  TaskRow,
+  type TaskListWiring,
+  type TaskRowProps,
+} from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -250,11 +255,15 @@ export function FolderScreen({
     setCompletionNotice(null)
   }
 
-  function renderTask(task: FolderTask) {
+  /* The screen keeps its own row: completing one here plays a transition
+     before it leaves the list, and an abandoned one restores instead. The
+     list wiring is spread straight through. */
+  function renderTask(task: FolderTask, wiring?: TaskListWiring) {
     return (
       <TaskRow
         key={task.id}
         {...task}
+        {...wiring}
         completionPreview={completingIds.has(task.id)}
         collapsing={completingIds.has(task.id)}
         onOpen={() => {
@@ -463,7 +472,7 @@ export function FolderScreen({
             <section aria-label={filterLabel}>
               {openTasks.length > 0 ? (
                 <div role="list" className="space-y-0.5">
-                  {openTasks.map(renderTask)}
+                  <TaskList tasks={openTasks} renderRow={renderTask} />
                 </div>
               ) : (
                 <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
@@ -493,7 +502,7 @@ export function FolderScreen({
                   Completed ({completed.length})
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div role="list" className="mt-0.5 space-y-0.5">{completed.map(renderTask)}</div>
+                  <TaskList className="mt-0.5" tasks={completed} renderRow={renderTask} />
                 </CollapsibleContent>
               </Collapsible>
             ) : null}

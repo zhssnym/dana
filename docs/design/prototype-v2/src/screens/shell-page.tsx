@@ -9,15 +9,11 @@ import {
   Star,
   SunMedium,
   UsersRound,
-} from "lucide-react"
+} from "@/lib/icons"
 
 import { AppShell } from "@/components/app-shell"
 import type { ShellPageName } from "@/components/app-sidebar"
-import {
-  TaskFormSheet,
-  type TaskFormData,
-  type TaskFormEntryPoint,
-} from "@/components/task-form"
+import type { ShellTaskDetails as TaskFormData } from "@/lib/shell-task"
 import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import { SearchOverlay } from "@/components/search-overlay"
 import { shellFolderGroups, shellPreviewTasks } from "@/fixtures"
@@ -657,29 +653,6 @@ export function ShellPage() {
                   ? Layers3
                   : SunMedium
   const pageIconColor = isFolder ? selectedFolderColor : undefined
-  const requestedEntry = searchParams.get("entry")
-  const formEntryPoint: TaskFormEntryPoint =
-    requestedEntry === "my-day" ||
-    requestedEntry === "tasks" ||
-    requestedEntry === "all" ||
-    requestedEntry === "planned-list" ||
-    requestedEntry === "planned-cell" ||
-    requestedEntry === "important" ||
-    requestedEntry === "folder"
-      ? requestedEntry
-      : isFolder
-        ? "folder"
-        : isDone
-          ? "tasks"
-        : isTasks
-          ? "tasks"
-        : isPlanned
-          ? "planned-list"
-          : isImportant
-            ? "important"
-            : isAll
-              ? "all"
-            : "my-day"
   const openTask = (taskId: string) => {
     taskFormOpener.current = document.activeElement as HTMLElement | null
     setTaskFormContextBanner(undefined)
@@ -1310,98 +1283,6 @@ export function ShellPage() {
           dueDate: task.form.dueDate || undefined,
         }))}
         onOpenResult={openTask}
-      />
-      <TaskFormSheet
-        open={taskFormOpen}
-        onOpenChange={(nextOpen) => {
-          setTaskFormOpen(nextOpen)
-          if (!nextOpen) {
-            window.requestAnimationFrame(() => taskFormOpener.current?.focus())
-          }
-        }}
-        entryPoint={formEntryPoint}
-        initialFolder={createFolderOverride}
-        initialDueDate={createDueDateOverride}
-        initialExpanded={searchParams.get("form") === "expanded"}
-        contextBanner={taskFormContextBanner}
-        task={tasks.find((task) => task.id === editingTaskId)?.form ?? null}
-        taskStatus={
-          tasks.find((task) => task.id === editingTaskId)?.status ?? "pending"
-        }
-        onToggleComplete={(completed) => {
-          if (!editingTaskId) return
-          setTaskCompleted(editingTaskId, completed)
-        }}
-        onSave={(savedTask) => {
-          setTasks((current) => {
-            const existing = current.find((task) => task.id === savedTask.id)
-            const nextTasksGroup = savedTask.dueDate
-              ? undefined
-              : savedTask.folder
-            const updated: ShellTask = {
-              ...(existing ?? { id: savedTask.id }),
-              id: savedTask.id,
-              myDayGroup: savedTask.dueDate
-                ? existing?.myDayGroup ??
-                  (formEntryPoint === "my-day" ? "today" : undefined)
-                : undefined,
-              tasksGroup: nextTasksGroup,
-              folderSection:
-                savedTask.folder === "Wedding"
-                  ? savedTask.dueDate
-                    ? "scheduled"
-                    : "unscheduled"
-                  : undefined,
-              title: savedTask.title,
-              important: savedTask.important,
-              folder: nextTasksGroup
-                ? undefined
-                : {
-                    name: savedTask.folder,
-                    color:
-                      formFolderColors[savedTask.folder] ??
-                      "var(--color-graphite-900)",
-                  },
-              due: savedTask.dueDate ? { label: "Due today" } : undefined,
-              assignee:
-                !savedTask.invitePending && savedTask.assignee !== "Imran Wafa"
-                  ? {
-                      initials: savedTask.assignee
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")
-                        .slice(0, 2),
-                      name: savedTask.assignee,
-                    }
-                  : undefined,
-              invitePending: savedTask.invitePending || undefined,
-              recurrence:
-                savedTask.repeat !== "none" ? savedTask.repeat : undefined,
-              form: {
-                ...savedTask,
-                createdAt:
-                  savedTask.createdAt ??
-                  existing?.form.createdAt ??
-                  new Date().toISOString(),
-                createdBy:
-                  savedTask.createdBy ?? existing?.form.createdBy ?? "Imran Wafa",
-              },
-            }
-
-            return existing
-              ? current.map((task) =>
-                  task.id === savedTask.id ? updated : task,
-                )
-              : [...current, updated]
-          })
-          setEditingTaskId(null)
-          setCreateFolderOverride(undefined)
-          setCreateDueDateOverride(undefined)
-        }}
-        onDelete={(taskId) => {
-          setTasks((current) => current.filter((task) => task.id !== taskId))
-          setEditingTaskId(null)
-        }}
       />
     </>
   )
