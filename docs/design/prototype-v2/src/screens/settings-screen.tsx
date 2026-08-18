@@ -24,8 +24,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
-import { useRowDensity } from "@/lib/density"
-import { cn } from "@/lib/utils"
 
 export type PageVisibility = {
   Important: boolean
@@ -65,44 +63,6 @@ function SettingsSection({
       </div>
       {children}
     </section>
-  )
-}
-
-/* Two named choices rather than a switch: a switch has to be labelled with
-   one of its states and leaves the other unnamed, and "Compact ▢" makes
-   somebody guess what the off position is. */
-function DensityChoice() {
-  const { density, setDensity } = useRowDensity()
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Row density"
-      className="flex shrink-0 items-center gap-0.5 rounded-md bg-[var(--color-graphite-100)] p-0.5"
-    >
-      {(
-        [
-          ["two", "Two lines"],
-          ["one", "One line"],
-        ] as const
-      ).map(([value, label]) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={density === value}
-          onClick={() => setDensity(value)}
-          className={cn(
-            "rounded-[5px] px-2.5 py-1 text-[12px] leading-4 font-medium transition-[background-color,color] duration-[var(--duration-fast)]",
-            density === value
-              ? "bg-card text-[var(--color-graphite-900)]"
-              : "text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-800)]",
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
   )
 }
 
@@ -179,24 +139,6 @@ export function SettingsScreen({
           <InlineError />
         ) : (
           <div className="space-y-8">
-            {/* Row density, DES-113. It sits first because it changes how
-                every list in the product looks, and a person who came to
-                Settings to make Dana denser should not have to hunt past
-                page toggles to find it. */}
-            <SettingsSection
-              id="settings-appearance"
-              title="Appearance"
-              description="How tasks are laid out in every list."
-            >
-              <div className="space-y-0.5">
-                <SettingRow
-                  title="Row density"
-                  description="Two lines shows the whole task name. One line shows more tasks at once."
-                  control={<DensityChoice />}
-                />
-              </div>
-            </SettingsSection>
-
             <SettingsSection
               id="settings-pages"
               title="Pages"

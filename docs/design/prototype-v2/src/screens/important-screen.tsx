@@ -2,11 +2,7 @@ import { useState } from "react"
 import { Star } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import {
-  TaskRow,
-  type TaskExpansion,
-  type TaskRowProps,
-} from "@/components/task-row"
+import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,8 +31,6 @@ interface ImportantScreenProps {
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
-  onRename: (taskId: string, title: string) => void
-  expansion?: TaskExpansion
   onRestore: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
@@ -48,8 +42,6 @@ export function ImportantScreen({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
-  onRename,
-  expansion,
   onRestore,
   onAbandon,
   onDelete,
@@ -107,12 +99,6 @@ export function ImportantScreen({
                     : onToggleComplete(task.id, completed)
                 }
                 onToggleImportant={() => onToggleImportant(task.id)}
-                onRename={(title) => onRename(task.id, title)}
-                expanded={expansion?.render(task.id)}
-                isExpanded={expansion?.openId === task.id}
-                onToggleExpanded={
-                  expansion ? () => expansion.toggle(task.id) : undefined
-                }
                 onAbandon={() =>
                   setPendingAction({ type: "abandon", taskId: task.id })
                 }
