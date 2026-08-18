@@ -659,6 +659,7 @@ export function CommentsThread({
   onChange,
   placeholder = "Write a comment",
   emptyWord = "comment",
+  layout = "block",
 }: {
   comments: ConceptComment[]
   onChange: (next: ConceptComment[]) => void
@@ -666,9 +667,22 @@ export function CommentsThread({
   /* "comment" in a card, "message" in a chat panel — the only wording that
      differs between the surfaces. */
   emptyWord?: string
+  /* "block" flows with the page; "pinned" fills its container, scrolls the
+     thread, and keeps the composer at the foot — the dock, the panel and
+     the full-screen surface all read that way. */
+  layout?: "block" | "pinned"
 }) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const counter = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  /* A pinned thread keeps its newest message in view, the way every
+     conversation surface people already use does. */
+  useEffect(() => {
+    if (layout !== "pinned") return
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [layout, comments])
 
   function newComment(
     partial: Omit<ConceptComment, "id" | "author" | "at" | "mine">,
@@ -683,12 +697,8 @@ export function CommentsThread({
     }
   }
 
-  return (
-    <div
-      className="flex flex-col gap-0.5"
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
+  const thread = (
+    <>
       {comments.map((comment) => (
         <div key={comment.id}>
           <CommentRow
@@ -741,12 +751,41 @@ export function CommentsThread({
         </div>
       ))}
 
-      <div className={cn(comments.length > 0 && "mt-1.5")}>
-        <Composer
-          placeholder={comments.length === 0 ? `Write the first ${emptyWord}` : placeholder}
-          onSubmit={(partial) => onChange([...comments, newComment(partial)])}
-        />
+    </>
+  )
+
+  const composer = (
+    <Composer
+      placeholder={comments.length === 0 ? `Write the first ${emptyWord}` : placeholder}
+      onSubmit={(partial) => onChange([...comments, newComment(partial)])}
+    />
+  )
+
+  if (layout === "pinned") {
+    return (
+      <div
+        className="flex h-full min-h-0 flex-col"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <div className="flex flex-col gap-0.5">{thread}</div>
+        </div>
+        <div className="shrink-0 border-t border-[var(--color-graphite-100)] px-3 py-2.5">
+          {composer}
+        </div>
       </div>
+    )
+  }
+
+  return (
+    <div
+      className="flex flex-col gap-0.5"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      {thread}
+      <div className={cn(comments.length > 0 && "mt-1.5")}>{composer}</div>
     </div>
   )
 }
