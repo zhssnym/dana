@@ -33,6 +33,7 @@ import {
   ListFilter,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
   Plus,
   Share2,
   Trash2,
@@ -318,8 +319,20 @@ function GhostAction({
   )
 }
 
-/* A cluster control: 28px, icon-first, so the whole strip stays small enough
-   to be steady. */
+/* A cluster control on the contract's own rhythm: 40px, the default icon
+   size, the ghost treatment the v1 header used (F2a, review K1). The count
+   rides as the product's badge — a quiet graphite pill, never a filled disc
+   (K4). */
+const clusterButtonClass = (active: boolean) =>
+  cn(
+    "relative flex size-[var(--control-height)] items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
+    T_FAST,
+    FOCUS,
+    active
+      ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
+      : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+  )
+
 function ClusterButton({
   icon: Icon,
   label,
@@ -328,6 +341,7 @@ function ClusterButton({
   disabled = false,
   disabledHint,
   badge,
+  buttonRef,
 }: {
   icon: typeof List
   label: string
@@ -336,29 +350,24 @@ function ClusterButton({
   disabled?: boolean
   disabledHint?: string
   badge?: number
+  buttonRef?: React.Ref<HTMLButtonElement>
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <button
+            ref={buttonRef}
             type="button"
             aria-label={label}
             aria-pressed={active || undefined}
             disabled={disabled}
             onClick={onClick}
-            className={cn(
-              "relative flex size-7 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
-              T_FAST,
-              FOCUS,
-              active
-                ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-                : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-            )}
+            className={clusterButtonClass(active)}
           >
-            <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+            <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
             {badge ? (
-              <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--color-graphite-800)] px-0.5 text-[0.625rem] leading-none font-medium text-white tabular-nums">
+              <span className="absolute top-1 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-graphite-200)] px-1 text-[0.625rem] leading-none font-medium text-[var(--color-graphite-600)] tabular-nums">
                 {badge}
               </span>
             ) : null}
@@ -492,6 +501,70 @@ export function FolderPageV2({
   useEffect(() => {
     setDisplayName(folderName)
   }, [folderName])
+
+  /* The cluster docks (F2a, review K2): a sentinel above the row tells us
+     when the row has hit the top of the scroll, and only then does it take a
+     ground and a hairline. IntersectionObserver against the viewport is
+     enough — the shell's scroll container clips the sentinel, and clipped
+     means not intersecting. */
+  const [stuck, setStuck] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    const scroller = sentinel?.closest("[data-shell-scroll]")
+    if (!sentinel || !scroller) return
+    /* A passive scroll listener rather than an IntersectionObserver: the
+       comparison is two rect reads, and the observer's notifications ride
+       the rendering pipeline, which made the docking impossible to verify
+       headlessly and adds nothing at this cost. */
+    function measure() {
+      if (!sentinel || !scroller) return
+      setStuck(
+        sentinel.getBoundingClientRect().bottom <
+          scroller.getBoundingClientRect().top,
+      )
+    }
+    measure()
+    scroller.addEventListener("scroll", measure, { passive: true })
+    return () => scroller.removeEventListener("scroll", measure)
+  }, [])
+
+  /* Rename's second route (review K5): the menu item arms the inline edit,
+     so keyboard and screen-reader users have a discoverable path and the
+     title's click-to-edit stays the fast one. */
+  const [titleEditing, setTitleEditing] = useState(false)
+
+  /* The panel behaves like an arriving surface should (review M8): Escape
+     closes it, focus lands inside on open and returns to the button that
+     opened it. */
+  const conversationRef = useRef<HTMLButtonElement>(null)
+  const panelCloseRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!(commentsPlacement === "panel" && panelOpen)) return
+    panelCloseRef.current?.focus()
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPanelOpen(false)
+        conversationRef.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [commentsPlacement, panelOpen])
+
+  /* Deleting a section says so and offers the way back (review S4) — the
+     same courtesy the completion flow already models. */
+  const [sectionUndo, setSectionUndo] = useState<{
+    name: string
+    restore: () => void
+  } | null>(null)
+  const sectionUndoTimer = useRef<number | null>(null)
+  useEffect(() => {
+    return () => {
+      if (sectionUndoTimer.current !== null)
+        window.clearTimeout(sectionUndoTimer.current)
+    }
+  }, [])
 
   const openTasks =
     openTaskFilter === "scheduled"
@@ -633,6 +706,15 @@ export function FolderPageV2({
   }
 
   function removeSection(sectionId: string) {
+    const index = items.findIndex(
+      (item) => item.kind === "section" && item.section.id === sectionId,
+    )
+    const removed = items[index]
+    if (!removed || removed.kind !== "section") return
+    const keptAssignments = Object.entries(assign).filter(
+      ([, value]) => value === sectionId,
+    )
+
     setItems((current) =>
       current.filter(
         (item) => item.kind !== "section" || item.section.id !== sectionId,
@@ -642,6 +724,27 @@ export function FolderPageV2({
       Object.fromEntries(
         Object.entries(current).filter(([, value]) => value !== sectionId),
       ),
+    )
+
+    if (sectionUndoTimer.current !== null)
+      window.clearTimeout(sectionUndoTimer.current)
+    setSectionUndo({
+      name: removed.section.name,
+      restore: () => {
+        setItems((current) => {
+          const next = [...current]
+          next.splice(Math.min(index, next.length), 0, removed)
+          return next
+        })
+        setAssign((current) => ({
+          ...current,
+          ...Object.fromEntries(keptAssignments),
+        }))
+      },
+    })
+    sectionUndoTimer.current = window.setTimeout(
+      () => setSectionUndo(null),
+      5000,
     )
   }
 
@@ -655,11 +758,20 @@ export function FolderPageV2({
 
   /* ---------------------------------------------------------- the header -- */
 
+  /* Scaffolding above the title, not beside it (F2a, review H1) — and for a
+     folder nobody has dressed yet, visible at rest rather than behind an
+     accidental hover (Y6): the page advertises what it can become exactly
+     once, then gets out of the way. */
+  const pristine =
+    !identity.cover && !identity.glyph && !identity.description
   const headerGhosts = (
     <div
       className={cn(
-        "flex items-center gap-1 opacity-0 transition-opacity group-hover/head:opacity-100 focus-within:opacity-100",
+        "flex items-center gap-1 transition-opacity",
         T_FAST,
+        pristine
+          ? "opacity-100"
+          : "opacity-0 group-hover/head:opacity-100 focus-within:opacity-100",
       )}
     >
       {!identity.cover ? (
@@ -708,109 +820,157 @@ export function FolderPageV2({
 
   /* --------------------------------------------------------- the cluster -- */
 
-  const cluster = (
-    <div className="pointer-events-none sticky top-0 z-30 h-0">
-      <div className="flex justify-end pt-2 pr-4">
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-[var(--color-graphite-200)] bg-card/95 p-0.5 shadow-[var(--elevation-1)] backdrop-blur">
-          <ClusterButton
-            icon={List}
-            label="List view"
-            active={view === "list"}
-            onClick={() => setView("list")}
-          />
-          <ClusterButton
-            icon={LayoutGrid}
-            label="Board view"
-            active={view === "board"}
-            onClick={() => setView("board")}
-          />
-          <ClusterButton
-            icon={CalendarDays}
-            label="Calendar view"
-            disabled
-            disabledHint="Calendar view — arrives with V5's calendar session"
-          />
-          <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--color-graphite-200)]" />
-          <DropdownMenu>
-            <DropdownMenuTrigger
+  /* One row, the folder's controls, always exactly where they were — but in
+     Dana's chrome, not a floating pill (F2a, review K1–K4). At rest it is a
+     transparent row closing the header; scrolled, it docks against the top
+     and only then takes a ground, a hairline, and the folder's name for
+     context. Controls sit on the 40px rhythm and group by kind: views ·
+     filter · conversation · people and Share · overflow. */
+  const clusterRow = (
+    <div
+      className={cn(
+        "sticky top-0 z-30 -mx-2 flex h-14 items-center gap-3 px-2 transition-[background-color,box-shadow]",
+        T_FAST,
+        stuck && "bg-card shadow-[0_1px_0_var(--color-graphite-200)]",
+      )}
+    >
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-sm leading-5 font-medium text-[var(--color-graphite-800)] transition-opacity",
+          T_FAST,
+          stuck ? "opacity-100" : "opacity-0",
+        )}
+        aria-hidden={!stuck}
+      >
+        {displayName}
+      </span>
+
+      <div
+        role="radiogroup"
+        aria-label="Folder view"
+        className="flex h-[var(--control-height)] items-center gap-0.5 rounded-md border border-[var(--color-graphite-200)] p-0.5"
+      >
+        {(
+          [
+            ["list", "List view", List, false],
+            ["board", "Board view", LayoutGrid, false],
+            ["calendar", "Calendar view", CalendarDays, true],
+          ] as const
+        ).map(([key, label, Icon, disabled]) => (
+          <Tooltip key={key}>
+            <TooltipTrigger
               render={
                 <button
                   type="button"
-                  aria-label={`Filter open tasks: ${filterLabel}`}
+                  role="radio"
+                  aria-checked={view === key}
+                  aria-label={label}
+                  disabled={disabled}
+                  onClick={() => setView(key as FolderView)}
                   className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-[background-color,color]",
+                    "flex h-full w-9 items-center justify-center rounded-[4px] transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
                     T_FAST,
                     FOCUS,
-                    openTaskFilter !== "all"
+                    view === key
                       ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-                      : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+                      : "text-[var(--color-graphite-500)] hover:text-[var(--color-graphite-800)]",
                   )}
                 >
-                  <ListFilter className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               }
             />
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuRadioGroup
-                value={openTaskFilter}
-                onValueChange={(value) =>
-                  setOpenTaskFilter(value as OpenTaskFilter)
-                }
+            <TooltipContent side="bottom">
+              {disabled ? "Calendar view — arrives with V5's calendar session" : label}
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-0.5">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`Filter open tasks: ${filterLabel}`}
+                className={cn(
+                  clusterButtonClass(openTaskFilter !== "all"),
+                  openTaskFilter !== "all" && "w-auto gap-1.5 px-3",
+                )}
               >
-                <DropdownMenuRadioItem value="all">
-                  All open tasks
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="scheduled">
-                  With due date
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="unscheduled">
-                  Without due date
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <ClusterButton
-            icon={MessageSquare}
-            label={commentsPlacement === "panel" ? "Conversation" : "Go to comments"}
-            active={panelOpen}
-            badge={commentTotal || undefined}
-            onClick={openConversation}
+                <ListFilter className="size-5" strokeWidth={1.75} aria-hidden="true" />
+                {openTaskFilter !== "all" ? (
+                  <span className="text-sm leading-5">{filterLabel}</span>
+                ) : null}
+              </button>
+            }
           />
-          <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--color-graphite-200)]" />
-          {isShared ? (
-            <AvatarGroup className="px-1">
-              <Avatar size="sm"><AvatarFallback>IW</AvatarFallback></Avatar>
-              <Avatar size="sm"><AvatarFallback>S</AvatarFallback></Avatar>
-            </AvatarGroup>
-          ) : null}
-          {!isDefault ? (
-            <Button
-              variant="ghost"
-              className="h-7 gap-1.5 px-2 text-xs font-medium text-[var(--color-graphite-700)]"
-              onClick={() => setShareOpen(true)}
-            >
-              <Share2 className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              Share
-            </Button>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="More folder actions"
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  <MoreHorizontal className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                </button>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuRadioGroup
+              value={openTaskFilter}
+              onValueChange={(value) =>
+                setOpenTaskFilter(value as OpenTaskFilter)
               }
-            />
-            <DropdownMenuContent align="end" className="w-48">
-              {!isDefault ? (
+            >
+              <DropdownMenuRadioItem value="all">
+                All open tasks
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="scheduled">
+                With due date
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="unscheduled">
+                Without due date
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <ClusterButton
+          icon={MessageSquare}
+          label={commentsPlacement === "panel" ? "Conversation" : "Go to comments"}
+          active={panelOpen}
+          badge={commentTotal || undefined}
+          onClick={openConversation}
+          buttonRef={conversationRef}
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        {isShared ? (
+          <AvatarGroup>
+            <Avatar size="sm"><AvatarFallback>IW</AvatarFallback></Avatar>
+            <Avatar size="sm"><AvatarFallback>S</AvatarFallback></Avatar>
+          </AvatarGroup>
+        ) : null}
+        {!isDefault ? (
+          <Button
+            variant="outline"
+            className="h-[var(--control-height)] px-3 text-sm"
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            Share
+          </Button>
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label="More folder actions"
+                className={clusterButtonClass(false)}
+              >
+                <MoreHorizontal className="size-5" strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-48">
+            {isOwner ? (
+              <DropdownMenuItem onClick={() => setTitleEditing(true)}>
+                <Pencil className="size-4" />Rename
+              </DropdownMenuItem>
+            ) : null}
+            {!isDefault ? (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <FolderInput className="size-4" />Move to group
@@ -848,9 +1008,8 @@ export function FolderPageV2({
                   </DropdownMenuItem>
                 </>
               ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
@@ -935,11 +1094,15 @@ export function FolderPageV2({
               })
             }
           >
-            <div className="group/section flex h-8 items-center gap-1">
+            {/* The shell's own section-heading tier (F2a, review S1): 16px
+                semibold on the hairline band, exactly as My Day's "Today"
+                and the Tasks page's group headings already do it. The third
+                heading style this replaces is recorded in the review. */}
+            <div className="group/section mb-1 flex h-8 items-center gap-1.5 border-b border-border">
               <CollapsibleTrigger
                 aria-label={open ? `Collapse ${section.name}` : `Expand ${section.name}`}
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
+                  "-ml-1.5 flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
                   T_FAST,
                   FOCUS,
                 )}
@@ -953,7 +1116,7 @@ export function FolderPageV2({
               <InlineName
                 value={section.name}
                 ariaLabel={`Section name: ${section.name}`}
-                className="text-sm leading-5 font-semibold text-[var(--color-graphite-800)]"
+                className="text-base leading-6 font-semibold text-foreground"
                 autoEdit={section.name === "New section"}
                 onCommit={(name) =>
                   setItems((current) =>
@@ -1032,7 +1195,7 @@ export function FolderPageV2({
   const boardBody = (
     <div className="flex items-start gap-3 overflow-x-auto pb-4">
       {[
-        { id: "__none", name: "Tasks", tasks: unsectioned },
+        { id: "__none", name: "No section", tasks: unsectioned },
         ...items
           .filter(
             (item): item is Extract<PageItem, { kind: "section" }> =>
@@ -1135,104 +1298,111 @@ export function FolderPageV2({
 
   return (
     <div className="relative min-h-full">
-      {cluster}
-
       {cover ? (
-        <div className="group/cover relative h-44 w-full" style={cover}>
-          <div
-            className={cn(
-              "absolute right-4 bottom-3 flex items-center gap-1 opacity-0 transition-opacity group-hover/cover:opacity-100 focus-within:opacity-100",
-              T_FAST,
-            )}
-          >
+        /* The band itself is the affordance: click anywhere on it to change
+           it (F2a, review H3). The scrim at its foot is what lets the
+           overlapping plate and the hint sit on any cover without a fight. */
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Change cover"
+                className={cn("group/cover relative block h-44 w-full cursor-pointer", FOCUS)}
+                style={cover}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--color-graphite-950)]/12 to-transparent"
+                />
+                <span
+                  className={cn(
+                    "absolute right-4 bottom-3 flex h-7 items-center gap-1.5 rounded-md border border-[var(--color-graphite-200)] bg-card/95 px-2 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] opacity-0 shadow-[var(--elevation-1)] backdrop-blur transition-opacity group-hover/cover:opacity-100",
+                    T_FAST,
+                  )}
+                >
+                  <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  Change cover
+                </span>
+              </button>
+            }
+          />
+          <PopoverContent align="end" className="p-0">
+            <FolderCoverPicker
+              value={identity.cover}
+              folderName={storageName}
+              onPick={(key) =>
+                savePrototypeFolderIdentity(storageName, { cover: key })
+              }
+              onRemove={() =>
+                savePrototypeFolderIdentity(storageName, { cover: undefined })
+              }
+            />
+          </PopoverContent>
+        </Popover>
+      ) : null}
+
+      <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8">
+        <header className={cn("group/head", cover ? "pt-0" : "pt-6")}>
+          {/* The identity band: the mark holds the corner, the scaffolding
+              ghosts sit above the title where scaffolding belongs (H1, H2).
+              Over a cover the mark stands on a plate and earns its shadow;
+              on a bare page a plate would be decoration, so the glyph
+              stands alone, larger, and the hover wash is the only chrome. */}
+          <div className="flex items-end justify-between gap-4">
             <Popover>
               <PopoverTrigger
                 render={
                   <button
                     type="button"
+                    aria-label="Change folder icon and color"
                     className={cn(
-                      "flex h-7 items-center gap-1.5 rounded-md border border-[var(--color-graphite-200)] bg-card/95 px-2 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] shadow-[var(--elevation-1)] backdrop-blur transition-colors hover:bg-card",
+                      "flex shrink-0 items-center justify-center transition-shadow",
                       T_FAST,
                       FOCUS,
+                      cover
+                        ? "relative z-10 -mt-7 size-14 rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
+                        : "-ml-1.5 size-12 rounded-xl hover:bg-[var(--color-graphite-50)]",
                     )}
                   >
-                    <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                    Change cover
+                    <Glyph
+                      className={cover ? "size-8" : "size-10"}
+                      style={{ color }}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
                   </button>
                 }
               />
-              <PopoverContent align="end" className="p-0">
-                <FolderCoverPicker
-                  value={identity.cover}
-                  folderName={storageName}
-                  onPick={(key) =>
-                    savePrototypeFolderIdentity(storageName, { cover: key })
-                  }
-                  onRemove={() =>
-                    savePrototypeFolderIdentity(storageName, { cover: undefined })
-                  }
+              <PopoverContent align="start" className="p-0">
+                <FolderIconPicker
+                  glyph={identity.glyph}
+                  color={color}
+                  onPick={(next) => savePrototypeFolderIdentity(storageName, next)}
                 />
               </PopoverContent>
             </Popover>
+            {headerGhosts}
           </div>
-        </div>
-      ) : null}
 
-      <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8">
-        <header className={cn("group/head", cover ? "pt-0" : "pt-6")}>
-          {/* The mark: the one thing on the page that is unmistakably this
-              folder's. On a cover it stands on a plate; on a bare page the
-              plate would be decoration, so there is none. */}
-          <Popover>
-            <PopoverTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="Change folder icon and color"
-                  className={cn(
-                    "flex items-center justify-center rounded-xl transition-shadow",
-                    T_FAST,
-                    FOCUS,
-                    cover
-                      ? "relative z-10 -mt-6 size-12 border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
-                      : "-ml-1 size-12 hover:bg-[var(--color-graphite-50)]",
-                  )}
-                >
-                  <Glyph
-                    className="size-7"
-                    style={{ color }}
-                    strokeWidth={1.6}
-                    aria-hidden="true"
-                  />
-                </button>
-              }
-            />
-            <PopoverContent align="start" className="p-0">
-              <FolderIconPicker
-                glyph={identity.glyph}
-                color={color}
-                onPick={(next) => savePrototypeFolderIdentity(storageName, next)}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <div className="mt-2 flex items-center justify-between gap-4">
+          <div className="mt-2">
             <InlineName
+              key={titleEditing ? "menu-edit" : "resting"}
               value={displayName}
               ariaLabel={`Folder name: ${displayName}`}
               className="text-2xl leading-8 font-semibold text-foreground"
+              autoEdit={titleEditing}
+              onDoneEditing={() => setTitleEditing(false)}
               onCommit={(name) => {
                 setDisplayName(name)
                 onRenameFolder?.(name)
               }}
             />
-            {headerGhosts}
           </div>
 
           {completionTotal > 0 ? (
             <p className="mt-1 text-xs leading-4 text-muted-foreground">
               {completedCount} of {completionTotal} done
-              {isShared ? " · shared" : ""}
             </p>
           ) : null}
 
@@ -1260,7 +1430,12 @@ export function FolderPageV2({
           ) : null}
         </header>
 
-        <div className="mt-6">
+        {/* The sentinel is what tells the row it has docked: 1px tall, its
+            own layout cost cancelled by the negative margin. */}
+        <div ref={sentinelRef} aria-hidden="true" className="h-px -mb-px" />
+        {clusterRow}
+
+        <div className="mt-2">
           {previewState === "loading" ? (
             <SkeletonList />
           ) : previewState === "error" ? (
@@ -1302,29 +1477,24 @@ export function FolderPageV2({
         {commentsPlacement === "page" &&
         previewState !== "loading" &&
         previewState !== "error" ? (
-          <div ref={pageCommentsRef} className="mt-10 scroll-mt-14">
-            <div className="flex h-7 items-center gap-1.5">
-              <MessageSquare
-                className="size-3.5 text-[var(--color-graphite-500)]"
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+          <div ref={pageCommentsRef} className="mt-10 scroll-mt-16">
+            {/* The page's own heading tier, not the card's block label
+                (F2a, review M7). */}
+            <div className="mb-2 flex h-8 items-center gap-2 border-b border-border">
+              <h2 className="text-base leading-6 font-semibold text-foreground">
                 Comments
-              </span>
+              </h2>
               {commentTotal > 0 ? (
                 <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
                   {commentTotal}
                 </span>
               ) : null}
             </div>
-            <div className="pt-1 pl-[18px]">
-              <CommentsThread
-                comments={folderComments}
-                onChange={setFolderComments}
-                placeholder={`Message everyone in ${displayName}`}
-              />
-            </div>
+            <CommentsThread
+              comments={folderComments}
+              onChange={setFolderComments}
+              placeholder={`Message everyone in ${displayName}`}
+            />
           </div>
         ) : null}
       </div>
@@ -1335,7 +1505,8 @@ export function FolderPageV2({
       {commentsPlacement === "panel" && panelOpen ? (
         <aside
           aria-label={`Conversation in ${displayName}`}
-          className="fixed inset-y-0 right-0 z-40 flex w-[360px] flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
+          /* Under the page bar, not over it (F2a, review M8). */
+          className="fixed top-[var(--shell-pagebar-height)] right-0 bottom-0 z-40 flex w-[360px] flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
         >
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-100)] px-4">
             <MessageSquare
@@ -1350,9 +1521,13 @@ export function FolderPageV2({
               conversation
             </span>
             <button
+              ref={panelCloseRef}
               type="button"
               aria-label="Close conversation"
-              onClick={() => setPanelOpen(false)}
+              onClick={() => {
+                setPanelOpen(false)
+                conversationRef.current?.focus()
+              }}
               className={cn(
                 "ml-auto flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
                 T_FAST,
@@ -1457,6 +1632,34 @@ export function FolderPageV2({
           isOwner={isOwner}
           folderName={displayName}
         />
+      ) : null}
+
+      {sectionUndo ? (
+        <div
+          role="status"
+          className={cn(
+            "fixed right-6 z-40 flex min-h-[var(--control-height)] max-w-sm items-center gap-2 rounded-lg bg-[var(--color-graphite-900)] px-3 text-sm text-white shadow-[var(--elevation-1)]",
+            completionNotice ? "bottom-[76px]" : "bottom-6",
+          )}
+        >
+          <span className="min-w-0 truncate">
+            Section deleted: {sectionUndo.name} — its tasks stay in the folder
+          </span>
+          <Button
+            variant="ghost"
+            className="h-8 px-2 text-xs text-white hover:bg-white/10 hover:text-white"
+            onClick={() => {
+              sectionUndo.restore()
+              setSectionUndo(null)
+              if (sectionUndoTimer.current !== null) {
+                window.clearTimeout(sectionUndoTimer.current)
+                sectionUndoTimer.current = null
+              }
+            }}
+          >
+            Undo
+          </Button>
+        </div>
       ) : null}
 
       {completionNotice ? (
