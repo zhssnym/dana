@@ -32,7 +32,10 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const dist = path.join(root, "dist-share")
+const dist = path.join(
+  root,
+  process.env.SHARE_ENTRY === "shell" ? "dist-share-shell" : "dist-share",
+)
 const outFile = path.join(
   dist,
   process.env.SHARE_ENTRY === "shell" ? "dana-prototype.html" : "dana-row-concepts.html",

@@ -28,7 +28,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "dist-share",
+    outDir:
+      process.env.SHARE_ENTRY === "shell" ? "dist-share-shell" : "dist-share",
     emptyOutDir: true,
     rollupOptions: {
       input: path.resolve(rootDirectory, process.env.SHARE_ENTRY === "shell" ? "index.html" : "lab.html"),

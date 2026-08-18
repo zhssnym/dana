@@ -55,7 +55,16 @@ function readStored(): RowDensity {
   }
 }
 
-export function RowDensityProvider({ children }: { children: ReactNode }) {
+export function RowDensityProvider({
+  children,
+  value,
+}: {
+  children: ReactNode
+  /* Forces a density and ignores storage. Only the concept lab uses it, so
+     that two densities can be shown side by side on one page without either
+     of them being the reader's real setting. */
+  value?: RowDensity
+}) {
   const [density, setDensityState] = useState<RowDensity>(readStored)
 
   const setDensity = useCallback((next: RowDensity) => {
@@ -67,10 +76,15 @@ export function RowDensityProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const value = useMemo(() => ({ density, setDensity }), [density, setDensity])
+  const contextValue = useMemo(
+    () => ({ density: value ?? density, setDensity }),
+    [value, density, setDensity],
+  )
 
   return (
-    <DensityContext.Provider value={value}>{children}</DensityContext.Provider>
+    <DensityContext.Provider value={contextValue}>
+      {children}
+    </DensityContext.Provider>
   )
 }
 
