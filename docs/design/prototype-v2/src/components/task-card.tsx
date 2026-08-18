@@ -364,6 +364,7 @@ export function TaskCard({
   onChange,
   onClose,
   onOpenFull,
+  onNewFolder,
 }: {
   form: TaskFormData
   people: TaskCardPeople[]
@@ -371,6 +372,10 @@ export function TaskCard({
   onChange: (next: Partial<TaskFormData>) => void
   onClose: () => void
   onOpenFull?: () => void
+  /* Wanting a folder that does not exist yet is the most likely moment to
+     want one at all (DES-114), so the picker offers it rather than sending
+     somebody to the sidebar. */
+  onNewFolder?: () => void
 }) {
   const [showHistory, setShowHistory] = useState(false)
   const done = form.steps.filter((step) => step.done).length
@@ -468,11 +473,18 @@ export function TaskCard({
           value={form.folder || "Inbox"}
           color={folder?.color}
           muted={!form.folder}
-          items={folders.map((entry) => ({
-            key: entry.name,
-            label: entry.name,
-            onSelect: () => onChange({ folder: entry.name }),
-          }))}
+          items={[
+            ...folders.map((entry) => ({
+              key: entry.name,
+              label: entry.name,
+              onSelect: () => onChange({ folder: entry.name }),
+            })),
+            {
+              key: "__new-folder",
+              label: "New folder…",
+              onSelect: () => onNewFolder?.(),
+            },
+          ]}
         />
         <PropChip
           icon={UserRound}
