@@ -32,6 +32,7 @@ import { TaskCard } from "@/components/task-card"
 import type { TaskFormData } from "@/components/task-form"
 import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import { RowDensityProvider, type RowDensity } from "@/lib/density"
+import { useTaskListInteractions } from "@/lib/task-list-interactions"
 import { cn } from "@/lib/utils"
 
 const VIOLET = "var(--color-folder-violet)"
@@ -202,6 +203,77 @@ function LiveList({ density }: { density: RowDensity }) {
   const [tasks, setTasks] = useState(SAMPLE)
   const [openId, setOpenId] = useState<string | null>(null)
 
+  /* Lane 2 behaviour, drawn here and excluded from the port by DES-119
+     rather than by being absent. See lib/task-list-interactions.tsx. */
+  const list = useTaskListInteractions({
+    folders: FOLDERS,
+    onReorder: (fromId, toId) =>
+      setTasks((current) => {
+        const from = current.findIndex((task) => task.id === fromId)
+        const to = current.findIndex((task) => task.id === toId)
+        if (from < 0 || to < 0 || from === to) return current
+        const next = [...current]
+        const [moved] = next.splice(from, 1)
+        next.splice(to, 0, moved!)
+        return next
+      }),
+    onMergeIntoFolder: (ids) =>
+      setTasks((current) =>
+        current.map((task) =>
+          ids.includes(task.id)
+            ? {
+                ...task,
+                row: {
+                  ...task.row,
+                  folder: { name: "New folder", color: "var(--color-folder-sky)" },
+                },
+              }
+            : task,
+        ),
+      ),
+    onBulk: (ids, change) =>
+      setTasks((current) =>
+        current.map((task) =>
+          ids.includes(task.id)
+            ? {
+                ...task,
+                row: {
+                  ...task.row,
+                  ...(change === "complete" ? { status: "completed" as const } : {}),
+                  ...(change === "important" ? { important: true } : {}),
+                  ...(change === "myday" ? { pulled: true } : {}),
+                },
+              }
+            : task,
+        ),
+      ),
+    onDuplicate: (ids) =>
+      setTasks((current) => {
+        const next: SampleTask[] = []
+        current.forEach((task) => {
+          next.push(task)
+          if (ids.includes(task.id)) {
+            next.push({
+              ...task,
+              id: `${task.id}-copy-${next.length}`,
+              row: { ...task.row, title: `${task.row.title} (copy)` },
+            })
+          }
+        })
+        return next
+      }),
+    onDelete: (ids) =>
+      setTasks((current) => current.filter((task) => !ids.includes(task.id))),
+    onMoveToFolder: (ids, folder) =>
+      setTasks((current) =>
+        current.map((task) =>
+          ids.includes(task.id)
+            ? { ...task, row: { ...task.row, folder } }
+            : task,
+        ),
+      ),
+  })
+
   function patchRow(id: string, next: Partial<TaskRowProps>) {
     setTasks((current) =>
       current.map((task) =>
@@ -240,10 +312,16 @@ function LiveList({ density }: { density: RowDensity }) {
   return (
     <RowDensityProvider value={density}>
       <div className="flex flex-col">
+        {list.bar}
         {tasks.map((task) => (
-          <TaskRow
+          <div
             key={task.id}
-            {...task.row}
+            {...list.rowProps(task.id)}
+            className={list.rowClass(task.id)}
+          >
+            {list.rowDecoration(task.id)}
+            <TaskRow
+              {...task.row}
             onRename={(title) => patchForm(task.id, { title })}
             onToggleComplete={(completed) =>
               patchRow(task.id, {
@@ -258,16 +336,17 @@ function LiveList({ density }: { density: RowDensity }) {
             onToggleExpanded={() =>
               setOpenId((current) => (current === task.id ? null : task.id))
             }
-            expanded={
-              <TaskCard
-                form={task.form}
-                people={PEOPLE}
-                folders={FOLDERS}
-                onChange={(next) => patchForm(task.id, next)}
-                onClose={() => setOpenId(null)}
-              />
-            }
-          />
+              expanded={
+                <TaskCard
+                  form={task.form}
+                  people={PEOPLE}
+                  folders={FOLDERS}
+                  onChange={(next) => patchForm(task.id, next)}
+                  onClose={() => setOpenId(null)}
+                />
+              }
+            />
+          </div>
         ))}
       </div>
     </RowDensityProvider>
