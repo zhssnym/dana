@@ -17,6 +17,7 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { RowDensityProvider } from "@/lib/density"
 import { RowLabPage } from "@/screens/row-lab"
 import "./styles/app.css"
 /* After app.css, because it lifts that file's desktop-only width floor. */
@@ -25,7 +26,9 @@ import "./styles/lab.css"
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <TooltipProvider>
-      <RowLabPage />
+      <RowDensityProvider>
+        <RowLabPage />
+      </RowDensityProvider>
     </TooltipProvider>
   </React.StrictMode>,
 )

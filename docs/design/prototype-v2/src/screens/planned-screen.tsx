@@ -45,6 +45,7 @@ interface PlannedScreenProps {
   onOpenGhost: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
+  onRename: (taskId: string, title: string) => void
   onRestore: (taskId: string) => void
 }
 
@@ -422,6 +423,7 @@ export function PlannedScreen({
   onOpenGhost,
   onToggleComplete,
   onToggleImportant,
+  onRename,
   onRestore,
 }: PlannedScreenProps) {
   const [mode, setMode] = useState<PlannedMode>(() => {
@@ -472,6 +474,7 @@ export function PlannedScreen({
                     : onToggleComplete(task.id, completed)
                 }
                 onToggleImportant={() => onToggleImportant(task.id)}
+                onRename={(title) => onRename(task.id, title)}
               />
             ))}
           </div>

@@ -36,6 +36,7 @@ interface MyDayScreenProps {
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
+  onRename: (taskId: string, title: string) => void
   onRemoveFromMyDay: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
@@ -47,6 +48,7 @@ function TaskGroup({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
+  onRename,
   onRemoveFromMyDay,
   onRequestAbandon,
   onRequestDelete,
@@ -56,6 +58,7 @@ function TaskGroup({
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
+  onRename: (taskId: string, title: string) => void
   onRemoveFromMyDay: (taskId: string) => void
   onRequestAbandon: (taskId: string) => void
   onRequestDelete: (taskId: string) => void
@@ -81,6 +84,7 @@ function TaskGroup({
               onToggleComplete(task.id, completed)
             }
             onToggleImportant={() => onToggleImportant(task.id)}
+            onRename={(title) => onRename(task.id, title)}
             onRemoveFromMyDay={() => onRemoveFromMyDay(task.id)}
             onAbandon={() => onRequestAbandon(task.id)}
             onDelete={() => onRequestDelete(task.id)}
@@ -99,6 +103,7 @@ export function MyDayScreen({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
+  onRename,
   onRemoveFromMyDay,
   onAbandon,
   onDelete,
@@ -175,6 +180,7 @@ export function MyDayScreen({
               onOpenTask={onOpenTask}
               onToggleComplete={onToggleComplete}
               onToggleImportant={onToggleImportant}
+              onRename={onRename}
               onRemoveFromMyDay={onRemoveFromMyDay}
               onRequestAbandon={(taskId) =>
                 setPendingAction({ type: "abandon", taskId })
@@ -189,6 +195,7 @@ export function MyDayScreen({
               onOpenTask={onOpenTask}
               onToggleComplete={onToggleComplete}
               onToggleImportant={onToggleImportant}
+              onRename={onRename}
               onRemoveFromMyDay={onRemoveFromMyDay}
               onRequestAbandon={(taskId) =>
                 setPendingAction({ type: "abandon", taskId })
@@ -220,6 +227,7 @@ export function MyDayScreen({
                           onToggleComplete(task.id, completed)
                         }
                         onToggleImportant={() => onToggleImportant(task.id)}
+                        onRename={(title) => onRename(task.id, title)}
                         onAbandon={() =>
                           setPendingAction({ type: "abandon", taskId: task.id })
                         }

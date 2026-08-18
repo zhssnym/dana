@@ -36,6 +36,7 @@ interface DoneScreenProps {
   onOpenTask: (taskId: string) => void
   onMarkNotDone: (taskId: string) => void
   onToggleImportant: (taskId: string) => void
+  onRename: (taskId: string, title: string) => void
   onDelete: (taskId: string) => void
 }
 
@@ -45,6 +46,7 @@ export function DoneScreen({
   onOpenTask,
   onMarkNotDone,
   onToggleImportant,
+  onRename,
   onDelete,
 }: DoneScreenProps) {
   const [pendingAction, setPendingAction] = useState<{
@@ -116,6 +118,7 @@ export function DoneScreen({
                         }
                       }}
                       onToggleImportant={() => onToggleImportant(task.id)}
+                      onRename={(title) => onRename(task.id, title)}
                       onDelete={() =>
                         setPendingAction({ type: "delete", taskId: task.id })
                       }
