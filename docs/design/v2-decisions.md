@@ -73,6 +73,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-112 | What a selection can do, at both levels | OPEN | V3 | No |
 | DES-113 | Row density is a setting; two lines is the default | OPEN | V3 | **Yes**, and it supersedes DES-110 |
 | DES-114 | Every folder list ends in "New folder…" | OPEN | V3 | No |
+| DES-115 | An empty block is the control that fills it | OPEN | V3 | No |
 
 ## Lane 2: needs backend
 
@@ -712,6 +713,34 @@ Two details the drawing settles, and a port should keep:
 Lane 1 in the prototype. In the product the naming panel is client-side but
 folder creation is not, so this rides on whatever the existing create-folder
 endpoint already does; it adds a new entry point rather than a new capability.
+
+### DES-115, an empty block is the control that fills it
+
+Imran's direction, 2026-08-17: "No steps yet" should say something a person can
+act on. It now reads **Add a step**, **Write a note**, **Add a file**.
+
+The change is more than wording, and the reason generalises past these three.
+"No steps yet" is a **status report**, which is a strange thing to put in a card
+where every other line is edited where it sits: it names the absence and leaves
+the person to work out what to do about it, usually by looking elsewhere for a
+button that is not there.
+
+So the empty state became the affordance. It sits exactly where the first item
+will appear, it is the same 32px height as the row it will become, and it
+carries the same icon vocabulary. Hovering it behaves like the row it is
+standing in for. Nothing about the block's shape changes when the first item
+arrives — the placeholder simply becomes real.
+
+The phrasing is the action rather than the absence, and singular rather than
+plural: "Add a step", not "Add steps here". A control should say what it does,
+and what it does is add one. "Here" is doing no work when the control is
+already in the place it refers to.
+
+This should be the rule for empty states across the refresh rather than a fix
+in one card: **where a person can create the thing, the empty state is the
+control that creates it, and it says the verb.** Where they cannot — an empty
+search result, a folder somebody else owns — a status report is correct,
+because there is nothing to offer.
 
 ### Withdrawn at V3
 
