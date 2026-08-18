@@ -29,9 +29,10 @@ real product arrives from `GET /tasks/:id`. The chevron and the card follow in
 their own change rather than being faked from fixtures here.
 */
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import {
   Ban,
+  ChevronDown,
   CircleAlert,
   Folder,
   ListChecks,
@@ -113,6 +114,14 @@ export interface TaskRowProps {
   onRemoveFromMyDay?: () => void
   onAbandon?: () => void
   onDelete?: () => void
+  /* Supplying an expanded node makes the row openable in place (DES-093).
+     The row does not build the card itself, because the card needs task
+     detail the list does not carry — in the product that is a GET /tasks/:id
+     the moment somebody expands, not something the list should be made to
+     fetch for every row it renders. */
+  expanded?: ReactNode
+  isExpanded?: boolean
+  onToggleExpanded?: () => void
 }
 
 function CompletionControl({
@@ -333,6 +342,9 @@ export function TaskRow({
   onRemoveFromMyDay,
   onAbandon,
   onDelete,
+  expanded,
+  isExpanded = false,
+  onToggleExpanded,
 }: TaskRowProps) {
   const { density } = useRowDensity()
   const isCompleted = status === "completed"
@@ -572,6 +584,38 @@ export function TaskRow({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {onToggleExpanded ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                className={cn(
+                  "h-[var(--control-height)] w-[var(--control-height)] shrink-0 border-0 p-0 transition-opacity",
+                  rowActionHover,
+                  isExpanded
+                    ? "opacity-100"
+                    : "opacity-40 group-hover/task:opacity-100 group-focus-within/task:opacity-100",
+                )}
+                aria-expanded={isExpanded}
+                aria-label={isExpanded ? "Collapse this task" : "Expand this task"}
+                onClick={onToggleExpanded}
+              >
+                <ChevronDown
+                  className={cn(
+                    "size-5 transition-transform duration-[var(--duration-base)]",
+                    isExpanded && "rotate-180",
+                  )}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+              </Button>
+            }
+          />
+          <TooltipContent>{isExpanded ? "Collapse" : "Expand"}</TooltipContent>
+        </Tooltip>
+      ) : null}
     </div>
   )
 
