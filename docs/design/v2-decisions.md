@@ -76,7 +76,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
 | DES-116 | Icon sizes: the card's metadata icons are 14px, not 16px | APPROVED | V3 | Imran, 2026-08-17 |
 | DES-117 | One form, two presentations; the right panel is freed | OPEN | V3 | **Yes**, see below |
-| DES-118 | The card is missing nine of the form's fields | OPEN | V3 | **Yes**, see below |
+| DES-118 | The card is missing nine of the form's fields | APPROVED | V3 | Imran, 2026-08-17 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -1083,10 +1083,34 @@ control reveals in the form.
 That keeps the promise: same fields, same defaults, same progressive
 disclosure, two sizes.
 
-**What is owed:** approval to add More options to the card, and a decision on
-the two that do not fit that pattern — **Invite**, which is a sharing action
-rather than a field, and **Task history**, which the footer already gestures at
-with an icon that does nothing.
+**APPROVED and closed by Imran, 2026-08-17: "the same things here, more
+options or advanced".** Implemented as exactly that — the form's own
+disclosure, not a second pattern.
+
+The card now covers every field the form renders. What sits behind **More
+options**, which is closed by default and placed directly under the strip
+because everything it reveals belongs to that strip:
+
+- **Due time** — a time belongs to the date above it.
+- **Repeat interval**, **weekly repeat days**, **on day**, **ends on** — the
+  whole custom recurrence editor, which the chip alone could only preset.
+- **Invite** — resolved into this group rather than left as an open question.
+  It is a field on the task in the form, so it is a field here.
+
+**Task history** is resolved differently and better: the footer already had a
+History icon with nothing behind it, and it now opens a History block. The
+icon was implying that behaviour already; giving it the behaviour costs
+nothing and removes a control that lied.
+
+**Resize task form** is the only thing not carried across, as DES-093
+anticipated from the start: it has no meaning for a card that is as wide as the
+list it sits in.
+
+**The result is the claim DES-093 was approved on, and it can now be checked
+rather than asserted:** same fields, same defaults, same progressive
+disclosure, two sizes. If a later change adds a field to the form and not to
+the card, that claim breaks — so the field-by-field comparison in this entry is
+worth re-running whenever either one changes.
 
 ### Withdrawn at V3
 

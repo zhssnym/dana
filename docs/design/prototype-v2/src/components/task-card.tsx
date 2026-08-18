@@ -31,6 +31,7 @@ import {
   AlignLeft,
   Bell,
   CalendarDays,
+  Clock3,
   ChevronDown,
   Folder,
   History,
@@ -44,6 +45,7 @@ import {
   Repeat2,
   Share2,
   Undo2,
+  UserPlus,
   UserRound,
   X,
 } from "lucide-react"
@@ -334,6 +336,8 @@ export function TaskCard({
   onClose: () => void
   onOpenFull?: () => void
 }) {
+  const [advanced, setAdvanced] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const done = form.steps.filter((step) => step.done).length
   const assignee =
     people.find((person) => person.name === form.assignee) ?? people[0]
@@ -378,6 +382,98 @@ export function TaskCard({
           value={form.repeat === "none" ? "Does not repeat" : form.repeat}
           muted={form.repeat === "none"}
         />
+      </div>
+
+      {/*
+        More options, and it is deliberately the form's own disclosure rather
+        than a second pattern (DES-118). The form does not show due time or
+        the repeat editor by default either, so the card does not have to be
+        denser than the form to be as complete as it — it has to hide the same
+        things in the same place.
+
+        It sits directly under the strip because everything it reveals belongs
+        to that strip: a time belongs to the date, an interval belongs to the
+        repeat.
+      */}
+      <div className="-mt-1">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            setAdvanced((value) => !value)
+          }}
+          aria-expanded={advanced}
+          className={cn(
+            "-ml-1 flex h-6 items-center gap-1 rounded-md px-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
+            T_FAST,
+            FOCUS,
+          )}
+        >
+          More options
+          <ChevronDown
+            className={cn(
+              "size-3.5 transition-transform",
+              T_BASE,
+              advanced && "rotate-180",
+            )}
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+        </button>
+        <Reveal open={advanced}>
+          <div className="flex flex-wrap items-center gap-0.5 pt-1">
+            <PropChip
+              icon={Clock3}
+              value={form.dueTime || "No time"}
+              muted={!form.dueTime}
+              items={["09:00", "12:00", "15:00", "18:00", ""].map((time) => ({
+                key: time || "none",
+                label: time || "No time",
+                onSelect: () => onChange({ dueTime: time }),
+              }))}
+            />
+            <PropChip
+              icon={Repeat2}
+              value={`Every ${form.repeatInterval}`}
+              muted={form.repeat === "none"}
+              items={["1", "2", "3", "4"].map((interval) => ({
+                key: interval,
+                label: `Every ${interval}`,
+                onSelect: () => onChange({ repeatInterval: interval }),
+              }))}
+            />
+            <PropChip
+              icon={CalendarDays}
+              value={form.repeatDays.join(" ") || "No days"}
+              muted={form.repeat === "none"}
+              items={["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => ({
+                key: day,
+                label: form.repeatDays.includes(day) ? `${day} — remove` : `${day} — add`,
+                onSelect: () =>
+                  onChange({
+                    repeatDays: form.repeatDays.includes(day)
+                      ? form.repeatDays.filter((entry) => entry !== day)
+                      : [...form.repeatDays, day],
+                  }),
+              }))}
+            />
+            <PropChip
+              icon={CalendarDays}
+              value={`On day ${form.repeatMonthlyDay}`}
+              muted={form.repeat === "none"}
+            />
+            <PropChip
+              icon={CalendarDays}
+              value={form.repeatEnds ? `Ends ${form.repeatEnds}` : "No end date"}
+              muted={!form.repeatEnds}
+            />
+            <PropChip
+              icon={UserPlus}
+              value={form.invitePending ? `Invite: ${form.invitePending}` : "Invite someone"}
+              muted={!form.invitePending}
+            />
+          </div>
+        </Reveal>
       </div>
 
       <Block
@@ -470,6 +566,18 @@ export function TaskCard({
         <EmptyAction label="Add a file" />
       </Block>
 
+      <Reveal open={showHistory}>
+        <Block icon={History} label="History">
+          <ol className="flex flex-col gap-1 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+            <li>Created {form.createdAt ?? "recently"} by {form.createdBy ?? "Imran Wafa"}</li>
+            {form.completedAt ? (
+              <li>Completed {form.completedAt} by {form.completedBy}</li>
+            ) : null}
+            <li>Last edited just now by Imran Wafa</li>
+          </ol>
+        </Block>
+      </Reveal>
+
       <div className="-mx-3 -mb-3 -ml-7 flex items-center justify-between gap-2 rounded-b-[7px] bg-[var(--color-graphite-50)] px-3 py-2">
         <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
           {form.createdBy
@@ -490,7 +598,11 @@ export function TaskCard({
             aria-hidden="true"
             className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
           />
-          <FooterAction icon={History} label="History" />
+          <FooterAction
+            icon={History}
+            label={showHistory ? "Hide history" : "History"}
+            onClick={() => setShowHistory((value) => !value)}
+          />
           <FooterAction
             icon={Maximize2}
             label="Open full screen"
