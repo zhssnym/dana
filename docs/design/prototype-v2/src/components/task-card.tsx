@@ -26,7 +26,7 @@ There is no Save button (DES-109): every edit commits as it is made, so undo
 and redo lead the footer instead.
 */
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlignLeft,
   Bell,
@@ -82,9 +82,20 @@ export interface TaskCardFolders {
   color: string
 }
 
-/* The height animation uses grid rather than max-height: max-height needs a
-   guessed maximum and either clips a long note or spends the tail of the
-   duration animating nothing. 0fr to 1fr measures itself. */
+/*
+The height animation, and why it measures rather than using the grid trick.
+
+The 0fr-to-1fr technique is tidier and was what the concept lab used, but an
+`fr` track only resolves to its content while the grid's own height is
+indefinite — and inside the shell's list the row sits in a context where it
+resolves to zero instead, so an open card animated to nothing. It failed
+silently, which is the worst way for a layout trick to fail.
+
+So this measures the content and animates to that height, then releases the
+constraint once the transition is done so a card that grows afterwards — a
+note being typed, a step being added — is not clipped by a stale number. It is
+more code than the trick and it works in every container.
+*/
 export function Reveal({
   open,
   children,
@@ -92,25 +103,37 @@ export function Reveal({
   open: boolean
   children: React.ReactNode
 }) {
+  const inner = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | undefined>(undefined)
+  const [settled, setSettled] = useState(open)
+
+  useEffect(() => {
+    const node = inner.current
+    if (!node) return
+    if (open) {
+      setSettled(false)
+      setHeight(node.scrollHeight)
+      const timer = window.setTimeout(() => setSettled(true), 220)
+      return () => window.clearTimeout(timer)
+    }
+    /* From the measured height down, rather than from auto, so there is
+       something to animate from. */
+    setSettled(false)
+    setHeight(node.scrollHeight)
+    const frame = requestAnimationFrame(() => setHeight(0))
+    return () => cancelAnimationFrame(frame)
+  }, [open, children])
+
   return (
     <div
-      className={cn(
-        "grid transition-[grid-template-rows]",
-        T_BASE,
-        open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-      )}
+      className={cn("overflow-hidden transition-[height,opacity]", T_BASE)}
+      style={{
+        height: open && settled ? "auto" : (height ?? (open ? undefined : 0)),
+        opacity: open ? 1 : 0,
+      }}
+      aria-hidden={!open}
     >
-      <div className="overflow-hidden">
-        <div
-          className={cn(
-            "transition-[opacity,transform]",
-            T_BASE,
-            open ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
-          )}
-        >
-          {children}
-        </div>
-      </div>
+      <div ref={inner}>{children}</div>
     </div>
   )
 }

@@ -31,7 +31,7 @@ export default defineConfig({
     outDir: "dist-share",
     emptyOutDir: true,
     rollupOptions: {
-      input: path.resolve(rootDirectory, "lab.html"),
+      input: path.resolve(rootDirectory, process.env.SHARE_ENTRY === "shell" ? "index.html" : "lab.html"),
       output: {
         inlineDynamicImports: true,
         entryFileNames: "assets/lab.js",

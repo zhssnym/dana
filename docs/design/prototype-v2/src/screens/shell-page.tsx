@@ -12,6 +12,8 @@ import {
 } from "lucide-react"
 
 import { AppShell } from "@/components/app-shell"
+import { TaskCard } from "@/components/task-card"
+import type { TaskExpansion } from "@/components/task-row"
 import type { ShellPageName } from "@/components/app-sidebar"
 import {
   TaskFormSheet,
@@ -394,6 +396,20 @@ const doneGoldenTasks: ShellTask[] = [
   },
 ]
 
+const cardPeople = [
+  { name: "Imran Wafa", initials: "IW" },
+  { name: "Sara Khan", initials: "SK" },
+  { name: "Hassan Ali", initials: "HA" },
+]
+
+const cardFolders = [
+  { name: "Wedding", color: "var(--color-folder-violet)" },
+  { name: "Community planning committee", color: "var(--color-folder-fern)" },
+  { name: "Home", color: "var(--color-folder-teal)" },
+  { name: "Dana", color: "var(--color-folder-cobalt)" },
+  { name: "Inbox", color: "var(--color-graphite-400)" },
+]
+
 const shellTaskFixtures: ShellTask[] = [
   ...primaryShellTasks,
   ...myDayGoldenTasks,
@@ -528,6 +544,9 @@ export function ShellPage() {
   const [taskFormOpen, setTaskFormOpen] = useState(searchParams.get("view") === "form")
   const [searchOpen, setSearchOpen] = useState(searchParams.get("search") === "open")
   const [tasks, setTasks] = useState(shellTaskFixtures)
+  /* Which row is open in place (DES-093). One at a time: two open cards in a
+     list is two things competing to be the thing you are reading. */
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
   const [pageVisibility, setPageVisibility] = useState<PageVisibility>(() => ({
     Important: searchParams.get("show-important") !== "false",
     All: searchParams.get("show-all") !== "false",
@@ -711,6 +730,42 @@ export function ShellPage() {
     window.addEventListener("keydown", handleSearchShortcut)
     return () => window.removeEventListener("keydown", handleSearchShortcut)
   }, [])
+  /* The card edits the same form object the sheet edits, which is the whole
+     of DES-093: one artifact, two presentations. Anything written here is
+     written where the sheet would have written it. */
+  const taskExpansion: TaskExpansion = {
+    openId: expandedTaskId,
+    toggle: (taskId) =>
+      setExpandedTaskId((current) => (current === taskId ? null : taskId)),
+    render: (taskId) => {
+      const task = tasks.find((candidate) => candidate.id === taskId)
+      if (!task) return null
+      return (
+        <TaskCard
+          form={task.form}
+          people={cardPeople}
+          folders={cardFolders}
+          onChange={(next) => {
+            const merged = { ...task.form, ...next }
+            updateTask(taskId, {
+              form: merged,
+              title: merged.title,
+              notes: Boolean(merged.notes),
+              steps: merged.steps.length
+                ? {
+                    complete: merged.steps.filter((step) => step.done).length,
+                    total: merged.steps.length,
+                  }
+                : undefined,
+            })
+          }}
+          onClose={() => setExpandedTaskId(null)}
+          onOpenFull={() => openTask(taskId)}
+        />
+      )
+    },
+  }
+
   const updateTask = (taskId: string, update: Partial<ShellTask>) => {
     setTasks((current) =>
       current.map((task) =>
@@ -817,6 +872,7 @@ export function ShellPage() {
             previewState={state}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -887,6 +943,7 @@ export function ShellPage() {
             }}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -996,6 +1053,7 @@ export function ShellPage() {
             }}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1092,6 +1150,7 @@ export function ShellPage() {
             onOpenTask={openTask}
             onOpenGhost={openGhostTask}
             onToggleComplete={setTaskCompleted}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1120,6 +1179,7 @@ export function ShellPage() {
             previewState={state}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1215,6 +1275,7 @@ export function ShellPage() {
             }}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1268,6 +1329,7 @@ export function ShellPage() {
             previewState={state}
             onOpenTask={openTask}
             onMarkNotDone={(taskId) => updateTask(taskId, { status: "pending" })}
+            expansion={taskExpansion}
             onRename={(taskId, title) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {

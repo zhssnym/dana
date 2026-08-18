@@ -64,8 +64,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Reveal } from "@/components/task-card"
 import { useRowDensity } from "@/lib/density"
 import { cn } from "@/lib/utils"
+
+/* What a list hands a row so it can open in place. One object rather than
+   three props, so a screen forwards it without knowing how expansion works. */
+export interface TaskExpansion {
+  openId: string | null
+  toggle: (taskId: string) => void
+  render: (taskId: string) => import("react").ReactNode
+}
 
 export type TaskStatus = "pending" | "completed" | "abandoned"
 export type TaskRowVisualState = "default" | "hover" | "focus" | "selected"
@@ -625,7 +634,7 @@ export function TaskRow({
     isAbandoned && "text-[var(--color-graphite-500)]",
   )
 
-  return (
+  const row = (
     <Item
       role="listitem"
       tabIndex={onOpen ? 0 : undefined}
@@ -716,5 +725,22 @@ export function TaskRow({
         {taskActions}
       </div>
     </Item>
+  )
+
+  if (!expanded) return row
+
+  return (
+    <div
+      data-task-expanded={isExpanded ? "true" : "false"}
+      className={cn(
+        "rounded-lg border transition-[background-color,box-shadow,margin,border-color] duration-[var(--duration-base)]",
+        isExpanded
+          ? "my-1 border-[var(--color-graphite-300)] bg-card shadow-[var(--elevation-1)]"
+          : "my-0 border-transparent",
+      )}
+    >
+      {row}
+      <Reveal open={isExpanded}>{expanded}</Reveal>
+    </div>
   )
 }
