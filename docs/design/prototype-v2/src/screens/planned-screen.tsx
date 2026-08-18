@@ -14,11 +14,7 @@ import {
 
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import {
-  TaskRow,
-  type TaskExpansion,
-  type TaskRowProps,
-} from "@/components/task-row"
+import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -49,8 +45,6 @@ interface PlannedScreenProps {
   onOpenGhost: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
-  onRename: (taskId: string, title: string) => void
-  expansion?: TaskExpansion
   onRestore: (taskId: string) => void
 }
 
@@ -428,8 +422,6 @@ export function PlannedScreen({
   onOpenGhost,
   onToggleComplete,
   onToggleImportant,
-  onRename,
-  expansion,
   onRestore,
 }: PlannedScreenProps) {
   const [mode, setMode] = useState<PlannedMode>(() => {
@@ -480,12 +472,6 @@ export function PlannedScreen({
                     : onToggleComplete(task.id, completed)
                 }
                 onToggleImportant={() => onToggleImportant(task.id)}
-                onRename={(title) => onRename(task.id, title)}
-                expanded={expansion?.render(task.id)}
-                isExpanded={expansion?.openId === task.id}
-                onToggleExpanded={
-                  expansion ? () => expansion.toggle(task.id) : undefined
-                }
               />
             ))}
           </div>

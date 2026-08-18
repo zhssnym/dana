@@ -2,11 +2,7 @@ import { useState } from "react"
 import { CalendarCheck2, ChevronRight, Star, SunMedium } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import {
-  TaskRow,
-  type TaskExpansion,
-  type TaskRowProps,
-} from "@/components/task-row"
+import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +36,6 @@ interface MyDayScreenProps {
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
-  onRename: (taskId: string, title: string) => void
-  expansion?: TaskExpansion
   onRemoveFromMyDay: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
@@ -53,8 +47,6 @@ function TaskGroup({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
-  onRename,
-  expansion,
   onRemoveFromMyDay,
   onRequestAbandon,
   onRequestDelete,
@@ -64,8 +56,6 @@ function TaskGroup({
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
-  onRename: (taskId: string, title: string) => void
-  expansion?: TaskExpansion
   onRemoveFromMyDay: (taskId: string) => void
   onRequestAbandon: (taskId: string) => void
   onRequestDelete: (taskId: string) => void
@@ -91,12 +81,6 @@ function TaskGroup({
               onToggleComplete(task.id, completed)
             }
             onToggleImportant={() => onToggleImportant(task.id)}
-            onRename={(title) => onRename(task.id, title)}
-            expanded={expansion?.render(task.id)}
-            isExpanded={expansion?.openId === task.id}
-            onToggleExpanded={
-              expansion ? () => expansion.toggle(task.id) : undefined
-            }
             onRemoveFromMyDay={() => onRemoveFromMyDay(task.id)}
             onAbandon={() => onRequestAbandon(task.id)}
             onDelete={() => onRequestDelete(task.id)}
@@ -115,8 +99,6 @@ export function MyDayScreen({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
-  onRename,
-  expansion,
   onRemoveFromMyDay,
   onAbandon,
   onDelete,
@@ -193,8 +175,6 @@ export function MyDayScreen({
               onOpenTask={onOpenTask}
               onToggleComplete={onToggleComplete}
               onToggleImportant={onToggleImportant}
-              onRename={onRename}
-              expansion={expansion}
               onRemoveFromMyDay={onRemoveFromMyDay}
               onRequestAbandon={(taskId) =>
                 setPendingAction({ type: "abandon", taskId })
@@ -209,8 +189,6 @@ export function MyDayScreen({
               onOpenTask={onOpenTask}
               onToggleComplete={onToggleComplete}
               onToggleImportant={onToggleImportant}
-              onRename={onRename}
-              expansion={expansion}
               onRemoveFromMyDay={onRemoveFromMyDay}
               onRequestAbandon={(taskId) =>
                 setPendingAction({ type: "abandon", taskId })
@@ -242,12 +220,6 @@ export function MyDayScreen({
                           onToggleComplete(task.id, completed)
                         }
                         onToggleImportant={() => onToggleImportant(task.id)}
-                        onRename={(title) => onRename(task.id, title)}
-                        expanded={expansion?.render(task.id)}
-                        isExpanded={expansion?.openId === task.id}
-                        onToggleExpanded={
-                          expansion ? () => expansion.toggle(task.id) : undefined
-                        }
                         onAbandon={() =>
                           setPendingAction({ type: "abandon", taskId: task.id })
                         }

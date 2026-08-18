@@ -16,11 +16,7 @@ import {
 import { QuickAdd } from "@/components/quick-add"
 import { SharingPanel } from "@/components/sharing-panel"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import {
-  TaskRow,
-  type TaskExpansion,
-  type TaskRowProps,
-} from "@/components/task-row"
+import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,8 +89,6 @@ interface FolderScreenProps {
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
-  onRename: (taskId: string, title: string) => void
-  expansion?: TaskExpansion
   onRestore: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
@@ -122,8 +116,6 @@ export function FolderScreen({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
-  onRename,
-  expansion,
   onRestore,
   onAbandon,
   onDelete,
@@ -276,12 +268,6 @@ export function FolderScreen({
               : onToggleComplete(task.id, completedValue)
         }
         onToggleImportant={() => onToggleImportant(task.id)}
-        onRename={(title) => onRename(task.id, title)}
-        expanded={expansion?.render(task.id)}
-        isExpanded={expansion?.openId === task.id}
-        onToggleExpanded={
-          expansion ? () => expansion.toggle(task.id) : undefined
-        }
         onAbandon={() =>
           setPendingTaskAction({ type: "abandon", taskId: task.id })
         }
