@@ -40,35 +40,36 @@ body {
   min-height: 100vh;
 }
 
-/* WARNING, and see DES-108 before touching this.
+/* Controls inherit the page's font rather than the browser's.
  *
- * These four lines are unlayered, and unlayered CSS beats layered CSS
- * regardless of specificity. Tailwind 4 puts utilities in @layer utilities,
- * so `font-size: inherit` here silently wins against every text-size utility
- * applied to a button, input, textarea or select anywhere in the prototype.
- * The class is in the markup, the rule is in the stylesheet, and the rendered
- * size is the inherited one — the worst kind of bug, because the code reads
- * as though it works.
+ * This lives in @layer base deliberately, and the reason is worth keeping.
+ * Unlayered CSS beats layered CSS regardless of specificity, and Tailwind 4
+ * puts every utility in @layer utilities. While these four lines were
+ * unlayered they silently beat every text-size utility applied to a button,
+ * input, textarea or select in the whole prototype: the class was in the
+ * markup, the rule was in the stylesheet, and the rendered size was whatever
+ * the parent happened to be. Nothing warned, because the code read as though
+ * it worked.
  *
- * Found 2026-08-17 at session V3, when an expanded task title carrying
- * `text-[16px]` kept rendering at 14px.
+ * Found 2026-08-17 when an expanded task title carrying text-[16px] kept
+ * rendering at 14px. Fixed the same day under DES-108, after measuring the
+ * real blast radius: six controls across the shell and the states page were
+ * rendering at a size their own code did not ask for, some too big and some
+ * too small depending on what they sat inside.
  *
- * The one-line fix is to wrap this block in `@layer base`. It is deliberately
- * NOT applied, because it is not a safe change to make quietly: measured on
- * the shell the same day, 56 controls carry a text-size class that this rule
- * is currently suppressing, and 54 of them would change size — 33 buttons
- * from 14px to 12px alone. Those screens were approved as they render, not as
- * they are written, so correcting the cascade is an owner decision with a
- * before-and-after, not a tidy-up. DES-108 carries the evidence.
+ * In @layer base the reset still does its job and a utility can now override
+ * it, which is what everyone writing one intended.
  */
-button,
-input,
-textarea,
-select {
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
 }
 
 button:not(:disabled),

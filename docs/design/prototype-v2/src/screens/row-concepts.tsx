@@ -1329,7 +1329,8 @@ function TaskTitle({
      across this box and a full-width box strikes a line across empty space to
      the right of a short title. max-w-full keeps truncation working. */
   const metrics = cn(
-    "block w-fit max-w-full min-w-0 text-[14px] leading-5",
+    "block w-fit max-w-full min-w-0",
+    heading ? "text-[16px] leading-6" : "text-[14px] leading-5",
     truncate && "truncate",
     className,
   )
@@ -1381,9 +1382,6 @@ function TaskTitle({
   const button = (
     <button
       type="button"
-      /* See DES-108: a text-size class on a button is suppressed by an
-         unlayered reset, so the one size that has to change is set here. */
-      style={heading ? { fontSize: "16px", lineHeight: "24px" } : undefined}
       onClick={(e) => {
         e.stopPropagation()
         setDraft(task.title)
@@ -2123,15 +2121,13 @@ function EmptyAction({ label }: { label: string }) {
       type="button"
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+        "flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
         T_FAST,
         FOCUS,
       )}
     >
       <Plus className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-      {/* The size lives on the span, not the button: per DES-108 an unlayered
-          reset makes a text-size utility on a control silently do nothing. */}
-      <span className="text-[12px] leading-4">{label}</span>
+      {label}
     </button>
   )
 }
