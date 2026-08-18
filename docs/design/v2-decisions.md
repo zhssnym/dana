@@ -447,6 +447,25 @@ confirmation, one undo story, and one sentence in the help. What it costs: the
 destination picker has to be good, because it is now carrying five features. If
 it is a plain flat list of folders it will be worse than the five commands were.
 
+**The picker's real constraint, from Imran, 2026-08-17.** The folders in the
+prototype are four fixtures. A real person has an arbitrary number, and the
+menu as drawn — every folder listed, every one carrying a sentence — stops
+working somewhere around seven and is unusable at thirty.
+
+So the direction carries a condition rather than being approved as drawn:
+
+> **The destination picker is a search field with results under it, not a
+> list.** It opens focused, typing filters, and the folders are ordered by
+> recency rather than alphabetically, because the folder somebody wants next is
+> usually the one they touched last.
+
+Two things worth being clear about. First, **this is not a cost of the one-verb
+model**: five separate commands would each need the same picker the moment one
+of them said "move to a folder", so the searchable picker is owed either way.
+Second, it is **why the picker is the part to build carefully** — under one verb
+it is the whole feature, so a weak picker is a weak product rather than one
+weak menu item.
+
 **The alternative, stated fairly.** Keep the explicit commands. They are more
 discoverable — "Make a new task from these" tells you exactly what will happen,
 where "Move to… → New task" asks you to know the rule. For a person who does
@@ -474,6 +493,17 @@ people complete things they meant to select.
 whether Dana has one verb or five.** DES-100 and DES-104 should be resolved
 together with this one, because if the answer is one verb, both of them are
 already written and neither needs its own design.
+
+**The decision is free to take now, which is the practical point.** All three
+entries are Lane 2 and nothing is built until the backend session. The
+prototype already draws the one-verb version, so choosing it writes an RFC
+rather than any code, and choosing five commands would mean *more* drawing
+rather than less. There is no version of this where deferring the decision
+saves work.
+
+It is also the cheaper mistake in the direction of one verb: if it proves too
+clever in use, splitting it into named commands later is a menu change. Going
+the other way, after people have learned five command names, is a migration.
 
 ### DES-107, a fifth type size the contract does not name
 
