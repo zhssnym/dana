@@ -1037,6 +1037,26 @@ The rule that falls out of it, for the port: **fill a region to group, never to
 decorate, and never fill two regions in the same card.** A second band would
 turn the shade back into the compartment the rules were removed for being.
 
+**Amended 2026-08-17, when Imran asked for the footer to be shaded too.** That
+looks like a second filled region and is not, and the distinction is the
+portable part of this entry:
+
+> **An inset rounded fill groups content. A full-bleed edge band is chrome.**
+> A card may have one of each and still not have two groups.
+
+The details strip groups content: it is inset from the card's edges, rounded on
+four sides, sitting inside the content column. The footer does not group
+anything — it is the card's edge, carrying the actions that belong to the whole
+task rather than to any part of it. So it is drawn as an edge: full-bleed to
+the card's sides, square at the top, following the card's own radius at the
+bottom. It reads as "this is where the card ends" rather than "these things
+belong together", which is the depth that was wanted.
+
+No separator above it either. A shaded band already has an edge — the line
+where the shade begins — and a rule drawn along that line says the same thing
+twice, which is exactly the fault the block icons had before they were
+merged into one mark.
+
 ## Carried from v1, still unresolved
 
 These are `design-contract.md`'s existing Lane 2 items, listed so a v2 session

@@ -37,6 +37,7 @@ import {
   Folder,
   FolderInput,
   FolderPlus,
+  Folders,
   ListChecks,
   ListPlus,
   FileText,
@@ -1580,15 +1581,29 @@ function Actions({
           }
         />
         <DropdownMenuContent align="end">
-          <DropdownMenuItem>Open</DropdownMenuItem>
-          <DropdownMenuItem>Duplicate</DropdownMenuItem>
-          <DropdownMenuItem>Move to folder…</DropdownMenuItem>
+          <DropdownMenuItem>
+            <Maximize2 />
+            Open full screen
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <Copy />
+            Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <FolderInput />
+            Move to folder…
+          </DropdownMenuItem>
           {onMakeFolder ? (
             <DropdownMenuItem onClick={onMakeFolder}>
+              <Folders />
               Make this a folder…
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem>Delete</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive">
+            <Trash2 />
+            Delete
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {extra}
@@ -1982,7 +1997,33 @@ function CardFooter({ onClose }: { onClose: () => void }) {
   const [undoDepth, setUndoDepth] = useState(0)
 
   return (
-    <div className="flex items-center justify-between gap-2 pt-1">
+    /*
+    The footer is shaded, and that needs squaring with DES-099, which says
+    never fill two regions in the same card. The rule stands; this is not a
+    second one.
+
+    What DES-099 forbids is using fill to group *content*, because two grouped
+    regions turn a card back into the compartments the rules were removed for
+    being. The details strip does that job, and it looks the part: inset from
+    the card's edges, rounded on all four sides, sitting inside the content
+    column.
+
+    This is not content. It is chrome — the card's edge, carrying the actions
+    that belong to the whole thing rather than to any part of it. So it is
+    drawn as an edge instead of as a group: full-bleed to the card's sides,
+    square at the top, following the card's own radius at the bottom. Nothing
+    about it reads as "these items belong together"; it reads as "this is where
+    the card ends", which is the depth Imran was after.
+
+    The distinction, and it is the portable half: an inset rounded fill groups
+    content, a full-bleed edge band is chrome. A card may have one of each and
+    still not have two groups.
+
+    No separator line either. A shaded band already has an edge — the point
+    where the shade begins — and drawing a rule along it would be saying the
+    same thing twice, which is the mistake the block icons had.
+    */
+    <div className="-mx-3 -mb-3 -ml-7 flex items-center justify-between gap-2 rounded-b-[7px] bg-[var(--color-graphite-50)] px-3 py-2">
       <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
         Edited just now by Imran Wafa · saved
       </span>
