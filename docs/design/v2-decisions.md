@@ -998,6 +998,53 @@ the same treatment DES-107 gets for the 10/12 type step.
 Recorded rather than quietly kept, because a deviation nobody wrote down is
 indistinguishable from a mistake when somebody finds it later.
 
+### DES-117, one form in two presentations, and what happens to the right panel
+
+Imran's question, 2026-08-17: if rows expand, is the right-side sheet still
+needed — and could that space become something else, AI or chat between the
+members of a folder?
+
+**The half that is a design answer.** DES-093 left a real gap: seven places
+open the task form with no row to expand — the floating add button, the four
+quick-add escalations, a calendar empty cell, the calendar ghost, and a search
+result. Keeping the sheet only for those would make the form two artifacts,
+which contradicts 9.3's own heading that create and edit are the same thing.
+
+The card already carries a full-screen action, and that is the resolution:
+
+> **One form, two presentations.** Inline, where there is a row to expand.
+> Full-screen, where there is not — creating from nowhere, opening from search,
+> opening a calendar cell or a ghost.
+
+One artifact, one set of fields, one save behaviour, two sizes. It answers
+DES-093's outstanding question without inventing a third thing, and it retires
+the sheet as the task form rather than as a component.
+
+**The half that is a product question, and should not be answered yet.** The
+panel mechanism is worth keeping; the panel's *tenant* is a separate decision.
+Recommended framing: the right panel is **available, not allocated.**
+
+- Keeping the sliding-panel capability costs nothing while it is unused, and
+  the layout already supports it.
+- Reserving the space for an unbuilt feature is how a product ends up with a
+  permanently empty column that everything else has to lay out around.
+- Both candidates named are expensive and neither is current. **Member chat**
+  is a messages table, realtime delivery, unread state, notifications and
+  permissions — a large Lane 2 feature in its own right. **AI** is explicitly
+  not the direction: the agent-states concept was withdrawn from the lab
+  earlier the same day.
+
+So: retire the sheet as the task form, keep the component, and let whatever
+eventually occupies that space earn it on its own merits rather than inheriting
+it because it happened to be free.
+
+**What is owed:** confirmation that full-screen is the answer for the seven
+row-less entry points, since that is what lets the sheet be retired. The
+full-screen view itself is undrawn — it is an action in the card's footer and
+nothing behind it yet.
+
+### Withdrawn at V3
+
 Four concepts have left the lab, all on 2026-08-17 at Imran's direction. They
 are listed here so a later session finds the decision rather than re-proposing
 the idea.
