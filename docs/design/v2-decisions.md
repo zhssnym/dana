@@ -89,6 +89,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-128 | A step is a label; a note is a field | APPROVED | V3 | Imran, 2026-08-18 |
 | DES-131 | The folder page's controls live in one small steady cluster | PROPOSED | F1 | Imran's look owed |
 | DES-133 | The floating New task button retires where a quick-add row lives | PROPOSED | F1 | **Yes** — W5 names a capture point |
+| DES-135 | The list measure is a reading measure: 800px | PROPOSED | F2a | **Yes** — Imran's eye at F2d; supersedes DES-023 in part |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2453,6 +2454,36 @@ cluster button is drawn in both.
    together.
 4. **What happens if it never ships.** The cluster drops one button; the page
    ends at Completed. Task comments (DES-129) are unaffected either way.
+
+### DES-135, the list measure is a reading measure
+
+V1's first step, taken 2026-08-18 during F2a. The review's L1 finding: a task
+title is a sentence, and 1120px of sentence is a stretch no typographer would
+set. Three candidates were built and offered — the ~800px reading column, the
+full width with metadata pulled to the title, and the incumbent — and
+**Imran expressed no preference when asked**, so the studio recommendation
+was applied rather than left hanging: `--shell-content-max` now takes
+`--content-list` (800px) and every list screen, the folder page and the
+states page lay out against it.
+
+**Provisional, and honestly so.** A measure is the kind of decision the
+plan's own rule says is made by looking, and the look that matters is
+Imran's. The comparison instruments therefore stay until the F2d verdict
+pass: `?measure=wide` restores DES-023's 1120px, `?measure=pulled` shows the
+packed-metadata alternative. When Imran confirms, this entry moves to
+APPROVED, supersedes DES-023's content-area width in part, and the
+instruments leave — the same retirement the losing row concepts had.
+
+Why 800 and not the other two, recorded so the reasoning survives: the
+two-line row (DES-113) already pulled the details under the title, which is
+most of what the pulled variant offers, without giving up the aligned due
+column; and the visible cost of the narrow column — margin on wide screens —
+is the self-announcing kind of cost, where a truncated or far-flung title is
+the invisible kind. Dana chooses the honest cost, the same argument DES-113
+used for its default.
+
+What V1 still owes, unchanged: the L2 slot order pass on `task-row.tsx` and
+the L5 sparse-page check, both to be judged at this measure.
 
 ## Carried from v1, still unresolved
 
