@@ -65,7 +65,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-096 | Details on a second line beneath the title | APPROVED | V3 | Carried by DES-113 |
 | DES-097 | A motion scale in the tokens | APPROVED | V3 | Carried by DES-113 |
 | DES-099 | The expanded card: one header strip, then Steps and Notes | APPROVED | V3 | Carried by DES-113 |
-| DES-107 | A fifth type size the contract does not name | OPEN | V3 | **Yes**, see below |
+| DES-107 | A fifth type size the contract does not name | APPROVED | V3 | Imran, 2026-08-17 |
 | DES-108 | A CSS reset silently suppresses text sizes on every control | OPEN | V3 | **Yes**, see below |
 | DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
 | DES-110 | The V3 question, reduced: is a task row one line or two? | SUPERSEDED | V3 | By DES-113 |
@@ -172,6 +172,30 @@ be a job in its own right.
 4. **What happens if it never ships.** Nothing breaks. Retyping the step as a
    task and deleting the step is the current workaround and it is fine, which
    is a reason to be honest that this is a nicety rather than a gap.
+
+**Accepted in principle by Imran, 2026-08-17, and generalised by him.** His
+correction to how this was written: it is not one step becoming one task. It is
+that **one or more steps can be turned into a task**, and that the same move
+exists at every level — a task can be promoted, and so can a folder.
+
+That makes this entry and DES-104 two instances of one idea rather than two
+features, which is exactly what DES-106 proposes to name. The ladder as he
+describes it:
+
+> steps → a task · a task → a folder · a folder → promoted
+
+**One thing that has to be settled before the ladder is drawn, and it is a
+model question rather than a design one.** The first two rungs have somewhere
+to go. The third does not: Dana's folders are **flat**, stated as recently as
+DES-088 ("None of this changes Dana's flat-folder model"), so there is no level
+above a folder for one to be promoted into. Promoting a folder means either
+nested folders — a real change to the data model, every one of the twelve
+section 6 queries, and the sidebar — or it means something else that has not
+been named yet.
+
+Recorded as a question rather than assumed away: **what is a folder promoted
+into?** Until that is answered the ladder has two rungs, not three, and the
+two-rung version is buildable as one endpoint under DES-106.
 
 ### DES-101, notes that can contain check items
 
@@ -455,6 +479,21 @@ Recommendation: name it. 10px is genuinely useful for a two-character avatar
 inside a 20px circle, and 12px does not fit there. A scale that admits its
 exceptions is followed; one that pretends they are not there is edited around.
 
+**APPROVED by Imran, 2026-08-17: the fifth size is named.** DES-015 gains a
+micro step of **10/12**, and it carries a stated job so it cannot spread:
+
+> **10/12 is for marks, not for language.** Count badges, keyboard hints, and
+> the initials inside a small avatar. Never a sentence, never a label somebody
+> has to read to operate the product, and never a control's own text.
+
+That last clause is the one that keeps it honest. The reason 10px is acceptable
+on an avatar is that nobody reads "IW" — they recognise it. The moment a 10px
+string has to be read, it is the wrong size, and the fix is to shorten the
+string rather than to shrink the type further.
+
+To fold into `design-contract.md` at V9 as an amendment to DES-015 rather than
+a new entry, since it changes that decision rather than standing beside it.
+
 ### DES-108, a CSS reset that silently suppresses text sizes on every control
 
 Found 2026-08-17 at session V3, chasing why an expanded task title carrying
@@ -476,13 +515,40 @@ works.
 **The fix is one line** — wrap the block in `@layer base`, which keeps the
 reset doing its real job while letting a utility override it.
 
-**It is deliberately not applied, and this is the part that needs a ruling.**
-Measured on the shell the same day: **56 controls carry a text-size class this
-rule is currently suppressing, and 54 would change size** — 33 buttons from
-14px to 12px, 20 from 14px to 13px, one to 11px. Those screens were approved
-by looking at them, which means they were approved *as rendered* rather than
-as written. Correcting the cascade would restyle approved work, so it needs a
-before-and-after and a decision, not a quiet commit at the end of a session.
+**Corrected 2026-08-17, and the correction matters.** An earlier note in this
+entry said 54 of 56 controls would change size. **That was wrong**, and it was
+wrong in the direction that made the fix look dangerous. It came from measuring
+the page *after* applying the fix and assuming every control carrying a size
+class was being suppressed.
+
+Measured properly — comparing what each control's class asks for against what
+it actually renders, with the bug still in place:
+
+| View | Controls with a size class | Actually wrong today |
+| - | - | - |
+| Shell | 23 | **3** |
+| States page | 3 | **3** |
+
+The bug is real but mostly invisible, because `font-size: inherit` gives a
+control its *parent's* size — and most controls happen to sit inside a parent
+of the size they were asking for anyway. The class is still being ignored; it
+just does not show.
+
+**So the answer to "are they too big or too small?" is both, depending on where
+they sit:**
+
+- A control asking for 13px inside a 14px area renders 14px — **too big**.
+  Two on the shell: the account button and "Done today (4)".
+- A control asking for 14px inside a 12px area renders 12px — **too small**.
+  One on the shell and all three on the states page: Restore, Remove from My
+  Day, Retry.
+
+**Recommendation: apply the fix.** Six controls change across the two views
+measured, each by one or two pixels, and each change moves the control *to* the
+size its own code asks for. The risk that made this look like an owner decision
+was a measurement error, and with the real number the fix is ordinary
+maintenance. It should be done before V3's states work, since two of the six
+are on the states page itself.
 
 Note the overlap with DES-107: the suppressed sizes include 13px and 11px,
 neither of which DES-015 names. Fixing the cascade would make two off-scale
