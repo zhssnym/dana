@@ -30,6 +30,7 @@ import {
   Ban,
   Bell,
   CalendarDays,
+  Check as CheckIcon,
   ChevronDown,
   CircleAlert,
   Folder,
@@ -45,6 +46,7 @@ import {
   Repeat2,
   Star,
   UserRound,
+  X,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import {
@@ -677,7 +679,7 @@ function PendingPanel({
         T_BASE,
       )}
     >
-      <p className="text-[13px] leading-5 text-[var(--color-dana-accent-800)]">
+      <p className="text-[14px] leading-5 text-[var(--color-dana-accent-800)]">
         {pending.kind === "merge" ? (
           <>
             Put <strong>{pending.titles[0]}</strong> and{" "}
@@ -712,7 +714,7 @@ function PendingPanel({
           placeholder="Folder name"
           aria-label="Folder name"
           className={cn(
-            "h-8 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-sm text-[var(--color-graphite-800)] outline-none",
+            "h-8 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[14px] leading-5 text-[var(--color-graphite-800)] outline-none",
             "focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]",
           )}
         />
@@ -720,7 +722,7 @@ function PendingPanel({
           type="button"
           onClick={onCancel}
           className={cn(
-            "rounded-md px-3 py-1.5 text-[13px] text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)]",
+            "rounded-md px-3 py-1.5 text-[14px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)]",
             T_FAST,
             FOCUS,
           )}
@@ -732,7 +734,7 @@ function PendingPanel({
           disabled={!name.trim()}
           onClick={() => onConfirm(name.trim())}
           className={cn(
-            "rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[13px] font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95 disabled:opacity-40",
+            "rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[14px] leading-5 font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95 disabled:opacity-40",
             T_FAST,
             FOCUS,
           )}
@@ -1215,7 +1217,7 @@ function PropChip({
   const body = (
     <span
       className={cn(
-        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-2 text-[13px] transition-[background-color,border-color]",
+        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-2 text-[14px] leading-5 transition-[background-color,border-color]",
         T_FAST,
         "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
         muted
@@ -1313,7 +1315,14 @@ function Disclosure({
           silently repairs by dropping one of them. */}
       <div
         className={cn(
-          "-ml-1 flex h-7 items-center gap-1.5 rounded-md pr-1 pl-1 transition-colors group-hover/sec:bg-[var(--color-graphite-50)]",
+          /* Pulled left into the card's handle gutter, so the grip sits
+             inside the card with room to breathe rather than hard against
+             its border. The gutter is the pl-7 on the card body. */
+          /* No left padding, so the chevron lands exactly on the card body's
+             left edge and therefore exactly on the shaded strip above it. The
+             grip is what hangs into the gutter, which is what a gutter is
+             for. */
+          "-ml-5 flex h-7 items-center gap-1.5 rounded-md pr-1 transition-colors group-hover/sec:bg-[var(--color-graphite-50)]",
           T_FAST,
         )}
       >
@@ -1322,7 +1331,7 @@ function Disclosure({
         <span
           aria-hidden="true"
           className={cn(
-            "-ml-3.5 flex size-3.5 shrink-0 cursor-grab items-center justify-center text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/sec:opacity-100 active:cursor-grabbing",
+            "flex size-3.5 shrink-0 cursor-grab items-center justify-center text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/sec:opacity-100 active:cursor-grabbing",
             T_FAST,
           )}
         >
@@ -1420,32 +1429,87 @@ function StepList({
       | { kind: "folder"; name: string; color: string },
   ) => void
 }) {
+  const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
+  const pressTimer = useRef<number | null>(null)
+  /* When the long press fired, rather than whether it fired. A boolean here
+     is wrong: it has to be cleared by the click that follows the press, and
+     that click does not always arrive — touch suppresses it, and so does
+     lifting the finger outside the row. The flag then stays raised and
+     swallows the user's next tap, which reads as the selection being broken. */
+  const longPressAt = useRef(0)
+  const lastCount = useRef(0)
 
   const steps = task.steps ?? []
 
+  /* Escape leaves selection, which is the one keyboard expectation a mode
+     like this has to meet. */
+  useEffect(() => {
+    if (!selecting) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelecting(false)
+        setSelected([])
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selecting])
+
   if (steps.length === 0) {
     return (
-      <p className="py-1 text-sm text-[var(--color-graphite-400)]">No steps yet</p>
+      <p className="py-1 text-[14px] leading-5 text-[var(--color-graphite-400)]">
+        No steps yet
+      </p>
     )
   }
 
-  function toggleSelected(index: number, additive: boolean) {
+  function clearPress() {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current)
+      pressTimer.current = null
+    }
+  }
+
+  function startPress(index: number) {
+    clearPress()
+    pressTimer.current = window.setTimeout(() => {
+      longPressAt.current = Date.now()
+      lastCount.current = 1
+      setSelecting(true)
+      setSelected([index])
+    }, 400)
+  }
+
+  function toggle(index: number) {
     setSelected((current) => {
-      if (!additive) return current.length === 1 && current[0] === index ? [] : [index]
-      return current.includes(index)
+      const next = current.includes(index)
         ? current.filter((i) => i !== index)
         : [...current, index]
+      /* Emptying the selection leaves the mode, exactly as it does in a
+         messaging app. A mode you have to dismiss separately after
+         deselecting everything is a mode people get stuck in. */
+      if (next.length === 0) setSelecting(false)
+      else lastCount.current = next.length
+      return next
     })
+  }
+
+  function exit() {
+    setSelecting(false)
+    setSelected([])
   }
 
   const destinations = [
     {
       key: "new-task",
       label: "New task  ·  they stay steps",
-      run: () => moveStepsTo(task.id, [...selected].sort((a, b) => a - b), { kind: "new-task" }),
+      run: () =>
+        moveStepsTo(task.id, [...selected].sort((a, b) => a - b), {
+          kind: "new-task",
+        }),
     },
     ...FOLDERS.map((f) => ({
       key: f.name,
@@ -1467,7 +1531,7 @@ function StepList({
         return (
           <div
             key={`${step.title}-${i}`}
-            draggable
+            draggable={!selecting}
             onDragStart={(e) => {
               e.stopPropagation()
               e.dataTransfer.effectAllowed = "move"
@@ -1495,95 +1559,159 @@ function StepList({
               setDragFrom(null)
               setOverIndex(null)
             }}
+            /* Press and hold to start selecting, then tap to add. The gesture
+               people already know from every messaging app they use, which is
+               the whole reason for choosing it over a click that silently
+               meant something different from the click next to it. */
+            onPointerDown={() => {
+              if (!selecting) startPress(i)
+            }}
+            onPointerUp={clearPress}
+            onPointerLeave={clearPress}
+            onClick={() => {
+              /* Ignore only the click that belongs to the press just made. */
+              if (selecting && Date.now() - longPressAt.current > 300) toggle(i)
+            }}
             className={cn(
               "group/step flex h-8 items-center gap-2 rounded-md pr-1 transition-[background-color,opacity,box-shadow]",
               T_FAST,
+              selecting && "cursor-pointer select-none",
               dragFrom === i && "opacity-40",
-              overIndex === i && "shadow-[inset_0_2px_0_0_var(--color-dana-accent-600)]",
+              overIndex === i &&
+                "shadow-[inset_0_2px_0_0_var(--color-dana-accent-600)]",
               isSelected
                 ? "bg-[var(--color-dana-accent-100)]"
                 : "hover:bg-[var(--color-graphite-50)]",
             )}
           >
+            {/* One slot, two jobs: the drag handle normally, the selection
+                mark once selecting. They never appear together, so the row
+                never grows a second control. */}
             <span
               aria-hidden="true"
-              className={cn(
-                "-ml-3.5 flex size-3.5 shrink-0 cursor-grab items-center justify-center text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/step:opacity-100 active:cursor-grabbing",
-                T_FAST,
-              )}
+              className="-ml-[18px] flex size-4 shrink-0 items-center justify-center"
             >
-              <GripVertical className="size-3.5" strokeWidth={2} />
+              {selecting ? (
+                <span
+                  className={cn(
+                    "flex size-4 items-center justify-center rounded-full border transition-[background-color,border-color]",
+                    T_FAST,
+                    isSelected
+                      ? "border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-600)]"
+                      : "border-[var(--color-graphite-400)] bg-background",
+                  )}
+                >
+                  {isSelected ? (
+                    <CheckIcon className="size-3 text-white" strokeWidth={3} />
+                  ) : null}
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    "flex size-4 cursor-grab items-center justify-center text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/step:opacity-100 active:cursor-grabbing",
+                    T_FAST,
+                  )}
+                >
+                  <GripVertical className="size-3.5" strokeWidth={2} />
+                </span>
+              )}
             </span>
 
-            {/* The tick only ticks. */}
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={step.done}
-              aria-label={`Mark "${step.title}" ${step.done ? "not done" : "done"}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                toggleStep(task.id, i)
-              }}
-              className={cn("flex size-5 shrink-0 items-center justify-center rounded", FOCUS)}
-            >
+            {/* The tick only ever ticks, and stops being a control while
+                selecting, so a tap meant to select can never complete a step
+                instead. */}
+            {selecting ? (
               <span
+                aria-hidden="true"
                 className={cn(
-                  "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
-                  T_FAST,
+                  "flex size-4 shrink-0 items-center justify-center rounded-[3px] border",
                   step.done
                     ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
                     : "border-input bg-background",
                 )}
               >
-                <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-                  <path
-                    d="M4 10.5 L8.2 14.5 L16 5.8"
-                    fill="none"
-                    stroke="white"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      strokeDasharray: 20,
-                      strokeDashoffset: step.done ? 0 : 20,
-                      transition:
-                        "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-                    }}
-                  />
-                </svg>
+                {step.done ? (
+                  <CheckIcon className="size-3 text-white" strokeWidth={3} />
+                ) : null}
               </span>
-            </button>
+            ) : (
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={step.done}
+                aria-label={`Mark step ${step.done ? "not done" : "done"}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleStep(task.id, i)
+                }}
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded",
+                  FOCUS,
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
+                    T_FAST,
+                    step.done
+                      ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
+                      : "border-input bg-background",
+                  )}
+                >
+                  <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
+                    <path
+                      d="M4 10.5 L8.2 14.5 L16 5.8"
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        strokeDasharray: 20,
+                        strokeDashoffset: step.done ? 0 : 20,
+                        transition:
+                          "stroke-dashoffset var(--duration-base) var(--ease-enter)",
+                      }}
+                    />
+                  </svg>
+                </span>
+              </button>
+            )}
 
-            {/* The text selects. Shift or Ctrl adds to the selection. */}
-            <button
-              type="button"
-              aria-pressed={isSelected}
-              onClick={(e) => {
-                e.stopPropagation()
-                toggleSelected(i, e.shiftKey || e.metaKey || e.ctrlKey)
-              }}
+            <span
               className={cn(
-                "flex-1 truncate rounded px-1 text-left text-sm transition-colors",
+                "flex-1 truncate text-[14px] leading-5 transition-colors",
                 T_BASE,
-                FOCUS,
                 step.done
                   ? "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]"
                   : "text-[var(--color-graphite-800)]",
               )}
             >
               {step.title}
-            </button>
+            </span>
           </div>
         )
       })}
 
-      {/* The bar only exists when there is a selection, so the card is not
-          carrying a toolbar for something nobody is doing. */}
-      <Reveal open={selected.length > 0}>
+      <Reveal open={selecting}>
         <div className="mt-1 flex items-center gap-2 rounded-md bg-[var(--color-dana-accent-50)] px-2 py-1.5">
-          <span className="text-[12px] font-medium text-[var(--color-dana-accent-800)]">
-            {selected.length} selected
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              exit()
+            }}
+            aria-label="Leave selection"
+            className={cn(
+              "flex size-5 items-center justify-center rounded text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
+              T_FAST,
+              FOCUS,
+            )}
+          >
+            <X className="size-4" strokeWidth={2} aria-hidden="true" />
+          </button>
+          <span className="text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
+            {selected.length || lastCount.current} selected
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -1592,7 +1720,7 @@ function StepList({
                   type="button"
                   onClick={(e) => e.stopPropagation()}
                   className={cn(
-                    "rounded-md bg-card px-2 py-1 text-[12px] font-medium text-[var(--color-graphite-800)] shadow-[var(--elevation-0)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                    "ml-auto rounded-md bg-card px-2 py-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-800)] transition-colors hover:bg-[var(--color-graphite-50)]",
                     T_FAST,
                     FOCUS,
                   )}
@@ -1601,13 +1729,13 @@ function StepList({
                 </button>
               }
             />
-            <DropdownMenuContent align="start">
+            <DropdownMenuContent align="end">
               {destinations.map((d) => (
                 <DropdownMenuItem
                   key={d.key}
                   onClick={() => {
                     d.run()
-                    setSelected([])
+                    exit()
                   }}
                 >
                   {d.label}
@@ -1615,20 +1743,6 @@ function StepList({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setSelected([])
-            }}
-            className={cn(
-              "ml-auto rounded-md px-2 py-1 text-[12px] text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
-              T_FAST,
-              FOCUS,
-            )}
-          >
-            Clear
-          </button>
         </div>
       </Reveal>
     </div>
@@ -1728,11 +1842,11 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
                 <span className="block truncate text-sm text-[var(--color-graphite-800)]">
                   {file.name}
                 </span>
-                <span className="block text-[11px] text-[var(--color-graphite-400)]">
+                <span className="block text-[12px] leading-4 text-[var(--color-graphite-400)]">
                   {file.meta}
                 </span>
               </span>
-              <span className="shrink-0 text-[11px] text-[var(--color-graphite-400)]">
+              <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)]">
                 {viewable ? (isOpen ? "Hide" : "View") : "Download"}
               </span>
             </button>
@@ -1858,7 +1972,7 @@ function TaskCard({
   }
 
   return (
-    <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
+    <div className="flex flex-col gap-3 pt-1 pr-3 pb-3 pl-7">
       {/* One header strip, not five rows, and the only shaded thing in the
           card. The shade is doing what the removed rules were not: it groups
           the five short values into one object by filling a region rather than
@@ -1934,7 +2048,7 @@ function TaskCard({
       {order.map((key) => blocks[key])}
 
       <div className="flex items-center justify-between pt-1">
-        <span className="text-[11px] text-[var(--color-graphite-500)]">
+        <span className="text-[12px] leading-4 text-[var(--color-graphite-500)]">
           Created 4 Aug by Imran Wafa
         </span>
         <span className="flex items-center gap-2">
@@ -1945,7 +2059,7 @@ function TaskCard({
               onClose()
             }}
             className={cn(
-              "rounded-md px-3 py-1.5 text-[13px] text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)]",
+              "rounded-md px-3 py-1.5 text-[14px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)]",
               T_FAST,
               FOCUS,
             )}
@@ -1959,7 +2073,7 @@ function TaskCard({
               onClose()
             }}
             className={cn(
-              "rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[13px] font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95",
+              "rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[14px] leading-5 font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95",
               T_FAST,
               FOCUS,
             )}
@@ -2015,7 +2129,7 @@ function ExpandShell({
       {isHovered && !isDwelt ? <DwellBar /> : null}
       {isDwelt ? (
         <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-          <span className="rounded-full bg-[var(--color-dana-accent-600)] px-2 py-0.5 text-[11px] font-medium text-white">
+          <span className="rounded-full bg-[var(--color-dana-accent-600)] px-2 py-0.5 text-[12px] leading-4 font-medium text-white">
             Release to make a folder
           </span>
         </span>
@@ -2066,8 +2180,6 @@ function ConceptA() {
                 toggleStep={toggleStep}
                 moveStep={moveStep}
                 moveStepsTo={moveStepsTo}
-                moveStep={moveStep}
-                moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
               />
             }
@@ -2086,7 +2198,7 @@ function ConceptA() {
                         render={
                           <span
                             className={cn(
-                              "inline-flex h-5 shrink-0 items-center rounded-full bg-[var(--color-graphite-100)] px-2 text-[11px] font-medium text-[var(--color-graphite-600)] transition-colors hover:bg-[var(--color-graphite-200)]",
+                              "inline-flex h-[18px] shrink-0 items-center rounded-full bg-[var(--color-graphite-100)] px-2 text-[12px] leading-4 font-medium text-[var(--color-graphite-600)] transition-colors hover:bg-[var(--color-graphite-200)]",
                               T_FAST,
                             )}
                           >
@@ -2224,8 +2336,6 @@ function ConceptE() {
                 task={task}
                 patch={patch}
                 toggleStep={toggleStep}
-                moveStep={moveStep}
-                moveStepsTo={moveStepsTo}
                 moveStep={moveStep}
                 moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
@@ -2382,83 +2492,6 @@ function ConceptE() {
 }
 
 /* ------------------------------------------------------------ concept F -- */
-/* Two-line on selection: the row breathes where you are looking. */
-
-function ConceptF() {
-  const { tasks, patch, drag, panel, requestPromote } = useConceptList()
-  const [selected, setSelected] = useState<string | null>("t4")
-
-  return (
-    <div className="flex flex-col">
-      {panel}
-      {tasks.map((task) => {
-        const isSelected = selected === task.id
-        const counts = stepCount(task)
-
-        return (
-          <div
-            key={task.id}
-            onClick={() => setSelected(task.id)}
-            className={cn(
-              "group/row grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-start rounded-md transition-[background-color,padding]",
-              T_BASE,
-              isSelected
-                ? "bg-[var(--color-graphite-100)] py-1.5"
-                : cn("py-0", ROW_HOVER),
-            )}
-          >
-            <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-            <div className="flex min-w-0 flex-col pt-2.5">
-              <TaskTitle task={task} onRename={(title) => patch(task.id, { title })} />
-              {/* The second line is revealed with the same grid trick as an
-                  expanding card, so the title above it never jumps. */}
-              <Reveal open={isSelected}>
-                <div className="flex items-center gap-3 pt-1 pb-1 text-xs text-[var(--color-graphite-600)]">
-                  {counts ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="h-1 w-16 overflow-hidden rounded-full bg-[var(--color-graphite-200)]">
-                        <span
-                          className={cn(
-                            "block h-full rounded-full bg-[var(--color-graphite-600)] transition-[width]",
-                            T_BASE,
-                          )}
-                          style={{ width: `${(counts.done / counts.total) * 100}%` }}
-                        />
-                      </span>
-                      {counts.done}/{counts.total}
-                    </span>
-                  ) : null}
-                  {task.notes ? (
-                    <span className="truncate text-[var(--color-graphite-500)]">
-                      {task.notes}
-                    </span>
-                  ) : null}
-                  {!counts && !task.notes ? (
-                    <span className="text-[var(--color-graphite-400)]">
-                      No steps, no notes
-                    </span>
-                  ) : null}
-                </div>
-              </Reveal>
-            </div>
-            <div className={cn("flex items-center justify-end gap-3 pt-2.5 pr-2", META)}>
-              {task.assignee ? <PersonBit assignee={task.assignee} /> : null}
-              {task.folder ? <FolderBit folder={task.folder} /> : null}
-              {task.due ? <DueBit due={task.due} /> : null}
-              <span className="w-16">
-                <Actions
-                  task={task}
-                  onStar={() => patch(task.id, { important: !task.important })}
-                      onMakeFolder={() => requestPromote(task)}
-                />
-              </span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------ concept I -- */
 /*
@@ -2561,35 +2594,11 @@ const VOCAB_ASIDE: { icon: LucideIcon; name: string; note: string }[] = [
   { icon: Bell, name: "Reminder", note: "card only; never fits the row" },
 ]
 
-function Glyph({ entry, task }: { entry: VocabEntry; task: ConceptTask }) {
-  const text = entry.describe(task)
-  if (!text) return null
-  const Icon = entry.icon
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span
-            className={cn(
-              "flex size-5 shrink-0 items-center justify-center rounded text-[var(--color-graphite-500)] transition-[background-color,color,transform] hover:scale-110 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
-              T_FAST,
-            )}
-            aria-label={text}
-          >
-            <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          </span>
-        }
-      />
-      <TooltipContent side="top">{text}</TooltipContent>
-    </Tooltip>
-  )
-}
 
 function VocabLegend() {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-dashed border-[var(--color-graphite-300)] px-3 py-2">
-      <span className="text-[11px] font-semibold tracking-[0.09em] text-[var(--color-graphite-500)] uppercase">
+      <span className="text-[12px] leading-4 font-semibold tracking-[0.09em] text-[var(--color-graphite-500)] uppercase">
         The vocabulary
       </span>
       {VOCAB.map((entry) => {
@@ -2625,122 +2634,6 @@ function VocabLegend() {
   )
 }
 
-function ConceptI() {
-  const {
-    tasks,
-    patch,
-    toggleStep,
-    moveStep,
-    moveStepsTo,
-    drag,
-    panel,
-    requestPromote,
-  } = useConceptList()
-  const [open, setOpen] = useState<string | null>(null)
-
-  return (
-    <>
-      <VocabLegend />
-      <div className="flex flex-col">
-        {panel}
-        {tasks.map((task) => {
-          const isOpen = open === task.id
-
-          return (
-            <ExpandShell
-              key={task.id}
-              open={isOpen}
-              drag={drag.dragProps(task, tasks)}
-              {...drag.rowState(task.id)}
-              card={
-                <TaskCard
-                  task={task}
-                  patch={patch}
-                  toggleStep={toggleStep}
-                  onClose={() => setOpen(null)}
-                />
-              }
-              row={
-                <div className={cn(ROW, !isOpen && ROW_HOVER)}>
-                  <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-                  <TaskTitle task={task} onRename={(title) => patch(task.id, { title })} />
-                  <div className={cn("flex items-center justify-end gap-3 pr-2", META)}>
-                    {/* Packed right, no reserved slots. See the revision note
-                        in this concept's block comment. */}
-                    <span className="flex items-center gap-1">
-                      {VOCAB.map((entry) => (
-                        <Glyph key={entry.key} entry={entry} task={task} />
-                      ))}
-                      {task.folder ? (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span
-                                className={cn(
-                                  "flex size-5 shrink-0 items-center justify-center rounded transition-[background-color,transform] hover:scale-110 hover:bg-[var(--color-graphite-200)]",
-                                  T_FAST,
-                                )}
-                                aria-label={`Folder: ${task.folder.name}`}
-                              >
-                                <Folder
-                                  className="size-4"
-                                  style={{ color: task.folder.color }}
-                                  strokeWidth={1.75}
-                                  aria-hidden="true"
-                                />
-                              </span>
-                            }
-                          />
-                          <TooltipContent side="top">{task.folder.name}</TooltipContent>
-                        </Tooltip>
-                      ) : null}
-                      {task.assignee ? (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span
-                                className="flex shrink-0 items-center"
-                                aria-label={`Assigned to ${task.assignee.name}`}
-                              >
-                                <Avatar size="sm" className="size-5">
-                                  <AvatarFallback className="text-[0.625rem] font-medium">
-                                    {task.assignee.initials}
-                                  </AvatarFallback>
-                                </Avatar>
-                              </span>
-                            }
-                          />
-                          <TooltipContent side="top">{task.assignee.name}</TooltipContent>
-                        </Tooltip>
-                      ) : null}
-                    </span>
-                    {/* The exception: the date keeps its words. */}
-                    <span className="min-w-[5.5rem] shrink-0 text-right">
-                      {task.due ? <DueBit due={task.due} /> : null}
-                    </span>
-                    <span className="w-24">
-                      <Actions
-                        task={task}
-                        onStar={() => patch(task.id, { important: !task.important })}
-                      onMakeFolder={() => requestPromote(task)}
-                        extra={
-                          <ExpandButton
-                            open={isOpen}
-                            onToggle={() => setOpen(isOpen ? null : task.id)}
-                          />
-                        }
-                      />
-                    </span>
-                  </div>
-                </div>
-              }
-            />
-          )
-        })}
-      </div>
-    </>
-  )
-}
 
 /* ------------------------------------------------------------ concept J -- */
 /*
@@ -2820,8 +2713,10 @@ function ConceptJ() {
   const [open, setOpen] = useState<string | null>(null)
 
   return (
-    <div className="flex flex-col">
-      {panel}
+    <>
+      <VocabLegend />
+      <div className="flex flex-col">
+        {panel}
       {tasks.map((task) => {
         const isOpen = open === task.id
         const counts = stepCount(task)
@@ -2847,8 +2742,6 @@ function ConceptJ() {
                 task={task}
                 patch={patch}
                 toggleStep={toggleStep}
-                moveStep={moveStep}
-                moveStepsTo={moveStepsTo}
                 moveStep={moveStep}
                 moveStepsTo={moveStepsTo}
                 onClose={() => setOpen(null)}
@@ -2932,107 +2825,12 @@ function ConceptJ() {
           />
         )
       })}
-    </div>
+      </div>
+    </>
   )
 }
 
 /* ------------------------------------------------------------ concept D -- */
-/* Expand in place, the list receding so the card reads as a new object. */
-
-function ConceptD() {
-  const {
-    tasks,
-    patch,
-    toggleStep,
-    moveStep,
-    moveStepsTo,
-    drag,
-    panel,
-    requestPromote,
-  } = useConceptList()
-  const [open, setOpen] = useState<string | null>("t2")
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {panel}
-      {tasks.map((task) => {
-        const isOpen = open === task.id
-        const recedes = open !== null && !isOpen
-
-        if (isOpen) {
-          return (
-            <div
-              key={task.id}
-              className={cn(
-                "my-1 rounded-lg border border-[var(--color-graphite-300)] bg-card shadow-[var(--elevation-1)] transition-[box-shadow]",
-                T_BASE,
-              )}
-            >
-              <div className="group/row grid grid-cols-[40px_minmax(0,1fr)_auto] items-start py-2">
-                <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-                <span className="pt-1.5">
-                  <TaskTitle
-                    task={task}
-                    onRename={(title) => patch(task.id, { title })}
-                    truncate={false}
-                    className="text-[15px] leading-6 font-semibold"
-                  />
-                </span>
-                <span className="flex items-center gap-1 pt-1.5 pr-3">
-                  <Actions
-                    task={task}
-                    onStar={() => patch(task.id, { important: !task.important })}
-                      onMakeFolder={() => requestPromote(task)}
-                  />
-                </span>
-              </div>
-              <TaskCard
-                task={task}
-                patch={patch}
-                toggleStep={toggleStep}
-                moveStep={moveStep}
-                moveStepsTo={moveStepsTo}
-                moveStep={moveStep}
-                moveStepsTo={moveStepsTo}
-                onClose={() => setOpen(null)}
-              />
-            </div>
-          )
-        }
-
-        return (
-          /* A div rather than a button: the row is clickable, but it contains
-             its own controls, and a button inside a button is invalid markup
-             that browsers repair by dropping one of them. The row keeps its
-             keyboard route through the title and the checkbox it holds. */
-          <div
-            key={task.id}
-            onClick={() => setOpen(task.id)}
-            className={cn(
-              "group/row grid h-11 w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md text-left transition-[opacity,background-color]",
-              T_BASE,
-              recedes ? "opacity-40 hover:opacity-70" : ROW_HOVER,
-            )}
-          >
-            <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-            <TaskTitle task={task} onRename={(title) => patch(task.id, { title })} />
-            <div className={cn("flex items-center justify-end gap-3 pr-2", META)}>
-              {task.folder ? <FolderBit folder={task.folder} /> : null}
-              {task.due ? <DueBit due={task.due} /> : null}
-              <span className="w-16">
-                <Actions
-                  task={task}
-                  onStar={() => patch(task.id, { important: !task.important })}
-                      onMakeFolder={() => requestPromote(task)}
-                />
-              </span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 /* -------------------------------------------------------------- concepts -- */
 
@@ -3076,54 +2874,16 @@ export const CONCEPTS: ConceptSpec[] = [
     render: () => <ConceptE />,
   },
   {
-    id: "F",
-    name: "Two lines on selection",
-    optimisesFor:
-      "Answering what a task actually is without opening it. The selected row alone grows to two lines; the title never moves.",
-    givesUp:
-      "Row height stops being constant, and it only half solves the problem: you learn more but still cannot edit.",
-    principle:
-      "Recognition over recall, with height taking two fixed values rather than any value.",
-    tryIt: "Click any row to select it and watch the second line grow in.",
-    render: () => <ConceptF />,
-  },
-  {
-    id: "I",
-    name: "One vocabulary",
-    optimisesFor:
-      "Density, and one alphabet. Each detail is a single glyph packed at the right of the row, and the same icons lead every line of the card it opens — so the marks you learn in one place keep meaning the same thing in the other.",
-    givesUp:
-      "Hover does not exist on touch, and this is a PWA. Icon-only detail is learned rather than read, so the first week is worse than the current row even if the second month is better.",
-    principle:
-      "The row and the task form already agree on Folder, ListChecks and Repeat2 by accident, and diverge on due date and notes. This finishes an existing vocabulary rather than inventing one. Due keeps its words because a date is what people scan for.",
-    tryIt:
-      "Hover any glyph for its words, then open the row and see the same icons leading the card. Compare the right-hand edge here against the same rows in A.",
-    render: () => <ConceptI />,
-  },
-  {
     id: "J",
-    name: "Title first, details beneath",
+    name: "Title first, one vocabulary",
     optimisesFor:
-      "The title. It gets a full line of its own, so it stops being truncated at rest and stays readable while you are renaming it — the only concept here where editing a long name shows you the long name.",
+      "The title and the alphabet at once. The title gets a full line of its own, so it never truncates and stays readable while you rename it; the details sit beneath it in one shared icon vocabulary that reads the same here, in the card this opens, and everywhere else in the app.",
     givesUp:
       "Height: 64px against 44px, so a viewport that held sixteen tasks holds eleven. And it needs a ruling, because if clicking the title edits it then clicking the title no longer opens the task.",
     principle:
-      "Proximity groups the second line to the title above it, so the pair reads as one object with a caption rather than as two rows. Words return on that line because there is finally room for them, which is exactly the bet concept I refuses.",
+      "Proximity groups the second line to the title above, so the pair reads as one object with a caption. The second line is also what makes the vocabulary affordable: an icon can keep its word beside it, so the alphabet is learned by reading rather than by hovering — which is the objection the icon-only version could never answer on touch.",
     tryIt:
-      "Compare the long second task here against the same task in any other concept. Then click it and rename it, and compare that too.",
+      "Compare the long second task here against the same task in A or E. Rename it and compare that too. Then open a row: every line inside the card is led by the same icon you just read on the row.",
     render: () => <ConceptJ />,
-  },
-  {
-    id: "D",
-    name: "Expand in place",
-    optimisesFor:
-      "No context switch at all. The row becomes a card, the list recedes behind it, and the tasks around it stay as the frame of reference.",
-    givesUp:
-      "Width: a form that is comfortable at 540px has to stack inside a list column. Constant row height goes, and it needs a ruling because the spec calls the form a dialog.",
-    principle:
-      "Common region is what stops it reading as a bloated row. Things 3 fades the list for exactly this reason.",
-    tryIt:
-      "Click any dimmed row to move the card to it. Cancel or Save closes it and the list comes back.",
-    render: () => <ConceptD />,
   },
 ]
