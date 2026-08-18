@@ -817,6 +817,12 @@ export function ShellPage() {
             previewState={state}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -881,6 +887,12 @@ export function ShellPage() {
             }}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -984,6 +996,12 @@ export function ShellPage() {
             }}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1074,6 +1092,12 @@ export function ShellPage() {
             onOpenTask={openTask}
             onOpenGhost={openGhostTask}
             onToggleComplete={setTaskCompleted}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1096,6 +1120,12 @@ export function ShellPage() {
             previewState={state}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1185,6 +1215,12 @@ export function ShellPage() {
             }}
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {
@@ -1232,6 +1268,12 @@ export function ShellPage() {
             previewState={state}
             onOpenTask={openTask}
             onMarkNotDone={(taskId) => updateTask(taskId, { status: "pending" })}
+            onRename={(taskId, title) => {
+              const task = tasks.find((candidate) => candidate.id === taskId)
+              if (task) {
+                updateTask(taskId, { title, form: { ...task.form, title } })
+              }
+            }}
             onToggleImportant={(taskId) => {
               const task = tasks.find((candidate) => candidate.id === taskId)
               if (task) {

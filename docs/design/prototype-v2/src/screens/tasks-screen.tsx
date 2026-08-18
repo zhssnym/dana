@@ -38,6 +38,7 @@ interface TasksScreenProps {
   onOpenTask: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
+  onRename: (taskId: string, title: string) => void
   onRestore: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
@@ -52,6 +53,7 @@ export function TasksScreen({
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
+  onRename,
   onRestore,
   onAbandon,
   onDelete,
@@ -74,6 +76,7 @@ export function TasksScreen({
             : onToggleComplete(task.id, completed)
         }
         onToggleImportant={() => onToggleImportant(task.id)}
+        onRename={(title) => onRename(task.id, title)}
         onAbandon={() => setPendingAction({ type: "abandon", taskId: task.id })}
         onDelete={() => setPendingAction({ type: "delete", taskId: task.id })}
       />

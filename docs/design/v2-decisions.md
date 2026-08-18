@@ -853,6 +853,8 @@ the choice.
 - **On the account** — follows them everywhere, needs a column and an endpoint,
   Lane 2, and waits on an RFC.
 
+**Ported to the shell 2026-08-17.** The preference lives in `lib/density.tsx`, backed by localStorage, exposed through `useRowDensity()` and set from a new Appearance section in Settings. The row reads the context rather than taking a prop, which is why no screen had to change to gain the setting.
+
 Recommended: **the browser now.** A display preference that resets on a new
 device is a small annoyance; waiting on a backend to see the feature at all is
 a large one. Syncing it later is a clean, separate want and does not invalidate
