@@ -65,6 +65,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-096 | Details on a second line beneath the title | OPEN | V3 | Depends on DES-095 |
 | DES-097 | A motion scale in the tokens | OPEN | V3 | No |
 | DES-099 | The expanded card: one header strip, then Steps and Notes | OPEN | V3 | No |
+| DES-107 | A fifth type size the contract does not name | OPEN | V3 | **Yes**, see below |
 
 ## Lane 2: needs backend
 
@@ -404,15 +405,64 @@ whether Dana has one verb or five.** DES-100 and DES-104 should be resolved
 together with this one, because if the answer is one verb, both of them are
 already written and neither needs its own design.
 
+### DES-107, a fifth type size the contract does not name
+
+Found 2026-08-17 while bringing the expanded card onto the approved scale,
+after Imran said the typography felt inconsistent with the brand direction. He
+was right, and the cause turned out to be in two places rather than one.
+
+**In the concept lab, which is now fixed.** The card had drifted to 11px, 13px
+and 15px — none of which exist in DES-015, which approves exactly four steps:
+24/32 page title, 16/24 section heading, 14/20 body and controls, 12/16
+metadata. Every one of those is now on the scale, in the concepts and in the
+lab's own chrome.
+
+**In the shipping prototype, which is not.** `folder-row.tsx` and
+`search-overlay.tsx` already use a fifth size, 10px (`text-[0.625rem]`), for
+count badges, keyboard hints and section eyebrows, and the small avatar uses it
+for initials. This predates the refresh and nothing in the contract mentions
+it, so the product has a size nobody approved.
+
+**The ruling wanted, and it is small but real:** either DES-015 gains a fifth
+"micro" step at 10/12 with a stated purpose — badges, kbd hints and avatar
+initials, never running text — or those components move to 12px and the size
+disappears. Doing neither leaves the guide describing a product that does not
+exist, which is how a type scale quietly stops being enforced.
+
+Recommendation: name it. 10px is genuinely useful for a two-character avatar
+inside a 20px circle, and 12px does not fit there. A scale that admits its
+exceptions is followed; one that pretends they are not there is edited around.
+
 ### Withdrawn at V3
 
-The **Actor and state** concept, which drew agent work in the row (waiting,
-working, blocked, ready for review), was removed from the lab on 2026-08-17 at
-Imran's direction. It never reached a DES entry and does not need one; it is
-noted here so that a later session finds the decision rather than the idea.
-The reasoning was that machine states are not the direction the product is
+Four concepts have left the lab, all on 2026-08-17 at Imran's direction. They
+are listed here so a later session finds the decision rather than re-proposing
+the idea.
+
+**Actor and state**, which drew agent work in the row (waiting, working,
+blocked, ready for review). Machine states are not the direction the product is
 being taken in right now, and a concept lab carrying a direction nobody is
 pursuing spends a reviewer's attention on a question that is not being asked.
+
+**Expand in place (D)** and **Two lines on selection (F)**, withdrawn together.
+D's inline expansion survives rather than dying with it: every remaining
+concept now opens its card in place, so what D was arguing for became the
+baseline and the separate concept had nothing left to argue. F was the
+half-measure it always described itself as — it let you learn more about a task
+without letting you change anything — and once every row could open properly,
+the half-measure had no constituency.
+
+**One vocabulary (I)** was not withdrawn but **merged into J**, which is the
+more interesting outcome. I's whole difficulty was that icon-only detail has to
+be hovered to be read, and hover does not exist on touch. J's second line is
+exactly the room needed to put the word back beside the icon. So the merged
+concept keeps the shared alphabet — the same marks in the row, in the card, and
+eventually across the app — and drops the constraint that made it expensive.
+DES-094 and DES-096 are now one design rather than two, and should be ruled on
+together.
+
+The lab is therefore down to three candidates plus the baseline, which is the
+right number for asking somebody which they prefer.
 
 ### DES-093, expand a task inside its TaskRow
 

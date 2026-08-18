@@ -98,6 +98,10 @@ const BASELINE_GOODS = [
     "the chevron on the right opens the full card without leaving the list — every concept but F, whose whole idea is to answer without opening",
   ],
   ["Tick steps off", "inside any open card; the count in the row behind it follows"],
+  [
+    "Select steps",
+    "press and hold a step for a moment, the way you would in a messaging app, then tap the others",
+  ],
   ["Star and menu", "both reserved in the gutter, so nothing shifts when you hover a row"],
   ["Full name on hover", "every concept but J truncates, so every concept but J explains itself"],
   ["Motion on one scale", "three durations and two easings, shared, and all of it off under reduced motion"],
@@ -111,7 +115,7 @@ function ConceptBlock({ concept }: { concept: ConceptSpec }) {
   return (
     <section id={`concept-${concept.id}`} className="scroll-mt-24 pt-14 first:pt-0">
       <div className="mb-1 flex items-baseline gap-3">
-        <span className="text-[11px] font-semibold tracking-[0.11em] text-[var(--color-graphite-500)] uppercase">
+        <span className="text-[12px] leading-4 font-semibold tracking-[0.11em] text-[var(--color-graphite-500)] uppercase">
           {concept.id}
         </span>
         <h2 className="text-base leading-6 font-semibold text-foreground">
@@ -120,13 +124,13 @@ function ConceptBlock({ concept }: { concept: ConceptSpec }) {
         <button
           type="button"
           onClick={() => setNonce((n) => n + 1)}
-          className="ml-auto rounded-md px-2 py-1 text-[11px] text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]"
+          className="ml-auto rounded-md px-2 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]"
         >
           Reset
         </button>
       </div>
 
-      <p className="mb-2 max-w-[68ch] text-[13px] leading-5 text-[var(--color-graphite-600)]">
+      <p className="mb-2 max-w-[68ch] text-[14px] leading-5 text-[var(--color-graphite-600)]">
         <span className="font-medium text-[var(--color-graphite-800)]">
           Optimises for:
         </span>{" "}
@@ -136,10 +140,10 @@ function ConceptBlock({ concept }: { concept: ConceptSpec }) {
         </span>{" "}
         {concept.givesUp}
       </p>
-      <p className="mb-3 max-w-[68ch] text-[13px] leading-5 text-[var(--color-graphite-500)] italic">
+      <p className="mb-3 max-w-[68ch] text-[14px] leading-5 text-[var(--color-graphite-500)] italic">
         {concept.principle}
       </p>
-      <p className="mb-4 max-w-[68ch] rounded-md bg-[var(--color-dana-accent-50)] px-3 py-2 text-[13px] leading-5 text-[var(--color-dana-accent-800)]">
+      <p className="mb-4 max-w-[68ch] rounded-md bg-[var(--color-dana-accent-50)] px-3 py-2 text-[14px] leading-5 text-[var(--color-dana-accent-800)]">
         <span className="font-semibold">Try it: </span>
         {concept.tryIt}
       </p>
@@ -171,7 +175,7 @@ export function RowLabPage() {
               key={concept.id}
               href={`#concept-${concept.id}`}
               className={cn(
-                "rounded-md px-2 py-1 text-[12px] text-[var(--color-graphite-600)] transition-colors duration-[var(--duration-fast)]",
+                "rounded-md px-2 py-1 text-[12px] leading-4 text-[var(--color-graphite-600)] transition-colors duration-[var(--duration-fast)]",
                 "hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]",
               )}
             >
@@ -186,7 +190,7 @@ export function RowLabPage() {
 
       <div className="mx-auto w-full max-w-[1120px] px-10 pt-10">
         <header className="mb-10">
-          <p className="text-[11px] font-semibold tracking-[0.11em] text-[var(--color-graphite-500)] uppercase">
+          <p className="text-[12px] leading-4 font-semibold tracking-[0.11em] text-[var(--color-graphite-500)] uppercase">
             Dana v2 · session V3
           </p>
           <h1 className="mt-2 text-[26px] leading-8 font-semibold text-foreground">
@@ -221,7 +225,7 @@ export function RowLabPage() {
               Every concept below has all of this, so you are comparing ideas
               rather than finish:
             </p>
-            <ul className="grid gap-x-8 gap-y-1 text-[13px] leading-5 text-[var(--color-graphite-600)] sm:grid-cols-2">
+            <ul className="grid gap-x-8 gap-y-1 text-[14px] leading-5 text-[var(--color-graphite-600)] sm:grid-cols-2">
               {BASELINE_GOODS.map(([name, detail]) => (
                 <li key={name}>
                   <span className="font-medium text-[var(--color-graphite-800)]">

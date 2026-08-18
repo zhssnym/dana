@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "build:share": "vite build --config vite.config.share.ts && node scripts/build-share.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
