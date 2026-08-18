@@ -1,4 +1,4 @@
-# Dana UI v2: decision register
+APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Imran, 2026-08-17, front end only |APPROVED Imran, 2026-08-17 |APPROVED Imran, 2026-08-17 |APPROVED Imran, 2026-08-17 |# Dana UI v2: decision register
 
 The running record of decisions made during the v2 refresh, opened 2026-08-17.
 It continues the `DES-` numbering of `design-contract.md`, which ends at
@@ -59,21 +59,35 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 
 | ID | Decision | Status | Session | Ruling owed? |
 | - | - | - | - | - |
-| DES-093 | Expand a task in place, inside its row | OPEN | V3 | **Yes**, see below |
-| DES-094 | One icon vocabulary, shared by the row and the form | OPEN | V3 | No |
-| DES-095 | Rename a task in place, in its row | OPEN | V3 | **Yes**, see below |
-| DES-096 | Details on a second line beneath the title | OPEN | V3 | Depends on DES-095 |
-| DES-097 | A motion scale in the tokens | OPEN | V3 | No |
-| DES-099 | The expanded card: one header strip, then Steps and Notes | OPEN | V3 | No |
+| DES-093 | Expand a task in place, inside its row | APPROVED | V3 | Imran, 2026-08-17 |
+| DES-094 | One icon vocabulary, shared by the row and the form | APPROVED | V3 | Carried by DES-113 |
+| DES-095 | Rename a task in place, in its row | APPROVED | V3 | Imran, 2026-08-17 |
+| DES-096 | Details on a second line beneath the title | APPROVED | V3 | Carried by DES-113 |
+| DES-097 | A motion scale in the tokens | APPROVED | V3 | Carried by DES-113 |
+| DES-099 | The expanded card: one header strip, then Steps and Notes | APPROVED | V3 | Carried by DES-113 |
 | DES-107 | A fifth type size the contract does not name | OPEN | V3 | **Yes**, see below |
 | DES-108 | A CSS reset silently suppresses text sizes on every control | OPEN | V3 | **Yes**, see below |
 | DES-109 | The card has no Save button; the footer is a toolbar | OPEN | V3 | **Yes**, see below |
-| DES-110 | The V3 question, reduced: is a task row one line or two? | OPEN | V3 | **Yes**, and it is the one that matters |
-| DES-111 | A row is as tall as it needs to be | OPEN | V3 | **Yes**, see below |
+| DES-110 | The V3 question, reduced: is a task row one line or two? | SUPERSEDED | V3 | By DES-113 |
+| DES-111 | A row is as tall as it needs to be | APPROVED | V3 | Imran, 2026-08-17 |
 | DES-112 | What a selection can do, at both levels | OPEN | V3 | No |
-| DES-113 | Row density is a setting; two lines is the default | OPEN | V3 | **Yes**, and it supersedes DES-110 |
-| DES-114 | Every folder list ends in "New folder…" | OPEN | V3 | No |
-| DES-115 | An empty block is the control that fills it | OPEN | V3 | No |
+| DES-113 | Row density is a setting; two lines is the default | APPROVED | V3 | Imran, 2026-08-17, front end only |
+| DES-114 | Every folder list ends in "New folder…" | APPROVED | V3 | Carried by DES-113 |
+| DES-115 | An empty block is the control that fills it | APPROVED | V3 | Carried by DES-113 |
+
+## How Lane 2 is being run, decided 2026-08-17
+
+**Imran's ruling: record them, do not chase them.** Everything in the table
+below stays a written proposal while the front end is being settled. When the
+design is finished enough to be worth pricing, a separate session takes the
+whole Lane 2 pile at once, with Hassan, and turns whichever parts survive into
+RFCs.
+
+This is why no Lane 2 entry blocks a Lane 1 approval, and why a drawn Lane 2
+idea in `prototype-v2` is not a commitment to build it. It also means the four
+facts each entry carries are the deliverable for now: they are what that later
+session will be priced from, so an entry with a vague third fact is an entry
+that will cost time later.
 
 ## Lane 2: needs backend
 
@@ -515,9 +529,25 @@ history, full screen, close.
   this repository has been bitten once by two menus both called "More
   actions"; a destructive action in a second place is how that happens again.
 
-**What is owed:** a ruling that the card is direct manipulation rather than a
-form, because 9.3 describes a form with Save, and an answer on whether undo is
-in scope — since the removal depends on it.
+**APPROVED by Imran, 2026-08-17, with undo brought into scope.** Removing Save
+depended on undo existing, and rather than keep Save, Imran's ruling is the
+other way round: **undo and redo become scope.** Where they need server work
+they go to an RFC, in the Lane 2 session, and they are to be treated as part of
+the refresh rather than as a nicety that might not arrive.
+
+Two things that ruling adds:
+
+- **Undo and redo must have keyboard shortcuts.** The conventional pair, and
+  they have to work from the list as well as from inside an open card, because
+  the actions that need undoing most — a bulk delete, a task turned into a
+  folder — are started from the list.
+- **The footer buttons are then a second route to the same thing**, not the
+  only one. That is the right relationship: discoverable in the card, fast from
+  the keyboard.
+
+Still owed, and now the only part: spec text, since 9.3 describes a form with
+Save and a dialog. It rides along with DES-093's escalation rather than needing
+its own.
 
 ### DES-110, the V3 question reduced to one
 
@@ -830,6 +860,18 @@ the same day against the code, the specification and the acceptance suite.
 4. **What happens if it never ships.** Nothing breaks. The right-side sheet of
    DES-025 remains and this becomes one more explored concept in the V3
    record.
+
+**APPROVED by Imran, 2026-08-17.** His reasoning, recorded because it is the
+part a later session will need rather than the verdict: the inline card gives
+the product a better structure to grow into, it is distinct from Todoist and
+Notion rather than an imitation of either, and it is easier to use — what you
+are already looking at becomes editable in place, instead of moving your
+attention to a left panel or a new dialog.
+
+This closes the question the entry itself raised, about the seven places that
+open the form with no row to expand. Those still need an answer, but it is now
+a design task inside the approved direction rather than a reason not to take
+it.
 
 **The question this turns on, and it is Imran's rather than a designer's.**
 Seven of the places that open the form have no row to expand: the floating
