@@ -67,6 +67,20 @@
         "5210"
       ],
       "port": 5210
+    },
+    {
+      "name": "prototype-v2-folder",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "docs/design/prototype-v2",
+        "--",
+        "--port",
+        "5230"
+      ],
+      "port": 5230
     }
   ]
 }
