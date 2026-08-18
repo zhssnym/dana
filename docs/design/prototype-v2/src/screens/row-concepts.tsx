@@ -56,6 +56,7 @@ import {
   Repeat2,
   Redo2,
   Share2,
+  RotateCcw,
   Star,
   Trash2,
   Undo2,
@@ -1522,15 +1523,50 @@ function Actions({
   task,
   onStar,
   onMakeFolder,
+  onRestore,
   extra,
 }: {
   task: ConceptTask
   onStar: () => void
   onMakeFolder?: () => void
+  onRestore?: () => void
   extra?: ReactNode
 }) {
   return (
     <span className="flex shrink-0 items-center justify-end gap-0.5">
+      {/* An abandoned task is not a dead one, and the row has to say so.
+          Restore appears on hover in the trailing slot — V3's R3 — rather
+          than living only in the overflow, because a person looking at a
+          struck-through row is usually deciding whether to bring it back and
+          should not have to open a menu to find out that they can.
+
+          It is the one action that appears *because* of a state rather than
+          being present on every row, which is why it leads the gutter: the
+          things that are always there keep their positions behind it. */}
+      {task.abandoned && onRestore ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRestore()
+                }}
+                aria-label={`Restore ${task.title}`}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
+                  T_FAST,
+                  FOCUS,
+                )}
+              >
+                <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            }
+          />
+          <TooltipContent side="top">Restore</TooltipContent>
+        </Tooltip>
+      ) : null}
       <button
         type="button"
         onClick={(e) => {
@@ -3184,6 +3220,7 @@ function ConceptE() {
                       task={task}
                       onStar={() => patch(task.id, { important: !task.important })}
                       onMakeFolder={() => requestPromote(task)}
+                      onRestore={() => patch(task.id, { abandoned: false })}
                       extra={
                         <ExpandButton
                           open={isOpen}
@@ -3686,6 +3723,7 @@ function ConceptJ() {
                     task={task}
                     onStar={() => patch(task.id, { important: !task.important })}
                       onMakeFolder={() => requestPromote(task)}
+                      onRestore={() => patch(task.id, { abandoned: false })}
                     extra={
                       <ExpandButton
                         open={isOpen}
