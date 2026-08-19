@@ -23,9 +23,14 @@ the opener.
 import { useEffect, useRef, type ReactNode } from "react"
 
 import {
+  ArrowUpRight,
   ChevronDown,
   Maximize2,
+  PanelLeft,
+  PanelRight,
+  PictureInPicture2,
   X,
+  type LucideIcon,
 } from "@/lib/icons"
 import { TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
@@ -45,11 +50,11 @@ const FOCUS =
 
 export type TaskSurfaceMode = "full" | "right" | "left" | "float"
 
-const MODE_NAMES: Record<TaskSurfaceMode, string> = {
-  full: "Full screen",
-  right: "Sidebar · right",
-  left: "Sidebar · left",
-  float: "Floating",
+const MODES: Record<TaskSurfaceMode, { name: string; icon: LucideIcon }> = {
+  full: { name: "Full screen", icon: Maximize2 },
+  right: { name: "Sidebar · right", icon: PanelRight },
+  left: { name: "Sidebar · left", icon: PanelLeft },
+  float: { name: "Floating", icon: PictureInPicture2 },
 }
 
 function SurfaceChrome({
@@ -84,27 +89,33 @@ function SurfaceChrome({
                   FOCUS,
                 )}
               >
-                {MODE_NAMES[mode]}
+                {MODES[mode].name}
                 <ChevronDown className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
               </button>
             }
           />
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuRadioGroup
               value={mode}
               onValueChange={(value) => onModeChange(value as TaskSurfaceMode)}
             >
-              {(Object.keys(MODE_NAMES) as TaskSurfaceMode[]).map((key) => (
-                <DropdownMenuRadioItem key={key} value={key} closeOnClick>
-                  {MODE_NAMES[key]}
-                </DropdownMenuRadioItem>
-              ))}
+              {(Object.keys(MODES) as TaskSurfaceMode[]).map((key) => {
+                const { name, icon: Icon } = MODES[key]
+                return (
+                  <DropdownMenuRadioItem key={key} value={key} closeOnClick>
+                    <span className="inline-flex items-center gap-2">
+                      <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                      {name}
+                    </span>
+                  </DropdownMenuRadioItem>
+                )
+              })}
             </DropdownMenuRadioGroup>
             {onOpenInTab ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onOpenInTab}>
-                  <Maximize2 className="size-4" />Open as a tab
+                  <ArrowUpRight className="size-4" />Open as a tab
                 </DropdownMenuItem>
               </>
             ) : null}

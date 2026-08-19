@@ -36,14 +36,21 @@ import {
   Mic,
   Paperclip,
   Pause,
+  Pencil,
   Play,
   Reply as ReplyIcon,
   SendHorizontal,
+  ThumbsUp,
   Trash2,
   X,
   Image as ImageIcon,
   type LucideIcon,
 } from "@/lib/icons"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Avatar,
   AvatarFallback,
@@ -605,17 +612,54 @@ function Composer({
 
 /* ------------------------------------------------------------ the thread -- */
 
+/* The closed reaction set: the lightest agreement a team needs, no picker
+   dependency, no skin-tone matrix to maintain in a prototype. */
+const REACTION_SET = ["👍", "❤️", "✅", "🎉", "😀", "👀"]
+
+function toggleReaction(comment: ConceptComment, emoji: string): ConceptComment {
+  const current = comment.reactions ?? []
+  const existing = current.find((r) => r.emoji === emoji)
+  let next: NonNullable<ConceptComment["reactions"]>
+  if (!existing) {
+    next = [...current, { emoji, count: 1, mine: true }]
+  } else if (existing.mine) {
+    next = current
+      .map((r) =>
+        r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r,
+      )
+      .filter((r) => r.count > 0)
+  } else {
+    next = current.map((r) =>
+      r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r,
+    )
+  }
+  return { ...comment, reactions: next.length ? next : undefined }
+}
+
 function CommentRow({
   comment,
   isReply = false,
   onReply,
   onDelete,
+  onUpdate,
 }: {
   comment: ConceptComment
   isReply?: boolean
   onReply?: () => void
   onDelete: () => void
+  onUpdate: (next: ConceptComment) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(comment.body ?? "")
+
+  function commitEdit() {
+    const body = draft.trim()
+    if (body && body !== comment.body) {
+      onUpdate({ ...comment, body, edited: true })
+    }
+    setEditing(false)
+  }
+
   return (
     <div className="group/comment flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-[var(--color-graphite-50)]">
       <CommentFace person={comment.author} dense={isReply} className="mt-0.5" />
@@ -629,6 +673,7 @@ function CommentRow({
           </span>
           <span className="text-[12px] leading-4 text-[var(--color-graphite-400)]">
             {comment.at}
+            {comment.edited ? " · edited" : ""}
           </span>
           <span
             className={cn(
@@ -636,19 +681,117 @@ function CommentRow({
               T_FAST,
             )}
           >
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label="Add reaction"
+                    className={cn(
+                      "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+                      T_FAST,
+                      FOCUS,
+                    )}
+                  >
+                    <ThumbsUp className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                }
+              />
+              <PopoverContent align="end" className="w-auto p-1">
+                <div className="flex gap-0.5">
+                  {REACTION_SET.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      aria-label={`React with ${emoji}`}
+                      onClick={() => onUpdate(toggleReaction(comment, emoji))}
+                      className={cn(
+                        "flex size-8 items-center justify-center rounded-md text-[16px] transition-colors hover:bg-[var(--color-graphite-100)]",
+                        T_FAST,
+                        FOCUS,
+                      )}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             {onReply ? <ThreadAction icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
+            {comment.mine && comment.body ? (
+              <ThreadAction
+                icon={Pencil}
+                label="Edit comment"
+                onClick={() => {
+                  setDraft(comment.body ?? "")
+                  setEditing(true)
+                }}
+              />
+            ) : null}
             {comment.mine ? (
               <ThreadAction icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
             ) : null}
           </span>
         </span>
-        {comment.body ? (
+        {editing ? (
+          <textarea
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            value={draft}
+            rows={1}
+            aria-label="Edit comment"
+            onChange={(event) => setDraft(event.target.value)}
+            onFocus={(event) =>
+              event.currentTarget.setSelectionRange(
+                event.currentTarget.value.length,
+                event.currentTarget.value.length,
+              )
+            }
+            onBlur={commitEdit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault()
+                commitEdit()
+              }
+              if (event.key === "Escape") {
+                event.preventDefault()
+                setDraft(comment.body ?? "")
+                setEditing(false)
+              }
+            }}
+            className="-mx-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-card px-1 py-0.5 text-[14px] leading-5 text-[var(--color-graphite-800)] ring-2 ring-[var(--color-dana-accent-600)] outline-none [field-sizing:content]"
+          />
+        ) : comment.body ? (
           <span className="block text-[14px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-800)]">
             {comment.body}
           </span>
         ) : null}
         {comment.voice ? <VoiceNote voice={comment.voice} /> : null}
         {comment.files ? <CommentFiles files={comment.files} /> : null}
+        {comment.reactions?.length ? (
+          <span className="mt-1 flex flex-wrap gap-1">
+            {comment.reactions.map((reaction) => (
+              <button
+                key={reaction.emoji}
+                type="button"
+                aria-label={`${reaction.emoji} ${reaction.count}${reaction.mine ? " — you reacted" : ""}`}
+                aria-pressed={reaction.mine || undefined}
+                onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
+                className={cn(
+                  "flex h-6 items-center gap-1 rounded-full border px-1.5 text-[12px] leading-4 transition-colors tabular-nums",
+                  T_FAST,
+                  FOCUS,
+                  reaction.mine
+                    ? "border-[var(--color-dana-accent-200)] bg-[var(--color-dana-accent-50)] text-[var(--color-dana-accent-800)]"
+                    : "border-[var(--color-graphite-200)] bg-card text-[var(--color-graphite-600)] hover:border-[var(--color-graphite-300)]",
+                )}
+              >
+                <span aria-hidden="true">{reaction.emoji}</span>
+                {reaction.count}
+              </button>
+            ))}
+          </span>
+        ) : null}
       </div>
     </div>
   )
@@ -697,6 +840,21 @@ export function CommentsThread({
     }
   }
 
+  function updateComment(next: ConceptComment) {
+    onChange(
+      comments.map((c) =>
+        c.id === next.id
+          ? next
+          : c.replies?.some((r) => r.id === next.id)
+            ? {
+                ...c,
+                replies: c.replies.map((r) => (r.id === next.id ? next : r)),
+              }
+            : c,
+      ),
+    )
+  }
+
   const thread = (
     <>
       {comments.map((comment) => (
@@ -705,6 +863,7 @@ export function CommentsThread({
             comment={comment}
             onReply={() => setReplyingTo(comment.id)}
             onDelete={() => onChange(comments.filter((c) => c.id !== comment.id))}
+            onUpdate={updateComment}
           />
           {(comment.replies?.length || replyingTo === comment.id) ? (
             /* Indent and the dense face say "belongs to" — DES-099's own
@@ -725,6 +884,7 @@ export function CommentsThread({
                       ),
                     )
                   }
+                  onUpdate={updateComment}
                 />
               ))}
               {replyingTo === comment.id ? (

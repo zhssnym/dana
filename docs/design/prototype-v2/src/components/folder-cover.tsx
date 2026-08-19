@@ -24,7 +24,7 @@ storage (DES-105), excluded from the port by DES-130.
 
 import { useRef, useState, type CSSProperties } from "react"
 
-import { Image as ImageIcon, X } from "@/lib/icons"
+import { Image as ImageIcon, LoaderCircle, Search, X } from "@/lib/icons"
 import { cn } from "@/lib/utils"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -128,16 +128,44 @@ const MARKS: { key: string; name: string; css: string }[] = [
 
 /* ------------------------------------------------------------ photos tier -- */
 
-/* Lorem Picsum — a genuinely free image source (picsum.photos). The ids are
-   pinned so the grid is stable; the tab says plainly that the photos need
-   the network, which the flattened share build refuses on purpose. */
-const PICSUM_IDS = [1015, 1016, 1018, 1019, 1035, 1039, 1044, 1053]
-
-function picsumThumb(id: number) {
-  return `https://picsum.photos/id/${id}/320/90`
+/* Openverse — the openly licensed image search run by the Openverse project
+   (api.openverse.org), standing where the reference design had Unsplash.
+   Real search over a real free-source platform; the tab says plainly that it
+   needs the network, which the flattened share build refuses on purpose.
+   Legacy `photo:` keys from the first picker resolve through Picsum so a
+   cover chosen then keeps rendering. */
+interface OpenverseResult {
+  id: string
+  title: string
+  creator: string
+  thumb: string
+  url: string
 }
-function picsumFull(id: number) {
-  return `https://picsum.photos/id/${id}/1600/400`
+
+async function searchOpenverse(query: string): Promise<OpenverseResult[]> {
+  const response = await fetch(
+    `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=12&mature=false`,
+    { headers: { Accept: "application/json" } },
+  )
+  if (!response.ok) throw new Error(`Openverse answered ${response.status}`)
+  const data = (await response.json()) as {
+    results?: {
+      id: string
+      title?: string
+      creator?: string
+      thumbnail?: string
+      url?: string
+    }[]
+  }
+  return (data.results ?? [])
+    .filter((item) => item.thumbnail && item.url)
+    .map((item) => ({
+      id: item.id,
+      title: item.title ?? "Untitled",
+      creator: item.creator ?? "unknown",
+      thumb: item.thumbnail!,
+      url: item.url!,
+    }))
 }
 
 /* ------------------------------------------------------------ the uploads -- */
@@ -194,9 +222,10 @@ export function resolveCover(
       : null
   }
   if (key.startsWith("photo:")) {
+    /* Legacy tier from the first picker: pinned Picsum ids. */
     const id = key.slice("photo:".length)
     return {
-      backgroundImage: `url("${picsumFull(Number(id))}")`,
+      backgroundImage: `url("https://picsum.photos/id/${Number(id)}/1600/400")`,
       backgroundSize: "cover",
       backgroundPosition: `center ${position}%`,
       backgroundColor: "var(--color-graphite-100)",
@@ -238,7 +267,7 @@ function Swatch({
       title={name}
       onClick={onPick}
       className={cn(
-        "h-12 rounded-[5px] border transition-shadow",
+        "h-16 rounded-md border transition-shadow",
         T_FAST,
         FOCUS,
         selected
@@ -274,6 +303,30 @@ export function FolderCoverPicker({
   )
   const [linkUrl, setLinkUrl] = useState("")
   const fileInput = useRef<HTMLInputElement>(null)
+  const [photoQuery, setPhotoQuery] = useState("")
+  const [photoResults, setPhotoResults] = useState<OpenverseResult[]>([])
+  const [photoLoading, setPhotoLoading] = useState(false)
+  const [photoError, setPhotoError] = useState("")
+  const [photoSearched, setPhotoSearched] = useState(false)
+
+  async function runPhotoSearch() {
+    const query = photoQuery.trim()
+    if (!query || photoLoading) return
+    setPhotoLoading(true)
+    setPhotoError("")
+    try {
+      const results = await searchOpenverse(query)
+      setPhotoResults(results)
+      setPhotoSearched(true)
+      if (results.length === 0) setPhotoError(`Nothing found for “${query}”.`)
+    } catch {
+      setPhotoError(
+        "Openverse could not be reached — photo search needs the network.",
+      )
+    } finally {
+      setPhotoLoading(false)
+    }
+  }
 
   function takeFile(list: FileList | null) {
     const file = list?.[0]
@@ -283,7 +336,7 @@ export function FolderCoverPicker({
   }
 
   return (
-    <div className="w-[400px]" onClick={(e) => e.stopPropagation()}>
+    <div className="w-[440px]" onClick={(e) => e.stopPropagation()}>
       {/* The tab row, with Remove at its far end — the Notion arrangement,
           in Dana's chrome: a hairline under the row, the active tab marked
           by ink rather than a pill. */}
@@ -329,11 +382,11 @@ export function FolderCoverPicker({
         ) : null}
       </div>
 
-      <div className="max-h-[320px] overflow-y-auto p-2">
+      <div className="max-h-[360px] overflow-y-auto p-2.5">
         {tab === "gallery" ? (
           <>
             <SectionLabel>Colour &amp; gradient</SectionLabel>
-            <div role="listbox" aria-label="Gradient covers" className="grid grid-cols-4 gap-1.5">
+            <div role="listbox" aria-label="Gradient covers" className="grid grid-cols-3 gap-2">
               {GRADIENTS.map((cover) => (
                 <Swatch
                   key={cover.key}
@@ -345,7 +398,7 @@ export function FolderCoverPicker({
               ))}
             </div>
             <SectionLabel>The mark</SectionLabel>
-            <div role="listbox" aria-label="Mark covers" className="grid grid-cols-2 gap-1.5">
+            <div role="listbox" aria-label="Mark covers" className="grid grid-cols-2 gap-2">
               {MARKS.map((cover) => (
                 <Swatch
                   key={cover.key}
@@ -434,20 +487,86 @@ export function FolderCoverPicker({
 
         {tab === "photos" ? (
           <>
-            <div role="listbox" aria-label="Photo covers" className="grid grid-cols-2 gap-1.5">
-              {PICSUM_IDS.map((id) => (
-                <Swatch
-                  key={id}
-                  name={`Photo ${id}`}
-                  css={`url("${picsumThumb(id)}")`}
-                  selected={value === `photo:${id}`}
-                  onPick={() => onPick(`photo:${id}`)}
+            <form
+              className="flex items-center gap-1.5 pb-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void runPhotoSearch()
+              }}
+            >
+              <div
+                className={cn(
+                  "flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 transition-colors",
+                  T_FAST,
+                  "focus-within:border-[var(--color-dana-accent-600)] focus-within:ring-2 focus-within:ring-[var(--color-dana-accent-100)]",
+                )}
+              >
+                <Search className="size-3.5 shrink-0 text-[var(--color-graphite-400)]" strokeWidth={1.75} aria-hidden="true" />
+                <input
+                  value={photoQuery}
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  onChange={(event) => setPhotoQuery(event.target.value)}
+                  placeholder="Search openly licensed photos"
+                  aria-label="Search openly licensed photos"
+                  className="min-w-0 flex-1 bg-transparent text-[13px] leading-5 outline-none placeholder:text-[var(--color-graphite-400)]"
                 />
-              ))}
-            </div>
+              </div>
+              <button
+                type="submit"
+                disabled={photoLoading || !photoQuery.trim()}
+                className={cn(
+                  "flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)] disabled:pointer-events-none disabled:opacity-40",
+                  T_FAST,
+                  FOCUS,
+                )}
+              >
+                {photoLoading ? (
+                  <LoaderCircle className="size-3.5 animate-spin data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
+                ) : null}
+                Search
+              </button>
+            </form>
+
+            {photoError ? (
+              <p className="px-0.5 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                {photoError}
+              </p>
+            ) : null}
+
+            {photoResults.length > 0 ? (
+              <div role="listbox" aria-label="Photo results" className="grid grid-cols-3 gap-2">
+                {photoResults.map((photo) => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    role="option"
+                    aria-selected={value === `link:${photo.url}`}
+                    title={`${photo.title} — ${photo.creator}`}
+                    aria-label={`${photo.title} by ${photo.creator}`}
+                    onClick={() => onPick(`link:${photo.url}`)}
+                    className={cn(
+                      "h-16 rounded-md border bg-[var(--color-graphite-100)] bg-cover bg-center transition-shadow",
+                      T_FAST,
+                      FOCUS,
+                      value === `link:${photo.url}`
+                        ? "border-transparent ring-2 ring-[var(--color-graphite-700)]"
+                        : "border-[var(--color-graphite-200)] hover:border-[var(--color-graphite-400)]",
+                    )}
+                    style={{ backgroundImage: `url("${photo.thumb}")` }}
+                  />
+                ))}
+              </div>
+            ) : !photoSearched && !photoError ? (
+              <p className="px-0.5 py-4 text-center text-[12px] leading-4 text-[var(--color-graphite-400)]">
+                Search Openverse for an openly licensed cover —
+                “mountains”, “linen”, “night sky”…
+              </p>
+            ) : null}
+
             <p className="px-0.5 pt-2 text-[11px] leading-4 text-[var(--color-graphite-400)]">
-              Free photos from Lorem Picsum · loaded over the network, so the
-              offline share build shows a plain ground instead
+              Openverse · openly licensed images · loaded over the network, so
+              the offline share build shows a plain ground instead
             </p>
           </>
         ) : null}
