@@ -67,6 +67,16 @@ import { useSortableList } from "@/lib/use-sortable-list"
 
 import { CommentsThread, voiceBars } from "@/components/comments"
 import { ViewStrip } from "@/components/view-strip"
+import { WindowActivity, WindowBarActions } from "@/components/window-bar"
+import { AddCoverAction, PageCover } from "@/components/page-cover"
+import {
+  DEFAULT_FILTERS,
+  FilterControl,
+  activeFilterCount,
+  applyTaskFilters,
+  stripButtonClass,
+  type TaskFilters,
+} from "@/components/task-filters"
 import { taskSurfacePreference } from "@/lib/task-surface-preference"
 import {
   FolderCoverPicker,
@@ -145,49 +155,9 @@ type ConversationView = "page" | "dock" | "panel" | "full"
 
 /* ------------------------------------------------------------- filtering -- */
 
-/* Broader control than a due-date toggle (Imran's direction): every variable
-   the row actually carries. The shape is deliberately flat so the strip can
-   count what is active and clear it in one press. */
-interface TaskFilters {
-  due: "any" | "with" | "without" | "overdue"
-  assignee: "any" | "unassigned" | string
-  importantOnly: boolean
-  showAbandoned: boolean
-}
 
-const DEFAULT_FILTERS: TaskFilters = {
-  due: "any",
-  assignee: "any",
-  importantOnly: false,
-  showAbandoned: true,
-}
 
-function activeFilterCount(filters: TaskFilters) {
-  return (
-    Number(filters.due !== "any") +
-    Number(filters.assignee !== "any") +
-    Number(filters.importantOnly) +
-    Number(!filters.showAbandoned)
-  )
-}
 
-function applyFilters(tasks: FolderTask[], filters: TaskFilters) {
-  return tasks.filter((task) => {
-    if (filters.due === "with" && !task.due) return false
-    if (filters.due === "without" && task.due) return false
-    if (filters.due === "overdue" && !task.due?.overdue) return false
-    if (filters.assignee === "unassigned" && task.assignee) return false
-    if (
-      filters.assignee !== "any" &&
-      filters.assignee !== "unassigned" &&
-      task.assignee?.name !== filters.assignee
-    )
-      return false
-    if (filters.importantOnly && !task.important) return false
-    if (!filters.showAbandoned && task.status === "abandoned") return false
-    return true
-  })
-}
 
 /* ------------------------------------------------------------- fixtures -- */
 
@@ -389,18 +359,6 @@ function GhostAction({
   )
 }
 
-/* A strip control: 32px in a 40px band. The strip is chrome, not a control
-   surface — the same tier the 24px page bar lives on — which is the reading
-   Imran ruled when the 40px cluster felt oversized. Recorded against K1. */
-const stripButtonClass = (active: boolean) =>
-  cn(
-    "relative flex size-8 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
-    T_FAST,
-    FOCUS,
-    active
-      ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-      : "text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-  )
 
 function StripButton({
   icon: Icon,
@@ -440,42 +398,6 @@ function StripButton({
       />
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
-  )
-}
-
-/* A row inside the filter panel — Dana's menu row, radio-flavoured. */
-function FilterChoice({
-  label,
-  selected,
-  onSelect,
-  leading,
-}: {
-  label: string
-  selected: boolean
-  onSelect: () => void
-  leading?: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors",
-        T_FAST,
-        FOCUS,
-        selected
-          ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-900)]"
-          : "text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-50)]",
-      )}
-    >
-      {leading}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {selected ? (
-        <CheckIcon className="size-3.5 shrink-0 text-[var(--color-graphite-700)]" strokeWidth={2.5} aria-hidden="true" />
-      ) : null}
-    </button>
   )
 }
 
@@ -723,9 +645,6 @@ export function FolderPageV2({
   } | null>(null)
 
   /* Reposition mode for photographic covers. */
-  const [repositioning, setRepositioning] = useState(false)
-  const [draftPos, setDraftPos] = useState(coverPos)
-  const dragStart = useRef<{ y: number; pos: number } | null>(null)
 
   /* Completion transition, as the previous screen had it. */
   const [completingIds, setCompletingIds] = useState<Set<string>>(
@@ -749,25 +668,6 @@ export function FolderPageV2({
   useEffect(() => {
     setDisplayName(folderName)
   }, [folderName])
-
-  /* The strip docks: a passive scroll listener, two rect reads. */
-  const [stuck, setStuck] = useState(false)
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const sentinel = sentinelRef.current
-    const scroller = sentinel?.closest("[data-shell-scroll]")
-    if (!sentinel || !scroller) return
-    function measure() {
-      if (!sentinel || !scroller) return
-      setStuck(
-        sentinel.getBoundingClientRect().bottom <
-          scroller.getBoundingClientRect().top,
-      )
-    }
-    measure()
-    scroller.addEventListener("scroll", measure, { passive: true })
-    return () => scroller.removeEventListener("scroll", measure)
-  }, [])
 
   /* Rename's second route (K5): the menu arms the inline edit — for the
      folder title and for any section. */
@@ -803,7 +703,7 @@ export function FolderPageV2({
   }, [])
 
   const allOpen = [...scheduled, ...unscheduled]
-  const openTasks = applyFilters(allOpen, filters)
+  const openTasks = applyTaskFilters(allOpen, filters)
   const filterCount = activeFilterCount(filters)
 
   /* Claim a freshly added task for its section once the shell has minted it. */
@@ -1087,31 +987,11 @@ export function FolderPageV2({
 
   /* ----------------------------------------------------------- the strip -- */
 
+  /* The controls live in the window bar now (DES-139), not in a sticky row
+     inside the page: they belong to the tab, the tab already says the
+     folder's name, and chrome that scrolls with content is not chrome. */
   const strip = (
-    /* Hit-transparent except for its controls: the mark on a cover overlaps
-       this row's box, and a layout container that swallows those clicks is
-       the kind of bug a screenshot can never show. */
-    <div
-      className={cn(
-        "pointer-events-none sticky top-0 z-30 -mx-2 flex h-12 items-center gap-2 px-2 transition-[background-color,box-shadow]",
-        T_FAST,
-        stuck && "pointer-events-auto bg-card shadow-[0_1px_0_var(--color-graphite-200)]",
-      )}
-    >
-      <span
-        className={cn(
-          "pointer-events-none flex min-w-0 flex-1 items-center gap-2 transition-opacity",
-          T_FAST,
-          stuck ? "opacity-100" : "opacity-0",
-        )}
-        aria-hidden={!stuck}
-      >
-        <Glyph className="size-4 shrink-0" style={{ color }} strokeWidth={1.75} aria-hidden="true" />
-        <span className="truncate text-[13px] leading-5 font-medium text-[var(--color-graphite-800)]">
-          {displayName}
-        </span>
-      </span>
-
+    <WindowBarActions>
       <div
         role="radiogroup"
         aria-label="Folder view"
@@ -1155,111 +1035,7 @@ export function FolderPageV2({
       </div>
 
       <div className="pointer-events-auto flex items-center gap-0.5">
-        <Popover>
-          <PopoverTrigger
-            render={
-              <button
-                type="button"
-                aria-label={`Filters${filterCount ? ` — ${filterCount} active` : ""}`}
-                className={cn(
-                  stripButtonClass(filterCount > 0),
-                  filterCount > 0 && "w-auto gap-1.5 px-2.5",
-                )}
-              >
-                <ListFilter className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                {filterCount > 0 ? (
-                  <span className="text-[12px] leading-4 font-medium tabular-nums">
-                    {filterCount}
-                  </span>
-                ) : null}
-              </button>
-            }
-          />
-          <PopoverContent align="end" className="w-[272px] p-2">
-            <p className="flex items-center gap-1.5 px-1 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
-              <CalendarDays className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              Due date
-            </p>
-            <FilterChoice label="Any" selected={filters.due === "any"} onSelect={() => setFilters((f) => ({ ...f, due: "any" }))} />
-            <FilterChoice label="With a due date" selected={filters.due === "with"} onSelect={() => setFilters((f) => ({ ...f, due: "with" }))} />
-            <FilterChoice label="Without a due date" selected={filters.due === "without"} onSelect={() => setFilters((f) => ({ ...f, due: "without" }))} />
-            <FilterChoice
-              label="Overdue"
-              leading={<span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--color-danger-600)]" />}
-              selected={filters.due === "overdue"}
-              onSelect={() => setFilters((f) => ({ ...f, due: "overdue" }))}
-            />
-
-            <p className="flex items-center gap-1.5 px-1 pt-2 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
-              <UserRound className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              Assignee
-            </p>
-            <FilterChoice label="Anyone" selected={filters.assignee === "any"} onSelect={() => setFilters((f) => ({ ...f, assignee: "any" }))} />
-            {PEOPLE.map((person) => (
-              <FilterChoice
-                key={person.name}
-                label={person.name}
-                leading={<Face person={person} className="size-4 data-[size=sm]:size-4" />}
-                selected={filters.assignee === person.name}
-                onSelect={() => setFilters((f) => ({ ...f, assignee: person.name }))}
-              />
-            ))}
-            <FilterChoice label="Unassigned" selected={filters.assignee === "unassigned"} onSelect={() => setFilters((f) => ({ ...f, assignee: "unassigned" }))} />
-
-            <div className="mx-1 my-2 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-            {/* Toggles are switches — the state is on/off, not one-of-many,
-                and the control should say which kind of question it is. */}
-            <label
-              className={cn(
-                "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
-                T_FAST,
-              )}
-            >
-              <Star className="size-3.5 shrink-0 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
-              <span className="min-w-0 flex-1">Important only</span>
-              <Switch
-                checked={filters.importantOnly}
-                onCheckedChange={(checked) =>
-                  setFilters((f) => ({ ...f, importantOnly: checked === true }))
-                }
-                aria-label="Important only"
-              />
-            </label>
-            <label
-              className={cn(
-                "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
-                T_FAST,
-              )}
-            >
-              <Ban className="size-3.5 shrink-0 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
-              <span className="min-w-0 flex-1">Show abandoned</span>
-              <Switch
-                checked={filters.showAbandoned}
-                onCheckedChange={(checked) =>
-                  setFilters((f) => ({ ...f, showAbandoned: checked === true }))
-                }
-                aria-label="Show abandoned"
-              />
-            </label>
-            {filterCount > 0 ? (
-              <>
-                <div className="mx-1 my-2 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-                <button
-                  type="button"
-                  onClick={() => setFilters(DEFAULT_FILTERS)}
-                  className={cn(
-                    "flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  <X className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
-                  Clear filters
-                </button>
-              </>
-            ) : null}
-          </PopoverContent>
-        </Popover>
+        <FilterControl filters={filters} setFilters={setFilters} />
         <StripButton
           icon={MessageSquare}
           label={conversationView === "page" ? "Go to comments" : "Conversation"}
@@ -1271,25 +1047,38 @@ export function FolderPageV2({
       </div>
 
       <div className="pointer-events-auto flex items-center gap-1.5">
+        <WindowActivity
+          summary="Edited just now"
+          entries={[
+            { action: "Edited", actor: "Imran Wafa", at: "Just now" },
+            { action: "Created", actor: "Imran Wafa", at: "4 Aug" },
+          ]}
+        />
         {isShared ? (
           <AvatarGroup>
             <Avatar size="sm"><AvatarFallback>IW</AvatarFallback></Avatar>
             <Avatar size="sm"><AvatarFallback>S</AvatarFallback></Avatar>
           </AvatarGroup>
         ) : null}
+        {/* An icon, not a filled block: the bar is chrome and chrome is
+            quiet (Imran, 2026-08-18). Sharing is reached as often as the
+            other controls beside it and should not shout over them. */}
         {!isDefault ? (
-          <button
-            type="button"
-            onClick={() => setShareOpen(true)}
-            className={cn(
-              "flex h-8 items-center gap-1.5 rounded-md bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
-              T_FAST,
-              FOCUS,
-            )}
-          >
-            <Share2 className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-            Share
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Share this folder"
+                  onClick={() => setShareOpen(true)}
+                  className={stripButtonClass(shareOpen)}
+                >
+                  <Share2 className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              }
+            />
+            <TooltipContent side="bottom">Share</TooltipContent>
+          </Tooltip>
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -1360,7 +1149,7 @@ export function FolderPageV2({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </div>
+    </WindowBarActions>
   )
 
   /* ------------------------------------------------------------ the body -- */
@@ -1896,151 +1685,13 @@ export function FolderPageV2({
 
   return (
     <div className="relative min-h-full">
-      {cover ? (
-        <div
-          className={cn("group/cover relative h-44 w-full", repositioning && "cursor-ns-resize select-none")}
-          style={
-            repositioning
-              ? { ...cover, backgroundPosition: `center ${draftPos}%` }
-              : cover
-          }
-          onPointerDown={
-            repositioning
-              ? (event) => {
-                  dragStart.current = { y: event.clientY, pos: draftPos }
-                  event.currentTarget.setPointerCapture(event.pointerId)
-                }
-              : undefined
-          }
-          onPointerMove={
-            repositioning
-              ? (event) => {
-                  if (!dragStart.current) return
-                  const delta = ((event.clientY - dragStart.current.y) / 176) * 100
-                  setDraftPos(
-                    Math.max(0, Math.min(100, dragStart.current.pos - delta)),
-                  )
-                }
-              : undefined
-          }
-          onPointerUp={repositioning ? () => (dragStart.current = null) : undefined}
-        >
-          <span
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--color-graphite-950)]/12 to-transparent"
-          />
-          {repositioning ? (
-            <div className="absolute inset-x-0 top-3 flex justify-center">
-              <span className="rounded-md bg-[var(--color-graphite-900)]/80 px-2.5 py-1 text-[12px] leading-4 font-medium text-white backdrop-blur">
-                Drag to reposition
-              </span>
-            </div>
-          ) : null}
-          <div
-            className={cn(
-              "absolute right-4 bottom-3 flex items-center gap-1 transition-opacity",
-              T_FAST,
-              repositioning
-                ? "opacity-100"
-                : "opacity-0 group-hover/cover:opacity-100 focus-within:opacity-100",
-            )}
-          >
-            {repositioning ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    savePrototypeFolderIdentity(storageName, { coverPos: Math.round(draftPos) })
-                    setRepositioning(false)
-                  }}
-                  className={cn(
-                    "flex h-7 items-center rounded-md bg-[var(--color-graphite-900)] px-2.5 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  Save position
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftPos(coverPos)
-                    setRepositioning(false)
-                  }}
-                  className={cn(
-                    "flex h-7 items-center rounded-md border border-[var(--color-graphite-200)] bg-card/95 px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] backdrop-blur transition-colors hover:bg-card",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              /* One joined group, the reference design's own arrangement:
-                 Change and Reposition share a border and a divider rather
-                 than floating as loose chips. */
-              <span className="flex h-7 items-stretch divide-x divide-[var(--color-graphite-200)] overflow-hidden rounded-md border border-[var(--color-graphite-200)] bg-card/95 shadow-[var(--elevation-1)] backdrop-blur">
-                <Popover>
-                  <PopoverTrigger
-                    render={
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex items-center gap-1.5 px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
-                          T_FAST,
-                          "outline-none focus-visible:bg-[var(--color-graphite-100)]",
-                        )}
-                      >
-                        <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                        Change
-                      </button>
-                    }
-                  />
-                  <PopoverContent align="end" className="p-0">
-                    <FolderCoverPicker
-                      value={identity.cover}
-                      folderName={storageName}
-                      onPick={(key) =>
-                        savePrototypeFolderIdentity(storageName, {
-                          cover: key,
-                          coverPos: 50,
-                        })
-                      }
-                      onRemove={() =>
-                        savePrototypeFolderIdentity(storageName, { cover: undefined })
-                      }
-                    />
-                  </PopoverContent>
-                </Popover>
-                {coverRepositions(identity.cover) ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftPos(coverPos)
-                      setRepositioning(true)
-                    }}
-                    className={cn(
-                      "flex items-center px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
-                      T_FAST,
-                      "outline-none focus-visible:bg-[var(--color-graphite-100)]",
-                    )}
-                  >
-                    Reposition
-                  </button>
-                ) : null}
-              </span>
-            )}
-          </div>
-        </div>
-      ) : null}
+      <PageCover storageName={storageName} />
 
       <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8">
         {/* The strip: thin, steady, under the cover — the folder's controls
             in one place, docking against the top with the folder's name when
             scrolled (Imran's ruling on the 40px cluster: this is chrome, and
             chrome is thin). */}
-        <div ref={sentinelRef} aria-hidden="true" className="h-px -mb-px" />
         {strip}
 
         <header className={cn("group/head", cover ? "pt-1" : "pt-2")}>
@@ -2076,49 +1727,9 @@ export function FolderPageV2({
               />
             </PopoverContent>
           </Popover>
-          {!identity.cover ? (
-            /* The reference design's scaffolding row: left-aligned, quiet,
-               above the title, gone the moment its job is done. */
-            <div
-              className={cn(
-                "mt-1 flex items-center gap-1 transition-opacity",
-                T_FAST,
-                pristine
-                  ? "opacity-100"
-                  : "opacity-0 group-hover/head:opacity-100 focus-within:opacity-100",
-              )}
-            >
-              <Popover>
-                <PopoverTrigger
-                  render={
-                    <button
-                      type="button"
-                      className={cn(
-                        "-ml-1.5 flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
-                        T_FAST,
-                        FOCUS,
-                      )}
-                    >
-                      <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                      Add cover
-                    </button>
-                  }
-                />
-                <PopoverContent align="start" className="p-0">
-                  <FolderCoverPicker
-                    value={identity.cover}
-                    folderName={storageName}
-                    onPick={(key) =>
-                      savePrototypeFolderIdentity(storageName, { cover: key, coverPos: 50 })
-                    }
-                    onRemove={() =>
-                      savePrototypeFolderIdentity(storageName, { cover: undefined })
-                    }
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          ) : null}
+          <div className="mt-1">
+            <AddCoverAction storageName={storageName} visible={pristine} />
+          </div>
 
           <div className="mt-2">
             <InlineName

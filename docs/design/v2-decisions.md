@@ -93,6 +93,9 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-136 | A task in a surface is a page, not a row | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-137 | A view switcher is a strip of icons; labels live in the tooltip | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-138 | Where a task opens is a preference, not a window manager | APPROVED | F2 | Imran, 2026-08-18, scope A |
+| DES-139 | The window bar: chrome belongs to the window, not the page | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-140 | One filter, every place-page | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-141 | A cover is native to every page except a task | APPROVED | F2 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2593,6 +2596,75 @@ DES-121 (the clock) in the Lane 2 conversation about syncing preferences to
 the account. Three browser-side preferences is the point at which "does this
 follow me between devices" stops being a per-entry question and becomes one
 decision taken once.
+
+
+### DES-139, the window bar: chrome belongs to the window, not the page
+
+Imran's direction, 2026-08-18, against Notion's own arrangement: a thin strip
+under the tabs, acting as the header of whatever that tab is showing. The
+controls move to its right; the left stays empty until Dana has nested
+folders and a breadcrumb trail to put there.
+
+**Why the folder page's own strip was wrong**, and it only became visible
+once tabs existed: controls that belong to *the thing this tab is showing*
+are chrome, and chrome does not live inside the scroll area. The old strip
+docked and un-docked, needed a sentinel and a scroll listener, and repeated
+the folder's name that the tab two centimetres away already said. All of
+that is deleted rather than improved.
+
+**Left empty is the honest state.** A breadcrumb of one item is not a
+breadcrumb, and inventing one would be inventing a hierarchy Dana does not
+have. It is reserved, not forgotten.
+
+**How a screen fills it:** the bar registers its right-hand container in a
+module store and screens portal into it (`WindowBarActions`), so a screen
+keeps its own state and still renders into shell chrome — no lifting half a
+screen into the shell, and no render prop threaded through four components.
+
+**The controls got quieter with it**, at Imran's word: Share is an icon
+rather than a filled block, everything sits at 32px in a 40px strip, and the
+bar gained **Activity** — a line of text ("Edited just now") that opens who
+edited and who created, because its resting job is to tell you something and
+only its second job is to open. Activity is drawn on fixtures; the real thing
+needs the audit trail DES-076 has owed since v1.
+
+**A tab says what kind of thing it holds.** Task tabs carry a task mark; a
+folder's tab carries the glyph its owner chose (DES-130) rather than the
+generic folder, because a tab that disagrees with the sidebar row beside it
+is a tab nobody trusts.
+
+### DES-140, one filter, every place-page
+
+Imran's direction, 2026-08-18: the strip is native to every window — My Day,
+Tasks, Planned, Important, All and every folder — not a folder feature.
+
+So the filter model and its panel left the folder page for
+`components/task-filters.tsx`, and every place-page reads the same one: same
+variables (due, assignee, importance, abandoned), same wording, same active
+count, same clear. A control that means one thing in one place and something
+narrower in another is a control people stop trusting — the same argument
+DES-123 makes for the pickers and DES-137 for the view strips.
+
+The folder page keeps its own filter *state*, because its list is sectioned
+and its filtering has more to do; what it shares is the model and the panel.
+
+### DES-141, a cover is native to every page except a task
+
+Imran's direction, 2026-08-18. A cover is how a **place** announces itself,
+and My Day, Tasks, Planned, Important, All, Done and every folder are all
+places. A task is not a place — it is a thing inside one — so a task surface
+and a task tab have no cover.
+
+`components/page-cover.tsx` carries the whole affordance out of the folder
+page: the band, the picker, the reposition drag, the foot scrim, and the
+quiet "Add cover" ghost. No page grows a second, slightly different cover,
+which is what would have happened had this been copied instead of moved.
+
+The controls stay minimal at Imran's word: one joined Change·Reposition group
+in the band's corner, revealed on hover, never a toolbar.
+
+Lane 2 for the port: no page has a cover column, and the storage question is
+DES-105's. Keyed by page name in the store folders already use.
 
 ## Carried from v1, still unresolved
 

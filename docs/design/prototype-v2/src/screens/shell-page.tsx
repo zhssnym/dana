@@ -27,6 +27,16 @@ import {
   type TaskSurfaceMode,
 } from "@/components/task-surface"
 import { taskSurfacePreference } from "@/lib/task-surface-preference"
+import { WindowActivity, WindowBarActions } from "@/components/window-bar"
+import { PageCover } from "@/components/page-cover"
+import {
+  DEFAULT_FILTERS,
+  FilterControl,
+  applyTaskFilters,
+  type TaskFilters,
+} from "@/components/task-filters"
+import { folderGlyph } from "@/components/folder-icon-picker"
+import { useFolderIdentity } from "@/lib/folder-presentation"
 import { SearchOverlay } from "@/components/search-overlay"
 import { shellFolderGroups, shellPreviewTasks } from "@/fixtures"
 import {
@@ -649,6 +659,11 @@ export function ShellPage() {
   const isPeople = requestedPage === "people"
   const isSettings = requestedPage === "settings"
   const selectedFolderName = searchParams.get("folder") ?? "Wedding"
+  const folderIdentity = useFolderIdentity(selectedFolderName)
+  /* One filter for every place-page, so the control in the window bar means
+     the same thing wherever it is (DES-140). The folder page keeps its own,
+     because its list is sectioned and its filter has more to do. */
+  const [pageFilters, setPageFilters] = useState<TaskFilters>(DEFAULT_FILTERS)
   /* Which folder page renders: the Notion-page concept by default, the
      previous screen behind ?folder-page=v1 for the side-by-side. */
   const folderPageVariant =
@@ -737,8 +752,11 @@ export function ShellPage() {
                 : isAll
                   ? "All"
                   : "My Day"
+  /* The tab wears the glyph the folder's owner chose (DES-130), not the
+     generic folder mark — the sidebar already does, and a tab that
+     disagrees with the sidebar row beside it is a tab nobody trusts. */
   const PageIcon = isFolder
-    ? Folder
+    ? folderGlyph(folderIdentity.glyph)
     : isPeople
       ? UsersRound
       : isSettings
@@ -754,7 +772,9 @@ export function ShellPage() {
                 : isAll
                   ? Layers3
                   : SunMedium
-  const pageIconColor = isFolder ? selectedFolderColor : undefined
+  const pageIconColor = isFolder
+    ? folderIdentity.color ?? selectedFolderColor
+    : undefined
   /* Where a task opens, once it leaves the list: the surface in one of its
      five modes, or the tab strip. The row's view strip and the card's
      full-screen action both arrive here (DES-136). No mode means the row
@@ -880,6 +900,25 @@ export function ShellPage() {
       onOpenSearch={() => setSearchOpen(true)}
       pageVisibility={pageVisibility}
       >
+        {/* Every window that is a *place* wears the same chrome: the thin
+            bar's controls and a cover it can be given (DES-139, DES-141).
+            A task is not a place — it is a thing inside one — so a task tab
+            gets neither. The folder page brings its own, richer set. */}
+        {!activeTaskTab && !isFolder && !isPeople && !isSettings ? (
+          <>
+            <WindowBarActions>
+              <FilterControl filters={pageFilters} setFilters={setPageFilters} />
+              <WindowActivity
+                summary="Edited just now"
+                entries={[
+                  { action: "Edited", actor: "Imran Wafa", at: "Just now" },
+                  { action: "Created", actor: "Imran Wafa", at: "4 Aug" },
+                ]}
+              />
+            </WindowBarActions>
+            <PageCover storageName={pageTitle} />
+          </>
+        ) : null}
         {(() => {
           /* A selected task tab replaces the page below the strip: the same
              task page at the reading measure — the tab presentation of
@@ -915,19 +954,19 @@ export function ShellPage() {
         !isPeople &&
         !isSettings ? (
           <MyDayScreen
-            carriedOver={tasks.filter((task) =>
+            carriedOver={applyTaskFilters(tasks, pageFilters).filter((task) =>
               task.myDayGroup === "carried" &&
               task.status !== "completed" &&
               task.status !== "abandoned" &&
               !task.hiddenFromMyDay,
             )}
-            today={tasks.filter((task) =>
+            today={applyTaskFilters(tasks, pageFilters).filter((task) =>
               task.myDayGroup === "today" &&
               task.status !== "completed" &&
               task.status !== "abandoned" &&
               !task.hiddenFromMyDay,
             )}
-            doneToday={tasks.filter((task) =>
+            doneToday={applyTaskFilters(tasks, pageFilters).filter((task) =>
               task.status === "completed" && !task.hiddenFromMyDay,
             )}
             previewState={state}
@@ -956,7 +995,7 @@ export function ShellPage() {
           />
         ) : isTasks ? (
           <TasksScreen
-            inbox={tasks.filter(
+            inbox={applyTaskFilters(tasks, pageFilters).filter(
               (task) =>
                 task.tasksGroup === "Inbox" && task.status !== "completed",
             ).map((task) => ({ ...task, folder: undefined }))}
@@ -969,7 +1008,7 @@ export function ShellPage() {
               name,
               color:
                 formFolderColors[name] ?? "var(--color-graphite-900)",
-              tasks: tasks.filter(
+              tasks: applyTaskFilters(tasks, pageFilters).filter(
                 (task) =>
                   task.tasksGroup === name && task.status !== "completed",
               ).map((task) => ({ ...task, folder: undefined })),
@@ -1254,7 +1293,7 @@ export function ShellPage() {
           />
         ) : isPlanned ? (
           <PlannedScreen
-            tasks={plannedServerOrder(tasks).map((task) => ({
+            tasks={applyTaskFilters(plannedServerOrder(tasks), pageFilters).map((task) => ({
               ...task,
               date: task.form.dueDate,
               time: task.form.dueTime || undefined,
@@ -1319,7 +1358,7 @@ export function ShellPage() {
           />
         ) : isImportant ? (
           <ImportantScreen
-            tasks={importantServerOrder(tasks).map((task) => ({
+            tasks={applyTaskFilters(importantServerOrder(tasks), pageFilters).map((task) => ({
               ...task,
               importantTooltip: task.form.dueDate
                 ? `Also in Planned, due ${task.form.dueDate}`
@@ -1347,8 +1386,8 @@ export function ShellPage() {
           />
         ) : isAll ? (
           <AllScreen
-            planned={plannedServerOrder(tasks)}
-            inbox={tasks
+            planned={applyTaskFilters(plannedServerOrder(tasks), pageFilters)}
+            inbox={applyTaskFilters(tasks, pageFilters)
               .filter(
                 (task) =>
                   !task.form.dueDate &&
@@ -1364,7 +1403,7 @@ export function ShellPage() {
             ].map((name) => ({
               name,
               color: formFolderColors[name] ?? "var(--color-graphite-900)",
-              tasks: tasks
+              tasks: applyTaskFilters(tasks, pageFilters)
                 .filter(
                   (task) =>
                     !task.form.dueDate &&
