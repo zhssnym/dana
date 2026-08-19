@@ -97,6 +97,9 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-140 | One filter, every place-page | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-141 | A cover is native to every page except a task | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-142 | The conversation has two homes; the page's is a closed section | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-143 | A message is told apart by tone, never by hue | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-144 | The row menu: every item real, and Abandon among them | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-145 | A paragraph belongs between a heading and its first row | APPROVED | F2 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2710,6 +2713,66 @@ focus. That behaviour moved into `ViewStrip` itself as a `collapse` prop, so
 the folder's view switcher and the conversation's are the same component
 rather than two implementations of one idea — which is the whole reason
 DES-137 exists.
+
+
+### DES-143, a message is told apart by tone, never by hue
+
+Imran's direction, 2026-08-18: my own messages take a different accent — and
+explicitly *not* a coloured one — while everyone else's sit in a light
+container.
+
+**Mine on graphite-900 with light text; theirs on the graphite-50 wash.** No
+hue enters the thread at all, which is the part worth keeping: cobalt has
+been the interaction colour since DES-016, and a message is not an
+interaction. Tinting a message blue would spend the accent on something
+nobody clicks and quietly weaken every control that needs it.
+
+**The corner nearest its own author tightens to 4px** against 14px elsewhere.
+It is the one detail that makes a container read as *spoken by* somebody
+rather than as a box, and it costs a single class — no tails, no pointers,
+nothing to redraw when a bubble wraps.
+
+**Media is not put in a container.** A voice note and a file row are already
+self-contained objects with their own edges; nesting them inside a bubble is
+how a thread starts looking cluttered, and it would have forced a second
+colourway for every one of them. Their side is said by alignment alone.
+
+**The row lost its hover wash** with this: it was the same graphite-50 as the
+other person's container, so hovering used to make a message look like
+somebody else's. The actions still arrive on hover; the ground no longer
+moves.
+
+### DES-144, a menu of dead items is the least premium thing an interface owns
+
+Imran, 2026-08-18, on the task row's overflow: it should look fully refined,
+and it is missing Abandon.
+
+Both faults had the same root. The menu was drawn before its actions existed,
+so four of its five items did nothing at all — and being drawn rather than
+built, nobody had noticed the words no longer fitted: every item wrapped onto
+two lines at the default width.
+
+What it is now: **Open full screen** (real, through the surface), **Move to
+folder…** as a submenu that actually moves it, **Abandon**, and **Delete**.
+Duplicate left rather than being wired, because the selection bar is where it
+is real; a menu is better one item shorter than one item hollow.
+
+**Abandon sits above Delete and behind its own divider.** One says "I am not
+doing this" and keeps the task; the other destroys it. They are not
+neighbours in meaning and should not look like neighbours in a menu. On an
+abandoned task the same slot reads **Restore**, because the row's inline
+restore should not be the only way back.
+
+### DES-145, a paragraph belongs between a heading and its first row
+
+Imran found the gap, 2026-08-18: the insertion lines sat between *page*
+blocks, so there was nowhere to write between a section's heading and the
+first task under it — the one place a section most wants a sentence.
+
+A section now carries its own opening paragraph, reached by an insertion line
+directly under its heading. That line offers **only** "Paragraph here": a
+section inside a section is not a thing Dana has, and a menu item that cannot
+mean anything is worse than a shorter menu.
 
 ## Carried from v1, still unresolved
 

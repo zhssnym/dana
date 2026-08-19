@@ -87,6 +87,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -1141,12 +1144,20 @@ export function Actions({
   onStar,
   onMakeFolder,
   onRestore,
+  onOpenFullScreen,
+  onMoveToFolder,
+  onAbandon,
+  onDelete,
   extra,
 }: {
   task: ConceptTask
   onStar: () => void
   onMakeFolder?: () => void
   onRestore?: () => void
+  onOpenFullScreen?: () => void
+  onMoveToFolder?: (folder: { name: string; color: string }) => void
+  onAbandon?: () => void
+  onDelete?: () => void
   extra?: ReactNode
 }) {
   return (
@@ -1231,30 +1242,79 @@ export function Actions({
             </button>
           }
         />
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem>
-            <Maximize2 />
-            Open full screen
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Copy />
-            Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <FolderInput />
-            Move to folder…
-          </DropdownMenuItem>
+        {/* Wide enough for its own words: every item was wrapping onto two
+            lines, which is what made this menu read as unfinished (Imran,
+            2026-08-18). Every item here also *does* something now — the
+            four that did nothing are either wired or gone, because a menu
+            of dead items is the least premium thing an interface owns. */}
+        <DropdownMenuContent align="end" className="w-56">
+          {onOpenFullScreen ? (
+            <DropdownMenuItem onClick={onOpenFullScreen} className="whitespace-nowrap">
+              <Maximize2 />
+              Open full screen
+            </DropdownMenuItem>
+          ) : null}
+          {onMoveToFolder ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="whitespace-nowrap">
+                <FolderInput />
+                Move to folder…
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-52">
+                {FOLDERS.map((folder) => (
+                  <DropdownMenuItem
+                    key={folder.name}
+                    className="whitespace-nowrap"
+                    onClick={() => onMoveToFolder(folder)}
+                  >
+                    <Folder style={{ color: folder.color }} />
+                    {folder.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ) : null}
           {onMakeFolder ? (
-            <DropdownMenuItem onClick={onMakeFolder}>
+            <DropdownMenuItem onClick={onMakeFolder} className="whitespace-nowrap">
               <Folders />
               Make this a folder…
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive">
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
+          {/* Abandon before Delete, and separated from it: one says "I am not
+              doing this" and keeps the task, the other destroys it. They are
+              not neighbours in meaning and should not look like neighbours
+              in the menu. */}
+          {onAbandon && !task.abandoned ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onAbandon} className="whitespace-nowrap">
+                <Ban />
+                Abandon
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {onRestore && task.abandoned ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onRestore} className="whitespace-nowrap">
+                <RotateCcw />
+                Restore
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {onDelete ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={onDelete}
+                className="whitespace-nowrap"
+              >
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       {extra}
@@ -1914,6 +1974,10 @@ export function TaskRow(props: TaskRowProps) {
         props.onToggleImportant?.()
       }}
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
+      onOpenFullScreen={props.onOpen ? () => openIn("full") : undefined}
+      onMoveToFolder={(folder) => patch(task.id, { folder })}
+      onAbandon={props.onAbandon}
+      onDelete={props.onDelete}
       extra={
         <>
           {props.onOpen ? <OpenInControl onPick={openIn} /> : null}

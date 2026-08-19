@@ -669,12 +669,12 @@ function CommentRow({
   return (
     <div
       className={cn(
-        "group/comment flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-[var(--color-graphite-50)]",
+        "group/comment flex items-start gap-2 px-1 py-1.5",
         mine && "flex-row-reverse",
       )}
     >
       <CommentFace person={comment.author} dense={isReply} className="mt-0.5" />
-      <div className="min-w-0 flex-1">
+      <div className={cn("flex min-w-0 flex-1 flex-col", mine && "items-end")}>
         {/* One header line: name, time, and the actions in a reserved
             trailing slot — revealed by hover, never covering the time
             (F2a, review M3; the task row's own rule). */}
@@ -771,24 +771,44 @@ function CommentRow({
                 setEditing(false)
               }
             }}
-            className="-mx-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-card px-1 py-0.5 text-[14px] leading-5 text-[var(--color-graphite-800)] ring-2 ring-[var(--color-dana-accent-600)] outline-none [field-sizing:content]"
+            className="mt-0.5 block w-full resize-none rounded-[14px] bg-card px-3 py-1.5 text-[14px] leading-5 text-[var(--color-graphite-800)] ring-2 ring-[var(--color-dana-accent-600)] outline-none [field-sizing:content]"
           />
         ) : comment.body ? (
+          /* Whose message this is, said in tone rather than in colour
+             (Imran, 2026-08-18): mine sits on graphite-900 with light text,
+             everyone else's on the graphite-50 wash. No hue enters the
+             thread — cobalt stays the interaction colour it has been since
+             DES-016, and a message is not an interaction.
+
+             The corner nearest its own author tightens to 4px. It is the
+             one detail that makes a container read as *spoken by* somebody
+             rather than as a box, and it costs a single class. */
           <span
             className={cn(
-              "block text-[14px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-800)]",
-              mine && "text-right",
+              "mt-0.5 inline-block max-w-[85%] rounded-[14px] px-3 py-1.5 text-[14px] leading-5 whitespace-pre-wrap transition-colors",
+              T_FAST,
+              mine
+                ? "rounded-br-[4px] bg-[var(--color-graphite-900)] text-[var(--color-graphite-0)]"
+                : "rounded-bl-[4px] bg-[var(--color-graphite-50)] text-[var(--color-graphite-800)]",
             )}
           >
             {comment.body}
           </span>
         ) : null}
+        {/* Media is not bubbled: a voice note and a file row are already
+            self-contained objects with their own edges, and a container
+            inside a container is how a thread starts looking cluttered.
+            Their side is said by alignment alone. */}
         {comment.voice ? (
-          <span className={cn(mine && "flex justify-end")}>
+          <span className={cn("flex", mine && "justify-end")}>
             <VoiceNote voice={comment.voice} />
           </span>
         ) : null}
-        {comment.files ? <CommentFiles files={comment.files} /> : null}
+        {comment.files ? (
+          <span className={cn("flex w-full flex-col", mine && "items-end")}>
+            <CommentFiles files={comment.files} />
+          </span>
+        ) : null}
         {comment.reactions?.length ? (
           <span className={cn("mt-1 flex flex-wrap gap-1", mine && "justify-end")}>
             {comment.reactions.map((reaction) => (

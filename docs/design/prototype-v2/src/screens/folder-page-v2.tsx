@@ -162,6 +162,10 @@ type ConversationView = "page" | "panel"
 interface SectionModel {
   id: string
   name: string
+  /* A paragraph belonging to this section, above its tasks — the gap Imran
+     found: the insertion lines lived between page blocks, so there was
+     nowhere to write between a heading and the first row under it. */
+  intro?: string
 }
 interface ParagraphModel {
   id: string
@@ -445,7 +449,10 @@ function InsertLine({
   onSection,
   onParagraph,
 }: {
-  onSection: () => void
+  /* Omitted inside a section: a section within a section is not a thing
+     Dana has, and a menu item that cannot mean anything is worse than a
+     shorter menu. */
+  onSection?: () => void
   onParagraph: () => void
 }) {
   return (
@@ -472,9 +479,11 @@ function InsertLine({
           }
         />
         <DropdownMenuContent align="start" className="w-44">
-          <DropdownMenuItem onClick={onSection}>
-            <Heading1 className="size-4" />Section here
-          </DropdownMenuItem>
+          {onSection ? (
+            <DropdownMenuItem onClick={onSection}>
+              <Heading1 className="size-4" />Section here
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onClick={onParagraph}>
             <Pilcrow className="size-4" />Paragraph here
           </DropdownMenuItem>
@@ -1445,6 +1454,52 @@ export function FolderPageV2({
                 </DropdownMenu>
               </div>
               <CollapsibleContent>
+                {/* Between the heading and the first row — the one gap the
+                    page-level lines could never reach. */}
+                <InsertLine
+                  onParagraph={() =>
+                    setItems((current) =>
+                      current.map((candidate) =>
+                        candidate.kind === "section" &&
+                        candidate.section.id === section.id
+                          ? { kind: "section", section: { ...section, intro: "" } }
+                          : candidate,
+                      ),
+                    )
+                  }
+                />
+                {section.intro !== undefined ? (
+                  <textarea
+                    defaultValue={section.intro}
+                    placeholder="Write something…"
+                    aria-label={`Paragraph in ${section.name}`}
+                    rows={1}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus={section.intro === ""}
+                    onBlur={(event) => {
+                      const text = event.target.value.trim()
+                      setItems((current) =>
+                        current.map((candidate) =>
+                          candidate.kind === "section" &&
+                          candidate.section.id === section.id
+                            ? {
+                                kind: "section",
+                                section: {
+                                  ...section,
+                                  intro: text || undefined,
+                                },
+                              }
+                            : candidate,
+                        ),
+                      )
+                    }}
+                    className={cn(
+                      "-mx-1 mb-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[14px] leading-6 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
+                      T_FAST,
+                      "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
+                    )}
+                  />
+                ) : null}
                 {sectionTasks.length > 0 ? (
                   <div role="list" className="mt-0.5 space-y-0.5">
                     <TaskList tasks={sectionTasks} renderRow={renderTask} />
