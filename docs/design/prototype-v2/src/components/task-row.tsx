@@ -62,6 +62,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react"
@@ -1826,9 +1827,29 @@ export function TaskRow(props: TaskRowProps) {
       }
       onNewFolder={() => {}}
       onStepsToNewFolder={() => {}}
+      onExpand={props.onOpen}
       onClose={() => setOpen(false)}
     />
   )
+
+  /* The row's body opens the task — the whole surface, not just the 24px
+     chevron. Found by the shell sweep: every screen wired onOpen and the row
+     consumed it nowhere, so the click people try first did nothing at all.
+     DES-093 says the task opens in place, so the body click toggles the
+     card; the guard skips clicks that landed on a real control, which saves
+     auditing every chip for stopPropagation forever. */
+  function handleRowClick(event: ReactMouseEvent<HTMLElement>) {
+    if (props.selecting) return
+    if (props.dragState?.isActive || props.dragState?.isSettling) return
+    const target = event.target as HTMLElement
+    if (
+      target.closest(
+        "button, a, input, textarea, [role='checkbox'], [role='menuitem']",
+      )
+    )
+      return
+    setOpen((value) => !value)
+  }
 
   return (
     <ExpandShell
@@ -1844,7 +1865,7 @@ export function TaskRow(props: TaskRowProps) {
       offset={props.dragState?.offset}
       row={
         density === "one" ? (
-          <div className={cn(ROW, !open && ROW_HOVER)}>
+          <div onClick={handleRowClick} className={cn(ROW, "cursor-pointer", !open && ROW_HOVER)}>
             <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
             <TaskTitle
               task={task}
@@ -1860,8 +1881,9 @@ export function TaskRow(props: TaskRowProps) {
           </div>
         ) : (
           <div
+            onClick={handleRowClick}
             className={cn(
-              "group/row grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-[background-color,height]",
+              "group/row grid w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-[background-color,height]",
               T_BASE,
               /* A bare task costs one line, not two. DES-111. */
               bare ? "h-11" : "h-16",

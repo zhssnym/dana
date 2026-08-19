@@ -730,11 +730,15 @@ export function AppSidebar({
       <SidebarFooter className="gap-0 py-2" >
         <SidebarMenu className="mb-1">
           <SidebarMenuItem>
+            {/* The ghost action tier, per review L7: a quiet row like the
+                folder rows above it, not a filled button shouting over them.
+                Creation is a frequent-enough act to deserve a place and a
+                rare-enough one to deserve a quiet one. */}
             <SidebarMenuButton
               data-sidebar-new-folder
               data-sidebar-tier="action"
               tooltip="New folder"
-              className="h-[var(--shell-sidebar-item-height)] justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)]"
+              className="h-[var(--shell-sidebar-row-height)] justify-start gap-2 rounded-md px-3 text-[13px] font-medium text-[var(--color-graphite-500)] shadow-none hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]"
               onClick={onCreateFolder}
             >
               <FolderPlus className="!size-4" strokeWidth={1.75} aria-hidden="true" />
