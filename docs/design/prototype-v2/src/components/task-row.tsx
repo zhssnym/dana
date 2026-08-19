@@ -93,6 +93,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ActionStrip, type ViewStripOption } from "@/components/view-strip"
 import { useRowDensity } from "@/lib/row-density"
+import { setTaskSurfacePreference } from "@/lib/task-surface-preference"
 import {
   FOLDERS,
   PEOPLE,
@@ -1740,7 +1741,16 @@ export function useCardWiring(props: TaskRowProps) {
 /* The row's own view strip: one quiet trigger among the actions, opening the
    horizontal icon row of the six ways a task can be held. Icons only, labels
    on hover — Imran's rule for every view switcher. */
-function OpenInControl({ onPick }: { onPick: (mode: TaskOpenMode) => void }) {
+function OpenInControl({
+  onPick,
+  placement = "row",
+}: {
+  onPick: (mode: TaskOpenMode) => void
+  /* In the row the control hides until hover, like every row action; in the
+     card's footer it is always visible, like every footer action. Same
+     control, two homes. */
+  placement?: "row" | "footer"
+}) {
   return (
     <Popover>
       <Tooltip>
@@ -1753,9 +1763,12 @@ function OpenInControl({ onPick }: { onPick: (mode: TaskOpenMode) => void }) {
                   aria-label="Open in…"
                   onClick={(event) => event.stopPropagation()}
                   className={cn(
-                    "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
+                    "flex items-center justify-center rounded-md transition-[opacity,background-color,color]",
                     T_FAST,
                     FOCUS,
+                    placement === "row"
+                      ? "size-7 text-[var(--color-graphite-600)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]"
+                      : "size-7 text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
                   )}
                 >
                   <Maximize2 className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -1781,6 +1794,14 @@ export function TaskRow(props: TaskRowProps) {
   const density = useRowDensity()
   const [open, setOpen] = useState(props.defaultOpen ?? false)
   const { task, patch, counts, cardHandlers } = useCardWiring(props)
+
+  /* Choosing where a task opens is choosing where tasks open (DES-138): the
+     pick is remembered, so the next one lands in the same place. A tab is
+     the exception — an action rather than a home. */
+  function openIn(mode: TaskOpenMode) {
+    if (mode !== "tab") setTaskSurfacePreference(mode)
+    props.onOpen?.(mode)
+  }
 
   const bare =
     !task.due &&
@@ -1895,7 +1916,7 @@ export function TaskRow(props: TaskRowProps) {
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
       extra={
         <>
-          {props.onOpen ? <OpenInControl onPick={(mode) => props.onOpen?.(mode)} /> : null}
+          {props.onOpen ? <OpenInControl onPick={openIn} /> : null}
           <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
         </>
       }
@@ -1907,7 +1928,9 @@ export function TaskRow(props: TaskRowProps) {
       task={task}
       patch={patch}
       {...cardHandlers}
-      onExpand={props.onOpen ? () => props.onOpen?.("full") : undefined}
+      openIn={
+        props.onOpen ? <OpenInControl onPick={openIn} placement="footer" /> : undefined
+      }
       onClose={() => setOpen(false)}
     />
   )

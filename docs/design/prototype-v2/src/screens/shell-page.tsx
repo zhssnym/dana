@@ -26,6 +26,7 @@ import {
   TaskSurface,
   type TaskSurfaceMode,
 } from "@/components/task-surface"
+import { taskSurfacePreference } from "@/lib/task-surface-preference"
 import { SearchOverlay } from "@/components/search-overlay"
 import { shellFolderGroups, shellPreviewTasks } from "@/fixtures"
 import {
@@ -765,7 +766,7 @@ export function ShellPage() {
       openTaskTab(taskId)
       return
     }
-    setShellSurface({ id: taskId, mode: mode ?? "dialog" })
+    setShellSurface({ id: taskId, mode: mode ?? taskSurfacePreference() })
   }
   /* A ghost is a projection of a repeating task; opening it opens the real
      one, which is what the projection is a picture of. */

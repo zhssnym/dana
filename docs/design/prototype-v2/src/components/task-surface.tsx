@@ -32,6 +32,7 @@ import {
   type TaskRowProps,
 } from "@/components/task-row"
 import { ViewStrip } from "@/components/view-strip"
+import { setTaskSurfacePreference } from "@/lib/task-surface-preference"
 import { cn } from "@/lib/utils"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -39,6 +40,107 @@ const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
 
 export type TaskSurfaceMode = Exclude<TaskOpenMode, "tab">
+
+/* The side panel's width, remembered like every other display preference
+   (DES-138): a person who widens it once should not widen it again on the
+   next task. Clamped so the panel can never eat the page or vanish. */
+const PANEL_KEY = "dana.taskPanelWidth"
+const PANEL_MIN = 360
+const PANEL_MAX = 720
+const PANEL_DEFAULT = 440
+
+function readPanelWidth() {
+  try {
+    const stored = Number(localStorage.getItem(PANEL_KEY))
+    if (!Number.isFinite(stored) || stored <= 0) return PANEL_DEFAULT
+    return Math.min(PANEL_MAX, Math.max(PANEL_MIN, stored))
+  } catch {
+    return PANEL_DEFAULT
+  }
+}
+
+/* The grab edge, mirrored: a right panel is widened by dragging left, a left
+   panel by dragging right, so the arithmetic flips with the side. Keyboard
+   resizing comes along, as it does on the app sidebar. */
+function PanelResizeHandle({
+  side,
+  width,
+  onChange,
+  onCommit,
+  onReset,
+}: {
+  side: "left" | "right"
+  width: number
+  onChange: (next: number) => void
+  onCommit: (next: number) => void
+  onReset: () => void
+}) {
+  const drag = useRef<{ pointerId: number; startX: number; startWidth: number; current: number } | null>(null)
+
+  const clamp = (value: number) =>
+    Math.min(PANEL_MAX, Math.max(PANEL_MIN, value))
+
+  return (
+    <div
+      role="separator"
+      aria-label="Resize task panel"
+      aria-orientation="vertical"
+      aria-valuemin={PANEL_MIN}
+      aria-valuemax={PANEL_MAX}
+      aria-valuenow={Math.round(width)}
+      tabIndex={0}
+      onDoubleClick={onReset}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.preventDefault()
+        event.currentTarget.focus()
+        drag.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startWidth: width,
+          current: width,
+        }
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }}
+      onPointerMove={(event) => {
+        if (!drag.current || drag.current.pointerId !== event.pointerId) return
+        const delta = event.clientX - drag.current.startX
+        const next = clamp(
+          drag.current.startWidth + (side === "right" ? -delta : delta),
+        )
+        drag.current.current = next
+        onChange(next)
+      }}
+      onPointerUp={(event) => {
+        if (!drag.current || drag.current.pointerId !== event.pointerId) return
+        onCommit(drag.current.current)
+        drag.current = null
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+      }}
+      onKeyDown={(event) => {
+        const step = event.shiftKey ? 24 : 8
+        let next: number | null = null
+        if (event.key === "ArrowLeft") next = clamp(width + (side === "right" ? step : -step))
+        else if (event.key === "ArrowRight") next = clamp(width + (side === "right" ? -step : step))
+        else if (event.key === "Home") next = PANEL_MIN
+        else if (event.key === "End") next = PANEL_MAX
+        if (next === null) return
+        event.preventDefault()
+        onChange(next)
+        onCommit(next)
+      }}
+      className={cn(
+        "absolute inset-y-0 z-10 w-1.5 cursor-col-resize transition-colors",
+        T_FAST,
+        FOCUS,
+        "hover:bg-[var(--color-dana-accent-200)] focus-visible:bg-[var(--color-dana-accent-200)]",
+        side === "right" ? "left-0" : "right-0",
+      )}
+    />
+  )
+}
 
 /* The title at page scale, renaming in place by the row's own rule. */
 function PageTitle({
@@ -208,8 +310,14 @@ function SurfaceChrome({
           value={mode}
           options={options}
           onSelect={(key) => {
-            if (key === "tab") onOpenInTab?.()
-            else onModeChange(key as TaskSurfaceMode)
+            if (key === "tab") {
+              onOpenInTab?.()
+              return
+            }
+            /* Switching from inside the surface is the same decision made
+               later, so it is remembered too (DES-138). */
+            setTaskSurfacePreference(key as TaskSurfaceMode)
+            onModeChange(key as TaskSurfaceMode)
           }}
         />
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--color-graphite-200)]" />
@@ -246,6 +354,7 @@ export function TaskSurface({
 }) {
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const [panelWidth, setPanelWidth] = useState(readPanelWidth)
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -313,6 +422,15 @@ export function TaskSurface({
     )
   }
 
+  function commitPanelWidth(next: number) {
+    setPanelWidth(next)
+    try {
+      localStorage.setItem(PANEL_KEY, String(Math.round(next)))
+    } catch {
+      /* Remembered for this session only, the honest fallback. */
+    }
+  }
+
   return (
     <aside
       /* Keyed by side: React would otherwise reuse this element across a
@@ -321,13 +439,21 @@ export function TaskSurface({
          arrives. Verified: switching sides left it at x=-440. */
       key={mode}
       aria-label={task.title}
+      style={{ width: panelWidth }}
       className={cn(
-        "fixed top-[var(--shell-pagebar-height)] bottom-0 z-50 flex w-[440px] flex-col bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in",
+        "fixed top-[var(--shell-pagebar-height)] bottom-0 z-50 flex flex-col bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in",
         mode === "right"
           ? "right-0 border-l border-[var(--color-graphite-200)] slide-in-from-right"
           : "left-0 border-r border-[var(--color-graphite-200)] slide-in-from-left",
       )}
     >
+      <PanelResizeHandle
+        side={mode === "right" ? "right" : "left"}
+        width={panelWidth}
+        onChange={setPanelWidth}
+        onCommit={commitPanelWidth}
+        onReset={() => commitPanelWidth(PANEL_DEFAULT)}
+      />
       {chrome(
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{page}</div>,
       )}
