@@ -56,7 +56,7 @@ function useSlot() {
 /* The strip itself, rendered once by the shell directly under the tabs. */
 export function WindowBar() {
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-200)] bg-card px-3">
+    <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-[var(--color-graphite-200)] bg-card px-3">
       {/* Reserved for breadcrumbs. Empty is the honest state: Dana has no
           nested folders yet, and a trail of one item is not a trail. */}
       <div className="min-w-0 flex-1" />
@@ -96,7 +96,7 @@ export function WindowActivity({
         render={
           <button
             type="button"
-            className="flex h-8 items-center rounded-md px-2 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+            className="flex h-7 items-center rounded-md px-2 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
           >
             {summary}
           </button>

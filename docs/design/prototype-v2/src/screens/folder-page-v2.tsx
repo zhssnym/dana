@@ -387,7 +387,7 @@ function StripButton({
             onClick={onClick}
             className={stripButtonClass(active)}
           >
-            <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+            <Icon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
             {badge ? (
               <span className="absolute -top-0.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-graphite-200)] px-1 text-[0.625rem] leading-none font-medium text-[var(--color-graphite-600)] tabular-nums">
                 {badge}
@@ -992,10 +992,16 @@ export function FolderPageV2({
      folder's name, and chrome that scrolls with content is not chrome. */
   const strip = (
     <WindowBarActions>
+      {/* One icon at rest — the view you are in — widening to all three on
+          hover or focus (Imran, 2026-08-18). A switcher spends its life
+          showing rather than being used, so at rest it should cost the width
+          of what it is showing and nothing more. The options are always in
+          the DOM, so the keyboard and a screen reader see the full group
+          however narrow it looks. */}
       <div
         role="radiogroup"
         aria-label="Folder view"
-        className="pointer-events-auto flex h-8 items-center gap-0.5 rounded-md border border-[var(--color-graphite-200)] p-0.5"
+        className="group/views pointer-events-auto flex h-7 items-center gap-0.5 rounded-md border border-transparent p-0.5 transition-[background-color,border-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] hover:border-[var(--color-graphite-200)] focus-within:border-[var(--color-graphite-200)]"
       >
         {(
           [
@@ -1003,35 +1009,39 @@ export function FolderPageV2({
             ["board", "Board view", LayoutGrid, false],
             ["calendar", "Calendar view", CalendarDays, true],
           ] as const
-        ).map(([key, label, Icon, disabled]) => (
-          <Tooltip key={key}>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={view === key}
-                  aria-label={label}
-                  disabled={disabled}
-                  onClick={() => setView(key as FolderView)}
-                  className={cn(
-                    "flex h-full w-8 items-center justify-center rounded-[4px] transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
-                    T_FAST,
-                    FOCUS,
-                    view === key
-                      ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-                      : "text-[var(--color-graphite-500)] hover:text-[var(--color-graphite-800)]",
-                  )}
-                >
-                  <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              }
-            />
-            <TooltipContent side="bottom">
-              {disabled ? "Calendar view — arrives with V5's calendar session" : label}
-            </TooltipContent>
-          </Tooltip>
-        ))}
+        ).map(([key, label, Icon, disabled]) => {
+          const current = view === key
+          return (
+            <Tooltip key={key}>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={current}
+                    aria-label={label}
+                    disabled={disabled}
+                    tabIndex={current ? 0 : -1}
+                    onClick={() => setView(key as FolderView)}
+                    className={cn(
+                      "flex h-full items-center justify-center overflow-hidden rounded-[4px] transition-[width,opacity,background-color,color] disabled:pointer-events-none disabled:opacity-35",
+                      T_FAST,
+                      FOCUS,
+                      current
+                        ? "w-7 opacity-100 text-[var(--color-graphite-800)] group-hover/views:bg-[var(--color-graphite-100)] group-focus-within/views:bg-[var(--color-graphite-100)]"
+                        : "w-0 opacity-0 text-[var(--color-graphite-500)] group-hover/views:w-7 group-hover/views:opacity-100 group-focus-within/views:w-7 group-focus-within/views:opacity-100 hover:text-[var(--color-graphite-800)]",
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                }
+              />
+              <TooltipContent side="bottom">
+                {disabled ? "Calendar view — arrives with V5's calendar session" : label}
+              </TooltipContent>
+            </Tooltip>
+          )
+        })}
       </div>
 
       <div className="pointer-events-auto flex items-center gap-0.5">
@@ -1073,7 +1083,7 @@ export function FolderPageV2({
                   onClick={() => setShareOpen(true)}
                   className={stripButtonClass(shareOpen)}
                 >
-                  <Share2 className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <Share2 className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               }
             />
@@ -1088,7 +1098,7 @@ export function FolderPageV2({
                 aria-label="More folder actions"
                 className={stripButtonClass(false)}
               >
-                <MoreHorizontal className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                <MoreHorizontal className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
               </button>
             }
           />
