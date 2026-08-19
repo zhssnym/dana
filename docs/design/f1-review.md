@@ -229,6 +229,48 @@ medium (reads as unfinished), **L** low (worth a pass, not worth a session).
   nothing in `folder-page-v2.tsx` graduates to `components/` until it
   survives this review's fixes and Imran's verdict.
 
+## The shell sweep — added 2026-08-18, after Imran widened the lens
+
+*"The shell still has missing and redundant things that need proper work."*
+He was right, and the sweep found the shell's biggest defect hiding in plain
+sight: **since V3 deleted the task form, most of the shell's openings opened
+nothing.** Every finding below is fixed in the same round it was found, except
+where marked.
+
+- **SH1 · H — Dead interactions everywhere.** Clicking a row's body, a search
+  result, the floating New task button, the sidebar's "Add task to folder",
+  the calendar's cells and ghosts, and the card's full-screen icon all set
+  state that nothing rendered. *Fixed:* the row's body now toggles its own
+  card (DES-093 taken at its word — with a guard that skips clicks landing on
+  real controls); every row-less path opens the task surface, and creation
+  paths create-then-open; the card's full-screen icon is real where a surface
+  host exists and honestly disabled in the lab.
+- **SH2 · H — My Day had no capture.** The one list page a task could not be
+  typed into; its capture was the dead button. *Fixed:* My Day and Important
+  gained quick-add rows (Important's creates the task starred, which is what
+  the page means), and the floating button retired everywhere except
+  Planned, whose calendar has no blank row to stand in for it. W5 holds: one
+  capture point per page, and now it works on every page.
+- **SH3 · M — The heavy New folder button (review L7, standing).** *Fixed:*
+  dropped to the ghost action tier — a quiet row, not a filled button
+  shouting over the folders it serves.
+- **SH4 · M — The approved preferences had no controls.** DES-113 (row
+  density) and DES-121 (the clock) both say "a control in Settings"; neither
+  existed. *Fixed:* Settings gained Appearance with both, as segmented
+  groups wired to the real stores.
+- **SH5 · M — Direct lucide-react imports.** DES-125's one-module rule,
+  violated by seventeen files. *Fixed in three* (settings, My Day,
+  Important, found while editing them); the remaining fourteen are a
+  mechanical chore, enumerated and handed off rather than half-done —
+  `task-row-baseline.tsx` stays exempt as the lab's frozen control.
+- **SH6 — Still open, for V2 (Chrome):** the collapsed sidebar rail hides
+  folder rows entirely (the pre-existing fault — worth solving *with* the
+  new folder glyphs, which would make a collapsed rail genuinely legible);
+  the page-bar strip's L3 ruling — note that the strip has since **earned a
+  job as the tab strip**, which changes that conversation; and the
+  main-page headers still wear the v1 composition beside the folder page's
+  new one, which is the coherence pass V2 exists to make.
+
 ## The F2 plan — how these become a strong brand
 
 Four passes, strictly ordered, each ending with Imran looking. Estimated as

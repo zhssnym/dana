@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { Star } from "lucide-react"
+import { Star } from "@/lib/icons"
 
+import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
 import {
@@ -34,6 +35,8 @@ interface ImportantScreenProps {
   onRestore: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
+  onAdd?: (title: string) => void
+  onOpenFullForm?: () => void
 }
 
 export function ImportantScreen({
@@ -45,6 +48,8 @@ export function ImportantScreen({
   onRestore,
   onAbandon,
   onDelete,
+  onAdd,
+  onOpenFullForm,
 }: ImportantScreenProps) {
   const [pendingAction, setPendingAction] = useState<{
     type: "abandon" | "delete"
@@ -112,6 +117,17 @@ export function ImportantScreen({
             )}
           />
         )}
+        {/* Capture on the page's own terms: a task typed here is born
+            starred, which is what Important means. Fills the gap DES-133
+            opened when the floating button retired (shell sweep). */}
+        {!isEmpty && onAdd && onOpenFullForm ? (
+          <QuickAdd
+            folderName="Important"
+            label="Add important task"
+            onAdd={onAdd}
+            onOpenFullForm={onOpenFullForm}
+          />
+        ) : null}
       </div>
 
       <AlertDialog

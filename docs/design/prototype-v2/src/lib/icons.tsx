@@ -217,6 +217,7 @@ export const AlertCircle = icon(Lu.AlertCircle, Anim.TriangleAlertIcon) // anima
 export const AlignLeft = icon(Lu.AlignLeft, Anim.AlignLeftIcon)
 export const Ban = icon(Lu.Ban, Anim.FlagOffIcon) // animated: no ban. Abandoned is a
 export const Bell = icon(Lu.Bell, Anim.BellIcon)
+export const CalendarCheck2 = icon(Lu.CalendarCheck2, Anim.CalendarCheckIcon) // animated: no calendar-check-2
 export const CalendarDays = icon(Lu.CalendarDays, Anim.CalendarDaysIcon)
 export const Check = icon(Lu.Check, Anim.CheckIcon)
 export const CheckCircle2 = icon(Lu.CheckCircle2, Anim.CircleCheckBigIcon)
@@ -287,6 +288,7 @@ export const List = icon(Lu.List, Anim.ListIcon)
 /* ─── Surfaces and structure (the critique round) ──────────────────────── */
 
 export const ArrowUpRight = icon(Lu.ArrowUpRight, Anim.ArrowUpRightIcon)
+export const Download = icon(Lu.Download, Anim.DownloadIcon)
 export const Heading1 = icon(Lu.Heading1, Anim.Heading1Icon)
 export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
 export const PanelRight = icon(Lu.PanelRight, Anim.MenuIcon) // animated: no panel-right; PanelLeft's substitute, mirrored meaning

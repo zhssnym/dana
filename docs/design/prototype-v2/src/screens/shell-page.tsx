@@ -17,6 +17,7 @@ import { voiceBars } from "@/components/comments"
 import { PEOPLE, type ConceptComment } from "@/lib/task-model"
 import type { ShellTaskDetails as TaskFormData } from "@/lib/shell-task"
 import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskSurface, type TaskSurfaceMode } from "@/components/task-surface"
 import { SearchOverlay } from "@/components/search-overlay"
 import { shellFolderGroups, shellPreviewTasks } from "@/fixtures"
 import {
@@ -739,17 +740,43 @@ export function ShellPage() {
                   ? Layers3
                   : SunMedium
   const pageIconColor = isFolder ? selectedFolderColor : undefined
+  /* The task surface is where every row-less path lands: search results,
+     the calendar's ghosts and cells, sidebar capture, the card's own
+     full-screen action. Found by the shell sweep: since the form died at V3,
+     all of these set state nothing rendered — the shell's biggest missing
+     thing was that its openings opened nothing. DES-117, answered. */
+  const [shellSurface, setShellSurface] = useState<{
+    id: string
+    mode: TaskSurfaceMode
+  } | null>(null)
   const openTask = (taskId: string) => {
-    taskFormOpener.current = document.activeElement as HTMLElement | null
-    setTaskFormContextBanner(undefined)
-    setEditingTaskId(taskId)
-    setTaskFormOpen(true)
+    setShellSurface({ id: taskId, mode: "full" })
   }
-  const openGhostTask = (taskId: string) => {
-    taskFormOpener.current = document.activeElement as HTMLElement | null
-    setTaskFormContextBanner("Upcoming occurrence of a repeating task")
-    setEditingTaskId(taskId)
-    setTaskFormOpen(true)
+  /* A ghost is a projection of a repeating task; opening it opens the real
+     one, which is what the projection is a picture of. */
+  const openGhostTask = openTask
+  const createAndOpenTask = (
+    folder: string,
+    overrides: Partial<TaskFormData> = {},
+    extra: Partial<ShellTask> = {},
+  ) => {
+    const id = `task-${Date.now()}`
+    const title = "New task"
+    setTasks((current) => [
+      ...current,
+      {
+        id,
+        title,
+        status: "pending",
+        folder: {
+          name: folder,
+          color: formFolderColors[folder] ?? "var(--color-graphite-900)",
+        },
+        form: createTaskForm(id, title, folder, { dueDate: "", ...overrides }),
+        ...extra,
+      },
+    ])
+    setShellSurface({ id, mode: "full" })
   }
   useEffect(() => {
     function handleSearchShortcut(event: globalThis.KeyboardEvent) {
@@ -830,7 +857,11 @@ export function ShellPage() {
       pageTitle={pageTitle}
       pageIcon={PageIcon}
       pageIconColor={pageIconColor}
-      hideCreate={isFolder && folderPageVariant === "v2"}
+      /* The floating button survives only where no blank row can stand in
+         for it: Planned's calendar. Everywhere else the quick-add row is the
+         page's one capture point — DES-133 extended shell-wide by the sweep,
+         with My Day and Important gaining the rows they were missing. */
+      hideCreate={!isPlanned}
       taskTabs={taskTabIds
         .map((id) => {
           const task = tasks.find((candidate) => candidate.id === id)
@@ -840,22 +871,16 @@ export function ShellPage() {
       activeTaskTab={activeTaskTab}
       onSelectTab={setActiveTaskTab}
       onCloseTab={closeTaskTab}
-      onCreateTask={() => {
-        taskFormOpener.current = document.activeElement as HTMLElement | null
-        setTaskFormContextBanner(undefined)
-        setEditingTaskId(null)
-        setCreateFolderOverride(undefined)
-        setCreateDueDateOverride(isPlanned ? "2026-08-10" : undefined)
-        setTaskFormOpen(true)
-      }}
-      onCreateTaskForFolder={(folderName) => {
-        taskFormOpener.current = document.activeElement as HTMLElement | null
-        setTaskFormContextBanner(undefined)
-        setEditingTaskId(null)
-        setCreateFolderOverride(folderName)
-        setCreateDueDateOverride(undefined)
-        setTaskFormOpen(true)
-      }}
+      onCreateTask={() =>
+        createAndOpenTask(
+          "Inbox",
+          { dueDate: isPlanned ? "2026-08-10" : "" },
+          isPlanned ? { due: { label: "Due today" } } : {},
+        )
+      }
+      onCreateTaskForFolder={(folderName) =>
+        createAndOpenTask(folderName, { dueDate: "" }, { tasksGroup: folderName })
+      }
       onNavigate={navigateToPage}
       onOpenSearch={() => setSearchOpen(true)}
       pageVisibility={pageVisibility}
@@ -942,6 +967,23 @@ export function ShellPage() {
                 current.filter((task) => task.id !== taskId),
               )
             }
+            onAdd={(title) => {
+              const id = `task-${Date.now()}`
+              setTasks((current) => [
+                ...current,
+                {
+                  id,
+                  title,
+                  status: "pending",
+                  myDayGroup: "today",
+                  folder: { name: "Inbox", color: "var(--color-graphite-900)" },
+                  form: createTaskForm(id, title, "Inbox", { dueDate: "" }),
+                },
+              ])
+            }}
+            onOpenFullForm={() =>
+              createAndOpenTask("Inbox", {}, { myDayGroup: "today" })
+            }
           />
         ) : isTasks ? (
           <TasksScreen
@@ -977,13 +1019,9 @@ export function ShellPage() {
                 },
               ])
             }}
-            onOpenFullForm={(folderName) => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setEditingTaskId(null)
-              setCreateFolderOverride(folderName)
-              setCreateDueDateOverride(undefined)
-              setTaskFormOpen(true)
-            }}
+            onOpenFullForm={(folderName) =>
+              createAndOpenTask(folderName, { dueDate: "" }, { tasksGroup: folderName })
+            }
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
             onToggleImportant={(taskId) => {
@@ -1078,15 +1116,22 @@ export function ShellPage() {
                 },
               ])
             }}
-            onOpenFullForm={(section) => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setEditingTaskId(null)
-              setCreateFolderOverride(selectedFolderName)
-              setCreateDueDateOverride(
-                section === "scheduled" ? "2026-08-10" : "",
+            onOpenFullForm={(section) =>
+              createAndOpenTask(
+                selectedFolderName,
+                { dueDate: section === "scheduled" ? "2026-08-10" : "" },
+                {
+                  folderSection: section,
+                  tasksGroup:
+                    section === "scheduled" ? undefined : selectedFolderName,
+                  folder: {
+                    name: selectedFolderName,
+                    color: selectedFolderColor,
+                  },
+                  due: section === "scheduled" ? { label: "Due today" } : undefined,
+                },
               )
-              setTaskFormOpen(true)
-            }}
+            }
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
             onToggleImportant={(taskId) => {
@@ -1194,15 +1239,22 @@ export function ShellPage() {
                 },
               ])
             }}
-            onOpenFullForm={(section) => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setEditingTaskId(null)
-              setCreateFolderOverride(selectedFolderName)
-              setCreateDueDateOverride(
-                section === "scheduled" ? "2026-08-10" : "",
+            onOpenFullForm={(section) =>
+              createAndOpenTask(
+                selectedFolderName,
+                { dueDate: section === "scheduled" ? "2026-08-10" : "" },
+                {
+                  folderSection: section,
+                  tasksGroup:
+                    section === "scheduled" ? undefined : selectedFolderName,
+                  folder: {
+                    name: selectedFolderName,
+                    color: selectedFolderColor,
+                  },
+                  due: section === "scheduled" ? { label: "Due today" } : undefined,
+                },
               )
-              setTaskFormOpen(true)
-            }}
+            }
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
             onToggleImportant={(taskId) => {
@@ -1276,22 +1328,20 @@ export function ShellPage() {
                 },
               ])
             }}
-            onOpenFullForm={() => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setTaskFormContextBanner(undefined)
-              setEditingTaskId(null)
-              setCreateFolderOverride("Inbox")
-              setCreateDueDateOverride("2026-08-10")
-              setTaskFormOpen(true)
-            }}
-            onCreateAtDate={(date) => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setTaskFormContextBanner(undefined)
-              setEditingTaskId(null)
-              setCreateFolderOverride("Inbox")
-              setCreateDueDateOverride(date)
-              setTaskFormOpen(true)
-            }}
+            onOpenFullForm={() =>
+              createAndOpenTask(
+                "Inbox",
+                { dueDate: "2026-08-10" },
+                { due: { label: "Due today" } },
+              )
+            }
+            onCreateAtDate={(date) =>
+              createAndOpenTask(
+                "Inbox",
+                { dueDate: date },
+                { due: { label: `Due ${Number(date.slice(8, 10))} Aug` } },
+              )
+            }
             onOpenTask={openTask}
             onOpenGhost={openGhostTask}
             onToggleComplete={setTaskCompleted}
@@ -1331,6 +1381,30 @@ export function ShellPage() {
             onDelete={(taskId) =>
               setTasks((current) =>
                 current.filter((task) => task.id !== taskId),
+              )
+            }
+            onAdd={(title) => {
+              const id = `task-${Date.now()}`
+              setTasks((current) => [
+                ...current,
+                {
+                  id,
+                  title,
+                  status: "pending",
+                  important: true,
+                  folder: { name: "Inbox", color: "var(--color-graphite-900)" },
+                  form: createTaskForm(id, title, "Inbox", {
+                    dueDate: "",
+                    important: true,
+                  }),
+                },
+              ])
+            }}
+            onOpenFullForm={() =>
+              createAndOpenTask(
+                "Inbox",
+                { important: true },
+                { important: true },
               )
             }
           />
@@ -1390,20 +1464,16 @@ export function ShellPage() {
                 },
               ])
             }}
-            onOpenPlannedForm={() => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setEditingTaskId(null)
-              setCreateFolderOverride("Inbox")
-              setCreateDueDateOverride("2026-08-10")
-              setTaskFormOpen(true)
-            }}
-            onOpenUndatedForm={(folderName) => {
-              taskFormOpener.current = document.activeElement as HTMLElement | null
-              setEditingTaskId(null)
-              setCreateFolderOverride(folderName)
-              setCreateDueDateOverride("")
-              setTaskFormOpen(true)
-            }}
+            onOpenPlannedForm={() =>
+              createAndOpenTask(
+                "Inbox",
+                { dueDate: "2026-08-10" },
+                { due: { label: "Due today" } },
+              )
+            }
+            onOpenUndatedForm={(folderName) =>
+              createAndOpenTask(folderName, { dueDate: "" }, { tasksGroup: folderName })
+            }
             onOpenTask={openTask}
             onToggleComplete={setTaskCompleted}
             onToggleImportant={(taskId) => {
@@ -1512,6 +1582,39 @@ export function ShellPage() {
         </div>
         ))}
       </AppShell>
+      {(() => {
+        if (!shellSurface) return null
+        const task = tasks.find((candidate) => candidate.id === shellSurface.id)
+        if (!task) return null
+        return (
+          <TaskSurface
+            task={{
+              ...task,
+              onToggleComplete: (completed) =>
+                setTaskCompleted(task.id, completed),
+              onToggleImportant: () =>
+                updateTask(task.id, {
+                  important: !task.important,
+                  form: { ...task.form, important: !task.important },
+                }),
+              onAbandon: () => updateTask(task.id, { status: "abandoned" }),
+              onDelete: () => {
+                setShellSurface(null)
+                setTasks((current) =>
+                  current.filter((candidate) => candidate.id !== task.id),
+                )
+              },
+            }}
+            mode={shellSurface.mode}
+            onModeChange={(mode) => setShellSurface({ ...shellSurface, mode })}
+            onOpenInTab={() => {
+              openTaskTab(shellSurface.id)
+              setShellSurface(null)
+            }}
+            onClose={() => setShellSurface(null)}
+          />
+        )
+      })()}
       <SearchOverlay
         open={searchOpen}
         onOpenChange={setSearchOpen}
