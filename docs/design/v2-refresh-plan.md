@@ -307,98 +307,96 @@ Runs beside the sessions, Imran with Hassan, independent of the restyle:
 
 ## Where the next session starts
 
-Written 2026-08-18 at the close of session F1 (folder page and comments
-concepts, run overnight at Imran's direction while he slept). Read this, then
-`v2-decisions.md`, then run the prototype.
+Rewritten 2026-08-18 at the close of session F2, when **Imran approved every
+change from F1 through F2** — the folder page, the window bar, the task
+surface, the conversation, and the whole polish sequence. Everything below
+that line is settled; everything in "Do these next" is not yet begun.
 
-**Read first, in order:** `docs/design/v2-decisions.md` (DES-093 to DES-134;
-the two-lane rule at the top governs everything), this file's ground rules,
-then the two concept surfaces: `src/screens/folder-page-v2.tsx` and
-`src/components/comments.tsx`.
+**Read first, in order:** `docs/design/v2-decisions.md` — the two-lane rule at
+its top governs everything, and DES-129 to DES-148 are this stretch's; then
+this file's ground rules; then `docs/design/f1-review.md` for the findings
+that drove it and the F2 plan's shape.
 
 **Everything runs from `docs/design/prototype-v2`.** `npm run dev` is the
-prototype; `npm run typecheck` is `tsc -p tsconfig.app.json` — the root tsconfig
-checks nothing. Nothing under `app/` changes in this plan.
+prototype; `npm run typecheck` is `tsc -p tsconfig.app.json` — the root
+tsconfig checks nothing. `npm run build` before reporting. Nothing under
+`app/` changes in this plan.
 
-### State
+**How to look:** `/?state=folder&folder=Wedding` is the reference surface —
+the folder page carries the cover, the mark, the window bar, sections,
+paragraphs, the board and the conversation. On My Day, expand "Review
+community grant application" for the card's Comments block, and use any
+row's ⋯ → *Open in…* for the task surface.
 
-The row and its card are **finalised, ported, and committed** — the V3 tree
-landed as `3b1f34a`, so the baseline is reversible history rather than a
-working tree. On top of it, session F1 drew Imran's next round of ideas as
-concepts, committed separately so they can be reverted without touching V3:
+### Settled in this stretch, approved 2026-08-18
 
-- **Comments on a task** (DES-129): a pinned block ending the expanded card —
-  threads, one-level replies, file chips, and voice notes that really record
-  and play. Two My Day tasks arrive with seeded threads (the grant review and
-  the venue deposit).
-- **The folder page as a page** (DES-130 to DES-133): cover (patterns /
-  illustrations / real upload), a 21-glyph animated icon library with the ten
-  token colours, a description field, rename-in-place title, one sticky
-  top-right control cluster (views · filter · conversation · people · share ·
-  overflow), sections and paragraphs after the blank row, a real board view,
-  and no floating New task button. The picked mark follows the folder into
-  the sidebar.
-- **The folder conversation in both placements** (DES-134): end-of-page and
-  side-panel, switchable live from the "Concept switches" card bottom-left.
-
-**How to look:** `npm run dev`, then `/?state=folder&folder=Wedding` for the
-folder page (the Wedding fixture is seeded with sections, a paragraph and a
-conversation), the concept card bottom-left to flip comments placement, and
-`?folder-page=v1` for the previous screen side by side. On My Day, expand
-"Review community grant application" for the card's Comments block.
+- **The folder page is the reference design** (DES-130 to DES-133): cover
+  (brand gradients, mark-geometry covers, upload, link, live Openverse
+  search), a 42-glyph icon library in the ten token colours, description,
+  rename in place, sections and paragraphs with positional insertion, a
+  two-column board with movable sections, no floating New task button.
+- **The window bar** (DES-139 to DES-141): a 36px strip under the tabs
+  belonging to the window, left reserved for breadcrumbs, right carrying that
+  tab's controls; one filter model for every place-page; covers native to
+  every page except a task's.
+- **The task surface** (DES-136 to DES-138, DES-146): a task in a surface is
+  a *page*, not a row — its own header over the same `TaskCard`, wired
+  through one `useCardWiring` layer. Three homes: dialog, sidebar, tab. Where
+  a task opens is a remembered preference.
+- **The conversation** (DES-142 to DES-146): two homes — a closed section at
+  the page's foot, or a side panel under the bar. Mine on graphite-900,
+  everyone else's on the graphite-50 wash, no hue. Likes only, actions level
+  with the message.
+- **Switchers are icon strips that collapse** (DES-137): one icon showing the
+  current view, widening on hover or focus. One `ViewStrip` for all of them.
+- **The type hierarchy** (DES-148): page title 24 · section heading 16 · task
+  title 14 · all prose and row information 12. No off-scale sizes remain on
+  the folder page.
 
 ### Do these next, in this order
 
-Reordered 2026-08-18, after Imran reviewed F1 and found it under-refined.
-**`docs/design/f1-review.md` is the operative document now**: a hard critical
-review of all six F1 concepts — findings H/K/S/M/Y/P, severity-tagged,
-grounded in measurements against the contract — ending in the four-pass F2
-refinement plan (DRAFT, awaiting Imran). Its diagnosis in one line: the
-features are complete but speak four dialects where Dana has one voice.
+1. **F3 — the other pages catch up to the folder page.** This is the largest
+   remaining "one brand" gap and the obvious next step: My Day, Tasks,
+   Planned, Important, All and Done still wear the v1 header composition
+   beside the folder page's new one, even though they already have the window
+   bar and can carry a cover. Bring their headers into the same family, then
+   decide per page what the bar should hold beyond the filter.
+2. **V3's own brief, still untouched since it was written.** R1 (the Inbox
+   chip), R2 (Important's star at rest), R4 (carried-over overdue quieting),
+   R5 (the date ladder), R6 (steps legibility), R7 (Done rows drop the due
+   echo), W2 (the chip family as an open set) — and **the states page is the
+   deliverable**, never rebuilt on the new row.
+3. **V1's remainder**: L2 (the trailing metadata slot order, one pass on
+   `task-row.tsx`) and L5 (sparse pages read intentional) at the 720px
+   measure DES-135 now sets.
+4. **V2 chrome, reframed by what has happened since**: L3 is no longer "does
+   the page strip earn its place" but "the strip is a tab strip now, so what
+   else does it owe"; L4 (quick-add rest state) inherits DES-133's question
+   for the pages that still show the floating button; the collapsed sidebar
+   rail still hides folder rows entirely, and the new folder glyphs are what
+   would make a collapsed rail legible.
+5. **Then V4–V8** in the plan's order, and **V9's reference set** last.
 
-1. **V1's measure ruling — taken provisionally, 2026-08-18 (DES-135).**
-   All three candidates were built; Imran expressed no preference when
-   asked, so the 800px reading column is the default on the studio's
-   recommendation, with `?measure=wide` and `?measure=pulled` kept for his
-   eye at F2d. V1 still owes L2 (slot order) and L5 (sparse pages) at the
-   new measure.
-2. **F2a — One voice. Done 2026-08-18** (`6f9344a`): the 40px docked
-   cluster, one section-heading tier, system avatars/radii/badges/selection,
-   graphite recording, attachment-style comment files, reserved hover slots,
-   the recomposed header with first-run ghosts, cover-as-affordance with
-   scrim, panel under the page bar with Escape and focus return, Rename back
-   in the menu, section-delete undo. Exit test passed: the flagged computed
-   styles re-measure on-contract.
-3. **F2b — Structure that works.** Next. Positional insertion, sections and
-   paragraphs on the sort engine, W5's one-capture-point ruling applied, the
-   board reaching feature honesty or demoting to disabled.
-4. **F2c — The brand layer.** Covers from the mark's own ribbon geometry in
-   folder-colour tints (replacing the clip-art tier), the motion sweep, the
-   first-run empty state, the thread committed to one metaphor.
-5. **F2d — The verdict pass**, finding by finding; winners extract to
-   `components/` under DES-124.
-6. Then the standing queue: **V3's brief** (R1, R2, R4–R7, W2, the states
-   page) and **V2, V4–V8** in the plan's order.
+### Known open edges, written down rather than rediscovered
 
-The rulings F2 needs, gathered in the review's last paragraph: commentary or
-chat (DES-134) · whose identity a folder wears (DES-130) · covers from the
-mark (H4) · the capture point's shape (S2/W5) · the measure (V1) · Rename's
-second route (K5) · board task naming (Y5).
-
-### Known faults and honest edges of F1, so they are not rediscovered
-
-- **Uploaded covers do not survive a reload** — deliberate (an object URL,
-  not storage; the picker says so). Patterns and illustrations persist.
-- **Sections, paragraphs and new comments reset on navigation**, like every
-  task fixture; the folder's icon, colour, cover and description persist in
-  localStorage with the rename/delete presentation state.
+- **The shell sweep was built and reversed** (`03cd83e` → `5ce52a4`) at
+  Imran's direction. Its findings survive as SH1–SH6 in `f1-review.md`,
+  fixes explicitly *not* standing: several shell paths still set state
+  nothing renders (row-body click, search result, the FAB, sidebar capture,
+  calendar cells), My Day and Important have no quick-add, the New folder
+  button is still the filled block, Settings has no Appearance section, and
+  fourteen files still import `lucide-react` directly against DES-125. Any
+  of it can return piece by piece on Imran's word — the answers are in
+  `03cd83e`'s diff.
+- **DES-135, the 720px measure, is still provisional.** `?measure=wide`
+  restores DES-023's 1120px for a side-by-side.
+- **Uploaded covers and recorded voice notes are session-only**; sections,
+  paragraphs and new comments reset on navigation, like every task fixture.
 - **The microphone path is verified by code reading, not by exercise** — the
-  preview browser cannot grant mic permission. Denial shows the inline
-  message; a grant records and plays back. Worth one manual try.
-- **Calendar in the view switcher is a disabled control on purpose**, saying
-  it arrives with V5.
-- **The side panel is viewport-fixed** and will want a look below ~1100px
-  width; the design phase is 1440px (this plan's scope line).
+  headless browser cannot grant permission.
+- **Board cards do not drag between columns yet** (the columns themselves
+  move). It is the one piece of F2b's "structure that works" still owed.
+
 
 ### Owed rulings, none blocking
 
@@ -451,3 +449,5 @@ first.
 | V1 + F2a | 2026-08-18 | Claude, for Imran | **The measure taken provisionally, and the translation pass done.** Imran approved the F2 plan's start; all three measure candidates were built and offered, he expressed no preference, and the 800px reading column landed as the default on the studio's recommendation (DES-135, PROPOSED — his eye rules at F2d, `?measure=wide` and `?measure=pulled` stay until then). F2a (`6f9344a`) retranslated every F1 surface into the contract: docked 40px cluster with radiogroup views and the graphite pill badge, shell heading tier for sections and page comments, system avatar sizes, radius-md composer, graphite recording, attachment-style comment files, reserved hover slots, no reply rail, recomposed header with first-run ghosts and the mark at identity scale, cover band as its own affordance with a foot scrim, panel under the page bar with Escape and focus return, Rename restored to the menu, section-delete undo, ring selection in every picker. Exit test re-measured green: 40px controls, 16px section tier, 6px composer radius, 24px faces, graphite-200 badge | **Open.** F2b (structure), F2c (brand layer), F2d (verdict) remain; V1 still owes L2 and L5 at the new measure |
 | F2 (critique round) | 2026-08-18 | Claude, for Imran | **Imran critiqued the F2a screenshots live and the rebuild landed the same session, pulling much of F2b and F2c forward.** The cover picker went Notion-grade: a sectioned Gallery — nine gradients built only from token hexes, and six covers generated from the mark's own ribbon geometry (F2c's centrepiece, early) — plus Upload, Link, and a Photos tab from Lorem Picsum, with Reposition (drag, save, cancel) on photographic covers and legacy key mapping so nothing picked earlier goes blank. The icon library tripled to 42 animated glyphs. The folder controls became a thin strip under the cover (32px controls in a 12-unit band — Imran's ruling that this is chrome, not control surface; recorded against K1), with a refined solid Share and the ⋯ menu carrying Rename and the v1 comparison; the concept-switches card retired. The filter grew real variables: due (any/with/without/overdue), assignee (anyone/member/unassigned), important only, show abandoned — active count on the strip, one-press clear. The description moved to a quiet line under the title. The board took a two-column grid with tall movable section columns (drag writes back to page order) and real per-column capture. The conversation gained four switchable homes — end of page, floating dock (collapsible, pinned composer), side panel, full screen — switched from the surface itself. The insertion line landed between blocks (tasks deliberately absent from its menu pending DES-071). And the task surface arrived: a board card opens the real TaskRow forced open, full screen / sidebar either edge / floating, with **Open as a tab** feeding the page bar's new tab strip (task tabs persist in sessionStorage across navigation) — DES-117's full-screen half, answered by reuse. One real bug found by the capture harness and fixed: the strip's invisible layer swallowed clicks on the overlapping mark; the row is now hit-transparent except its controls | **Open — awaiting Imran's next look.** Remaining from the review: sections/paragraphs on the sort engine, W5's capture consolidation (S2 ruling), motion sweep (Y2), thread metaphor commitment (M1/DES-134) |
 | F2 (sweep, reversed) | 2026-08-18 | Claude, for Imran | A shell-wide sweep was built (`03cd83e`: dead paths wired into the task surface, My Day and Important quick-adds, FAB retired except Planned, L7's ghost tier, Settings Appearance, three lucide-import fixes) and **reversed wholesale the same day at Imran's direction** (`5ce52a4`). The standing state is the polish round, `9d26f0a` — menu icons, switches, Openverse, kin cards, reactions and comment editing all stand. The sweep's observations survive as findings SH1–SH6 in `f1-review.md`, fixes explicitly not standing; the reverted answers live in `03cd83e` for selective return on Imran's word | **Ruled by Imran, 2026-08-18: reversed.** Next direction is his |
+
+| F2 (critique rounds) | 2026-08-18 | Claude, for Imran | **Six rounds of Imran's critique, each answered and verified.** The folder page became the reference design: brand-gradient and mark-geometry covers with live Openverse search, a 42-glyph icon library, a thin window bar under the tabs carrying that tab's controls (DES-139), one filter for every place-page (DES-140), covers native to every page but a task's (DES-141). The task surface became a page rather than a forced-open row (DES-136) with three homes and a remembered preference (DES-138, DES-146); switchers became collapsing icon strips (DES-137). The conversation settled on two homes with a closed section at the page foot (DES-142), tone rather than hue for whose message is whose (DES-143), and likes only. The row menu got real actions and Abandon (DES-144); sections got paragraphs above their first row (DES-145, DES-148); popovers stopped imposing 320px on their contents (DES-147). Type settled at 24/16/14/12 with no off-scale sizes left | **Approved by Imran, 2026-08-18: everything from F1 through F2 accepted.** Next is F3 — bringing the other pages into the folder page's composition — then V3's brief and the states page |
