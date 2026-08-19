@@ -1877,7 +1877,7 @@ export function FolderPageV2({
                 setEditingDescription(false)
               }}
               className={cn(
-                "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-[14px] leading-6 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
+                "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-[12px] leading-5 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
                 T_FAST,
                 "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
               )}
@@ -1887,7 +1887,7 @@ export function FolderPageV2({
               type="button"
               onClick={() => setEditingDescription(true)}
               className={cn(
-                "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-[13px] leading-5 text-[var(--color-graphite-400)] transition-[opacity,background-color,color]",
+                "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-[12px] leading-5 text-[var(--color-graphite-400)] transition-[opacity,background-color,color]",
                 T_FAST,
                 FOCUS,
                 "hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",

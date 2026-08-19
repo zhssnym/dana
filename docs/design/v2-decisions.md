@@ -2848,16 +2848,21 @@ by a negative margin, which leaves the heading and its first row 15px apart
 The page-level lines keep their full height, because there the space *is* the
 separation between two blocks.
 
-**And the paragraph takes the metadata tier.** It was set at 14/24, the same
-size as the task titles it annotates and with looser leading than any of
+**And prose takes the metadata tier.** The paragraph was set at 14/24, the
+same size as the task titles it annotates and with looser leading than any of
 them, so a note about the work was louder than the work. It is 12/20 in
 graphite-600 now: one step under the row's title, level with the row's own
-information line, which is where an annotation belongs. The folder's
-description keeps 14/24 — it sits directly under the 24px page title as the
-page's own summary, and that is a different job at a different level.
+information line, which is where an annotation belongs.
+
+**The folder description followed it down**, ruled by Imran the same day. It
+had been kept at 14/24 on the argument that a page's summary sits at a
+different level from a paragraph inside it — but the two are the same kind of
+sentence about the same kind of thing, and a reader has no way to know they
+were meant differently. One size for prose is the simpler rule and the truer
+one. The empty-state ghost moved with it, off an unapproved 13px.
 
 The hierarchy, top to bottom, now reads: page title 24 · section heading 16 ·
-task title 14 · row information and paragraphs 12.
+task title 14 · all prose and row information 12.
 
 ## Carried from v1, still unresolved
 
