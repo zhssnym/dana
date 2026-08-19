@@ -518,13 +518,7 @@ export function IconAction({
   )
 }
 
-function CardFooter({
-  onClose,
-  onExpand,
-}: {
-  onClose: () => void
-  onExpand?: () => void
-}) {
+function CardFooter({ onClose }: { onClose: () => void }) {
   /* Undo has nothing to undo until something is done, and saying so with a
      disabled control is more honest than offering one that does nothing. */
   const [undoDepth, setUndoDepth] = useState(0)
@@ -585,14 +579,13 @@ function CardFooter({
           className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
         />
         <IconAction icon={History} label="History" />
-        {/* Real since the task surface arrived: the same task, full screen,
-            with the sidebar/floating/tab modes in its own view menu. In the
-            lab, where no surface host exists, it stays honestly disabled. */}
+        {/* Not the sheet, and not a route: a separate window, which is why it
+            is disabled. It becomes real when Dana has tabs; until then an
+            enabled control here would promise something nothing implements. */}
         <IconAction
           icon={Maximize2}
-          label={onExpand ? "Open full screen" : "Open full screen — not available here"}
-          disabled={!onExpand}
-          onClick={onExpand}
+          label="Open in a new window — not yet available"
+          disabled
         />
         <IconAction icon={X} label="Close" onClick={onClose} />
       </span>
@@ -1510,7 +1503,6 @@ export function TaskCard({
   setStepsDone,
   onNewFolder,
   onStepsToNewFolder,
-  onExpand,
   onClose,
 }: {
   task: ConceptTask
@@ -1529,7 +1521,6 @@ export function TaskCard({
   setStepsDone: (id: string, indices: number[], done: boolean) => void
   onNewFolder: (ids: string[]) => void
   onStepsToNewFolder: (taskId: string, indices: number[]) => void
-  onExpand?: () => void
   onClose: () => void
 }) {
   const timeFormat = useTimeFormat()
@@ -1773,7 +1764,7 @@ export function TaskCard({
         />
       </Disclosure>
 
-      <CardFooter onClose={onClose} onExpand={onExpand} />
+      <CardFooter onClose={onClose} />
     </div>
   )
 }
