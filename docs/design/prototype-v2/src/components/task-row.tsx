@@ -1144,7 +1144,7 @@ export function Actions({
   onStar,
   onMakeFolder,
   onRestore,
-  onOpenFullScreen,
+  onOpenIn,
   onMoveToFolder,
   onAbandon,
   onDelete,
@@ -1154,7 +1154,7 @@ export function Actions({
   onStar: () => void
   onMakeFolder?: () => void
   onRestore?: () => void
-  onOpenFullScreen?: () => void
+  onOpenIn?: (mode: TaskOpenMode) => void
   onMoveToFolder?: (folder: { name: string; color: string }) => void
   onAbandon?: () => void
   onDelete?: () => void
@@ -1248,11 +1248,25 @@ export function Actions({
             four that did nothing are either wired or gone, because a menu
             of dead items is the least premium thing an interface owns. */}
         <DropdownMenuContent align="end" className="w-56">
-          {onOpenFullScreen ? (
-            <DropdownMenuItem onClick={onOpenFullScreen} className="whitespace-nowrap">
-              <Maximize2 />
-              Open full screen
-            </DropdownMenuItem>
+          {onOpenIn ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="whitespace-nowrap">
+                <Maximize2 />
+                Open in…
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-52">
+                {TASK_OPEN_OPTIONS.map(({ key, label, icon: Icon }) => (
+                  <DropdownMenuItem
+                    key={key}
+                    className="whitespace-nowrap"
+                    onClick={() => onOpenIn(key)}
+                  >
+                    <Icon />
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           ) : null}
           {onMoveToFolder ? (
             <DropdownMenuSub>
@@ -1974,16 +1988,15 @@ export function TaskRow(props: TaskRowProps) {
         props.onToggleImportant?.()
       }}
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
-      onOpenFullScreen={props.onOpen ? () => openIn("full") : undefined}
+      onOpenIn={props.onOpen ? openIn : undefined}
       onMoveToFolder={(folder) => patch(task.id, { folder })}
       onAbandon={props.onAbandon}
       onDelete={props.onDelete}
-      extra={
-        <>
-          {props.onOpen ? <OpenInControl onPick={openIn} /> : null}
-          <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
-        </>
-      }
+      /* No standalone "Open in…" here any more (Imran, 2026-08-18): the
+         card's footer carries it once the row is open, and the overflow
+         carries it while the row is shut. Two routes are enough; a third
+         icon in the row's gutter was paying rent it could not afford. */
+      extra={<ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />}
     />
   )
 
