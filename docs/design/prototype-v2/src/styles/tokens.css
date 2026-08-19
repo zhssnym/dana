@@ -230,7 +230,10 @@
    * data-measure hook in app-shell; the winner becomes the default and the
    * losing variant leaves with the decision. --content-form is L6's second
    * token, reserved here for V4 and V6 (the form sheet and Settings). */
-  --content-list: 800px;
+  /* Narrowed 800 -> 720 at Imran's direction, 2026-08-18: the header felt
+   * wide once the window bar took its controls away. DES-135 stays
+   * provisional either way — his eye rules at F2d. */
+  --content-list: 720px;
   --content-form: 640px;
 
   /* Installed light shell */

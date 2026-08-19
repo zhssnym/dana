@@ -1694,7 +1694,7 @@ export function FolderPageV2({
             chrome is thin). */}
         {strip}
 
-        <header className={cn("group/head", cover ? "pt-1" : "pt-2")}>
+        <header className={cn("group/head", cover ? "pt-0" : "pt-2")}>
           <Popover>
             <PopoverTrigger
               render={
@@ -1706,12 +1706,12 @@ export function FolderPageV2({
                     T_FAST,
                     FOCUS,
                     cover
-                      ? "relative z-40 -mt-16 size-14 rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
-                      : "-ml-1.5 size-12 rounded-xl hover:bg-[var(--color-graphite-50)]",
+                      ? "relative z-40 -mt-7 size-11 rounded-lg border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
+                      : "-ml-1.5 size-10 rounded-lg hover:bg-[var(--color-graphite-50)]",
                   )}
                 >
                   <Glyph
-                    className={cover ? "size-8" : "size-10"}
+                    className={cover ? "size-6" : "size-8"}
                     style={{ color }}
                     strokeWidth={1.5}
                     aria-hidden="true"
@@ -1731,12 +1731,16 @@ export function FolderPageV2({
             <AddCoverAction storageName={storageName} visible={pristine} />
           </div>
 
-          <div className="mt-2">
+          {/* The count rides the title's own line rather than stacking a
+              third block under it: the header was doing too much, and a
+              progress figure is a footnote to the name, not a paragraph of
+              its own (Imran, 2026-08-18). */}
+          <div className="mt-1.5 flex items-baseline gap-3">
             <InlineName
               key={titleEditing ? "menu-edit" : "resting"}
               value={displayName}
               ariaLabel={`Folder name: ${displayName}`}
-              className="text-2xl leading-8 font-semibold text-foreground"
+              className="min-w-0 text-2xl leading-8 font-semibold text-foreground"
               autoEdit={titleEditing}
               onDoneEditing={() => setTitleEditing(false)}
               onCommit={(name) => {
@@ -1744,6 +1748,11 @@ export function FolderPageV2({
                 onRenameFolder?.(name)
               }}
             />
+            {completionTotal > 0 ? (
+              <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
+                {completedCount} of {completionTotal} done
+              </span>
+            ) : null}
           </div>
 
           {/* The description lives at the title — the fact and its affordance
@@ -1788,14 +1797,9 @@ export function FolderPageV2({
             </button>
           )}
 
-          {completionTotal > 0 ? (
-            <p className="mt-1.5 text-xs leading-4 text-muted-foreground">
-              {completedCount} of {completionTotal} done
-            </p>
-          ) : null}
         </header>
 
-        <div className="mt-4">
+        <div className="mt-3">
           {previewState === "loading" ? (
             <SkeletonList />
           ) : previewState === "error" ? (

@@ -50,7 +50,7 @@ export function PageCover({ storageName }: { storageName: string }) {
 
   return (
     <div
-      className={cn("group/cover relative h-44 w-full", repositioning && "cursor-ns-resize select-none")}
+      className={cn("group/cover relative h-32 w-full", repositioning && "cursor-ns-resize select-none")}
       style={
         repositioning
           ? { ...cover, backgroundPosition: `center ${draftPos}%` }
