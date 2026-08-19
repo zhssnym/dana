@@ -229,6 +229,31 @@ medium (reads as unfinished), **L** low (worth a pass, not worth a session).
   nothing in `folder-page-v2.tsx` graduates to `components/` until it
   survives this review's fixes and Imran's verdict.
 
+## The shell sweep — built, then reversed at Imran's direction
+
+One round of shell-wide fixes was built on 2026-08-18 (`03cd83e`) and
+**reversed wholesale the same day** (`5ce52a4`) on Imran's ruling; the
+standing state is the polish round, `9d26f0a`. The observations survive as
+findings only — none of their fixes stands, and none returns without his
+word:
+
+- **SH1** Since the form's deletion at V3, several shell paths set state
+  nothing renders: a row-body click, a search result, the floating New task
+  button, sidebar per-folder capture, calendar cells and ghosts, the card's
+  full-screen icon.
+- **SH2** My Day has no capture row of its own; Important neither.
+- **SH3** The sidebar's New folder button is a filled block (review L7,
+  still standing).
+- **SH4** DES-113 and DES-121 promise Settings controls that do not exist.
+- **SH5** Seventeen files import `lucide-react` directly against DES-125.
+- **SH6** V2-scope: the collapsed rail hides folders; the page strip's L3
+  ruling (noting the strip could earn a job as a tab strip); the main
+  pages' headers wear the v1 composition beside the folder page's new one.
+
+The reversed round's answers to these are in `03cd83e`'s message and diff
+for whenever any of them is wanted back — piece by piece, on Imran's say-so,
+not as a block.
+
 ## The F2 plan — how these become a strong brand
 
 Four passes, strictly ordered, each ending with Imran looking. Estimated as
