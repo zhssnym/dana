@@ -25,50 +25,88 @@ export interface ViewStripOption<T extends string> {
   key: T
   label: string
   icon: LucideIcon
+  disabled?: boolean
+  /* What the tooltip says instead, when the option cannot be chosen yet. */
+  disabledLabel?: string
 }
 
+/*
+`collapse` is the resting behaviour Imran ruled for every switcher, 2026-08-18
+(DES-137, refined): show **only the view you are in**, and widen to the rest on
+hover or focus. A switcher is read far more often than it is used, so at rest
+it should cost the width of what it is showing and nothing more — and its
+border arrives with the expansion rather than boxing one icon all day.
+
+Every option stays in the DOM at every width. The collapsed ones are
+zero-width, not removed, so the keyboard and a screen reader always see the
+whole group; only the current option holds the tab stop, which is the
+radiogroup convention.
+*/
 export function ViewStrip<T extends string>({
   ariaLabel,
   value,
   options,
   onSelect,
+  collapse = false,
 }: {
   ariaLabel: string
   value: T
   options: ViewStripOption<T>[]
   onSelect: (next: T) => void
+  collapse?: boolean
 }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="flex items-center gap-0.5">
-      {options.map(({ key, label, icon: Icon }) => (
-        <Tooltip key={key}>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                role="radio"
-                aria-checked={value === key}
-                aria-label={label}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onSelect(key)
-                }}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-[background-color,color]",
-                  T_FAST,
-                  FOCUS,
-                  value === key
-                    ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-                    : "text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
-                )}
-              >
-                <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            }
-          />
-          <TooltipContent side="bottom">{label}</TooltipContent>
-        </Tooltip>
-      ))}
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className={cn(
+        "flex h-7 items-center gap-0.5 rounded-md",
+        collapse &&
+          "group/views border border-transparent p-0.5 transition-[border-color] hover:border-[var(--color-graphite-200)] focus-within:border-[var(--color-graphite-200)]",
+        T_FAST,
+      )}
+    >
+      {options.map(({ key, label, icon: Icon, disabled, disabledLabel }) => {
+        const current = value === key
+        return (
+          <Tooltip key={key}>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={current}
+                  aria-label={label}
+                  disabled={disabled}
+                  tabIndex={collapse && !current ? -1 : 0}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelect(key)
+                  }}
+                  className={cn(
+                    "flex items-center justify-center overflow-hidden rounded-[4px] transition-[width,opacity,background-color,color] disabled:pointer-events-none disabled:opacity-35",
+                    T_FAST,
+                    FOCUS,
+                    collapse ? "h-full" : "size-7",
+                    collapse
+                      ? current
+                        ? "w-7 opacity-100 text-[var(--color-graphite-800)] group-hover/views:bg-[var(--color-graphite-100)] group-focus-within/views:bg-[var(--color-graphite-100)]"
+                        : "w-0 opacity-0 text-[var(--color-graphite-500)] group-hover/views:w-7 group-hover/views:opacity-100 group-focus-within/views:w-7 group-focus-within/views:opacity-100 hover:text-[var(--color-graphite-800)]"
+                      : current
+                        ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
+                        : "text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
+                  )}
+                >
+                  <Icon className="size-3.5 shrink-0 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              }
+            />
+            <TooltipContent side="bottom">
+              {disabled && disabledLabel ? disabledLabel : label}
+            </TooltipContent>
+          </Tooltip>
+        )
+      })}
     </div>
   )
 }

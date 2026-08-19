@@ -47,12 +47,10 @@ import {
   List,
   ListChecks,
   ListFilter,
-  Maximize2,
   MessageSquare,
   MoreHorizontal,
   PanelRight,
   Pencil,
-  PictureInPicture2,
   Pilcrow,
   Plus,
   Share2,
@@ -151,7 +149,7 @@ const FOCUS =
 
 type FolderTask = TaskRowProps & { id: string }
 type FolderView = "list" | "board"
-type ConversationView = "page" | "dock" | "panel" | "full"
+type ConversationView = "page" | "panel"
 
 /* ------------------------------------------------------------- filtering -- */
 
@@ -407,9 +405,7 @@ const CONVERSATION_VIEWS: Record<
   { name: string; icon: LucideIcon }
 > = {
   page: { name: "Inline, at the end of the page", icon: AlignLeft },
-  dock: { name: "Floating", icon: PictureInPicture2 },
   panel: { name: "Side panel", icon: PanelRight },
-  full: { name: "Full screen", icon: Maximize2 },
 }
 
 /* Icons only, labels on hover — Imran's rule for every view switcher, and
@@ -434,6 +430,7 @@ function ConversationViewMenu({
         }),
       )}
       onSelect={onChange}
+      collapse
     />
   )
 }
@@ -634,7 +631,8 @@ export function FolderPageV2({
   const [conversationView, setConversationView] =
     useState<ConversationView>("page")
   const [conversationOpen, setConversationOpen] = useState(false)
-  const [dockCollapsed, setDockCollapsed] = useState(false)
+  /* Shut by default — the point of the collapsed section. */
+  const [pageCommentsOpen, setPageCommentsOpen] = useState(false)
   const pageCommentsRef = useRef<HTMLDivElement>(null)
 
   /* The task surface (DES-117's full-screen half): opened from a board card,
@@ -961,6 +959,7 @@ export function FolderPageV2({
 
   function openConversation() {
     if (conversationView === "page") {
+      setPageCommentsOpen(true)
       pageCommentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     } else {
       setConversationOpen((value) => !value)
@@ -969,9 +968,9 @@ export function FolderPageV2({
 
   function changeConversationView(next: ConversationView) {
     setConversationView(next)
-    setDockCollapsed(false)
     if (next === "page") {
       setConversationOpen(false)
+      setPageCommentsOpen(true)
       window.setTimeout(
         () =>
           pageCommentsRef.current?.scrollIntoView({
@@ -1164,30 +1163,58 @@ export function FolderPageV2({
 
   /* ------------------------------------------------------------ the body -- */
 
+  /* At the foot of a folder the conversation is a *closed* section, not an
+     open thread (Imran, 2026-08-18): a page ends in its work, and the talk
+     about the work should be one quiet line you choose to open. Same
+     collapsible grammar as Completed directly above it, so the page's foot
+     reads as two peers rather than a control and an essay. */
   const conversationHeader = (
-    <div ref={pageCommentsRef} className="mt-10 scroll-mt-16">
-      <div className="mb-2 flex h-8 items-center gap-2 border-b border-border">
-        <h2 className="text-base leading-6 font-semibold text-foreground">
+    <Collapsible
+      open={pageCommentsOpen}
+      onOpenChange={setPageCommentsOpen}
+      className="mt-6 scroll-mt-16"
+    >
+      <div ref={pageCommentsRef} className="flex items-center gap-1">
+        <CollapsibleTrigger
+          className={cn(
+            "group/comments flex h-[var(--control-height)] min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
+            T_FAST,
+            FOCUS,
+          )}
+        >
+          <ChevronRight
+            className="size-4 shrink-0 transition-transform group-data-panel-open/comments:rotate-90"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <MessageSquare className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           Comments
-        </h2>
-        {commentTotal > 0 ? (
-          <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
-            {commentTotal}
-          </span>
-        ) : null}
-        <span className="ml-auto">
+          {commentTotal > 0 ? (
+            <span className="text-[var(--color-graphite-400)] tabular-nums">
+              ({commentTotal})
+            </span>
+          ) : null}
+        </CollapsibleTrigger>
+        {/* The homes switcher rides the row, not the thread: it is how you
+            move the conversation, and it should be reachable whether the
+            section is open or shut. */}
+        <span className="shrink-0">
           <ConversationViewMenu
             view={conversationView}
             onChange={changeConversationView}
           />
         </span>
       </div>
-      <CommentsThread
-        comments={folderComments}
-        onChange={setFolderComments}
-        placeholder={`Message everyone in ${displayName}`}
-      />
-    </div>
+      <CollapsibleContent>
+        <div className="pt-1 pl-2">
+          <CommentsThread
+            comments={folderComments}
+            onChange={setFolderComments}
+            placeholder={`Message everyone in ${displayName}`}
+          />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 
     /* The insertion lines carry the separation between blocks now, so the
@@ -1853,71 +1880,11 @@ export function FolderPageV2({
 
       {/* The conversation's other three homes. One thread component in all of
           them (DES-123's rule), the view switched from the surface itself. */}
-      {conversationView === "dock" && conversationOpen ? (
-        <div
-          className={cn(
-            "fixed right-6 bottom-6 z-40 flex w-[380px] flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] transition-[height] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-bottom-2",
-            dockCollapsed ? "h-11" : "h-[480px] max-h-[70vh]",
-          )}
-        >
-          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-100)] px-3">
-            <MessageSquare className="size-4 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
-            <span className="min-w-0 truncate text-[13px] leading-5 font-medium text-[var(--color-graphite-800)]">
-              {displayName}
-            </span>
-            {commentTotal > 0 ? (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-graphite-200)] px-1 text-[0.625rem] leading-none font-medium text-[var(--color-graphite-600)] tabular-nums">
-                {commentTotal}
-              </span>
-            ) : null}
-            <span className="ml-auto flex items-center gap-0.5">
-              <ConversationViewMenu view={conversationView} onChange={changeConversationView} />
-              <button
-                type="button"
-                aria-label={dockCollapsed ? "Expand conversation" : "Collapse conversation"}
-                onClick={() => setDockCollapsed((value) => !value)}
-                className={cn(
-                  "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <ChevronDown
-                  className={cn("size-3.5 transition-transform data-[size=sm]:size-3.5", T_BASE, dockCollapsed && "rotate-180")}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-              </button>
-              <button
-                type="button"
-                aria-label="Close conversation"
-                onClick={() => setConversationOpen(false)}
-                className={cn(
-                  "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <X className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
-              </button>
-            </span>
-          </div>
-          {!dockCollapsed ? (
-            <CommentsThread
-              comments={folderComments}
-              onChange={setFolderComments}
-              placeholder={`Message everyone in ${displayName}`}
-              emptyWord="message"
-              layout="pinned"
-            />
-          ) : null}
-        </div>
-      ) : null}
 
       {conversationView === "panel" && conversationOpen ? (
         <aside
           aria-label={`Conversation in ${displayName}`}
-          className="fixed top-[var(--shell-pagebar-height)] right-0 bottom-0 z-40 flex w-[360px] flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
+          className="fixed top-[calc(var(--shell-pagebar-height)+var(--shell-windowbar-height))] right-0 bottom-0 z-40 flex w-[360px] flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
         >
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-100)] px-4">
             <MessageSquare className="size-4 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
@@ -1958,46 +1925,6 @@ export function FolderPageV2({
         </aside>
       ) : null}
 
-      {conversationView === "full" && conversationOpen ? (
-        <div className="fixed inset-x-0 top-[var(--shell-pagebar-height)] bottom-0 z-50 flex flex-col bg-background duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0">
-          <div className="mx-auto flex h-full w-full max-w-[720px] flex-col border-x border-[var(--color-graphite-200)] bg-card">
-            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-100)] px-4">
-              <MessageSquare className="size-4 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
-              <span className="min-w-0 truncate text-sm font-medium text-[var(--color-graphite-800)]">
-                {displayName}
-              </span>
-              <span className="text-[12px] leading-4 text-[var(--color-graphite-400)]">
-                conversation
-              </span>
-              <span className="ml-auto flex items-center gap-0.5">
-                <ConversationViewMenu view={conversationView} onChange={changeConversationView} />
-                <button
-                  type="button"
-                  aria-label="Close conversation"
-                  onClick={() => {
-                    setConversationOpen(false)
-                    conversationRef.current?.focus()
-                  }}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  <X className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              </span>
-            </div>
-            <CommentsThread
-              comments={folderComments}
-              onChange={setFolderComments}
-              placeholder={`Message everyone in ${displayName}`}
-              emptyWord="message"
-              layout="pinned"
-            />
-          </div>
-        </div>
-      ) : null}
 
       {/* The task surface — full screen, sidebar on either edge, floating,
           or handed to the tab strip. */}

@@ -56,7 +56,7 @@ function useSlot() {
 /* The strip itself, rendered once by the shell directly under the tabs. */
 export function WindowBar() {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-[var(--color-graphite-200)] bg-card px-3">
+    <div className="flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 border-b border-[var(--color-graphite-200)] bg-card px-3">
       {/* Reserved for breadcrumbs. Empty is the honest state: Dana has no
           nested folders yet, and a trail of one item is not a trail. */}
       <div className="min-w-0 flex-1" />
