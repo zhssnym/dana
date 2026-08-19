@@ -102,6 +102,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-145 | A paragraph belongs between a heading and its first row | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-146 | Three homes for a task; a like is the whole reaction set | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-147 | A popover is as wide as what it holds | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-148 | An affordance may not charge rent for unused space | APPROVED | F2 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2828,6 +2829,35 @@ screen.
 The same fault explains the gap Imran caught in the icon picker earlier: the
 grid was measured to 264px while the popover stayed 320px, which is why the
 right edge looked empty however carefully the grid was sized.
+
+
+### DES-148, an affordance may not charge rent for space it is not using
+
+Imran, 2026-08-18, on the insertion line under a section heading: keep the
+ability to write a paragraph there, but the task row now feels disconnected
+from its section when nobody has.
+
+The line was a real 24px strip in the flow — correct for the gaps *between*
+page blocks, and wrong immediately under a heading, where it pushed the first
+row far enough from its own title that the two stopped reading as one thing.
+An affordance that is used occasionally must not cost layout permanently.
+
+So that one gets a **dense** variant: 12px tall with 4 of them borrowed back
+by a negative margin, which leaves the heading and its first row 15px apart
+— close enough to belong together, and still a target the pointer can find.
+The page-level lines keep their full height, because there the space *is* the
+separation between two blocks.
+
+**And the paragraph takes the metadata tier.** It was set at 14/24, the same
+size as the task titles it annotates and with looser leading than any of
+them, so a note about the work was louder than the work. It is 12/20 in
+graphite-600 now: one step under the row's title, level with the row's own
+information line, which is where an annotation belongs. The folder's
+description keeps 14/24 — it sits directly under the 24px page title as the
+page's own summary, and that is a different job at a different level.
+
+The hierarchy, top to bottom, now reads: page title 24 · section heading 16 ·
+task title 14 · row information and paragraphs 12.
 
 ## Carried from v1, still unresolved
 
