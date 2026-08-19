@@ -1811,7 +1811,7 @@ export function FolderPageV2({
                 </button>
               }
             />
-            <PopoverContent align="start" className="p-0">
+            <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
               <FolderIconPicker
                 glyph={identity.glyph}
                 color={color}

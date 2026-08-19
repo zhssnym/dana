@@ -336,7 +336,10 @@ export function FolderCoverPicker({
   }
 
   return (
-    <div className="w-[440px]" onClick={(e) => e.stopPropagation()}>
+    /* The popover hugs this width rather than imposing its own: the base
+       PopoverContent is w-80, so a 440px picker used to overflow its panel
+       and put Remove outside the white (Imran caught it). */
+    <div className="w-[440px] max-w-full" onClick={(e) => e.stopPropagation()}>
       {/* The tab row, with Remove at its far end — the Notion arrangement,
           in Dana's chrome: a hairline under the row, the active tab marked
           by ink rather than a pill. */}

@@ -47,11 +47,6 @@ import {
   type LucideIcon,
 } from "@/lib/icons"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -612,11 +607,15 @@ function Composer({
 
 /* ------------------------------------------------------------ the thread -- */
 
-/* The closed reaction set: the lightest agreement a team needs, no picker
-   dependency, no skin-tone matrix to maintain in a prototype. */
-const REACTION_SET = ["👍", "❤️", "✅", "🎉", "😀", "👀"]
+/* One reaction, not a set (Imran, 2026-08-18): a like is the whole of what a
+   team needs to say "seen, agreed" without writing. A palette of six asks a
+   person to *choose a feeling* before they can agree, which is more thought
+   than the gesture is worth — and it puts emoji, a vocabulary Dana owns
+   nowhere else, into the middle of the product's typography. The like is
+   drawn with the icon family like everything else. */
+const LIKE = "like"
 
-function toggleReaction(comment: ConceptComment, emoji: string): ConceptComment {
+function toggleReaction(comment: ConceptComment, emoji: string = LIKE): ConceptComment {
   const current = comment.reactions ?? []
   const existing = current.find((r) => r.emoji === emoji)
   let next: NonNullable<ConceptComment["reactions"]>
@@ -686,64 +685,6 @@ function CommentRow({
             {comment.at}
             {comment.edited ? " · edited" : ""}
           </span>
-          <span
-            className={cn(
-              "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
-              mine ? "mr-auto" : "ml-auto",
-              T_FAST,
-            )}
-          >
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="Add reaction"
-                    className={cn(
-                      "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-                      T_FAST,
-                      FOCUS,
-                    )}
-                  >
-                    <ThumbsUp className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                  </button>
-                }
-              />
-              <PopoverContent align="end" className="w-auto p-1">
-                <div className="flex gap-0.5">
-                  {REACTION_SET.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      aria-label={`React with ${emoji}`}
-                      onClick={() => onUpdate(toggleReaction(comment, emoji))}
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-md text-[16px] transition-colors hover:bg-[var(--color-graphite-100)]",
-                        T_FAST,
-                        FOCUS,
-                      )}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            {onReply ? <ThreadAction icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
-            {comment.mine && comment.body ? (
-              <ThreadAction
-                icon={Pencil}
-                label="Edit comment"
-                onClick={() => {
-                  setDraft(comment.body ?? "")
-                  setEditing(true)
-                }}
-              />
-            ) : null}
-            {comment.mine ? (
-              <ThreadAction icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
-            ) : null}
-          </span>
         </span>
         {editing ? (
           <textarea
@@ -774,7 +715,11 @@ function CommentRow({
             className="mt-0.5 block w-full resize-none rounded-[14px] bg-card px-3 py-1.5 text-[14px] leading-5 text-[var(--color-graphite-800)] ring-2 ring-[var(--color-dana-accent-600)] outline-none [field-sizing:content]"
           />
         ) : comment.body ? (
-          /* Whose message this is, said in tone rather than in colour
+          /* The actions sit level with the message, on its outer side. They
+             used to ride the name-and-time line, which left them floating
+             above the thing they act on (Imran, 2026-08-18). */
+          <span className={cn("flex max-w-full items-center gap-1", mine && "flex-row-reverse")}>
+          {/* Whose message this is, said in tone rather than in colour
              (Imran, 2026-08-18): mine sits on graphite-900 with light text,
              everyone else's on the graphite-50 wash. No hue enters the
              thread — cobalt stays the interaction colour it has been since
@@ -782,7 +727,7 @@ function CommentRow({
 
              The corner nearest its own author tightens to 4px. It is the
              one detail that makes a container read as *spoken by* somebody
-             rather than as a box, and it costs a single class. */
+             rather than as a box, and it costs a single class. */}
           <span
             className={cn(
               "mt-0.5 inline-block max-w-[85%] rounded-[14px] px-3 py-1.5 text-[14px] leading-5 whitespace-pre-wrap transition-colors",
@@ -793,6 +738,33 @@ function CommentRow({
             )}
           >
             {comment.body}
+          </span>
+            <span
+              className={cn(
+                "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
+                T_FAST,
+              )}
+            >
+              <ThreadAction
+                icon={ThumbsUp}
+                label={comment.reactions?.some((r) => r.mine) ? "Remove like" : "Like"}
+                onClick={() => onUpdate(toggleReaction(comment))}
+              />
+              {onReply ? <ThreadAction icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
+              {comment.mine ? (
+                <ThreadAction
+                  icon={Pencil}
+                  label="Edit comment"
+                  onClick={() => {
+                    setDraft(comment.body ?? "")
+                    setEditing(true)
+                  }}
+                />
+              ) : null}
+              {comment.mine ? (
+                <ThreadAction icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
+              ) : null}
+            </span>
           </span>
         ) : null}
         {/* Media is not bubbled: a voice note and a file row are already
@@ -815,19 +787,23 @@ function CommentRow({
               <button
                 key={reaction.emoji}
                 type="button"
-                aria-label={`${reaction.emoji} ${reaction.count}${reaction.mine ? " — you reacted" : ""}`}
+                aria-label={`${reaction.count} like${reaction.count === 1 ? "" : "s"}${reaction.mine ? " — including yours" : ""}`}
                 aria-pressed={reaction.mine || undefined}
                 onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
                 className={cn(
-                  "flex h-6 items-center gap-1 rounded-full border px-1.5 text-[12px] leading-4 transition-colors tabular-nums",
+                  "flex h-6 items-center gap-1 rounded-full border px-2 text-[12px] leading-4 transition-colors tabular-nums",
                   T_FAST,
                   FOCUS,
                   reaction.mine
-                    ? "border-[var(--color-dana-accent-200)] bg-[var(--color-dana-accent-50)] text-[var(--color-dana-accent-800)]"
+                    ? "border-[var(--color-graphite-300)] bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
                     : "border-[var(--color-graphite-200)] bg-card text-[var(--color-graphite-600)] hover:border-[var(--color-graphite-300)]",
                 )}
               >
-                <span aria-hidden="true">{reaction.emoji}</span>
+                <ThumbsUp
+                  className={cn("size-3 data-[size=sm]:size-3", reaction.mine && "fill-current")}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
                 {reaction.count}
               </button>
             ))}

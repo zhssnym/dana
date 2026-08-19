@@ -149,7 +149,7 @@ export function PageCover({ storageName }: { storageName: string }) {
                   </button>
                 }
               />
-              <PopoverContent align="end" className="p-0">
+              <PopoverContent align="end" className="w-auto max-w-[calc(100vw-2rem)] p-0">
                 <FolderCoverPicker
                   value={identity.cover}
                   folderName={storageName}
@@ -218,7 +218,7 @@ export function AddCoverAction({
           </button>
         }
       />
-      <PopoverContent align="start" className="p-0">
+      <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
         <FolderCoverPicker
           value={identity.cover}
           folderName={storageName}

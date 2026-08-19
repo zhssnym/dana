@@ -172,10 +172,7 @@ const grantThread: ConceptComment[] = [
     author: PEOPLE[1]!,
     at: "Yesterday 16:12",
     body: "The outcomes section feels thin — one paragraph covering all three grants. Should we push back?",
-    reactions: [
-      { emoji: "👍", count: 2, mine: true },
-      { emoji: "👀", count: 1 },
-    ],
+    reactions: [{ emoji: "like", count: 2, mine: true }],
     replies: [
       {
         id: "comment-grant-1r",
