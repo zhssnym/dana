@@ -2757,6 +2757,14 @@ folder…** as a submenu that actually moves it, **Abandon**, and **Delete**.
 Duplicate left rather than being wired, because the selection bar is where it
 is real; a menu is better one item shorter than one item hollow.
 
+**"Open in…" lives in two places, not three** (Imran, 2026-08-18). The row
+carried a standalone icon for it beside the chevron while the open card
+carried the same control in its footer — the same choice offered twice within
+a centimetre. The icon is gone; the menu item took its job and grew into a
+submenu of all six homes, so a *shut* row can still send a task anywhere
+without expanding first. Two routes are enough: the menu while the row is
+shut, the footer strip once it is open.
+
 **Abandon sits above Delete and behind its own divider.** One says "I am not
 doing this" and keeps the task; the other destroys it. They are not
 neighbours in meaning and should not look like neighbours in a menu. On an
