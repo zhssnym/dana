@@ -13,6 +13,7 @@ import {
 } from "@/components/folder-group-dialog"
 import { NewFolderDialog } from "@/components/new-folder-dialog"
 import { PageBar } from "@/components/page-bar"
+import { WindowBar } from "@/components/window-bar"
 import {
   OfflineBanner,
   SystemToast,
@@ -413,6 +414,9 @@ export function AppShell({
             onSelectTab={onSelectTab}
             onCloseTab={onCloseTab}
           />
+          {/* The window's own thin strip: breadcrumbs to come on the left,
+              this tab's controls on the right (DES-139). */}
+          <WindowBar />
           {offline ? (
             <OfflineBanner className="rounded-none border-x-0 border-t-0" />
           ) : null}

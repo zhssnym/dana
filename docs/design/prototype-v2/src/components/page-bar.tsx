@@ -25,7 +25,7 @@ shell does not already hold in memory.
 */
 
 import type { LucideIcon } from "@/lib/icons"
-import { RefreshCw, X } from "@/lib/icons"
+import { CheckCircle2, RefreshCw, X } from "@/lib/icons"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -118,8 +118,21 @@ export function PageBar({
                 if (event.button === 1) onCloseTab?.(tab.id)
               }}
               aria-current={active ? "page" : undefined}
-              className="min-w-0 flex-1 py-1 pr-6 pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-inset"
+              className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-6 pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-inset"
             >
+              {/* A tab says what kind of thing it holds: pages carry their
+                  own mark and a folder carries the glyph its owner chose, so
+                  a task needs one too (Imran, 2026-08-18). */}
+              <CheckCircle2
+                className={cn(
+                  "size-3.5 shrink-0",
+                  active
+                    ? "text-[var(--color-graphite-600)]"
+                    : "text-[var(--color-graphite-400)]",
+                )}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
               <span
                 className={cn(
                   "block truncate text-xs leading-4 font-medium",
