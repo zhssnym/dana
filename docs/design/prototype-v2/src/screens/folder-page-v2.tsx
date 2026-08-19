@@ -448,20 +448,31 @@ function ConversationViewMenu({
 function InsertLine({
   onSection,
   onParagraph,
+  dense = false,
 }: {
   /* Omitted inside a section: a section within a section is not a thing
      Dana has, and a menu item that cannot mean anything is worse than a
      shorter menu. */
   onSection?: () => void
   onParagraph: () => void
+  /* Between a heading and its first row the line has to be nearly free:
+     24px of permanent gap there made the section and its tasks read as
+     two separate things whenever nobody had written a paragraph
+     (Imran, 2026-08-18). Dense keeps the affordance and gives the space
+     back — 12px, of which 4 are the heading's own margin. */
+  dense?: boolean
 }) {
   return (
-    /* A real 24px strip in the flow, not a negatively-margined overlay. It
-       was `-my-3` before, which pulled it up under the section's own
-       quick-add row and stole the hover — which is why a paragraph could
-       not be inserted straight after a section until a task existed there
-       (Imran's catch). It now owns its space and always answers. */
-    <div className="group/ins relative flex h-6 items-center">
+    /* A real strip in the flow, not a negatively-margined overlay. It was
+       `-my-3` before, which pulled it up under the section's own quick-add
+       row and stole the hover — which is why a paragraph could not be
+       inserted straight after a section until a task existed there. */
+    <div
+      className={cn(
+        "group/ins relative flex items-center",
+        dense ? "-mb-1 h-3" : "h-6",
+      )}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -1333,7 +1344,7 @@ export function FolderPageV2({
                   )
                 }}
                 className={cn(
-                  "-mx-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[14px] leading-6 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
+                  "-mx-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[12px] leading-5 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
                   T_FAST,
                   "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
                 )}
@@ -1457,6 +1468,7 @@ export function FolderPageV2({
                 {/* Between the heading and the first row — the one gap the
                     page-level lines could never reach. */}
                 <InsertLine
+                  dense
                   onParagraph={() =>
                     setItems((current) =>
                       current.map((candidate) =>
@@ -1494,7 +1506,7 @@ export function FolderPageV2({
                       )
                     }}
                     className={cn(
-                      "-mx-1 mb-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[14px] leading-6 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
+                      "-mx-1 mb-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[12px] leading-5 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
                       T_FAST,
                       "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
                     )}
