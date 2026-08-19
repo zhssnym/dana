@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Star } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +28,7 @@ export type ImportantTask = TaskRowProps & {
 interface ImportantScreenProps {
   tasks: ImportantTask[]
   previewState?: string | null
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRestore: (taskId: string) => void
@@ -95,7 +95,7 @@ export function ImportantScreen({
                 key={task.id}
                 {...task}
                 {...wiring}
-                onOpen={() => onOpenTask(task.id)}
+                onOpen={(mode) => onOpenTask(task.id, mode)}
                 onToggleComplete={(completed) =>
                   task.status === "abandoned"
                     ? onRestore(task.id)

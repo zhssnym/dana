@@ -286,7 +286,10 @@ export const List = icon(Lu.List, Anim.ListIcon)
 
 /* ─── Surfaces and structure (the critique round) ──────────────────────── */
 
+export const ArrowDown = icon(Lu.ArrowDown, Anim.ArrowDownIcon)
+export const ArrowUp = icon(Lu.ArrowUp, Anim.ArrowUpIcon)
 export const ArrowUpRight = icon(Lu.ArrowUpRight, Anim.ArrowUpRightIcon)
+export const Fullscreen = icon(Lu.Fullscreen, Anim.ScanIcon) // animated: no fullscreen; Scan is the same corners without the centre pane
 export const Heading1 = icon(Lu.Heading1, Anim.Heading1Icon)
 export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
 export const PanelRight = icon(Lu.PanelRight, Anim.MenuIcon) // animated: no panel-right; PanelLeft's substitute, mirrored meaning
@@ -321,6 +324,7 @@ export const Gamepad = icon(Lu.Gamepad, Anim.GamepadIcon)
 export const Gift = icon(Lu.Gift, Anim.GiftIcon)
 export const Globe = icon(Lu.Globe, Anim.GlobeIcon)
 export const Guitar = icon(Lu.Guitar, Anim.GuitarIcon)
+export const Headphones = icon(Lu.Headphones, Anim.HeadphonesIcon)
 export const Heart = icon(Lu.Heart, Anim.HeartIcon)
 export const House = icon(Lu.House, Anim.HouseIcon)
 export const Key = icon(Lu.Key, Anim.KeyIcon)
@@ -332,7 +336,7 @@ export const Moon = icon(Lu.Moon, Anim.MoonIcon)
 export const Mountain = icon(Lu.Mountain, Anim.MountainIcon)
 export const Music = icon(Lu.Music, Anim.MusicIcon)
 export const Piano = icon(Lu.Piano, Anim.PianoIcon)
-export const PiggyBank = icon(Lu.PiggyBank, Anim.PiggyBankIcon)
+export const Coins = icon(Lu.Coins, Anim.CoinsIcon) // the pig retired at Imran's direction; coins say savings without the cartoon
 export const Rocket = icon(Lu.Rocket, Anim.RocketIcon)
 export const ShoppingBag = icon(Lu.ShoppingBag, Anim.ShoppingBagIcon)
 export const ShoppingCart = icon(Lu.ShoppingCart, Anim.ShoppingCartIcon)

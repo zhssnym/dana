@@ -31,6 +31,8 @@ import {
 } from "react"
 import {
   AlignLeft,
+  ArrowDown,
+  ArrowUp,
   Ban,
   CalendarDays,
   Check as CheckIcon,
@@ -64,6 +66,7 @@ import { Switch } from "@/components/ui/switch"
 import { useSortableList } from "@/lib/use-sortable-list"
 
 import { CommentsThread, voiceBars } from "@/components/comments"
+import { ViewStrip } from "@/components/view-strip"
 import {
   FolderCoverPicker,
   coverRepositions,
@@ -79,6 +82,7 @@ import {
   TaskList,
   TaskRow,
   type TaskListWiring,
+  type TaskOpenMode,
   type TaskRowProps,
 } from "@/components/task-row"
 import {
@@ -479,12 +483,15 @@ const CONVERSATION_VIEWS: Record<
   ConversationView,
   { name: string; icon: LucideIcon }
 > = {
-  page: { name: "At the end of the page", icon: AlignLeft },
+  page: { name: "Inline, at the end of the page", icon: AlignLeft },
   dock: { name: "Floating", icon: PictureInPicture2 },
   panel: { name: "Side panel", icon: PanelRight },
   full: { name: "Full screen", icon: Maximize2 },
 }
 
+/* Icons only, labels on hover — Imran's rule for every view switcher, and
+   inline earns an icon of its own rather than being the one option named in
+   words. */
 function ConversationViewMenu({
   view,
   onChange,
@@ -493,42 +500,18 @@ function ConversationViewMenu({
   onChange: (view: ConversationView) => void
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            aria-label="Change where the conversation lives"
-            className={cn(
-              "flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] leading-4 font-medium text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
-              T_FAST,
-              FOCUS,
-            )}
-          >
-            {view === "page" ? "Inline" : view === "panel" ? "Panel" : CONVERSATION_VIEWS[view].name}
-            <ChevronDown className="size-3 data-[size=sm]:size-3" strokeWidth={2} aria-hidden="true" />
-          </button>
-        }
-      />
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuRadioGroup
-          value={view}
-          onValueChange={(value) => onChange(value as ConversationView)}
-        >
-          {(Object.keys(CONVERSATION_VIEWS) as ConversationView[]).map((key) => {
-            const { name, icon: Icon } = CONVERSATION_VIEWS[key]
-            return (
-              <DropdownMenuRadioItem key={key} value={key} closeOnClick>
-                <span className="inline-flex items-center gap-2">
-                  <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  {name}
-                </span>
-              </DropdownMenuRadioItem>
-            )
-          })}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <ViewStrip
+      ariaLabel="Where the conversation lives"
+      value={view}
+      options={(Object.keys(CONVERSATION_VIEWS) as ConversationView[]).map(
+        (key) => ({
+          key,
+          label: CONVERSATION_VIEWS[key].name,
+          icon: CONVERSATION_VIEWS[key].icon,
+        }),
+      )}
+      onSelect={onChange}
+    />
   )
 }
 
@@ -546,7 +529,12 @@ function InsertLine({
   onParagraph: () => void
 }) {
   return (
-    <div className="group/ins relative z-10 -my-3 flex h-6 items-center">
+    /* A real 24px strip in the flow, not a negatively-margined overlay. It
+       was `-my-3` before, which pulled it up under the section's own
+       quick-add row and stole the hover — which is why a paragraph could
+       not be inserted straight after a section until a task existed there
+       (Imran's catch). It now owns its space and always answers. */
+    <div className="group/ins relative flex h-6 items-center">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -643,7 +631,7 @@ interface FolderPageV2Props {
   initialShareOpen?: boolean
   onAdd: (section: "scheduled" | "unscheduled", title: string) => void
   onOpenFullForm: (section: "scheduled" | "unscheduled") => void
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRestore: (taskId: string) => void
@@ -913,8 +901,13 @@ export function FolderPageV2({
         {...wiring}
         completionPreview={completingIds.has(task.id)}
         collapsing={completingIds.has(task.id)}
-        onOpen={() => {
-          if (!completingRef.current.has(task.id)) onOpenTask(task.id)
+        /* A mode means the row's view strip asked for a surface, and this
+           page hosts one; a bare open is the screen's own business. */
+        onOpen={(mode) => {
+          if (completingRef.current.has(task.id)) return
+          if (mode === "tab") onOpenInTab?.(task.id)
+          else if (mode) setOpenSurface({ id: task.id, mode })
+          else onOpenTask(task.id)
         }}
         onToggleComplete={(completedValue) =>
           task.status === "abandoned"
@@ -942,6 +935,16 @@ export function FolderPageV2({
     setItems((current) => {
       const next = [...current]
       next.splice(Math.min(index, next.length), 0, item)
+      return next
+    })
+  }
+
+  function moveItem(from: number, to: number) {
+    if (to < 0 || to >= items.length) return
+    setItems((current) => {
+      const next = [...current]
+      const [moved] = next.splice(from, 1)
+      if (moved) next.splice(to, 0, moved)
       return next
     })
   }
@@ -1387,8 +1390,10 @@ export function FolderPageV2({
     </div>
   )
 
+    /* The insertion lines carry the separation between blocks now, so the
+       stack's own gap is small — two 24px gaps in a row read as a hole. */
   const listBody = (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <section aria-label="Open tasks">
         {unsectioned.length > 0 ? (
           <div role="list" className="space-y-0.5">
@@ -1586,6 +1591,22 @@ export function FolderPageV2({
                     <DropdownMenuItem onClick={() => setRenamingSection(section.id)}>
                       <Pencil className="size-4" />Rename section
                     </DropdownMenuItem>
+                    {/* Moving a section is a drag on the grip, arrow keys
+                        once the grip has focus, and these — the discoverable
+                        route Imran asked for, since a grip that appears on
+                        hover is a grip somebody has to find first. */}
+                    <DropdownMenuItem
+                      disabled={index === 0}
+                      onClick={() => moveItem(index, index - 1)}
+                    >
+                      <ArrowUp className="size-4" />Move up
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={index === items.length - 1}
+                      onClick={() => moveItem(index, index + 1)}
+                    >
+                      <ArrowDown className="size-4" />Move down
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       variant="destructive"
@@ -1618,12 +1639,9 @@ export function FolderPageV2({
         )
       })}
 
-      {/* The organising tier stays as the discoverable route; the insertion
-          lines are the fast one. */}
-      <div className="flex items-center gap-1">
-        <GhostAction label="Add section" onClick={() => insertItem(items.length, "section")} />
-        <GhostAction label="Add a paragraph" onClick={() => insertItem(items.length, "paragraph")} />
-      </div>
+      {/* No trailing ghost buttons: the insertion line at the foot already
+          offers both, and two controls for one act is exactly the
+          redundancy Imran called out. The line is the whole grammar. */}
 
       {completed.length > 0 ? (
         <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>

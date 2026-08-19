@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CalendarCheck2, ChevronRight, Star, SunMedium } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskList, type TaskRowProps } from "@/components/task-row"
+import { TaskList, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +33,7 @@ interface MyDayScreenProps {
   today: MyDayTask[]
   doneToday: MyDayTask[]
   previewState?: string | null
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRemoveFromMyDay: (taskId: string) => void
@@ -53,7 +53,7 @@ function TaskGroup({
 }: {
   title: string
   tasks: MyDayTask[]
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRemoveFromMyDay: (taskId: string) => void
