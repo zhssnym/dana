@@ -2628,6 +2628,14 @@ edited and who created, because its resting job is to tell you something and
 only its second job is to open. Activity is drawn on fixtures; the real thing
 needs the audit trail DES-076 has owed since v1.
 
+**The bar is thin and the switcher is one icon**, refined 2026-08-18: a
+36px strip with 28px controls and 14px marks, and the view switcher shows
+*only the view you are in* until it is hovered or focused, when it widens to
+all three. A switcher spends its life being read rather than used, so at rest
+it should cost the width of what it is showing and nothing more. All three
+options stay in the DOM at every width, so the keyboard and a screen reader
+see the whole group however narrow it looks.
+
 **A tab says what kind of thing it holds.** Task tabs carry a task mark; a
 folder's tab carries the glyph its owner chose (DES-130) rather than the
 generic folder, because a tab that disagrees with the sidebar row beside it

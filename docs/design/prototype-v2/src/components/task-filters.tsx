@@ -81,7 +81,7 @@ export function applyTaskFilters<T extends TaskRowProps>(
 /* The window bar's control tier: 32px in a 40px strip. Chrome is thin. */
 export const stripButtonClass = (active: boolean) =>
   cn(
-    "relative flex size-8 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
+    "relative flex size-7 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
     T_FAST,
     FOCUS,
     active
@@ -146,7 +146,7 @@ export function FilterControl({
                   filterCount > 0 && "w-auto gap-1.5 px-2.5",
                 )}
               >
-                <ListFilter className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                <ListFilter className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
                 {filterCount > 0 ? (
                   <span className="text-[12px] leading-4 font-medium tabular-nums">
                     {filterCount}
