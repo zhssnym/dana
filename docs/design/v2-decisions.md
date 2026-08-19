@@ -90,6 +90,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-131 | The folder page's controls live in one small steady cluster | PROPOSED | F1 | Imran's look owed |
 | DES-133 | The floating New task button retires where a quick-add row lives | PROPOSED | F1 | **Yes** — W5 names a capture point |
 | DES-135 | The list measure is a reading measure: 800px | PROPOSED | F2a | **Yes** — Imran's eye at F2d; supersedes DES-023 in part |
+| DES-136 | A task in a surface is a page, not a row | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-137 | A view switcher is a strip of icons; labels live in the tooltip | APPROVED | F2 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2484,6 +2486,60 @@ used for its default.
 
 What V1 still owes, unchanged: the L2 slot order pass on `task-row.tsx` and
 the L5 sparse-page check, both to be judged at this measure.
+
+### DES-136, a task in a surface is a page, not a row
+
+Imran's ruling, 2026-08-18, opened as his own question: if a task can be
+opened full screen or in a tab, should it still be the expandable task row
+there? **No.**
+
+**Why the row cannot travel.** Every affordance the row carries answers *this
+task among others*: the collapse chevron means "back to scanning the list",
+the hover-reveal actions mean "act without leaving the flow", the 14px title
+means "one line among many". Take the list away and each one turns to noise —
+the chevron worst of all, because at full screen it collapses the card and
+leaves a naked 44px row floating in an empty page. That state shipped in the
+first surface build and is exactly the borrowed-instead-of-composed fault the
+critique rounds keep finding.
+
+**What travels instead: the card.** The surface composes its own header —
+the title at page scale (24/32, renaming in place by DES-095), a deliberate
+completion control, the star — over *the same* `TaskCard` blocks the inline
+row opens. Both go through one extracted wiring layer, `useCardWiring`, so
+DES-117's one-artifact promise stays checkable rather than asserted: same
+fields, same commit-as-made behaviour, one edits layer, two compositions.
+
+**Five modes and a sixth that is the strip's.** Dialog, full screen, sidebar
+right, sidebar left, floating — plus *open as a tab*, which is an action
+rather than a mode, since it hands the task to the page bar. The card's
+footer offers full screen where a host exists (the old disabled "not yet
+available" is retired) and offers neither view nor close inside a surface,
+because two closes in one surface is one too many.
+
+Lane 1: presentation over the row's existing state.
+
+**One defect found and fixed by measuring rather than looking:** switching
+between the left and right sidebar left the panel parked off-screen at
+x = −440. React reused the element across the class change, and `animate-in`'s
+`fill-mode: both` then held the *new* animation's start state. Keyed by side
+now. A still frame would never have shown it.
+
+### DES-137, a view switcher is a strip of icons
+
+Imran's ruling, 2026-08-18: where a surface offers views, the options are a
+horizontal row of small icons — labels on hover, never written out. It
+applies to the conversation's four homes and the task's six, and "inline"
+earns an icon of its own rather than being the one option named in words.
+
+One component, `components/view-strip.tsx`, in two shapes: `ViewStrip` for a
+standing choice (the active view sits on the graphite wash) and `ActionStrip`
+for a row of one-shot actions (the task row's "Open in…", where picking does
+something once rather than switching a state). Two shapes, one grammar —
+DES-123's rule applied to chrome, so a switcher can never disagree with
+itself across surfaces.
+
+What it buys beyond tidiness: the strip costs about the width one written
+label did, so the six task modes fit where "Full screen ⌄" used to sit.
 
 ## Carried from v1, still unresolved
 

@@ -518,7 +518,15 @@ export function IconAction({
   )
 }
 
-function CardFooter({ onClose }: { onClose: () => void }) {
+function CardFooter({
+  onClose,
+  onExpand,
+  chrome = "inline",
+}: {
+  onClose: () => void
+  onExpand?: () => void
+  chrome?: "inline" | "surface"
+}) {
   /* Undo has nothing to undo until something is done, and saying so with a
      disabled control is more honest than offering one that does nothing. */
   const [undoDepth, setUndoDepth] = useState(0)
@@ -579,15 +587,22 @@ function CardFooter({ onClose }: { onClose: () => void }) {
           className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
         />
         <IconAction icon={History} label="History" />
-        {/* Not the sheet, and not a route: a separate window, which is why it
-            is disabled. It becomes real when Dana has tabs; until then an
-            enabled control here would promise something nothing implements. */}
-        <IconAction
-          icon={Maximize2}
-          label="Open in a new window — not yet available"
-          disabled
-        />
-        <IconAction icon={X} label="Close" onClick={onClose} />
+        {/* Real since the task surface exists (DES-136): full screen from
+            the card, one press. Inside a surface the chrome above already
+            owns the views and the close, so the footer offers neither —
+            two closes in one card is one too many. In the lab, where no
+            surface host exists, it stays honestly disabled. */}
+        {chrome === "inline" ? (
+          <>
+            <IconAction
+              icon={Maximize2}
+              label={onExpand ? "Open full screen" : "Open full screen — not available here"}
+              disabled={!onExpand}
+              onClick={onExpand}
+            />
+            <IconAction icon={X} label="Close" onClick={onClose} />
+          </>
+        ) : null}
       </span>
     </div>
   )
@@ -1503,6 +1518,8 @@ export function TaskCard({
   setStepsDone,
   onNewFolder,
   onStepsToNewFolder,
+  onExpand,
+  chrome = "inline",
   onClose,
 }: {
   task: ConceptTask
@@ -1521,6 +1538,10 @@ export function TaskCard({
   setStepsDone: (id: string, indices: number[], done: boolean) => void
   onNewFolder: (ids: string[]) => void
   onStepsToNewFolder: (taskId: string, indices: number[]) => void
+  onExpand?: () => void
+  /* "inline" under a row; "surface" inside the task page, where the
+     surface's own chrome carries the views and the close. */
+  chrome?: "inline" | "surface"
   onClose: () => void
 }) {
   const timeFormat = useTimeFormat()
@@ -1764,7 +1785,7 @@ export function TaskCard({
         />
       </Disclosure>
 
-      <CardFooter onClose={onClose} />
+      <CardFooter onClose={onClose} onExpand={onExpand} chrome={chrome} />
     </div>
   )
 }

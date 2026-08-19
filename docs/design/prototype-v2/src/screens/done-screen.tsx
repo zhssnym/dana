@@ -2,7 +2,7 @@ import { useState } from "react"
 import { CheckCircle2 } from "lucide-react"
 
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +33,7 @@ export interface DoneGroup {
 interface DoneScreenProps {
   groups: DoneGroup[]
   previewState?: string | null
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onMarkNotDone: (taskId: string) => void
   onToggleImportant: (taskId: string) => void
   onDelete: (taskId: string) => void
@@ -106,7 +106,7 @@ export function DoneScreen({
                       {...task}
                       {...wiring}
                       status="completed"
-                      onOpen={() => onOpenTask(task.id)}
+                      onOpen={(mode) => onOpenTask(task.id, mode)}
                       onToggleComplete={(completed) => {
                         if (completed) return
                         if (task.hasRecurrenceSuccessor) {

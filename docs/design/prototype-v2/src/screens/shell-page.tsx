@@ -16,7 +16,16 @@ import type { ShellPageName } from "@/components/app-sidebar"
 import { voiceBars } from "@/components/comments"
 import { PEOPLE, type ConceptComment } from "@/lib/task-model"
 import type { ShellTaskDetails as TaskFormData } from "@/lib/shell-task"
-import { TaskRow, type TaskRowProps } from "@/components/task-row"
+import {
+  TaskRow,
+  type TaskOpenMode,
+  type TaskRowProps,
+} from "@/components/task-row"
+import {
+  TaskPage,
+  TaskSurface,
+  type TaskSurfaceMode,
+} from "@/components/task-surface"
 import { SearchOverlay } from "@/components/search-overlay"
 import { shellFolderGroups, shellPreviewTasks } from "@/fixtures"
 import {
@@ -624,6 +633,12 @@ export function ShellPage() {
         : readPrototypeFolderPresentation(),
     )
   const taskFormOpener = useRef<HTMLElement | null>(null)
+  /* The task surface, hosted at shell level so any screen's row can open a
+     task into it (DES-136). */
+  const [shellSurface, setShellSurface] = useState<{
+    id: string
+    mode: TaskSurfaceMode
+  } | null>(null)
   const isDone = state === "done" || requestedPage === "done"
   const isFolder = state === "folder"
   const isTasks = requestedPage === "tasks"
@@ -739,18 +754,22 @@ export function ShellPage() {
                   ? Layers3
                   : SunMedium
   const pageIconColor = isFolder ? selectedFolderColor : undefined
-  const openTask = (taskId: string) => {
-    taskFormOpener.current = document.activeElement as HTMLElement | null
-    setTaskFormContextBanner(undefined)
-    setEditingTaskId(taskId)
-    setTaskFormOpen(true)
+  /* Where a task opens, once it leaves the list: the surface in one of its
+     five modes, or the tab strip. The row's view strip and the card's
+     full-screen action both arrive here (DES-136). No mode means the row
+     asked in the old, bare way — nothing opens a sheet any more, so the
+     honest default is the dialog: the lightest surface that still reads as
+     a place. */
+  const openTask = (taskId: string, mode?: TaskOpenMode) => {
+    if (mode === "tab") {
+      openTaskTab(taskId)
+      return
+    }
+    setShellSurface({ id: taskId, mode: mode ?? "dialog" })
   }
-  const openGhostTask = (taskId: string) => {
-    taskFormOpener.current = document.activeElement as HTMLElement | null
-    setTaskFormContextBanner("Upcoming occurrence of a repeating task")
-    setEditingTaskId(taskId)
-    setTaskFormOpen(true)
-  }
+  /* A ghost is a projection of a repeating task; opening it opens the real
+     one, which is what the projection is a picture of. */
+  const openGhostTask = (taskId: string) => openTask(taskId)
   useEffect(() => {
     function handleSearchShortcut(event: globalThis.KeyboardEvent) {
       const target = event.target as HTMLElement | null
@@ -862,37 +881,28 @@ export function ShellPage() {
       >
         {(() => {
           /* A selected task tab replaces the page below the strip: the same
-             row, forced open, at the reading measure — the tab presentation
-             of DES-117's one form. */
+             task page at the reading measure — the tab presentation of
+             DES-117's one form, composed rather than borrowed (DES-136).
+             The tab strip already carries the close, so the page has none. */
           const tabTask = activeTaskTab
             ? tasks.find((task) => task.id === activeTaskTab)
             : undefined
           if (!tabTask) return null
           return (
             <div className="mx-auto w-full max-w-[var(--content-list)] px-10 py-6">
-              <div role="list">
-                <TaskRow
-                  key={tabTask.id}
-                  {...tabTask}
-                  defaultOpen
-                  onToggleComplete={(completed) =>
-                    setTaskCompleted(tabTask.id, completed)
-                  }
-                  onToggleImportant={() => {
+              <TaskPage
+                key={tabTask.id}
+                task={{
+                  ...tabTask,
+                  onToggleComplete: (completed) =>
+                    setTaskCompleted(tabTask.id, completed),
+                  onToggleImportant: () =>
                     updateTask(tabTask.id, {
                       important: !tabTask.important,
                       form: { ...tabTask.form, important: !tabTask.important },
-                    })
-                  }}
-                  onAbandon={() => updateTask(tabTask.id, { status: "abandoned" })}
-                  onDelete={() => {
-                    closeTaskTab(tabTask.id)
-                    setTasks((current) =>
-                      current.filter((task) => task.id !== tabTask.id),
-                    )
-                  }}
-                />
-              </div>
+                    }),
+                }}
+              />
             </div>
           )
         })() ?? (!isDone &&
@@ -1502,9 +1512,7 @@ export function ShellPage() {
                 key={task.id}
                 {...task}
                 status={isDone ? "completed" : task.status}
-                onOpen={() => {
-                  openTask(task.id)
-                }}
+                onOpen={(mode) => openTask(task.id, mode)}
               />
             ))}
           </div>
@@ -1512,6 +1520,32 @@ export function ShellPage() {
         </div>
         ))}
       </AppShell>
+      {(() => {
+        if (!shellSurface) return null
+        const task = tasks.find((candidate) => candidate.id === shellSurface.id)
+        if (!task) return null
+        return (
+          <TaskSurface
+            task={{
+              ...task,
+              onToggleComplete: (completed) =>
+                setTaskCompleted(task.id, completed),
+              onToggleImportant: () =>
+                updateTask(task.id, {
+                  important: !task.important,
+                  form: { ...task.form, important: !task.important },
+                }),
+            }}
+            mode={shellSurface.mode}
+            onModeChange={(mode) => setShellSurface({ ...shellSurface, mode })}
+            onOpenInTab={() => {
+              openTaskTab(shellSurface.id)
+              setShellSurface(null)
+            }}
+            onClose={() => setShellSurface(null)}
+          />
+        )
+      })()}
       <SearchOverlay
         open={searchOpen}
         onOpenChange={setSearchOpen}

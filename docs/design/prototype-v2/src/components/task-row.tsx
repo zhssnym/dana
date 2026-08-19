@@ -32,6 +32,7 @@ it; what the lab passes and the screens do not is the difference.
 */
 
 import {
+  ArrowUpRight,
   Ban,
   CalendarDays,
   Check as CheckIcon,
@@ -42,11 +43,15 @@ import {
   FolderInput,
   FolderPlus,
   Folders,
+  Fullscreen,
   ListChecks,
   ListPlus,
   Maximize2,
   MoreHorizontal,
+  PanelLeft,
+  PanelRight,
   Paperclip,
+  PictureInPicture2,
   Pin,
   SunMedium,
   Repeat2,
@@ -86,6 +91,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ActionStrip, type ViewStripOption } from "@/components/view-strip"
 import { useRowDensity } from "@/lib/row-density"
 import {
   FOLDERS,
@@ -1570,6 +1576,22 @@ screens do not. DES-103, DES-112, DES-119.
 export type TaskStatus = "pending" | "completed" | "abandoned"
 export type TaskRowVisualState = "default" | "hover" | "focus" | "selected"
 
+/* Where a task can be held once it leaves the list — the surface's five
+   modes plus the tab strip. Owned here because the row is where the choice
+   is offered; the surface imports it. */
+export type TaskOpenMode = "dialog" | "full" | "right" | "left" | "float" | "tab"
+
+/* The open-in choices, said in icons, labels on hover — the same strip
+   grammar the conversation's homes use. */
+export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
+  { key: "dialog", label: "Dialog", icon: Fullscreen },
+  { key: "full", label: "Full screen", icon: Maximize2 },
+  { key: "right", label: "Sidebar · right", icon: PanelRight },
+  { key: "left", label: "Sidebar · left", icon: PanelLeft },
+  { key: "float", label: "Floating", icon: PictureInPicture2 },
+  { key: "tab", label: "Open as a tab", icon: ArrowUpRight },
+]
+
 export interface TaskRowProps {
   id?: string
   title: string
@@ -1596,7 +1618,10 @@ export interface TaskRowProps {
   menuOpen?: boolean
   completionPreview?: boolean
   collapsing?: boolean
-  onOpen?: () => void
+  /* Open the task somewhere other than in place: the row's own view strip
+     and the card's full-screen action both speak through this, naming the
+     surface they want. Bare calls mean "full". */
+  onOpen?: (mode?: TaskOpenMode) => void
   onToggleComplete?: (completed: boolean) => void
   onToggleImportant?: () => void
   onRemoveFromMyDay?: () => void
@@ -1654,9 +1679,12 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
   }
 }
 
-export function TaskRow(props: TaskRowProps) {
-  const density = useRowDensity()
-  const [open, setOpen] = useState(props.defaultOpen ?? false)
+/* The card's wiring, extracted so the task surface can hold the same task
+   the row holds — one edits layer, one patch, one set of step handlers,
+   whether the card sits under a row or fills a page. This is what keeps
+   DES-117's one-artifact promise checkable: a surface that re-implemented
+   any of this would be a second artifact wearing the first one's clothes. */
+export function useCardWiring(props: TaskRowProps) {
   const [edits, setEdits] = useState<Partial<ConceptTask>>({})
 
   /* Props first, local edits over the top. A completion made from the screen
@@ -1675,6 +1703,84 @@ export function TaskRow(props: TaskRowProps) {
   function patchSteps(next: ConceptStep[]) {
     setEdits((current) => ({ ...current, steps: next }))
   }
+
+  const cardHandlers = {
+    toggleStep: (_id: string, index: number) =>
+      patchSteps(
+        steps.map((step, i) => (i === index ? { ...step, done: !step.done } : step)),
+      ),
+    moveStep: (_id: string, from: number, to: number) => {
+      const next = [...steps]
+      const [moved] = next.splice(from, 1)
+      if (moved) next.splice(to, 0, moved)
+      patchSteps(next)
+    },
+    moveStepsTo: () => {},
+    duplicateSteps: (_id: string, indices: number[]) =>
+      patchSteps([
+        ...steps,
+        ...indices
+          .map((index) => steps[index])
+          .filter((step): step is ConceptStep => Boolean(step))
+          .map((step) => ({ ...step, done: false })),
+      ]),
+    removeSteps: (_id: string, indices: number[]) =>
+      patchSteps(steps.filter((_, index) => !indices.includes(index))),
+    setStepsDone: (_id: string, indices: number[], done: boolean) =>
+      patchSteps(
+        steps.map((step, index) => (indices.includes(index) ? { ...step, done } : step)),
+      ),
+    onNewFolder: () => {},
+    onStepsToNewFolder: () => {},
+  }
+
+  return { task, patch, patchSteps, steps, counts, cardHandlers }
+}
+
+/* The row's own view strip: one quiet trigger among the actions, opening the
+   horizontal icon row of the six ways a task can be held. Icons only, labels
+   on hover — Imran's rule for every view switcher. */
+function OpenInControl({ onPick }: { onPick: (mode: TaskOpenMode) => void }) {
+  return (
+    <Popover>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Open in…"
+                  onClick={(event) => event.stopPropagation()}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
+                    T_FAST,
+                    FOCUS,
+                  )}
+                >
+                  <Maximize2 className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              }
+            />
+          }
+        />
+        <TooltipContent side="top">Open in…</TooltipContent>
+      </Tooltip>
+      <PopoverContent align="end" className="w-auto p-1">
+        <ActionStrip
+          ariaLabel="Open this task in"
+          options={TASK_OPEN_OPTIONS}
+          onSelect={(key) => onPick(key as TaskOpenMode)}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function TaskRow(props: TaskRowProps) {
+  const density = useRowDensity()
+  const [open, setOpen] = useState(props.defaultOpen ?? false)
+  const { task, patch, counts, cardHandlers } = useCardWiring(props)
 
   const bare =
     !task.due &&
@@ -1787,7 +1893,12 @@ export function TaskRow(props: TaskRowProps) {
         props.onToggleImportant?.()
       }}
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
-      extra={<ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />}
+      extra={
+        <>
+          {props.onOpen ? <OpenInControl onPick={(mode) => props.onOpen?.(mode)} /> : null}
+          <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
+        </>
+      }
     />
   )
 
@@ -1795,37 +1906,8 @@ export function TaskRow(props: TaskRowProps) {
     <TaskCard
       task={task}
       patch={patch}
-      toggleStep={(_id, index) =>
-        patchSteps(
-          steps.map((step, i) => (i === index ? { ...step, done: !step.done } : step)),
-        )
-      }
-      moveStep={(_id, from, to) => {
-        const next = [...steps]
-        const [moved] = next.splice(from, 1)
-        if (moved) next.splice(to, 0, moved)
-        patchSteps(next)
-      }}
-      moveStepsTo={() => {}}
-      duplicateSteps={(_id, indices) =>
-        patchSteps([
-          ...steps,
-          ...indices
-            .map((index) => steps[index])
-            .filter((step): step is ConceptStep => Boolean(step))
-            .map((step) => ({ ...step, done: false })),
-        ])
-      }
-      removeSteps={(_id, indices) =>
-        patchSteps(steps.filter((_, index) => !indices.includes(index)))
-      }
-      setStepsDone={(_id, indices, done) =>
-        patchSteps(
-          steps.map((step, index) => (indices.includes(index) ? { ...step, done } : step)),
-        )
-      }
-      onNewFolder={() => {}}
-      onStepsToNewFolder={() => {}}
+      {...cardHandlers}
+      onExpand={props.onOpen ? () => props.onOpen?.("full") : undefined}
       onClose={() => setOpen(false)}
     />
   )
@@ -1957,7 +2039,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   onMove?: (ids: string[], folder: { name: string; color: string }) => void
   /* Per-task callbacks, taking the id, so a screen never has to map rows
      itself just to close over one. */
-  onTaskOpen?: (id: string) => void
+  onTaskOpen?: (id: string, mode?: TaskOpenMode) => void
   onTaskToggleComplete?: (id: string, completed: boolean) => void
   onTaskToggleImportant?: (id: string) => void
   onTaskRemoveFromMyDay?: (id: string) => void
@@ -2062,7 +2144,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
           key={task.id}
           {...task}
           {...perRow}
-          onOpen={onTaskOpen ? () => onTaskOpen(task.id) : undefined}
+          onOpen={onTaskOpen ? (mode) => onTaskOpen(task.id, mode) : undefined}
           onToggleComplete={
             onTaskToggleComplete
               ? (completed) => onTaskToggleComplete(task.id, completed)

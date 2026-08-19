@@ -8,6 +8,10 @@ chrome uses, so a folder's mark can never be mistaken for a control. The
 colours are the ten folder swatches the tokens have carried since v1, plus
 graphite; no new colour enters the product here.
 
+**Forty-two is the count and not an accident:** the grid is seven columns, so
+six full rows leave no orphan cell and no dead gutter at the right — the gap
+Imran caught. Adding a glyph means adding seven, or accepting the hole.
+
 Lane 2: the shipping folder has no icon column and no colour column that
 follows the folder rather than the viewer's label. Fixtures only.
 */
@@ -35,6 +39,7 @@ import {
   Gift,
   Globe,
   Guitar,
+  Headphones,
   Heart,
   House,
   Key,
@@ -42,11 +47,11 @@ import {
   Lightbulb,
   MapIcon,
   MapPin,
+  Coins,
   Moon,
   Mountain,
   Music,
   Piano,
-  PiggyBank,
   Rocket,
   ShoppingBag,
   ShoppingCart,
@@ -91,7 +96,7 @@ export const FOLDER_GLYPHS: { key: string; label: string; icon: LucideIcon }[] =
   { key: "shopping-bag", label: "Shopping", icon: ShoppingBag },
   { key: "utensils", label: "Cooking", icon: Utensils },
   { key: "coffee", label: "Coffee", icon: Coffee },
-  { key: "piggy-bank", label: "Savings", icon: PiggyBank },
+  { key: "coins", label: "Savings", icon: Coins },
   { key: "wallet", label: "Money", icon: Wallet },
   { key: "banknote", label: "Finance", icon: Banknote },
   { key: "laptop", label: "Work", icon: Laptop },
@@ -99,6 +104,7 @@ export const FOLDER_GLYPHS: { key: string; label: string; icon: LucideIcon }[] =
   { key: "camera", label: "Photos", icon: Camera },
   { key: "music", label: "Music", icon: Music },
   { key: "guitar", label: "Guitar", icon: Guitar },
+  { key: "headphones", label: "Listening", icon: Headphones },
   { key: "piano", label: "Piano", icon: Piano },
   { key: "drum", label: "Drums", icon: Drum },
   { key: "gamepad", label: "Games", icon: Gamepad },
@@ -150,7 +156,10 @@ export function FolderIconPicker({
     : active
 
   return (
-    <div className="w-[268px] p-2" onClick={(e) => e.stopPropagation()}>
+    /* Width derived from the grid, not guessed: seven 32px cells, six 4px
+       gaps, 8px padding each side — 264px exactly, no orphan space at the
+       right edge (Imran's catch). Forty-two glyphs fill six full rows. */
+    <div className="w-[264px] p-2" onClick={(e) => e.stopPropagation()}>
       {/* The label names what the pointer is over, so choosing is reading one
           word rather than decoding twenty-one small drawings. */}
       <p className="px-1 pb-1.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
@@ -159,7 +168,7 @@ export function FolderIconPicker({
       <div
         role="listbox"
         aria-label="Folder icon"
-        className="grid grid-cols-7 gap-0.5"
+        className="grid grid-cols-7 gap-1"
         onMouseLeave={() => setPreview(null)}
       >
         {FOLDER_GLYPHS.map(({ key, label, icon: Icon }) => {

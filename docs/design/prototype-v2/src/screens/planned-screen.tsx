@@ -14,7 +14,7 @@ import {
 
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { TaskList, TaskRow, type TaskRowProps } from "@/components/task-row"
+import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -41,7 +41,7 @@ interface PlannedScreenProps {
   onAdd: (title: string) => void
   onOpenFullForm: () => void
   onCreateAtDate: (date: string) => void
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onOpenGhost: (taskId: string) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
@@ -198,7 +198,7 @@ function PlannedCalendar({
 }: {
   tasks: PlannedTask[]
   onCreateAtDate: (date: string) => void
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onOpenGhost: (taskId: string) => void
 }) {
   const [zoom, setZoom] = useState<CalendarZoom>("month")
@@ -468,7 +468,7 @@ export function PlannedScreen({
                 key={task.id}
                 {...task}
                 {...wiring}
-                onOpen={() => onOpenTask(task.id)}
+                onOpen={(mode) => onOpenTask(task.id, mode)}
                 onToggleComplete={(completed) =>
                   task.status === "abandoned"
                     ? onRestore(task.id)

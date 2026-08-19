@@ -660,14 +660,25 @@ function CommentRow({
     setEditing(false)
   }
 
+  /* My own messages sit on the right, the way every conversation surface
+     people already use draws them (Imran's direction): the face moves to the
+     right edge, the header and body anchor right, and the hover actions
+     mirror to the message's inner side. Everyone else stays on the left. */
+  const mine = Boolean(comment.mine)
+
   return (
-    <div className="group/comment flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-[var(--color-graphite-50)]">
+    <div
+      className={cn(
+        "group/comment flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-[var(--color-graphite-50)]",
+        mine && "flex-row-reverse",
+      )}
+    >
       <CommentFace person={comment.author} dense={isReply} className="mt-0.5" />
       <div className="min-w-0 flex-1">
         {/* One header line: name, time, and the actions in a reserved
             trailing slot — revealed by hover, never covering the time
             (F2a, review M3; the task row's own rule). */}
-        <span className="flex h-5 items-center gap-2">
+        <span className={cn("flex h-5 items-center gap-2", mine && "flex-row-reverse")}>
           <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)]">
             {comment.author.name}
           </span>
@@ -677,7 +688,8 @@ function CommentRow({
           </span>
           <span
             className={cn(
-              "ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
+              "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
+              mine ? "mr-auto" : "ml-auto",
               T_FAST,
             )}
           >
@@ -762,14 +774,23 @@ function CommentRow({
             className="-mx-1 block w-[calc(100%+0.5rem)] resize-none rounded-md bg-card px-1 py-0.5 text-[14px] leading-5 text-[var(--color-graphite-800)] ring-2 ring-[var(--color-dana-accent-600)] outline-none [field-sizing:content]"
           />
         ) : comment.body ? (
-          <span className="block text-[14px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-800)]">
+          <span
+            className={cn(
+              "block text-[14px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-800)]",
+              mine && "text-right",
+            )}
+          >
             {comment.body}
           </span>
         ) : null}
-        {comment.voice ? <VoiceNote voice={comment.voice} /> : null}
+        {comment.voice ? (
+          <span className={cn(mine && "flex justify-end")}>
+            <VoiceNote voice={comment.voice} />
+          </span>
+        ) : null}
         {comment.files ? <CommentFiles files={comment.files} /> : null}
         {comment.reactions?.length ? (
-          <span className="mt-1 flex flex-wrap gap-1">
+          <span className={cn("mt-1 flex flex-wrap gap-1", mine && "justify-end")}>
             {comment.reactions.map((reaction) => (
               <button
                 key={reaction.emoji}

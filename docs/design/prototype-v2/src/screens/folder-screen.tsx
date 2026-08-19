@@ -21,6 +21,7 @@ import {
   TaskRow,
   type TaskListWiring,
   type TaskRowProps,
+  type TaskOpenMode,
 } from "@/components/task-row"
 import {
   AlertDialog,
@@ -91,7 +92,7 @@ interface FolderScreenProps {
   initialFolderAction?: "rename" | "appearance" | "delete"
   onAdd: (section: "scheduled" | "unscheduled", title: string) => void
   onOpenFullForm: (section: "scheduled" | "unscheduled") => void
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRestore: (taskId: string) => void
@@ -266,8 +267,8 @@ export function FolderScreen({
         {...wiring}
         completionPreview={completingIds.has(task.id)}
         collapsing={completingIds.has(task.id)}
-        onOpen={() => {
-          if (!completingRef.current.has(task.id)) onOpenTask(task.id)
+        onOpen={(mode) => {
+          if (!completingRef.current.has(task.id)) onOpenTask(task.id, mode)
         }}
         onToggleComplete={(completedValue) =>
           task.status === "abandoned"

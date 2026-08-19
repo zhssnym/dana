@@ -8,6 +8,7 @@ import {
   TaskRow,
   type TaskListWiring,
   type TaskRowProps,
+  type TaskOpenMode,
 } from "@/components/task-row"
 import {
   AlertDialog,
@@ -43,7 +44,7 @@ interface AllScreenProps {
   onAddUndated: (folderName: string, title: string) => void
   onOpenPlannedForm: () => void
   onOpenUndatedForm: (folderName: string) => void
-  onOpenTask: (taskId: string) => void
+  onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRestore: (taskId: string) => void
@@ -85,7 +86,7 @@ export function AllScreen({
         key={task.id}
         {...task}
         {...wiring}
-        onOpen={() => onOpenTask(task.id)}
+        onOpen={(mode) => onOpenTask(task.id, mode)}
         onToggleComplete={(completed) =>
           task.status === "abandoned"
             ? onRestore(task.id)
