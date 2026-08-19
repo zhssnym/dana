@@ -46,12 +46,9 @@ import {
   Fullscreen,
   ListChecks,
   ListPlus,
-  Maximize2,
   MoreHorizontal,
-  PanelLeft,
   PanelRight,
   Paperclip,
-  PictureInPicture2,
   Pin,
   SunMedium,
   Repeat2,
@@ -1251,7 +1248,7 @@ export function Actions({
           {onOpenIn ? (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="whitespace-nowrap">
-                <Maximize2 />
+                <Fullscreen />
                 Open in…
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-52">
@@ -1654,16 +1651,18 @@ export type TaskRowVisualState = "default" | "hover" | "focus" | "selected"
 /* Where a task can be held once it leaves the list — the surface's five
    modes plus the tab strip. Owned here because the row is where the choice
    is offered; the surface imports it. */
-export type TaskOpenMode = "dialog" | "full" | "right" | "left" | "float" | "tab"
+export type TaskOpenMode = "dialog" | "right" | "tab"
 
 /* The open-in choices, said in icons, labels on hover — the same strip
    grammar the conversation's homes use. */
+/* Three homes, ruled by Imran 2026-08-18. Full screen, the left sidebar and
+   the floating card are gone: full screen is what a tab already gives with a
+   way back, a second sidebar edge is a mirror nobody asked for, and floating
+   is the dialog with worse ergonomics. Three destinations a person can hold
+   in their head beats six they have to read. */
 export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
   { key: "dialog", label: "Dialog", icon: Fullscreen },
-  { key: "full", label: "Full screen", icon: Maximize2 },
-  { key: "right", label: "Sidebar · right", icon: PanelRight },
-  { key: "left", label: "Sidebar · left", icon: PanelLeft },
-  { key: "float", label: "Floating", icon: PictureInPicture2 },
+  { key: "right", label: "Sidebar", icon: PanelRight },
   { key: "tab", label: "Open as a tab", icon: ArrowUpRight },
 ]
 
@@ -1845,7 +1844,7 @@ function OpenInControl({
                       : "size-7 text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
                   )}
                 >
-                  <Maximize2 className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <Fullscreen className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               }
             />

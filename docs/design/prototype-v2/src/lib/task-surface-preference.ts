@@ -29,10 +29,10 @@ import { useSyncExternalStore } from "react"
 
 /* Kept in step with TaskSurfaceMode by the type-check at its call sites; the
    union is restated here so this module depends on no component. */
-export type TaskSurfacePreference = "dialog" | "full" | "right" | "left" | "float"
+export type TaskSurfacePreference = "dialog" | "right"
 
 const KEY = "dana.taskSurface"
-const MODES: TaskSurfacePreference[] = ["dialog", "full", "right", "left", "float"]
+const MODES: TaskSurfacePreference[] = ["dialog", "right"]
 
 function read(): TaskSurfacePreference {
   try {

@@ -159,7 +159,7 @@ export function FolderIconPicker({
     /* Width derived from the grid, not guessed: seven 32px cells, six 4px
        gaps, 8px padding each side — 264px exactly, no orphan space at the
        right edge (Imran's catch). Forty-two glyphs fill six full rows. */
-    <div className="w-[264px] p-2" onClick={(e) => e.stopPropagation()}>
+    <div className="w-[264px] max-w-full p-2" onClick={(e) => e.stopPropagation()}>
       {/* The label names what the pointer is over, so choosing is reading one
           word rather than decoding twenty-one small drawings. */}
       <p className="px-1 pb-1.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">

@@ -100,6 +100,8 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-143 | A message is told apart by tone, never by hue | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-144 | The row menu: every item real, and Abandon among them | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-145 | A paragraph belongs between a heading and its first row | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-146 | Three homes for a task; a like is the whole reaction set | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-147 | A popover is as wide as what it holds | APPROVED | F2 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2781,6 +2783,51 @@ A section now carries its own opening paragraph, reached by an insertion line
 directly under its heading. That line offers **only** "Paragraph here": a
 section inside a section is not a thing Dana has, and a menu item that cannot
 mean anything is worse than a shorter menu.
+
+
+### DES-146, three homes for a task, and a like is the whole reaction set
+
+Two rulings from Imran, 2026-08-18, both subtractions.
+
+**Three homes, not six.** Dialog, sidebar, and open-as-a-tab. Full screen,
+the left sidebar and the floating card are gone from everywhere — the row's
+menu, the surface's chrome, and the stored preference. Each removal has a
+reason worth keeping: full screen is what a tab already gives *with a way
+back*; a second sidebar edge is a mirror nobody asked for; and floating is
+the dialog with worse ergonomics. Three destinations a person can hold in
+their head beats six they have to read.
+
+Removing the left sidebar also retired a bug and a bad glyph together: the
+two sidebar options shared one icon (the family has no panel-right, and the
+substitute was a hamburger), and switching between them was the case that
+parked the panel off-screen. The survivor takes a truer mark.
+
+**A like is the whole reaction set.** The six-emoji picker is gone. A palette
+asks a person to *choose a feeling* before they can agree, which is more
+thought than the gesture is worth — and it put emoji, a vocabulary Dana owns
+nowhere else, in the middle of the product's own typography. Liking is now
+one press, drawn with the icon family like everything else, and the count
+pill is an icon and a number.
+
+**The actions moved down to the message.** Like, reply, edit and delete used
+to ride the name-and-time line, floating above the thing they act on; they
+now sit level with the message on its outer side — measured at 1px off the
+bubble's centre, 4px clear of its edge.
+
+### DES-147, a popover is as wide as what it holds
+
+Found by Imran in the cover picker, 2026-08-18: the panel's tabs and its
+Remove control were spilling outside the white.
+
+`PopoverContent` carries a base width of `w-80`, and the cover picker's
+content is 440px, so every popover in the product was silently imposing 320px
+on whatever it was given. The two pickers now set `w-auto` and let their
+content decide, with a viewport cap so a wide panel can never leave the
+screen.
+
+The same fault explains the gap Imran caught in the icon picker earlier: the
+grid was measured to 264px while the popover stayed 320px, which is why the
+right edge looked empty however carefully the grid was sized.
 
 ## Carried from v1, still unresolved
 

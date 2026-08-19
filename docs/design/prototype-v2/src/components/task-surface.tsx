@@ -398,30 +398,6 @@ export function TaskSurface({
     )
   }
 
-  if (mode === "full") {
-    return (
-      <div className="fixed inset-x-0 top-[var(--shell-pagebar-height)] bottom-0 z-50 flex flex-col bg-background duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0">
-        {chrome(
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-[var(--content-list)] px-10 py-6">
-              {page}
-            </div>
-          </div>,
-        )}
-      </div>
-    )
-  }
-
-  if (mode === "float") {
-    return (
-      <div className="fixed right-6 bottom-6 z-50 flex max-h-[72vh] w-[480px] flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-bottom-2">
-        {chrome(
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{page}</div>,
-        )}
-      </div>
-    )
-  }
-
   function commitPanelWidth(next: number) {
     setPanelWidth(next)
     try {
@@ -433,19 +409,9 @@ export function TaskSurface({
 
   return (
     <aside
-      /* Keyed by side: React would otherwise reuse this element across a
-         left/right switch, and `animate-in`'s fill-mode then holds the new
-         animation's *start* state — the panel parks off-screen and never
-         arrives. Verified: switching sides left it at x=-440. */
-      key={mode}
       aria-label={task.title}
       style={{ width: panelWidth }}
-      className={cn(
-        "fixed top-[var(--shell-pagebar-height)] bottom-0 z-50 flex flex-col bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in",
-        mode === "right"
-          ? "right-0 border-l border-[var(--color-graphite-200)] slide-in-from-right"
-          : "left-0 border-r border-[var(--color-graphite-200)] slide-in-from-left",
-      )}
+      className="fixed top-[calc(var(--shell-pagebar-height)+var(--shell-windowbar-height))] right-0 bottom-0 z-50 flex flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
     >
       <PanelResizeHandle
         side={mode === "right" ? "right" : "left"}
