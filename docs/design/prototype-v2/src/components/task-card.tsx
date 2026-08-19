@@ -521,10 +521,12 @@ export function IconAction({
 function CardFooter({
   onClose,
   onExpand,
+  openIn,
   chrome = "inline",
 }: {
   onClose: () => void
   onExpand?: () => void
+  openIn?: ReactNode
   chrome?: "inline" | "surface"
 }) {
   /* Undo has nothing to undo until something is done, and saying so with a
@@ -594,12 +596,18 @@ function CardFooter({
             surface host exists, it stays honestly disabled. */}
         {chrome === "inline" ? (
           <>
-            <IconAction
-              icon={Maximize2}
-              label={onExpand ? "Open full screen" : "Open full screen — not available here"}
-              disabled={!onExpand}
-              onClick={onExpand}
-            />
+            {/* The same "Open in…" the row offers, so both entry points
+                behave alike — the footer used to jump straight to full
+                screen, which made one control a choice and the other a
+                verdict (DES-138). */}
+            {openIn ?? (
+              <IconAction
+                icon={Maximize2}
+                label={onExpand ? "Open full screen" : "Open full screen — not available here"}
+                disabled={!onExpand}
+                onClick={onExpand}
+              />
+            )}
             <IconAction icon={X} label="Close" onClick={onClose} />
           </>
         ) : null}
@@ -1519,6 +1527,7 @@ export function TaskCard({
   onNewFolder,
   onStepsToNewFolder,
   onExpand,
+  openIn,
   chrome = "inline",
   onClose,
 }: {
@@ -1539,6 +1548,9 @@ export function TaskCard({
   onNewFolder: (ids: string[]) => void
   onStepsToNewFolder: (taskId: string, indices: number[]) => void
   onExpand?: () => void
+  /* The row's "Open in…" strip, handed down so the footer offers the
+     same choice rather than a single verdict. */
+  openIn?: ReactNode
   /* "inline" under a row; "surface" inside the task page, where the
      surface's own chrome carries the views and the close. */
   chrome?: "inline" | "surface"
@@ -1785,7 +1797,7 @@ export function TaskCard({
         />
       </Disclosure>
 
-      <CardFooter onClose={onClose} onExpand={onExpand} chrome={chrome} />
+      <CardFooter onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
     </div>
   )
 }

@@ -67,6 +67,7 @@ import { useSortableList } from "@/lib/use-sortable-list"
 
 import { CommentsThread, voiceBars } from "@/components/comments"
 import { ViewStrip } from "@/components/view-strip"
+import { taskSurfacePreference } from "@/lib/task-surface-preference"
 import {
   FolderCoverPicker,
   coverRepositions,
@@ -1738,11 +1739,11 @@ export function FolderPageV2({
                   key={task.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setOpenSurface({ id: task.id, mode: "full" })}
+                  onClick={() => setOpenSurface({ id: task.id, mode: taskSurfacePreference() })}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault()
-                      setOpenSurface({ id: task.id, mode: "full" })
+                      setOpenSurface({ id: task.id, mode: taskSurfacePreference() })
                     }
                   }}
                   className={cn(

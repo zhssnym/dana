@@ -92,6 +92,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-135 | The list measure is a reading measure: 800px | PROPOSED | F2a | **Yes** — Imran's eye at F2d; supersedes DES-023 in part |
 | DES-136 | A task in a surface is a page, not a row | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-137 | A view switcher is a strip of icons; labels live in the tooltip | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-138 | Where a task opens is a preference, not a window manager | APPROVED | F2 | Imran, 2026-08-18, scope A |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2540,6 +2541,58 @@ itself across surfaces.
 
 What it buys beyond tidiness: the strip costs about the width one written
 label did, so the six task modes fit where "Full screen ⌄" used to sit.
+
+### DES-138, where a task opens is a preference, not a window manager
+
+Imran's question, 2026-08-18, and the sharpest one of the round: should the
+surface become a **movable** workspace — a dialog dragged anywhere on screen,
+docking itself to either edge, everything customisable? He asked to be told
+if the idea was wrong or if there was a better approach.
+
+**The goal is right and the mechanism is not, for four reasons specific to
+Dana.** Recorded in full because the idea will be proposed again:
+
+1. **It collides with the gesture the product already teaches.** Dragging in
+   Dana means *reorder* — rows, steps, card blocks, sections, board columns
+   all learned it. "Drag moves a window" makes one gesture mean two things
+   depending on what was grabbed, which is the exact fault the F2 rounds
+   have been removing.
+2. **Dana is a PWA.** A draggable window is meaningless on a phone, so every
+   layout decision would need a second answer for touch.
+3. **Unbounded positions create lost states** — off-screen windows, z-order,
+   stacking, persistence, resize handles, and focus semantics for a surface
+   with no fixed home. That is a window-manager project, not a task surface.
+4. **No comparable product ships it.** Linear, Notion, Height and Todoist
+   converge on the set Dana already has — peek panel, dialog, full page —
+   plus keyboard navigation. What they *do* offer as customisation is
+   remembering the choice, which is the part people use.
+
+**What was built instead, ruled scope A by Imran:**
+
+- **The choice is remembered.** Picking a mode from the row's strip, from the
+  card's footer, or from inside an open surface stores it, and the next task
+  opens there. `lib/task-surface-preference.ts`, the same module-store shape
+  as `row-density` and `time-format` — the third preference to take it, which
+  is now a pattern rather than a coincidence.
+- **`tab` is deliberately not remembered.** A tab is an action, not a home:
+  somebody who opens one tab has not asked for every task to become one.
+- **The card's footer offers the same strip the row does.** It jumped
+  straight to full screen before, which made one control a choice and the
+  other a verdict.
+- **The side panel resizes**, 360–720px, dragged from its inner edge or the
+  arrow keys, double-click to reset, and the width is remembered too. The
+  mirrored arithmetic is the only thing that differs by side.
+
+**Deferred, not refused** — and worth revisiting only with evidence that
+snap-docking is not enough: free XY positioning, drag-to-dock at the edges,
+several floating tasks at once, saved layouts. Two tasks side by side is
+already answered by tabs.
+
+**Where this preference goes next:** it joins DES-113 (row density) and
+DES-121 (the clock) in the Lane 2 conversation about syncing preferences to
+the account. Three browser-side preferences is the point at which "does this
+follow me between devices" stops being a per-entry question and becomes one
+decision taken once.
 
 ## Carried from v1, still unresolved
 
