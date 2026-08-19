@@ -216,6 +216,10 @@
   --shell-sidebar-section-font-size: 11px;
   --shell-sidebar-row-font-size: 13px;
   --shell-pagebar-height: 24px;
+  /* The window bar under the tabs (DES-139). A token because surfaces that
+   * sit below it — the conversation panel, the task sidebars — have to know
+   * where the chrome ends. */
+  --shell-windowbar-height: 36px;
   /* The reading measure, adopted provisionally 2026-08-18 (DES-135): Imran
    * expressed no preference when asked, so the studio recommendation stands
    * until his eye rules at F2d — flip back with ?measure=wide. Supersedes

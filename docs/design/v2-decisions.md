@@ -96,6 +96,7 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-139 | The window bar: chrome belongs to the window, not the page | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-140 | One filter, every place-page | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-141 | A cover is native to every page except a task | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-142 | The conversation has two homes; the page's is a closed section | APPROVED | F2 | Imran, 2026-08-18 |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -2673,6 +2674,42 @@ in the band's corner, revealed on hover, never a toolbar.
 
 Lane 2 for the port: no page has a cover column, and the storage question is
 DES-105's. Keyed by page name in the store folders already use.
+
+
+### DES-142, the conversation has two homes, and the page's is a closed section
+
+Imran's ruling, 2026-08-18, narrowing DES-134's four homes to two and
+quieting the one at the foot of the page.
+
+**Two homes, not four.** Floating and full screen are gone. A folder's
+conversation is either *inline at the end of the page* — where it reads as
+the page's own last section — or a *side panel* beside the work. The two that
+left were the two that duplicated something else: a floating conversation is
+the panel with worse ergonomics, and a full-screen one is a page that hides
+the work it is about.
+
+**The page's conversation is a closed section.** It was an open thread with a
+heading; it is now one quiet collapsible line — chevron, mark, "Comments (4)"
+— in exactly the grammar Completed uses directly above it, so the foot of a
+folder reads as two peers rather than a control and an essay. A page ends in
+its work; the talk about the work is one line you choose to open.
+
+**Opening it from the bar opens the section**, rather than merely scrolling to
+a heading, because a control that scrolls you to something still shut has not
+finished the job.
+
+**The panel starts under the window bar**, not under the tabs, which is what
+makes it read as *this window's* conversation rather than a slab over the
+app. The bar's height became a token (`--shell-windowbar-height`) so every
+surface that sits below the chrome can agree on where the chrome ends —
+measured: panel top 60px, bar bottom 60px.
+
+**Its switcher collapses like every other**, per DES-137's refined rule: one
+icon showing where the conversation is now, widening to both on hover or
+focus. That behaviour moved into `ViewStrip` itself as a `collapse` prop, so
+the folder's view switcher and the conversation's are the same component
+rather than two implementations of one idea — which is the whole reason
+DES-137 exists.
 
 ## Carried from v1, still unresolved
 
