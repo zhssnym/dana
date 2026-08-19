@@ -1,19 +1,14 @@
 import { useState, type ReactNode } from "react"
-/* Through the one icon module, never lucide-react directly (DES-125). This
-   file was the last direct import in the shell — found by the shell sweep.
-   Globe2 became Globe: the family has one globe, and the family decides. */
 import {
   Download,
-  Globe as Globe2,
+  Globe2,
   LogOut,
   Settings2,
   Trash2,
   UsersRound,
-} from "@/lib/icons"
+} from "lucide-react"
 
 import { InlineError } from "@/components/state-patterns"
-import { setRowDensity, useRowDensity } from "@/lib/row-density"
-import { setTimeFormat, useTimeFormat } from "@/lib/time-format"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -91,45 +86,6 @@ function SettingRow({
   )
 }
 
-/* The strip's segmented idiom at settings scale: one bordered group, the
-   chosen segment on the graphite wash. */
-function SegmentedSetting<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: T
-  options: [T, string][]
-  onChange: (next: T) => void
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="flex h-8 items-center gap-0.5 rounded-md border border-[var(--color-graphite-200)] p-0.5"
-    >
-      {options.map(([key, name]) => (
-        <button
-          key={key}
-          type="button"
-          role="radio"
-          aria-checked={value === key}
-          onClick={() => onChange(key)}
-          className={
-            value === key
-              ? "flex h-full items-center rounded-[4px] bg-[var(--color-graphite-100)] px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
-              : "flex h-full items-center rounded-[4px] px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)] transition-colors outline-none hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
-          }
-        >
-          {name}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function SettingsSkeleton() {
   return (
     <div className="space-y-8" aria-label="Loading settings" aria-busy="true">
@@ -157,8 +113,6 @@ export function SettingsScreen({
 }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
-  const density = useRowDensity()
-  const clock = useTimeFormat()
 
   return (
     <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
@@ -185,47 +139,6 @@ export function SettingsScreen({
           <InlineError />
         ) : (
           <div className="space-y-8">
-            {/* The two approved browser-side preferences (DES-113, DES-121)
-                finally have their control — both entries said "beside row
-                density in Settings" and the shell sweep found neither built. */}
-            <SettingsSection
-              id="settings-appearance"
-              title="Appearance"
-              description="How Dana draws itself on this device. These follow the browser, not the account."
-            >
-              <div className="space-y-0.5">
-                <SettingRow
-                  title="Row density"
-                  description="Two lines shows a task’s details under its title; one line fits more tasks on screen."
-                  control={
-                    <SegmentedSetting
-                      label="Row density"
-                      value={density}
-                      options={[
-                        ["two", "Two lines"],
-                        ["one", "One line"],
-                      ]}
-                      onChange={setRowDensity}
-                    />
-                  }
-                />
-                <SettingRow
-                  title="Clock"
-                  description="How times are written, everywhere at once. Every hour and minute stays reachable either way."
-                  control={
-                    <SegmentedSetting
-                      label="Clock"
-                      value={clock}
-                      options={[
-                        ["12", "12-hour"],
-                        ["24", "24-hour"],
-                      ]}
-                      onChange={setTimeFormat}
-                    />
-                  }
-                />
-              </div>
-            </SettingsSection>
             <SettingsSection
               id="settings-pages"
               title="Pages"

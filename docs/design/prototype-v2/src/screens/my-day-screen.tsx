@@ -1,7 +1,6 @@
 import { useState } from "react"
-import { CalendarCheck2, ChevronRight, Star, SunMedium } from "@/lib/icons"
+import { CalendarCheck2, ChevronRight, Star, SunMedium } from "lucide-react"
 
-import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, type TaskRowProps } from "@/components/task-row"
 import {
@@ -40,8 +39,6 @@ interface MyDayScreenProps {
   onRemoveFromMyDay: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
-  onAdd?: (title: string) => void
-  onOpenFullForm?: () => void
 }
 
 function TaskGroup({
@@ -103,8 +100,6 @@ export function MyDayScreen({
   onRemoveFromMyDay,
   onAbandon,
   onDelete,
-  onAdd,
-  onOpenFullForm,
 }: MyDayScreenProps) {
   const [importantOnly, setImportantOnly] = useState(previewState === "important")
   const [doneOpen, setDoneOpen] = useState(false)
@@ -200,19 +195,6 @@ export function MyDayScreen({
                 setPendingAction({ type: "delete", taskId })
               }
             />
-
-            {/* The page's own capture point (W5, DES-133): the blank row the
-                floating button always stood in for. Found missing by the
-                shell sweep — My Day was the one list page a task could not
-                be typed into. */}
-            {onAdd && onOpenFullForm ? (
-              <QuickAdd
-                folderName="My Day"
-                label="Add task"
-                onAdd={onAdd}
-                onOpenFullForm={onOpenFullForm}
-              />
-            ) : null}
 
             {visibleDone.length > 0 ? (
               <Collapsible open={doneOpen} onOpenChange={setDoneOpen}>
