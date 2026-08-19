@@ -44,6 +44,12 @@ export interface ConceptComment {
      writes it; a fixture pretending to be one would just be a worse fixture. */
   at: string
   body?: string
+  /* Reactions: the lightest way a team says "seen and agreed" without a
+     message. A small closed set, no picker dependency. */
+  reactions?: { emoji: string; count: number; mine?: boolean }[]
+  /* Whether the body was changed after posting; drawn as a quiet "(edited)"
+     because silent edits are how threads stop being trusted. */
+  edited?: boolean
   /* A voice note: how long it runs and the waveform to draw. A recording made
      in the prototype also carries a real object URL and actually plays;
      a fixture sweeps its progress and stays silent, which is as far as a

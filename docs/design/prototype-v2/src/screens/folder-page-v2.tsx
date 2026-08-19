@@ -31,6 +31,7 @@ import {
 } from "react"
 import {
   AlignLeft,
+  Ban,
   CalendarDays,
   Check as CheckIcon,
   CheckCircle2,
@@ -38,18 +39,29 @@ import {
   ChevronRight,
   FolderInput,
   GripVertical,
+  Heading1,
   Image as ImageIcon,
   LayoutGrid,
   List,
+  ListChecks,
   ListFilter,
+  Maximize2,
   MessageSquare,
   MoreHorizontal,
+  PanelRight,
   Pencil,
+  PictureInPicture2,
+  Pilcrow,
   Plus,
   Share2,
+  Star,
   Trash2,
+  UserRound,
   X,
+  type LucideIcon,
 } from "@/lib/icons"
+import { Switch } from "@/components/ui/switch"
+import { useSortableList } from "@/lib/use-sortable-list"
 
 import { CommentsThread, voiceBars } from "@/components/comments"
 import {
@@ -114,7 +126,7 @@ import {
   savePrototypeFolderIdentity,
   useFolderIdentity,
 } from "@/lib/folder-presentation"
-import { PEOPLE, type ConceptComment } from "@/lib/task-model"
+import { PEOPLE, commentCount, type ConceptComment } from "@/lib/task-model"
 import { cn } from "@/lib/utils"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -463,11 +475,14 @@ function FilterChoice({
 }
 
 /* The little quiet menu that moves a conversation between its four homes. */
-const CONVERSATION_VIEWS: Record<ConversationView, string> = {
-  page: "At the end of the page",
-  dock: "Floating",
-  panel: "Side panel",
-  full: "Full screen",
+const CONVERSATION_VIEWS: Record<
+  ConversationView,
+  { name: string; icon: LucideIcon }
+> = {
+  page: { name: "At the end of the page", icon: AlignLeft },
+  dock: { name: "Floating", icon: PictureInPicture2 },
+  panel: { name: "Side panel", icon: PanelRight },
+  full: { name: "Full screen", icon: Maximize2 },
 }
 
 function ConversationViewMenu({
@@ -490,21 +505,27 @@ function ConversationViewMenu({
               FOCUS,
             )}
           >
-            {view === "page" ? "Inline" : CONVERSATION_VIEWS[view].replace("Side panel", "Panel")}
+            {view === "page" ? "Inline" : view === "panel" ? "Panel" : CONVERSATION_VIEWS[view].name}
             <ChevronDown className="size-3 data-[size=sm]:size-3" strokeWidth={2} aria-hidden="true" />
           </button>
         }
       />
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuRadioGroup
           value={view}
           onValueChange={(value) => onChange(value as ConversationView)}
         >
-          {(Object.keys(CONVERSATION_VIEWS) as ConversationView[]).map((key) => (
-            <DropdownMenuRadioItem key={key} value={key} closeOnClick>
-              {CONVERSATION_VIEWS[key]}
-            </DropdownMenuRadioItem>
-          ))}
+          {(Object.keys(CONVERSATION_VIEWS) as ConversationView[]).map((key) => {
+            const { name, icon: Icon } = CONVERSATION_VIEWS[key]
+            return (
+              <DropdownMenuRadioItem key={key} value={key} closeOnClick>
+                <span className="inline-flex items-center gap-2">
+                  <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  {name}
+                </span>
+              </DropdownMenuRadioItem>
+            )
+          })}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -543,8 +564,12 @@ function InsertLine({
           }
         />
         <DropdownMenuContent align="start" className="w-44">
-          <DropdownMenuItem onClick={onSection}>Section here</DropdownMenuItem>
-          <DropdownMenuItem onClick={onParagraph}>Paragraph here</DropdownMenuItem>
+          <DropdownMenuItem onClick={onSection}>
+            <Heading1 className="size-4" />Section here
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onParagraph}>
+            <Pilcrow className="size-4" />Paragraph here
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <span
@@ -755,8 +780,10 @@ export function FolderPageV2({
     return () => scroller.removeEventListener("scroll", measure)
   }, [])
 
-  /* Rename's second route (K5): the menu arms the inline edit. */
+  /* Rename's second route (K5): the menu arms the inline edit — for the
+     folder title and for any section. */
   const [titleEditing, setTitleEditing] = useState(false)
+  const [renamingSection, setRenamingSection] = useState<string | null>(null)
 
   /* Escape closes whichever conversation or task surface is up; focus
      returns to the strip. */
@@ -1009,6 +1036,25 @@ export function FolderPageV2({
     }
   }
 
+  /* Sections and paragraphs ride the same pointer engine as the task rows,
+     a card's steps and its blocks — the review's S3, closed: one gesture,
+     learned once, meaning the same thing at every level. */
+  const pageDrag = useSortableList({
+    count: items.length,
+    onReorder: (from, to) =>
+      setItems((current) => {
+        const next = [...current]
+        const [moved] = next.splice(from, 1)
+        if (moved) next.splice(to, 0, moved)
+        return next
+      }),
+    describe: (index) => {
+      const item = items[index]
+      if (!item) return "Block"
+      return item.kind === "section" ? item.section.name : "Paragraph"
+    },
+  })
+
   function openConversation() {
     if (conversationView === "page") {
       pageCommentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -1125,16 +1171,23 @@ export function FolderPageV2({
               </button>
             }
           />
-          <PopoverContent align="end" className="w-[264px] p-2">
-            <p className="px-1 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+          <PopoverContent align="end" className="w-[272px] p-2">
+            <p className="flex items-center gap-1.5 px-1 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+              <CalendarDays className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
               Due date
             </p>
             <FilterChoice label="Any" selected={filters.due === "any"} onSelect={() => setFilters((f) => ({ ...f, due: "any" }))} />
             <FilterChoice label="With a due date" selected={filters.due === "with"} onSelect={() => setFilters((f) => ({ ...f, due: "with" }))} />
             <FilterChoice label="Without a due date" selected={filters.due === "without"} onSelect={() => setFilters((f) => ({ ...f, due: "without" }))} />
-            <FilterChoice label="Overdue" selected={filters.due === "overdue"} onSelect={() => setFilters((f) => ({ ...f, due: "overdue" }))} />
+            <FilterChoice
+              label="Overdue"
+              leading={<span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--color-danger-600)]" />}
+              selected={filters.due === "overdue"}
+              onSelect={() => setFilters((f) => ({ ...f, due: "overdue" }))}
+            />
 
-            <p className="px-1 pt-2 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+            <p className="flex items-center gap-1.5 px-1 pt-2 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+              <UserRound className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
               Assignee
             </p>
             <FilterChoice label="Anyone" selected={filters.assignee === "any"} onSelect={() => setFilters((f) => ({ ...f, assignee: "any" }))} />
@@ -1150,16 +1203,40 @@ export function FolderPageV2({
             <FilterChoice label="Unassigned" selected={filters.assignee === "unassigned"} onSelect={() => setFilters((f) => ({ ...f, assignee: "unassigned" }))} />
 
             <div className="mx-1 my-2 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-            <FilterChoice
-              label="Important only"
-              selected={filters.importantOnly}
-              onSelect={() => setFilters((f) => ({ ...f, importantOnly: !f.importantOnly }))}
-            />
-            <FilterChoice
-              label="Show abandoned"
-              selected={filters.showAbandoned}
-              onSelect={() => setFilters((f) => ({ ...f, showAbandoned: !f.showAbandoned }))}
-            />
+            {/* Toggles are switches — the state is on/off, not one-of-many,
+                and the control should say which kind of question it is. */}
+            <label
+              className={cn(
+                "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                T_FAST,
+              )}
+            >
+              <Star className="size-3.5 shrink-0 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
+              <span className="min-w-0 flex-1">Important only</span>
+              <Switch
+                checked={filters.importantOnly}
+                onCheckedChange={(checked) =>
+                  setFilters((f) => ({ ...f, importantOnly: checked === true }))
+                }
+                aria-label="Important only"
+              />
+            </label>
+            <label
+              className={cn(
+                "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                T_FAST,
+              )}
+            >
+              <Ban className="size-3.5 shrink-0 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
+              <span className="min-w-0 flex-1">Show abandoned</span>
+              <Switch
+                checked={filters.showAbandoned}
+                onCheckedChange={(checked) =>
+                  setFilters((f) => ({ ...f, showAbandoned: checked === true }))
+                }
+                aria-label="Show abandoned"
+              />
+            </label>
             {filterCount > 0 ? (
               <>
                 <div className="mx-1 my-2 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
@@ -1167,11 +1244,12 @@ export function FolderPageV2({
                   type="button"
                   onClick={() => setFilters(DEFAULT_FILTERS)}
                   className={cn(
-                    "flex h-8 w-full items-center rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+                    "flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
                     T_FAST,
                     FOCUS,
                   )}
                 >
+                  <X className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
                   Clear filters
                 </button>
               </>
@@ -1335,6 +1413,42 @@ export function FolderPageV2({
       />
 
       {items.map((item, index) => {
+        const dragState = pageDrag.itemState(index)
+        const wrapperStyle = {
+          transform:
+            dragState.offset === 0
+              ? undefined
+              : `translate3d(0, ${dragState.offset}px, 0)`,
+          transition:
+            dragState.isActive && !dragState.isSettling
+              ? "box-shadow var(--duration-fast) var(--ease-standard)"
+              : "transform var(--duration-base) var(--ease-enter), box-shadow var(--duration-fast) var(--ease-standard)",
+          zIndex: dragState.isActive ? 30 : undefined,
+        }
+        const wrapperClass = cn(
+          "group/item relative rounded-md",
+          dragState.isActive &&
+            "cursor-grabbing bg-card shadow-[var(--elevation-1)] ring-1 ring-[var(--color-graphite-200)]",
+        )
+        const grip = (
+          <button
+            type="button"
+            aria-label={
+              item.kind === "section"
+                ? `Reorder section ${item.section.name}`
+                : "Reorder paragraph"
+            }
+            {...pageDrag.handleProps(index)}
+            className={cn(
+              "absolute top-1 -left-7 z-10 flex size-6 cursor-grab items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/item:opacity-100 focus-visible:opacity-100 active:cursor-grabbing hover:bg-[var(--color-graphite-100)]",
+              T_FAST,
+              FOCUS,
+              dragState.isActive && "cursor-grabbing opacity-100",
+            )}
+          >
+            <GripVertical className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
+          </button>
+        )
         const insertAfter = (
           <InsertLine
             key={`ins-${index}`}
@@ -1346,7 +1460,13 @@ export function FolderPageV2({
         if (item.kind === "paragraph") {
           const { paragraph } = item
           return (
-            <div key={paragraph.id}>
+            <div
+              key={paragraph.id}
+              ref={pageDrag.setItemRef(index)}
+              style={wrapperStyle}
+              className={wrapperClass}
+            >
+              {grip}
               <textarea
                 defaultValue={paragraph.text}
                 placeholder="Write something…"
@@ -1386,7 +1506,13 @@ export function FolderPageV2({
         const sectionTasks = tasksOf(section.id)
         const open = !collapsedSections.has(section.id)
         return (
-          <div key={section.id}>
+          <div
+            key={section.id}
+            ref={pageDrag.setItemRef(index)}
+            style={wrapperStyle}
+            className={wrapperClass}
+          >
+            {grip}
             <Collapsible
               open={open}
               onOpenChange={(value) =>
@@ -1414,10 +1540,15 @@ export function FolderPageV2({
                   />
                 </CollapsibleTrigger>
                 <InlineName
+                  key={renamingSection === section.id ? "menu-edit" : "resting"}
                   value={section.name}
                   ariaLabel={`Section name: ${section.name}`}
                   className="text-base leading-6 font-semibold text-foreground"
-                  autoEdit={section.name === "New section"}
+                  autoEdit={
+                    section.name === "New section" ||
+                    renamingSection === section.id
+                  }
+                  onDoneEditing={() => setRenamingSection(null)}
                   onCommit={(name) =>
                     setItems((current) =>
                       current.map((candidate) =>
@@ -1432,19 +1563,38 @@ export function FolderPageV2({
                 <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
                   {sectionTasks.length}
                 </span>
-                <button
-                  type="button"
-                  aria-label={`Delete section ${section.name}`}
-                  title="Delete section — its tasks stay in the folder"
-                  onClick={() => removeSection(section.id)}
-                  className={cn(
-                    "ml-auto flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/section:opacity-100 focus-visible:opacity-100 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  <X className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
-                </button>
+                {/* A menu, not a bare X: X means dismiss, and this deletes.
+                    The destructive item sits last, behind a divider, named
+                    with the consequence — the product's own menu grammar. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <button
+                        type="button"
+                        aria-label={`Section actions: ${section.name}`}
+                        className={cn(
+                          "ml-auto flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/section:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
+                          T_FAST,
+                          FOCUS,
+                        )}
+                      >
+                        <MoreHorizontal className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                      </button>
+                    }
+                  />
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => setRenamingSection(section.id)}>
+                      <Pencil className="size-4" />Rename section
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={() => removeSection(section.id)}
+                    >
+                      <Trash2 className="size-4" />Delete — tasks stay
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <CollapsibleContent>
                 {sectionTasks.length > 0 ? (
@@ -1559,47 +1709,140 @@ export function FolderPageV2({
             </span>
           </div>
           <div className="flex flex-1 flex-col gap-1.5">
-            {column.tasks.map((task) => (
-              <button
-                key={task.id}
-                type="button"
-                onClick={() => setOpenSurface({ id: task.id, mode: "full" })}
-                className={cn(
-                  "rounded-md border border-[var(--color-graphite-200)] bg-card px-3 py-2 text-left transition-shadow hover:shadow-[var(--elevation-1)]",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <span
+            {column.tasks.map((task) => {
+              const done = column.id === "__done" || task.status === "completed"
+              const threadCount = commentCount(task.comments)
+              return (
+                /* A card is the row's kin, not a stranger (review S5): it can
+                   be completed and starred where it stands, and it carries
+                   the row's own marks — steps, comments, due, face. */
+                <div
+                  key={task.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpenSurface({ id: task.id, mode: "full" })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      setOpenSurface({ id: task.id, mode: "full" })
+                    }
+                  }}
                   className={cn(
-                    "block text-[14px] leading-5 text-[var(--color-graphite-800)]",
-                    column.id === "__done" &&
-                      "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
+                    "group/card cursor-pointer rounded-md border border-[var(--color-graphite-200)] bg-card px-2.5 py-2 transition-shadow hover:shadow-[var(--elevation-1)]",
+                    T_FAST,
+                    FOCUS,
                   )}
                 >
-                  {task.title}
-                </span>
-                {(task.due || task.assignee) && column.id !== "__done" ? (
-                  <span className="mt-1 flex items-center gap-2">
-                    {task.due ? (
+                  <span className="flex items-start gap-2">
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={done}
+                      aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        if (done) onToggleComplete(task.id, false)
+                        else if (task.status === "abandoned") onRestore(task.id)
+                        else completeWithTransition(task)
+                      }}
+                      className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded", FOCUS)}
+                    >
                       <span
                         className={cn(
-                          "text-[12px] leading-4",
-                          task.due.overdue
-                            ? "font-medium text-[var(--color-danger-700)]"
-                            : "text-[var(--color-graphite-500)]",
+                          "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
+                          T_FAST,
+                          done
+                            ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
+                            : "border-input bg-background",
                         )}
                       >
-                        {task.due.label}
+                        <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
+                          <path
+                            d="M4 10.5 L8.2 14.5 L16 5.8"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              strokeDasharray: 20,
+                              strokeDashoffset: done ? 0 : 20,
+                              transition:
+                                "stroke-dashoffset var(--duration-base) var(--ease-enter)",
+                            }}
+                          />
+                        </svg>
                       </span>
-                    ) : null}
-                    {task.assignee ? (
-                      <Face person={task.assignee} className="ml-auto" />
-                    ) : null}
+                    </button>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 text-[14px] leading-5 text-[var(--color-graphite-800)]",
+                        done &&
+                          "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
+                        task.status === "abandoned" &&
+                          "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
+                      )}
+                    >
+                      {task.title}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={task.important ? "Remove from Important" : "Mark as Important"}
+                      aria-pressed={task.important || undefined}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onToggleImportant(task.id)
+                      }}
+                      className={cn(
+                        "flex size-5 shrink-0 items-center justify-center rounded transition-opacity",
+                        T_FAST,
+                        FOCUS,
+                        task.important
+                          ? "text-[var(--color-warning-500)] opacity-100"
+                          : "text-[var(--color-graphite-400)] opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-[var(--color-graphite-600)]",
+                      )}
+                    >
+                      <Star
+                        className={cn("size-4 data-[size=sm]:size-4", task.important && "fill-current")}
+                        strokeWidth={1.75}
+                        aria-hidden="true"
+                      />
+                    </button>
                   </span>
-                ) : null}
-              </button>
-            ))}
+                  {(task.due || task.steps || threadCount > 0 || task.assignee) && !done ? (
+                    <span className="mt-1.5 flex items-center gap-2.5 pl-7">
+                      {task.due ? (
+                        <span
+                          className={cn(
+                            "text-[12px] leading-4",
+                            task.due.overdue
+                              ? "font-medium text-[var(--color-danger-700)]"
+                              : "text-[var(--color-graphite-500)]",
+                          )}
+                        >
+                          {task.due.label}
+                        </span>
+                      ) : null}
+                      {task.steps ? (
+                        <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
+                          <ListChecks className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                          {task.steps.complete}/{task.steps.total}
+                        </span>
+                      ) : null}
+                      {threadCount > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
+                          <MessageSquare className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                          {threadCount}
+                        </span>
+                      ) : null}
+                      {task.assignee ? (
+                        <Face person={task.assignee} className="ml-auto" />
+                      ) : null}
+                    </span>
+                  ) : null}
+                </div>
+              )
+            })}
             {column.id !== "__done" ? (
               <div className="mt-auto pt-1">
                 <BoardQuickAdd
@@ -1715,20 +1958,23 @@ export function FolderPageV2({
                 </button>
               </>
             ) : (
-              <>
+              /* One joined group, the reference design's own arrangement:
+                 Change and Reposition share a border and a divider rather
+                 than floating as loose chips. */
+              <span className="flex h-7 items-stretch divide-x divide-[var(--color-graphite-200)] overflow-hidden rounded-md border border-[var(--color-graphite-200)] bg-card/95 shadow-[var(--elevation-1)] backdrop-blur">
                 <Popover>
                   <PopoverTrigger
                     render={
                       <button
                         type="button"
                         className={cn(
-                          "flex h-7 items-center gap-1.5 rounded-md border border-[var(--color-graphite-200)] bg-card/95 px-2 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] shadow-[var(--elevation-1)] backdrop-blur transition-colors hover:bg-card",
+                          "flex items-center gap-1.5 px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
                           T_FAST,
-                          FOCUS,
+                          "outline-none focus-visible:bg-[var(--color-graphite-100)]",
                         )}
                       >
                         <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                        Change cover
+                        Change
                       </button>
                     }
                   />
@@ -1756,15 +2002,15 @@ export function FolderPageV2({
                       setRepositioning(true)
                     }}
                     className={cn(
-                      "flex h-7 items-center rounded-md border border-[var(--color-graphite-200)] bg-card/95 px-2 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] shadow-[var(--elevation-1)] backdrop-blur transition-colors hover:bg-card",
+                      "flex items-center px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
                       T_FAST,
-                      FOCUS,
+                      "outline-none focus-visible:bg-[var(--color-graphite-100)]",
                     )}
                   >
                     Reposition
                   </button>
                 ) : null}
-              </>
+              </span>
             )}
           </div>
         </div>
@@ -1779,81 +2025,81 @@ export function FolderPageV2({
         {strip}
 
         <header className={cn("group/head", cover ? "pt-1" : "pt-2")}>
-          <div className="flex items-end justify-between gap-4">
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="Change folder icon and color"
-                    className={cn(
-                      "flex shrink-0 items-center justify-center transition-shadow",
-                      T_FAST,
-                      FOCUS,
-                      cover
-                        ? "relative z-10 -mt-16 size-14 rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
-                        : "-ml-1.5 size-12 rounded-xl hover:bg-[var(--color-graphite-50)]",
-                    )}
-                  >
-                    <Glyph
-                      className={cover ? "size-8" : "size-10"}
-                      style={{ color }}
-                      strokeWidth={1.5}
-                      aria-hidden="true"
-                    />
-                  </button>
-                }
+          <Popover>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Change folder icon and color"
+                  className={cn(
+                    "flex shrink-0 items-center justify-center transition-shadow",
+                    T_FAST,
+                    FOCUS,
+                    cover
+                      ? "relative z-40 -mt-16 size-14 rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
+                      : "-ml-1.5 size-12 rounded-xl hover:bg-[var(--color-graphite-50)]",
+                  )}
+                >
+                  <Glyph
+                    className={cover ? "size-8" : "size-10"}
+                    style={{ color }}
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                  />
+                </button>
+              }
+            />
+            <PopoverContent align="start" className="p-0">
+              <FolderIconPicker
+                glyph={identity.glyph}
+                color={color}
+                onPick={(next) => savePrototypeFolderIdentity(storageName, next)}
               />
-              <PopoverContent align="start" className="p-0">
-                <FolderIconPicker
-                  glyph={identity.glyph}
-                  color={color}
-                  onPick={(next) => savePrototypeFolderIdentity(storageName, next)}
+            </PopoverContent>
+          </Popover>
+          {!identity.cover ? (
+            /* The reference design's scaffolding row: left-aligned, quiet,
+               above the title, gone the moment its job is done. */
+            <div
+              className={cn(
+                "mt-1 flex items-center gap-1 transition-opacity",
+                T_FAST,
+                pristine
+                  ? "opacity-100"
+                  : "opacity-0 group-hover/head:opacity-100 focus-within:opacity-100",
+              )}
+            >
+              <Popover>
+                <PopoverTrigger
+                  render={
+                    <button
+                      type="button"
+                      className={cn(
+                        "-ml-1.5 flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
+                        T_FAST,
+                        FOCUS,
+                      )}
+                    >
+                      <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                      Add cover
+                    </button>
+                  }
                 />
-              </PopoverContent>
-            </Popover>
-            {!identity.cover ? (
-              <div
-                className={cn(
-                  "flex items-center gap-1 transition-opacity",
-                  T_FAST,
-                  pristine
-                    ? "opacity-100"
-                    : "opacity-0 group-hover/head:opacity-100 focus-within:opacity-100",
-                )}
-              >
-                <Popover>
-                  <PopoverTrigger
-                    render={
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
-                          T_FAST,
-                          FOCUS,
-                        )}
-                      >
-                        <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                        Add cover
-                      </button>
+                <PopoverContent align="start" className="p-0">
+                  <FolderCoverPicker
+                    value={identity.cover}
+                    folderName={storageName}
+                    onPick={(key) =>
+                      savePrototypeFolderIdentity(storageName, { cover: key, coverPos: 50 })
+                    }
+                    onRemove={() =>
+                      savePrototypeFolderIdentity(storageName, { cover: undefined })
                     }
                   />
-                  <PopoverContent align="end" className="p-0">
-                    <FolderCoverPicker
-                      value={identity.cover}
-                      folderName={storageName}
-                      onPick={(key) =>
-                        savePrototypeFolderIdentity(storageName, { cover: key, coverPos: 50 })
-                      }
-                      onRemove={() =>
-                        savePrototypeFolderIdentity(storageName, { cover: undefined })
-                      }
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            ) : null}
-          </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : null}
 
           <div className="mt-2">
             <InlineName
@@ -1966,7 +2212,7 @@ export function FolderPageV2({
       {conversationView === "dock" && conversationOpen ? (
         <div
           className={cn(
-            "fixed right-6 bottom-6 z-40 flex w-[380px] flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-bottom-2",
+            "fixed right-6 bottom-6 z-40 flex w-[380px] flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] transition-[height] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-bottom-2",
             dockCollapsed ? "h-11" : "h-[480px] max-h-[70vh]",
           )}
         >

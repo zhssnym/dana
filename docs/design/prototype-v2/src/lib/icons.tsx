@@ -284,6 +284,16 @@ export const SendHorizontal = icon(Lu.SendHorizontal, Anim.SendHorizontalIcon)
 export const LayoutGrid = icon(Lu.LayoutGrid, Anim.LayoutGridIcon)
 export const List = icon(Lu.List, Anim.ListIcon)
 
+/* ─── Surfaces and structure (the critique round) ──────────────────────── */
+
+export const ArrowUpRight = icon(Lu.ArrowUpRight, Anim.ArrowUpRightIcon)
+export const Heading1 = icon(Lu.Heading1, Anim.Heading1Icon)
+export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
+export const PanelRight = icon(Lu.PanelRight, Anim.MenuIcon) // animated: no panel-right; PanelLeft's substitute, mirrored meaning
+export const PictureInPicture2 = icon(Lu.PictureInPicture2, Anim.ExternalLinkIcon) // animated: no pip; the out-of-flow meaning survives
+export const Pilcrow = icon(Lu.Pilcrow, Anim.PilcrowIcon)
+export const ThumbsUp = icon(Lu.ThumbsUp, Anim.ThumbsUpIcon)
+
 /* ─── The folder identity library (DES-130) ─────────────────────────────
    Icons a person can put on a folder. Every one exists name-for-name in the
    animated family, which is what bounded the choice: the library was picked
