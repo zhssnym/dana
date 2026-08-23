@@ -336,6 +336,18 @@ Runs beside the sessions, Imran with Hassan, independent of the restyle:
 
 ## Where the next session starts
 
+**A parallel session holds the conversation, from 2026-08-23.** A Codex session
+is polishing the messaging surface against `docs/design/messaging-brief.md`,
+which is the authority on that boundary. Five files are **its** files and no F7
+stage may edit them: `components/comments.tsx` and the four primitives only it
+consumes — `ui/message`, `ui/bubble`, `ui/textarea`, `ui/input-group`.
+Everything else stays ours, `right-edge.tsx` and `ui/inline-field.tsx`
+emphatically included, because both are shared and neither is the thread. Two
+F7 stages meet that work later and should expect to: stage 5 reads the message
+shape when search learns to reach messages, and stage 6 converts whatever ramp
+colour is left in the file. Its session log line is marked parallel, so the log
+stops being a strict sequence from this date.
+
 **F7 in progress, 2026-08-23.** Working through `docs/design/f7-brief.md`, which
 reads Imran's fifteen-item brief as a system rather than a list. Done so far:
 
