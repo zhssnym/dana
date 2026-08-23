@@ -1,6 +1,10 @@
 import { useState } from "react"
-import { CalendarDays, Folder, Layers3, ListTodo } from "lucide-react"
 
+import { CalendarDays, Layers3, ListTodo } from "@/lib/icons"
+import { FolderMark } from "@/components/folder-mark"
+import { PageHead, pageBodyClass } from "@/components/page-head"
+import { pageQuestion } from "@/lib/nav-model"
+import { CompletedSection, TaskSection } from "@/components/task-section"
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import {
@@ -39,6 +43,9 @@ interface AllScreenProps {
   planned: AllTask[]
   inbox: AllTask[]
   groups: AllFolderGroup[]
+  /* Finished work, when this page is carrying it (DES-152). Empty under the
+     v1 model, where All is 9.5's open-only page. */
+  completed?: AllTask[]
   previewState?: string | null
   onAddPlanned: (title: string) => void
   onAddUndated: (folderName: string, title: string) => void
@@ -56,6 +63,7 @@ export function AllScreen({
   planned,
   inbox,
   groups,
+  completed = [],
   previewState,
   onAddPlanned,
   onAddUndated,
@@ -75,17 +83,27 @@ export function AllScreen({
   const hasTasks =
     planned.length > 0 ||
     inbox.length > 0 ||
+    completed.length > 0 ||
     groups.some((group) => group.tasks.length > 0)
 
   /* The screen keeps its own row, because its completion is conditional —
      an abandoned task restores rather than completes — and hands the list
      wiring straight through. See TaskList's renderRow. */
-  function renderTask(task: AllTask, wiring?: TaskListWiring) {
+  /* A row under a folder's own heading does not repeat it. Passed per list
+     rather than per row, and the undated block is the only one grouped that
+     way — Planned above it is grouped by date, where the folder is exactly
+     what a row still has to say. */
+  function renderTask(
+    task: AllTask,
+    wiring?: TaskListWiring,
+    given?: TaskRowProps["given"],
+  ) {
     return (
       <TaskRow
         key={task.id}
         {...task}
         {...wiring}
+        given={given}
         onOpen={(mode) => onOpenTask(task.id, mode)}
         onToggleComplete={(completed) =>
           task.status === "abandoned"
@@ -104,24 +122,15 @@ export function AllScreen({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
-      <header className="flex min-h-12 items-start gap-3">
-        <Layers3
-          className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
-            All
-          </h1>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Every open task
-          </p>
-        </div>
-      </header>
+    <div className={pageBodyClass()}>
+      <PageHead
+        storageName="All"
+        icon={Layers3}
+        title="All"
+        description={pageQuestion("All")}
+      />
 
-      <div className="mt-7">
+      <div className="mt-3">
         {previewState === "loading" ? (
           <SkeletonList />
         ) : previewState === "error" ? (
@@ -140,61 +149,37 @@ export function AllScreen({
         ) : (
           <div className="space-y-8">
             {planned.length > 0 ? (
-              <section aria-labelledby="all-planned-heading">
-                <div className="mb-2 flex h-8 items-center gap-2 border-b border-border px-2">
-                  <CalendarDays
-                    className="size-4 text-[var(--color-graphite-500)]"
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                  <h2
-                    id="all-planned-heading"
-                    className="text-base leading-6 font-semibold text-foreground"
-                  >
-                    Planned
-                  </h2>
-                </div>
+              <TaskSection id="all-planned-heading" name="Planned" icon={CalendarDays} count={planned.length}>
                 <TaskList
                     className=""
+                    onTaskOpen={onOpenTask}
                     tasks={planned}
                     renderRow={renderTask}
                   />
                 <QuickAdd
-                  folderName="Inbox"
+                  folderName="Desk"
                   label="Add scheduled task"
                   onAdd={onAddPlanned}
                   onOpenFullForm={onOpenPlannedForm}
                 />
-              </section>
+              </TaskSection>
             ) : null}
 
             {inbox.length > 0 || groups.some((group) => group.tasks.length > 0) ? (
-              <section aria-labelledby="all-tasks-heading">
-                <div className="mb-2 flex h-8 items-center gap-2 border-b border-border px-2">
-                  <ListTodo
-                    className="size-4 text-[var(--color-graphite-500)]"
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                  <h2
-                    id="all-tasks-heading"
-                    className="text-base leading-6 font-semibold text-foreground"
-                  >
-                    Tasks
-                  </h2>
-                </div>
+              <TaskSection id="all-tasks-heading" name="Tasks" icon={ListTodo}>
 
                 <div className="space-y-7">
                   {inbox.length > 0 ? (
                     <div aria-label="Inbox tasks">
                       <TaskList
+                                                    onTaskOpen={onOpenTask}
                                                     tasks={inbox}
                           renderRow={renderTask}
                         />
                       <QuickAdd
-                        folderName="Inbox"
-                        onAdd={(title) => onAddUndated("Inbox", title)}
-                        onOpenFullForm={() => onOpenUndatedForm("Inbox")}
+                        folderName="Desk"
+                        onAdd={(title) => onAddUndated("Desk", title)}
+                        onOpenFullForm={() => onOpenUndatedForm("Desk")}
                       />
                     </div>
                   ) : null}
@@ -204,20 +189,28 @@ export function AllScreen({
                     .map((group) => (
                       <div key={group.name}>
                         <div className="mb-1 flex h-7 items-center gap-2 px-2">
-                          <Folder
+                          <FolderMark
+                            name={group.name}
+                            color={group.color}
                             className="size-4 shrink-0"
-                            style={{ color: group.color }}
-                            strokeWidth={1.75}
-                            aria-hidden="true"
                           />
-                          <h3 className="truncate text-[13px] font-semibold text-[var(--color-graphite-700)]">
+                          {/* A third level, and correctly so: on All a folder
+                              sits inside "Tasks" rather than beside it. It
+                              takes the scale's next step down (14, DES-148)
+                              and no hairline, so it reads as subordinate to
+                              the band above it rather than competing with it.
+                              13px was on no scale at all. */}
+                          <h3 className="truncate text-sm leading-5 font-semibold text-[var(--color-graphite-700)]">
                             {group.name}
                           </h3>
                         </div>
                         <TaskList
-                                                        tasks={group.tasks}
-                            renderRow={renderTask}
-                          />
+                          onTaskOpen={onOpenTask}
+                          tasks={group.tasks}
+                          renderRow={(task, wiring) =>
+                            renderTask(task, wiring, { folder: true })
+                          }
+                        />
                         <QuickAdd
                           folderName={group.name}
                           onAdd={(title) => onAddUndated(group.name, title)}
@@ -226,8 +219,17 @@ export function AllScreen({
                       </div>
                     ))}
                 </div>
-              </section>
+              </TaskSection>
             ) : null}
+
+            {/* Finished work closes the page, collapsed — the grammar a
+                folder's Completed section and My Day's recap already use
+                (Q7, DES-142), so the three read as one idea rather than
+                three inventions. Collapsed because All is a working page
+                first and a history second. */}
+            <CompletedSection count={completed.length}>
+              <TaskList onTaskOpen={onOpenTask} className="mt-0.5" tasks={completed} renderRow={renderTask} />
+            </CompletedSection>
           </div>
         )}
       </div>

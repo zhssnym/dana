@@ -1,6 +1,9 @@
 import { useState } from "react"
-import { Star } from "lucide-react"
 
+import { Star } from "@/lib/icons"
+import { PageHead, pageBodyClass } from "@/components/page-head"
+import { CompletedSection } from "@/components/task-section"
+import { pageQuestion } from "@/lib/nav-model"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import {
@@ -27,6 +30,10 @@ export type ImportantTask = TaskRowProps & {
 
 interface ImportantScreenProps {
   tasks: ImportantTask[]
+  /* Finished work, closing the page collapsed — Imran, 2026-08-22: every
+     page that lists tasks ends in one, so the grammar is the same wherever
+     you are. */
+  completed?: (TaskRowProps & { id: string })[]
   previewState?: string | null
   onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
@@ -38,6 +45,7 @@ interface ImportantScreenProps {
 
 export function ImportantScreen({
   tasks,
+  completed = [],
   previewState,
   onOpenTask,
   onToggleComplete,
@@ -53,24 +61,15 @@ export function ImportantScreen({
   const isEmpty = previewState === "empty" || tasks.length === 0
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
-      <header className="flex min-h-12 items-start gap-3">
-        <Star
-          className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
-            Important
-          </h1>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Starred tasks
-          </p>
-        </div>
-      </header>
+    <div className={pageBodyClass()}>
+      <PageHead
+        storageName="Important"
+        icon={Star}
+        title="Important"
+        description={pageQuestion("Important")}
+      />
 
-      <div className="mt-7">
+      <div className="mt-3">
         {previewState === "loading" ? (
           <SkeletonList />
         ) : previewState === "error" ? (
@@ -89,12 +88,17 @@ export function ImportantScreen({
         ) : (
           <TaskList
             className=""
+            onTaskOpen={onOpenTask}
             tasks={tasks}
             renderRow={(task, wiring) => (
               <TaskRow
                 key={task.id}
                 {...task}
                 {...wiring}
+                /* Every row here is starred, so the star says nothing and
+                   drops its fill — R2, and the general rule is on
+                   TaskRowProps.given. */
+                given={{ important: true }}
                 onOpen={(mode) => onOpenTask(task.id, mode)}
                 onToggleComplete={(completed) =>
                   task.status === "abandoned"
@@ -112,6 +116,15 @@ export function ImportantScreen({
             )}
           />
         )}
+
+        {/* Every page that lists tasks ends the same way (Imran,
+            2026-08-22): finished work, collapsed, in the grammar a folder's
+            Completed section and My Day's recap already use. */}
+        <div className="mt-6">
+          <CompletedSection count={completed.length}>
+            <TaskList onTaskOpen={onOpenTask} className="mt-0.5" tasks={completed} />
+          </CompletedSection>
+        </div>
       </div>
 
       <AlertDialog

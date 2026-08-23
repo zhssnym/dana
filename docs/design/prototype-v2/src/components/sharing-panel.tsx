@@ -79,7 +79,7 @@ export function SharingPanel({
   open,
   onOpenChange,
   isOwner = true,
-  folderName = "Wedding",
+  folderName = "Travel",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "@/lib/icons"
-import { AlertCircle, Clock3, RefreshCw, WifiOff, X } from "@/lib/icons"
+import { TriangleAlert, Clock3, RefreshCw, WifiOff, X } from "@/lib/icons"
 
 import {
   Alert,
@@ -37,7 +37,7 @@ export function OfflineBanner({ className }: { className?: string }) {
 export function InlineError() {
   return (
     <Alert variant="destructive" className="min-h-20 pr-28">
-      <AlertCircle className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      <TriangleAlert className="size-4" strokeWidth={1.75} aria-hidden="true" />
       <AlertTitle className="text-sm">
         Something went wrong. Nothing was saved. Try again.
       </AlertTitle>
@@ -76,7 +76,7 @@ export function SystemToast({
       message: "Couldn't save. You're offline.",
     },
     error: {
-      icon: AlertCircle,
+      icon: TriangleAlert,
       message: "Something went wrong. Nothing was saved. Try again.",
     },
     "rate-limit": {

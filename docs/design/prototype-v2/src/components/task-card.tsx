@@ -21,39 +21,40 @@ written (DES-100, DES-112). Each is excluded from `app/` by its entry in
 the list the port must check itself against.
 */
 
+import { Input } from "@/components/ui/input"
+import { InlineInput, InlineTextarea } from "@/components/ui/inline-field"
+import { Face } from "@/components/person-face"
+import { IconAction } from "@/components/icon-action"
+import { WindowActivity } from "@/components/window-bar"
+import { useHistory } from "@/lib/history"
 import {
+  ArrowUpRight,
   AlignLeft,
   Ban,
   Bell,
   CalendarDays,
   Check as CheckIcon,
   ChevronDown,
-  CircleAlert,
   Copy,
   FileText,
-  Film,
+  Video,
   Folder,
   FolderInput,
   FolderPlus,
   Folders,
   GripVertical,
-  History,
   Image as ImageIcon,
   Link2,
   ListChecks,
   ListPlus,
-  Mail,
   Maximize2,
   MessageSquare,
   MoreHorizontal,
   Paperclip,
   Play,
   Plus,
-  Redo2,
   Repeat2,
-  Share2,
   Trash2,
-  Undo2,
   UserPlus,
   UserRound,
   X,
@@ -61,6 +62,12 @@ import {
 } from "@/lib/icons"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
+import {
+  FolderMark,
+  folderMarkFor,
+  folderNameOf,
+} from "@/components/folder-mark"
+import { folderLibrary } from "@/lib/folder-library"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -80,10 +87,10 @@ import {
 } from "@/components/task-pickers"
 import { CommentsThread } from "@/components/comments"
 import {
-  FOLDERS,
   PEOPLE,
   commentCount,
   dueChipValue,
+  personTint,
   reminderChipValue,
   repeatSummary,
   stepCount,
@@ -475,63 +482,34 @@ happens again.
 /* An icon button with its name in a tooltip. Used by the card's footer and by
    both selection bars, so a Delete looks and reads the same wherever it is
    offered. */
-export function IconAction({
-  icon: Icon,
-  label,
-  onClick,
-  disabled = false,
-  tone = "neutral",
-}: {
-  icon: LucideIcon
-  label: string
-  onClick?: () => void
-  disabled?: boolean
-  tone?: "neutral" | "danger"
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label={label}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClick?.()
-            }}
-            className={cn(
-              "flex size-7 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35",
-              T_FAST,
-              FOCUS,
-              tone === "danger"
-                ? "text-[var(--color-graphite-600)] hover:bg-[var(--color-danger-100)] hover:text-[var(--color-danger-700)]"
-                : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-            )}
-          >
-            <Icon className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        }
-      />
-      <TooltipContent side="top">{label}</TooltipContent>
-    </Tooltip>
-  )
+
+/*
+A task's own past, in the line the footer already had.
+
+Split into its own component because `useHistory` is a hook and the footer
+renders with or without a task id — a card in the row lab has none. One
+component that may draw nothing beats a conditional hook.
+*/
+function TaskActivity({ taskId }: { taskId?: string }) {
+  const events = useHistory("task", taskId ?? "")
+  if (!taskId) return null
+  return <WindowActivity events={events} />
 }
 
 function CardFooter({
+  taskId,
   onClose,
   onExpand,
   openIn,
   chrome = "inline",
 }: {
+  taskId?: string
   onClose: () => void
   onExpand?: () => void
   openIn?: ReactNode
   chrome?: "inline" | "surface"
 }) {
-  /* Undo has nothing to undo until something is done, and saying so with a
-     disabled control is more honest than offering one that does nothing. */
-  const [undoDepth, setUndoDepth] = useState(0)
+  const [copied, setCopied] = useState(false)
 
   return (
     /*
@@ -561,34 +539,52 @@ function CardFooter({
     same thing twice, which is the mistake the block icons had.
     */
     <div className="-mx-3 -mb-3 -ml-7 flex items-center justify-between gap-2 rounded-b-[7px] bg-[var(--color-graphite-50)] px-3 py-2">
-      <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
-        Edited just now by Imran Wafa · saved
-      </span>
+      {/*
+      The edited line is the History control, rather than a caption beside one
+      — F5, 2026-08-22.
+
+      It used to be dead text saying "Edited just now by Imran Wafa · saved"
+      with a History button two centimetres to its right that did nothing, so
+      the same fact was stated twice and neither statement could be opened.
+      The window bar already settled the pattern for exactly this
+      (`WindowActivity`, DES-139): the line's resting job is to *tell* you
+      something and its second job is to open. Same component here, so a
+      task's history and a page's are one control rather than two that will
+      drift.
+      */}
+      <TaskActivity taskId={taskId} />
       <span className="flex shrink-0 items-center gap-0.5">
+        {/*
+        Four controls left this row at F5, and each for a stated reason rather
+        than for tidiness.
+
+        **Undo and Redo** were the safety net that replaced Save and Cancel,
+        and they were the right instinct wired to the wrong metaphor: a card
+        footer promises text-editor semantics a to-do app does not have, and
+        both buttons were in fact permanently disabled. The net is real now and
+        app-wide — `lib/undo.ts`, one bar and Ctrl/Cmd+Z — which also covers
+        deleting and abandoning a task, which a card-local undo never could.
+
+        **Share** and **Email** were fictions about the model, and this file's
+        own note said so before they were removed: Dana shares *folders*, so
+        "share this task" either invites somebody to the whole folder — which
+        is not what the button appears to promise — or it is a new sharing
+        model nobody has specified. Sharing lives on the folder page, where it
+        is true.
+
+        Copy link stays and now actually copies.
+        */}
         <IconAction
-          icon={Undo2}
-          label="Undo"
-          disabled={undoDepth <= 0}
-          onClick={() => setUndoDepth((d) => d - 1)}
+          icon={Link2}
+          label={copied ? "Link copied" : "Copy link"}
+          onClick={() => {
+            void navigator.clipboard?.writeText(
+              `${window.location.origin}/?task=${taskId ?? ""}`,
+            )
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1600)
+          }}
         />
-        <IconAction
-          icon={Redo2}
-          label="Redo"
-          disabled={undoDepth >= 0}
-          onClick={() => setUndoDepth((d) => d + 1)}
-        />
-        <span
-          aria-hidden="true"
-          className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
-        />
-        <IconAction icon={Link2} label="Copy link" />
-        <IconAction icon={Share2} label="Share" />
-        <IconAction icon={Mail} label="Email" />
-        <span
-          aria-hidden="true"
-          className="mx-1 h-4 w-px bg-[var(--color-graphite-200)]"
-        />
-        <IconAction icon={History} label="History" />
         {/* Real since the task surface exists (DES-136): full screen from
             the card, one press. Inside a surface the chrome above already
             owns the views and the close, so the footer offers neither —
@@ -603,7 +599,7 @@ function CardFooter({
             {openIn ?? (
               <IconAction
                 icon={Maximize2}
-                label={onExpand ? "Open full screen" : "Open full screen — not available here"}
+                label="Open full screen"
                 disabled={!onExpand}
                 onClick={onExpand}
               />
@@ -682,26 +678,41 @@ export function EmptyAction({
   label,
   onSelect,
   hint,
+  icon: Icon = Plus,
+  fill = true,
+  expanded,
 }: {
   label: string
   onSelect?: () => void
   hint?: string
+  /* Almost always the plus, per the rule above — the placeholder's glyph says
+     what you are about to *do*. The exception is a block with more than one
+     way in, where the second way needs naming: see the attachments pair. */
+  icon?: LucideIcon
+  /* Whether this action is the whole row. It is, when it is the only way to
+     fill the block; it is not, when it sits beside a peer. */
+  fill?: boolean
+  expanded?: boolean
 }) {
   return (
     <button
       type="button"
       title={hint}
+      aria-expanded={expanded}
       onClick={(e) => {
         e.stopPropagation()
         onSelect?.()
       }}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+        "flex h-8 items-center gap-2 rounded-md px-1 text-left text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+        /* Same px-1 either way, so the first thing in the block starts on the
+           same left edge as "Write a note" and "Add a step" do. */
+        fill ? "w-full" : "shrink-0",
         T_FAST,
         FOCUS,
       )}
     >
-      <Plus className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+      <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
       {label}
       {hint ? (
         <span className="ml-auto text-[11px] text-[var(--color-graphite-400)]">
@@ -774,7 +785,7 @@ function StepTitle({
 
   if (editing) {
     return (
-      <input
+      <InlineInput
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
         value={draft}
@@ -1183,7 +1194,7 @@ function StepList({
               }
             />
             {/* Each choice says what it does in plain words on a second line,
-                because "New task" and "Wedding" look like the same kind of
+                because "New task" and "Travel" look like the same kind of
                 answer and are not: one keeps these as steps, the other turns
                 each into a task of its own. That difference is the whole
                 design, so it is written down rather than left to be inferred
@@ -1210,7 +1221,7 @@ function StepList({
                 </DropdownMenuItem>
               <DropdownMenuSeparator />
                               <MenuHeading>Or into a folder</MenuHeading>
-                {FOLDERS.map((f) => (
+                {folderLibrary().map((f) => (
                   <DropdownMenuItem
                     key={f.name}
                     onClick={() => {
@@ -1219,7 +1230,7 @@ function StepList({
                     }}
                   >
                     <DestinationChoice
-                      icon={Folder}
+                      icon={folderMarkFor(f.name)}
                       color={f.color}
                       name={f.name}
                       detail={
@@ -1290,9 +1301,12 @@ const ATTACHMENT_ICON: Record<
   LucideIcon
 > = {
   image: ImageIcon,
-  video: Film,
+  video: Video,
   document: FileText,
   file: Paperclip,
+  /* The same glyph the "From a link" action wears, because it is the same
+     idea at rest that the action was about. */
+  link: Link2,
 }
 
 
@@ -1366,21 +1380,36 @@ function AttachmentPicker({ onAdd }: { onAdd: (files: Attachment[]) => void }) {
           event.target.value = ""
         }}
       />
+      {/*
+      Two ways in, dressed as two — F5, 2026-08-22, on Imran's reading that
+      "From a link" looked disconnected from "Add a file".
+
+      It was, and by five things at once: 24px tall against 32, graphite-500
+      against 400, no glyph against a plus, a graphite-100 hover against a 50,
+      and an auto width beside a `w-full` that pushed it to the far edge like
+      an afterthought. Two peers doing the same job — putting something on this
+      task — written in two hands.
+
+      So they are one control repeated. `EmptyAction` grew the two props that
+      difference actually needs (a glyph other than the plus, and the choice
+      not to be the whole row) rather than the row growing a second button
+      styled to match by hand, which is how the five differences got there.
+      The link keeps the paperclip's cousin, because here the second glyph is
+      naming *which way in*, not repeating the block's own icon.
+      */}
       <div className="flex items-center gap-1">
-        <EmptyAction label="Add a file" onSelect={() => input.current?.click()} />
-        <button
-          type="button"
-          onClick={() => setShowUrl((open) => !open)}
-          aria-expanded={showUrl}
-          className={cn(
-            "shrink-0 rounded-md px-2 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors",
-            T_FAST,
-            FOCUS,
-            "hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
-          )}
-        >
-          From a link
-        </button>
+        <EmptyAction
+          label="Add a file"
+          fill={false}
+          onSelect={() => input.current?.click()}
+        />
+        <EmptyAction
+          label="From a link"
+          icon={Link2}
+          fill={false}
+          expanded={showUrl}
+          onSelect={() => setShowUrl((open) => !open)}
+        />
       </div>
 
       {showUrl ? (
@@ -1390,21 +1419,40 @@ function AttachmentPicker({ onAdd }: { onAdd: (files: Attachment[]) => void }) {
             event.preventDefault()
             const trimmed = url.trim()
             if (!trimmed) return
-            const name = trimmed.split("/").pop() || trimmed
+            /* A URL with no scheme is still a link a person meant — they
+               pasted `example.com/thing` because that is what they copied —
+               and an anchor with no scheme resolves against this app, which
+               would take them nowhere. */
+            const href = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+              ? trimmed
+              : `https://${trimmed}`
+            let host = trimmed
+            let path = ""
+            try {
+              const parsed = new URL(href)
+              host = parsed.hostname.replace(/^www\./, "")
+              path = parsed.pathname.split("/").filter(Boolean).pop() ?? ""
+            } catch {
+              /* Not parseable: show what they typed rather than guessing. */
+            }
             const image = /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(trimmed)
             onAdd([
               {
-                name,
-                meta: "Link",
-                kind: image ? "image" : "file",
-                preview: image ? trimmed : undefined,
+                /* The last path segment reads like a title where there is
+                   one; otherwise the host is the most useful name there is.
+                   "https://" as a name tells you nothing. */
+                name: decodeURIComponent(path) || host,
+                meta: host,
+                kind: "link",
+                url: href,
+                preview: image ? href : undefined,
               },
             ])
             setUrl("")
             setShowUrl(false)
           }}
         >
-          <input
+          <Input
             value={url}
             autoFocus
             onChange={(event) => setUrl(event.target.value)}
@@ -1440,15 +1488,44 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
         const Icon = ATTACHMENT_ICON[file.kind]
         const viewable = file.kind === "image" || file.kind === "video"
         const isOpen = openName === file.name
+        /*
+        A link is an anchor, not a button — Imran, 2026-08-22: pasted links
+        "don't show as openable links, instead they appear as downloadable
+        assets".
+
+        They did, and the row said so in a word: every attachment that was not
+        a previewable image ended in the label "Download", so a link you had
+        just pasted offered to download itself and then did nothing when
+        pressed, because the press only ever opened an image viewer.
+
+        Being a real `<a>` rather than a button styled like one is what makes
+        middle-click, ⌘-click, "copy link address" and the browser's own
+        status bar work — none of which a button can fake, and all of which
+        people expect from something that says it is a link.
+        */
+        const Row = file.url ? "a" : "button"
+        const rowProps = file.url
+          ? ({
+              href: file.url,
+              target: "_blank",
+              /* `noreferrer` implies `noopener`; both are here because the
+                 page being opened is one a person pasted and nothing about
+                 it is ours to trust. */
+              rel: "noreferrer noopener",
+              onClick: (event: React.MouseEvent) => event.stopPropagation(),
+            } as const)
+          : ({
+              type: "button" as const,
+              onClick: (event: React.MouseEvent) => {
+                event.stopPropagation()
+                if (viewable) setOpenName(isOpen ? null : file.name)
+              },
+            } as const)
 
         return (
           <div key={file.name}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                if (viewable) setOpenName(isOpen ? null : file.name)
-              }}
+            <Row
+              {...rowProps}
               className={cn(
                 "flex h-11 w-full items-center gap-2.5 rounded-md px-1 text-left transition-colors hover:bg-[var(--color-graphite-50)]",
                 T_FAST,
@@ -1488,10 +1565,26 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
                   {file.meta}
                 </span>
               </span>
-              <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)]">
-                {viewable ? (isOpen ? "Hide" : "View") : "Download"}
+              {/* What pressing it will do, said in the word for that thing.
+                  A link opens, and carries the mark every other "this leaves
+                  here" control in Dana carries. */}
+              <span className="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-400)]">
+                {file.url ? (
+                  <>
+                    Open
+                    <ArrowUpRight
+                      className="size-3 data-[size=sm]:size-3"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                  </>
+                ) : viewable ? (
+                  isOpen ? "Hide" : "View"
+                ) : (
+                  "Download"
+                )}
               </span>
-            </button>
+            </Row>
             {/* Only a file that can actually be shown gets a viewer. The
                 guard is on `preview` rather than on `kind` because a viewable
                 kind with no generated preview is a real state — the thumbnail
@@ -1643,7 +1736,7 @@ export function TaskCard({
                 asks an empty block to be the control that fills it. It grows
                 with its content via `field-sizing-content`, so a long note is
                 never a scrollbar inside a card. */}
-            <textarea
+            <InlineTextarea
               value={task.notes ?? ""}
               aria-label="Notes"
               placeholder="Write a note"
@@ -1652,7 +1745,7 @@ export function TaskCard({
               onPointerDown={(event) => event.stopPropagation()}
               onChange={(event) => patch(task.id, { notes: event.target.value })}
               className={cn(
-                "-mx-1 w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[14px] leading-6 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
+                "-mx-1 w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[12px] leading-5 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
                 T_FAST,
                 "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
               )}
@@ -1697,19 +1790,19 @@ export function TaskCard({
           something to be white against. */}
       <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-[var(--color-graphite-50)] px-1.5 py-1.5">
         <PropChip
-          icon={Folder}
-          value={task.folder?.name ?? "Inbox"}
+          icon={folderMarkFor(task.folder?.name)}
+          value={folderNameOf(task.folder?.name)}
           color={task.folder?.color}
           muted={!task.folder}
-          items={FOLDERS.map((f) => ({
+          /* The real library (Imran, 2026-08-22), not the lab constant. */
+          items={folderLibrary().map((f) => ({
             key: f.name,
             label: (
               <span className="inline-flex items-center gap-2">
-                <Folder
+                <FolderMark
+                  name={f.name}
+                  color={f.color}
                   className="size-4 data-[size=sm]:size-4"
-                  style={{ color: f.color }}
-                  strokeWidth={1.75}
-                  aria-hidden="true"
                 />
                 {f.name}
               </span>
@@ -1746,7 +1839,8 @@ export function TaskCard({
             the handful of answers that cover most tasks and keeps its exact
             controls below a hairline; see the block above DuePanel. */}
         <PickerChip
-          icon={task.due?.overdue ? CircleAlert : CalendarDays}
+          /* The due field keeps one glyph in every state; `color` says late. */
+          icon={CalendarDays}
           tooltip="Due date and time"
           value={dueChipValue(task)}
           muted={!task.due}
@@ -1797,7 +1891,7 @@ export function TaskCard({
         />
       </Disclosure>
 
-      <CardFooter onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
+      <CardFooter taskId={task.id} onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
     </div>
   )
 }
@@ -1814,25 +1908,6 @@ export function TaskCard({
    the same height animation when the card opens. They live here because the
    card is the bigger consumer; if a third surface needs them they should move
    somewhere neutral rather than be copied. */
-export function Face({
-  person,
-  className,
-}: {
-  person: { initials: string; name: string; image?: string }
-  className?: string
-}) {
-  return (
-    <Avatar
-      size="sm"
-      className={cn("size-4 data-[size=sm]:size-4", className)}
-    >
-      {person.image ? <AvatarImage src={person.image} alt="" /> : null}
-      <AvatarFallback className="text-[0.5rem] font-semibold">
-        {person.initials}
-      </AvatarFallback>
-    </Avatar>
-  )
-}
 /* The height animation.
 
    It used to be the 0fr-to-1fr grid trick, chosen because max-height needs a

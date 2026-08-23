@@ -25,6 +25,8 @@ instead, as DES-098, because that one needs a backend and so needs the
 register rather than a drawing.
 */
 
+import { Face } from "@/components/person-face"
+import { IconAction } from "@/components/icon-action"
 import {
   AlignLeft,
   Ban,
@@ -43,7 +45,7 @@ import {
   ListChecks,
   ListPlus,
   FileText,
-  Film,
+  Video,
   GripVertical,
   History,
   Link2,
@@ -133,8 +135,6 @@ import {
 } from "@/components/task-pickers"
 import {
   DestinationChoice,
-  Face,
-  IconAction,
   MenuHeading,
   Reveal,
   TaskCard,
@@ -208,7 +208,7 @@ export const SAMPLE: ConceptTask[] = [
   {
     id: "t2",
     title: "Confirm final guest count and send it to the caterer before Thursday",
-    folder: { name: "Wedding", color: VIOLET },
+    folder: { name: "Travel", color: VIOLET },
     due: { label: "Due 14 Aug" },
     assignee: { initials: "IW", name: "Imran Wafa", image: FACE_IMRAN },
     steps: [
@@ -238,14 +238,14 @@ export const SAMPLE: ConceptTask[] = [
   {
     id: "t3",
     title: "Send the venue deposit",
-    folder: { name: "Wedding", color: VIOLET },
+    folder: { name: "Travel", color: VIOLET },
     due: { label: "Overdue · 6 Aug", overdue: true },
     important: true,
   },
   {
     id: "t4",
     title: "Review the community grant application",
-    folder: { name: "Community planning committee", color: FERN },
+    folder: { name: "Office", color: FERN },
     due: { label: "Overdue · 8 Aug", overdue: true },
     steps: [
       { title: "Read the second draft", done: true },
@@ -283,7 +283,7 @@ export const SAMPLE: ConceptTask[] = [
   {
     id: "t6",
     title: "Keep the backup chair reservation",
-    folder: { name: "Wedding", color: VIOLET },
+    folder: { name: "Travel", color: VIOLET },
     due: { label: "12 Aug" },
     abandoned: true,
   },

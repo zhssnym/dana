@@ -32,9 +32,12 @@ import {
 import {
   AudioLines,
   FileText,
-  Film,
+  Video,
   Mic,
+  Link2,
   Paperclip,
+  Plus,
+  UserRound,
   Pause,
   Pencil,
   Play,
@@ -46,13 +49,36 @@ import {
   Image as ImageIcon,
   type LucideIcon,
 } from "@/lib/icons"
+import { Face } from "@/components/person-face"
+import { IconAction } from "@/components/icon-action"
+import { Textarea } from "@/components/ui/textarea"
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PEOPLE, type ConceptComment } from "@/lib/task-model"
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupTextarea,
+} from "@/components/ui/input-group"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import {
+  Bubble,
+  BubbleContent,
+  BubbleReactions,
+} from "@/components/ui/bubble"
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageHeader,
+} from "@/components/ui/message"
+import { PEOPLE, personTint, type ConceptComment } from "@/lib/task-model"
 import { cn } from "@/lib/utils"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -61,78 +87,24 @@ const FOCUS =
 
 const ME = PEOPLE[0]!
 
+/*
+The thread reads at the prose tier — F5, 2026-08-22, and it moved as one
+change because it could not honestly move as three.
+
+Imran called the composer's placeholder oversized and inconsistent with the
+hierarchy. It was: 14px, while DES-148 puts "all prose and row information" at
+12 and the whole thread around it obeyed that everywhere except in the two
+places that carry the words. Fixing only the placeholder would have made the
+composer smaller than the messages it writes, which is worse than the fault —
+you type into the thing you are going to read, and those two must agree.
+
+So the message body, the composer and the card's Notes field all sit at 12/20
+now. That is the condition the plan recorded against this question: if the
+composer drops, Notes drops with it.
+*/
+
 type Person = { initials: string; name: string; image?: string }
 
-/* Two sizes, both already in the system (F2a, review M2): the product's
-   `sm` avatar for a comment's author, and the card's 16px dense face for a
-   reply. Nothing in this thread introduces a size of its own. */
-function CommentFace({
-  person,
-  dense = false,
-  className,
-}: {
-  person: Person
-  dense?: boolean
-  className?: string
-}) {
-  return (
-    <Avatar
-      size="sm"
-      className={cn(
-        dense ? "size-4 data-[size=sm]:size-4" : "size-6 data-[size=sm]:size-6",
-        className,
-      )}
-    >
-      {person.image ? <AvatarImage src={person.image} alt="" /> : null}
-      <AvatarFallback className="text-[0.5rem] font-semibold">
-        {person.initials}
-      </AvatarFallback>
-    </Avatar>
-  )
-}
-
-/* The card's IconAction, re-stated rather than imported: this module is
-   imported *by* task-card, and a shared primitive is not worth a cycle. If a
-   third file ever needs it, it moves somewhere neutral. */
-function ThreadAction({
-  icon: Icon,
-  label,
-  onClick,
-  tone = "neutral",
-}: {
-  icon: LucideIcon
-  label: string
-  onClick?: () => void
-  tone?: "neutral" | "danger"
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            aria-label={label}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClick?.()
-            }}
-            className={cn(
-              "flex size-6 items-center justify-center rounded-md transition-[background-color,color]",
-              T_FAST,
-              FOCUS,
-              tone === "danger"
-                ? "text-[var(--color-graphite-500)] hover:bg-[var(--color-danger-100)] hover:text-[var(--color-danger-700)]"
-                : "text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-            )}
-          >
-            <Icon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        }
-      />
-      <TooltipContent side="top">{label}</TooltipContent>
-    </Tooltip>
-  )
-}
 
 /* ------------------------------------------------------------- the voice -- */
 
@@ -218,25 +190,22 @@ function VoiceNote({ voice }: { voice: NonNullable<ConceptComment["voice"]> }) {
       className="mt-1 inline-flex h-9 items-center gap-2 rounded-full border border-[var(--color-graphite-200)] bg-card py-1 pr-3 pl-1"
       data-comment-voice
     >
-      <button
-        type="button"
+      <Button
+        variant="commit"
+        size="icon"
         aria-label={playing ? "Pause voice message" : "Play voice message"}
-        onClick={(e) => {
-          e.stopPropagation()
+        className="shrink-0 rounded-full"
+        onClick={(event) => {
+          event.stopPropagation()
           toggle()
         }}
-        className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-graphite-900)] text-white transition-colors hover:bg-[var(--color-graphite-800)]",
-          T_FAST,
-          FOCUS,
-        )}
       >
         {playing ? (
           <Pause className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
         ) : (
           <Play className="ml-0.5 size-3.5 fill-current data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
         )}
-      </button>
+      </Button>
       <span className="flex h-5 items-center gap-[2px]" aria-hidden="true">
         {voice.bars.map((height, i) => (
           <span
@@ -263,9 +232,13 @@ function VoiceNote({ voice }: { voice: NonNullable<ConceptComment["voice"]> }) {
 
 const FILE_ICON: Record<string, LucideIcon> = {
   image: ImageIcon,
-  video: Film,
+  video: Video,
   document: FileText,
   file: Paperclip,
+  /* A link on a message wears the link glyph, like a link on a task
+     (DES-161) — it was showing a paperclip, which is the mark for the other
+     kind of thing you can attach. */
+  link: Link2,
 }
 
 /* A file on a comment renders as the Attachments block already renders a
@@ -354,6 +327,13 @@ function Composer({
   const [elapsed, setElapsed] = useState(0)
   const [micError, setMicError] = useState("")
   const fileInput = useRef<HTMLInputElement>(null)
+  const fieldRef = useRef<HTMLTextAreaElement>(null)
+  /* The link row, open only while somebody is pasting one. */
+  const [showLink, setShowLink] = useState(false)
+  const [link, setLink] = useState("")
+  /* Which control the trailing slot shows. Not "is the field empty" — a
+     message that is only an attachment is still a message worth sending. */
+  const hasSomethingToSend = Boolean(text.trim()) || files.length > 0
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const discard = useRef(false)
@@ -476,23 +456,19 @@ function Composer({
             />
           ))}
         </span>
-        <ThreadAction icon={X} label="Discard recording" onClick={() => endRecording(false)} />
-        <button
-          type="button"
+        <IconAction dense icon={X} label="Discard recording" onClick={() => endRecording(false)} />
+        <Button
+          variant="commit"
           aria-label="Stop and post voice message"
-          onClick={(e) => {
-            e.stopPropagation()
+          className="shrink-0 px-3"
+          onClick={(event) => {
+            event.stopPropagation()
             endRecording(true)
           }}
-          className={cn(
-            "flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
-            T_FAST,
-            FOCUS,
-          )}
         >
           <SendHorizontal className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
           Post
-        </button>
+        </Button>
       </div>
     )
   }
@@ -500,18 +476,27 @@ function Composer({
   return (
     <div>
       <div className="flex items-start gap-2">
-        <CommentFace person={ME} className="mt-1.5" />
-        {/* Dana's field, not a messenger's: radius-md from the tokens, the
-            input border, the accent focus ring (F2a, review M1/Y1 — the 18px
-            radius this replaces exists nowhere in the scale). */}
-        <div
-          className={cn(
-            "flex min-h-9 flex-1 items-end gap-1 rounded-md border border-[var(--color-graphite-300)] bg-card py-1 pr-1 pl-3 transition-colors",
-            T_FAST,
-            "focus-within:border-[var(--color-dana-accent-600)] focus-within:ring-2 focus-within:ring-[var(--color-dana-accent-100)]",
-          )}
-        >
-          <textarea
+        <Face person={ME} className="mt-1.5" />
+        {/*
+        The composer is an `InputGroup` — Imran, 2026-08-22: the chat "is
+        still not following the shadcn UI code or structure", with the
+        reference showing exactly this assembly.
+
+        It was a bordered `<div>` holding a textarea and three buttons, with
+        the border, the focus ring and the packing written out by hand. The
+        primitive owns all three now, and the arrangement follows the
+        reference's: **the text on its own line, the controls on a row
+        underneath** (`align="block-end"`), rather than buttons sharing the
+        line and being shoved sideways as the field grows.
+
+        The two ways of attaching something collapse into one `+` with a menu,
+        which is the reference's shape and also the honest one — "add a file"
+        and "record a voice note" are two answers to one question, and two
+        permanent buttons made them look like two features.
+        */}
+        <InputGroup className="flex-1">
+          <InputGroupTextarea
+            ref={fieldRef}
             value={text}
             rows={1}
             // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -529,7 +514,7 @@ function Composer({
                 onCancel()
               }
             }}
-            className="min-w-0 flex-1 resize-none self-center bg-transparent py-1 text-[14px] leading-5 text-[var(--color-graphite-800)] outline-none [field-sizing:content] placeholder:text-[var(--color-graphite-400)]"
+            className="leading-5"
           />
           <input
             ref={fileInput}
@@ -541,30 +526,123 @@ function Composer({
               event.target.value = ""
             }}
           />
-          <ThreadAction
-            icon={Paperclip}
-            label="Attach a file"
-            onClick={() => fileInput.current?.click()}
-          />
-          <ThreadAction icon={Mic} label="Record a voice message" onClick={() => void startRecording()} />
-          {text.trim() || files.length > 0 ? (
-            <button
-              type="button"
-              aria-label="Post comment"
-              onClick={(e) => {
-                e.stopPropagation()
-                submitText()
-              }}
-              className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-graphite-900)] text-white transition-colors hover:bg-[var(--color-graphite-800)]",
-                T_FAST,
-                FOCUS,
-              )}
-            >
-              <SendHorizontal className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
-            </button>
+          {/*
+          One line, and the right-hand control is either the microphone or the
+          send — never both — Imran, 2026-08-22, with a messenger's composer
+          as the reference.
+
+          The first pass put the controls on a row *beneath* the field, which
+          is right for an assistant's prompt box (several persistent controls,
+          a long message) and wrong for a conversation, where the composer is
+          furniture you want to take up one line until you are actually using
+          it.
+
+          **The swap is the idea.** A microphone and a send button never both
+          apply: with nothing written, the useful act is to speak; the moment
+          there is something to send, it is to send it. Showing both means one
+          of them is always the wrong answer sitting in the way of the right
+          one. So the trailing slot holds exactly one control and it changes
+          with the state of the field.
+
+          The `+` stays on the left and holds what you can *attach* — a file,
+          a link (DES-161 made those real), a person to mention — which is the
+          division the reference draws too.
+          */}
+          <InputGroupAddon align="inline-start">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <InputGroupButton size="icon-sm" aria-label="Add to this message">
+                    <Plus />
+                  </InputGroupButton>
+                }
+              />
+              <DropdownMenuContent align="start" side="top" className="w-52">
+                <DropdownMenuItem onClick={() => fileInput.current?.click()}>
+                  <Paperclip />
+                  Add a file
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowLink(true)}>
+                  <Link2 />
+                  Add a link
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    setText((current) => `${current}${current.endsWith(" ") || !current ? "" : " "}@`)
+                    fieldRef.current?.focus()
+                  }}
+                >
+                  <UserRound />
+                  Mention someone
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </InputGroupAddon>
+          <InputGroupAddon align="inline-end">
+            {hasSomethingToSend ? (
+              <InputGroupButton
+                size="icon-sm"
+                variant="commit"
+                aria-label="Post comment"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  submitText()
+                }}
+              >
+                <SendHorizontal />
+              </InputGroupButton>
+            ) : (
+              <InputGroupButton
+                size="icon-sm"
+                aria-label="Record a voice message"
+                onClick={() => void startRecording()}
+              >
+                <Mic />
+              </InputGroupButton>
+            )}
+          </InputGroupAddon>
+          {/* A link, taken in the composer rather than in a second place —
+              the same shape the card's attachment picker uses (DES-161). It
+              is the one thing that gives the composer a second line, and only
+              while somebody is pasting into it. */}
+          {showLink ? (
+            <InputGroupAddon align="block-end" className="pt-0">
+              <InputGroupInput
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                value={link}
+                placeholder="Paste a link"
+                aria-label="Message link"
+                onChange={(event) => setLink(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") { setLink(""); setShowLink(false) }
+                  if (event.key !== "Enter") return
+                  event.preventDefault()
+                  const trimmed = link.trim()
+                  if (!trimmed) return
+                  const href = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+                    ? trimmed
+                    : `https://${trimmed}`
+                  let host = trimmed
+                  let last = ""
+                  try {
+                    const parsed = new URL(href)
+                    host = parsed.hostname.replace(/^www\./, "")
+                    last = parsed.pathname.split("/").filter(Boolean).pop() ?? ""
+                  } catch { /* keep what they typed */ }
+                  setFiles((current) => [
+                    ...current,
+                    { name: decodeURIComponent(last) || host, meta: host, kind: "link", url: href },
+                  ])
+                  setLink("")
+                  setShowLink(false)
+                }}
+                className="h-7 px-2"
+              />
+            </InputGroupAddon>
           ) : null}
-        </div>
+        </InputGroup>
       </div>
       {files.length > 0 ? (
         <div className="mt-1.5 ml-8 flex flex-wrap gap-1.5">
@@ -576,7 +654,16 @@ function Composer({
               {file.preview ? (
                 <img src={file.preview} alt="" className="size-4 rounded-[3px] object-cover" />
               ) : (
-                <Paperclip className="size-3.5 text-[var(--color-graphite-500)]" strokeWidth={1.75} aria-hidden="true" />
+                (() => {
+                  const ChipIcon = FILE_ICON[file.kind] ?? Paperclip
+                  return (
+                    <ChipIcon
+                      className="size-3.5 text-[var(--color-graphite-500)]"
+                      strokeWidth={1.75}
+                      aria-hidden="true"
+                    />
+                  )
+                })()
               )}
               <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-700)]">
                 {file.name}
@@ -638,12 +725,15 @@ function toggleReaction(comment: ConceptComment, emoji: string = LIKE): ConceptC
 function CommentRow({
   comment,
   isReply = false,
+  replyTo,
   onReply,
   onDelete,
   onUpdate,
 }: {
   comment: ConceptComment
   isReply?: boolean
+  /* The message this answers, for the quoted stub. */
+  replyTo?: { author: string; excerpt: string }
   onReply?: () => void
   onDelete: () => void
   onUpdate: (next: ConceptComment) => void
@@ -666,28 +756,72 @@ function CommentRow({
   const mine = Boolean(comment.mine)
 
   return (
-    <div
-      className={cn(
-        "group/comment flex items-start gap-2 px-1 py-1.5",
-        mine && "flex-row-reverse",
-      )}
-    >
-      <CommentFace person={comment.author} dense={isReply} className="mt-0.5" />
-      <div className={cn("flex min-w-0 flex-1 flex-col", mine && "items-end")}>
-        {/* One header line: name, time, and the actions in a reserved
-            trailing slot — revealed by hover, never covering the time
-            (F2a, review M3; the task row's own rule). */}
-        <span className={cn("flex h-5 items-center gap-2", mine && "flex-row-reverse")}>
-          <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)]">
+    /*
+    The turn, as `Message` — Imran, 2026-08-22, with shadcn's own messaging
+    primitives as the reference.
+
+    The side used to be re-decided in six places, each with its own
+    `mine && "flex-row-reverse"`, so alignment was a rule six spans had to
+    remember rather than a property of the turn. `Message` owns it once as a
+    data attribute and every part reads it from there — which is the same
+    move DES-154 keeps making, applied inside one component.
+    */
+    <Message align={mine ? "end" : "start"} className="group/comment px-1 py-1.5">
+      <MessageAvatar>
+        <Face person={comment.author} dense={isReply} />
+      </MessageAvatar>
+      <MessageContent className="w-full">
+        {/* Who said it, above — `MessageHeader`, which stays start-aligned
+            on both sides so a name is always in the same place. The time and
+            "edited" ride it because they are facts about the saying, not
+            about what happened afterwards. */}
+        <MessageHeader className="h-5">
+          <span className="font-medium text-[var(--color-graphite-700)]">
             {comment.author.name}
           </span>
-          <span className="text-[12px] leading-4 text-[var(--color-graphite-400)]">
+          <span>
             {comment.at}
             {comment.edited ? " · edited" : ""}
           </span>
-        </span>
+        </MessageHeader>
+        {/*
+        What this replies to, quoted — Imran, 2026-08-22: a reply "incorrectly
+        showing as a regular message instead of showing as it is replied to a
+        message."
+
+        The indent was supposed to carry that, and it cannot: a reply of my
+        own is right-aligned by DES-143's rule that mine sits on the right, and
+        right-alignment cancels a left indent exactly. Two mechanisms were
+        fighting and the alignment won, so my reply to Sara looked like a new
+        remark addressed to nobody.
+
+        A quoted stub is independent of both. It states the thing the indent
+        was only implying, it survives either alignment and either tone, and
+        it is the treatment every conversation surface people already use has
+        settled on. One line, clipped, quiet: enough to know what is being
+        answered without re-reading it.
+        */}
+        {replyTo ? (
+          <span
+            className={cn(
+              /* Capped, because a quote wider than the thing it introduces
+                 reads as the message and pushes the reply into a footnote. */
+              "mt-1 flex max-w-[min(22rem,80%)] items-center gap-1.5 border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-500)]",
+              mine ? "flex-row-reverse border-r-2 pr-2" : "border-l-2 pl-2",
+            )}
+          >
+            <span className="shrink-0 font-medium text-[var(--color-graphite-600)]">
+              {replyTo.author}
+            </span>
+            <span className="min-w-0 truncate">{replyTo.excerpt}</span>
+          </span>
+        ) : null}
         {editing ? (
-          <textarea
+          /* The bubble's own editor, on the same primitive as the composer.
+             `bare` again, because the bubble is the frame here exactly as the
+             composer's bordered row is above it. */
+          <Textarea
+            bare
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={draft}
@@ -712,7 +846,7 @@ function CommentRow({
                 setEditing(false)
               }
             }}
-            className="mt-0.5 block w-full resize-none rounded-[14px] bg-card px-3 py-1.5 text-[14px] leading-5 text-[var(--color-graphite-800)] ring-2 ring-[var(--color-dana-accent-600)] outline-none [field-sizing:content]"
+            className="mt-0.5 block rounded-[14px] bg-card px-3 py-1.5 leading-5 ring-2 ring-[var(--color-dana-accent-600)]"
           />
         ) : comment.body ? (
           /* The actions sit level with the message, on its outer side. They
@@ -728,31 +862,54 @@ function CommentRow({
              The corner nearest its own author tightens to 4px. It is the
              one detail that makes a container read as *spoken by* somebody
              rather than as a box, and it costs a single class. */}
-          <span
-            className={cn(
-              "mt-0.5 inline-block max-w-[85%] rounded-[14px] px-3 py-1.5 text-[14px] leading-5 whitespace-pre-wrap transition-colors",
-              T_FAST,
-              mine
-                ? "rounded-br-[4px] bg-[var(--color-graphite-900)] text-[var(--color-graphite-0)]"
-                : "rounded-bl-[4px] bg-[var(--color-graphite-50)] text-[var(--color-graphite-800)]",
-            )}
-          >
-            {comment.body}
-          </span>
+          {/* Tone, never hue (DES-143) — which is exactly the split
+              `Bubble`'s two variants carry, so the rule now lives in the
+              primitive instead of in a ternary here. */}
+          <Bubble variant={mine ? "default" : "muted"} className="mt-0.5">
+            <BubbleContent>{comment.body}</BubbleContent>
+            {comment.reactions?.length ? (
+              <BubbleReactions
+                aria-label={comment.reactions
+                  .map((r) => `${r.count} like${r.count === 1 ? "" : "s"}`)
+                  .join(", ")}
+              >
+                {comment.reactions.map((reaction) => (
+                  /* A reaction is a toggle, so it is the system's button
+                     pressed or not, rather than a pill with its own two
+                     states hand-written beside every other pill. */
+                  <Button
+                    key={reaction.emoji}
+                    variant={mine ? "outline" : reaction.mine ? "secondary" : "outline"}
+                    size="xs"
+                    aria-pressed={reaction.mine || undefined}
+                    onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
+                    className={cn(
+                      "rounded-full tabular-nums",
+                      mine &&
+                        "border-white/25 bg-white/10 text-[var(--color-graphite-0)] hover:bg-white/20",
+                    )}
+                  >
+                    <ThumbsUp className={cn(reaction.mine && "fill-current")} strokeWidth={1.75} aria-hidden="true" />
+                    {reaction.count}
+                  </Button>
+                ))}
+              </BubbleReactions>
+            ) : null}
+          </Bubble>
             <span
               className={cn(
                 "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
                 T_FAST,
               )}
             >
-              <ThreadAction
+              <IconAction dense
                 icon={ThumbsUp}
                 label={comment.reactions?.some((r) => r.mine) ? "Remove like" : "Like"}
                 onClick={() => onUpdate(toggleReaction(comment))}
               />
-              {onReply ? <ThreadAction icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
+              {onReply ? <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
               {comment.mine ? (
-                <ThreadAction
+                <IconAction dense
                   icon={Pencil}
                   label="Edit comment"
                   onClick={() => {
@@ -762,7 +919,7 @@ function CommentRow({
                 />
               ) : null}
               {comment.mine ? (
-                <ThreadAction icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
+                <IconAction dense icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
               ) : null}
             </span>
           </span>
@@ -771,46 +928,14 @@ function CommentRow({
             self-contained objects with their own edges, and a container
             inside a container is how a thread starts looking cluttered.
             Their side is said by alignment alone. */}
-        {comment.voice ? (
-          <span className={cn("flex", mine && "justify-end")}>
-            <VoiceNote voice={comment.voice} />
-          </span>
-        ) : null}
+        {comment.voice ? <VoiceNote voice={comment.voice} /> : null}
         {comment.files ? (
-          <span className={cn("flex w-full flex-col", mine && "items-end")}>
+          <span className="flex w-full flex-col">
             <CommentFiles files={comment.files} />
           </span>
         ) : null}
-        {comment.reactions?.length ? (
-          <span className={cn("mt-1 flex flex-wrap gap-1", mine && "justify-end")}>
-            {comment.reactions.map((reaction) => (
-              <button
-                key={reaction.emoji}
-                type="button"
-                aria-label={`${reaction.count} like${reaction.count === 1 ? "" : "s"}${reaction.mine ? " — including yours" : ""}`}
-                aria-pressed={reaction.mine || undefined}
-                onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
-                className={cn(
-                  "flex h-6 items-center gap-1 rounded-full border px-2 text-[12px] leading-4 transition-colors tabular-nums",
-                  T_FAST,
-                  FOCUS,
-                  reaction.mine
-                    ? "border-[var(--color-graphite-300)] bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-                    : "border-[var(--color-graphite-200)] bg-card text-[var(--color-graphite-600)] hover:border-[var(--color-graphite-300)]",
-                )}
-              >
-                <ThumbsUp
-                  className={cn("size-3 data-[size=sm]:size-3", reaction.mine && "fill-current")}
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                {reaction.count}
-              </button>
-            ))}
-          </span>
-        ) : null}
-      </div>
-    </div>
+      </MessageContent>
+    </Message>
   )
 }
 
@@ -892,6 +1017,12 @@ export function CommentsThread({
                   key={reply.id}
                   comment={reply}
                   isReply
+                  replyTo={{
+                    author: comment.author.name,
+                    excerpt:
+                      comment.body ??
+                      (comment.voice ? "Voice note" : "Attachment"),
+                  }}
                   onDelete={() =>
                     onChange(
                       comments.map((c) =>

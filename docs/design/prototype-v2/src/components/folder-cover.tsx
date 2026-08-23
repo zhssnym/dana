@@ -22,6 +22,7 @@ gradients have no crop to move. Lane 2 throughout: no cover column, no image
 storage (DES-105), excluded from the port by DES-130.
 */
 
+import { Input } from "@/components/ui/input"
 import { useRef, useState, type CSSProperties } from "react"
 
 import { Image as ImageIcon, LoaderCircle, Search, X } from "@/lib/icons"
@@ -463,7 +464,7 @@ export function FolderCoverPicker({
               setLinkUrl("")
             }}
           >
-            <input
+            <Input
               value={linkUrl}
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
@@ -505,7 +506,7 @@ export function FolderCoverPicker({
                 )}
               >
                 <Search className="size-3.5 shrink-0 text-[var(--color-graphite-400)]" strokeWidth={1.75} aria-hidden="true" />
-                <input
+                <Input bare
                   value={photoQuery}
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus

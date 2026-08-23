@@ -1,5 +1,5 @@
 import {
-  AlertCircle,
+  TriangleAlert,
   ArrowLeft,
   Check,
   Folder,
@@ -8,7 +8,7 @@ import {
   Star,
   UserRoundPlus,
   UsersRound,
-} from "lucide-react"
+} from "@/lib/icons"
 import { useState } from "react"
 
 import { DanaMark } from "@/components/dana-mark"
@@ -126,7 +126,7 @@ function ProductPreview() {
               <p className="text-[11px] font-medium tracking-[0.08em] text-[var(--color-graphite-500)] uppercase">
                 Shared folder
               </p>
-              <h2 className="mt-0.5 text-lg font-semibold text-[var(--color-graphite-900)]">Wedding</h2>
+              <h2 className="mt-0.5 text-lg font-semibold text-[var(--color-graphite-900)]">Travel</h2>
             </div>
             <div className="ml-auto flex -space-x-2" aria-label="Folder members: Imran, Sara and Hassan">
               {[
@@ -153,26 +153,26 @@ function ProductPreview() {
             <div className="border-t border-[var(--color-graphite-200)]">
               <PreviewTask
                 title="Confirm the final guest count"
-                folder="Wedding"
+                folder="Travel"
                 folderColor="var(--color-graphite-900)"
                 meta="Today"
                 important
               />
               <PreviewTask
                 title="Review the ceremony timeline"
-                folder="Wedding"
+                folder="Travel"
                 folderColor="var(--color-graphite-900)"
                 meta="2:00 PM"
               />
               <PreviewTask
                 title="Share the transport plan"
-                folder="Wedding"
+                folder="Travel"
                 folderColor="var(--color-graphite-900)"
                 meta="Today"
               />
               <PreviewTask
                 title="Send the venue deposit"
-                folder="Wedding"
+                folder="Travel"
                 folderColor="var(--color-graphite-900)"
                 meta="Done"
                 complete
@@ -304,7 +304,7 @@ const loginInviteFixtures: LoginInvite[] = [
     inviter: "Hassan",
     initials: "HA",
     avatarColor: "var(--color-folder-fern)",
-    folderName: "Wedding",
+    folderName: "Travel",
     folderColor: "var(--color-graphite-900)",
   },
   {
@@ -380,7 +380,7 @@ export function InviteGateScreen() {
 
           {actionError ? (
             <div className="mt-5 flex items-start gap-3 rounded-[10px] border border-[var(--color-danger-200)] bg-[var(--color-danger-50)] px-4 py-3 text-sm text-[var(--color-danger-700)]" role="alert">
-              <AlertCircle className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
               <span>Something went wrong. Nothing was saved. Try again.</span>
             </div>
           ) : null}
@@ -406,7 +406,11 @@ export function InviteGateScreen() {
                     <p className="truncate text-sm font-medium text-[var(--color-graphite-900)]">
                       {invitationCopy}
                     </p>
-                    <p className="mt-2 flex items-center gap-2 text-xs text-[var(--color-graphite-500)]">
+                    {/* A div rather than a p: this line holds an icon, and an
+                        icon in this product may render a wrapper element,
+                        which HTML forbids inside a paragraph. It was only ever
+                        a paragraph by habit -- it is a label. */}
+                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--color-graphite-500)]">
                       {invite.folderName ? (
                         <>
                           <FolderOpen
@@ -423,7 +427,7 @@ export function InviteGateScreen() {
                           Connection
                         </>
                       )}
-                    </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">

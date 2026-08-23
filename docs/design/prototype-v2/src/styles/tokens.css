@@ -135,7 +135,13 @@
   --border: var(--color-graphite-200);
   --input: var(--color-graphite-300);
   --ring: var(--color-dana-accent-600);
-  --sidebar: var(--color-graphite-25);
+  /* The shell has two planes and they are told apart by tone, never by a rule
+     (Imran, 2026-08-22): the recessed plane the furniture sits on, and the
+     white sheet the work sits on. The step used to be graphite-25 against
+     white — one percent of lightness — so the hairline was carrying the whole
+     separation and every panel needed one. At graphite-50 the step does the
+     job by itself and the lines can go. */
+  --sidebar: var(--color-graphite-50);
   --sidebar-foreground: var(--color-graphite-800);
   --sidebar-primary: var(--color-dana-accent-600);
   --sidebar-primary-foreground: var(--color-graphite-0);
@@ -237,7 +243,24 @@
   /* Narrowed 800 -> 720 at Imran's direction, 2026-08-18: the header felt
    * wide once the window bar took its controls away. DES-135 stays
    * provisional either way — his eye rules at F2d. */
-  --content-list: 720px;
+  /*
+  The list measure, made responsive — Imran, 2026-08-22: "All folder pages
+  leave a bit too much empty space at both sides… we need a proper and
+  standard approach."
+
+  720px was a fixed reading measure, chosen when the question was whether a
+  task *title* is legible at 1120 (DES-135, and it was right about that). But
+  a task row is not a paragraph: it carries a title, an information line and a
+  trailing column of controls, so it reads more like a table than like prose,
+  and a fixed measure that suits the sentence strands the row in margin.
+
+  So the column scales with the window between two honest bounds: never
+  narrower than the measure that made titles readable, never wider than the
+  point where the eye loses the line returning to the left edge. Prose inside
+  it keeps its own cap, which is what `--content-form` is for — the paragraph
+  and the description stay at a sentence's width whatever the column does.
+  */
+  --content-list: clamp(720px, 66vw, 1040px);
   --content-form: 640px;
 
   /* Installed light shell */

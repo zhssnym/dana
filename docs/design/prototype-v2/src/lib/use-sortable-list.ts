@@ -88,6 +88,9 @@ interface DragSnapshot {
   delta: number
   dwellAt: number | null
   armed: boolean
+  /* The container the pointer is inside, when the list is being told there is
+     one. Null means the proposal is an ordinary slot in this list. */
+  into: string | null
 }
 
 const NO_DRAG: DragSnapshot = {
@@ -96,6 +99,7 @@ const NO_DRAG: DragSnapshot = {
   delta: 0,
   dwellAt: null,
   armed: false,
+  into: null,
 }
 
 export interface UseSortableListOptions {
@@ -112,6 +116,40 @@ export interface UseSortableListOptions {
   onLift?: () => void
   /* Announced to screen readers after a keyboard move. */
   describe?: (index: number) => string
+  /*
+  Where the drag was let go, offered before this list reorders itself.
+
+  A list can only sort what it holds, and a folder page holds one list per
+  section — so dragging a task from "Venue & vendors" into "Invitations" had
+  nowhere to land, because the two lists cannot see each other. This is the
+  seam that lets them: the page hit-tests the release point against its own
+  sections and, if the task belongs somewhere else now, says so by returning
+  `true` and the list leaves its own order alone.
+
+  Deliberately a question rather than a command — the list still owns sorting
+  within itself, and only the page knows what else is on it.
+  */
+  onDropAt?: (from: number, point: { x: number; y: number }) => boolean
+  /*
+  The same question, asked while the drag is still in the air.
+
+  `onDropAt` was F5's answer to "this went somewhere else", and it is only
+  half of one: it settles what happens on release and says nothing before it.
+  A row on its way into another container went on being drawn as a slot in
+  this one, and the list held a gap open for something that was never going to
+  land there. A list that lies about what a release will do is worse than one
+  that cannot do it at all.
+
+  So this is asked as the pointer moves. Returning a key means the pointer is
+  inside something: the list stops proposing a slot, the dwell stops arming,
+  and the key comes back as `overKey` for whoever draws that container to
+  answer with. Returning null puts the ordinary reorder back.
+
+  Two seams rather than one, because the two questions have different costs —
+  what a drag *would* do has to be cheap enough to ask sixty times a second,
+  and what it *did* is allowed to change the world.
+  */
+  onOver?: (from: number, point: { x: number; y: number }) => string | null
 }
 
 export function useSortableList({
@@ -122,6 +160,8 @@ export function useSortableList({
   disabled = false,
   onLift,
   describe,
+  onDropAt,
+  onOver,
 }: UseSortableListOptions) {
   const [drag, setDrag] = useState<DragSnapshot>(NO_DRAG)
   const [settlingFrom, setSettlingFrom] = useState<number | null>(null)
@@ -136,6 +176,7 @@ export function useSortableList({
   const items = useRef<(HTMLElement | null)[]>([])
   const scroller = useRef<HTMLElement | null>(null)
   const pointerY = useRef(0)
+  const pointerX = useRef(0)
   const originY = useRef(0)
   const stillAt = useRef(0)
   const stillY = useRef(0)
@@ -207,6 +248,11 @@ export function useSortableList({
 
     if (from < 0) return
 
+    /* Asked before the dwell and before the reorder, because "this went
+       somewhere else" outranks both: neither a folder proposal nor a slot in
+       this list means anything once the row has left it. */
+    if (onDropAt?.(from, { x: pointerX.current, y: pointerY.current })) return
+
     if (armed && dwellAt !== null && dwellAt >= 0) {
       onDwell?.(from, dwellAt)
       return
@@ -223,7 +269,7 @@ export function useSortableList({
       setSettlingFrom(null)
       settleTimer.current = null
     }, 220)
-  }, [apply, onDwell, onReorder, stopFrame])
+  }, [apply, onDropAt, onDwell, onReorder, stopFrame])
 
   /* Auto-scroll. Runs as its own loop rather than off pointermove, because a
      pointer held still near the edge stops sending events and the list would
@@ -258,29 +304,48 @@ export function useSortableList({
     originY.current -= shift
     const delta = pointerY.current - originY.current
     const over = slotFor(delta, live.current.from)
-    if (delta !== live.current.delta || over !== live.current.over) {
-      apply({ ...live.current, delta, over })
+    /* The containers moved too, so which one the pointer is in can change
+       without the pointer having gone anywhere. */
+    const into = onOver
+      ? onOver(live.current.from, { x: pointerX.current, y: pointerY.current })
+      : null
+    if (
+      delta !== live.current.delta ||
+      over !== live.current.over ||
+      into !== live.current.into
+    ) {
+      apply({ ...live.current, delta, over, into })
     }
-  }, [apply, slotFor])
+  }, [apply, onOver, slotFor])
 
   const onPointerMove = useCallback(
     (event: PointerEvent) => {
       if (live.current.from < 0) return
       pointerY.current = event.clientY
+      pointerX.current = event.clientX
       const from = live.current.from
       const delta = event.clientY - originY.current
       const over = slotFor(delta, from)
+      const into = onOver ? onOver(from, { x: event.clientX, y: event.clientY }) : null
 
       /* Travelling cancels any dwell and restores the reorder proposal. */
       if (Math.abs(event.clientY - stillY.current) > STILL_PX) {
         stillY.current = event.clientY
         stillAt.current = event.timeStamp
-        apply({ ...live.current, delta, over, dwellAt: null, armed: false })
+        apply({ ...live.current, delta, over, into, dwellAt: null, armed: false })
+        return
+      }
+
+      /* Inside a container, there is nothing to dwell towards: the proposal
+         is already "in there", and a ring closing on top of it would be two
+         answers to one gesture. */
+      if (into !== null) {
+        apply({ ...live.current, delta, over, into, dwellAt: null, armed: false })
         return
       }
 
       if (!onDwell) {
-        apply({ ...live.current, delta, over })
+        apply({ ...live.current, delta, over, into })
         return
       }
 
@@ -292,13 +357,14 @@ export function useSortableList({
       if (
         delta !== live.current.delta ||
         over !== live.current.over ||
+        into !== live.current.into ||
         dwellAt !== live.current.dwellAt ||
         armed !== live.current.armed
       ) {
-        apply({ ...live.current, delta, over, dwellAt, armed })
+        apply({ ...live.current, delta, over, into, dwellAt, armed })
       }
     },
-    [apply, dwellMs, onDwell, rowUnderPointer, slotFor],
+    [apply, dwellMs, onDwell, onOver, rowUnderPointer, slotFor],
   )
 
   /* The dwell has to arm on a pointer that has stopped moving, and a pointer
@@ -308,6 +374,7 @@ export function useSortableList({
     if (drag.armed) return
     const id = window.setInterval(() => {
       if (live.current.from < 0 || live.current.armed) return
+      if (live.current.into !== null) return
       const resting = performance.now() - stillAt.current
       const target = rowUnderPointer(pointerY.current, live.current.from)
       if (target < 0) {
@@ -368,7 +435,7 @@ export function useSortableList({
   }, [apply, count, stopFrame])
 
   const begin = useCallback(
-    (index: number, startY: number) => {
+    (index: number, startY: number, startX: number) => {
       const tops: number[] = []
       const bottoms: number[] = []
       for (let i = 0; i < countRef.current; i += 1) {
@@ -400,11 +467,12 @@ export function useSortableList({
       onLift?.()
       originY.current = startY
       pointerY.current = startY
+      pointerX.current = startX
       stillY.current = startY
       stillAt.current = performance.now()
       document.body.style.setProperty("cursor", "grabbing")
       document.body.style.setProperty("user-select", "none")
-      apply({ from: index, over: index, delta: 0, dwellAt: null, armed: false })
+      apply({ from: index, over: index, delta: 0, dwellAt: null, armed: false, into: null })
       stopFrame()
       frame.current = requestAnimationFrame(followEdges)
     },
@@ -414,8 +482,25 @@ export function useSortableList({
   /* The press-then-travel watcher both entry points share. Committing on the
      first movement rather than on pointerdown is what lets a row still be
      clicked, a title still be selected, and a handle still take focus. */
+  /*
+  A press on the row's own surface is ambiguous until it ends: move far enough
+  and it is a drag, let go without moving and it was a tap. The engine is the
+  only thing that knows which, so it is the engine that reports it.
+
+  This exists because a plain `onClick` on the row cannot work. The press is
+  already being tracked here, and once a lift begins the pointer is captured,
+  so the browser's click lands on the capturing element rather than on
+  whatever was under the cursor — a row that opened on click would open
+  sometimes and not others, which is worse than not opening at all. Resolving
+  the gesture where it is tracked makes tap and drag one decision instead of
+  two racing ones.
+
+  `onTap` therefore fires only for a press that stayed still, on the row's
+  surface, and never for one that became a drag.
+  */
   const watchForLift = useCallback(
-    (index: number, startX: number, startY: number) => {
+    (index: number, startX: number, startY: number, onTap?: () => void) => {
+      let lifted = false
       function watch(move: PointerEvent) {
         if (
           Math.abs(move.clientY - startY) < LIFT_PX &&
@@ -423,16 +508,21 @@ export function useSortableList({
         ) {
           return
         }
+        lifted = true
         stop()
-        begin(index, move.clientY)
+        begin(index, move.clientY, move.clientX)
+      }
+      function release() {
+        stop()
+        if (!lifted) onTap?.()
       }
       function stop() {
         window.removeEventListener("pointermove", watch)
-        window.removeEventListener("pointerup", stop)
+        window.removeEventListener("pointerup", release)
         window.removeEventListener("pointercancel", stop)
       }
       window.addEventListener("pointermove", watch)
-      window.addEventListener("pointerup", stop)
+      window.addEventListener("pointerup", release)
       window.addEventListener("pointercancel", stop)
     },
     [begin],
@@ -481,7 +571,7 @@ export function useSortableList({
      that control — a chip opens its picker, a title starts renaming, a
      checkbox ticks — and only a press on the row itself becomes a drag. */
   const surfaceProps = useCallback(
-    (index: number) => ({
+    (index: number, onTap?: () => void) => ({
       onPointerDown: (event: ReactPointerEvent) => {
         if (disabled || event.button !== 0) return
         const target = event.target as HTMLElement | null
@@ -492,7 +582,7 @@ export function useSortableList({
         ) {
           return
         }
-        watchForLift(index, event.clientX, event.clientY)
+        watchForLift(index, event.clientX, event.clientY, onTap)
       },
     }),
     [disabled, watchForLift],
@@ -514,7 +604,7 @@ export function useSortableList({
       if (settlingFrom !== null) {
         return { ...RESTING, isSettling: true, isActive: index === settlingFrom }
       }
-      const { from, over, delta, dwellAt, armed } = drag
+      const { from, over, delta, dwellAt, armed, into } = drag
       if (from < 0) return RESTING
       const m = metrics.current
 
@@ -531,9 +621,11 @@ export function useSortableList({
 
       const target = dwellAt === index
       /* Armed means the proposal is a folder, not a slot, so the list stops
-         holding a space open for something that is no longer going there. */
+         holding a space open for something that is no longer going there.
+         Being inside another container is the same statement, made about a
+         place rather than about a pair. */
       let offset = 0
-      if (!armed && m) {
+      if (!armed && into === null && m) {
         if (over > from && index > from && index <= over) offset = -m.stride
         else if (over < from && index >= over && index < from) offset = m.stride
       }
@@ -557,6 +649,9 @@ export function useSortableList({
     itemState,
     isDragging: drag.from >= 0,
     activeIndex: drag.from >= 0 ? drag.from : null,
+    /* Whichever container `onOver` last named, for drawing it as the answer.
+       Null whenever the proposal is an ordinary slot. */
+    overKey: drag.into,
     /* Fed to an aria-live region so a keyboard move is heard, not just seen. */
     announcement,
     dwellMs,

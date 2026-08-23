@@ -43,6 +43,10 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ]
 
+function startOfDayLocal(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
 export function sameDay(a: Date | null | undefined, b: Date | null | undefined) {
   if (!a || !b) return false
   return (
@@ -67,13 +71,28 @@ function monthGrid(year: number, month: number) {
   })
 }
 
+/*
+Range mode, added at F5 for the filter's date axis (DES-153: "real date
+ranges, not only any / with / without / overdue").
+
+The grid stays one calendar rather than becoming two. A range is drawn, not
+modelled: `range` says which two days are the ends and the grid washes what
+lies between them, while `onSelect` still reports one day and the caller
+decides whether that day just became the start or the end. A month grid that
+knew about ranges would need to know about half-open ones, about a second
+click that lands before the first, and about which end a re-click moves — all
+of which are the caller's question, and all of which are already answered
+where the filter's state lives.
+*/
 export function Calendar({
   selected,
+  range,
   onSelect,
   today = new Date(),
   className,
 }: {
   selected: Date | null
+  range?: { from: Date | null; to: Date | null }
   onSelect: (date: Date) => void
   today?: Date
   className?: string
@@ -170,11 +189,34 @@ export function Calendar({
       >
         {days.map((date) => {
           const outside = date.getMonth() !== view.month
-          const isSelected = sameDay(date, selected)
+          const isEnd =
+            sameDay(date, range?.from) || sameDay(date, range?.to)
+          const isSelected = sameDay(date, selected) || isEnd
           const isToday = sameDay(date, today)
           const isCursor = sameDay(date, cursor)
+          /* Strictly between the two ends: washed, not filled, so the ends
+             stay the thing the eye lands on. */
+          const isBetween =
+            !isEnd &&
+            Boolean(range?.from && range?.to) &&
+            date > startOfDayLocal(range!.from!) &&
+            date < startOfDayLocal(range!.to!)
           return (
-            <div key={date.toISOString()} role="gridcell" className="flex justify-center">
+            <div
+              key={date.toISOString()}
+              role="gridcell"
+              className={cn(
+                "flex justify-center",
+                isBetween && "bg-[var(--color-graphite-100)]",
+                sameDay(date, range?.from) &&
+                  range?.to &&
+                  "rounded-l-md bg-gradient-to-r from-transparent from-50% to-[var(--color-graphite-100)] to-50%",
+                sameDay(date, range?.to) &&
+                  range?.from &&
+                  !sameDay(range.from, range.to) &&
+                  "rounded-r-md bg-gradient-to-l from-transparent from-50% to-[var(--color-graphite-100)] to-50%",
+              )}
+            >
               <button
                 type="button"
                 data-cursor={isCursor}
