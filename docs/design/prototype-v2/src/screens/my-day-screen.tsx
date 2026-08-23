@@ -1,6 +1,8 @@
 import { useState } from "react"
-import { CalendarCheck2, ChevronRight, Star, SunMedium } from "lucide-react"
 
+import { CalendarCheck2, SunMedium } from "@/lib/icons"
+import { PageHead, pageBodyClass } from "@/components/page-head"
+import { CompletedSection, TaskSection } from "@/components/task-section"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import {
@@ -14,17 +16,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
 } from "@/components/ui/empty"
-import { Switch } from "@/components/ui/switch"
 
 export type MyDayTask = TaskRowProps & { id: string }
 
@@ -39,11 +35,17 @@ interface MyDayScreenProps {
   onRemoveFromMyDay: (taskId: string) => void
   onAbandon: (taskId: string) => void
   onDelete: (taskId: string) => void
+  /* DES-152 renames this page Today. The screen takes the name rather than
+     reading the flag itself, because which page it is, is the shell's
+     business and the screen only draws one. */
+  title?: string
+  description?: string
 }
 
 function TaskGroup({
   title,
   tasks,
+  given,
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
@@ -53,6 +55,8 @@ function TaskGroup({
 }: {
   title: string
   tasks: MyDayTask[]
+  /* What this heading has already said — see TaskRowProps.given. */
+  given?: TaskRowProps["given"]
   onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
@@ -64,13 +68,10 @@ function TaskGroup({
   const headingId = `my-day-${title.toLowerCase().replaceAll(" ", "-")}`
 
   return (
-    <section aria-labelledby={headingId}>
-      <h2
-        id={headingId}
-        className="mb-1 px-2 text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]"
-      >
-        {title}
-      </h2>
+    /* One section component for computed and hand-made alike, so a group here
+       folds exactly like a folder's own (DES-151, and Imran 2026-08-22). The
+       words are 9.1's, to the letter, and untouched. */
+    <TaskSection id={headingId} name={title} count={tasks.length}>
       {/* A TaskList rather than a map, because reordering, the hold that makes
           a folder and press-and-hold selection are facts about the list and
           not about any row in it. Each section is its own list, so a task
@@ -78,6 +79,7 @@ function TaskGroup({
           right: those groups are computed, not arranged. */}
       <TaskList
         tasks={tasks}
+        given={given}
         onTaskOpen={onOpenTask}
         onTaskToggleComplete={onToggleComplete}
         onTaskToggleImportant={onToggleImportant}
@@ -85,7 +87,7 @@ function TaskGroup({
         onTaskAbandon={onRequestAbandon}
         onTaskDelete={onRequestDelete}
       />
-    </section>
+    </TaskSection>
   )
 }
 
@@ -100,52 +102,41 @@ export function MyDayScreen({
   onRemoveFromMyDay,
   onAbandon,
   onDelete,
+  title = "My Day",
+  description = "Monday, 10 August",
 }: MyDayScreenProps) {
-  const [importantOnly, setImportantOnly] = useState(previewState === "important")
-  const [doneOpen, setDoneOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<{
     type: "abandon" | "delete"
     taskId: string
   } | null>(null)
-  const filterTasks = (tasks: MyDayTask[]) =>
-    importantOnly ? tasks.filter((task) => task.important) : tasks
-  const visibleCarried = filterTasks(carriedOver)
-  const visibleToday = filterTasks(today)
-  const visibleDone = filterTasks(doneToday)
+  /* The tasks arrive already filtered: importance is one of the window bar
+     filter's four variables (DES-140), and this page used to keep a second
+     switch of its own that the bar's copy could contradict. One variable now,
+     read wherever it is shown. */
+  const visibleCarried = carriedOver
+  const visibleToday = today
+  const visibleDone = doneToday
   const isEmpty =
     previewState === "empty" ||
     (visibleCarried.length === 0 && visibleToday.length === 0)
+  const dayTotal =
+    visibleCarried.length + visibleToday.length + visibleDone.length
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
-      <header className="flex min-h-12 items-start justify-between gap-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <SunMedium
-            className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <div className="min-w-0">
-            <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
-              My Day
-            </h1>
-            <p className="mt-1 text-xs leading-4 text-muted-foreground">
-              Monday, 10 August
-            </p>
-          </div>
-        </div>
+    <div className={pageBodyClass()}>
+      {/* My Day is the one place-page besides a folder with a completion, so
+          it is the one that fills the fact slot; the date is its prose. */}
+      <PageHead
+        storageName={title}
+        icon={SunMedium}
+        title={title}
+        fact={
+          dayTotal > 0 ? `${visibleDone.length} of ${dayTotal} done` : undefined
+        }
+        description={description}
+      />
 
-        <label className="flex h-[var(--control-height)] shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)]">
-          <Star className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          <span>Important only</span>
-          <Switch
-            checked={importantOnly}
-            onCheckedChange={setImportantOnly}
-          />
-        </label>
-      </header>
-
-      <div className="mt-7">
+      <div className="mt-3">
         {previewState === "loading" ? (
           <SkeletonList />
         ) : previewState === "error" ? (
@@ -170,6 +161,10 @@ export function MyDayScreen({
             <TaskGroup
               title="Carried over"
               tasks={visibleCarried}
+              /* Membership *is* being late, so red on every row here warns
+                 nobody and quietens the rows elsewhere that mean it (R4). The
+                 date keeps its words. */
+              given={{ overdue: true }}
               onOpenTask={onOpenTask}
               onToggleComplete={onToggleComplete}
               onToggleImportant={onToggleImportant}
@@ -196,17 +191,11 @@ export function MyDayScreen({
               }
             />
 
-            {visibleDone.length > 0 ? (
-              <Collapsible open={doneOpen} onOpenChange={setDoneOpen}>
-                <CollapsibleTrigger className="group/done flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none">
-                  <ChevronRight
-                    className="size-4 transition-transform group-data-panel-open/done:rotate-90"
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                  Done today ({visibleDone.length})
-                </CollapsibleTrigger>
-                <CollapsibleContent>
+            {/* "Done today (N)" rather than "Completed" — 9.1 makes this
+                page's three headings normative to the letter, count
+                included, so this is the one place the shared component is
+                given different words. */}
+            <CompletedSection label="Done today" count={visibleDone.length}>
                   <TaskList
                     className="mt-0.5"
                     tasks={visibleDone.map((task) => ({
@@ -223,9 +212,7 @@ export function MyDayScreen({
                       setPendingAction({ type: "delete", taskId })
                     }
                   />
-                </CollapsibleContent>
-              </Collapsible>
-            ) : null}
+            </CompletedSection>
           </div>
         )}
       </div>

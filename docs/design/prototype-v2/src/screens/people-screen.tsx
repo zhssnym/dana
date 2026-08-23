@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Mail, UserPlus, UsersRound } from "lucide-react"
+import { Contact, Mail, UserPlus } from "@/lib/icons"
 
 import { InlineError } from "@/components/state-patterns"
 import {
@@ -82,7 +82,7 @@ export function PeopleScreen({
   return (
     <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
       <header className="flex min-h-12 items-start gap-3">
-        <UsersRound
+        <Contact
           className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
           strokeWidth={1.75}
           aria-hidden="true"
@@ -169,7 +169,7 @@ export function PeopleScreen({
           ) : visibleConnections.length === 0 ? (
             <Empty className="min-h-48">
               <EmptyMedia className="text-[var(--color-graphite-400)]">
-                <UsersRound className="size-8" strokeWidth={1.6} aria-hidden="true" />
+                <Contact className="size-8" strokeWidth={1.6} aria-hidden="true" />
               </EmptyMedia>
               <EmptyHeader>
                 <EmptyDescription className="max-w-[48ch] text-sm leading-5 text-muted-foreground">

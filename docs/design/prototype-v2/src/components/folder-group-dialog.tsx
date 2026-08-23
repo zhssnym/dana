@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
-import { Folder, Folders } from "lucide-react"
+import { Folders } from "@/lib/icons"
+import { FolderMark } from "@/components/folder-mark"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -25,6 +26,7 @@ export function FolderGroupDialog({
   mode,
   currentLabel,
   folders,
+  preselect,
   existingLabels,
   onOpenChange,
   onSubmit,
@@ -33,6 +35,10 @@ export function FolderGroupDialog({
   mode: "create" | "rename"
   currentLabel?: string
   folders: FolderGroupOption[]
+  /* Folders already chosen when the dialog opens. The sidebar's drag gesture
+     arrives here with the two that met, so the only thing left to do is the
+     one thing the gesture cannot say: what the group is called. */
+  preselect?: string[]
   existingLabels: string[]
   onOpenChange: (open: boolean) => void
   onSubmit: (label: string, folderNames: string[]) => void
@@ -45,10 +51,12 @@ export function FolderGroupDialog({
   useEffect(() => {
     if (!open) return
     setName(mode === "rename" ? (currentLabel ?? "") : "")
-    setSelectedFolders(mode === "rename" ? folders.map((folder) => folder.name) : [])
+    setSelectedFolders(
+      mode === "rename" ? folders.map((folder) => folder.name) : (preselect ?? []),
+    )
     setError("")
     window.requestAnimationFrame(() => inputRef.current?.focus())
-  }, [currentLabel, folders, mode, open])
+  }, [currentLabel, folders, mode, open, preselect])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -153,11 +161,14 @@ export function FolderGroupDialog({
                             if (error) setError("")
                           }}
                         />
-                        <Folder
+                        {/* The glyph its owner chose, not the generic one —
+                            you are picking folders out of a list here, and a
+                            list where every folder looks the same is a list
+                            you have to read rather than scan. */}
+                        <FolderMark
+                          name={folder.name}
+                          color={folder.color}
                           className="size-4 shrink-0"
-                          style={{ color: folder.color }}
-                          strokeWidth={1.75}
-                          aria-hidden="true"
                         />
                         <span className="min-w-0 flex-1 truncate">{folder.name}</span>
                         {folder.label ? (
@@ -193,7 +204,7 @@ export function FolderGroupDialog({
             </DialogClose>
             <Button
               type="submit"
-              className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]"
+              variant="commit" className="h-[var(--control-height)] px-3"
             >
               {mode === "rename" ? "Rename group" : "Create group"}
             </Button>

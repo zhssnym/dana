@@ -1,11 +1,11 @@
-import type { LucideIcon } from "lucide-react"
+import type { LucideIcon } from "@/lib/icons"
 import {
   Bell,
   CalendarClock,
   FolderOpen,
   MailPlus,
   UserRoundPlus,
-} from "lucide-react"
+} from "@/lib/icons"
 
 import { DanaMark } from "@/components/dana-mark"
 import { Badge } from "@/components/ui/badge"
@@ -39,14 +39,14 @@ function readEmailContent(): EmailContent {
     return {
       purpose: "Folder shared",
       purposeIcon: FolderOpen,
-      heading: "Wedding was shared with you",
+      heading: "Travel was shared with you",
       body: "Hassan shared this folder with you. It is ready in Dana.",
       contextIcon: FolderOpen,
       contextColor: "var(--color-graphite-900)",
-      contextTitle: "Wedding",
+      contextTitle: "Travel",
       contextMeta: "Shared folder · Shared by Hassan",
-      action: "Open Wedding",
-      href: "?variant=sidebar-first&state=folder&folder=Wedding",
+      action: "Open Travel",
+      href: "?variant=sidebar-first&state=folder&folder=Travel",
     }
   }
 
@@ -55,11 +55,11 @@ function readEmailContent(): EmailContent {
       purpose: "Task reminder",
       purposeIcon: Bell,
       heading: "Confirm the final guest count",
-      body: "A reminder from your Wedding folder.",
+      body: "A reminder from your Travel folder.",
       contextIcon: CalendarClock,
       contextColor: "var(--color-graphite-700)",
       contextTitle: variant === "date-only" ? "Today" : "Today, 2:00 PM",
-      contextMeta: "Wedding · Task reminder",
+      contextMeta: "Travel · Task reminder",
       action: "Open task",
       href: "?variant=sidebar-first&view=form&form=expanded&entry=folder&review=edit",
     }
@@ -83,11 +83,11 @@ function readEmailContent(): EmailContent {
   return {
     purpose: "Folder invitation",
     purposeIcon: MailPlus,
-    heading: "You're invited to Wedding",
+    heading: "You're invited to Travel",
     body: "Hassan invited you to join a shared folder in Dana.",
     contextIcon: FolderOpen,
     contextColor: "var(--color-graphite-900)",
-    contextTitle: "Wedding",
+    contextTitle: "Travel",
     contextMeta: "Shared folder · From Hassan",
     action: "Review invitation",
     href: "?view=invites",

@@ -9,6 +9,23 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        /*
+        Dana's commit button — F5, 2026-08-22.
+
+        The product's strongest action is graphite-900 on white, not the
+        accent: `--primary` is cobalt, which DES-016 reserves for selection,
+        focus and today, and a page full of blue Save buttons would spend that
+        meaning on furniture. So every real commit — Create group, New folder,
+        Post a comment, the destructive confirm — has been written as the same
+        hand-copied class string in seven places, each free to drift.
+
+        It is a variant now, which is where shadcn keeps this decision, so
+        there is one graphite and one hover step. The sizes above are already
+        this project's rather than upstream's (`icon-xs`, `icon-sm`), so
+        naming a variant here is in keeping rather than a departure.
+        */
+        commit:
+          "bg-[var(--color-graphite-900)] text-white hover:bg-[var(--color-graphite-800)]",
         outline:
           "border-border hover:bg-input/50 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30",
         secondary:

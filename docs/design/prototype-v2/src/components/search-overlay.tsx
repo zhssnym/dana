@@ -1,11 +1,12 @@
+import { Input } from "@/components/ui/input"
+import { FolderMark } from "@/components/folder-mark"
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import {
   ArrowRight,
   CalendarDays,
-  Folder,
   Search,
   X,
-} from "lucide-react"
+} from "@/lib/icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -184,7 +185,7 @@ export function SearchOverlay({
             strokeWidth={1.75}
             aria-hidden="true"
           />
-          <input
+          <Input bare
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -286,11 +287,12 @@ export function SearchOverlay({
                                 : "hover:bg-[var(--color-graphite-50)]",
                             )}
                           >
-                            <Folder
+                            {/* A search result names a folder, so it wears
+                                that folder's own mark. */}
+                            <FolderMark
+                              name={item.folder.name}
+                              color={item.folder.color}
                               className="size-4 shrink-0"
-                              style={{ color: item.folder.color }}
-                              strokeWidth={1.75}
-                              aria-hidden="true"
                             />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm font-medium text-[var(--color-graphite-800)]">

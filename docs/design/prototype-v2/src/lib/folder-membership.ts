@@ -1,3 +1,5 @@
+import { record } from "@/lib/history"
+
 export const PROTOTYPE_FOLDER_MEMBERSHIP_STORAGE_KEY =
   "dana:prototype-folder-memberships"
 export const PROTOTYPE_FOLDER_MEMBERSHIP_EVENT =
@@ -44,6 +46,17 @@ export function savePrototypeFolderMembership(
 ) {
   const memberships = readPrototypeFolderMemberships()
   const next = { ...memberships, [folderName]: membership }
+  /* A shelf change is a move, and it is recorded where it happens (DES-198's
+     rule for the acts, applied to the one that had no menu of its own). */
+  if (membership.label !== memberships[folderName]?.label) {
+    record({
+      kind: "folder",
+      subject: folderName,
+      name: folderName,
+      verb: "moved",
+      detail: membership.label ? `to ${membership.label}` : "off its shelf",
+    })
+  }
   window.localStorage.setItem(
     PROTOTYPE_FOLDER_MEMBERSHIP_STORAGE_KEY,
     JSON.stringify(next),

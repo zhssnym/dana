@@ -29,20 +29,20 @@ const SAMPLE: BaselineTaskRowProps[] = [
   { title: "Renew the library card" },
   {
     title: "Confirm final guest count and send it to the caterer before Thursday",
-    folder: { name: "Wedding", color: "var(--color-folder-violet, #8E71CF)" },
+    folder: { name: "Travel", color: "var(--color-folder-violet, #8E71CF)" },
     due: { label: "Due 14 Aug" },
     steps: { complete: 2, total: 5 },
   },
   {
     title: "Send the venue deposit",
-    folder: { name: "Wedding", color: "var(--color-folder-violet, #8E71CF)" },
+    folder: { name: "Travel", color: "var(--color-folder-violet, #8E71CF)" },
     due: { label: "Overdue · 6 Aug", overdue: true },
     important: true,
   },
   {
     title: "Review the community grant application",
     folder: {
-      name: "Community planning committee",
+      name: "Office",
       color: "var(--color-folder-fern, #52975D)",
     },
     due: { label: "Overdue · 8 Aug", overdue: true },
@@ -59,7 +59,7 @@ const SAMPLE: BaselineTaskRowProps[] = [
   },
   {
     title: "Keep the backup chair reservation",
-    folder: { name: "Wedding", color: "var(--color-folder-violet, #8E71CF)" },
+    folder: { name: "Travel", color: "var(--color-folder-violet, #8E71CF)" },
     status: "abandoned",
     due: { label: "12 Aug" },
   },

@@ -1,3 +1,4 @@
+import { UndoBar } from "@/components/undo-bar"
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
 import type { LucideIcon } from "@/lib/icons"
 import { Plus } from "@/lib/icons"
@@ -50,8 +51,16 @@ import {
   deletePrototypeFolder,
   readPrototypeFolderPresentation,
   restorePrototypeFolder,
+  savePrototypeFolderIdentity,
   type PrototypeFolderPresentation,
 } from "@/lib/folder-presentation"
+import {
+  PROTOTYPE_FOLDERS_EVENT,
+  copyFolderLink,
+  duplicateFolder,
+  readCreatedFolders,
+  saveCreatedFolders,
+} from "@/lib/folder-acts"
 
 const DEFAULT_SIDEBAR_WIDTH = 256
 const MIN_SIDEBAR_WIDTH = 224
@@ -82,23 +91,10 @@ function readStoredSidebarWidth() {
     : DEFAULT_SIDEBAR_WIDTH
 }
 
-function readCreatedFolders(): ShellFolderFixture[] {
-  if (typeof window === "undefined") return []
-  if (isCleanHandoffPreview()) return []
-  try {
-    const value = JSON.parse(
-      window.localStorage.getItem(CREATED_FOLDERS_STORAGE_KEY) ?? "[]",
-    )
-    if (!Array.isArray(value)) return []
-    return value.filter(
-      (folder): folder is ShellFolderFixture =>
-        typeof folder?.name === "string" &&
-        typeof folder?.color === "string" &&
-        typeof folder?.pending === "number",
-    )
-  } catch {
-    return []
-  }
+/* The clean-handoff export reads as a fresh account, which is the one thing
+   the shared reader in `lib/folder-acts` cannot know about. */
+function readShellFolders(): ShellFolderFixture[] {
+  return isCleanHandoffPreview() ? [] : readCreatedFolders()
 }
 
 export function AppShell({
@@ -163,7 +159,7 @@ export function AppShell({
     null,
   )
   const [createdFolders, setCreatedFolders] = useState<ShellFolderFixture[]>(
-    readCreatedFolders,
+    readShellFolders,
   )
   const [folderMemberships, setFolderMemberships] = useState(() =>
     isCleanHandoffPreview() ? {} : readPrototypeFolderMemberships(),
@@ -175,7 +171,11 @@ export function AppShell({
         : readPrototypeFolderPresentation(),
     )
   const [folderGroupDialog, setFolderGroupDialog] = useState<
-    | { mode: "create" }
+    /* `preselect` is how the sidebar's hold-two-folders-together gesture
+       reaches this dialog: the pair arrives already ticked and everything
+       else about making a group — the name, the validation, adding a third
+       folder before committing — is the one surface it always was. */
+    | { mode: "create"; preselect?: string[] }
     | { mode: "rename"; label: string; folders: ShellFolderFixture[] }
     | null
   >(null)
@@ -222,10 +222,7 @@ export function AppShell({
       if (!name) return
       setCreatedFolders((current) => {
         const next = current.filter((folder) => folder.name !== name)
-        window.localStorage.setItem(
-          CREATED_FOLDERS_STORAGE_KEY,
-          JSON.stringify(next),
-        )
+        saveCreatedFolders(next)
         return next
       })
       deletePrototypeFolder(name)
@@ -256,6 +253,11 @@ export function AppShell({
       if (detail) setFolderPresentation(detail)
     }
 
+    function refreshCreatedFolders() {
+      setCreatedFolders(readShellFolders())
+    }
+
+    window.addEventListener(PROTOTYPE_FOLDERS_EVENT, refreshCreatedFolders)
     window.addEventListener("dana:prototype-delete-folder", removeCreatedFolder)
     window.addEventListener(
       PROTOTYPE_FOLDER_MEMBERSHIP_EVENT,
@@ -267,6 +269,7 @@ export function AppShell({
     )
     return () =>
       {
+        window.removeEventListener(PROTOTYPE_FOLDERS_EVENT, refreshCreatedFolders)
         window.removeEventListener(
           "dana:prototype-delete-folder",
           removeCreatedFolder,
@@ -390,7 +393,12 @@ export function AppShell({
             setFolderGroupDelete({ label, folders })
           }
           onNavigateFolder={navigateToFolder}
+          onCopyFolderLink={copyFolderLink}
+          onDuplicateFolder={duplicateFolder}
           onOpenSearch={onOpenSearch}
+          onGroupFolders={(folderNames) =>
+            setFolderGroupDialog({ mode: "create", preselect: folderNames })
+          }
           pageVisibility={pageVisibility}
         />
         {/* V1 measure comparison, temporary until Imran picks (v2-refresh-plan
@@ -420,9 +428,23 @@ export function AppShell({
           {offline ? (
             <OfflineBanner className="rounded-none border-x-0 border-t-0" />
           ) : null}
-          <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
+          {/* The side panel's room, kept by the page rather than taken from
+              it. The variable is set by the panel only while one is open and
+              removed when it closes, so this is 0 the rest of the time — see
+              the note in `task-surface.tsx`. The transition is the panel's
+              own slide, matched, so the page moves with it rather than after
+              it. */}
+          <div
+            data-shell-scroll
+            className="min-h-0 flex-1 overflow-y-auto transition-[padding] duration-[var(--duration-slow)] ease-[var(--ease-enter)]"
+            style={{ paddingRight: "var(--right-panel-width, 0px)" }}
+          >
             {children}
           </div>
+          {/* One undo bar for the whole window, because undo is one idea and
+              a bar per screen is six of them (see `lib/undo.ts`). It sits
+              bottom-left so it never lands on the capture button. */}
+          <UndoBar />
           {showAdd ? (
             <Tooltip>
               <TooltipTrigger
@@ -503,6 +525,11 @@ export function AppShell({
                   ),
                 )
               : folderGroupOptions
+          }
+          preselect={
+            folderGroupDialog?.mode === "create"
+              ? folderGroupDialog.preselect
+              : undefined
           }
           existingLabels={existingFolderGroupLabels}
           onOpenChange={(open) => {

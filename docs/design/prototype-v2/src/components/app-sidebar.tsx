@@ -19,7 +19,7 @@ import {
   Pencil,
   Plus,
   Search,
-  Settings2,
+  Settings,
   Star,
   SunMedium,
   Trash2,
@@ -27,7 +27,9 @@ import {
 } from "@/lib/icons"
 
 import { DanaMark } from "@/components/dana-mark"
+import { FolderDirectory } from "@/components/folder-directory"
 import { FolderRow } from "@/components/folder-row"
+import { folderPageMark } from "@/components/folder-mark"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -58,6 +60,8 @@ import {
   type ShellFolderFixture,
 } from "@/fixtures"
 import type { PrototypeFolderMemberships } from "@/lib/folder-membership"
+import { FOOTER_PAGES, NAV_PAGES, readNavModel } from "@/lib/nav-model"
+import { isPagePinned, usePagePins } from "@/lib/page-pins"
 
 export type ShellPageName =
   | "My Day"
@@ -68,6 +72,12 @@ export type ShellPageName =
   | "Done"
   | "People"
   | "Settings"
+  /* DES-152's set, live behind `?nav=v2` beside the old one so the two can be
+     compared by looking. Both are in the union while the flag exists. */
+  | "Desk"
+  | "Today"
+  | "Scheduled"
+  | "Assignments"
 
 export type OptionalPageVisibility = Partial<
   Record<"Important" | "All" | "Done", boolean>
@@ -120,162 +130,6 @@ function NavigationRow({
         <span className="group-data-[collapsible=icon]:hidden">{name}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
-  )
-}
-
-function FolderGroup({
-  label,
-  folders,
-  activeFolder,
-  groupLabels,
-  onSelectFolder,
-  onAddFolder,
-  onAddTask,
-  onMoveFolderToLabel,
-  onOpenFolderAction,
-  onRenameGroup,
-  onDeleteGroup,
-}: {
-  label: string
-  folders: SidebarFolderFixture[]
-  activeFolder?: string
-  groupLabels: string[]
-  onSelectFolder?: (name: string) => void
-  onAddFolder?: (label: string) => void
-  onAddTask?: (folderName: string) => void
-  onMoveFolderToLabel?: (
-    folderName: string,
-    label: string | null,
-  ) => void
-  onOpenFolderAction?: (
-    folderName: string,
-    action: FolderSidebarAction,
-  ) => void
-  onRenameGroup?: (label: string, folders: ShellFolderFixture[]) => void
-  onDeleteGroup?: (label: string, folders: ShellFolderFixture[]) => void
-}) {
-  const [open, setOpen] = useState(true)
-  const childActive = folders.some((folder) => folder.folderKey === activeFolder)
-  const groupIconTone = childActive
-    ? "text-[var(--color-graphite-900)]"
-    : "text-[var(--color-graphite-500)]"
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div
-        className={`group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] [&>*]:relative [&>*]:z-10 ${
-          childActive ? "text-[var(--color-graphite-900)]" : ""
-        }`}
-      >
-        <CollapsibleTrigger
-          data-sidebar-tier="group"
-          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-        >
-          <span className="relative size-4 shrink-0" aria-hidden="true">
-            <Folders
-              className={`absolute inset-0 !size-4 opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0 ${groupIconTone}`}
-              strokeWidth={1.75}
-            />
-            {open ? (
-              <ChevronDown
-                className={`absolute inset-0 !size-4 opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${groupIconTone}`}
-                strokeWidth={1.75}
-              />
-            ) : (
-              <ChevronRight
-                className={`absolute inset-0 !size-4 opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${groupIconTone}`}
-                strokeWidth={1.75}
-              />
-            )}
-          </span>
-          <span className="truncate">{label}</span>
-        </CollapsibleTrigger>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100"
-          aria-label={`Add folder to ${label}`}
-          onClick={() => onAddFolder?.(label)}
-        >
-          <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                aria-label={`Manage ${label} folder group`}
-              />
-            }
-          >
-            <MoreHorizontal className="size-4" strokeWidth={1.75} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem
-              onClick={() =>
-                onRenameGroup?.(
-                  label,
-                  folders.map((folder) => ({
-                    ...folder,
-                    name: folder.folderKey,
-                  })),
-                )
-              }
-            >
-              <Pencil className="size-4" />Rename group
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() =>
-                onDeleteGroup?.(
-                  label,
-                  folders.map((folder) => ({
-                    ...folder,
-                    name: folder.folderKey,
-                  })),
-                )
-              }
-            >
-              <Trash2 className="size-4" />Delete group…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <CollapsibleContent>
-        <SidebarMenu className="pb-1">
-          {folders.map((folder, index) => (
-            <FolderRow
-              key={folder.folderKey}
-              {...folder}
-              nested
-              tree
-              treeLast={index === folders.length - 1}
-              active={activeFolder === folder.folderKey}
-              groupLabels={groupLabels}
-              currentLabel={label}
-              onSelect={() => onSelectFolder?.(folder.folderKey)}
-              onAddTask={() => onAddTask?.(folder.folderKey)}
-              onMoveToLabel={(nextLabel) =>
-                onMoveFolderToLabel?.(folder.folderKey, nextLabel)
-              }
-              onRename={() =>
-                onOpenFolderAction?.(folder.folderKey, "rename")
-              }
-              onEditAppearance={() =>
-                onOpenFolderAction?.(folder.folderKey, "appearance")
-              }
-              onDelete={() =>
-                onOpenFolderAction?.(folder.folderKey, "delete")
-              }
-            />
-          ))}
-        </SidebarMenu>
-      </CollapsibleContent>
-    </Collapsible>
   )
 }
 
@@ -347,7 +201,7 @@ function ProfileMenu({
           className="min-h-[var(--control-height)] text-sm"
           onClick={onOpenSettings}
         >
-          <Settings2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          <Settings className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -487,7 +341,10 @@ export function AppSidebar({
   onRenameFolderGroup,
   onDeleteFolderGroup,
   onNavigateFolder,
+  onCopyFolderLink,
+  onDuplicateFolder,
   onOpenSearch,
+  onGroupFolders,
   pageVisibility,
 }: {
   activePage?: ShellPageName | null
@@ -526,16 +383,57 @@ export function AppSidebar({
     folders: ShellFolderFixture[],
   ) => void
   onNavigateFolder?: (name: string) => void
+  /* The object contract's acts, from the shell — only it has the clipboard
+     and somewhere to put a copy. */
+  onCopyFolderLink?: (name: string) => void
+  onDuplicateFolder?: (name: string) => void
   onOpenSearch?: () => void
+  /* Two folders held together long enough to become a group. The naming
+     panel is the shell's, so this only reports the pair. */
+  onGroupFolders?: (folderNames: string[]) => void
   pageVisibility?: OptionalPageVisibility
 }) {
-  const visiblePages = (corePagesOnly ? systemPages.slice(0, 3) : systemPages).filter(
-    (page) =>
-      page.name === "My Day" ||
-      page.name === "Tasks" ||
-      page.name === "Planned" ||
-      pageVisibility?.[page.name] !== false,
-  )
+  /* DES-152's sidebar, behind `?nav=v2`: one page per question, Desk at the
+     head of the block because it is native, undeletable and where a new
+     account lands — which is also why it is no longer listed among the
+     folders a person can delete. Done ships unpinned. */
+  const pagePins = usePagePins()
+  const navModel = readNavModel()
+  /*
+  The pinned views, from the pin store — DES-153's "Settings is a pin list".
+
+  This used to read `page.pinned || (page.name === "Done" && …)`: the shipped
+  default, plus one hardcoded exception for the one unpinned view that
+  existed. Two more arrived at F5 and a person's own saved views arrive after
+  that, so the exception is a lookup now and the sidebar has stopped knowing
+  any page by name.
+  */
+  const v2Pages = NAV_PAGES.filter((page) =>
+    isPagePinned(page.name, pagePins),
+  ).map((page) => ({
+    name: page.name as SystemPageName,
+    /* A page whose spine is a folder wears that folder's mark, resolved now
+       rather than when `nav-model` loaded — which is why choosing a glyph for
+       Desk never reached the sidebar. */
+    icon: page.spine === "folder" ? folderPageMark(page.name) : page.icon,
+  }))
+
+  const visiblePages =
+    navModel === "v2"
+      ? corePagesOnly
+        ? v2Pages.slice(0, 3)
+        : v2Pages
+      : (corePagesOnly ? systemPages.slice(0, 3) : systemPages).filter(
+          (page) =>
+            page.name === "My Day" ||
+            page.name === "Tasks" ||
+            page.name === "Planned" ||
+            /* Narrowed because `SystemPageName` now spans both models while
+               this branch only ever walks the v1 six; the map's three keys
+               are the only optional pages in that set. */
+            pageVisibility?.[page.name as "Important" | "All" | "Done"] !==
+              false,
+        )
   const baseLabels = new Map(
     shellFolderGroups.flatMap((group) =>
       group.folders.map((folder) => [folder.name, group.label] as const),
@@ -596,10 +494,16 @@ export function AppSidebar({
        opening in the collapsed rail remounts its trigger, and a remounted
        animated icon starts from its hidden state. Static components have
        neither problem. See lib/icons.tsx. */
+    /* Animation is back on, and safely: `lib/icons.tsx` now renders the plain
+       drawing at rest and mounts the animated one only while a control is
+       hovered or focused, so an icon that animates in can no longer be
+       invisible at rest and a remounted tooltip trigger has nothing to
+       flash. Both faults this paragraph describes are fixed at the source
+       rather than by turning the family off here. */
     <IconMotion enabled={true}>
     <Sidebar
       collapsible="icon"
-      className="h-full shrink-0 border-r border-sidebar-border bg-sidebar"
+      className="h-full shrink-0 bg-sidebar"
     >
       <SidebarBrandHeader onOpenSearch={onOpenSearch} />
 
@@ -668,6 +572,12 @@ export function AppSidebar({
             <CollapsibleContent>
               <SidebarGroupContent>
             <SidebarMenu>
+              {/* Desk left the folder list for the page block when the nav
+                  model changed: it is native and cannot be deleted, so
+                  sitting among folders a person can delete misrepresented it
+                  (Imran, DES-152). It is also the one folder row that is not
+                  draggable, for the same reason. */}
+              {navModel === "v2" ? null : (
               <FolderRow
                 {...shellInbox}
                 active={activeFolder === shellInbox.name}
@@ -678,49 +588,27 @@ export function AppSidebar({
                   onOpenFolderAction?.(shellInbox.name, "appearance")
                 }
               />
+              )}
             </SidebarMenu>
 
-            {displayFolderGroups.map((group) => (
-              <FolderGroup
-                key={group.label}
-                {...group}
-                activeFolder={activeFolder}
-                groupLabels={groupLabels}
-                onSelectFolder={onNavigateFolder}
-                onAddFolder={onCreateFolderInGroup}
-                onAddTask={onAddTaskToFolder}
-                onMoveFolderToLabel={onMoveFolderToLabel}
-                onOpenFolderAction={onOpenFolderAction}
-                onRenameGroup={onRenameFolderGroup}
-                onDeleteGroup={onDeleteFolderGroup}
-              />
-            ))}
-
-            <SidebarMenu className="mt-1">
-              {unlabelledFolders.map((folder) => (
-                <FolderRow
-                  key={folder.folderKey}
-                  {...folder}
-                  active={activeFolder === folder.folderKey}
-                  groupLabels={groupLabels}
-                  currentLabel={null}
-                  onSelect={() => onNavigateFolder?.(folder.folderKey)}
-                  onAddTask={() => onAddTaskToFolder?.(folder.folderKey)}
-                  onMoveToLabel={(label) =>
-                    onMoveFolderToLabel?.(folder.folderKey, label)
-                  }
-                  onRename={() =>
-                    onOpenFolderAction?.(folder.folderKey, "rename")
-                  }
-                  onEditAppearance={() =>
-                    onOpenFolderAction?.(folder.folderKey, "appearance")
-                  }
-                  onDelete={() =>
-                    onOpenFolderAction?.(folder.folderKey, "delete")
-                  }
-                />
-              ))}
-            </SidebarMenu>
+            {/* Groups and loose folders are one ordered list, and the drag
+                that arranges it lives with the arrangement rather than
+                here. */}
+            <FolderDirectory
+              groups={displayFolderGroups}
+              loose={unlabelledFolders}
+              activeFolder={activeFolder}
+              onSelectFolder={onNavigateFolder}
+              onAddFolder={onCreateFolderInGroup}
+              onAddTask={onAddTaskToFolder}
+              onMoveFolderToLabel={onMoveFolderToLabel}
+              onOpenFolderAction={onOpenFolderAction}
+              onRenameGroup={onRenameFolderGroup}
+              onDeleteGroup={onDeleteFolderGroup}
+              onCopyFolderLink={onCopyFolderLink}
+              onDuplicateFolder={onDuplicateFolder}
+              onGroupFolders={onGroupFolders}
+            />
               </SidebarGroupContent>
             </CollapsibleContent>
           </SidebarGroup>
@@ -743,18 +631,17 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
-          <NavigationRow
-            name="People"
-            icon={UsersRound}
-            active={activePage === "People"}
-            onSelect={() => onNavigate?.("People")}
-          />
-          <NavigationRow
-            name="Settings"
-            icon={Settings2}
-            active={activePage === "Settings"}
-            onSelect={() => onNavigate?.("Settings")}
-          />
+          {/* From the model, so the audit's collision rule sees these two
+              exactly as it sees every page above them. */}
+          {FOOTER_PAGES.map((page) => (
+            <NavigationRow
+              key={page.name}
+              name={page.name}
+              icon={page.icon}
+              active={activePage === page.name}
+              onSelect={() => onNavigate?.(page.name)}
+            />
+          ))}
         </SidebarMenu>
         <SidebarMenu className="mt-2">
           <SidebarMenuItem>

@@ -4,7 +4,7 @@ import {
   ChevronRight,
   Folder,
   FolderInput,
-  ListFilter,
+  Filter,
   LogOut,
   MoreHorizontal,
   Palette,
@@ -104,7 +104,7 @@ interface FolderScreenProps {
 }
 
 export function FolderScreen({
-  folderName = "Wedding",
+  folderName = "Travel",
   folderColor = "var(--color-graphite-900)",
   folderLabel = "Personal",
   availableFolderLabels = ["Personal", "Work"],
@@ -321,7 +321,7 @@ export function FolderScreen({
                 />
               }
             >
-              <ListFilter className="size-5" strokeWidth={1.75} />
+              <Filter className="size-5" strokeWidth={1.75} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuRadioGroup
@@ -473,7 +473,7 @@ export function FolderScreen({
             <section aria-label={filterLabel}>
               {openTasks.length > 0 ? (
                 <div role="list" className="space-y-0.5">
-                  <TaskList tasks={openTasks} renderRow={renderTask} />
+                  <TaskList onTaskOpen={onOpenTask} tasks={openTasks} renderRow={renderTask} />
                 </div>
               ) : (
                 <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
@@ -503,7 +503,7 @@ export function FolderScreen({
                   Completed ({completed.length})
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <TaskList className="mt-0.5" tasks={completed} renderRow={renderTask} />
+                  <TaskList onTaskOpen={onOpenTask} className="mt-0.5" tasks={completed} renderRow={renderTask} />
                 </CollapsibleContent>
               </Collapsible>
             ) : null}

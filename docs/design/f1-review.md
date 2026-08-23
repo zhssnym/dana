@@ -249,6 +249,9 @@ word:
 - **SH6** V2-scope: the collapsed rail hides folders; the page strip's L3
   ruling (noting the strip could earn a job as a tab strip); the main
   pages' headers wear the v1 composition beside the folder page's new one.
+  **The third clause was closed by session F3 on 2026-08-19** at Imran's
+  direction, and closed as its own work rather than by restoring `03cd83e`:
+  DES-149 to DES-151. The first two clauses stand.
 
 The reversed round's answers to these are in `03cd83e`'s message and diff
 for whenever any of them is wanted back — piece by piece, on Imran's say-so,

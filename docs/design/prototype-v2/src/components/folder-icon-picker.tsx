@@ -41,6 +41,7 @@ import {
   Guitar,
   Headphones,
   Heart,
+  LampDesk,
   House,
   Key,
   Laptop,
@@ -114,8 +115,38 @@ export const FOLDER_GLYPHS: { key: string; label: string; icon: LucideIcon }[] =
   { key: "fish", label: "Fish", icon: Fish },
 ]
 
-export function folderGlyph(key: string | undefined): LucideIcon {
-  return FOLDER_GLYPHS.find((glyph) => glyph.key === key)?.icon ?? Folder
+/*
+Marks that belong to a folder by nature rather than by choice.
+
+Desk is the case, and it exposed a rule that was being applied twice. Its tray
+was declared in `nav-model.ts` for the sidebar's page block, while every other
+surface asked `folderGlyph` — which knows only about *chosen* glyphs and
+answers the plain folder when there is none. So Desk wore a tray in the
+sidebar and a folder on every task chip: one concept, two answers, because
+"what mark does this folder wear" was being decided in two places.
+
+It is decided here now, once, and `nav-model.ts` asks this rather than
+importing an icon of its own. A folder with a native mark and no chosen one
+gets its native mark; choosing overrides it, because a person dressing their
+own Desk should win over Dana's default.
+*/
+/* Kept out of `FOLDER_GLYPHS` deliberately: that list is forty-two so the
+   picker's seven columns fill six rows with no orphan cell, and this file's
+   own rule is that adding one glyph means adding seven. A native mark is not
+   a choice anyway — it is what a folder wears when nobody has chosen. */
+const NATIVE_FOLDER_GLYPHS: Record<string, LucideIcon> = {
+  Desk: LampDesk,
+}
+
+export function folderGlyph(
+  key: string | undefined,
+  /* The folder's name, so a native default can be found when nothing was
+     chosen. Optional, because plenty of call sites resolve a bare key. */
+  folderName?: string,
+): LucideIcon {
+  const chosen = FOLDER_GLYPHS.find((glyph) => glyph.key === key)?.icon
+  if (chosen) return chosen
+  return (folderName ? NATIVE_FOLDER_GLYPHS[folderName] : undefined) ?? Folder
 }
 
 /* The ten folder swatches from tokens.css, plus graphite. The v1 dialog

@@ -1,6 +1,10 @@
 import { useState } from "react"
-import { Folder, ListTodo } from "lucide-react"
 
+import { ListTodo } from "@/lib/icons"
+import { folderMarkFor } from "@/components/folder-mark"
+import { PageHead, pageBodyClass } from "@/components/page-head"
+import { pageQuestion } from "@/lib/nav-model"
+import { TaskSection } from "@/components/task-section"
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import {
@@ -91,24 +95,15 @@ export function TasksScreen({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
-      <header className="flex min-h-12 items-start gap-3">
-        <ListTodo
-          className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
-            Tasks
-          </h1>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Undated tasks
-          </p>
-        </div>
-      </header>
+    <div className={pageBodyClass()}>
+      <PageHead
+        storageName="Tasks"
+        icon={ListTodo}
+        title="Tasks"
+        description={pageQuestion("Tasks") ?? "Undated tasks"}
+      />
 
-      <div className="mt-7">
+      <div className="mt-3">
         {previewState === "loading" ? (
           <SkeletonList />
         ) : previewState === "error" ? (
@@ -130,13 +125,14 @@ export function TasksScreen({
               <section aria-label="Inbox tasks">
                 <TaskList
                     className=""
+                    onTaskOpen={onOpenTask}
                     tasks={inbox}
                     renderRow={renderTask}
                   />
                 <QuickAdd
-                  folderName="Inbox"
-                  onAdd={(title) => onAdd("Inbox", title)}
-                  onOpenFullForm={() => onOpenFullForm("Inbox")}
+                  folderName="Desk"
+                  onAdd={(title) => onAdd("Desk", title)}
+                  onOpenFullForm={() => onOpenFullForm("Desk")}
                 />
               </section>
             ) : null}
@@ -146,22 +142,16 @@ export function TasksScreen({
               .map((group) => {
                 const headingId = `tasks-${group.name.toLowerCase().replaceAll(" ", "-")}`
                 return (
-                <section key={group.name} aria-labelledby={headingId}>
-                  <div className="mb-1 flex h-7 items-center gap-2 px-2">
-                    <Folder
-                      className="size-4 shrink-0"
-                      style={{ color: group.color }}
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                    <h2
-                      id={headingId}
-                      className="truncate text-[13px] font-semibold text-[var(--color-graphite-700)]"
-                    >
-                      {group.name}
-                    </h2>
-                  </div>
+                <TaskSection
+                  key={group.name}
+                  id={headingId}
+                  name={group.name}
+                  icon={folderMarkFor(group.name)}
+                  iconColor={group.color}
+                  count={group.tasks.length}
+                >
                   <TaskList
+                                            onTaskOpen={onOpenTask}
                                             tasks={group.tasks}
                       renderRow={renderTask}
                     />
@@ -170,7 +160,7 @@ export function TasksScreen({
                     onAdd={(title) => onAdd(group.name, title)}
                     onOpenFullForm={() => onOpenFullForm(group.name)}
                   />
-                </section>
+                </TaskSection>
                 )
               })}
           </div>

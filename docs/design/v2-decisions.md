@@ -1,4 +1,4 @@
-APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Carried by DES-113 |APPROVED Imran, 2026-08-17, front end only |APPROVED Imran, 2026-08-17 |APPROVED Imran, 2026-08-17 |APPROVED Imran, 2026-08-17 |# Dana UI v2: decision register
+# Dana UI v2: decision register
 
 The running record of decisions made during the v2 refresh, opened 2026-08-17.
 It continues the `DES-` numbering of `design-contract.md`, which ends at
@@ -103,6 +103,28 @@ Four facts, so Hassan can price the work without reconstructing the idea:
 | DES-146 | Three homes for a task; a like is the whole reaction set | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-147 | A popover is as wide as what it holds | APPROVED | F2 | Imran, 2026-08-18 |
 | DES-148 | An affordance may not charge rent for unused space | APPROVED | F2 | Imran, 2026-08-18 |
+| DES-149 | One head for every place, and a system page's mark is not pickable | PROPOSED | F3 | **Yes**, Imran's look |
+| DES-150 | A place-page's controls leave the content column for the bar | APPROVED | F3 | Imran, 2026-08-19; spec 9.4 edit owed as B3 |
+| DES-151 | A group heading is the section tier, on every page that has one | PROPOSED | F3 | **Yes**, Imran's look |
+| DES-152 | The navigation model: five pages, one question each | APPROVED | F3 | Imran, 2026-08-21; the `?nav=v2` draw, then an RFC |
+| DES-153 | A page is a view; the filter is the instrument that makes one | PROPOSED | F3 | **NEEDS BACKEND** for custom views; filter rebuild is design |
+| DES-154 | A settled behaviour belongs to the mechanism, not to each screen | APPROVED | F4 | Imran, 2026-08-22 |
+| DES-155 | A mark stands on ground, not in a box | APPROVED | F4/F5 | Imran, 2026-08-22; amends DES-130 and DES-149 |
+| DES-156 | Grouping replaces a page's arrangement; it never nests inside it | PROPOSED | F5 | **Yes**, Imran's look; the filter rebuild DES-153 owed |
+| DES-157 | Every rule proves it still bites, or it fails as blind | APPROVED | F5 | Follows from DES-154; a green check nobody checks is a rumour |
+| DES-158 | Undo is an act with a name, not a button pair | PROPOSED | F5 | **Yes**, Imran's look; asked for 2026-08-22 |
+| DES-159 | One drawing, one name; one field, one glyph | PROPOSED | F5 | **Yes**, Imran's look; his "no redundant icons" rule, both directions |
+| DES-160 | A control comes from the system or it becomes one | PROPOSED | F5 | **Yes**, Imran's look; his shadcn-structure correction |
+| DES-161 | A link is a link, not a file with an address | PROPOSED | F5 | **Yes**, Imran's look |
+| DES-162 | An icon has a size before anyone chooses one | PROPOSED | F5 | **Yes**, Imran's look; asserted across 86 menus |
+| DES-163 | Making a task means making it, from every door | PROPOSED | F5 | **Yes**, Imran's look; eight dead paths closed |
+| DES-164 | The calendar's chrome is the shell's chrome | PROPOSED | F5 | **Yes**, Imran's look |
+| DES-165 | A section somebody made is the same section | PROPOSED | F5 | **Yes**, Imran's look; unlocks icons on user sections |
+| DES-166 | A section is a place a task can be moved to | PROPOSED | F5 | **Yes**, Imran's look; drag across sections, and the path on the row |
+| DES-167 | The way in stays until it has been used | PROPOSED | F5 | **Yes**, Imran's look |
+| DES-168 | A block earns the top of the page by having something in it | PROPOSED | F5 | **Yes**, Imran asked whether this was good or bad |
+| DES-169 | An arrangement is a person's, so it is kept | PROPOSED | F5 | **Yes**, Imran's look; sections now survive navigation |
+| DES-170 | Settings is a pin list, and Completed is Done | PROPOSED | F5 | **Yes**, Imran's look; DES-153's second half built |
 
 ## How Lane 2 is being run, decided 2026-08-17
 
@@ -1818,13 +1840,13 @@ decision:** the reminder presets were minute-level — "at the time it is due",
 for them to be relative to. They are now day-level, and any exact moment is
 reached through Custom date & time.
 
-**This one is not only a design decision and must not be ported as though it
-were.** The shipping product's due date carries a time: it is in the task form,
-in the section 7 API, and in the reminder tick that fires against it. Removing
-it is a specification change, not a restyle. It goes to Imran and Hassan as a
-ruling with the Lane 2 pile, and until that ruling exists **the port keeps the
-production behaviour and takes only the picker's shape.** Recorded here so the
-port session meets it as a decision rather than as a missing field.
+**Ruled by Imran on 2026-08-22 — see [[DES-178]].** The day ships and the time
+is deferred rather than deleted: a due-time returns later, alongside a start
+date and time. That changes what this record asks of the port. It had said the
+port keeps production behaviour until a ruling exists; the ruling exists, and it
+is that the RFC **narrows the interface without dropping the data** — the picker
+writes a day, the section 7 field keeps its moment, and a task whose time was
+set before this ships keeps it.
 
 ### DES-123, one picker, wherever it is opened from
 
@@ -2863,6 +2885,2043 @@ one. The empty-state ghost moved with it, off an unapproved 13px.
 
 The hierarchy, top to bottom, now reads: page title 24 · section heading 16 ·
 task title 14 · all prose and row information 12.
+
+### DES-149, one head for every place, and a system page's mark is not pickable
+
+F3, 2026-08-19, at Imran's direction: bring My Day, Tasks, Planned, Important,
+All and Done into the folder page's composition family. **Drawn in the shell**,
+on all six.
+
+They had drifted without anyone deciding they should. The folder page grew a
+cover, a mark at identity scale and a title with its facts arranged around it,
+while the six pages one click away still wore v1's header — a 24px glyph inline
+with the name, a subtitle stacked under it, and the page's own controls parked
+to the right of its title. Two compositions in one product, and the sidebar
+puts them next to each other.
+
+So the folder page's header is **extracted rather than copied** — DES-124's
+rule, and the same move DES-141 made for the cover — into
+`components/page-head.tsx`. Every place now reads: cover, mark, "Add cover",
+title with its fact, description. `PageHead` and `pageBodyClass` are the only
+definitions of that arrangement, so the seventh page cannot drift from the
+first six by a rounding of padding.
+
+Three things this decides rather than merely moves:
+
+- **A system page's mark is not pickable, and a folder's is.** Same geometry,
+  same optical position, same plate-only-over-a-cover rule (DES-130) — but no
+  popover. A folder is the person's own thing, so its glyph and colour are
+  theirs to choose; My Day's sun is Dana's, and a picker on it would offer a
+  choice that does not exist. The honest difference survives, and it is the
+  only one.
+- **The fact rides the title's line; prose sits under it.** The folder page
+  divides this way already, and the six pages follow: "Monday, 10 August" and
+  "Starred tasks" are sentences about the place and take DES-148's 12/20 prose
+  tier, one step under the row's title. A **progress figure** is the quiet
+  figure beside the name — and only My Day and a folder have one, because only
+  they are a body of work with a completion. Tasks, Planned, Important, All and
+  Done are queries, and nothing completes a query, so their fact slot stays
+  empty rather than growing an invented number to fill it. My Day reads
+  "4 of 10 done", in the folder page's own words.
+- **The cover became reachable.** DES-141 ruled a cover native to every place
+  and moved the whole affordance into `page-cover.tsx`, and the shell has been
+  rendering `PageCover` on these six pages ever since — but nothing rendered
+  `AddCoverAction`, so no page but a folder could ever be given one. The ruling
+  was true in the code and false on the screen. The ghost now sits in every
+  page's head, hover-revealed, exactly as it is on a folder that already has
+  its cover.
+
+One fault found and fixed on the way, and it was the reference design's too:
+the header asked *"is a cover key stored?"* while the band asked *"does that
+key resolve to something drawable?"*, and those are different questions. An
+uploaded cover is an object URL alive for the session only (DES-130), so after
+a reload the key is still in the store and draws nothing — and a head that
+plated its mark on the key alone would float a white tile over blank page.
+`usePageHasCover` now asks the band's question.
+
+**What is owed:** Imran's look. Lane 1 in substance — every part of it is
+presentation over behaviour the screens already had — except the cover, which
+carries DES-141's Lane 2 mark unchanged and travels with DES-105's storage
+question.
+
+### DES-150, a place-page's controls leave the content column for the bar
+
+F3, 2026-08-19, answering the second half of Imran's instruction: *then decide
+per page what the bar should hold beyond the filter.* **Drawn in the shell.**
+
+DES-139 ruled that controls belonging to what a tab is showing are chrome, and
+that chrome does not live inside the scroll area. The folder page moved; two
+pages had not, and each held its control beside its own title where the folder
+page's used to be:
+
+- **Planned's list/calendar toggle is now a `ViewStrip` in the bar.** Spec 9.5
+  asks for a mode toggle persisted client-side and it still is one, still
+  persisted. What went is a bespoke 44px segmented block with two written
+  labels, which was the last switcher in the product not obeying DES-137's
+  rule that a switcher shows only the view you are in and widens on hover.
+  It collapses to one icon, sits left of the filter, and is literally the same
+  component the folder page uses — which it now also is: **the folder page had
+  its own hand-rolled copy of `ViewStrip`**, written before the component
+  existed and identical to it line for line. One copy is a copy; giving Planned
+  a second is the moment it becomes a fork, so both were replaced.
+- **My Day's "Important only" switch is gone, and the shared filter carries
+  it.** This was not a translation but a repair: importance is one of the four
+  variables `task-filters.tsx` has held since DES-140, the panel renders a
+  switch with the same star and the same words, and My Day's list was already
+  being filtered by it. Two controls for one fact, forty pixels apart, either
+  of which could contradict the other. `?state=important` seeds the filter now,
+  and the strip's active count shows the state without opening anything.
+
+For the other four pages the answer is **nothing beyond the filter**, which is
+worth stating rather than leaving as an absence: Tasks, Important, All and Done
+have no standing control of their own, and inventing one to make the bars look
+alike would be furniture.
+
+The bar learned one mechanical thing to allow this. Two blocks can now fill it
+— the shell renders the chrome every place-page shares, a screen with state of
+its own portals in separately — and portals land in mount order, which is not
+an arrangement anybody chose. `WindowBarActions` takes an `order`, so each
+block says where it sits: views, then the filter, then the quiet things, which
+is the folder page's own arrangement written down.
+
+**The spec note, and Imran's ruling on it.** Spec 9.4 writes My Day's structure
+as "header with the date; important-only toggle switch". The switch still
+exists, still on My Day, still a switch, still named "Important only" — but it
+is one press deeper, inside the bar's filter, rather than on the page's own
+header line. DES-139's reading is that the bar *is* the header of whatever the
+tab is showing, which makes this consistent; but 9.4 is normative, and this
+plan's own ground rules say a session that wants to change normative material
+has found a ruling item rather than a task.
+
+So it was put to Imran as one, and **he ruled it on 2026-08-19, explicitly and
+knowing it changes the spec**: the switch belongs in the shared filter, and
+**9.4 is to be edited to say so** rather than the design being bent back to the
+sentence. This entry is APPROVED on that ruling and the drawing does not wait.
+
+What is owed is the spec sentence itself, tracked as **B3 on the plan's rulings
+track**, due before the port to `app/` and not before the next design session.
+It is recorded there rather than here because writing it is the repository's
+change process, not a design session's — the register says what the product
+looks like, `docs/spec` says what it is, and this entry must not be mistaken
+for the edit having happened.
+
+Worth naming the contrast, because the two look alike and are not: **DES-122**
+(a due date is a day, not a moment) is the same shape of spec conflict and has
+*not* been ruled, so the port keeps production behaviour there. This one has.
+
+### DES-151, a group heading is the section tier, on every page that has one
+
+F3, 2026-08-19. DES-148 fixed the hierarchy — page title 24 · section heading
+16 · task title 14 · all prose and row information 12 — and fixed it on the
+folder page. Three of the six pages disagreed with it, which is finding S1 one
+page down from where it was first written.
+
+Measured before: the folder page's sections and All's two labels sit at 16 on
+an `h-8` hairline band; My Day's "Carried over" and "Today" and Done's day
+groups sit at 13 with no rule under them; Tasks' folder groups sit at 13 with a
+folder mark. Three answers to *what does a group look like*, and in two of them
+the heading was quieter than the rows it introduced.
+
+All of them are `GroupHeading` now — 16 on the hairline, the mark kept where
+there was one, the folder's colour kept on that mark, which is where a folder's
+colour belongs.
+
+**No heading grew a count, deliberately.** The folder page's sections carry one
+because a person made those sections and can see how big they got. These groups
+are computed, and more to the point spec 9.1 makes My Day's three headings
+normative *to the letter, the count included* — "Carried over", "Today",
+"Done today (N)" — so a count beside the first two would be inventing normative
+copy. The tier changed; not one word did.
+
+**One new level, on All only.** All nests folders inside its "Tasks" section,
+so its folder headings are genuinely subordinate rather than peers, and they
+take the scale's next step down: 14/600, no hairline, mark kept. They were at
+13, which is on no scale the contract names — the same off-scale value DES-107
+opened and F2a's exit test was written to catch.
+
+**What is not touched:** the collapsed lines at a page's foot. "Done today (N)"
+on My Day and "Completed" on a folder are the quiet collapsible grammar DES-142
+settled for the conversation, deliberately one tier below a section heading
+because they close a page rather than open a group. They already agree with
+each other.
+
+### DES-152, the navigation model: five pages, one question each
+
+Opened by Imran 2026-08-19 as a challenge to the six system pages — redundant,
+not MECE, named after Microsoft To Do's smart lists. **Settled by him
+2026-08-21** after research (`six-pages-review.md`, including its dated
+addenda) and four rounds of argument. The model below is APPROVED in
+principle; the drawing behind `?nav=v2` is what his eye still has to rule on,
+and the spec change is a separate RFC.
+
+**The sidebar:**
+
+```
+Desk           unfiled, undated things; where a new account lands
+Today          what I am doing today
+Scheduled      everything with a date
+Assignments    who is carrying what
+Important      the starred set
+All            everything, completed included
+───────────
+Personal ▸ …   the folders, user-made and deletable
+```
+
+Done is a sixth shipped page that **ships unpinned**, reachable from Settings.
+
+**The rule the model rests on, in Imran's own words:** the native pages are a
+filtered view, extract, or window of All. All is the ground truth; every other
+page is a window onto it; Desk is where things land when nothing has been
+decided about them yet.
+
+**Each page locks its own axis and frees every other one.** Imran's rule,
+2026-08-21: a page's identity is its spine, not a filter setting, so no native
+page can be turned into something else by adjusting controls — while every
+*other* axis stays adjustable, so the page is still useful. Today locks the
+day; Scheduled locks has-a-date and offers Today · Week · Month · Year;
+Assignments locks the assignee axis; Important locks the flag. Only All locks
+nothing. This is also how the category does it: Todoist's built-in views
+cannot be edited as filter queries, deliberately, while user-made filters can.
+
+**Every axis has exactly one home**, which is the MECE claim made precisely.
+When → Scheduled. Who → Assignments. Importance → Important. Status → Done,
+plus the Completed sections on every page. Folder → the folder list. Commitment
+→ Today. And All is the deliberate no-axis page. A task still appears on
+several pages, and that is now a property with a reason — each page asks it a
+different question — rather than six entries that looked like peers and were
+not.
+
+#### What the research decided, and what it cost
+
+- **All is provably the union of Tasks and Planned** — the spec's own 6.1
+  partition proof, pinned by AC-070 — so All absorbs both and the
+  dated/undated split disappears. That split was two *values* of one axis
+  promoted to two pages, which is the original non-MECE break.
+- **Important survives as a page** rather than folding into the filter, on
+  Imran's ruling that native pages exist so a person does not have to reach
+  for the filter for the questions they ask constantly. Starring is a
+  constant act; setting a repeat is not, which is why Routines is a filter
+  variable and not a page.
+- **Anytime was considered and rejected.** Things 3 splits its time axis into
+  Upcoming and Anytime, and importing that would rebuild Planned + Tasks under
+  new names — the very split this entry exists to remove. Undated tasks live
+  in their folder and in All; "undated everywhere" is one filter press.
+- **My Day became Today, and the mixing question was answered.** Microsoft's
+  users are documented as confused by My Day versus Today, because one is
+  curated and one automatic and the names do not say which. Dana's Q1 mixes
+  the same two mechanisms. The finding: **mixing sources is fine, mixing
+  questions is not.** Today holds what is due today, what carried over, and
+  what was pulled in — three sources, one question, *what am I doing today* —
+  and that is honest as long as the deadline question lives on its own page.
+  Which is why Today and Scheduled are two pages and not one zoom.
+- **The pull survives** because of that split. Imran's account of why it
+  matters: My Day is not a due-date list, it is the page you start a day on,
+  reading your folders and pulling in what you actually intend to do.
+
+#### Names, and the principle that settled them
+
+Three rounds failed before the principle was found: **there is a difference
+between copying a coinage and using the common word.** "My Day" and "Assigned
+to me" are Microsoft's inventions and copying them is copying. "Today",
+"Scheduled", "Important", "All" are ordinary English that Apple also uses
+because they are the plainest available words. The target is not "a name
+nobody has used" — that produces worse names — but "no borrowed invention".
+
+Two supporting findings: navigation labels want **nouns**, which killed the
+imperative ("Do it today") and interrogative ("Who's on it") candidates that
+were on the table; and a label should say **what is actually inside it**, the
+lesson from Todoist renaming a filter from "Anyone" to "Me and Unassigned".
+
+- **Desk**, not Inbox. Imran's ruling: Inbox carries email posture, and most
+  of what lands there you wrote yourself. A desk is a place things land before
+  being filed, which pairs with folders rather than fighting them. Approved for
+  "tasks without any date, importance, assignation, or a user-created folder".
+- **Assignments**, not People and not "Assigned to me". Imran's objection to
+  People is exact: it "conveys a message of community and connections, not
+  assignations", and the footer's People screen already owns that meaning.
+  Assignments is the plain noun for what is on the page and is nobody's
+  coinage. The footer's People screen is untouched — no rename, no migration.
+- **Names never change; scope controls do.** The static-versus-dynamic
+  question is answered by naming the *axis* rather than the current value: a
+  sidebar entry is always static, the scope control in the controls row
+  carries the value, and a pinned custom view is named by whoever saved it.
+
+#### Desk sits with the pages, not the folders
+
+Imran, 2026-08-21: Desk is native and cannot be deleted, so listing it among
+user-made groups and folders misrepresents it. It joins the page block as the
+home a new account lands on. **Placed first in that block by the studio**, the
+position Todoist and Things both give capture, and one line to move if his eye
+disagrees.
+
+#### The Assignments page, in detail
+
+Its spine is the assignee. **It defaults to everyone, grouped by person, the
+viewer first** — not to "assigned to me" — because the value of a shared
+to-do app is seeing the whole household's load at a glance, the viewer's own
+tasks are still at the top, and it stops being Microsoft's feature rather than
+merely being renamed.
+
+Imran's framing is "assigned tasks from [A] to [B]", and one honest limit was
+found against the data model: Dana records who *created* a task and not who
+*assigned* it, so after a reassignment the "from" half is the creator rather
+than the assigner. So the assignee is the page's slot and creator is a filter
+variable. A true assigner field is a backend change worth making only if
+people ask "who gave me this?" — recorded, not proposed.
+
+#### Cost
+
+**Frozen sections 4 and 7 take zero edits.** `/views/all` serves All,
+`/views/planned` and its calendar serve Scheduled, `/views/my-day` serves
+Today, `/views/done` serves Done; `/views/tasks` and `/views/important` simply
+stop being called, and Assignments is a client-side composition over cards
+that already carry their assignee. A frozen contract obliges the server to
+keep answering, not the client to keep asking.
+
+**Sections that change, none frozen:** 1 (scope), 2 (glossary — Home retires,
+View narrows), 6 (notes that no page renders Q2/Q3/Q4 alone; 6.1 keeps its
+proof and changes its section names), 9.1 (sidebar order, routes, regions,
+quick-add placement), 9.3 (entry defaults lose two rows), 9.4 (My Day becomes
+Today), 9.5 (rewritten around the new set), 9.7 (the Pages toggles become the
+pin list), and roughly a dozen criteria in 12. The default folder's shipped
+name changes from Inbox to Desk in provisioning, which is 4.3 prose rather
+than a schema change, and 9.2's first-run destination moves to Desk.
+
+**What is owed:** the `?nav=v2` drawing for Imran's eye, then the RFC. See
+[[DES-153]] for the machinery this model implies but does not itself decide.
+
+### DES-153, a page is a view, and the filter is the instrument that makes one
+
+The machinery [[DES-152]] implies. Opened 2026-08-21 from Imran's question
+about what Settings should list — a fixed set of shipped-but-disabled pages,
+or the ability to make a page out of filters you have set. The answer is that
+these are one mechanism, and saying so is what stops the sidebar sprawling.
+
+**A view is one object with four parts:** a name; a spine, the one axis it
+locks; defaults for every other axis, all still adjustable; and a mode — list,
+board, or calendar. Every native page of DES-152 is an instance of it, and so
+is a view somebody saves for themselves. Nothing is special-cased.
+
+| View | Spine | Defaults |
+| - | - | - |
+| Today | the day | anyone, any importance |
+| Scheduled | has a date | Today stop; anyone |
+| Assignments | the assignee | everyone, grouped by person, viewer first |
+| Important | the flag | anyone, any date |
+| All | none | nothing filtered, completed included |
+| Done | completed | everything else free |
+
+**Settings is a pin list, not a page list.** One list showing every view a
+person has, shipped and self-made, each with a pin toggle; the sidebar shows
+the pinned ones. That is the constraint on endlessness — make fifty views, pin
+three — and it is the shape Dana already ships, `user_settings` carrying
+`show_important`, `show_all` and `show_done` with Done defaulting false. Apple
+and Linear both work this way, choosing which smart lists appear and
+favouriting a view into the sidebar.
+
+**The honest split, and it is a lane boundary.** Toggling *shipped* views is
+free: the booleans exist. **User-made views need a backend** — a table to hold
+them and endpoints to read and write them — so this entry is NEEDS BACKEND for
+that half only, and the design must not wait for it. Build the native pages as
+views now so the object is right; custom views then arrive as persistence
+rather than as a redesign.
+
+1. **What the user does.** Sets the filters and view mode they keep
+   re-creating, presses Save as view, names it, and pins it to the sidebar if
+   they want it there. Imran's own example: "10/11/2027 – Ali – Important".
+2. **What the product cannot do today.** There is no view entity, nowhere to
+   store a filter state, and `user_settings` carries three fixed booleans
+   rather than a list.
+3. **What it would need.** A guess, marked as one. A `view` table
+   (user_id, name, spine, filter state as JSON or columns, mode, pinned,
+   position), CRUD endpoints, and the three booleans of 7.2 either migrating
+   into rows or staying as the shipped views' pin flags. No change to the
+   twelve queries: a view is a filter over results section 6 already returns.
+4. **What happens if it never ships.** DES-152 stands entire — six shipped
+   views, one unpinned, pinned state in the existing booleans. Only the
+   make-your-own half is lost, and nothing else depends on it.
+
+**The filter has to be rebuilt before any of this is credible**, and Imran
+said so plainly: it is "far down then our expectations". Today it is a popover
+of four single-choice rows, which was adequate as a side control and cannot
+carry a model where pages *are* filter states. What it owes:
+
+- more than one value per axis — Sara *and* Hassan, not one or the other;
+- real date ranges, not only any / with / without / overdue;
+- **repeating** as a variable, since Q3's rules already put every repeating
+  task on the dated side and "show me my routines" should be one press rather
+  than a page (DES-152's reasoning for why Routines is not a page);
+- **created by**, which is Assignments' second half;
+- active state visible on the page as removable chips, not a count you must
+  open the panel to read;
+- **group by** — folder, person, date — which does not exist at all today and
+  which every page in DES-152 needs;
+- **sort by**, also missing;
+- and **Save as view**, the control that turns a filter state into a page,
+  which is the bridge between this entry's two halves.
+
+That is its own session, sequenced after the `?nav=v2` drawing, because the
+sidebar is what tells the filter what it has to support.
+
+### DES-154, a settled behaviour belongs to the mechanism, not to each screen
+
+Imran's instruction, 2026-08-22, after the fourth round of the same complaint:
+*"it seems like it's applying everything separately instead of creating a
+logic and rule and working and updating things based on that… if a behavior is
+finalized for an element such as TaskRow it should be updated anywhere else."*
+
+He is right, and the evidence was measurable rather than a matter of taste.
+Opening a task by pressing its body was "done" three times and was still
+missing from **nine** task lists across six files; a folder's chosen glyph was
+"done" and stopped at the sidebar's edge; the Desk fallback was written twice
+and only one copy was correct. Every one of those was a rule held in a
+session's memory and re-applied by hand.
+
+So the rule this entry states is about *where* a rule lives:
+
+> **A behaviour settled for a component is enforced by that component's own
+> contract — a required prop, a single resolver, one shared component —
+> never by each screen remembering it.**
+
+Five mechanisms were moved onto that footing, and each replaced a class of
+bug rather than an instance:
+
+- **`TaskList.onTaskOpen` is required.** Opening by tap is resolved by the
+  drag engine, since only the engine knows whether a press became a drag, and
+  the engine can only report to whoever the list hands it. Optional, it was
+  forgotten once per new list. Required, the compiler asks at every call site
+  including the ones nobody has written yet — and asking it named all nine at
+  once.
+- **One resolver decides what folder a task is in** (`folderNameOf`,
+  `useFolderMark`, `folderMarkFor`). A task with no folder is in Desk, and the
+  label and the mark ask the same function, so a chip can no longer say "Desk"
+  beside a generic folder.
+- **One section component** (`TaskSection`). Computed groups and hand-made
+  ones are the same thing; "native" is a capability — cannot be renamed or
+  deleted — not a different component. Every section collapses.
+- **One write path out of the card** (`onPatch` in `useCardWiring`). The card
+  had kept edits in local state and reported only completion, which is
+  invisible in an inline row and fatal in a surface that unmounts on close.
+- **One icon layer is ever visible.** Static at rest, animated while hovered
+  or focused, swapping back on leave — so an icon's visibility never depends
+  on an animation succeeding, whichever glyph it happens to be.
+
+**What this costs and why it is worth it:** a required prop is a breaking
+change to every call site, and that is the feature. The alternative is what
+this stretch spent four rounds doing — finding the same rule unapplied in one
+more place each time Imran looked at a different page.
+
+**The standing test.** The route sweep now asserts the invariants rather than
+only that pages render: no prototype artefact in user-visible copy, exactly
+one glyph per sidebar row, no stray title input in a list, no horizontal
+overflow, no console error. A rule with no assertion behind it is a rule that
+regresses silently, which is how most of these got lost the first time.
+
+### DES-155, a mark stands on ground, not in a box
+
+Imran's ruling, 2026-08-22, on the mark over a cover: the rounded white tile
+"does not feel aesthetically strong". Taken at F4, completed at F5, recorded
+here because it changes a rule two earlier entries state — [[DES-130]]'s plate
+and [[DES-149]]'s "same plate-only-over-a-cover rule" — and an unrecorded
+amendment is how a superseded rule gets re-applied by the next session.
+
+**Why the box was wrong, which is not the same as why it looked wrong.** A
+bordered white tile with a shadow is a *control's* clothing: it is what a
+button wears. Putting the page's identity in it made the one thing on the page
+that is unmistakably this place look like something to press — while the mark
+that genuinely *is* pressable, a folder's, wore exactly the same tile as My
+Day's, which is not.
+
+**What the box was solving, and the better answer.** Notion drops the
+container and pays for it over photographs, where a dark glyph on a dark image
+disappears. The fix is not a fence around the mark but **ground** under it: a
+soft radial scrim, the same trick a caption over an image uses, so the mark
+separates from what is behind it without being cut out of it. On a bare page
+there is nothing to separate from and the scrim is simply absent.
+
+**And it grows over a cover rather than shrinking** — 32px bare, 40px plated.
+The old header went the other way, 32 to 24, which is backwards: a cover is
+the one place identity has competition and the one place it should be loudest.
+
+**The F5 half is the DES-154 half.** F4's fix landed in `page-head.tsx`, the
+head the six system pages render — and the folder page, the page that
+composition was extracted *from*, kept its own copy of the mark and therefore
+kept the box. The one page the reference design lives on was the one still
+showing the superseded rule. So the mark is now a component, `PageMark`, and
+the two call sites differ in the one way they honestly differ: a folder's mark
+takes `interactive` and opens the icon picker (DES-130); a system page's is
+not a control and is therefore not a button. Geometry, scrim, sizing and the
+hover disc are written once. The folder page's reading column went the same
+way, from a copied class string to `pageBodyClass()`.
+
+Lane 1 entire: presentation over state the pages already hold.
+
+### DES-156, grouping replaces a page's arrangement; it never nests inside it
+
+The filter rebuilt, F5, 2026-08-22, against [[DES-153]]'s list. Imran's verdict
+on what stood there was "far down then our expectations", and it was: four
+single-choice rows, adequate as a side control and unable to carry a model
+where a page *is* a filter state. All eight owed things are built and each is
+exercised by an assertion rather than by having been looked at once:
+
+- **More than one value per axis** — Sara *and* Hassan. Empty means anyone,
+  which is the absence of a narrowing rather than a value meaning everything,
+  so adding a person can never silently switch off a filter already set.
+- **Real date ranges**: five named ranges and a custom one drawn on the shared
+  calendar, which grew a range mode for it. The four old shapes survive
+  alongside, because *whether* a task has a date is a different question from
+  *which days*, and "no due date" is a sentence people say.
+- **Repeating** and **created by** as variables.
+- **The readout is chips on the page**, in the window bar's left end, one per
+  axis and each removable on its own — because the thing a person wants to
+  take off is the narrowing, and picking three chosen people apart again is
+  what the panel is for. A count you must open a panel to read is not a
+  readout. The bar's left end was reserved for breadcrumbs and now holds both:
+  a trail and the narrowing applied to it read left to right in the order a
+  person would say them.
+- **Group by**, **sort by**, and **Save as view**.
+
+**The ruling this entry is named for.** Grouping could have been added to each
+place-page, and it must not be. Every page already arranges itself by the one
+question it exists to answer — Today by spec 9.1's three normative headings,
+Scheduled by its ladder, Assignments by person, All by planned-then-folders —
+so a group-by that decorated that arrangement would put folders inside a
+folder and people inside a person, and would need writing seven times. So:
+
+> **Asking a page to group by something is asking it to arrange itself that
+> way instead.** Today grouped by folder is today's work in folders. The page
+> keeps its head, its cover, its bar and its filters, because those belong to
+> the place; the one thing you changed is the one thing that changes, and
+> returning Group by to Nothing gives the page back untouched, because nothing
+> about it was ever edited.
+
+That is also what DES-153 means by *a page is a view*: the spine is a default
+arrangement, not a fixed property, and one `GroupedList` serves the six pages
+and a folder alike.
+
+**What is deliberately still the page's, not the filter's.** Grouping replaces
+arrangement and never **subject**. The first wiring showed the whole database
+under Today's head, which is the same class of mistake in the other direction;
+each page's spine is now one predicate, said once, and the grouped view scopes
+by it.
+
+**Sorting defaults to Manual and Manual means do not touch it.** Every page
+arrives in an order something else decided — the server's, a person's own
+drag, a date ladder — and a sort that silently overrode it would be the filter
+deciding something it was not asked about.
+
+**Lane 1, except saving.** Filtering, grouping and sorting arrange rows the
+client already holds. **Saved views are Lane 2** on DES-153's own split: there
+is no view entity and nowhere to put one, so what is drawn keeps them in
+`localStorage` and the panel says so in those words. Pinning a saved view into
+the sidebar arrives with Settings' pin list.
+
+### DES-157, every rule proves it still bites, or it fails as blind
+
+The audit reported **PASS** for a week on "a folder is drawn by the one
+resolver" while four surfaces drew the generic mark beside a named folder —
+the New folder group dialog, the search overlay, the row's own folder chip and
+Scheduled's calendar chip. Imran had named two of those out loud. The matcher
+was `/<Folder[\s/>]/` applied line by line, and every one of the four wrote the
+tag with its props on the following lines, so there was nothing after `<Folder`
+for the character class to match.
+
+The green was worse than no check at all, because it was used as evidence that
+the thing it never examined was fine.
+
+> **A check nobody checks is a rumour.** Every rule carries a *probe* — a
+> scrap of deliberately wrong source it must flag — and the audit reports
+> nothing until each rule has caught its own. A rule that stops biting fails
+> as `BLIND`, in the place people are already looking.
+
+It proved itself on its first run: the replacement folder-mark rule came back
+blind, because the probe file was named `probe/folder-mark.tsx` and the rule
+skips any path containing `folder-mark`.
+
+This is [[DES-154]] applied to the checks themselves. A settled rule belongs to
+a mechanism; a mechanism that can rot silently is not one.
+
+### DES-158, undo is an act with a name, not a button pair
+
+Imran, 2026-08-22: "Adding Undo feature in this prototype coz it's very
+important, how to do it you know the best."
+
+What stood there was an Undo and a Redo in the task card's footer, and they
+were **permanently disabled**: `undoDepth` started at zero, Undo was disabled
+at `<= 0` and Redo at `>= 0`, and nothing but those two buttons could move the
+number. Four more beside them — Copy link, Share, Email, History — had no
+handler at all. Six drawings of controls in the one place the card promises
+its safety net.
+
+The wiring was the smaller fault. **A footer with Undo and Redo promises
+text-editor semantics a to-do app does not have**: there is no answer to what
+"redo" means after un-completing a task, and the pair refers to nothing at all
+once the card is shut. What people want to reverse is a discrete act with a
+name — I completed the wrong one, I deleted one, I abandoned one.
+
+So: a bar that says **what happened** and offers one press to take it back,
+Ctrl/Cmd+Z for the same stack, and **no redo**. The bar expires after eight
+seconds; expiring hides the furniture and never the capability, so the
+shortcut still reaches the act afterwards. It never steals the keystroke from
+a text field, which has its own undo and an older claim on it.
+
+**The entries come from the mutators, not from the screens.** Complete,
+reopen, abandon, delete and remove-from-Today register their own inverse as
+they run, so every page has undo without knowing it exists — including the
+page written next year. A screen that had to remember to call `pushUndo` is a
+screen that will forget, which is the class of bug four sessions have spent
+their time finding.
+
+What left with it: Undo, Redo, Share and Email. Share and Email were fictions
+about the model and the card's own note said so — Dana shares *folders*, so
+"share this task" either invites somebody to the whole folder or it is a
+sharing model nobody has specified. Copy link stayed and now copies. History
+stopped being a second control beside a dead caption: the "Edited just now by
+…" line **is** the control now, the same `WindowActivity` the window bar uses.
+
+### DES-159, one drawing, one name; one field, one glyph
+
+Imran's rule, 2026-08-22: "one native concept/feature/function should not
+carry two different icons in the prototype and entire platform." It holds in
+both directions, and both were broken.
+
+**One drawing had two names.** `AlertCircle` and `CircleAlert` are the same
+lucide glyph — lucide keeps the deprecated alias beside its replacement — and
+both were live: one saying "this request failed" in the error state, the other
+"this task is late" on a row. Same picture, two meanings, and nothing in the
+source made it visible. Worse, both were paired with `TriangleAlertIcon`,
+because the animated set has no circle-alert, so the resting glyph was a
+circle and the hover animation was a triangle: every overdue row changed shape
+under the pointer. Failure takes the triangle, which is the conventional glyph
+for it and the one with a real animated twin.
+
+**One field had two glyphs.** The due chip wore a calendar when the task was
+on time and an alert when it was late — in a row that already says "Overdue"
+in danger red, and in a card that already tints the chip. A field that changes
+its glyph with its state is a field the eye cannot learn to find. It keeps
+`CalendarDays` in every state; colour and copy carry lateness.
+
+Both are asserted now, and the drawings are compared by **rendering** them
+rather than by reading their names, because an alias pair is invisible to any
+check that trusts a name.
+
+### DES-160, a control comes from the system or it becomes one
+
+Imran, 2026-08-22: the conversation "is still not following the shadcn UI code
+or structure."
+
+It was not, and neither were five other surfaces. The count: fifteen bare
+`<input>` and `<textarea>` elements outside `components/ui/**`, each carrying
+its own border, radius, ring and placeholder; six raw `<button>`s in the
+thread alone; the graphite commit colour hand-copied into seven class strings;
+and the avatar and the icon-button each **written twice**, once in the card and
+once in the thread, both wrapping the same primitive.
+
+Two of those had a cause worth naming. shadcn ships a `Textarea` and this
+project never installed one, so there was nothing to reach for and every
+multi-line field invented itself. And `comments.tsx` re-stated the avatar and
+the icon button on purpose, to avoid an import cycle with the card that
+imports it — sound at the time, and the mechanism by which a second copy of
+each appeared. That comment predicted its own end: *"if a third file ever
+needs it, it moves somewhere neutral."* The filter was the third.
+
+What now exists, and where:
+
+- **`ui/textarea.tsx`** — the missing primitive, and **`ui/inline-field.tsx`**,
+  because Dana has *two* kinds of field and only one had a component. A boxed
+  field announces itself as somewhere to type; an inline field renders as the
+  text it edits and grows a ring only once you are in it. A title, a folder
+  name, a description and a paragraph are content first and fields second, and
+  boxing them would turn a document into a form.
+- **`Button` gains a `commit` variant.** `--primary` is cobalt, which DES-016
+  reserves for selection, focus and today; the product's strongest action is
+  graphite-900, and it had been retyped in seven places. The sizes in that
+  file are already this project's rather than upstream's, so naming a variant
+  is in keeping.
+- **`person-face.tsx` and `icon-action.tsx`** — one avatar and one icon button,
+  in modules that import neither of their old homes, so the cycle they were
+  avoiding cannot form.
+
+The rule, asserted: **a bare form control outside `components/ui/**` is a
+violation.** The exceptions are a file input, which has no appearance to
+inherit, and a checkbox or radio, which has its own primitive.
+
+**A second pass, after Imran sent shadcn's own chat composer as a reference.**
+The thread was using system *pieces* while its main assembly was still
+bespoke: a bordered `<div>` holding a textarea and three buttons, with the
+border, the focus ring and the packing written by hand. shadcn has a component
+for precisely that shape and this project had not installed it either. So
+`ui/input-group.tsx` exists, with upstream's names and `data-slot`s, and the
+composer follows the reference's arrangement — **the text on its own line, the
+controls on a row beneath it** — rather than buttons sharing the line and being
+shoved sideways as the field grows.
+
+The two attach buttons collapsed into one `+` with a menu, which is the
+reference's shape and the honest one: "add a file" and "record a voice
+message" are two answers to one question, and two permanent buttons made them
+look like two features.
+
+**A fourth pass, read off shadcn's published docs rather than remembered.**
+Fetching the real component pages corrected four things the earlier passes had
+guessed: `InputGroupAddon` defaults to `inline-start` and `InputGroupButton`
+to size `xs`; there is an `InputGroupText`; there is a **`MessageHeader`** (the
+sender's name, *above*) distinct from `MessageFooter` (status, below);
+grouping happens at the **message** level, not the bubble level; and the
+avatar anchors to a message's **bottom** rather than its top. All four are
+corrected, and two of upstream's rules are worth restating because they look
+wrong until you watch them work: the header stays start-aligned whichever side
+the message is on, because a label that swaps sides is a label you have to
+find again; and in a run the avatar appears once, at the last message.
+
+**Which controls hide behind the `+`, ruled.** Imran: "the record voice
+message button should not be inside a +, it should be easily accessible. The +
+icon should carry other related things to a chat." The rule underneath it:
+**the `+` holds things you *attach*; a way of *speaking* is not one of them.**
+Recording is a second way to write the message you are already writing, so it
+sits beside the field as it does in every messaging surface people use. The
+row reads *attach · speak · send*, and the `+` carries what a Dana
+conversation can actually hold — a file, a link (DES-161 made those real), and
+a person to mention — rather than one item that existed only to justify a
+menu.
+
+**A third pass, on the messages themselves**, after Imran sent shadcn's
+`Message` / `Bubble` set as "a good shadcn reference for messaging". It is,
+and it named a fault the thread had that nothing else would have found:
+**alignment was re-decided in six places**, once per nested span, each with
+its own `mine && "flex-row-reverse"`. A rule six spans had to remember is a
+rule five of them will eventually forget. `ui/message.tsx` and `ui/bubble.tsx`
+now hold it — the turn carries `data-align` and every part reads the side from
+there — and DES-143's tone-not-hue rule stops being a ternary in the thread
+and becomes `Bubble`'s two variants, which is where a rule about how something
+looks belongs. Reactions moved inside the bubble (`BubbleReactions`), so a
+like belongs to a message visibly rather than by sitting near it.
+
+### DES-166, a section is a place a task can be moved to
+
+Imran, 2026-08-22: "A task can't be dragged into a section, and it can be
+dragged out either… if a page has no tasks, sections can't be created… A task
+inside a section should show somewhere some type of hierarchy."
+
+Three faults with one cause: **a section was a heading with rows under it, not
+a place**. It could be made and named, but nothing could be put into it by
+hand, nothing could say a task was in one, and on an empty page it could not
+even be seen.
+
+**Dragging across sections.** The folder page renders one sortable list per
+section, and a list can only sort what it holds — so a row carried from one to
+another had nowhere to land and sprang back. The engine gained a single seam
+for it: on release it asks the page where the pointer was, *before* deciding
+anything about its own order, and the page hit-tests its own sections. The
+question outranks both the reorder and the folder-dwell, because neither means
+anything once the row has left the list. Dragging *out* is the same gesture in
+the other direction, because the page's unsectioned area registers as a target
+like any other — to a person those are one act, not two.
+
+**A section on an empty page.** Emptiness was measured in tasks alone, so
+pressing "Add section" on a new folder worked, put the section in the model,
+and left the empty state on screen. Somebody pressed a button, something
+happened, and the screen said nothing had — the most discouraging possible
+answer to a first action on a new page. A page with a section on it is a page
+with something on it, whether or not anything is in that section yet, which is
+the whole point of making one first and filling it after.
+
+**The hierarchy.** A task's section was the one part of its address the row
+never carried: visible under its own heading, gone the moment the row was
+anywhere else — Completed, the board, a dialog. It rides after the folder chip
+now and reads as the path it is, *Travel › Venue & vendors*, with a chevron
+rather than a second glyph because what it adds is depth and not a different
+kind of thing. Suppressed where it would only repeat the heading above it, and
+that is decided once per list rather than per row.
+
+### DES-170, Settings is a pin list, and Completed is Done
+
+DES-153's second half, built. Imran's ask in his own words: an overflow on a
+native page with "options of hiding a page and letting the user that you want
+to unhide or activate this page you can do it from settings", plus
+**Completed** and **Abandoned** pages off by default, plus **Anytime** — and
+"'Desk' should not be disabled or hided from the sidebar."
+
+**What Settings was.** Three named booleans — Important, All, Done — and a
+line reading "My Day, Tasks, and Planned are always shown": v1's page set,
+still being offered two navigation models later. It could only ever describe
+the pages it was written against, and adding two views would have meant adding
+two more booleans while a person's own saved view could never be in it at all.
+It reads `NAV_PAGES` now, so a view added to the model appears here without
+anyone editing this file, and each row carries the page's own mark and its own
+sentence rather than a second description of it.
+
+**Desk cannot be unpinned**, and the reason is structural rather than a
+preference: it is the default folder, the destination every entry default in
+spec 9.3 names, and where a task goes when nobody chose. Somebody who hid it
+would go on filling it with no way back to what they had filed. A place you
+cannot stop using is a place you cannot be allowed to lose. Its row is locked
+in Settings and its page offers no hide item at all — a greyed one invites a
+question that has no answer.
+
+**Two views added, and one refused.**
+
+- **Completed is Done.** Dana has three task states, and Done already *is* the
+  completed one — spec 9.5 names it and `user_settings.show_done` ships it
+  unpinned. Two entries for one state is precisely the fault this navigation
+  model was built to remove, and it would be a worse instance than the
+  six-page one, because the two would sit next to each other in the same list.
+- **Abandoned** is the one state with no home at all: neither pending nor
+  finished, filtered out of most pages, findable only by knowing where it was.
+- **Anytime** is the undated work. DES-152 rejected it as a *page* — "Planned
+  + Tasks reborn" — and that ruling stands for the pinned set. As an unpinned
+  view it is a different proposition: opt-in, costing nothing if nobody turns
+  it on, and the first thing in the product to demonstrate what DES-153 means
+  by "a page is a view".
+
+**Both render**, because a switch that turns on a page that does not exist is
+a dead control wearing a toggle. They go through the shared view screen, which
+learnt one thing to make it possible: an ungrouped view is a list, not an
+empty page — which is also what every page becomes the moment somebody sets
+Group by back to Nothing.
+
+**Two corrections Imran made to this the same day, and both are about the
+same discipline.**
+
+*Anytime wore All's mark.* I gave it `Layers3` while adding it, and All
+already had it. The lesson is about the checks, not the glyph:
+`one-drawing-one-name` guards the icon *module* — two exported names
+resolving to one drawing — and cannot see two entries in a list choosing the
+same exported name. That is the same fault one level up, and it is the one a
+person actually meets, because they meet it in the sidebar with both rows
+visible at once. A new rule, `one-page-one-mark`, checks it; it was written
+first and watched to fail on the real fault before the fix went in. Anytime
+now wears a calendar with an X — the filter's own "No due date", and the other
+value of the axis Scheduled's calendar carries.
+
+*"Danger zone" is gone.* Two faults in two words: it is **GitHub's coinage**,
+and DES-152 settled that Dana uses the common word rather than somebody
+else's invention — the same rule that left "My Day" to Microsoft. And it
+**names a feeling rather than its contents**: somebody scanning Settings for
+how to close their account is looking for the word *account*, which was the
+one word the heading did not contain. It is "Deleting your account" now, and
+the section stopped saying its single idea three times — a heading, a row
+title and a button all reading some form of *delete account*, plus "Review the
+consequences before continuing", a sentence describing reading rather than
+telling you anything. The consequence itself is there instead, in Dana's own
+nouns: folders, members, tasks.
+
+**Hiding from the page and from Settings write the same store.** Settings is
+where you see the whole list and turn things back on; the page's own menu is
+where the thought actually occurs. Neither is a second copy of the decision.
+
+### DES-168, a block earns the top of the page by having something in it
+
+Imran, 2026-08-22: "a section can't be started at the beginning of a folder. I
+don't know whether it's good or bad."
+
+It was bad. The loose-task block held the top of a folder page by right rather
+than by content, so a folder organised entirely into sections still opened
+with an empty capture row, and its first heading could never be the first
+thing you saw. A page's opening line is the author's to choose, and this one
+was the app's. Every comparable product puts loose items above the first
+heading *when there are some* and lets the heading lead when there are none.
+
+So the block appears on three counts, each a real state:
+
+- it holds tasks that are in no section — then it is the page's most urgent
+  content and belongs first;
+- the page has no sections at all — then it *is* the page, and its capture row
+  is the folder's one capture point (W5);
+- or every section is shut, which would otherwise leave the page with nowhere
+  visible to add a task.
+
+**And the first attempt at the drop target was wrong in a way worth keeping on
+record.** Dragging a task *out* of every section needs somewhere to aim, so a
+dashed strip appeared at the top while a task was in the air. It read well and
+failed twice: inserting a row mid-drag pushes the page down **after** the drag
+engine has measured where every row sits, so the drop lands on the wrong slot;
+and a target that exists only once you are already dragging is a target nobody
+can discover.
+
+Neither was necessary. A folder page is its sections and the space around
+them, so *not inside any section* already means unsectioned. Sections are
+asked first and the page body is the fallback — always present, nothing
+inserted, nothing moved.
+
+### DES-169, an arrangement is a person's, so it is kept
+
+Imran, 2026-08-22: "When you create a section and then you leave the page, in
+returning to page the section is gone."
+
+It did. Sections were component state seeded from a fixture, and the shell
+navigates by a full page load, so every section somebody made died at the
+first click on the sidebar.
+
+That was fine while a section was a drawing. It stopped being fine the moment
+a section became something you *arrange* — name it, dress it with a glyph
+(DES-165), reorder it, drag tasks into it (DES-166). A folder's glyph, colour,
+cover and description have persisted since DES-130; a section is the same kind
+of thing, a person's own arrangement of their own folder rather than a task.
+Holding one in a store and the other in memory is a distinction only the
+implementation can feel.
+
+`lib/folder-layout.ts` keeps them beside the identities, one entry per folder,
+in the same shape, so the two can be reasoned about and cleared together. Lane
+2 travels with it exactly as it does for the cover (DES-105): there is no
+column for a section, no ordering column and no membership table. What this
+demonstrates is that the design wants all three, which is the argument the RFC
+has to make.
+
+### DES-167, the way in stays until it has been used
+
+Imran, 2026-08-22: "Each of the folder page (native and non native) can get a
+cover photo. Home is not getting it."
+
+It was not, and neither was any folder somebody had already dressed. The
+control took a `visible` flag; the folder page passed it `pristine` — true only
+while the folder had no glyph, no cover *and* no description — and every other
+page passed `false` outright. So the moment you gave a folder an icon, the only
+route to a cover dropped to opacity zero with nothing to suggest it was still
+reachable. Home ships wearing a house, so Home never had it at all.
+
+The flag was measuring the wrong thing, and once the right thing is measured
+there is nothing left for it to decide: the control already renders nothing
+when a cover exists, so "no cover" is the only state it can be in. **A control
+that is the sole way to do something, in the one state where it can be done,
+is not a control to hide.** The prop is gone rather than corrected. Once there
+is a cover the band itself is the affordance (DES-141) and this is absent.
+
+### DES-165, a section somebody made is the same section
+
+The last of the two-copies faults, and the one that had been blocking a
+feature Imran asked for in his first list: *"if a user want they can add an
+icon to a section too, but it should be in a way that if a section does not
+carry an icon, the section should not feel like it's lacking something."*
+
+[[DES-151]] said every section is one component. [[DES-154]] said a settled
+behaviour belongs to the mechanism. `TaskSection` was then built for the
+computed sections on the six pages — and **the folder page, the one place a
+person actually makes sections, went on rendering its own copy of the same
+heading**: its own Collapsible, its own chevron, its own 32px band and border.
+Visually matched, structurally separate, which is the state a thing is in just
+before the two drift.
+
+It cost the page nothing to give up. The grip stays outside, because it
+belongs to the page's drag rather than to the section; the name is handed in
+as the heading; the menu goes in the `actions` slot the component had already
+reserved for exactly this. `TaskSection` grew one thing to make it possible —
+controlled `open`, because a person's folded sections are the page's state
+and outlive any one section's mount.
+
+**What it bought** is the glyph. The component that draws a computed section's
+mark is now the component drawing these, so a user's section can wear one from
+the same 42-glyph table a folder picks from — and Imran's constraint survives
+untouched, because the mark is *inline* before the name rather than in a
+reserved slot: a section without one simply starts its name earlier and
+nothing sits waiting to be filled.
+
+The folder page's Completed block went the same way. It was a second copy of
+`CompletedSection`, differing in two ways nobody had chosen: 12px medium
+against 13px semibold, and a highlight while a completion notice was showing,
+which is the row's own job.
+
+**One bug the merge exposed, and it is a good example of why two copies are
+expensive.** Section headings started truncating — "Venue & vendors" became
+"Venue & vend…" with two hundred pixels of room beside it. `TaskSection`'s
+heading clips, which is right for a string; the name it was now holding is a
+control that already truncates itself and sits on a `-mx-1` negative margin so
+its hover wash lines up with the text, and an `overflow: hidden` heading
+around that clips exactly those eight pixels. So the heading clips only when
+it is holding text, and a node is left to manage its own width — which is the
+only thing that can, since only it knows whether it is text. `InlineName` also
+had `className` first in its `cn()`, so no caller could override anything it
+set; that is the house convention repaired too.
+
+### DES-163, making a task means making it, from every door
+
+Imran, 2026-08-22: in Scheduled's calendar "the + inside the days does not
+open a new task dialog", and on pages without the floating button the capture
+row's options icon "is not functional and do not open the new task in a
+sidebar or dialog".
+
+Both were true, and they were the same fault twice. Every "new task" path in
+the shell ended at `setTaskFormOpen(true)`, and **nothing has rendered that
+since V3 deleted the form** — DES-093 put the task inside its own row, so
+there is no sheet left to open. F4 rewired the floating button and left the
+other eight paths, which is why the fault looked fixed from the one place
+anybody had checked. `taskFormOpen` and four companion variables were set in
+eight places and read in none; they are gone with the paths, because state
+nothing renders is a promise nothing keeps.
+
+All eight go through `createTaskAndOpen` now: insert a real task with 9.3's
+entry defaults for wherever it was made, and open it in the surface with the
+title waiting. A calendar cell passes its date, a folder's capture row passes
+its folder and section.
+
+One bug the wiring exposed, which no amount of reading would have: a task made
+on the 20th arrived showing **"No date"**, because the record and the row
+carry the date in two fields and only one was written. One fact in two places
+is a fact that will disagree; the row's label is derived from the date now, by
+the same function the pickers use.
+
+### DES-164, the calendar's chrome is the shell's chrome
+
+Imran, 2026-08-22: the calendar header "feels a bit oversized". It was 56px,
+and the height was a symptom rather than the fault: the row held **four boxed
+things** — a bordered pair of arrows with a divider between them, a bordered
+44px group wrapping three 32px buttons, an outlined Today, and a shaded ground
+with a hairline under it. Boxes inside boxes need a tall bar to sit in.
+
+It is the shell's own grammar now, which this stretch has been applying
+everywhere else: tone rather than hairlines, the system's buttons at the
+system's sizes, and no container around a group of them, because the gap
+already says they belong together. 44px, which is a 32px control with
+breathing room and nothing more.
+
+Two things in the grid disagreed with Dana's own date picker two clicks away,
+and both are corrected to it: the weekday heads were 9px taller, semibold,
+uppercase and tracked where the picker's are 11px medium in graphite-400; and
+**today was a filled graphite square**, which is precisely how that picker
+draws the day you have *selected*. One shape, two meanings, in one product.
+Today is cobalt here as it is there — DES-016 gives cobalt that job and
+graphite fill keeps selection.
+
+### DES-161, a link is a link
+
+Imran, 2026-08-22: in an expanded task, "when the links are entered they don't
+show as openable links, instead they appear as downloadable assets."
+
+They did, and the row said so in a word. A pasted link was stored as
+`kind: "file"`, so it joined the file list wearing a paperclip and a trailing
+label reading **"Download"** — while the only thing a press did was open an
+image preview, which a link does not have. It was neither downloadable nor
+openable.
+
+So `link` is a kind of its own, with a `url`, and the row is a real `<a>`. That
+distinction is worth more than it looks: middle-click, ⌘-click, "copy link
+address" and the browser's own status bar all work on an anchor and none of
+them can be faked by a button styled to look like one. The trailing word is
+"Open", with the mark every other *this leaves here* control in Dana carries.
+
+Two things came with it. A link typed without a scheme — `example.com/thing`,
+because that is what people copy — gets `https://` rather than resolving
+against Dana and going nowhere. And the attachment shape, which had been
+declared twice (once for a task, once for a comment), is one type, which is
+how one of them could have gained a `link` kind and the other not.
+
+### DES-162, an icon has a size before anyone chooses one
+
+Imran, 2026-08-22: "the icons sizing is also inconsistent in the overflow list
+there." It was, and neither file involved was wrong on its own.
+
+shadcn sizes a menu's glyphs with `[&_svg:not([class*='size-'])]:size-3.5`.
+Dana's icons are a *span* wrapping an svg that carries `size-full`, and
+`size-full` contains the substring that selector excludes — so the primitive's
+rule silently skipped every icon in the family, and an icon given no size fell
+back to lucide's own 24px. Menus whose author happened to pass `size-4` looked
+right; menus that trusted the primitive were half again too big. Two sizes,
+depending on whether somebody remembered.
+
+The family carries its own default now — 16px, the compact icon token the
+design already had — on both the animated and the static path, which had also
+disagreed with each other for the same reason. Measured across 86 menus on
+three pages: all 16. The sweep opens every menu on those pages and asserts it,
+because this lived in the gap between two stylesheets and no amount of reading
+either one would have found it.
+
+Two smaller things in the same control, both consistency faults Imran's rule
+covers: the "Open in…" submenu read *Dialog · Sidebar · Open as a tab*, so one
+item restated the heading — they are parallel nouns now (**Dialog · Sidebar ·
+New tab**), which work equally as menu items and as the view strip's tooltips,
+since one array feeds both. And the dialog was drawn with the **fullscreen**
+glyph, which is the one place a task can open that a dialog is not.
+
+One thing moved with it, and it moved as one change because it could not
+honestly move alone. Imran called the composer's placeholder oversized and
+off-hierarchy; it was 14px where DES-148 puts prose at 12. Fixing only the
+placeholder would have made the composer smaller than the messages it writes.
+So the **message body, the composer and the card's Notes field** all sit at
+12/20 now — which is the condition the plan had already recorded against this
+question.
+
+### DES-171, the alphabet is a first arrangement, not a permanent one
+
+"Sidebar drag" — folder reorder, in and out of groups, two folders becoming a
+group — had been on Imran's original list since the first session and was
+still the one item nothing had touched. `app-sidebar.tsx` carried no drag code
+at all: groups sorted by label, folders sorted by name, and the alphabet
+decided where everything went.
+
+An alphabet is a reasonable *first* arrangement and a poor permanent one,
+because the folders somebody reaches for hourly are not the ones whose names
+begin with A. [[DES-169]] settled the same question one level down for a page's
+sections — an arrangement is a person's, so it is kept — and this is that
+ruling applied to the directory.
+
+**Nothing is stored until somebody drags something.** A sidebar nobody has
+touched still reads exactly as it did, which is what keeps the clean-handoff
+export and every capture stable; from the first drag on, the stored sequence
+is the authority for the entries it names and the alphabet places the rest. So
+a folder made tomorrow has a defined home without anyone having had to decide
+where new things go.
+
+**The directory is one list, not two.** Groups and loose folders share a
+column, so a person moving things in that column is arranging one sequence. A
+model that kept them apart would have to refuse the obvious drag — a loose
+folder above a group — for a reason that exists only in the code. A group is
+an entry in the directory and its folders are a list of their own inside it,
+which is the same two-level shape the folder page already has in its sections
+and their tasks.
+
+**Three gestures, and they are one gesture seen from three angles.**
+Stillness is what separates them, and always was ([[DES-103]]):
+
+- **Travelling proposes a slot.** The rows make space and the carried row
+  settles into it. Nothing is outlined, because the space is the answer.
+- **Resting inside a container proposes that container.** The list stops
+  holding a space open and the container answers instead.
+- **Resting on a folder proposes that the two become a group**, and that one
+  takes a deliberate 1.5-second hold, because making a container is a larger
+  act than using one. A group created by every clumsy pass of the pointer
+  would be worse than no grouping at all.
+
+Dragging *out* of a group needs no target of its own: a directory is its
+containers and the space around them, so *inside the directory but inside no
+group* already means unsectioned. That is [[DES-166]]'s lesson repeated — a
+target that exists only while you are already dragging is a target nobody can
+discover.
+
+**The naming panel is the one that already existed.** The hold hands its pair
+to the New folder group dialog with both ticked, so everything about making a
+group — the name, the validation, adding a third folder before committing —
+stays one surface reached through a second door ([[DES-154]]).
+
+**What `onDropAt` was missing.** F5 gave the drag engine a seam for "this went
+somewhere else", and it settled what happens *on release* while saying nothing
+before it. A row on its way into another container went on being drawn as a
+slot in the list it was leaving, so the list held a gap open for something
+that was never going to land there — and a list that lies about what a release
+will do is worse than one that cannot do it. The engine gained the other half
+(`onOver`), asked as the pointer moves: name a container and the list stops
+proposing a slot, the hold stops arming, and the container is drawn as the
+answer instead.
+
+**Two deliberate limits.** A group cannot be put inside a group, because Dana
+nests one level and the honest answer to that drag is that the group moves
+past. And a group is **not** sprung open by hovering it mid-drag: opening it
+would move every row below it *after* the engine had measured where they sit,
+which is the same fault that retired the folder page's dashed strip. A closed
+group takes the drop and says so in words instead.
+
+### DES-172, a tab's controls belong to the window, not to the page inside it
+
+Imran's points 16 and 17: a task opened as a tab had an **empty window bar**,
+and its tab **carried no folder mark**.
+
+The bar was gated off at F4 on the reasoning that *a task is not a place*, and
+that reasoning holds for a place's chrome — a task has no filter, and DES-141
+already refuses it a cover. But [[DES-139]] says the bar's right end holds the
+controls for whatever the tab is showing, and a task has controls. What it did
+instead was keep them inside the scroll area, which is exactly the arrangement
+DES-139 was written to end.
+
+So the same `Actions` cluster is **drawn in the bar rather than in the header**
+— one element with one set of handlers, moved and not copied, because a second
+menu written for the tab is the fault this repository keeps repairing. The
+panel and the floating surface have no window bar, so there the cluster stays
+in the header; the page decides where its chrome goes from whether it *is* the
+window.
+
+**The bar's left end finally has something true in it.** It was reserved for a
+breadcrumb trail and Dana has no nested folders, so it has been empty since it
+was drawn. A *task*, though, has an address — its folder, and its section
+within that folder — which is precisely the path [[DES-166]] put on the row.
+That is what stands there now, with the same chevron and the same reasoning:
+depth, not a different kind of thing.
+
+**A task tab wears its folder's mark**, from the one resolver. It wore a
+generic tick, which is [[DES-155]]'s fault one level up — an identity only some
+surfaces honour is a decoration on one screen. Emphasis rides opacity rather
+than hue, the arithmetic the sidebar's folder row settled at F5, because the
+colour is the folder's and has to survive.
+
+Two things a tab could not do until now and its own row could — **Abandon and
+Delete** — reach it as well. F5 gave them to the floating surface and not to
+the tab, so the same page could do less to a task depending on which window it
+was in.
+
+### DES-173, a description Dana wrote is a first draft
+
+`nav-model` has documented an editing fallback for a page's sentence since F4
+and nothing built it: the six pages rendered theirs as a paragraph, so the
+shipped wording was the only wording there could ever be and the note
+described a feature that did not exist. Imran's ask was "a short, memorable,
+catchy and natural sentence" a person can **edit later**.
+
+It is built, and it is the folder page's own control rather than a second one:
+that page has had an editable description since [[DES-130]], and [[DES-149]]
+extracted the head from it precisely so the places would stop being written
+twice. Both call `PageDescription` now.
+
+**Clearing it restores Dana's sentence**, which is what a fallback means and
+why there is no separate reset — and typing Dana's own words back in stores
+nothing, so a page that agrees with the shipped wording keeps following it
+rather than freezing a copy. A folder has no shipped sentence, so clearing one
+there leaves it empty and the ghost returns: the same rule, reading
+differently because the two have different defaults.
+
+### DES-174, a board column is a place, and Done is a status
+
+The board could not move a card. Columns moved, cards did not, and the reason
+was structural rather than an omission: the board drew its cards by hand, with
+their own click handler and no engine at all, while the list beside it had had
+cross-section dragging since [[DES-166]]. The board is that page turned
+sideways, so it must not grow a second answer to one question ([[DES-154]]).
+
+The cards go on `TaskList` now, with `renderRow` keeping the card's own
+presentation — a card is the row's kin, not a row — and each column registers
+itself with the same zone registry the sections use, answered by the same
+resolver.
+
+**Done is a column that means a status.** A board whose Done column cannot be
+dropped into has drawn a control and refused it, and Done is the column
+everybody aims at first. So the two columns that are not sections do what they
+look like they do: dropping on Done completes the task, and carrying a card
+back out reopens it and files it wherever it landed.
+
+**No section is a place on the board and an answer on the list.** On the list,
+"not inside any section" is what the space around the sections means, and
+[[DES-166]] settled that it needs no target of its own. On the board there
+*is* a column for it, and a person aims at it. One resolver, two readings of
+the same null.
+
+### DES-175, People is a roster, Assignments is work
+
+Imran, on the sidebar: Assignments and People were both round-head person
+glyphs, and at 16px two figures of the same family read as the same row.
+
+The split that fixes it is a real difference rather than a different
+accessory. **Assignments is work that belongs to somebody** — a person
+carrying a tick, which [[DES-170]] already settled. **People is the roster of
+humans you share with**, which is a card with a person on it: the rectangle
+dominates at 16px, so the two are told apart by shape rather than by a detail
+nobody can see at that size.
+
+`one-page-one-mark` could not have caught this and still cannot: two
+*different* names is exactly what that rule wants, and no static rule judges
+whether two drawings look alike. What it can see now is the **footer**, whose
+two screens moved into `nav-model` in the same pass — they were literals in
+the sidebar and the rule reads that file. They are deliberately not
+`NAV_PAGES`: neither is a view over tasks, neither can be pinned, and neither
+belongs in Settings' pin list. What they share with a page is a name and a
+mark, which is the pair the rule cares about.
+
+### DES-176, the shell has no hairlines left
+
+The sidebar's 1px right border was the last rule standing after the shell
+pass. Everything else separates tonally — the sidebar's graphite-50 against
+the page's white — so the line was drawing a seam the tone already drew.
+shadcn ships it because its sidebar and its content share one ground; Dana's
+do not.
+
+### DES-177, a view is a shape, not a question
+
+Imran asked for "a proper and strong strategy" for the view controls — which
+pages offer list, board and calendar, and why — and it was the one item on his
+list with no decision behind it. What stood in its place was three switchers:
+the folder page's list / board / **calendar-disabled-with-"not available
+yet"**, Scheduled's list / calendar, and nothing anywhere else. Three screens,
+three private answers, and a promise on the folder page that was never coming.
+
+**The strategy is one sentence.** A page decides *which* tasks; `Group by`
+decides *what they are grouped by*; a view decides only *how those groups are
+drawn*. A view is therefore not another way of asking the page's question — it
+is a shape for the answer, and the board is the page's current grouping turned
+ninety degrees. That is why there is one board component rather than one per
+screen, and why choosing Board never changes what is on the page.
+
+**Two tests decide whether a page offers a view**, and both are falsifiable
+rather than matters of taste.
+
+**1. It must be able to draw everything the page holds.** A view that silently
+drops part of the page is a view that lies about the page. A board can always
+draw everything, because *no group* is a column — which is exactly why the
+board has a **No section** column ([[DES-174]]). A calendar cannot draw a task
+with no date: there is no cell for one. So a calendar is offered only where
+**having a date is what puts a task on the page**, which is Scheduled and
+nowhere else. A folder holds undated work by definition, so the folder page's
+disabled calendar was not unbuilt — it was refused, and saying "not available
+yet" promised a thing that is never coming ([[DES-144]]).
+
+**2. It must not collapse to one group.** A page either **pins** a value on
+its axis or **spans** it. Desk pins one folder, Today pins one day, Important
+pins one value of the flag; Scheduled spans every date, Assignments spans every
+person, All pins nothing at all. Arranging by an axis the page has pinned gives
+one group, which is a list wearing a different control — a calendar of Today is
+a single cell. Arranging by an axis the page **spans** is that page's natural
+picture, which is why the calendar belongs to Scheduled and why Assignments'
+board is a column per person.
+
+**List is the ground and needs no reason.** Any set of tasks is a list, so it
+is offered everywhere, is always the default, and is what a page falls back to
+when the remembered view is one this page does not offer.
+
+**What the rule gives:**
+
+| Page | Pins or spans | List | Board | Calendar |
+| - | - | - | - | - |
+| Desk, and any folder | pins one folder | ✓ | ✓ its sections | ✗ undated work lives here |
+| Today | pins one day | ✓ | ✓ | ✗ one cell |
+| Scheduled | spans date | ✓ | ✓ | ✓ its own picture |
+| Assignments | spans assignee | ✓ | ✓ people | ✗ undated |
+| Important | pins the flag | ✓ | ✓ | ✗ undated |
+| All | pins nothing | ✓ | ✓ | ✗ undated |
+
+**Where a board's columns come from, when nobody has said.** The board draws
+the page's grouping, so it needs one, and choosing Board on an ungrouped page
+therefore *sets* one — the two controls are one setting seen twice, and a board
+with no columns would be a control that does nothing. The default is the
+page's own spine where the page spans a categorical axis, which is Assignments
+and people; the sections a person made, inside a folder; and the folder
+everywhere else, because the folder is the one categorical value every task
+always has ([[DES-155]]'s Desk fallback is what guarantees it).
+
+**One strip, in the bar.** The shell draws it for every place-page from this
+rule, leftmost, ahead of the filter — the arrangement the folder page settled
+first. Scheduled's own switch and the folder page's own list were both forks of
+one component waiting to happen ([[DES-154]]); they are gone.
+
+### DES-178, a due date is a day, and a time is an addition rather than a correction
+
+Imran's ruling, 2026-08-22, closing [[DES-122]], which had been open since F3
+and was the last thing blocking the port on this question:
+
+> "A due date is for now a day, later we can add a due-time too, and also a
+> start date and time too."
+
+Three things follow, and the order of them matters.
+
+**The day ships.** Everything DES-122 drew stands: the Due picker offers no
+time, the reminder presets are day-level, and "due at 17:45" is a reminder
+wearing a due date's clothes.
+
+**The time is not deleted, it is deferred.** DES-122 removed the field from the
+lab's model on the reasoning that a field nothing can write is a field somebody
+has to work out the fate of. That reasoning was right for the prototype and is
+now wrong for the spec: the production task carries `due_at` with a time, in
+section 7 and in the reminder tick, and this ruling says that column is on its
+way back rather than out. So the RFC **narrows the interface without dropping
+the data** — the picker writes a day, the API keeps the moment, and a task
+whose time was set before this ships keeps it.
+
+**And a start is coming with it.** A start date and time is a second field, not
+a variation on the first, and it changes what a task *is* — something with a
+span rather than a deadline. It reaches the calendar (a task with a start and a
+due is a bar, not a marker), the Scheduled ladder, and every sort by date. It
+is named here so the RFC can say the shape it is leaving room for, and it is
+**not** drawn in this refresh.
+
+### DES-179, a filter belongs to the page, and to the session
+
+An open question rather than a bug: a filter did not survive leaving the page,
+because the shell navigates by full page load and the filter was component
+state. Imran had no view; the ruling is the studio's.
+
+**It does not cross to another page.** A filter is a narrowing of the page you
+are on. One that followed you would mean arriving somewhere with a constraint
+you never set there, and the first thing you would notice is missing work
+rather than the reason for it. A narrowing worth keeping across pages is not a
+filter at all: it is a view, it has a name, and [[DES-156]] already built Save
+as view for exactly that. **Ad hoc is transient, named is kept** — blurring
+that line would leave two half-answers where there are now two clear ones.
+
+**It does survive coming back.** Leaving Today to check Scheduled and returning
+is one act of looking around, not a decision to stop filtering. The test that
+separates the two halves is **visibility**: the active filter is drawn as
+removable chips in the window bar ([[DES-153]]), so somebody returning to a
+narrowed page can see that it is narrowed and undo it in one press. State you
+can see is safe to keep; state you cannot is how a page comes to lie about what
+it holds.
+
+Session storage rather than local, which is the same rule a third time: a
+filter is working state, not a preference. Closing the tab ends the session of
+looking, exactly as it ends the task tabs the page bar holds.
+
+### DES-180, an arrangement is a person's, not the folder's
+
+The second question Imran had no view on: is the sidebar's folder order per
+person or per account? The ruling is per person, and it is not a close call
+once the neighbouring facts are lined up.
+
+A folder **group** is already a personal label — the group dialog says so in
+its own words, "Groups are personal labels… Other members are unaffected" — and
+an order is the same kind of fact as a grouping. Both answer *how do I keep my
+desk*, and neither says anything about the folder itself. Two people sharing a
+folder must never be able to move it in each other's sidebar; that is not
+collaboration, it is a fight nobody asked for.
+
+So it goes to Hassan as **per-user** storage — a position beside the existing
+per-user membership row rather than a column on the folder — and it travels
+with [[DES-113]] (row density), [[DES-121]] (12/24-hour) and the surface
+preference, which are the same conversation: four things a person chooses that
+currently live in this browser and need a home on the account.
+
+### DES-181, Desk is where the lamp is
+
+Imran, 2026-08-22: Desk's glyph should be a desk lamp.
+
+[[DES-152]] renamed Inbox to Desk because Inbox carries email posture — a place
+things arrive — and most of what lands there you wrote yourself. The page then
+went on wearing the literal tray, so it had escaped the word and not the
+picture. A lamp is where you work rather than where things arrive, which is the
+whole distinction the rename was for.
+
+Two things were fixed with it, both instances of faults this register already
+names. The mark is decided in the one place a folder's native mark is decided,
+so it reaches every surface at once — the page tab was still importing a glyph
+of its own, which is [[DES-155]] in miniature: dressing Desk changed the
+sidebar and left the tab wearing the shipped drawing. And the animated family
+has no desk lamp, so it is drawn plain rather than animated into something
+else — reaching for a near-enough animation is exactly how the two alert glyphs
+came to morph into a triangle ([[DES-159]]).
+
+### DES-182, a task made on a page belongs to that page, and a column is where you make it
+
+Imran, 2026-08-22, on the board: only a folder's board had "Add task" in each
+column and "Add section" for the page; the other native pages had neither. And
+then the observation that closes it — "in Board view we don't need the FAB if
+add a task and section is accommodated."
+
+He is right on both, and the second is [[DES-133]] arriving at its own
+conclusion: **W5 asks for one always-visible capture point per page, and the
+floating button is the one that leaves wherever a capture row already exists**,
+because the row says where the task will land and the button does not. A board
+column says it better than any row: the column *is* the value. So the button
+retires in board view on every page, and the rule that was written per page is
+now applied per view as well.
+
+**Capture in a column means capture with that column's value.** A task typed
+into the Home column is in Home; into Sara's column, Sara's; into a date
+column, due that day — and the page's own entry defaults ride underneath, so
+one typed into Sara's column on Important is Sara's *and* starred. Two columns
+refuse it rather than pretending: **Overdue** is a relation to today rather
+than a value, and there is nothing to make.
+
+**A column you can add is a column that is a thing.** Whether a board offers a
+new column is not the board's decision — it is a fact about the axis it is
+grouped by. Sections are things a person makes, and so are folders, so those
+boards offer it and say the name of the thing ("Add section", "New folder").
+A person is not something you create because you wanted a column for them, and
+every date already exists, so those boards do not offer it at all rather than
+offering it and refusing. That is [[DES-177]] one turn further on.
+
+**And then the fault underneath, which was worth the whole exercise.**
+
+Building the column capture made a silent bug visible in a minute: **a task
+made on Today never appeared on Today.** Today's spine is `myDayGroup`, not the
+due date, and the floating button set a due date and nothing else — so the task
+was made, opened in a surface, and was simply not there when the surface
+closed. Scheduled would have been worse: its spine is *having* a due date and
+the button gave it none. Abandoned worse again — a task made there arrives
+pending, and the page holds only what has been given up.
+
+Nobody saw any of it because **the button opens a surface over the page it has
+just failed to add to.** The board's capture rows add in place, so the absence
+was immediate.
+
+> **A capture point that makes something the page then hides is worse than no
+> capture point at all.** You type, you press Enter, and nothing happens.
+
+So the entry defaults stopped being a convenience and became a rule: **they are
+whatever satisfies the page's own spine.** Today seeds its membership, Today
+and Scheduled seed a date, Important seeds the star, Tasks and Anytime
+deliberately seed no date because that is what they are. Done and Abandoned
+offer no capture in any view, which AC-096 already required of Done and which
+is the same argument for Abandoned. The spine's unnamed else-branch got a name
+in the process — three places were spelling out "not any of the others" by
+hand, which is why nothing had ever compared the defaults to the spine.
+
+Both capture points share the defaults now, so a third one cannot be written
+without them.
+
+### DES-183, a row says what its page does not
+
+Four of the 2026-08-17 review's row findings had sat open since V3 was
+chartered, and they turned out to be one fault with four faces:
+
+- **R7** — a finished task on **Done** shows a due date, under headings that
+  already group by *when it was finished*. Two dates, and the louder one is
+  the one that stopped mattering.
+- **R2** — every row on **Important** wears a filled gold star, on the one
+  page where the star can distinguish nothing.
+- **R4** — every row under **Carried over** paints its date red, on a block
+  whose membership *is* being late. A warning true of everything warns nobody,
+  and it quietens the genuinely late rows on every other page.
+- **R1** — and the mirror image: an unfiled task showed **no folder at all**,
+  while [[DES-155]] says it is in Desk. The one task whose address the row
+  could not tell you.
+
+> **A row says what its page does not.**
+
+The section chip has worked this way since [[DES-166]] — "absent when the row
+is already sitting under that section's own heading, which the page decides
+per list rather than per row" — and this is that decision generalised to every
+fact a heading can carry: folder, assignee, date, the star, and the tone of a
+late date.
+
+**Decided per list, never per row.** A row cannot see the heading above it, so
+it cannot possibly know; and a screen that had to remember on every row is a
+screen that will forget on one ([[DES-154]]). It arrives as one `given` object
+on the list, and the compiler asks for it at the call site.
+
+**The page and the grouping both speak, and they merge.** A folder heading
+names the folder; a *page* says something the grouping cannot — Important is
+the star whatever it is grouped by, Done is finished whatever it is grouped
+by. That distinction is where the fault would have come back: the page's half
+reached the six bespoke screens and stopped the moment somebody grouped one of
+them, because grouping swaps the screen ([[DES-156]]) and the replacement knew
+nothing about which page it was standing on.
+
+**And the card is the row's kin.** The rule reached `TaskRow` first and the
+board's card not at all, so Important's board went on drawing six gold stars
+and Done's cards went on echoing spent deadlines. The check written for the
+row is what said so, within the hour — which is the argument for writing the
+check in the same session as the rule.
+
+Two smaller findings closed with them. **R5**: the relative ladder — is it
+late, today, tomorrow, or a date — had been written out three times, once for
+the row's chip, once for a date grouping's headings and once for the filter's
+range labels. The *rung* is shared now and the *words* are not, deliberately:
+a row says "Due tomorrow" because it describes one task and a heading says
+"Tomorrow" because it names a bucket, so sharing the sentence would have
+forced one of them to read wrongly. **R6**: the steps ratio keeps its
+compressed form and gains the words it stands for on hover, rather than
+spending width the row has not got.
+
+### DES-184, a reference sheet is drawn by the thing it describes
+
+V3's stated deliverable is the states page, and it was still v1's — which is
+worse than out of date, because it is **wrong in the one place a person goes
+to be right**. It drew a row this product no longer ships, four "interaction
+states" that all rendered identically, and two states that rendered nothing at
+all.
+
+**The lies were load-bearing.** Five props — `visualState`,
+`showSecondaryActions`, `menuOpen`, `unassigned`, `invitePending` — survived on
+the shipping row's contract, accepted and ignored, carried "so the states page
+keeps compiling". A prop that cannot do anything is [[DES-144]]'s dead control
+one level down, and the page that needed them was the only reason they were
+alive. Both are gone; the v1 row survives whole at `task-row-baseline.tsx` for
+anyone comparing.
+
+**It renders the shipping row now**, so it cannot disagree with the product,
+and hover, focus and selection are *done* rather than drawn — every row on the
+sheet is live, because the new row draws its own states and the honest way to
+show that is to let somebody put a pointer on one.
+
+**And it left the audit's lab exclusion.** It had been excluded as a lab,
+which was true when it was one and false the moment it became a deliverable —
+and in that gap it drifted for four sessions with nothing able to say so. A
+reference nobody checks is a rumour ([[DES-157]]); a wrong one is worse than
+none.
+
+The sheet gained one section it never had: **what the page already says** —
+[[DES-183]]'s five contexts, the same task drawn in each. That rule is
+invisible on any single screen, because seeing it means seeing one task twice
+under different headings, and this is the only surface in the product where
+that can be arranged.
+
+### DES-185, one task, one copy of it
+
+Imran, 2026-08-22: "A sidebar view of a task row does not carry the edits (in
+steps, notes, links, and attachments) which are added in inline view of it.
+You know that dialog, sidebar, inline, and maybe more are just views of the
+same task row, so the data inside them should be the same and updated
+simultaneously."
+
+The model was right and the code was two things short of it.
+
+**Nothing but the surfaces had a write path.** `useCardWiring` has reported
+every edit upward since F4 — but only to whoever passed it `onPatch`, and
+exactly two callers ever did: the floating surface and the task tab. Every
+*inline* row on every screen had none, so a note typed into an expanded row
+lived in that row's local state and existed nowhere else. Open the same task
+in the sidebar and you were looking at a second copy that had never heard of
+it.
+
+Threading a handler would have meant twenty-four list call sites in eleven
+files and hoping the twenty-fifth remembered — the fault [[DES-154]] exists to
+name. So the shell publishes its write path as a context and the card reaches
+for it: **the one component that already wraps every screen provides the one
+function every card needs.** This repository normally refuses contexts, and
+the reason it refuses them does not apply here — `row-density` is a *value*
+read in fifty places, where a provider is a provider around the application;
+this is one function with one owner. A screen written next year gets it
+without knowing it exists, and a row given `onPatch` still wins, because a lab
+may have its own idea of where an edit goes or none at all.
+
+**And the shell dropped most of what it was told.** Its patcher knew five
+fields — title, important, folder, assignee, due — and silently discarded the
+rest, so steps and notes arrived and went nowhere. Those five are exactly the
+ones a *row* also draws, which is why they are mapped by hand; everything else
+belongs to the card alone and now rides in one field, `detail`, untouched.
+
+One field rather than one per fact, deliberately: the card gains blocks over
+time and each new one would otherwise need a prop, a mapping and a line in the
+patcher — three places to forget. It also fixed a quieter fault, that a row's
+props carry a step *count* and `toConceptTask` had to **invent** the steps from
+it — "Step 1", "Step 2" — so a task could round-trip through the shell and come
+back with its steps renamed. The invention survives as a fallback for lab
+fixtures that only have a count; anything the shell owns wins.
+
+### DES-186, the page makes room for the panel
+
+Imran, 2026-08-22: "when a right sidebar appears, it would be better to adjust
+the view of the page and the sidebar does not overlap the page."
+
+A panel that sits *over* the page hides the row the task came from, which is
+the one piece of context a side-by-side surface exists to keep — if covering
+the page were acceptable, the dialog would already be the better answer.
+Notion, Linear and Things all shrink the page, and for that reason.
+
+The width is published as a variable on the document rather than lifted into
+the shell's state, because **the panel owns its width**: it is resizable and
+remembered, and threading a live number up so the shell can hand it back down
+is a lot of wiring for a fact with one owner. The variable exists only while a
+panel is open, so the page's padding is zero the rest of the time and no
+component has to be told anything.
+
+### DES-187, an icon animates as itself
+
+Imran, 2026-08-22: some icons are "having one icon but changes with another
+when replaced". **Twenty-nine were.** The filter was three lines at rest and a
+funnel under the pointer; Settings was sliders and then a gear; Folders opened,
+Ban became a crossed flag, the grip became an ellipsis, Palette became a blend.
+
+Every one was a near-enough substitute, chosen when the animated library had
+no exact twin — which is the same reach [[DES-159]] ruled against when two
+alert glyphs both animated into a triangle. That ruling guarded one pair; this
+is the whole family, and it is the axis DES-159 could not see: not two names
+for one drawing, but **one name for two drawings, half a second apart**.
+
+They keep their drawings and lose their motion, which is [[DES-181]]'s rule
+applied at scale — a smaller loss than a glyph that turns into a different
+object under the pointer. A hundred and six of the hundred and thirty-five
+still animate.
+
+The audit checks it now by **rendering both and comparing them**, not by
+reading names: lucide keeps aliases beside their replacements, so
+`CheckCircle2` and `CircleCheckBig` are one picture under two names and must
+not be reported.
+
+### DES-188, the star is graphite, and the fill is the whole difference
+
+Imran, 2026-08-22: "the star color are not consistent across the shell,
+somewhere it's gold and somewhere it's black, so I think only black is good."
+
+Right twice. It *was* inconsistent, and by my hand — [[DES-183]] took the gold
+off Important the same day and left it everywhere else. And the colour was
+carrying nothing the fill was not already saying: important is a binary, a
+filled star says it, and a second signal on the same fact is one more hue in a
+product whose whole palette is one accent and graphite (W1).
+
+So the star is graphite in both states and the fill is the difference. DES-183
+still holds on top of it: on Important, where every row is starred, even the
+fill goes.
+
+### DES-189, a setting with no way in is a setting nobody has
+
+[[DES-113]] settled the row's two densities and put the choice in Settings.
+The module store was built expecting that control — its own note says it is
+"read by the row, by every screen that draws a list of rows, by the states
+page and by a settings control" — and **the control was never written**. So the
+preference existed, was honoured everywhere, and could not be changed by
+anybody.
+
+It is an Appearance section now, with two options rather than a switch: a
+switch labelled "Compact" would make two lines the *unchecked* state, and
+DES-113's whole argument is that two lines is the considered default rather
+than the leftover.
+
+### DES-190, a group moves like anything else in its column
+
+Imran, 2026-08-22: "the group of folders are not movable by dragging, it's now
+only sorted by alphabetical order."
+
+[[DES-171]] built the directory as one ordered list and made groups
+*participate* in it — they made space as folders passed them, and a folder
+could land either side — while being the one entry that could not be picked
+up. Half-built, and the half showing was the wrong one: **a row that moves for
+you but not by you reads as broken rather than as restricted.**
+
+A group is grabbed by its heading, because the middle of a group is one of its
+folders and pressing there means dragging that folder. It travels whole, and
+pausing mid-drag still commits the move rather than doing nothing — the hold
+that makes a group of two folders has no meaning for a group, so it falls back
+to the slot the pointer is over.
+
+What it still cannot do is go inside another group: Dana nests one level, and
+the honest answer to that drag is that the group moves past.
+
+### DES-191, a caveat belongs in the register, not in the panel
+
+Imran, 2026-08-22, on the filter's closing line: "it's a hint for frontend
+explorers and me, but I think we should remove it, so that we not forget it."
+
+It read "Saved views stay in this browser — Dana has nowhere to keep them
+yet" — a note from the studio to itself, standing in a person's way, at the
+foot of a panel they opened to narrow a list. Where a Lane 2 caveat belongs is
+the decision register and the handoff, and [[DES-153]] carries it in both. A
+panel is not the place to apologise for a backend nobody was promised.
+
+The second half of his sentence is the sharper one: an honesty line in the
+product is also a way of *not* dealing with something. Removing it puts the
+obligation back where it can be seen.
+
+### DES-192, keep the animation where the animated drawing is the better one
+
+[[DES-187]] settled the rule — an icon rests as the drawing it animates as —
+and left two ways to satisfy it: change the animation, or change the drawing. I
+took the drawing every time, which spent the motion on twenty-nine glyphs to
+keep pictures that were not always the better ones.
+
+Imran, 2026-08-23: *"I want the icons that are removed instead coz they were
+strong, especially for filter and settings."*
+
+He is right, and the correction is a judgement per icon rather than a second
+blanket. **Nine went back to their animated drawings** and animate again: the
+filter is a **funnel** and Settings is a **gear** — both plainer symbols than
+the three lines and the sliders they replace, and both the near-universal
+choice for what they name. Film became Video, and Globe2, Clock3, Link2,
+Share2, CheckCircle2 and CalendarCheck2 took the current lucide drawings of
+the same objects. Three were renamed with their picture, because a name that
+says `ListFilter` over a funnel is the fault this rule exists to remove.
+
+The swap also surfaced a collision the new rule caught immediately: `Globe2`
+and `Globe` were two names for one drawing the moment the first moved. They are
+one now.
+
+**Twenty stay drawn plain, each for a reason.** In every one the animated twin
+would have changed the meaning or landed on a name already in the module:
+Abandoned is not "unflagged"; a grip is not an overflow menu; `ListPlus`
+without its plus is a list; a panel toggle is neither a hamburger nor a list;
+`Palette` says colour where `Blend` says opacity; and four of them would have
+collided with `ListChecks`, `History` or each other. The full list and its
+reasons live in `lib/icons.tsx`, beside the code, so the next person meets the
+judgement rather than the outcome.
+
+**One is Imran's to overrule.** `CircleAlert` would animate as a *triangle* —
+which is precisely the morph [[DES-159]] removed, and a triangle carries danger
+where a circle carries notice. It is left as a circle and flagged, rather than
+quietly reversing a ruling of his.
+
+### DES-193, prose runs on; blocks get air
+
+Imran, 2026-08-23: "the gap between two paragraphs in a page is still too
+much." Measured: **32px between two lines of 12/20 prose** — more than one and
+a half of their own line-heights, which is not a paragraph break, it is a
+section break drawn by accident.
+
+The cause is that the gap did not know what it was separating. A folder page
+puts an insert strip after every block, at a fixed 24px, and that height is
+right between *blocks* — where it separates a heading from what came before —
+and wrong between two sentences that continue one another.
+
+> **A gap says how far apart two things are, so it has to know what they are.**
+
+The strip is dense between two paragraphs and full height everywhere else, so
+consecutive prose sits 16px apart and a section heading after prose still gets
+36px. This is the same correction `dense` was added for at F2, where 24px
+between a heading and its first row made the two read as separate things; the
+rule was applied once and not generalised, which is [[DES-154]] in miniature.
+
+The Travel fixture gained a second paragraph in the same pass. A page with one
+paragraph could never show the gap between two, which is why this was reported
+twice before it was measured — and it is now visible at rest and checked by
+the sweep.
+
+### DES-194, the row's chips and its assignee are open sets
+
+W2, the last of V3's brief and the last standing constraint with nothing built
+against it. It asks for the row's **state-chip and assignee slots cut as open
+sets**, and `docs/design/vision.md` says what they are open *for*: work
+assigned to "a person, an AI agent, or both", and states like "waiting,
+working, blocked, ready for review".
+
+Both were closed, in the way that actually costs something later.
+
+**The chips were eight conditionals in one JSX block.** Nothing declared what
+the family was; the order lived in the source sequence, where no one could
+review it; `bare` — the flag that hides an empty strip — restated all eight
+conditions by hand and **had already drifted**, still counting notes and
+attachments, which stopped being chips when the card took them. A ninth chip
+meant editing the middle of a hundred lines and hoping it landed in the right
+place.
+
+As a list, three things stop being anybody's diligence: **the order is data**,
+and it is the order Imran approved on 2026-08-23; **suppression is declared**
+beside the chip it silences rather than remembered per chip ([[DES-183]]); and
+**`bare` is derived** from what is actually showing, so it cannot drift again.
+An audit rule holds it, because the next chip is easiest to add exactly where
+the last eight were.
+
+It is deliberately **not populated with the vision's states**. Dana has two —
+pulled into Today, and abandoned — and drawing "blocked" or "ready for review"
+now would be inventing product rather than shaping a slot for it ([[DES-119]]).
+W2 asks for the shape; the contents are the spec's to grow.
+
+**The assignee menu was three names from the row lab.** The same fault
+`folderLibrary` was built to fix one axis over ([[DES-114]]) — a lab constant
+shipped into the real row — and it had the same visible symptom: the list you
+gave work to said *Sara* and *Hassan* with initials SK and HN, while the People
+screen two clicks away said **Sara Khan** and **Hassan Ali** with SK and
+**HA**. The roster now comes from one fixture that both read.
+
+**And there was no Unassigned.** A row could take an assignee and never let one
+go, which is a closed set in its plainest form and a functional gap besides. It
+sits last, after a separator, exactly where "New folder…" sits on the folder
+menu: the way out of a list belongs at its end.
+
+**Why the slot is open rather than merely longer.** Nothing in it says
+*human*: an assignee is a name and a face, so an agent arrives as another
+entry, in the same slot, with the same treatment. W1 forbids a separate AI
+hue, so the absence of any notion of *kind* is the point rather than an
+omission — the day an agent is assignable, nothing in the row changes. No
+field was added for it, because a field nothing can write is the fault
+[[DES-122]] named.
+
+### DES-195, a Shelf holds folders, and it is yours
+
+Imran, 2026-08-23, on the two options in `f7-brief.md`: **Option A, with B
+deferred rather than rejected.** A group of folders stays a personal label, and
+gains a page — a cover, an icon, blocks — but no link to send and no members.
+And he offered a better name than mine: **Shelf**.
+
+**Shelf is the right name, and Area was the wrong one.** Two reasons, and the
+second is the stronger.
+
+*It says what the thing is.* An **area** is a domain of responsibility — Things
+uses it that way, and it carries an implication of scope and ownership that
+suits Option B and overstates Option A. A **shelf** is somewhere you put things
+side by side because you decided to. That is precisely a personal label over
+folders: an arrangement its owner made, holding things that exist perfectly
+well without it.
+
+*It belongs to a family Dana already has.* The product's nouns are physical and
+plain — a **Desk** where you work, **Folders** that hold the work, and now a
+**Shelf** the folders sit on. Desk was chosen over Inbox for exactly this
+reason (DES-152, DES-181): the concrete word beats the abstract one, and the
+metaphor has to hold together. *Area* would have been the one abstraction in a
+room full of objects.
+
+**On the hover hint.** Imran asked for a tooltip saying it is a group of
+folders. Half of that is right and half is a warning sign, so the split
+matters: **a name that needs a tooltip every time has failed; a new idea that
+needs explaining once has not.** Shelf is in the first category — it is guessable —
+so the explanation goes where every other explanation in Dana goes: the
+description under the page's own title, and the sentence in Settings, which is
+the pattern the native pages already use ([[DES-173]]). Not a permanent hover
+that has to keep explaining itself.
+
+### DES-196, arrangement is cheap; inherited permission is the expensive part
+
+Imran asked the estimation question directly: does real nesting need "an endless
+amount of backend time from a team of one or two"? It is the right question and
+the honest answer inverts what he was worried about.
+
+**First, his check: does Option A touch nesting? No.** A Shelf page is a *view*
+over a label that already exists. The label has no id, no permissions and no
+containment, so nothing inherits and nothing recurses: a task is still in a
+folder, a folder is still at the top level, and a folder block on a Shelf page
+is a **reference**, not a parent. What Option A does add is a third kind of
+page — Dana has had system views and folders, and this is neither — which is a
+route, a place to keep a cover and an icon, and blocks. That is presentation,
+and it is small.
+
+One consequence worth stating rather than discovering: **a Shelf page is
+private, necessarily.** Its label is personal, so its cover, its icon and its
+arrangement are personal too, and two people looking at the same folders would
+see different Shelves. That is coherent, and it makes the Shelf page a personal
+workspace view rather than a shared place — which is exactly what Option A is.
+
+**Now the cost of real nesting, part by part.**
+
+- **The data.** A nullable `parent_id` on folders, a recursive query for
+  descendants — Postgres does this natively and Dana's scale never strains it —
+  and a cycle check on move. Days, not weeks. This is the part people assume is
+  expensive and it is not.
+- **The interface.** The sidebar becomes a tree: expand at depth, drag into
+  depth (the engine built at F6 handles one level and would need to recurse),
+  breadcrumbs — which the window bar's left end has been reserved for since
+  DES-139 — and every folder picker becoming a tree picker. A couple of weeks,
+  and bounded: you can see when it is done.
+- **Every folder-scoped question grows a flag.** Does "in Travel" mean Travel,
+  or Travel and everything below? Both answers are wanted in different places,
+  so counts, filters, the board's columns and the views all have to say which
+  they mean. Pervasive, tedious, finite.
+- **Permissions. This is the one that is open-ended**, and not because the code
+  is hard. Access today is a row per folder per person: one lookup, at the
+  10.2 chokepoint every request passes through. Inherited access makes every
+  check "is there a grant here *or on any ancestor*", and then the questions
+  start: can a child revoke what a parent granted? Answer yes and you need
+  explicit deny, which is where permission systems go to die. Answer no and the
+  product is simpler but surprising — *I removed them from this folder and they
+  can still see it*. And moving a folder silently changes who can see it, for
+  everybody, which has to be shown before it happens rather than discovered
+  after.
+
+> **So: nesting is affordable. Inherited permission is not — and inherited
+> permission is the whole reason anybody wants nesting.**
+
+That reframes the choice. The expensive thing is not the tree; it is the
+cascading grant, which is the one part of Option B Imran was ready to accept
+and the one part of Option A he is giving up. **Option A is nesting for
+arrangement, at exactly one level, with permissions left flat** — which is the
+cheap 90% of what nesting is for.
+
+It also names the cheap increment, if depth is ever wanted: **let a Shelf hold
+a Shelf, and keep permissions per folder.** Arrangement-only nesting, at any
+depth, costs the data and the interface and none of the tail. The moment a
+Shelf grants access to what it holds, the tail arrives — and that is Option B,
+whenever it is taken.
+
+### DES-197, an object declares what can be done to it
+
+Imran's brief of 2026-08-23 asked for Copy link, Duplicate, Open as a tab, a
+Trash, Save as workflow and History — "consistently everywhere". Six asks, and
+they are not six features. They are six **acts** on Dana's objects, missing in
+different places for one reason: **every overflow menu was written by hand**,
+surface by surface, so an act existed exactly where somebody remembered it.
+
+**The proof was one folder with two menus.** Its sidebar row offered Rename,
+Label and colour, Move to group and Delete. Its own page's bar offered Rename,
+Move to group and Delete — *no Label and colour*. Where you stood decided what
+you could do to the same folder. Neither file was wrong; there was simply
+nothing that said the two should agree.
+
+This is [[DES-154]] at the largest scale the product has, and the sixth
+instance of the same shape: tap-to-open reached six screens of seven, the
+folder mark was resolved in two surfaces of thirteen, the row's chips were
+eight hand-written branches, the entry defaults were written once on a button.
+
+**So the vocabulary is declared once and the behaviour stays local.**
+`lib/object-acts` says, per kind of object, which acts exist, what they are
+called, what glyph they wear and in what order and grouping they appear.
+`ObjectMenu` draws that. A surface supplies the handlers, because only it knows
+how to run one — Copy link from a sidebar row and Copy link from a page bar are
+the same act with different plumbing, and only the second half differs.
+
+**An act with no handler does not appear.** That is the safety property that
+makes the rest possible: a surface says what it can do by supplying it, so a
+menu can never show an item that does nothing ([[DES-144]] made structural
+rather than remembered), and the list can name acts that are not built yet
+without drawing a single dead control. Save as workflow and History are in the
+contract today and appear nowhere, because nothing supplies them.
+
+**Order is data**: *reach it · change it · copy it · destroy it*, with
+destructive last and behind a separator, everywhere. A menu whose dangerous
+item moves between surfaces is one you cannot use without reading.
+
+Two things were needed to make the folder's two menus actually identical, and
+both are worth naming because they are the shape of the next ten:
+
+- **An act may be a choice rather than a press.** "Move to shelf" is a
+  submenu of shelves on both surfaces, which is a press shorter than a dialog.
+  The act is still declared centrally; only the picker is the surface's, in
+  exactly the way a handler is.
+- **The picker behind a control had to become reachable.** The folder page's
+  Label and colour lives in a popover on the page's mark, which nothing could
+  open but a press on the mark — so the menu item and the mark are two doors
+  onto one control now, rather than the menu item being quietly dropped.
+
+An audit rule guards it, matching the *labels* rather than the components,
+because the next hand-rolled menu will be built from whatever primitives are
+nearest. It found a third hand-written folder menu on its first run: the v1
+folder page, which is the by-looking control behind `?folder-page=v1` and is
+now named in the lab exclusion beside the v1 row — a frozen control is allowed
+to be out of date, and the way to say so is to name it rather than keep
+repairing it.
+
+**And the bar learned a second kind of message.** Copy link changes nothing, so
+an Undo beside it would be a control that cannot mean anything; but it still
+has to say it worked. `notice()` puts it in the same bar with no Undo button,
+and `undoLast` steps past notices to the last real act — one place answering
+*what did I just do*, rather than a second thing in the corner competing with
+the capture button.
+
+### DES-198, a copy takes the structure, never the grants or the progress
+
+Imran, 2026-08-23: "When a folder is duplicated, the duplicated folder does not
+carry the tasks, sections, text, and the data. I think if they exclude the chat
+and members it's good, but other data should be duplicated with it."
+
+He was right and my reason for the first version was bad. I had written that
+the prototype "has no folder-to-task ownership it could walk" — a plumbing
+excuse dressed as a design position, and factually wrong besides, since a task
+carries `folder` and the sections have been in a store since DES-168. A folder
+that copies only its glyph and colour is a new folder in the original's costume,
+and the structure inside is the thing people duplicate a folder *for*.
+
+**One rule decides everything a copy leaves behind: a grant is not a thing.**
+
+Members and sharing are the obvious cases and Imran named them. The rule earns
+its keep on the case he did not name and I would otherwise have got wrong: **an
+assignee is a grant too.** Copying Travel would have handed Sara eight tasks she
+never accepted, and in the ported product it would have sent her eight
+notifications about a folder she has never seen. One principle now covers
+members, sharing and assignment, rather than three exceptions somebody has to
+remember at three call sites.
+
+The conversation is excluded for a second reason worth stating separately,
+because it generalises differently: a message is something a person *said*, to
+someone, at a time. Copying it puts their words in a room they were never in.
+That reaches the task's own comment count too, which the first pass carried —
+a number of remarks about a task that did not exist.
+
+**A copy also arrives unstarted.** Nobody asks for this and everybody wants it:
+duplicate a folder that is eight-of-twelve done and the copy is eight-of-twelve
+done, so your first act is unchecking eight things. A folder is duplicated to
+run the same shape again — a trip, a launch, an onboarding — so the copy takes
+the structure and none of the progress: completed and abandoned reset, the steps
+inside a task reset, and a My Day pull is dropped, because pulling something
+into today is a thing you did on the original's run.
+
+**Due dates are shifted, not copied, and only when they are spent.**
+
+Imran handed this one over. Copying them verbatim is the option that comes free
+and it is the worst: duplicate last April's trip and every row arrives red, a
+folder that is entirely overdue before you have touched it. Dropping them is
+safe and throws away the most useful thing a template holds — the *shape* of the
+plan, that booking came six weeks before packing.
+
+So the intervals are kept and the plan is re-anchored to today. The condition is
+what keeps it from being too clever: **only when the folder's earliest date has
+already passed.** Dates still ahead are a live plan and moving those would be the
+surprise; spent dates are a template and leaving those is the surprise. One test
+separates them, and the bar says which happened — "Travel copy created from
+Travel, dates moved to start today" — so it is never silent.
+
+Three things this turned up, each a fault rather than a preference:
+
+- **A folder's sections were only visible to the screen that drew them.** The
+  seed lived in `folder-page-v2` as a module const, so a folder's sections
+  reached the store only after somebody had *opened* it, and duplicating Travel
+  cold copied an empty page. The fixture moved to `lib/folder-layout`, beside
+  the store it seeds. A fixture only one screen can see is one the rest of the
+  product cannot copy.
+- **A deadline exists twice.** `form.dueDate` is the fact; `due.label` is the
+  sentence, written by hand in the fixtures. Shifting only the fact produced a
+  copy whose store said 23 August and whose row said "Overdue · 6 Aug". The copy
+  rebuilds the label through `dueLabelFor`, the same function the pickers use,
+  and recomputes overdue rather than inheriting it.
+- **A copy's tasks did not survive one click.** The shell holds tasks in memory
+  and every navigation here is a full page load, which has never mattered
+  because nothing added at runtime was meant to be found later. A duplicate is
+  the first act whose whole point is what you find when you come back, so the
+  copies persist — and only the copies, as a stand-in for a row rather than an
+  answer to the prototype's in-memory tasks. Lane 2 travels with it.
+
+The act is raised from three surfaces and one of them, the sidebar row through
+`app-shell`, has no task list to hand anybody. So `duplicateFolder` makes the
+folder and announces; the shell answers with the contents and records the whole
+thing as one undo. Two entries would have meant two presses to take back one
+press.
+
 
 ## Carried from v1, still unresolved
 

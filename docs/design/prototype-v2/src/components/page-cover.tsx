@@ -190,13 +190,25 @@ export function PageCover({ storageName }: { storageName: string }) {
 
 /* The quiet "Add cover" ghost, for a page that has none. Shown at rest only
    while the page is otherwise undressed; hover reveals it after that. */
-export function AddCoverAction({
-  storageName,
-  visible,
-}: {
-  storageName: string
-  visible: boolean
-}) {
+/*
+The way in, and it is always there until it has been used.
+
+Imran, 2026-08-22: "Each of the folder page (native and non native) can get a
+cover photo. Home is not getting it." Home was not, and neither was any folder
+somebody had already dressed: this took a `visible` flag, the folder page
+passed it `pristine` — true only while the folder had *no glyph, no cover and
+no description* — and every other page passed it `false` outright. So the
+moment you gave a folder an icon, the only route to a cover dropped to opacity
+zero with nothing to suggest it was still there. Home ships with a house.
+
+The flag was measuring the wrong thing, and once the right thing is measured
+there is nothing left for it to decide: this component already returns null
+when a cover exists (below), so "no cover" is the only state it can be in. A
+control that is the sole way to do something, in the one state where it can be
+done, is not a control to hide. Once there is a cover the band itself is the
+affordance (DES-141) and this is gone.
+*/
+export function AddCoverAction({ storageName }: { storageName: string }) {
   const identity = useFolderIdentity(storageName)
   if (identity.cover) return null
 
@@ -210,7 +222,6 @@ export function AddCoverAction({
               "-ml-1.5 flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-[opacity,background-color,color] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
               T_FAST,
               FOCUS,
-              visible ? "opacity-100" : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
             )}
           >
             <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />

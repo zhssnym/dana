@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
-import { FolderPlus } from "lucide-react"
+import { FolderPlus } from "@/lib/icons"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -97,7 +97,7 @@ export function NewFolderDialog({
             >
               Cancel
             </DialogClose>
-            <Button type="submit" className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]">
+            <Button type="submit" variant="commit" className="h-[var(--control-height)] px-3">
               Create folder
             </Button>
           </DialogFooter>

@@ -1,4 +1,6 @@
+import { FolderMark } from "@/components/folder-mark"
 import { useEffect, useMemo, useState } from "react"
+
 import {
   Ban,
   CalendarDays,
@@ -6,12 +8,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Folder,
   List,
   Plus,
   Repeat2,
-} from "lucide-react"
-
+} from "@/lib/icons"
+import { PageHead, pageBodyClass } from "@/components/page-head"
+import { CompletedSection } from "@/components/task-section"
+import { TaskSection } from "@/components/task-section"
+import { ViewStrip } from "@/components/view-strip"
+import { WindowBarActions } from "@/components/window-bar"
 import { QuickAdd } from "@/components/quick-add"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
@@ -22,6 +27,7 @@ import {
   EmptyHeader,
   EmptyMedia,
 } from "@/components/ui/empty"
+import { TODAY_ISO } from "@/lib/task-model"
 import { cn } from "@/lib/utils"
 
 type PlannedMode = "list" | "calendar"
@@ -36,8 +42,14 @@ export type PlannedTask = TaskRowProps & {
 interface PlannedScreenProps {
   tasks: PlannedTask[]
   calendarTasks: PlannedTask[]
+  /* Finished work, closing the page collapsed — Imran, 2026-08-22: every
+     page that lists tasks ends in one, so the grammar is the same wherever
+     you are. */
+  completed?: (TaskRowProps & { id: string })[]
   previewState?: string | null
   initialMode?: PlannedMode
+  /* The shell's view strip, when the shell is drawing one (DES-177). */
+  view?: PlannedMode
   onAdd: (title: string) => void
   onOpenFullForm: () => void
   onCreateAtDate: (date: string) => void
@@ -46,10 +58,16 @@ interface PlannedScreenProps {
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
   onRestore: (taskId: string) => void
+  /* DES-152 renames this page Scheduled. */
+  title?: string
+  description?: string
 }
 
 const MODE_STORAGE_KEY = "dana-planned-mode"
-const todayKey = "2026-08-10"
+/* One definition of today, from `task-model` — this page used to carry its
+   own copy of the date, which happened to be right while the picker's anchor
+   three files away was not. */
+const todayKey = TODAY_ISO
 const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function parseDate(key: string) {
@@ -96,40 +114,103 @@ function formatCalendarTitle(anchor: Date, zoom: CalendarZoom) {
   return `${start.getUTCDate()}–${end.getUTCDate()} ${endMonth} ${end.getUTCFullYear()}`
 }
 
+/*
+The time ladder, made of headings rather than of a control.
+
+Imran asked whether Scheduled needs a Today · Week · Month · Year scope
+control. It does not, and the reason is structural rather than a matter of
+taste: **Today is already the first rung of that ladder**, and it is a page of
+its own (DES-152). A ladder on Scheduled that starts at "Today" rebuilds the
+overlap the whole navigation model exists to remove, and one starting at "This
+week" still contains today. Meanwhile a scope control over a list already
+sorted by date only truncates its tail, which the reader's eye does for free,
+and Scheduled already owns a zoom — calendar mode's day/week/month — so a
+second differently-shaped one would put two disagreeing zooms on one page.
+
+So the division of labour is: **list reads forward from now, calendar jumps to
+a point in time.** What the list owed was structure, not a control, and this
+supplies it — the same day-group grammar Done uses, and the same "Carried
+over" pinning that Today uses, so all three pages read alike.
+
+Overdue is one section rather than one heading per past date: a person does not
+need last Tuesday and last Thursday told apart, they need to know the pile
+exists. Future dates keep their own headings, because there the date is the
+thing being planned around.
+*/
+function labelForDate(key: string, todayIso: string) {
+  const day = parseDate(key)
+  const today = parseDate(todayIso)
+  const diff = Math.round(
+    (day.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  )
+  if (diff === 0) return "Today"
+  if (diff === 1) return "Tomorrow"
+  const weekday = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    timeZone: "UTC",
+  }).format(day)
+  const date = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(day)
+  /* Inside the coming week a weekday is what people plan by; past that, the
+     weekday stops helping and the date carries it alone. */
+  return diff > 1 && diff < 7 ? `${weekday} ${date}` : date
+}
+
+function buildDateSections(tasks: PlannedTask[], todayIso: string) {
+  const overdue: PlannedTask[] = []
+  const byDate = new Map<string, PlannedTask[]>()
+
+  tasks.forEach((task) => {
+    if (task.date < todayIso) {
+      overdue.push(task)
+      return
+    }
+    const bucket = byDate.get(task.date)
+    if (bucket) bucket.push(task)
+    else byDate.set(task.date, [task])
+  })
+
+  return [
+    ...(overdue.length > 0
+      ? [{ key: "overdue", label: "Overdue", rows: overdue }]
+      : []),
+    ...[...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, rows]) => ({
+        key,
+        label: labelForDate(key, todayIso),
+        rows,
+      })),
+  ]
+}
+
+/*
+Planned's list/calendar toggle, now the same switcher every other surface uses
+and now in the window bar.
+
+Spec 9.5 asks for a mode toggle persisted client-side, and it still is. What
+changed is that it stopped being a bespoke 44px segmented block sitting beside
+the page's own name: DES-137 ruled every switcher is a collapsing icon strip,
+DES-139 ruled that controls belonging to what a tab is showing are chrome and
+live in the bar, and this control was the last one left inside a content
+column. The folder page's view switcher and this one are now literally the
+same component.
+*/
 function ModeSwitch({ mode, onChange }: { mode: PlannedMode; onChange: (mode: PlannedMode) => void }) {
   return (
-    <div
-      className="flex h-11 items-center rounded-lg border border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] p-0.5"
-      role="group"
-      aria-label="Planned view"
-    >
-      <Button
-        variant="ghost"
-        className={cn(
-          "h-[var(--control-height)] gap-1.5 rounded-md px-3 text-[13px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)]",
-          mode === "list" &&
-            "bg-white text-[var(--color-graphite-900)] ring-1 ring-[var(--color-graphite-200)] hover:bg-white",
-        )}
-        aria-pressed={mode === "list"}
-        onClick={() => onChange("list")}
-      >
-        <List className="size-4" strokeWidth={1.75} />
-        List
-      </Button>
-      <Button
-        variant="ghost"
-        className={cn(
-          "h-[var(--control-height)] gap-1.5 rounded-md px-3 text-[13px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)]",
-          mode === "calendar" &&
-            "bg-white text-[var(--color-graphite-900)] ring-1 ring-[var(--color-graphite-200)] hover:bg-white",
-        )}
-        aria-pressed={mode === "calendar"}
-        onClick={() => onChange("calendar")}
-      >
-        <CalendarDays className="size-4" strokeWidth={1.75} />
-        Calendar
-      </Button>
-    </div>
+    <ViewStrip
+      ariaLabel="Planned view"
+      value={mode}
+      options={[
+        { key: "list", label: "List view", icon: List },
+        { key: "calendar", label: "Calendar view", icon: CalendarDays },
+      ]}
+      onSelect={onChange}
+      collapse
+    />
   )
 }
 
@@ -173,10 +254,13 @@ function CalendarEvent({
       ) : task.time ? (
         <Clock3 className="size-3 shrink-0" strokeWidth={1.75} />
       ) : task.folder ? (
-        <Folder
+        /* Scheduled's calendar chip carries the folder's chosen mark — Imran
+           named this page specifically, and it was one of four surfaces still
+           drawing the generic folder. */
+        <FolderMark
+          name={task.folder.name}
+          color={task.folder.color}
           className="size-3.5 shrink-0"
-          style={{ color: task.folder.color }}
-          strokeWidth={1.75}
         />
       ) : (
         <CalendarDays
@@ -235,55 +319,73 @@ function PlannedCalendar({
 
   return (
     <div className="mt-5 mb-20 overflow-hidden rounded-[10px] border border-[var(--color-graphite-200)] bg-white">
-      <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-2 py-1.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2 className="min-w-36 truncate px-2 text-base leading-6 font-semibold text-[var(--color-graphite-800)]">
+      {/*
+      The header, thinned — Imran, 2026-08-22: it "feels a bit oversized".
+
+      It was 56px, and the height was a symptom: the row held **four boxed
+      things** — a bordered pair of arrows with a divider between them, a
+      bordered 44px group wrapping three 32px buttons, an outlined Today, and
+      a shaded ground with a hairline under it. Every one of them drew its own
+      edge, so the bar had to be tall enough to hold boxes inside boxes.
+
+      What it is instead is the shell's own grammar, which this stretch has
+      been applying everywhere else: **tone rather than hairlines**, controls
+      that are the system's buttons at the system's size, and no container
+      around a group of them — the gap already says they belong together. The
+      arrows are two ghost buttons, the zoom is three buttons with the current
+      one filled, and the whole row is 44px because that is a 32px control
+      with breathing room and nothing more.
+      */}
+      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 bg-[var(--color-graphite-25)] px-2 py-1.5">
+        <div className="flex min-w-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-[var(--color-graphite-600)]"
+            aria-label="Previous period"
+            onClick={() => move(-1)}
+          >
+            <ChevronLeft strokeWidth={1.75} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-[var(--color-graphite-600)]"
+            aria-label="Next period"
+            onClick={() => move(1)}
+          >
+            <ChevronRight strokeWidth={1.75} />
+          </Button>
+          {/* The month is the heading; the arrows read as its controls
+              because they sit before it, which is the order every calendar
+              people already use puts them in. */}
+          <h2
+            aria-live="polite"
+            className="min-w-36 truncate px-1 text-base leading-6 font-semibold text-[var(--color-graphite-800)]"
+          >
             {formatCalendarTitle(anchor, zoom)}
           </h2>
+        </div>
+
+        <div className="flex items-center gap-1">
           <Button
             variant="outline"
-            className="h-[var(--control-height)] border-[var(--color-graphite-200)] bg-white px-3 text-[13px] font-medium text-[var(--color-graphite-700)] shadow-none hover:bg-[var(--color-graphite-50)]"
+            size="sm"
             onClick={() => setAnchor(parseDate(todayKey))}
           >
             Today
           </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex overflow-hidden rounded-lg border border-[var(--color-graphite-200)] bg-white">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-[var(--control-height)] rounded-none border-r border-[var(--color-graphite-200)] text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
-              aria-label="Previous period"
-              onClick={() => move(-1)}
-            >
-              <ChevronLeft className="size-5" strokeWidth={1.75} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-[var(--control-height)] rounded-none text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
-              aria-label="Next period"
-              onClick={() => move(1)}
-            >
-              <ChevronRight className="size-5" strokeWidth={1.75} />
-            </Button>
-          </div>
-
-          <div
-            className="flex h-11 items-center rounded-lg border border-[var(--color-graphite-200)] bg-white p-0.5"
-            role="group"
-            aria-label="Calendar zoom"
-          >
+          <div className="flex items-center gap-0.5" role="group" aria-label="Calendar zoom">
             {(["day", "week", "month"] as CalendarZoom[]).map((option) => (
               <Button
                 key={option}
-                variant="ghost"
+                variant={zoom === option ? "secondary" : "ghost"}
+                size="sm"
                 className={cn(
-                  "h-[var(--control-height)] rounded-md px-3 text-[13px] font-medium capitalize text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)]",
-                  zoom === option &&
-                    "bg-[var(--color-graphite-100)] text-[var(--color-graphite-900)] hover:bg-[var(--color-graphite-100)]",
+                  "capitalize",
+                  zoom === option
+                    ? "text-[var(--color-graphite-900)]"
+                    : "text-[var(--color-graphite-600)]",
                 )}
                 aria-pressed={zoom === option}
                 onClick={() => setZoom(option)}
@@ -305,7 +407,12 @@ function PlannedCalendar({
         ).map((label) => (
           <div
             key={label}
-            className="flex h-9 items-center px-2 text-[11px] font-semibold tracking-[0.04em] text-[var(--color-graphite-500)] uppercase"
+            /* The weekday heads read exactly as the date picker's do
+               (`ui/calendar.tsx`): 11px medium in graphite-400, on a 28px
+               row. They were 9px taller, semibold, uppercase and tracked —
+               a second style for the same words, in the same product, two
+               clicks apart. */
+            className="flex h-7 items-center px-2 text-[11px] leading-4 font-medium text-[var(--color-graphite-400)]"
           >
             {label}
           </div>
@@ -361,8 +468,14 @@ function PlannedCalendar({
                 <span
                   className={cn(
                     "flex size-6 items-center justify-center rounded-md text-xs font-medium text-[var(--color-graphite-600)]",
+                    /* Today is cobalt, as it is in the date picker. It was a
+                       filled graphite square — which is exactly how that
+                       picker draws the day you have *selected*, so the same
+                       shape meant "today" here and "chosen" there. DES-016
+                       gives cobalt the today job; graphite fill keeps
+                       selection. */
                     key === todayKey &&
-                      "bg-[var(--color-graphite-900)] text-white",
+                      "font-semibold text-[var(--color-dana-accent-700)]",
                     outsideMonth &&
                       key !== todayKey &&
                       "text-[var(--color-graphite-400)]",
@@ -413,6 +526,7 @@ function PlannedCalendar({
 export function PlannedScreen({
   tasks,
   calendarTasks,
+  completed = [],
   previewState,
   initialMode,
   onAdd,
@@ -423,34 +537,51 @@ export function PlannedScreen({
   onToggleComplete,
   onToggleImportant,
   onRestore,
+  title = "Planned",
+  description = "Tasks with a due date",
+  view,
 }: PlannedScreenProps) {
-  const [mode, setMode] = useState<PlannedMode>(() => {
+  const dateSections = buildDateSections(tasks, todayKey)
+  /*
+  The view is the shell's now, not this screen's.
+
+  This page owned a list/calendar switch of its own, and DES-177 made that a
+  fork the moment every place-page had a strip: three views, one rule, and
+  this screen would have been the only one deciding for itself which of them
+  it offered. So the shell holds the view and this takes it as a prop, keeping
+  its own state only for the route that seeds one — the sweep's
+  `?mode=calendar` — and for a caller that renders it standalone.
+  */
+  const [ownMode, setOwnMode] = useState<PlannedMode>(() => {
     if (initialMode) return initialMode
     const stored = window.localStorage.getItem(MODE_STORAGE_KEY)
     return stored === "calendar" ? "calendar" : "list"
   })
+  const mode = view ?? ownMode
 
   useEffect(() => {
     window.localStorage.setItem(MODE_STORAGE_KEY, mode)
   }, [mode])
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
-      <header className="flex min-h-14 items-start justify-between gap-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <CalendarDays className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]" strokeWidth={1.75} aria-hidden="true" />
-          <div>
-            <h1 className="text-2xl leading-8 font-semibold">Planned</h1>
-            <p className="mt-1 text-xs text-[var(--color-graphite-500)]">Tasks with a due date</p>
-          </div>
-        </div>
-        <ModeSwitch mode={mode} onChange={setMode} />
-      </header>
+    <div className={pageBodyClass()}>
+      {view ? null : (
+        <WindowBarActions order={-1}>
+          <ModeSwitch mode={mode} onChange={setOwnMode} />
+        </WindowBarActions>
+      )}
+
+      <PageHead
+        storageName={title}
+        icon={CalendarDays}
+        title={title}
+        description={description}
+      />
 
       {previewState === "loading" ? (
-        <div className="mt-6"><SkeletonList /></div>
+        <div className="mt-3"><SkeletonList /></div>
       ) : previewState === "error" ? (
-        <div className="mt-6"><InlineError /></div>
+        <div className="mt-3"><InlineError /></div>
       ) : mode === "calendar" ? (
         <PlannedCalendar tasks={calendarTasks} onCreateAtDate={onCreateAtDate} onOpenTask={onOpenTask} onOpenGhost={onOpenGhost} />
       ) : tasks.length === 0 || previewState === "empty" ? (
@@ -459,26 +590,45 @@ export function PlannedScreen({
           <EmptyHeader><EmptyDescription className="text-sm">Nothing scheduled. Give any task a due date and it moves here.</EmptyDescription></EmptyHeader>
         </Empty>
       ) : (
-        <section className="mt-6" aria-label="Dated open tasks">
-          <TaskList
-            className=""
-            tasks={tasks}
-            renderRow={(task, wiring) => (
-              <TaskRow
-                key={task.id}
-                {...task}
-                {...wiring}
-                onOpen={(mode) => onOpenTask(task.id, mode)}
-                onToggleComplete={(completed) =>
-                  task.status === "abandoned"
-                    ? onRestore(task.id)
-                    : onToggleComplete(task.id, completed)
-                }
-                onToggleImportant={() => onToggleImportant(task.id)}
+        <section className="mt-3" aria-label="Dated open tasks">
+          {dateSections.map((section) => (
+            <TaskSection
+              key={section.key}
+              className="mb-6"
+              id={`scheduled-${section.key}`}
+              name={section.label}
+              count={section.rows.length}
+            >
+              <TaskList
+                onTaskOpen={onOpenTask}
+                tasks={section.rows}
+                renderRow={(task, wiring) => (
+                  <TaskRow
+                    key={task.id}
+                    {...task}
+                    {...wiring}
+                    onOpen={(mode) => onOpenTask(task.id, mode)}
+                    onToggleComplete={(completed) =>
+                      task.status === "abandoned"
+                        ? onRestore(task.id)
+                        : onToggleComplete(task.id, completed)
+                    }
+                    onToggleImportant={() => onToggleImportant(task.id)}
+                  />
+                )}
               />
-            )}
-          />
-          <QuickAdd folderName="Inbox" label="Add scheduled task" onAdd={onAdd} onOpenFullForm={onOpenFullForm} />
+            </TaskSection>
+          ))}
+          <QuickAdd folderName="Desk" label="Add scheduled task" onAdd={onAdd} onOpenFullForm={onOpenFullForm} />
+          {/* Finished dated work, in the same collapsed close every other
+              page uses (Imran, 2026-08-22). Spec Q3 keeps completed rows out
+              of the *list*, and this is a section under it rather than rows
+              in it, so the ordering rule is untouched. */}
+          <div className="mt-6">
+            <CompletedSection count={completed.length}>
+              <TaskList onTaskOpen={onOpenTask} className="mt-0.5" tasks={completed} />
+            </CompletedSection>
+          </div>
         </section>
       )}
     </div>

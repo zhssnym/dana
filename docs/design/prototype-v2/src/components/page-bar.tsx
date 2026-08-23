@@ -25,16 +25,39 @@ shell does not already hold in memory.
 */
 
 import type { LucideIcon } from "@/lib/icons"
-import { CheckCircle2, RefreshCw, X } from "@/lib/icons"
+import { RefreshCw, X } from "@/lib/icons"
 
+import { FolderMark } from "@/components/folder-mark"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 
+/*
+What an inactive tab does when you touch it — F5, 2026-08-22, the last of the
+shell pass Imran listed.
+
+It used to go **darker**: the strip's ground is graphite-50 and hover painted
+graphite-100 over it. That is backwards, and at a 24px tab it was actively
+confusing. Pressing a tab makes it white — so hover, which is the preview of
+that press, has to move toward white, not away from it. Going darker says
+"recessed", which is the one thing a click will not do, and it left hover and
+active reading as two filled tabs one step apart in opposite directions.
+
+So hover is the tab three-fifths of the way up to the card ground, with the
+label darkening the same distance. It is unmistakably on its way to being the
+active tab, and never mistakable for one.
+*/
+const TAB_HOVER =
+  "hover:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))]"
+
 export interface PageTab {
   id: string
   title: string
+  /* The folder the task is in. A tab's mark says what kind of thing it holds
+     and, for a task, *where* it lives — an unfiled one resolves to Desk in
+     the one resolver rather than here. */
+  folder?: { name?: string; color?: string }
 }
 
 export function PageBar({
@@ -61,19 +84,23 @@ export function PageBar({
   return (
     <header
       className={showUpdate
-        ? "flex h-[var(--control-height)] shrink-0 items-center border-b border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)]"
-        : "flex h-[var(--shell-pagebar-height)] shrink-0 items-center border-b border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)]"}
+        ? "flex h-[var(--control-height)] shrink-0 items-center bg-sidebar"
+        : "flex h-[var(--shell-pagebar-height)] shrink-0 items-center bg-sidebar"}
     >
       <button
         type="button"
         data-static-page-tab
         onClick={() => onSelectTab?.(null)}
         className={cn(
-          "relative -mt-px -mb-px -ml-px flex min-w-48 max-w-64 items-center gap-2 self-stretch px-3 text-left transition-colors",
+          /* The active tab is the sheet reaching up into the chrome: it is
+             simply white, continuous with the page below it, and needs no
+             outline to say so. The inactive ones are nothing at all until you
+             touch them, when they take the chrome's own hover wash. Three
+             borders and a negative-margin stack used to draw this; the tonal
+             step draws it now (Imran, 2026-08-22). */
+          "group/tab relative flex min-w-48 max-w-64 items-center gap-2 self-stretch rounded-t-lg px-3 text-left transition-colors",
           T_FAST,
-          pageActive
-            ? "border-x border-t border-[var(--color-graphite-200)] bg-card"
-            : "border-x border-t border-transparent text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-50)]",
+          pageActive ? "bg-card" : cn("text-[var(--color-graphite-500)]", TAB_HOVER),
         )}
         aria-label={`Open page: ${title}`}
         aria-current={pageActive ? "page" : undefined}
@@ -88,10 +115,11 @@ export function PageBar({
         ) : null}
         <span
           className={cn(
-            "truncate text-xs leading-4 font-medium",
+            "truncate text-xs leading-4 font-medium transition-colors",
+            T_FAST,
             pageActive
               ? "text-[var(--color-graphite-800)]"
-              : "text-[var(--color-graphite-500)]",
+              : "text-[var(--color-graphite-500)] group-hover/tab:text-[var(--color-graphite-700)]",
           )}
         >
           {title}
@@ -104,11 +132,9 @@ export function PageBar({
           <div
             key={tab.id}
             className={cn(
-              "group/tab relative -mt-px -mb-px flex min-w-32 max-w-56 items-center self-stretch transition-colors",
+              "group/tab relative flex min-w-32 max-w-56 items-center self-stretch rounded-t-lg transition-colors",
               T_FAST,
-              active
-                ? "border-x border-t border-[var(--color-graphite-200)] bg-card"
-                : "border-x border-t border-transparent hover:bg-[var(--color-graphite-50)]",
+              active ? "bg-card" : TAB_HOVER,
             )}
           >
             <button
@@ -120,25 +146,42 @@ export function PageBar({
               aria-current={active ? "page" : undefined}
               className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-6 pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-inset"
             >
-              {/* A tab says what kind of thing it holds: pages carry their
-                  own mark and a folder carries the glyph its owner chose, so
-                  a task needs one too (Imran, 2026-08-18). */}
-              <CheckCircle2
-                className={cn(
-                  "size-3.5 shrink-0",
-                  active
-                    ? "text-[var(--color-graphite-600)]"
-                    : "text-[var(--color-graphite-400)]",
-                )}
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
+              {/*
+              A tab says what kind of thing it holds, and a task tab says
+              which folder it came out of — Imran's point 17.
+
+              It wore a generic tick, which was the fault DES-155 named one
+              level up: an identity only some surfaces honour is a decoration
+              on one screen. The mark comes from the one resolver, so a folder
+              somebody has dressed follows its tasks into the tab strip, and
+              one nobody has dressed answers the plain folder exactly as
+              before.
+
+              Emphasis rides opacity rather than the hue, the same arithmetic
+              the sidebar's folder row settled at F5: the colour is the
+              folder's identity and has to survive, so an inactive tab's mark
+              fades rather than greys.
+              */}
               <span
                 className={cn(
-                  "block truncate text-xs leading-4 font-medium",
+                  "flex size-3.5 shrink-0 items-center justify-center transition-opacity",
+                  T_FAST,
+                  active ? "opacity-100" : "opacity-[0.62] group-hover/tab:opacity-100",
+                )}
+              >
+                <FolderMark
+                  name={tab.folder?.name}
+                  color={tab.folder?.color}
+                  className="size-3.5"
+                />
+              </span>
+              <span
+                className={cn(
+                  "block truncate text-xs leading-4 font-medium transition-colors",
+                  T_FAST,
                   active
                     ? "text-[var(--color-graphite-800)]"
-                    : "text-[var(--color-graphite-500)]",
+                    : "text-[var(--color-graphite-500)] group-hover/tab:text-[var(--color-graphite-700)]",
                 )}
               >
                 {tab.title}

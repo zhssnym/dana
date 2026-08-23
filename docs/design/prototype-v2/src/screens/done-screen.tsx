@@ -1,6 +1,9 @@
 import { useState } from "react"
-import { CheckCircle2 } from "lucide-react"
 
+import { CheckCircle2 } from "@/lib/icons"
+import { PageHead, pageBodyClass } from "@/components/page-head"
+import { pageQuestion } from "@/lib/nav-model"
+import { TaskSection } from "@/components/task-section"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
 import {
@@ -54,24 +57,15 @@ export function DoneScreen({
   const hasTasks = groups.some((group) => group.tasks.length > 0)
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
-      <header className="flex min-h-12 items-start gap-3">
-        <CheckCircle2
-          className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
-            Done
-          </h1>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Completion history
-          </p>
-        </div>
-      </header>
+    <div className={pageBodyClass()}>
+      <PageHead
+        storageName="Done"
+        icon={CheckCircle2}
+        title="Done"
+        description={pageQuestion("Done")}
+      />
 
-      <div className="mt-7">
+      <div className="mt-3">
         {previewState === "loading" ? (
           <SkeletonList />
         ) : previewState === "error" ? (
@@ -90,21 +84,25 @@ export function DoneScreen({
         ) : (
           <div className="space-y-7">
             {groups.map((group) => (
-              <section key={group.label} aria-labelledby={`done-${group.label.toLowerCase().replaceAll(" ", "-")}`}>
-                <h2
-                  id={`done-${group.label.toLowerCase().replaceAll(" ", "-")}`}
-                  className="mb-1 px-2 text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]"
-                >
-                  {group.label}
-                </h2>
+              <TaskSection
+                key={group.label}
+                id={`done-${group.label.toLowerCase().replaceAll(" ", "-")}`}
+                name={group.label}
+                count={group.tasks.length}
+              >
                 <TaskList
                   className=""
+                  onTaskOpen={onOpenTask}
                   tasks={group.tasks}
                   renderRow={(task, wiring) => (
                     <TaskRow
                       key={task.id}
                       {...task}
                       {...wiring}
+                      /* The due date goes: this page groups by when work was
+                         finished, and a spent deadline beside that is two
+                         dates where the louder one no longer matters (R7). */
+                      given={{ due: true }}
                       status="completed"
                       onOpen={(mode) => onOpenTask(task.id, mode)}
                       onToggleComplete={(completed) => {
@@ -125,7 +123,7 @@ export function DoneScreen({
                     />
                   )}
                 />
-              </section>
+              </TaskSection>
             ))}
             {previewState === "loading-more" ? (
               <div className="pt-1" aria-label="Loading more completed tasks">

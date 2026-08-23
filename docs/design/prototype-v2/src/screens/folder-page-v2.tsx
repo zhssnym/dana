@@ -22,12 +22,14 @@ drawn on fixtures, excluded from the port by its entry. The previous folder
 screen stays at `?folder-page=v1`.
 */
 
+import { InlineInput, InlineTextarea } from "@/components/ui/inline-field"
 import {
   useEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  useMemo,
 } from "react"
 import {
   AlignLeft,
@@ -46,10 +48,11 @@ import {
   LayoutGrid,
   List,
   ListChecks,
-  ListFilter,
+  Filter,
   MessageSquare,
   MoreHorizontal,
   PanelRight,
+  Palette,
   Pencil,
   Pilcrow,
   Plus,
@@ -64,17 +67,33 @@ import { Switch } from "@/components/ui/switch"
 import { useSortableList } from "@/lib/use-sortable-list"
 
 import { CommentsThread, voiceBars } from "@/components/comments"
+import {
+  BoardAddColumn,
+  BoardQuickAdd,
+  TaskBoard,
+  type BoardColumn,
+} from "@/components/task-board"
 import { ViewStrip } from "@/components/view-strip"
 import { WindowActivity, WindowBarActions } from "@/components/window-bar"
+import { useAllHistory } from "@/lib/history"
+import { PageDescription, PageMark, pageBodyClass } from "@/components/page-head"
+import { ObjectMenu } from "@/components/object-menu"
+import { ReservesRightEdge } from "@/components/right-edge"
+import { readFolderLayout, saveFolderLayout } from "@/lib/folder-layout"
+import { CompletedSection, TaskSection } from "@/components/task-section"
+import { GroupedList } from "@/screens/grouped-screen"
 import { AddCoverAction, PageCover } from "@/components/page-cover"
 import {
   DEFAULT_FILTERS,
   FilterControl,
+  UNASSIGNED,
   activeFilterCount,
-  applyTaskFilters,
+  applyView,
+  groupTasks,
   stripButtonClass,
   type TaskFilters,
 } from "@/components/task-filters"
+import { readPageFilters, writePageFilters } from "@/lib/page-filters"
 import { taskSurfacePreference } from "@/lib/task-surface-preference"
 import {
   FolderCoverPicker,
@@ -85,7 +104,7 @@ import { FolderIconPicker, folderGlyph } from "@/components/folder-icon-picker"
 import { QuickAdd } from "@/components/quick-add"
 import { SharingPanel } from "@/components/sharing-panel"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
-import { Face } from "@/components/task-card"
+import { Face } from "@/components/person-face"
 import { TaskSurface, type TaskSurfaceMode } from "@/components/task-surface"
 import {
   TaskList,
@@ -162,6 +181,18 @@ type ConversationView = "page" | "panel"
 interface SectionModel {
   id: string
   name: string
+  /*
+  A mark of its own, from the same 42-glyph table a folder picks from.
+
+  Imran's ask, and the constraint that came with it: "if a user want they can
+  add an icon to a section too, but it should be in a way that if a section
+  does not carry an icon, the section should not feel like it's lacking
+  something." Optional, and genuinely optional — `TaskSection` puts the glyph
+  inline before the name rather than in a reserved slot, so a section without
+  one starts its name earlier and nothing is left waiting to be filled.
+  */
+  glyph?: string
+  color?: string
   /* A paragraph belonging to this section, above its tasks — the gap Imran
      found: the insertion lines lived between page blocks, so there was
      nowhere to write between a heading and the first row under it. */
@@ -175,38 +206,12 @@ type PageItem =
   | { kind: "section"; section: SectionModel }
   | { kind: "paragraph"; paragraph: ParagraphModel }
 
-/* The Wedding folder arrives already organised, so sections and paragraphs
-   are judged as an inhabited page rather than an empty mechanism. Everything
-   is in-memory: navigation reloads reset it, like every task fixture. */
-const PAGE_SEEDS: Record<
-  string,
-  { items: PageItem[]; assign: Record<string, string> }
-> = {
-  Wedding: {
-    items: [
-      {
-        kind: "paragraph",
-        paragraph: {
-          id: "wedding-note",
-          text: "Venue and catering are settled — invitations and transport are the open fronts.",
-        },
-      },
-      { kind: "section", section: { id: "venue", name: "Venue & vendors" } },
-      { kind: "section", section: { id: "invites", name: "Invitations" } },
-    ],
-    assign: {
-      "task-4": "venue",
-      "task-6": "venue",
-      "task-14": "invites",
-      "task-15": "invites",
-    },
-  },
-}
+/* The page's seed moved into `lib/folder-layout` when duplicate became a
+   second reader of it: a fixture that only one screen can see is one the rest
+   of the product cannot copy (Imran, 2026-08-23). */
 
-/* The folder's own conversation (DES-134). Shared folders arrive with one
-   going; a private folder starts quiet. */
 const FOLDER_THREADS: Record<string, ConceptComment[]> = {
-  Wedding: [
+  Travel: [
     {
       id: "folder-wedding-1",
       author: PEOPLE[1]!,
@@ -235,7 +240,7 @@ const FOLDER_THREADS: Record<string, ConceptComment[]> = {
       voice: { seconds: 9, bars: voiceBars(9) },
     },
   ],
-  "Community planning committee": [
+  "Office": [
     {
       id: "folder-cpc-1",
       author: PEOPLE[2]!,
@@ -290,7 +295,7 @@ function InlineName({
 
   if (editing) {
     return (
-      <input
+      <InlineInput
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
         value={draft}
@@ -323,12 +328,17 @@ function InlineName({
       type="button"
       onClick={() => setEditing(true)}
       title="Rename"
+      /* The caller's className last, so it can win — it could not before,
+         and that is why a section heading inside `TaskSection`'s own
+         truncating h2 collapsed to about a hundred pixels: two boxes both
+         clipping, and the inner one's `max-w-full` resolving against a
+         parent that was itself sized by its content. */
       className={cn(
-        className,
         "-mx-1 max-w-full cursor-text truncate rounded-[4px] px-1 text-left transition-colors",
         T_FAST,
         FOCUS,
         "hover:bg-[var(--color-graphite-100)]",
+        className,
       )}
     >
       {value}
@@ -511,48 +521,6 @@ function InsertLine({
   )
 }
 
-/* Capture inside a board column: a ghost that becomes a real field, because
-   a button that invents a task called "New task" is a button that scatters
-   junk (review S5). Enter adds and stays for the next one; Escape leaves. */
-function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [title, setTitle] = useState("")
-
-  if (!editing) {
-    return <GhostAction label="Add task" onClick={() => setEditing(true)} />
-  }
-
-  return (
-    <input
-      // eslint-disable-next-line jsx-a11y/no-autofocus
-      autoFocus
-      value={title}
-      placeholder="Task name"
-      aria-label="New task name"
-      onChange={(event) => setTitle(event.target.value)}
-      onBlur={() => {
-        setEditing(false)
-        setTitle("")
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          const trimmed = title.trim()
-          if (trimmed) onAdd(trimmed)
-          setTitle("")
-        }
-        if (event.key === "Escape") {
-          setEditing(false)
-          setTitle("")
-        }
-      }}
-      className={cn(
-        "h-9 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2.5 text-[13px] leading-5 outline-none",
-        "placeholder:text-[var(--color-graphite-400)] focus-visible:border-[var(--color-dana-accent-600)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-100)]",
-      )}
-    />
-  )
-}
-
 /* ------------------------------------------------------------- the page -- */
 
 interface FolderPageV2Props {
@@ -579,13 +547,20 @@ interface FolderPageV2Props {
   onDelete: (taskId: string) => void
   onDeleteFolder?: () => void
   onRenameFolder?: (name: string) => void
+  /* The object contract's acts that need the shell: a tab strip, the
+     clipboard, and somewhere to put a copy. Named for the *folder* because
+     this page already had an `onOpenInTab` for a task, and two objects
+     sharing one prop name is how one of them ends up opening the other. */
+  onOpenFolderInTab?: () => void
+  onCopyLink?: () => void
+  onDuplicate?: () => void
   onMoveToLabel?: (label: string | null, color: string) => void
   onOpenInTab?: (taskId: string) => void
 }
 
 export function FolderPageV2({
   storageName,
-  folderName = "Wedding",
+  folderName = "Travel",
   folderColor = "var(--color-graphite-900)",
   folderLabel = "Personal",
   availableFolderLabels = ["Personal", "Work"],
@@ -607,11 +582,41 @@ export function FolderPageV2({
   onDelete,
   onDeleteFolder,
   onRenameFolder,
+  onOpenFolderInTab,
+  onCopyLink,
+  onDuplicate,
   onMoveToLabel,
   onOpenInTab,
 }: FolderPageV2Props) {
+  /*
+  What has happened in this folder — to the folder, and to the work in it.
+
+  Imran, 2026-08-23: "In every control row under the tabs there's 'edited just
+  now' button kinda thing, i think that is also a candidate place for the
+  history of a folder page."
+
+  It shows both, and that is a decision rather than a convenience. A folder's
+  *own* acts are rare — you name it once and move it once — so a control that
+  showed only those would say "Created, 4 August" for months and be worth
+  opening about twice. What a person means by "what has been happening here" is
+  the work: who finished what, who moved what, what got added. The folder's
+  own line sits in the same list because it is the same question at a wider
+  focus.
+  */
+  const allEvents = useAllHistory()
+  const folderActivity = useMemo(() => {
+    const mine = new Set(
+      [...scheduled, ...unscheduled, ...completed].map((task) => task.id),
+    )
+    return allEvents.filter(
+      (event) =>
+        (event.kind === "folder" && event.subject === storageName) ||
+        (event.kind === "task" && mine.has(event.subject)),
+    )
+  }, [allEvents, scheduled, unscheduled, completed, storageName])
+
   const identity = useFolderIdentity(storageName)
-  const Glyph = folderGlyph(identity.glyph)
+  const Glyph = folderGlyph(identity.glyph, storageName)
   const color = identity.color ?? folderColor
   const coverPos = identity.coverPos ?? 50
   const cover = resolveCover(identity.cover, storageName, coverPos)
@@ -619,22 +624,58 @@ export function FolderPageV2({
   const [displayName, setDisplayName] = useState(folderName)
   const [personalLabel, setPersonalLabel] = useState(folderLabel)
   const [shareOpen, setShareOpen] = useState(initialShareOpen)
-  const [view, setView] = useState<FolderView>("list")
-  const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS)
-  const [completedOpen, setCompletedOpen] = useState(false)
-  const [editingDescription, setEditingDescription] = useState(false)
+  /* The view is the person's while they are here, and the URL's while they are
+     arriving: `?folder-view=board` opens on the board, so a review of it is a
+     link rather than a link plus an instruction. Same instrument as
+     `?folder-page=v1` and `?measure=wide`, and it leaves with them. */
+  const [view, setView] = useState<FolderView>(() =>
+    new URLSearchParams(window.location.search).get("folder-view") === "board"
+      ? "board"
+      : "list",
+  )
+  /* The same rule as every other place: kept while you are here, never
+     carried anywhere else. See `lib/page-filters`. */
+  const [filters, setFilters] = useState<TaskFilters>(() =>
+    readPageFilters(`folder:${storageName}`, DEFAULT_FILTERS),
+  )
+  useEffect(() => {
+    writePageFilters(`folder:${storageName}`, filters)
+  }, [storageName, filters])
   const [deleteFolderOpen, setDeleteFolderOpen] = useState(false)
+  const [markOpen, setMarkOpen] = useState(false)
   const [pendingTaskAction, setPendingTaskAction] = useState<{
     type: "abandon" | "delete"
     taskId: string
   } | null>(null)
 
-  /* Sections and paragraphs (DES-132), seeded for Wedding. */
-  const seed = PAGE_SEEDS[storageName]
-  const [items, setItems] = useState<PageItem[]>(() => seed?.items ?? [])
-  const [assign, setAssign] = useState<Record<string, string>>(
-    () => seed?.assign ?? {},
+  /*
+  Sections and paragraphs (DES-132), and they survive leaving the page.
+
+  Imran, 2026-08-22: "When you create a section and then you leave the page,
+  in returning to page the section is gone." They did, because this was
+  component state seeded from a fixture — and the shell navigates by a full
+  page load, so every section a person made died at the first click on the
+  sidebar.
+
+  That was defensible while sections were a drawing. It stopped being
+  defensible the moment they became something you *arrange*: the folder's
+  glyph, colour, cover and description have persisted in the presentation
+  store since DES-130, and a section is the same kind of thing — a person's
+  own arrangement of their own folder, not a task. Keeping one in that store
+  and the other in memory is a distinction only the implementation can feel.
+
+  Per folder, beside the identities, and Lane 2 travels with it exactly as it
+  does for the cover: there is no column for a section either.
+  */
+  const [items, setItems] = useState<PageItem[]>(
+    () => readFolderLayout<PageItem>(storageName)?.items ?? [],
   )
+  const [assign, setAssign] = useState<Record<string, string>>(
+    () => readFolderLayout<PageItem>(storageName)?.assign ?? {},
+  )
+  useEffect(() => {
+    saveFolderLayout(storageName, { items, assign })
+  }, [storageName, items, assign])
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     () => new Set(),
   )
@@ -721,7 +762,7 @@ export function FolderPageV2({
   }, [])
 
   const allOpen = [...scheduled, ...unscheduled]
-  const openTasks = applyTaskFilters(allOpen, filters)
+  const openTasks = applyView(allOpen, filters)
   const filterCount = activeFilterCount(filters)
 
   /* Claim a freshly added task for its section once the shell has minted it. */
@@ -746,6 +787,122 @@ export function FolderPageV2({
   const tasksOf = (sectionId: string) =>
     openTasks.filter((task) => assign[task.id] === sectionId)
 
+  /*
+  Dragging a task between sections.
+
+  Imran, 2026-08-22: "A task can't be dragged into a section, and it can be
+  dragged out either." It could not, and the reason was structural: this page
+  renders one sortable list per section, and a list can only sort what it
+  holds — the two lists cannot see each other, so a row carried from one to
+  another had nowhere to land and sprang back.
+
+  The engine gained one seam for it (`onDropAt`): on release it asks the page
+  where the pointer was, before doing anything about its own order. The page
+  is the only thing that knows what else is on it.
+
+  Each section body registers its rectangle here as it mounts. `null` is the
+  page's unsectioned area at the top, so dragging *out* of a section is the
+  same gesture as dragging into one — which it should be, because to a person
+  they are one act performed in two directions.
+  */
+  /* The key for the page body itself, distinct from a section id and from
+     `null`, which means "no section".
+
+     On the list `null` is only ever an *answer* — the page body is the zone
+     and "not inside any section" is what it means. On the board it is also a
+     *place*: the No section column is a column like any other, and a person
+     dragging a card out of a section aims at it rather than at the space
+     around things. Same answer, reached two ways, which is why the resolver
+     below stopped skipping it. */
+  const PAGE_BODY = "__page"
+  /* The board's Done column. Not a section — dropping a card here completes
+     the task, and dragging one out reopens it, which is what every board a
+     person has used already does. */
+  const DONE_COLUMN = "__done"
+  const dropZones = useRef(new Map<string | null, HTMLElement>())
+  const registerZone = (id: string | null) => (node: HTMLElement | null) => {
+    if (node) dropZones.current.set(id, node)
+    else dropZones.current.delete(id)
+  }
+  /*
+  Sections are asked first, and "none of them" is the answer for out.
+
+  The first attempt grew a dashed strip at the top of the page while a task
+  was in the air, to give "out of every section" something to aim at. It read
+  well and was wrong twice: inserting a row mid-drag pushes the rest of the
+  page down **after** the engine has measured where every row sits, so the
+  drop lands on the wrong slot; and a target that only exists while you are
+  already dragging is a target nobody can discover.
+
+  There is no need for either. A folder page is sections and the space around
+  them, so *not inside any section* already means unsectioned — the page body
+  is the fallback, it is always there, and nothing moves.
+  */
+  function dropTaskAt(taskId: string, point: { x: number; y: number }) {
+    const within = (node: HTMLElement) => {
+      const box = node.getBoundingClientRect()
+      return (
+        point.x >= box.left &&
+        point.x <= box.right &&
+        point.y >= box.top &&
+        point.y <= box.bottom
+      )
+    }
+    const body = dropZones.current.get(PAGE_BODY)
+    let landing: string | null | undefined
+    for (const [id, node] of dropZones.current) {
+      if (id === PAGE_BODY) continue
+      if (within(node)) {
+        landing = id
+        break
+      }
+    }
+    if (landing === undefined) {
+      if (!body || !within(body)) return false
+      landing = null
+    }
+
+    /*
+    The board's Done column is a status rather than a place.
+
+    A board where one column is Done and cannot be dropped into is a board
+    that has drawn a control and refused it — which is the "cards do not move
+    between them" complaint at its sharpest, because Done is the column
+    everybody aims at first. So the two columns that are not sections do what
+    they look like they do: dropping on Done completes, and carrying a card
+    back out reopens it and files it wherever it landed.
+    */
+    const wasDone = completed.some((task) => task.id === taskId)
+    if (landing === DONE_COLUMN) {
+      if (wasDone) return false
+      const task = openTasks.find((candidate) => candidate.id === taskId)
+      if (task) completeWithTransition(task)
+      return true
+    }
+    if (wasDone) {
+      onToggleComplete(taskId, false)
+      setAssign((previous) => {
+        const next = { ...previous }
+        if (landing === null) delete next[taskId]
+        else next[taskId] = landing as string
+        return next
+      })
+      return true
+    }
+
+    const current = assign[taskId] ?? null
+    if (current === landing) return false
+    setAssign((previous) => {
+      const next = { ...previous }
+      if (landing === null) delete next[taskId]
+      else next[taskId] = landing
+      return next
+    })
+    return true
+  }
+
+
+
   const pendingCount = allOpen.filter(
     (task) => task.status !== "abandoned" && !completingIds.has(task.id),
   ).length
@@ -755,9 +912,45 @@ export function FolderPageV2({
   const abandonedCount = allOpen.filter(
     (task) => task.status === "abandoned",
   ).length
+  /*
+  Empty means *nothing on the page*, not "no tasks" — Imran, 2026-08-22: on a
+  folder with no tasks "sections can't be created, in fact they're created but
+  appearing after the page having at least a single task."
+
+  Exactly that. The empty state offers "Add section", the press worked, the
+  section went into `items` — and the page went on rendering the empty state,
+  because emptiness was measured in tasks alone. So a person pressed a button,
+  something did happen, and the screen said nothing had. The most discouraging
+  possible answer to a first action on a new page.
+
+  A page with a section on it is a page with something on it, whether or not
+  anything is in that section yet — which is the whole point of making one
+  first and filling it afterwards.
+  */
+  /* See the block itself for the reasoning; this is the rule in one place so
+     the markup can stay readable. */
+  const hasSections = items.some((item) => item.kind === "section")
+  const everySectionShut =
+    hasSections &&
+    items
+      .filter((item): item is Extract<PageItem, { kind: "section" }> => item.kind === "section")
+      .every((item) => collapsedSections.has(item.section.id))
+  const showLooseBlock =
+    unsectioned.length > 0 || !hasSections || everySectionShut
+
   const isEmpty =
-    scheduled.length === 0 && unscheduled.length === 0 && completed.length === 0
-  const quickAddSection = filters.due === "with" ? "scheduled" : "unscheduled"
+    scheduled.length === 0 &&
+    unscheduled.length === 0 &&
+    completed.length === 0 &&
+    items.length === 0
+  /* A capture row inside a filtered page adds the task the filter would keep:
+     filtering to dated work and then adding an undated task makes a row that
+     vanishes as it is typed. The date axis grew shapes at F5, and every one
+     of them that requires a date says "scheduled". */
+  const quickAddSection =
+    filters.due.kind === "with" || filters.due.kind === "range"
+      ? "scheduled"
+      : "unscheduled"
   const moveLabels = [...new Set([...availableFolderLabels, personalLabel])]
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
@@ -812,12 +1005,45 @@ export function FolderPageV2({
     setCompletionNotice(null)
   }
 
-  function renderTask(task: FolderTask, wiring?: TaskListWiring) {
+  /*
+  The section a row should name, given where the row is being drawn.
+
+  A row under "Venue & vendors" does not need a chip saying Venue & vendors —
+  the heading two lines up says it. A row anywhere else does: in Completed, on
+  the board, in a dialog. So the answer depends on the list, not on the task,
+  and it is decided once per list here rather than per row at six call sites.
+  */
+  const sectionNameOf = (taskId: string) =>
+    items.find(
+      (item): item is Extract<PageItem, { kind: "section" }> =>
+        item.kind === "section" && item.section.id === assign[taskId],
+    )?.section.name
+
+  function renderTaskIn(within: string | null) {
+    return (task: FolderTask, wiring?: TaskListWiring) =>
+      renderTask(task, wiring, within)
+  }
+
+  function renderTask(
+    task: FolderTask,
+    wiring?: TaskListWiring,
+    within: string | null = null,
+  ) {
     return (
       <TaskRow
         key={task.id}
         {...task}
         {...wiring}
+        /* Every row on this page is in this folder, so the folder chip would
+           repeat the title above it. The section beside it is the part the
+           page does *not* say, which is why one is suppressed and the other
+           is not (DES-166, and TaskRowProps.given). */
+        given={{ folder: true }}
+        section={
+          assign[task.id] && assign[task.id] !== within
+            ? sectionNameOf(task.id)
+            : undefined
+        }
         completionPreview={completingIds.has(task.id)}
         collapsing={completingIds.has(task.id)}
         /* A mode means the row's view strip asked for a surface, and this
@@ -866,6 +1092,18 @@ export function FolderPageV2({
       if (moved) next.splice(to, 0, moved)
       return next
     })
+  }
+
+  /* One write path into a section, so renaming it, dressing it and clearing
+     its glyph are three callers rather than three copies of the same map. */
+  function patchSection(sectionId: string, fields: Partial<SectionModel>) {
+    setItems((current) =>
+      current.map((candidate) =>
+        candidate.kind === "section" && candidate.section.id === sectionId
+          ? { kind: "section", section: { ...candidate.section, ...fields } }
+          : candidate,
+      ),
+    )
   }
 
   function removeSection(sectionId: string) {
@@ -1012,59 +1250,29 @@ export function FolderPageV2({
   const strip = (
     <WindowBarActions>
       {/* One icon at rest — the view you are in — widening to all three on
-          hover or focus (Imran, 2026-08-18). A switcher spends its life
-          showing rather than being used, so at rest it should cost the width
-          of what it is showing and nothing more. The options are always in
-          the DOM, so the keyboard and a screen reader see the full group
-          however narrow it looks. */}
-      <div
-        role="radiogroup"
-        aria-label="Folder view"
-        className="group/views pointer-events-auto flex h-7 items-center gap-0.5 rounded-md border border-transparent p-0.5 transition-[background-color,border-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] hover:border-[var(--color-graphite-200)] focus-within:border-[var(--color-graphite-200)]"
-      >
-        {(
-          [
-            ["list", "List view", List, false],
-            ["board", "Board view", LayoutGrid, false],
-            ["calendar", "Calendar view", CalendarDays, true],
-          ] as const
-        ).map(([key, label, Icon, disabled]) => {
-          const current = view === key
-          return (
-            <Tooltip key={key}>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={current}
-                    aria-label={label}
-                    disabled={disabled}
-                    tabIndex={current ? 0 : -1}
-                    onClick={() => setView(key as FolderView)}
-                    className={cn(
-                      "flex h-full items-center justify-center overflow-hidden rounded-[4px] transition-[width,opacity,background-color,color] disabled:pointer-events-none disabled:opacity-35",
-                      T_FAST,
-                      FOCUS,
-                      current
-                        ? "w-7 opacity-100 text-[var(--color-graphite-800)] group-hover/views:bg-[var(--color-graphite-100)] group-focus-within/views:bg-[var(--color-graphite-100)]"
-                        : "w-0 opacity-0 text-[var(--color-graphite-500)] group-hover/views:w-7 group-hover/views:opacity-100 group-focus-within/views:w-7 group-focus-within/views:opacity-100 hover:text-[var(--color-graphite-800)]",
-                    )}
-                  >
-                    <Icon className="size-3.5 shrink-0 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                  </button>
-                }
-              />
-              <TooltipContent side="bottom">
-                {disabled ? "Calendar view — arrives with V5's calendar session" : label}
-              </TooltipContent>
-            </Tooltip>
-          )
-        })}
-      </div>
+          hover or focus (Imran, 2026-08-18). This page had its own copy of
+          that switcher, written before `ViewStrip` existed and identical to
+          it line for line; F3 gave Planned a second switcher, which is the
+          moment a copy becomes a fork. One component, three surfaces. */}
+      <ViewStrip
+        ariaLabel="Folder view"
+        value={view}
+        options={[
+          { key: "list", label: "List view", icon: List },
+          { key: "board", label: "Board view", icon: LayoutGrid },
+          /* No calendar here, and not because it is unbuilt: a folder holds
+             undated tasks by definition, and a calendar has no cell for one,
+             so it would hide part of the page it claims to be showing
+             (DES-177). It stood here disabled with "not available yet", which
+             promised a thing that is never coming. */
+        ]}
+        onSelect={(next) => setView(next as FolderView)}
+        collapse
+      />
 
       <div className="pointer-events-auto flex items-center gap-0.5">
         <FilterControl filters={filters} setFilters={setFilters} />
+        {isDefault ? null : (
         <StripButton
           icon={MessageSquare}
           label={conversationView === "page" ? "Go to comments" : "Conversation"}
@@ -1073,17 +1281,12 @@ export function FolderPageV2({
           onClick={openConversation}
           buttonRef={conversationRef}
         />
+        )}
       </div>
 
       <div className="pointer-events-auto flex items-center gap-1.5">
-        <WindowActivity
-          summary="Edited just now"
-          entries={[
-            { action: "Edited", actor: "Imran Wafa", at: "Just now" },
-            { action: "Created", actor: "Imran Wafa", at: "4 Aug" },
-          ]}
-        />
-        {isShared ? (
+        <WindowActivity events={folderActivity} />
+        {isShared && !isDefault ? (
           <AvatarGroup>
             <Avatar size="sm"><AvatarFallback>IW</AvatarFallback></Avatar>
             <Avatar size="sm"><AvatarFallback>S</AvatarFallback></Avatar>
@@ -1109,74 +1312,57 @@ export function FolderPageV2({
             <TooltipContent side="bottom">Share</TooltipContent>
           </Tooltip>
         ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label="More folder actions"
-                className={stripButtonClass(false)}
-              >
-                <MoreHorizontal className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            }
-          />
-          <DropdownMenuContent align="end" className="w-52">
-            {isOwner ? (
-              <DropdownMenuItem onClick={() => setTitleEditing(true)}>
-                <Pencil className="size-4" />Rename
-              </DropdownMenuItem>
-            ) : null}
-            {!isDefault ? (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FolderInput className="size-4" />Move to group
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-44">
-                  <DropdownMenuRadioGroup
-                    value={personalLabel || "__none"}
-                    onValueChange={(value) => {
-                      const nextLabel = value === "__none" ? null : value
-                      setPersonalLabel(nextLabel ?? "")
-                      onMoveToLabel?.(nextLabel, color)
-                    }}
-                  >
-                    {moveLabels.map((label) => (
-                      <DropdownMenuRadioItem key={label} value={label} closeOnClick>
-                        {label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioItem value="__none" closeOnClick>
-                      No group
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            ) : null}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                const url = new URL(window.location.href)
-                url.searchParams.set("folder-page", "v1")
-                window.location.assign(url)
-              }}
+        {/*
+        The same menu the sidebar row draws — `lib/object-acts` says what a
+        folder can have done to it, and this surface says which of those it can
+        do. Written by hand here until F7, which is how this menu came to omit
+        Label and colour while the sidebar's offered it.
+        */}
+        <ObjectMenu
+          kind="folder"
+          name={displayName}
+          width="w-52"
+          trigger={
+            <button
+              type="button"
+              aria-label={`More actions for ${displayName}`}
+              className={stripButtonClass(false)}
             >
-              Previous folder page
-            </DropdownMenuItem>
-            {!isDefault && isOwner ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setDeleteFolderOpen(true)}
-                >
-                  <Trash2 className="size-4" />Delete folder…
-                </DropdownMenuItem>
-              </>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <MoreHorizontal className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          }
+          handlers={{
+            "open-tab": onOpenFolderInTab,
+            rename: isOwner ? () => setTitleEditing(true) : undefined,
+            move: isDefault
+              ? undefined
+              : {
+                  choose: (
+                    <DropdownMenuRadioGroup
+                      value={personalLabel || "__none"}
+                      onValueChange={(value) => {
+                        const nextLabel = value === "__none" ? null : value
+                        setPersonalLabel(nextLabel ?? "")
+                        onMoveToLabel?.(nextLabel, color)
+                      }}
+                    >
+                      {moveLabels.map((label) => (
+                        <DropdownMenuRadioItem key={label} value={label} closeOnClick>
+                          {label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuRadioItem value="__none" closeOnClick>
+                        No shelf
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  ),
+                },
+            "copy-link": onCopyLink,
+            duplicate: isDefault ? undefined : onDuplicate,
+            delete: !isDefault && isOwner ? () => setDeleteFolderOpen(true) : undefined,
+          }}
+        />
       </div>
     </WindowBarActions>
   )
@@ -1239,18 +1425,73 @@ export function FolderPageV2({
 
     /* The insertion lines carry the separation between blocks now, so the
        stack's own gap is small — two 24px gaps in a row read as a hole. */
+  /*
+  What the list becomes when the filter is asked to group by something other
+  than this folder's own sections — the same `GroupedList` a place-page shows,
+  for the same reason: "grouped by folder" has to look the same wherever you
+  asked for it. The folder's own sections and paragraphs are not edited or
+  lost; they simply are not the arrangement while another one is chosen, and
+  returning Group by to Nothing gives them back untouched.
+  */
+  const groupedBody = (
+    <GroupedList
+      filters={filters}
+      tasks={openTasks}
+      idPrefix={`folder-${storageName}`}
+      onOpenTask={onOpenTask}
+      onToggleComplete={onToggleComplete}
+      onToggleImportant={onToggleImportant}
+    />
+  )
+
   const listBody = (
     <div className="space-y-2">
+      {/*
+      **A section can be the first thing on the page.**
+
+      Imran asked whether it was good or bad that it could not be: "a section
+      can't be started at the beginning of a folder." It was bad, and the
+      cause was that this block held the top by right rather than by having
+      anything in it — so a folder organised entirely into sections still
+      opened with an empty capture row, and its first heading could never be
+      the first thing you saw. Every comparable product lets the first
+      heading be first; the loose tasks appear above it when there are some.
+
+      So the block earns its place, on three counts, and each is a real
+      state rather than a taste:
+
+      - it holds tasks that are in no section — then it is the page's most
+        urgent content and belongs first;
+      - the page has no sections at all — then it *is* the page, and its
+        capture row is the folder's one capture point (W5);
+      - or every section is shut, which would otherwise leave the page with
+        nowhere visible to add a task.
+
+      And **while a task is being carried it appears regardless**, because
+      dragging a task *out* of a section needs somewhere to put it, and that
+      somewhere only has to exist while something is in the air. A drop target
+      that is furniture at rest and a target during a drag is the pattern
+      every drag-and-drop surface settled on, for this exact reason.
+      */}
+      {showLooseBlock ? (
       <section aria-label="Open tasks">
         {unsectioned.length > 0 ? (
           <div role="list" className="space-y-0.5">
-            <TaskList tasks={unsectioned} renderRow={renderTask} />
+            <TaskList
+              onTaskOpen={onOpenTask}
+              onDropAt={dropTaskAt}
+              tasks={unsectioned}
+              renderRow={renderTask}
+            />
           </div>
         ) : items.length === 0 ? (
           <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
             {filterCount > 0 ? "Nothing matches these filters." : "No open tasks."}
           </p>
         ) : null}
+        {/* The capture row belongs to the block, so it leaves with it —
+            each section carries its own, and a page with no visible block
+            keeps this one by the third rule above. */}
         <QuickAdd
           folderName={displayName}
           label="Add task"
@@ -1258,6 +1499,7 @@ export function FolderPageV2({
           onOpenFullForm={() => onOpenFullForm(quickAddSection)}
         />
       </section>
+      ) : null}
 
       <InsertLine
         onSection={() => insertItem(0, "section")}
@@ -1301,9 +1543,25 @@ export function FolderPageV2({
             <GripVertical className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
           </button>
         )
+        /*
+        The strip between two paragraphs is the tight one.
+
+        Imran, 2026-08-23: "the gap between two paragraphs in a page is still
+        too much." It measured 32px between two lines of 12/20 prose — more
+        than one and a half line-heights, which is not a paragraph break, it is
+        a section break drawn by accident. The 24px strip is right between
+        *blocks*, where it is separating a heading from what came before; it is
+        wrong between two sentences that continue one another.
+
+        This is the same correction `dense` was added for at F2, where 24px
+        between a heading and its first row made the two read as separate
+        things. The rule underneath both: **the gap says how far apart two
+        things are, so it has to know what they are.**
+        */
         const insertAfter = (
           <InsertLine
             key={`ins-${index}`}
+            dense={item.kind === "paragraph" && items[index + 1]?.kind === "paragraph"}
             onSection={() => insertItem(index + 1, "section")}
             onParagraph={() => insertItem(index + 1, "paragraph")}
           />
@@ -1319,7 +1577,7 @@ export function FolderPageV2({
               className={wrapperClass}
             >
               {grip}
-              <textarea
+              <InlineTextarea
                 defaultValue={paragraph.text}
                 placeholder="Write something…"
                 aria-label="Paragraph"
@@ -1365,9 +1623,36 @@ export function FolderPageV2({
             className={wrapperClass}
           >
             {grip}
-            <Collapsible
+            {/*
+            The shared section, at last — F5, 2026-08-22.
+
+            DES-151 said every section is one component and DES-154 said a
+            settled behaviour belongs to the mechanism. `TaskSection` was then
+            built for the computed sections on the six pages, and the folder
+            page — the one place a person actually *makes* sections — went on
+            rendering its own copy of the same heading: its own Collapsible,
+            its own chevron, its own 32px band and border. Visually matched,
+            structurally separate, which is the state a thing is in just
+            before the two drift apart.
+
+            It costs the page nothing to give up. The grip stays outside,
+            because it belongs to the page's drag rather than to the section;
+            the name is an `InlineName` handed in as the heading; the menu
+            goes in the `actions` slot the component already reserved for
+            exactly this.
+
+            What it *gains* is the thing Imran asked for and could not have
+            while there were two of these: **a section somebody made can wear
+            a glyph**, because the component that draws computed sections with
+            one is now the component drawing these. And it keeps his
+            constraint intact — the glyph is inline, so a section without one
+            simply starts its name earlier and nothing sits waiting to be
+            filled.
+            */}
+            <TaskSection
+              id={`folder-section-${section.id}`}
               open={open}
-              onOpenChange={(value) =>
+              onOpenChange={(value: boolean) =>
                 setCollapsedSections((current) => {
                   const next = new Set(current)
                   if (value) next.delete(section.id)
@@ -1375,96 +1660,113 @@ export function FolderPageV2({
                   return next
                 })
               }
-            >
-              <div className="group/section mb-1 flex h-8 items-center gap-1.5 border-b border-border">
-                <CollapsibleTrigger
-                  aria-label={open ? `Collapse ${section.name}` : `Expand ${section.name}`}
-                  className={cn(
-                    "-ml-1.5 flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  <ChevronRight
-                    className={cn("size-4 transition-transform", T_FAST, open && "rotate-90")}
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                </CollapsibleTrigger>
+              icon={section.glyph ? folderGlyph(section.glyph) : undefined}
+              iconColor={section.color}
+              count={sectionTasks.length}
+              name={
                 <InlineName
                   key={renamingSection === section.id ? "menu-edit" : "resting"}
                   value={section.name}
                   ariaLabel={`Section name: ${section.name}`}
-                  className="text-base leading-6 font-semibold text-foreground"
+                  /* `max-w-none` because the h2 around it already clips. */
+                  className="max-w-none text-base leading-6 font-semibold text-foreground"
                   autoEdit={
                     section.name === "New section" ||
                     renamingSection === section.id
                   }
                   onDoneEditing={() => setRenamingSection(null)}
-                  onCommit={(name) =>
-                    setItems((current) =>
-                      current.map((candidate) =>
-                        candidate.kind === "section" &&
-                        candidate.section.id === section.id
-                          ? { kind: "section", section: { ...section, name } }
-                          : candidate,
-                      ),
-                    )
-                  }
+                  onCommit={(name) => patchSection(section.id, { name })}
                 />
-                <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
-                  {sectionTasks.length}
-                </span>
-                {/* A menu, not a bare X: X means dismiss, and this deletes.
-                    The destructive item sits last, behind a divider, named
-                    with the consequence — the product's own menu grammar. */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <button
-                        type="button"
-                        aria-label={`Section actions: ${section.name}`}
-                        className={cn(
-                          "ml-auto flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/section:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
-                          T_FAST,
-                          FOCUS,
-                        )}
+              }
+              actions={
+                <span className="flex items-center gap-0.5">
+                  {/* The same picker a folder's own mark uses, so a section
+                      and a folder are dressed from one table (DES-130). */}
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label={`Section icon: ${section.name}`}
+                          className={cn(
+                            "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/section:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
+                            T_FAST,
+                            FOCUS,
+                          )}
+                        >
+                          {/* Palette, because that is already what "dress
+                              this thing" looks like in the folder menus —
+                              one concept, one glyph. */}
+                          <Palette className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                        </button>
+                      }
+                    />
+                    <PopoverContent align="end" className="w-auto max-w-[calc(100vw-2rem)] p-0">
+                      <FolderIconPicker
+                        glyph={section.glyph}
+                        color={section.color ?? "var(--color-graphite-900)"}
+                        onPick={(next) => patchSection(section.id, next)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label={`Section actions: ${section.name}`}
+                          className={cn(
+                            "flex size-6 items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/section:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
+                            T_FAST,
+                            FOCUS,
+                          )}
+                        >
+                          <MoreHorizontal className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                        </button>
+                      }
+                    />
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={() => setRenamingSection(section.id)}>
+                        <Pencil />Rename section
+                      </DropdownMenuItem>
+                      {section.glyph ? (
+                        <DropdownMenuItem onClick={() => patchSection(section.id, { glyph: undefined })}>
+                          <Ban />Remove icon
+                        </DropdownMenuItem>
+                      ) : null}
+                      {/* Moving a section is a drag on the grip, arrow keys
+                          once the grip has focus, and these — the
+                          discoverable route Imran asked for, since a grip
+                          that appears on hover is one somebody has to find
+                          first. */}
+                      <DropdownMenuItem
+                        disabled={index === 0}
+                        onClick={() => moveItem(index, index - 1)}
                       >
-                        <MoreHorizontal className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                      </button>
-                    }
-                  />
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={() => setRenamingSection(section.id)}>
-                      <Pencil className="size-4" />Rename section
-                    </DropdownMenuItem>
-                    {/* Moving a section is a drag on the grip, arrow keys
-                        once the grip has focus, and these — the discoverable
-                        route Imran asked for, since a grip that appears on
-                        hover is a grip somebody has to find first. */}
-                    <DropdownMenuItem
-                      disabled={index === 0}
-                      onClick={() => moveItem(index, index - 1)}
-                    >
-                      <ArrowUp className="size-4" />Move up
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={index === items.length - 1}
-                      onClick={() => moveItem(index, index + 1)}
-                    >
-                      <ArrowDown className="size-4" />Move down
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => removeSection(section.id)}
-                    >
-                      <Trash2 className="size-4" />Delete — tasks stay
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <CollapsibleContent>
+                        <ArrowUp />Move up
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={index === items.length - 1}
+                        onClick={() => moveItem(index, index + 1)}
+                      >
+                        <ArrowDown />Move down
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => removeSection(section.id)}
+                      >
+                        <Trash2 />Delete — tasks stay
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </span>
+              }
+            >
+              {/* The whole body is the target — its rows, its paragraph and
+                  its capture row — because "into this section" is what a
+                  person means wherever inside it they let go. */}
+              <div ref={registerZone(section.id)}>
                 {/* Between the heading and the first row — the one gap the
                     page-level lines could never reach. */}
                 <InsertLine
@@ -1481,7 +1783,7 @@ export function FolderPageV2({
                   }
                 />
                 {section.intro !== undefined ? (
-                  <textarea
+                  <InlineTextarea
                     defaultValue={section.intro}
                     placeholder="Write something…"
                     aria-label={`Paragraph in ${section.name}`}
@@ -1514,7 +1816,12 @@ export function FolderPageV2({
                 ) : null}
                 {sectionTasks.length > 0 ? (
                   <div role="list" className="mt-0.5 space-y-0.5">
-                    <TaskList tasks={sectionTasks} renderRow={renderTask} />
+                    <TaskList
+                      onTaskOpen={onOpenTask}
+                      onDropAt={dropTaskAt}
+                      tasks={sectionTasks}
+                      renderRow={renderTaskIn(section.id)}
+                    />
                   </div>
                 ) : null}
                 <QuickAdd
@@ -1526,8 +1833,8 @@ export function FolderPageV2({
                   }}
                   onOpenFullForm={() => onOpenFullForm("unscheduled")}
                 />
-              </CollapsibleContent>
-            </Collapsible>
+              </div>
+            </TaskSection>
             {insertAfter}
           </div>
         )
@@ -1537,252 +1844,137 @@ export function FolderPageV2({
           offers both, and two controls for one act is exactly the
           redundancy Imran called out. The line is the whole grammar. */}
 
-      {completed.length > 0 ? (
-        <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
-          <CollapsibleTrigger
-            className={`group/completed flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none ${completionNotice ? "bg-[var(--color-graphite-50)] text-[var(--color-graphite-800)]" : "text-[var(--color-graphite-500)]"}`}
-          >
-            <ChevronRight
-              className="size-4 transition-transform group-data-panel-open/completed:rotate-90"
-              strokeWidth={1.75}
-            />
-            Completed ({completed.length})
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <TaskList className="mt-0.5" tasks={completed} renderRow={renderTask} />
-          </CollapsibleContent>
-        </Collapsible>
-      ) : null}
+      {/* The same close every other page that lists tasks has. This was a
+          second copy of `CompletedSection` — the same chevron, the same
+          "Completed (N)", the same collapsed default — written here because
+          the folder page had this before the shared one existed and nobody
+          went back. It differed in two ways nobody chose: 12px medium
+          against 13px semibold, and a highlight while a completion notice
+          was showing, which is the row's own job. */}
+      <CompletedSection count={completed.length}>
+        <TaskList onTaskOpen={onOpenTask} className="mt-0.5" tasks={completed} renderRow={renderTask} />
+      </CompletedSection>
     </div>
   )
 
-  /* Two columns per row (Imran: the one-row board was short), tall enough to
-     feel like a place, sections movable by their grip. */
-  const boardColumns: { id: string; name: string; tasks: FolderTask[]; movable: boolean }[] = [
-    { id: "__none", name: "No section", tasks: unsectioned, movable: false },
-    ...items
-      .filter(
-        (item): item is Extract<PageItem, { kind: "section" }> =>
-          item.kind === "section",
-      )
-      .map((item) => ({
-        id: item.section.id,
-        name: item.section.name,
-        tasks: tasksOf(item.section.id),
-        movable: true,
-      })),
-    { id: "__done", name: "Done", tasks: completed, movable: false },
-  ]
+  /*
+  The board's columns.
+
+  Sections when nothing is being grouped by, and the grouping when there is
+  one — because a board draws *the page's current grouping* (DES-177), and on
+  a folder the sections a person made are that grouping until they ask for
+  another. No section and Done are the two columns that are not sections: one
+  is a place, one is a status, and both take drops (DES-174).
+  */
+  const grouped = groupTasks(openTasks, filters)
+  const boardColumns: BoardColumn[] = grouped
+    ? grouped.map((group) => ({
+        key: group.key,
+        label: group.label,
+        tasks: group.tasks,
+        quiet: group.key === "none" || group.key === UNASSIGNED,
+      }))
+    : [
+        { key: "__none", label: "No section", tasks: unsectioned, quiet: true },
+        ...items
+          .filter(
+            (item): item is Extract<PageItem, { kind: "section" }> =>
+              item.kind === "section",
+          )
+          .map((item) => ({
+            key: item.section.id,
+            label: item.section.name,
+            tasks: tasksOf(item.section.id),
+          })),
+        { key: "__done", label: "Done", tasks: completed, done: true, quiet: true },
+      ]
 
   const boardBody = (
-    <div className="grid grid-cols-2 items-start gap-3 pb-4">
-      {boardColumns.map((column) => (
-        <div
-          key={column.id}
-          ref={(el) => {
-            if (el && column.movable) columnRefs.current.set(column.id, el)
-            else columnRefs.current.delete(column.id)
-          }}
-          className={cn(
-            "flex min-h-[280px] flex-col rounded-lg bg-[var(--color-graphite-50)] p-2 transition-shadow",
-            T_BASE,
-            colDrag === column.id &&
-              "z-10 shadow-[var(--elevation-2)] ring-1 ring-[var(--color-graphite-300)]",
-          )}
-        >
-          <div className="group/col flex h-7 items-center gap-1.5 px-1">
-            {column.movable ? (
-              <button
-                type="button"
-                aria-label={`Move section ${column.name}`}
-                {...columnDragProps(column.id)}
-                className={cn(
-                  "-ml-1 flex size-5 cursor-grab items-center justify-center rounded text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/col:opacity-100 focus-visible:opacity-100 active:cursor-grabbing",
-                  T_FAST,
-                  FOCUS,
-                  colDrag === column.id && "cursor-grabbing opacity-100",
-                )}
-              >
-                <GripVertical className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={2} aria-hidden="true" />
-              </button>
-            ) : null}
-            <span
-              className={cn(
-                "text-[12px] leading-4 font-medium",
-                column.id === "__none"
-                  ? "text-[var(--color-graphite-400)]"
-                  : "text-[var(--color-graphite-600)]",
-              )}
-            >
-              {column.name}
-            </span>
-            <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
-              {column.tasks.length}
-            </span>
-          </div>
-          <div className="flex flex-1 flex-col gap-1.5">
-            {column.tasks.map((task) => {
-              const done = column.id === "__done" || task.status === "completed"
-              const threadCount = commentCount(task.comments)
-              return (
-                /* A card is the row's kin, not a stranger (review S5): it can
-                   be completed and starred where it stands, and it carries
-                   the row's own marks — steps, comments, due, face. */
-                <div
-                  key={task.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setOpenSurface({ id: task.id, mode: taskSurfacePreference() })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault()
-                      setOpenSurface({ id: task.id, mode: taskSurfacePreference() })
-                    }
-                  }}
-                  className={cn(
-                    "group/card cursor-pointer rounded-md border border-[var(--color-graphite-200)] bg-card px-2.5 py-2 transition-shadow hover:shadow-[var(--elevation-1)]",
-                    T_FAST,
-                    FOCUS,
-                  )}
-                >
-                  <span className="flex items-start gap-2">
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={done}
-                      aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        if (done) onToggleComplete(task.id, false)
-                        else if (task.status === "abandoned") onRestore(task.id)
-                        else completeWithTransition(task)
-                      }}
-                      className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded", FOCUS)}
-                    >
-                      <span
-                        className={cn(
-                          "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
-                          T_FAST,
-                          done
-                            ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
-                            : "border-input bg-background",
-                        )}
-                      >
-                        <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-                          <path
-                            d="M4 10.5 L8.2 14.5 L16 5.8"
-                            fill="none"
-                            stroke="white"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{
-                              strokeDasharray: 20,
-                              strokeDashoffset: done ? 0 : 20,
-                              transition:
-                                "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-                            }}
-                          />
-                        </svg>
-                      </span>
-                    </button>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 text-[14px] leading-5 text-[var(--color-graphite-800)]",
-                        done &&
-                          "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
-                        task.status === "abandoned" &&
-                          "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
-                      )}
-                    >
-                      {task.title}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={task.important ? "Remove from Important" : "Mark as Important"}
-                      aria-pressed={task.important || undefined}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onToggleImportant(task.id)
-                      }}
-                      className={cn(
-                        "flex size-5 shrink-0 items-center justify-center rounded transition-opacity",
-                        T_FAST,
-                        FOCUS,
-                        task.important
-                          ? "text-[var(--color-warning-500)] opacity-100"
-                          : "text-[var(--color-graphite-400)] opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-[var(--color-graphite-600)]",
-                      )}
-                    >
-                      <Star
-                        className={cn("size-4 data-[size=sm]:size-4", task.important && "fill-current")}
-                        strokeWidth={1.75}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </span>
-                  {(task.due || task.steps || threadCount > 0 || task.assignee) && !done ? (
-                    <span className="mt-1.5 flex items-center gap-2.5 pl-7">
-                      {task.due ? (
-                        <span
-                          className={cn(
-                            "text-[12px] leading-4",
-                            task.due.overdue
-                              ? "font-medium text-[var(--color-danger-700)]"
-                              : "text-[var(--color-graphite-500)]",
-                          )}
-                        >
-                          {task.due.label}
-                        </span>
-                      ) : null}
-                      {task.steps ? (
-                        <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
-                          <ListChecks className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                          {task.steps.complete}/{task.steps.total}
-                        </span>
-                      ) : null}
-                      {threadCount > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
-                          <MessageSquare className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                          {threadCount}
-                        </span>
-                      ) : null}
-                      {task.assignee ? (
-                        <Face person={task.assignee} className="ml-auto" />
-                      ) : null}
-                    </span>
-                  ) : null}
-                </div>
-              )
-            })}
-            {column.id !== "__done" ? (
-              <div className="mt-auto pt-1">
-                <BoardQuickAdd
-                  onAdd={(title) => {
-                    if (column.id !== "__none") {
-                      pendingAssign.current = { title, sectionId: column.id }
-                    }
-                    onAdd("unscheduled", title)
-                  }}
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() => insertItem(items.length, "section")}
-        className={cn(
-          "flex h-10 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:border-[var(--color-graphite-400)] hover:text-[var(--color-graphite-600)]",
-          T_FAST,
-          FOCUS,
-        )}
-      >
-        <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-        Add section
-      </button>
-    </div>
+    <TaskBoard
+      columns={boardColumns}
+      onOpenTask={(taskId) =>
+        setOpenSurface({ id: taskId, mode: taskSurfacePreference() })
+      }
+      onToggleComplete={(taskId, next) => {
+        const task = [...openTasks, ...completed].find(
+          (candidate) => candidate.id === taskId,
+        )
+        if (!next) onToggleComplete(taskId, false)
+        else if (task?.status === "abandoned") onRestore(taskId)
+        else if (task) completeWithTransition(task)
+      }}
+      onToggleImportant={onToggleImportant}
+      /* Every card on this board is in this folder, exactly as every row on the
+         list below is (DES-183). */
+      given={{ folder: true }}
+      /* Geometry is the board's, meaning is the page's — the same division
+         `onDropAt` made one level down. Only this page knows that its
+         columns are sections and that one of them is a status. */
+      onDropIn={(taskId, columnKey) => {
+        if (grouped) return false
+        const wasDone = completed.some((task) => task.id === taskId)
+        if (columnKey === "__done") {
+          if (wasDone) return false
+          const task = openTasks.find((candidate) => candidate.id === taskId)
+          if (task) completeWithTransition(task)
+          return true
+        }
+        if (wasDone) onToggleComplete(taskId, false)
+        setAssign((previous) => {
+          const next = { ...previous }
+          if (columnKey === "__none") delete next[taskId]
+          else next[taskId] = columnKey
+          return next
+        })
+        return true
+      }}
+      columnRef={(column) => (node) => {
+        const movable = !grouped && !column.key.startsWith("__")
+        if (node && movable) columnRefs.current.set(column.key, node)
+        else columnRefs.current.delete(column.key)
+      }}
+      columnLead={(column) =>
+        grouped || column.key.startsWith("__") ? null : (
+          <button
+            type="button"
+            aria-label={`Move section ${column.label}`}
+            {...columnDragProps(column.key)}
+            className={cn(
+              "-ml-1 flex size-5 cursor-grab items-center justify-center rounded text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/col:opacity-100 focus-visible:opacity-100 active:cursor-grabbing",
+              T_FAST,
+              FOCUS,
+              colDrag === column.key && "cursor-grabbing opacity-100",
+            )}
+          >
+            <GripVertical
+              className="size-3.5 data-[size=sm]:size-3.5"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+          </button>
+        )
+      }
+      quickAdd={(column) =>
+        column.done ? null : (
+          <BoardQuickAdd
+            onAdd={(title) => {
+              if (!grouped && column.key !== "__none") {
+                pendingAssign.current = { title, sectionId: column.key }
+              }
+              onAdd("unscheduled", title)
+            }}
+          />
+        )
+      }
+      footer={
+        grouped ? null : (
+          <BoardAddColumn
+            label="Add section"
+            onClick={() => insertItem(items.length, "section")}
+          />
+        )
+      }
+    />
   )
 
   /* ------------------------------------------------------------ assembly -- */
@@ -1791,7 +1983,9 @@ export function FolderPageV2({
     <div className="relative min-h-full">
       <PageCover storageName={storageName} />
 
-      <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8">
+      {/* The reading column, from the one definition rather than a copy of
+          its class string — the same drift, one level up. */}
+      <div className={pageBodyClass()} ref={registerZone(PAGE_BODY)}>
         {/* The strip: thin, steady, under the cover — the folder's controls
             in one place, docking against the top with the folder's name when
             scrolled (Imran's ruling on the 40px cluster: this is chrome, and
@@ -1799,28 +1993,25 @@ export function FolderPageV2({
         {strip}
 
         <header className={cn("group/head", cover ? "pt-0" : "pt-2")}>
-          <Popover>
+          {/* The mark is `PageMark`, the same component every system page
+              renders — F5, after F4's fix reached the six pages and left the
+              page it was extracted from still wearing the old white tile.
+              The one honest difference survives as a prop: a folder's mark is
+              a control and opens the picker (DES-130). */}
+          {/* Controlled, because "Label and colour" in the overflow has to
+              open the same picker the mark opens — the menu item and the mark
+              are two doors onto one control, and an uncontrolled popover can
+              only be opened by pressing it. */}
+          <Popover open={markOpen} onOpenChange={setMarkOpen}>
             <PopoverTrigger
               render={
-                <button
-                  type="button"
+                <PageMark
+                  icon={Glyph}
+                  hasCover={Boolean(cover)}
+                  color={color}
+                  interactive
                   aria-label="Change folder icon and color"
-                  className={cn(
-                    "flex shrink-0 items-center justify-center transition-shadow",
-                    T_FAST,
-                    FOCUS,
-                    cover
-                      ? "relative z-40 -mt-7 size-11 rounded-lg border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-1)]"
-                      : "-ml-1.5 size-10 rounded-lg hover:bg-[var(--color-graphite-50)]",
-                  )}
-                >
-                  <Glyph
-                    className={cover ? "size-6" : "size-8"}
-                    style={{ color }}
-                    strokeWidth={1.5}
-                    aria-hidden="true"
-                  />
-                </button>
+                />
               }
             />
             <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
@@ -1832,7 +2023,7 @@ export function FolderPageV2({
             </PopoverContent>
           </Popover>
           <div className="mt-1">
-            <AddCoverAction storageName={storageName} visible={pristine} />
+            <AddCoverAction storageName={storageName} />
           </div>
 
           {/* The count rides the title's own line rather than stacking a
@@ -1860,47 +2051,15 @@ export function FolderPageV2({
           </div>
 
           {/* The description lives at the title — the fact and its affordance
-              in the same place (Imran's correction of the far-corner ghost). */}
-          {identity.description || editingDescription ? (
-            <textarea
-              defaultValue={identity.description ?? ""}
-              placeholder="Add a description"
-              aria-label="Folder description"
-              rows={1}
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus={editingDescription}
-              onBlur={(event) => {
-                const text = event.target.value.trim()
-                savePrototypeFolderIdentity(storageName, {
-                  description: text || undefined,
-                })
-                setEditingDescription(false)
-              }}
-              className={cn(
-                "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-[12px] leading-5 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
-                T_FAST,
-                "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
-              )}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditingDescription(true)}
-              className={cn(
-                "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-[12px] leading-5 text-[var(--color-graphite-400)] transition-[opacity,background-color,color]",
-                T_FAST,
-                FOCUS,
-                "hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
-                pristine
-                  ? "opacity-100"
-                  : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
-              )}
-            >
-              <AlignLeft className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              Add a description
-            </button>
-          )}
-
+              in the same place (Imran's correction of the far-corner ghost).
+              The control itself is `PageHead`'s, because the six system pages
+              needed the same one and a second copy is how two descriptions
+              come to behave differently (DES-149, DES-154). */}
+          <PageDescription
+            storageName={storageName}
+            label="Folder description"
+            offer={pristine}
+          />
         </header>
 
         <div className="mt-3">
@@ -1932,13 +2091,14 @@ export function FolderPageV2({
               </div>
             </div>
           ) : view === "list" ? (
-            listBody
+            filters.groupBy === "none" ? listBody : groupedBody
           ) : (
             boardBody
           )}
         </div>
 
         {conversationView === "page" &&
+        !isDefault &&
         previewState !== "loading" &&
         previewState !== "error"
           ? conversationHeader
@@ -1949,6 +2109,7 @@ export function FolderPageV2({
           them (DES-123's rule), the view switched from the surface itself. */}
 
       {conversationView === "panel" && conversationOpen ? (
+        <ReservesRightEdge width={360}>
         <aside
           aria-label={`Conversation in ${displayName}`}
           className="fixed top-[calc(var(--shell-pagebar-height)+var(--shell-windowbar-height))] right-0 bottom-0 z-40 flex w-[360px] flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
@@ -1990,6 +2151,7 @@ export function FolderPageV2({
             layout="pinned"
           />
         </aside>
+        </ReservesRightEdge>
       ) : null}
 
 

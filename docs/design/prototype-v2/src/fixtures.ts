@@ -1,7 +1,7 @@
 import type { TaskRowProps } from "@/components/task-row"
 
 const folders = {
-  wedding: { name: "Wedding", color: "var(--color-graphite-900)" },
+  travel: { name: "Travel", color: "var(--color-graphite-900)" },
   home: { name: "Home", color: "var(--color-graphite-900)" },
   work: { name: "Work", color: "var(--color-graphite-900)" },
 }
@@ -13,53 +13,85 @@ export interface TaskStateFixture {
   task: TaskRowProps
 }
 
+/*
+Every state the row actually has, and no state it does not.
+
+This list was v1's and had drifted: it named Unassigned and Invite pending,
+which the row draws nothing for, and it stopped before six states the row has
+gained since — a section in its path, an unfiled task's Desk, notes, files, a
+conversation, and a completion that is running. A fixture list is a claim
+about the product, so a stale one is a wrong one.
+*/
 export const taskStateFixtures: TaskStateFixture[] = [
   {
     id: "STATE-01",
     label: "Pending",
-    note: "Base anatomy",
+    note: "The base anatomy",
     task: {
+      id: "state-01",
       title: "Pick up the wedding rings",
-      folder: folders.wedding,
+      folder: folders.travel,
       due: { label: "Due 14 Aug" },
     },
   },
   {
     id: "STATE-02",
-    label: "Overdue",
-    note: "Color + icon + wording",
+    label: "Due today",
+    note: "The relative rung, not a date",
     task: {
-      title: "Send the venue deposit",
-      folder: folders.wedding,
-      due: { label: "Overdue · 6 Aug", overdue: true },
+      id: "state-02",
+      title: "Call the florist back",
+      folder: folders.travel,
+      due: { label: "Due today" },
     },
   },
   {
     id: "STATE-03",
-    label: "Completed",
-    note: "Checked and faded",
+    label: "Overdue",
+    note: "Words and tone together",
     task: {
-      title: "Confirm the ceremony music",
-      folder: folders.wedding,
-      due: { label: "Due 9 Aug" },
-      status: "completed",
+      id: "state-03",
+      title: "Send the venue deposit",
+      folder: folders.travel,
+      due: { label: "Overdue · 6 Aug", overdue: true },
     },
   },
   {
     id: "STATE-04",
-    label: "Abandoned",
-    note: "Struck, labelled, restorable",
+    label: "No date",
+    note: "One chip fewer, no reserved column",
     task: {
-      title: "Compare vintage car rentals",
-      folder: folders.wedding,
-      status: "abandoned",
+      id: "state-04",
+      title: "Renew the library card",
+      folder: folders.home,
     },
   },
   {
     id: "STATE-05",
-    label: "Important",
-    note: "Filled star remains visible",
+    label: "Unfiled",
+    note: "A task with no folder is in Desk",
     task: {
+      id: "state-05",
+      title: "Capture questions for Hassan",
+    },
+  },
+  {
+    id: "STATE-06",
+    label: "Inside a section",
+    note: "The path a heading would otherwise be the only place to read",
+    task: {
+      id: "state-06",
+      title: "Confirm the marquee size",
+      folder: folders.travel,
+      section: "Venue & vendors",
+    },
+  },
+  {
+    id: "STATE-07",
+    label: "Important",
+    note: "Filled, and the only row state with a colour of its own",
+    task: {
+      id: "state-07",
       title: "Renew the car insurance",
       folder: folders.home,
       due: { label: "Due today" },
@@ -67,114 +99,124 @@ export const taskStateFixtures: TaskStateFixture[] = [
     },
   },
   {
-    id: "STATE-06",
-    label: "Other assignee",
-    note: "Avatar and name",
+    id: "STATE-08",
+    label: "Assigned",
+    note: "A face and a name",
     task: {
+      id: "state-08",
       title: "Confirm caterer numbers for Saturday",
-      folder: folders.wedding,
+      folder: folders.travel,
       due: { label: "Due 12 Aug" },
       assignee: { initials: "S", name: "Sara" },
     },
   },
   {
-    id: "STATE-07",
-    label: "Unassigned",
-    note: "Shared Planned context only",
-    task: {
-      title: "Book the rehearsal room",
-      folder: folders.wedding,
-      due: { label: "Due 18 Aug" },
-      unassigned: true,
-    },
-  },
-  {
-    id: "STATE-08",
-    label: "Pulled into My Day",
-    note: "Visible cause and removal",
-    task: {
-      title: "Review the guest transport plan",
-      folder: folders.wedding,
-      pulled: true,
-      showSecondaryActions: true,
-    },
-  },
-  {
     id: "STATE-09",
-    label: "Invite pending",
-    note: "Exact email stays visible",
-    task: {
-      title: "Collect dietary requirements",
-      folder: folders.wedding,
-      invitePending: "sara@example.com",
-    },
-  },
-  {
-    id: "STATE-10",
     label: "With steps",
-    note: "Compact progress",
+    note: "The ratio; the words are one hover away",
     task: {
+      id: "state-09",
       title: "Prepare the ceremony checklist",
-      folder: folders.wedding,
+      folder: folders.travel,
       steps: { complete: 2, total: 5 },
     },
   },
   {
-    id: "STATE-11",
+    id: "STATE-10",
     label: "Repeating",
-    note: "Glyph plus readable rule",
+    note: "The rule in words, not a glyph alone",
     task: {
+      id: "state-10",
       title: "Water the balcony plants",
       folder: folders.home,
       due: { label: "Due today" },
       recurrence: "Weekly",
     },
   },
-]
-
-export const interactionFixtures: Array<{
-  label: string
-  note: string
-  task: TaskRowProps
-}> = [
   {
-    label: "Default",
-    note: "Secondary actions stay quiet",
+    id: "STATE-11",
+    label: "Pulled into Today",
+    note: "The cause is visible, so it can be undone",
     task: {
+      id: "state-11",
+      title: "Review the guest transport plan",
+      folder: folders.travel,
+      due: { label: "Due 18 Aug" },
+      pulled: true,
+    },
+  },
+  {
+    id: "STATE-12",
+    label: "Carrying more",
+    note: "Notes, a file and a conversation, counted on the card",
+    task: {
+      id: "state-12",
       title: "Draft the supplier questions",
       folder: folders.work,
       due: { label: "Due 16 Aug" },
+      notes: "Ask about the corkage charge before signing anything.",
     },
   },
   {
-    label: "Hover",
-    note: "Row fill and actions appear",
+    id: "STATE-13",
+    label: "Completed",
+    note: "Checked, struck, and quieted",
     task: {
-      title: "Review the supplier proposal",
-      folder: folders.work,
-      due: { label: "Due 17 Aug" },
-      visualState: "hover",
+      id: "state-13",
+      title: "Confirm the ceremony music",
+      folder: folders.travel,
+      status: "completed",
     },
   },
   {
-    label: "Keyboard focus",
-    note: "Visible Dana focus ring",
+    id: "STATE-14",
+    label: "Abandoned",
+    note: "Struck, labelled, and restorable from the row",
     task: {
-      title: "Send the signed agreement",
-      folder: folders.work,
-      due: { label: "Due 18 Aug" },
-      visualState: "focus",
+      id: "state-14",
+      title: "Compare vintage car rentals",
+      folder: folders.travel,
+      status: "abandoned",
     },
   },
+]
+
+/*
+Who this account is, and who it is connected to.
+
+These lived inside `shell-page.tsx` while the row's assignee menu read a
+different three names out of `task-model.ts` — so the people you could give
+work to and the people you were connected to were two lists that disagreed
+about names and initials. One list now; `lib/people-library` is what reads it.
+*/
+export const shellViewer = {
+  name: "Imran Wafa",
+  initials: "IW",
+  email: "imran@example.com",
+}
+
+export interface ShellConnectionFixture {
+  id: string
+  name: string
+  email: string
+  initials: string
+  connectedAt: string
+}
+
+export const shellConnections: ShellConnectionFixture[] = [
   {
-    label: "Selected + menu",
-    note: "Selection is not status",
-    task: {
-      title: "Archive the final supplier quote",
-      folder: folders.work,
-      visualState: "selected",
-      menuOpen: true,
-    },
+    id: "connection-hassan",
+    name: "Hassan Ali",
+    email: "hassan@example.com",
+    initials: "HA",
+    connectedAt: "4 Aug 2026",
+  },
+  {
+    id: "connection-sara",
+    name: "Sara Khan",
+    email: "sara@example.com",
+    initials: "SK",
+    connectedAt: "8 Aug 2026",
   },
 ]
 
@@ -191,7 +233,7 @@ export interface ShellFolderGroupFixture {
 }
 
 export const shellInbox: ShellFolderFixture = {
-  name: "Inbox",
+  name: "Desk",
   color: "var(--color-graphite-900)",
   pending: 7,
 }
@@ -202,7 +244,7 @@ export const shellFolderGroups: ShellFolderGroupFixture[] = [
     iconColor: "var(--color-graphite-900)",
     folders: [
       { name: "Home", color: "var(--color-graphite-900)", pending: 3 },
-      { name: "Wedding", color: "var(--color-graphite-900)", pending: 6 },
+      { name: "Travel", color: "var(--color-graphite-900)", pending: 6 },
     ],
   },
   {
@@ -210,18 +252,18 @@ export const shellFolderGroups: ShellFolderGroupFixture[] = [
     iconColor: "var(--color-graphite-900)",
     folders: [
       {
-        name: "Community planning committee",
+        name: "Office",
         color: "var(--color-graphite-900)",
         pending: 4,
       },
-      { name: "Dana", color: "var(--color-graphite-900)", pending: 9 },
+      { name: "Business", color: "var(--color-graphite-900)", pending: 9 },
     ],
   },
 ]
 
 export const shellUnlabelledFolders: ShellFolderFixture[] = [
   { name: "Reading list", color: "var(--color-graphite-900)", pending: 2 },
-  { name: "Travel", color: "var(--color-graphite-900)", pending: 0 },
+  { name: "Ideas", color: "var(--color-graphite-900)", pending: 0 },
 ]
 
 export const shellPreviewTasks: TaskRowProps[] = [
@@ -233,7 +275,7 @@ export const shellPreviewTasks: TaskRowProps[] = [
   },
   {
     title: "Confirm venue accessibility details",
-    folder: folders.wedding,
+    folder: folders.travel,
     due: { label: "Due today" },
     assignee: { initials: "S", name: "Sara" },
   },

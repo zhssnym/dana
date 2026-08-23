@@ -31,19 +31,23 @@ the list. The machinery they use is exported from here so the lab can compose
 it; what the lab passes and the screens do not is the difference.
 */
 
+import { InlineInput } from "@/components/ui/inline-field"
+import { Face } from "@/components/person-face"
+import { IconAction } from "@/components/icon-action"
 import {
   ArrowUpRight,
   Ban,
   CalendarDays,
   Check as CheckIcon,
   ChevronDown,
-  CircleAlert,
+  ChevronRight,
   Copy,
   Folder,
   FolderInput,
   FolderPlus,
   Folders,
   Fullscreen,
+  SquareSquare,
   ListChecks,
   ListPlus,
   MoreHorizontal,
@@ -61,6 +65,7 @@ import {
   type LucideIcon,
 } from "@/lib/icons"
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -70,13 +75,13 @@ import {
 
 import {
   DestinationChoice,
-  Face,
-  IconAction,
   MenuHeading,
   Reveal,
   TaskCard,
   newFolderChoice,
 } from "@/components/task-card"
+import { FolderMark, folderNameOf, useFolderMark } from "@/components/folder-mark"
+import { folderLibrary } from "@/lib/folder-library"
 import { DuePanel, RepeatPanel } from "@/components/task-pickers"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -92,11 +97,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ActionStrip, type ViewStripOption } from "@/components/view-strip"
-import { useRowDensity } from "@/lib/row-density"
+import { useRowDensity, type RowDensity } from "@/lib/row-density"
+import { peopleLibrary } from "@/lib/people-library"
+import { useTaskWriter } from "@/lib/task-writer"
 import { setTaskSurfacePreference } from "@/lib/task-surface-preference"
 import {
-  FOLDERS,
-  PEOPLE,
   repeatShort,
   stepCount,
   type ConceptComment,
@@ -558,7 +563,7 @@ export function PendingPanel({
               : "Nothing is changed except where these live."}
           </p>
 
-          <input
+          <InlineInput
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={name}
@@ -803,7 +808,7 @@ export function useRowSelection({
             <MenuHeading>
               Move {selected.length} task{selected.length === 1 ? "" : "s"} to
             </MenuHeading>
-            {FOLDERS.map((f) => (
+            {folderLibrary().map((f) => (
               <DropdownMenuItem
                 key={f.name}
                 label={f.name}
@@ -958,6 +963,23 @@ export function TaskTitle({
      scale; closed, it is a list item and stays at body size. */
   heading?: boolean
 }) {
+  /*
+  **A row never auto-edits**, and the reason is worth keeping.
+
+  It did, briefly: an untitled task opened its field so the floating button
+  would land you in typing. That reasoning was right and the place was wrong.
+  A row is rendered wherever the task appears, so an untitled task turned
+  *every* list containing it into a list with a stray empty input in it — and
+  because the flag initialises once, the field never recovered even after the
+  name was typed elsewhere. From the outside the task looked like it had
+  vanished (Imran, 2026-08-22: "it does not appear, it's not basically
+  saving"), when it had saved perfectly and was being drawn as a blank box.
+
+  Landing in the field is the *surface's* job, because the surface is the one
+  thing that opens once, deliberately, at the moment of creation — see
+  `PageTitle` in task-surface.tsx. A row just draws what is there, and draws
+  an untitled task as untitled.
+  */
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task.title)
   const struck = Boolean(task.done) || Boolean(task.abandoned)
@@ -974,7 +996,7 @@ export function TaskTitle({
 
   if (editing) {
     return (
-      <input
+      <InlineInput
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
         value={draft}
@@ -1034,7 +1056,9 @@ export function TaskTitle({
           : "text-[var(--color-graphite-800)]",
       )}
     >
-      {task.title}
+      {task.title || (
+        <span className="text-[var(--color-graphite-400)]">Untitled task</span>
+      )}
       <span
         aria-hidden="true"
         className={cn(
@@ -1061,12 +1085,11 @@ export function TaskTitle({
 export function FolderBit({ folder }: { folder: NonNullable<ConceptTask["folder"]> }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-2">
-      <Folder
-        className="size-4 shrink-0"
-        style={{ color: folder.color }}
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
+      {/* The chosen glyph, like every other place a folder is named. This
+          drew the generic mark until F5 — the rule was settled and the check
+          written to enforce it had a matcher that could not see a tag whose
+          props wrapped onto the next line. */}
+      <FolderMark name={folder.name} color={folder.color} />
       <span className="truncate">{folder.name}</span>
     </span>
   )
@@ -1080,9 +1103,11 @@ export function DueBit({ due }: { due: NonNullable<ConceptTask["due"]> }) {
         due.overdue && "font-medium text-[var(--color-danger-700)]",
       )}
     >
-      {due.overdue ? (
-        <CircleAlert className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-      ) : null}
+      {/* No glyph, in either state. It used to grow a circle-alert when late,
+          which said in a picture what the danger red and the word "Overdue"
+          beside it already say twice — and it made the trailing column change
+          shape with the task's state, so the eye could not learn where the
+          date lives. Colour and copy carry lateness; the field stays itself. */}
       {due.label}
     </span>
   )
@@ -1140,22 +1165,40 @@ export function Actions({
   task,
   onStar,
   onMakeFolder,
+  onNewFolderFor,
   onRestore,
   onOpenIn,
   onMoveToFolder,
   onAbandon,
   onDelete,
   extra,
+  quietStar = false,
+  /* A page shows its controls; a row reveals them on hover. */
+  persistent = false,
 }: {
   task: ConceptTask
   onStar: () => void
   onMakeFolder?: () => void
+  /* Make a folder and put this task in it. Different from `onMakeFolder`,
+     which turns the task itself into one — the menu offers both and they must
+     not share a handler. */
+  onNewFolderFor?: () => void
   onRestore?: () => void
+  /*
+  The star, at rest, on a page the star defines.
+
+  R2: every row on Important wears a filled gold star, so the star
+  distinguishes nothing there — it is decoration on the one page where it
+  could carry no information at all. It keeps its place and its press, because
+  it is also the only way a task leaves that page; what it drops is the fill.
+  */
+  quietStar?: boolean
   onOpenIn?: (mode: TaskOpenMode) => void
   onMoveToFolder?: (folder: { name: string; color: string }) => void
   onAbandon?: () => void
   onDelete?: () => void
   extra?: ReactNode
+  persistent?: boolean
 }) {
   return (
     <span className="flex shrink-0 items-center justify-end gap-0.5">
@@ -1209,12 +1252,25 @@ export function Actions({
             : "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
         )}
       >
+        {/*
+        Filled or not, and never gold — Imran, 2026-08-22: "the star color are
+        not consistent across the shell, somewhere it's gold and somewhere it's
+        black, so I think only black is good."
+
+        He is right twice over. It *was* inconsistent, because DES-183 took the
+        gold off Important and left it everywhere else. And the colour was
+        carrying nothing the fill was not already saying: important is a
+        binary, a filled star says it, and a second signal on the same fact is
+        one more hue in a product whose whole palette is one accent and
+        graphite (W1). So the star is graphite in both states and the fill is
+        the whole difference.
+        */}
         <Star
           className={cn(
             "size-[18px] transition-[transform,color]",
             T_FAST,
-            task.important
-              ? "scale-110 fill-[var(--color-warning-500)] text-[var(--color-warning-500)]"
+            task.important && !quietStar
+              ? "scale-110 fill-current text-[var(--color-graphite-900)]"
               : "text-[var(--color-graphite-600)]",
           )}
           strokeWidth={1.75}
@@ -1227,12 +1283,22 @@ export function Actions({
             <button
               type="button"
               onClick={(e) => e.stopPropagation()}
-              aria-label="More task actions"
+              /* Spec 9.1's names table gives a task row's overflow menu the
+                 name "More actions"; this read "More task actions", which is
+                 a rename, and design may restyle without renaming. */
+              aria-label="More actions"
               className={cn(
                 "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] data-popup-open:opacity-100",
                 T_FAST,
                 FOCUS,
-                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
+                /* Hover-reveal belongs to a row, where a gutter full of
+                   permanent icons would shout down the titles. A page has no
+                   row to hover and no such crowd, so there the menu simply
+                   stands there — which is why it was invisible on the task
+                   surface until now. */
+                persistent
+                  ? "opacity-100"
+                  : "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
               )}
             >
               <MoreHorizontal className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
@@ -1271,17 +1337,46 @@ export function Actions({
                 <FolderInput />
                 Move to folder…
               </DropdownMenuSubTrigger>
+              {/*
+              The person's real folders, not the lab's four — Imran,
+              2026-08-22: this menu "still does not carry an update folder
+              library".
+
+              It did not, and this was the third place: `folderLibrary()` was
+              written for the folder chip and two other menus went on reading
+              `FOLDERS`, the hardcoded fixture from the row lab. So the list
+              you moved a task with disagreed with the sidebar beside it —
+              missing Business, Ideas and Reading list, missing anything you
+              had made, still offering anything you had deleted, and using the
+              old name for anything you had renamed.
+
+              **And it ends in New folder**, because "none of these" is a real
+              answer to "where does this go" and a menu that cannot express it
+              sends you somewhere else to do the obvious thing.
+              */}
               <DropdownMenuSubContent className="w-52">
-                {FOLDERS.map((folder) => (
+                {folderLibrary().map((folder) => (
                   <DropdownMenuItem
                     key={folder.name}
                     className="whitespace-nowrap"
                     onClick={() => onMoveToFolder(folder)}
                   >
-                    <Folder style={{ color: folder.color }} />
+                    <FolderMark name={folder.name} color={folder.color} />
                     {folder.name}
                   </DropdownMenuItem>
                 ))}
+                {onNewFolderFor ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="whitespace-nowrap"
+                      onClick={onNewFolderFor}
+                    >
+                      <FolderPlus />
+                      New folder…
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           ) : null}
@@ -1530,6 +1625,16 @@ export function ChipPicker({
   )
 }
 
+export interface ChipMenuItem {
+  key: string
+  label: ReactNode
+  onSelect: () => void
+  /* Puts a hairline above the item: the way *out* of a list — no folder,
+     nobody — is not another member of it, and every menu in Dana that offers
+     one sets it apart the same way (DES-114). */
+  separated?: boolean
+}
+
 export function ChipMenu({
   label,
   children,
@@ -1537,7 +1642,7 @@ export function ChipMenu({
 }: {
   label: string
   children: ReactNode
-  items: { key: string; label: ReactNode; onSelect: () => void }[]
+  items: ChipMenuItem[]
 }) {
   return (
     <DropdownMenu>
@@ -1555,9 +1660,10 @@ export function ChipMenu({
       />
       <DropdownMenuContent align="end">
         {items.map((item) => (
-          <DropdownMenuItem key={item.key} onClick={item.onSelect}>
-            {item.label}
-          </DropdownMenuItem>
+          <Fragment key={item.key}>
+            {item.separated ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuItem onClick={item.onSelect}>{item.label}</DropdownMenuItem>
+          </Fragment>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -1572,13 +1678,18 @@ export function DetailChip({
   children,
   tone = "neutral",
   interactive = true,
+  title,
 }: {
   children: ReactNode
   tone?: "neutral" | "danger"
   interactive?: boolean
+  /* What a compressed chip stands for, one hover away — the steps ratio is
+     the case (R6). */
+  title?: string
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex h-5 min-w-0 shrink-0 items-center rounded border border-transparent px-1 transition-[background-color,border-color]",
         T_FAST,
@@ -1621,6 +1732,27 @@ export function DetailWord({
   )
 }
 
+/* A folder's detail word, resolving the glyph and colour its owner chose
+   (DES-130) rather than drawing the generic mark. Its own component because
+   `DetailWord` takes an icon as a prop and identity has to be *looked up*,
+   which is a hook, which cannot happen inside a prop expression. */
+function FolderDetailWord({
+  name,
+  color,
+}: {
+  /* A name rather than the task's folder object, because an unfiled task has
+     no object and is still in Desk (DES-155). The resolver answers for both. */
+  name: string
+  color?: string
+}) {
+  const mark = useFolderMark(name, color)
+  return (
+    <DetailWord icon={mark.Icon} color={mark.color}>
+      <span className="truncate">{name}</span>
+    </DetailWord>
+  )
+}
+
 /* ------------------------------------------------------ the shipping row -- */
 /*
 `TaskRow` is what the eight screens render. It keeps the call shape the v1 row
@@ -1660,42 +1792,145 @@ export type TaskOpenMode = "dialog" | "right" | "tab"
    way back, a second sidebar edge is a mirror nobody asked for, and floating
    is the dialog with worse ergonomics. Three destinations a person can hold
    in their head beats six they have to read. */
+/*
+Where a task can open. One array, read by two controls: the row's "Open in…"
+submenu and the surface's own view strip, so the two cannot offer different
+places or name them differently.
+
+**The labels are parallel nouns**, and they were not — F5, 2026-08-22. Two
+were bare ("Dialog", "Sidebar") and one was a sentence ("Open as a tab"), in a
+menu whose own heading already says "Open in…", so the third item read "Open
+in… Open as a tab". Each one completes that sentence now, and each still
+stands alone as the strip's tooltip.
+*/
 export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
-  { key: "dialog", label: "Dialog", icon: Fullscreen },
+  { key: "dialog", label: "Dialog", icon: SquareSquare },
   { key: "right", label: "Sidebar", icon: PanelRight },
-  { key: "tab", label: "Open as a tab", icon: ArrowUpRight },
+  { key: "tab", label: "New tab", icon: ArrowUpRight },
 ]
 
 export interface TaskRowProps {
   id?: string
   title: string
   folder?: { name: string; color: string }
+  /*
+  Which section of its folder page this task sits in.
+
+  Imran, 2026-08-22: "A task inside a section should show somewhere ... some
+  type of hierarchy is required." A section is the one part of a task's
+  address the row never said: you could see the folder, and inside the folder
+  the heading told you — but carry that row anywhere else, open it in a
+  dialog, look at it in Completed, and the section vanished.
+
+  It rides *after* the folder chip and reads as a path, because that is what
+  it is: Travel › Venue & vendors. Absent when there is no section, and
+  absent when the row is already sitting under that section's own heading,
+  which the folder page decides per list rather than per row.
+  */
+  section?: string
+  /*
+  What the list around this row has already said.
+
+  Four of the review's row findings turned out to be one fault with four
+  faces, and the fault is a row repeating its own context: **Done** shows a
+  due date on work that is finished, under headings that already group by when
+  it was finished; **Important** draws a filled star on every row of a page
+  defined by the star; **Carried over** paints every date red on a block whose
+  membership *is* being late; and the mirror image, an unfiled task showing no
+  folder at all when [[DES-155]] says it is in Desk.
+
+  So the rule underneath them: **a row says what its page does not.** The
+  section chip has worked this way since DES-166 — "absent when the row is
+  already sitting under that section's own heading, which the page decides per
+  list rather than per row" — and this is that decision generalised to every
+  fact a heading can carry.
+
+  Decided per list, never per row, for the reason DES-154 keeps giving: a row
+  cannot see the heading above it, and a screen that had to remember this on
+  every row is a screen that will forget on one.
+  */
+  given?: {
+    /* Grouped by folder, or standing inside one. */
+    folder?: boolean
+    /* Grouped by person. */
+    assignee?: boolean
+    /* Grouped by date, or finished — where the deadline is spent. */
+    due?: boolean
+    /* Every row here is starred. */
+    important?: boolean
+    /* Every row here is late. */
+    overdue?: boolean
+  }
   due?: { label: string; overdue?: boolean }
   status?: TaskStatus
   important?: boolean
   importantTooltip?: string
   assignee?: { initials: string; name: string; image?: string }
-  unassigned?: boolean
   pulled?: boolean
-  invitePending?: string
   steps?: { complete: number; total: number }
   recurrence?: string
   notes?: string
   /* The conversation the card shows, passed through untouched. DES-129;
      fixtures only — the shell has no message model behind this. */
   comments?: ConceptComment[]
-  /* Carried from the v1 row so the states page and the shell keep compiling.
-     The new row draws its own hover and focus, so these no longer force a
-     look. */
-  visualState?: TaskRowVisualState
-  showSecondaryActions?: boolean
-  menuOpen?: boolean
+  /*
+  The parts of a task only its card shows: the steps themselves, the files,
+  and anything the card learns to edit next.
+
+  Imran, 2026-08-22: a task opened in the sidebar did not carry the steps,
+  notes, links and attachments added to it inline — "dialog, sidebar, inline,
+  and maybe more are just views of the same task row, so the data inside them
+  should be the same and updated simultaneously."
+
+  He is right, and the seam that lost them is here. A row's props carry a step
+  *count*, because a count is all a row draws, and `toConceptTask` therefore
+  had to *invent* the steps from it — "Step 1", "Step 2" — which meant a task
+  could round-trip through the shell and come back with its steps renamed.
+  Attachments had no prop at all, so they could not round-trip in any form.
+
+  One field rather than one per fact, deliberately: the card gains blocks over
+  time and each new one would otherwise need a prop, a mapping and a line in
+  the shell's patcher, three places to forget. The row spreads this last, so
+  whatever the card knows how to edit survives being closed and reopened
+  somewhere else.
+  */
+  detail?: Partial<ConceptTask>
+  /*
+  Five props left this contract at F6: `visualState`, `showSecondaryActions`,
+  `menuOpen`, `unassigned` and `invitePending`.
+
+  They were carried from the v1 row "so the states page keeps compiling", and
+  the new row honoured none of them — it draws its own hover and focus, and
+  had no drawing at all for the other two. So the state sheet showed four
+  identical rows under four different labels and two states that rendered
+  nothing, and every one of those lies was *load-bearing*: the props existed
+  only to keep the page that told them alive.
+
+  A prop that cannot do anything is DES-144's dead control one level down, and
+  the fix is the same one: delete it rather than keep drawing it. The v1 row
+  survives whole at `components/task-row-baseline.tsx` for anyone comparing.
+  */
+  /* Overrides the person's own row height. Only the state sheet passes it,
+     and only because showing both is its whole job. */
+  density?: RowDensity
   completionPreview?: boolean
   collapsing?: boolean
   /* Open the task somewhere other than in place: the row's own view strip
      and the card's full-screen action both speak through this, naming the
      surface they want. Bare calls mean "full". */
   onOpen?: (mode?: TaskOpenMode) => void
+  /* Makes a folder holding this task, and names it. Supplied by TaskList,
+     which owns the naming panel; absent for a row rendered outside one, and
+     the chip then simply does not offer it — a dead menu item is the fault
+     DES-144 removed. */
+  onNewFolder?: () => void
+  /* The write path out of the card. See `useCardWiring`: without it every
+     edit lives and dies with the component, which is why a task opened in a
+     surface could not be renamed. */
+  onPatch?: (fields: Partial<ConceptTask>) => void
+  /* Supplied by TaskList so a row can hand back its own opener; the list
+     then taps into it. Never passed by a screen. */
+  onRegisterOpen?: (open: (() => void) | null) => void
   onToggleComplete?: (completed: boolean) => void
   onToggleImportant?: () => void
   onRemoveFromMyDay?: () => void
@@ -1746,10 +1981,14 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
     pulled: props.pulled,
     important: props.important,
     notes: props.notes,
+    /* Invented from the count, and only as a fallback: a lab fixture that
+       says "2 of 5" has no titles to give. Anything the shell owns arrives
+       through `detail` below and wins, so a real task keeps its real steps. */
     steps,
     comments: props.comments,
     recurrence: Boolean(props.recurrence),
     repeatUnit: props.recurrence === "Daily" ? "day" : "week",
+    ...props.detail,
   }
 }
 
@@ -1760,6 +1999,9 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
    any of this would be a second artifact wearing the first one's clothes. */
 export function useCardWiring(props: TaskRowProps) {
   const [edits, setEdits] = useState<Partial<ConceptTask>>({})
+  /* The shell's write path, reaching a row that nobody handed one to — see
+     `lib/task-writer`. A row given `onPatch` still wins. */
+  const writer = useTaskWriter()
 
   /* Props first, local edits over the top. A completion made from the screen
      still reaches the row; a note typed into the card is not thrown away when
@@ -1768,14 +2010,44 @@ export function useCardWiring(props: TaskRowProps) {
   const counts = stepCount(task)
   const steps = task.steps ?? []
 
+  /*
+  **Every edit is reported upward, not just completion.**
+
+  This held its edits in local state and told the screen about `done` alone.
+  Inside an inline row that is invisible — the row stays mounted, so the local
+  copy *is* the task for as long as anyone is looking at it. It stops being
+  invisible the moment the same card is opened in a surface, which mounts per
+  open and unmounts on close: a task created by the floating button kept its
+  empty title for ever, and a rename made in the dialog was discarded the
+  instant it closed. Imran, 2026-08-22: "it's not basically saving."
+
+  `onPatch` is the one write path out. A screen that supplies it owns the
+  task; one that does not keeps the old local-only behaviour, which is still
+  right for a lab or a preview with nowhere to write to.
+  */
+  /*
+  Out to whoever owns the task: the handler if there is one, the shell's
+  writer otherwise, and nowhere if there is neither.
+
+  The local copy is still kept, and deliberately — an edit has to appear
+  before it has travelled anywhere, or every keystroke would wait on a
+  round trip through the screen above.
+  */
+  function report(fields: Partial<ConceptTask>) {
+    if (props.onPatch) props.onPatch(fields)
+    else if (writer && props.id) writer(props.id, fields)
+  }
+
   function patch(_id: string, fields: Partial<ConceptTask>) {
     setEdits((current) => ({ ...current, ...fields }))
+    report(fields)
     /* Completion is the screen's fact rather than the row's, so it is told. */
     if (fields.done !== undefined) props.onToggleComplete?.(fields.done)
   }
 
   function patchSteps(next: ConceptStep[]) {
     setEdits((current) => ({ ...current, steps: next }))
+    report({ steps: next })
   }
 
   const cardHandlers = {
@@ -1864,9 +2136,24 @@ function OpenInControl({
 }
 
 export function TaskRow(props: TaskRowProps) {
-  const density = useRowDensity()
+  /* The height is a person's setting, and the one exception is a surface
+     showing them both — the state sheet draws one row at each density beside
+     the other, which is a thing no reader of the setting can do. */
+  const density = props.density ?? useRowDensity()
   const [open, setOpen] = useState(props.defaultOpen ?? false)
   const { task, patch, counts, cardHandlers } = useCardWiring(props)
+
+  /* The row tells its list how to open it, and the list's drag engine calls
+     back on a tap. This is what makes tap-to-open a property of the row
+     rather than something each screen has to remember to wire — the folder
+     page never passed the list an opener, so the behaviour existed on six
+     pages and not the seventh. Registering from here, it cannot. */
+  const { onRegisterOpen, onOpen } = props
+  useEffect(() => {
+    if (!onRegisterOpen) return
+    onRegisterOpen(onOpen ? () => onOpen() : null)
+    return () => onRegisterOpen(null)
+  }, [onRegisterOpen, onOpen])
 
   /* Choosing where a task opens is choosing where tasks open (DES-138): the
      pick is remembered, so the next one lands in the same place. A tab is
@@ -1876,73 +2163,186 @@ export function TaskRow(props: TaskRowProps) {
     props.onOpen?.(mode)
   }
 
-  const bare =
-    !task.due &&
-    !task.folder &&
-    !task.assignee &&
-    !counts &&
-    !task.recurrence &&
-    !task.pulled &&
-    !task.notes &&
-    !task.attachments &&
-    !task.abandoned
+  const given = props.given ?? {}
+  /* An unfiled task is in Desk, and the row says so — the same resolver the
+     card and the sidebar ask (DES-155). It said nothing at all before, so the
+     one task with no folder was the one task whose address was invisible. */
+  const folderName = given.folder ? undefined : folderNameOf(task.folder?.name)
+  const showDue = Boolean(task.due) && !given.due
 
-  const details = (
-    <div
-      hidden={bare}
-      className="-ml-1 flex min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]"
-    >
-      {task.due ? (
+  /*
+  The detail strip, as a list rather than as eight branches — W2.
+
+  The review's second standing constraint asks for the row's **state-chip and
+  assignee slots cut as open sets**, and `docs/design/vision.md` says what
+  they are open *for*: work assigned to "a person, an AI agent, or both", and
+  states like "waiting, working, blocked, ready for review".
+
+  What stood here was eight hardcoded conditionals in one JSX block. Nothing
+  declared what the family was, the order lived in the source sequence where
+  no one could review it, `bare` restated all eight conditions by hand and had
+  already drifted from them, and each suppression from DES-183 had to be
+  remembered separately. A ninth chip meant editing the middle of a hundred
+  lines and hoping it landed in the right place.
+
+  As a list, each of those is structural instead: **the order is data** — this
+  is the order Imran approved on 2026-08-23 — **suppression is declared**
+  beside the chip it suppresses, **`bare` is derived** from what is actually
+  showing, and adding "blocked" is one entry.
+
+  It is deliberately *not* populated with the vision's states. Dana has two —
+  pulled into Today, and abandoned — and drawing "waiting" or "ready for
+  review" now would be inventing product rather than shaping a slot for it
+  (DES-119). W2 asks for the shape.
+  */
+  interface RowChip {
+    key: string
+    /* The `given` fact that silences this chip, when there is one — the page
+       has already said it (DES-183). */
+    given?: keyof NonNullable<TaskRowProps["given"]>
+    shown: boolean
+    /* Built on demand, so the condition in `shown` is also the one that
+       narrows the values the body reads. */
+    body: () => ReactNode
+  }
+
+  const rowChips: RowChip[] = [
+    {
+      key: "due",
+      given: "due",
+      shown: showDue && Boolean(task.due),
+      body: () =>
+        !task.due ? null : (
+
         <ChipPicker label="Due date" panel={<DuePanel task={task} patch={patch} />}>
-          <DetailChip tone={task.due.overdue ? "danger" : "neutral"}>
+          {/* Late is a warning, and a warning that is true of every row on the
+              block has stopped warning anybody — so inside "Carried over" the
+              date keeps its words and drops its red. Elsewhere it keeps
+              both. */}
+          <DetailChip tone={task.due.overdue && !given.overdue ? "danger" : "neutral"}>
+            {/* One glyph for the due field whatever its state; the tone says
+                late. */}
             <DetailWord
-              icon={task.due.overdue ? CircleAlert : CalendarDays}
-              tone={task.due.overdue ? "danger" : "neutral"}
+              icon={CalendarDays}
+              tone={task.due.overdue && !given.overdue ? "danger" : "neutral"}
             >
               {task.due.label}
             </DetailWord>
           </DetailChip>
         </ChipPicker>
-      ) : null}
-      {task.folder ? (
+      ),
+    },
+    {
+      key: "folder",
+      given: "folder",
+      shown: Boolean(folderName),
+      body: () =>
+        !folderName ? null : (
+
         <ChipMenu
           label="Folder"
-          items={FOLDERS.map((folder) => ({
-            key: folder.name,
-            label: (
-              <span className="inline-flex items-center gap-2">
-                <Folder
-                  className="size-4 data-[size=sm]:size-4"
-                  style={{ color: folder.color }}
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                {folder.name}
-              </span>
-            ),
-            onSelect: () => patch(task.id, { folder }),
-          }))}
+          /* The person's real folders, not the lab's four (Imran,
+             2026-08-22) — see lib/folder-library.ts — and "New folder…"
+             last, so the menu can always reach a folder that does not exist
+             yet. DES-114: every folder list ends there. */
+          items={folderLibrary()
+            .map((folder) => ({
+              key: folder.name,
+              label: (
+                <span className="inline-flex items-center gap-2">
+                  {/* The folder's own mark, so the menu you pick from and the
+                      chip you picked show the same thing (DES-130). */}
+                  <FolderMark
+                    name={folder.name}
+                    color={folder.color}
+                    className="size-4 data-[size=sm]:size-4"
+                  />
+                  {folder.name}
+                </span>
+              ),
+              onSelect: () => patch(task.id, { folder }),
+            }))
+            .concat(
+              props.onNewFolder ? [newFolderChoice(props.onNewFolder)] : [],
+            )}
         >
           <DetailChip>
-            <DetailWord icon={Folder} color={task.folder.color}>
-              <span className="truncate">{task.folder.name}</span>
-            </DetailWord>
+            {/* The row wears the folder's chosen glyph and colour, not the
+                generic mark — the sidebar has shown them since DES-130 and
+                every row was still drawing a plain folder (Imran,
+                2026-08-22). */}
+            <FolderDetailWord name={folderName} color={task.folder?.color} />
           </DetailChip>
         </ChipMenu>
-      ) : null}
-      {task.assignee ? (
+      ),
+    },
+    {
+      key: "section",
+      shown: Boolean(props.section),
+      body: () => (
+
+        <DetailChip>
+          <span className="inline-flex min-w-0 items-center gap-0.5">
+            {/* A chevron rather than a second glyph: the mark before it
+                already said "folder", and what this adds is depth, not a
+                different kind of thing. */}
+            <ChevronRight
+              className="size-3 shrink-0 text-[var(--color-graphite-400)]"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            <span className="truncate">{props.section}</span>
+          </span>
+        </DetailChip>
+      ),
+    },
+    {
+      key: "assignee",
+      given: "assignee",
+      shown: Boolean(task.assignee) && !given.assignee,
+      body: () =>
+        !task.assignee ? null : (
+
         <ChipMenu
           label="Assignee"
-          items={PEOPLE.map((person) => ({
-            key: person.name,
-            label: (
-              <span className="inline-flex items-center gap-2">
-                <Face person={person} className="size-4 data-[size=sm]:size-4" />
-                {person.name}
-              </span>
-            ),
-            onSelect: () => patch(task.id, { assignee: person }),
-          }))}
+          /*
+          The real roster, and a way back out of it — W2.
+
+          It mapped `PEOPLE`, three names written for the row lab, which is the
+          same fault `folderLibrary` was built to fix one axis over: the list
+          you gave work to said "Sara" and "Hassan" while the People screen two
+          clicks away said "Sara Khan" and "Hassan Ali". And there was no
+          **Unassigned**, so a row could take an assignee and never let one go —
+          a closed set in its plainest form.
+
+          Unassigned goes last, after a separator, exactly where "New folder…"
+          sits on the folder menu (DES-114): the way out of a list belongs at
+          its end.
+          */
+          items={peopleLibrary()
+            .map((person): ChipMenuItem => ({
+              key: person.name,
+              label: (
+                <span className="inline-flex items-center gap-2">
+                  <Face person={person} className="size-4 data-[size=sm]:size-4" />
+                  {person.name}
+                </span>
+              ),
+              onSelect: () => patch(task.id, { assignee: person }),
+            }))
+            .concat([
+              {
+                key: "__unassigned",
+                separated: true,
+                label: (
+                  <span className="inline-flex items-center gap-2">
+                    <UserRound className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} />
+                    Unassigned
+                  </span>
+                ),
+                onSelect: () => patch(task.id, { assignee: undefined }),
+              },
+            ])}
         >
           <DetailChip>
             <span className="inline-flex min-w-0 shrink-0 items-center gap-1.5">
@@ -1951,31 +2351,79 @@ export function TaskRow(props: TaskRowProps) {
             </span>
           </DetailChip>
         </ChipMenu>
-      ) : null}
-      {counts ? (
-        <DetailChip interactive={false}>
+      ),
+    },
+    {
+      key: "steps",
+      shown: Boolean(counts),
+      body: () =>
+        !counts ? null : (
+
+        /* R6: the ratio is legible at 12px beside its glyph, and the words it
+           stands for are one hover away rather than spent on width the row
+           does not have. */
+        <DetailChip
+          interactive={false}
+          title={`${counts.done} of ${counts.total} steps done`}
+        >
           <DetailWord icon={ListChecks}>
             {counts.done}/{counts.total}
           </DetailWord>
         </DetailChip>
-      ) : null}
-      {task.recurrence ? (
+      ),
+    },
+    {
+      key: "repeat",
+      shown: Boolean(task.recurrence),
+      body: () => (
+
         <ChipPicker label="Repeat" panel={<RepeatPanel task={task} patch={patch} />}>
           <DetailChip>
             <DetailWord icon={Repeat2}>{repeatShort(task)}</DetailWord>
           </DetailChip>
         </ChipPicker>
-      ) : null}
-      {task.pulled ? (
+      ),
+    },
+    /* The state family, and the two members Dana actually has. A third
+       arrives as a third entry here and nowhere else. */
+    {
+      key: "state:today",
+      shown: Boolean(task.pulled),
+      body: () => (
+
         <DetailChip interactive={false}>
           <DetailWord icon={SunMedium}>My Day</DetailWord>
         </DetailChip>
-      ) : null}
-      {task.abandoned ? (
+      ),
+    },
+    {
+      key: "state:abandoned",
+      shown: Boolean(task.abandoned),
+      body: () => (
+
         <DetailChip interactive={false}>
           <DetailWord icon={Ban}>Abandoned</DetailWord>
         </DetailChip>
-      ) : null}
+      ),
+    },
+  ]
+
+  const visibleChips = rowChips.filter((chip) => chip.shown)
+
+  /* Derived rather than restated. The hand-written version listed nine
+     conditions and had already fallen out of step with the chips it was
+     describing — it still counted `notes` and `attachments`, which have not
+     been chips since the card took them. */
+  const bare = visibleChips.length === 0
+
+  const details = (
+    <div
+      hidden={bare}
+      className="-ml-1 flex min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]"
+    >
+      {visibleChips.map((chip) => (
+        <Fragment key={chip.key}>{chip.body()}</Fragment>
+      ))}
     </div>
   )
 
@@ -1987,8 +2435,10 @@ export function TaskRow(props: TaskRowProps) {
         props.onToggleImportant?.()
       }}
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
+      quietStar={given.important}
       onOpenIn={props.onOpen ? openIn : undefined}
       onMoveToFolder={(folder) => patch(task.id, { folder })}
+      onNewFolderFor={props.onNewFolder}
       onAbandon={props.onAbandon}
       onDelete={props.onDelete}
       /* No standalone "Open in…" here any more (Imran, 2026-08-18): the
@@ -2041,12 +2491,45 @@ export function TaskRow(props: TaskRowProps) {
           </div>
         ) : (
           <div
+            /*
+            The row body opens the task (Imran, 2026-08-22: the chevron was
+            the only way in). Everything inside the row that *does* something
+            is a real control — the checkbox, the title's rename button, every
+            chip, the star, the overflow, the chevron — so the guard is one
+            `closest` rather than a `stopPropagation` on each, which would be
+            a rule every future control has to remember. Whitespace opens; a
+            control does its own job.
+
+            It opens rather than expands, and that is the point: expanding is
+            the chevron's, and the two are different intentions. Where it
+            opens is DES-138's remembered preference, so this respects a
+            choice the person already made instead of imposing the dialog.
+            */
+            onClick={
+              /* Only where no drag engine is tracking the row — a board card,
+                 say. Inside a list the tap is resolved by the engine, and two
+                 paths to one action is how they drift apart. */
+              props.onOpen && !props.listProps
+                ? (event) => {
+                    const target = event.target as HTMLElement
+                    if (
+                      target.closest(
+                        'button, a, input, textarea, [role="menuitem"], [role="checkbox"], [contenteditable="true"]',
+                      )
+                    ) {
+                      return
+                    }
+                    props.onOpen?.()
+                  }
+                : undefined
+            }
             className={cn(
               "group/row grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-[background-color,height]",
               T_BASE,
               /* A bare task costs one line, not two. DES-111. */
               bare ? "h-11" : "h-16",
               !open && ROW_HOVER,
+              props.onOpen && !open && "cursor-pointer",
             )}
           >
             <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
@@ -2072,6 +2555,19 @@ export function TaskRow(props: TaskRowProps) {
 export interface TaskListWiring {
   itemRef: (element: HTMLElement | null) => void
   listProps: Record<string, unknown>
+  /* Make a folder holding this task. */
+  onNewFolder: () => void
+  /*
+  How a row hands the list its opener.
+
+  The engine resolves tap-versus-drag, because it is the only thing that knows
+  which a press became — so a row cannot simply take an `onClick`. Both of
+  these have been in the object the list builds since F4 and neither was in
+  this type, so a `renderRow` screen reaching for them was told they did not
+  exist. A contract that omits half of what it hands over is a contract that
+  gets rediscovered by whoever needs it next.
+  */
+  onRegisterOpen: (open: (() => void) | null) => void
   dragState: {
     isActive: boolean
     isDwelling: boolean
@@ -2114,6 +2610,8 @@ these per section and passes tasks; everything else is here.
 export function TaskList<T extends TaskRowProps & { id: string }>({
   tasks,
   onReorder,
+  onDropAt,
+  onDragStateChange,
   onMerge,
   onBulk,
   onDuplicate,
@@ -2131,6 +2629,19 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
 }: {
   tasks: T[]
   onReorder?: (from: number, to: number) => void
+  /*
+  Where a row was let go, when it was let go outside this list.
+
+  A list sorts what it holds; a page holds several. Passed through to the drag
+  engine so a page with sections can catch a task on its way out of one and
+  put it in another — see `onDropAt` in `use-sortable-list`. Returning true
+  means the page took it and this list should leave its own order alone.
+  */
+  onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
+  /* Whether a row in this list is currently being carried. A page with
+     sections needs it: the place to drop a task that belongs to none of them
+     only has to exist while something is in the air. Pass a stable setter. */
+  onDragStateChange?: (dragging: boolean) => void
   onMerge?: (ids: string[], name: string) => void
   onBulk?: (ids: string[], fields: Partial<ConceptTask>) => void
   onDuplicate?: (ids: string[]) => void
@@ -2138,7 +2649,22 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   onMove?: (ids: string[], folder: { name: string; color: string }) => void
   /* Per-task callbacks, taking the id, so a screen never has to map rows
      itself just to close over one. */
-  onTaskOpen?: (id: string, mode?: TaskOpenMode) => void
+  /*
+  **Required, and that is the point.**
+
+  Opening a task by pressing its body is resolved by the drag engine, because
+  only the engine knows whether a press became a drag (see `onTap` in
+  use-sortable-list). The engine can only report the tap to whoever the list
+  hands it, so a list without this prop is a list whose rows silently cannot
+  be opened — which is exactly what happened on the folder page, where three
+  lists were written with `renderRow` and nobody remembered this.
+
+  Optional, it was a rule kept in memory and forgotten once per new list.
+  Required, the compiler asks the question at every call site, including the
+  ones nobody has written yet. Behaviour that is settled for the row belongs
+  in the row's own contract rather than in each screen's diligence.
+  */
+  onTaskOpen: (id: string, mode?: TaskOpenMode) => void
   onTaskToggleComplete?: (id: string, completed: boolean) => void
   onTaskToggleImportant?: (id: string) => void
   onTaskRemoveFromMyDay?: (id: string) => void
@@ -2150,6 +2676,16 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
      this component or flatten it into id-only callbacks, the screen keeps its
      own row and is handed the list wiring to spread onto it. */
   renderRow?: (task: T, wiring: TaskListWiring) => ReactNode
+  /*
+  What this list has already said, for every row in it.
+
+  Declared here rather than left to `perRow` so the compiler asks the
+  question at the call site: a list is where the decision belongs, because a
+  row cannot see the heading above it (see TaskRowProps.given). A screen with
+  its own `renderRow` passes it on the row instead, which is the same
+  decision made in the same place.
+  */
+  given?: TaskRowProps["given"]
   className?: string
 }) {
   const [order, setOrder] = useState<string[] | null>(null)
@@ -2164,9 +2700,16 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
 
   const cancelPress = useRef<() => void>(() => {})
 
+  const dragging = useRef(false)
   const drag = useSortableList({
     count: ordered.length,
     onLift: () => cancelPress.current(),
+    onDropAt: onDropAt
+      ? (from, point) => {
+          const task = ordered[from]
+          return task ? onDropAt(task.id, point) : false
+        }
+      : undefined,
     onReorder: (from, to) => {
       const next = ordered.map((task) => task.id)
       const [moved] = next.splice(from, 1)
@@ -2190,6 +2733,10 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     describe: (index) => ordered[index]?.title ?? "Task",
   })
 
+  /* Each row registers how to open itself; the drag engine calls into this
+     on a tap. See the comment where `listProps` is built. */
+  const openers = useRef(new Map<string, () => void>())
+
   const selection = useRowSelection({
     onMove: (ids, folder) => onMove?.(ids, folder),
     onNewFolder: (ids) => setPending({ kind: "folder-for", ids }),
@@ -2198,6 +2745,24 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     onDelete: (ids) => onDelete?.(ids),
   })
   cancelPress.current = selection.clearPress
+
+  /* Reported up rather than only used here, so a page can offer somewhere to
+     drop that is worth showing only while something is being carried. */
+  useEffect(() => {
+    if (dragging.current === drag.isDragging) return
+    dragging.current = drag.isDragging
+    onDragStateChange?.(drag.isDragging)
+  }, [drag.isDragging, onDragStateChange])
+
+  /* A list that unmounts mid-drag never gets to say the drag ended, and a
+     cross-list drop unmounts exactly the list the row came from — which left
+     the page believing something was still in the air. */
+  useEffect(
+    () => () => {
+      if (dragging.current) onDragStateChange?.(false)
+    },
+    [onDragStateChange],
+  )
 
   function confirm(name: string) {
     if (!pending) return
@@ -2226,13 +2791,35 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
       {ordered.map((task, index) => {
         const wiring = {
           itemRef: drag.setItemRef(index),
+          onNewFolder: () => setPending({ kind: "folder-for", ids: [task.id] }),
           /* Press-and-hold selects; travel drags. Both want pointerdown, so
              they are chained rather than spread over one another — spreading
              silently keeps only the later handler, which is how the row once
              ended up with a drag that never started. */
           listProps: selection.selecting
             ? selection.selectProps(task.id)
-            : rowProps(drag.surfaceProps(index), selection.selectProps(task.id)),
+            : rowProps(
+                /* A press that stays still opens the task; one that travels
+                   drags it. The engine decides which, because it is the one
+                   tracking the gesture — see `onTap` in use-sortable-list.
+
+                   The tap asks the *row* to open itself rather than calling a
+                   handler this list was given. That distinction is the whole
+                   point: `onTaskOpen` is a prop every screen has to remember
+                   to pass, and the folder page did not, so tap-to-open worked
+                   on six pages and silently not on the seventh. A row always
+                   knows its own opener, so routing through the row makes the
+                   behaviour a property of TaskRow rather than a courtesy each
+                   caller extends. */
+                drag.surfaceProps(index, () => openers.current.get(task.id)?.()),
+                selection.selectProps(task.id),
+              ),
+          /* How a row hands its opener back. Spread with the rest of the
+             wiring, so every `renderRow` screen gets it without knowing. */
+          onRegisterOpen: (open: (() => void) | null) => {
+            if (open) openers.current.set(task.id, open)
+            else openers.current.delete(task.id)
+          },
           dragState: drag.itemState(index),
           isSelected: selection.selected.includes(task.id),
           selecting: selection.selecting,
@@ -2243,6 +2830,17 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
           key={task.id}
           {...task}
           {...perRow}
+          /* The whole wiring, spread.
+
+             It used to be handed over field by field, which meant every
+             addition to `wiring` had to be repeated here — and twice in a row
+             it was not: "New folder…" was missing from this path, then
+             `onRegisterOpen` was, so tap-to-open worked on the screens that
+             use `renderRow` (which spread wiring) and silently not on the
+             ones that do not. Spreading removes the class of mistake rather
+             than the two instances of it; the explicit handlers below still
+             override, because they come after. */
+          {...wiring}
           onOpen={onTaskOpen ? (mode) => onTaskOpen(task.id, mode) : undefined}
           onToggleComplete={
             onTaskToggleComplete

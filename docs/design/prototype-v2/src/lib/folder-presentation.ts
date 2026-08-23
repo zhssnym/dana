@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react"
+import { record } from "@/lib/history"
 
 export const PROTOTYPE_FOLDER_PRESENTATION_STORAGE_KEY =
   "dana:prototype-folder-presentation"
@@ -138,14 +139,30 @@ export function savePrototypeFolderIdentity(
 
 export function renamePrototypeFolder(folderName: string, displayName: string) {
   const current = snapshot()
+  const was = current.names[folderName] ?? folderName
+  const now = displayName.trim()
   savePresentation({
     ...current,
-    names: { ...current.names, [folderName]: displayName.trim() },
+    names: { ...current.names, [folderName]: now },
   })
+  /* Written here rather than by the surface that asked, for the reason the
+     whole log is built this way: three menus can rename a folder and only one
+     of them would have remembered (lib/history). Coalescing turns a typed
+     name into one line. */
+  if (now && now !== was) {
+    record({ kind: "folder", subject: folderName, name: now, verb: "renamed",
+      detail: `from “${was}”` })
+  }
 }
 
 export function deletePrototypeFolder(folderName: string) {
   const current = snapshot()
+  record({
+    kind: "folder",
+    subject: folderName,
+    name: current.names[folderName] ?? folderName,
+    verb: "deleted",
+  })
   savePresentation({
     ...current,
     deleted: [...new Set([...current.deleted, folderName])],

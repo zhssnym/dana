@@ -58,6 +58,7 @@ import {
   useContext,
   useEffect,
   useRef,
+  useState,
   type ComponentType,
   type CSSProperties,
   type Ref,
@@ -141,52 +142,234 @@ const HOVER_SCOPE = [
   "li",
 ].join(", ")
 
+/*
+Static at rest, animated while touched.
+
+The first build kept the animated component mounted always and drove it with
+`startAnimation` / `stopAnimation`. That is what the library documents, and it
+has one fault this family makes unavoidable: **many of these icons animate
+*in*.** Their resting state is their initial state, which is nothing —
+`stopAnimation` returns them to zero and a never-hovered one starts there. So
+whether an icon was visible at rest depended entirely on which icon it was:
+most of Dana's happened to rest drawn, `UserRoundCheck` rests at zero, and the
+sidebar had been silently switched to static to paper over it, losing the
+animation everywhere to fix one glyph.
+
+Swapping the component instead fixes the class rather than the instance:
+
+- **At rest, the plain Lucide drawing.** It cannot be hidden, because there is
+  no animation state to be in — the thing that made this fragile is gone
+  rather than worked around.
+- **On hover or focus, the animated one mounts and plays its intro**, which is
+  precisely the animation the family was built to show. Nothing has to be
+  triggered against the grain; arriving *is* the effect.
+- **On leave it unmounts back to the drawing.** A remount at rest — the
+  tooltip in the collapsed rail, the case that started all of this — now
+  renders a static icon, so there is nothing left to flash.
+
+Stroke width is matched deliberately: the animated components hardcode 2, so
+the resting drawing takes 2 as well *in this path only*. Otherwise the glyph
+would visibly thicken on hover, which reads as a wobble rather than as an
+animation. The static-mode path below keeps the call site's own 1.75.
+*/
 function AnimatedIcon({
   Component,
+  Static,
   className,
   style,
   size,
   ...rest
-}: IconProps & { Component: AnimComponent }) {
+}: IconProps & { Component: AnimComponent; Static: LucideIcon }) {
   const handle = useRef<AnimHandle | null>(null)
   const host = useRef<HTMLSpanElement | null>(null)
 
+  /*
+  Both layers are mounted always, and **exactly one of them is ever visible.**
+
+  Mounted always because the alternative was worse: a component mounted under
+  a pointer already inside it never receives an enter, so it sat in its hidden
+  initial state and the icon went blank for as long as you hovered. Keeping it
+  mounted means its imperative handle is attached long before anyone touches
+  the control, so `startAnimation` has something to talk to.
+
+  Visible one at a time because the previous revision painted both, and two
+  identical strokes at 16px do not disappear into each other — they read as a
+  doubled, slightly blurred glyph, which is what Imran saw on 2026-08-22 as
+  "one icon on top of the other, in every instance". The overlay does not rest
+  at zero for most of this family; it rests fully drawn, so "the drawing shows
+  through when the animation is idle" was true for a handful of glyphs and
+  false for the rest.
+
+  So visibility is switched rather than assumed:
+
+  - **at rest** the plain drawing shows and the animation is hidden;
+  - **while touched** the animation shows and the drawing is hidden;
+  - **on leave** they swap back, which is invisible because the animation ends
+    on exactly the drawing the static layer is.
+
+  The invariant that matters survives: an icon's visibility never depends on
+  an animation succeeding, because the layer that is visible at rest has no
+  animation state at all.
+  */
+  const [playing, setPlaying] = useState(false)
+
   useEffect(() => {
-    const parent = host.current?.parentElement
+    const parent = host.current
     if (!parent) return
     const scope = parent.closest(HOVER_SCOPE) ?? parent
-    const enter = () => handle.current?.startAnimation()
-    const leave = () => handle.current?.stopAnimation()
+    const enter = () => {
+      setPlaying(true)
+      handle.current?.startAnimation()
+    }
+    const leave = () => {
+      setPlaying(false)
+      handle.current?.stopAnimation()
+    }
     scope.addEventListener("mouseenter", enter)
     scope.addEventListener("mouseleave", leave)
+    /* Keyboard users get it too: a tab stop is touching the control. */
+    scope.addEventListener("focusin", enter)
+    scope.addEventListener("focusout", leave)
     return () => {
       scope.removeEventListener("mouseenter", enter)
       scope.removeEventListener("mouseleave", leave)
+      scope.removeEventListener("focusin", enter)
+      scope.removeEventListener("focusout", leave)
     }
   }, [])
 
-  const sized = /(?:^|\s)!?size-/.test(className ?? "")
-
   return (
-    <span ref={host} style={{ display: "contents" }}>
-      <Component
-        ref={handle}
-        className={cn("shrink-0", sized && "[&>svg]:!size-full", className)}
-        size={typeof size === "number" ? size : pixelSize(className)}
-        style={style}
-        {...(rest as Record<string, unknown>)}
+    <span
+      ref={host}
+      /*
+      A size, always — F5, 2026-08-22.
+
+      An icon given no size class fell back to lucide's own 24px, and that is
+      how the overflow menus ended up disagreeing with each other: shadcn
+      sizes a menu's glyphs with `[&_svg:not([class*='size-'])]:size-3.5`,
+      which cannot reach ours. Our icons are a *span* wrapping an svg that
+      carries `size-full`, and `size-full` contains the substring the
+      selector excludes — so the primitive's rule silently skipped every one
+      of them. Menus whose author happened to pass `size-4` looked right;
+      menus that trusted the primitive were 24px.
+
+      So the family carries its own default, and it is the compact icon token
+      the design already has (16px). Anything wanting another size still says
+      so, and the two can no longer disagree because only one of them is a
+      decision.
+      */
+      className={cn(
+        "relative inline-flex shrink-0",
+        !/(?:^|\s)(?:size|[hw])-/.test(className ?? "") && "size-4",
+        className,
+      )}
+      style={style}
+    >
+      {/* The drawing. Hidden — not unmounted — while the animation plays, so
+          the geometry underneath never reflows. */}
+      <Static
+        className={cn("size-full", playing && "invisible")}
+        strokeWidth={2}
+        aria-hidden="true"
       />
+      {/*
+      The animation, exactly over it and pointer-transparent so it cannot take
+      the hover it exists to react to.
+
+      **The positioning belongs to this span, not to the animated component.**
+      It used to be handed to the component as a `className`, which works only
+      for the ones that forward it — and `BookmarkIcon` does not. The class
+      went nowhere, the overlay stayed in flow, and the wrapper then held two
+      flex items in a 14px box, so both halves rendered at 7px wide: a glyph
+      squashed to half its width, in a family where every other glyph was
+      fine. Owning the layer ourselves means a component that drops props can
+      no longer break the geometry around it (DES-154). The size rule is a
+      descendant selector for the same reason — some of these render their own
+      wrapper around the svg and some do not.
+      */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-0 [&_svg]:!size-full",
+          !playing && "invisible",
+        )}
+      >
+        <Component
+          ref={handle}
+          size={typeof size === "number" ? size : pixelSize(className)}
+          {...(rest as Record<string, unknown>)}
+        />
+      </span>
     </span>
   )
 }
 
-function icon(Static: LucideIcon, Animated: AnimComponent): LucideIcon {
+/*
+`Animated` may be null, and that is a real answer rather than a gap.
+
+The animated library covers most of Lucide and not all of it, and the
+temptation when it does not is to reach for something close — which is
+exactly how the two alert glyphs came to animate into a *triangle* and mean
+two things (DES-159). A drawing with no animation of its own is drawn plain
+and does not move. That is a smaller loss than a glyph that turns into a
+different object under the pointer.
+
+**Twenty-nine of them were doing exactly that** — Imran, 2026-08-22: some
+icons "having one icon but changes with another when replaced". The filter
+was three lines at rest and a funnel under the pointer; Settings was sliders
+and then a gear; Folders opened, Ban became a crossed flag, the grip became
+an ellipsis. Each one was a near-enough substitute chosen when the animated
+library had no exact twin, and near enough is what DES-159 already ruled
+against. They keep their drawings and lose their motion.
+
+The audit checks it now, by rendering both and comparing them rather than by
+reading names: lucide keeps aliases beside their replacements, so
+`CheckCircle2` and `CircleCheckBig` are the same picture under two names and
+must not be reported.
+
+**Which half gives way is a judgement per icon, and Imran corrected mine.** The
+rule leaves two ways to satisfy it — change the animation or change the
+drawing — and the first pass took the drawing every time, which spent the
+motion on twenty-nine glyphs to keep pictures that were not always the better
+ones. He named the two that mattered: *"I want the icons that are removed
+instead coz they were strong, especially for filter and settings."* The filter
+is a funnel now and Settings is a gear; seven more went with them, and all nine
+animate again.
+
+**Twenty stay drawn plain, each for a reason rather than for tidiness.** In
+every one of these the animated twin would have changed what the glyph means,
+or landed on a name already here:
+
+- `Ban` → a crossed flag. Abandoned is not "unflagged".
+- `CircleAlert` → a triangle. This is the exact morph DES-159 removed, and a
+  triangle carries danger where a circle carries notice. **Imran's to
+  overrule** if he wants the triangle at rest.
+- `UserRoundPlus` → a square-headed figure, breaking the round-head family
+  `UserRound` and `UserRoundCheck` belong to.
+- `FolderInput` → an open folder, losing the arrow that *is* "move into".
+- `Folders` → one closed folder, losing the plurality a group is named for.
+- `GripVertical` → a vertical ellipsis, which is the overflow menu.
+- `ListPlus` → a plain list, losing the plus.
+- `ListTodo` → `ListChecks`, which is already the steps glyph here.
+- `Group` → a list. Grouping is not listing.
+- `Palette` → a blend. A palette says colour; a blend says opacity.
+- `PanelLeft` → a hamburger and `PanelRight` → a list. A panel toggle is
+  neither, and the two would have landed on one drawing.
+- `Maximize2` → an arrow leaving a box, which is "open elsewhere" rather than
+  "fill the screen"; `PictureInPicture2` → the same arrow.
+- `Fullscreen` and `SquareSquare` → both to a scan bracket: one drawing under
+  two names, and the wrong drawing.
+- `Undo2` and `Redo2` → elbow arrows, which name a direction rather than an act.
+- `RotateCcw` → `History`, a name this module already uses.
+- `LampDesk` has no animated twin at all (DES-181).
+*/
+function icon(Static: LucideIcon, Animated: AnimComponent | null): LucideIcon {
   function DanaIcon({
     strokeWidth,
     absoluteStrokeWidth,
     ...rest
   }: IconProps) {
-    const motion = useContext(IconMotionContext)
+    const motion = useContext(IconMotionContext) && Animated !== null
 
     /* Static means static all the way down: the plain Lucide component, with
        its stroke width honoured. Nothing mounts, so nothing can flash on a
@@ -198,11 +381,19 @@ function icon(Static: LucideIcon, Animated: AnimComponent): LucideIcon {
           strokeWidth={strokeWidth}
           absoluteStrokeWidth={absoluteStrokeWidth}
           {...rest}
+          /* The same default as the animated path above, so an icon is not
+             one size with motion on and another with it off — which it was,
+             because this path is a bare svg that shadcn's own rule *can*
+             reach and the other is not. */
+          className={cn(
+            !/(?:^|\s)(?:size|[hw])-/.test(rest.className ?? "") && "size-4",
+            rest.className,
+          )}
         />
       )
     }
 
-    return <AnimatedIcon Component={Animated} {...rest} />
+    return <AnimatedIcon Component={Animated} Static={Static} {...rest} />
   }
 
   return DanaIcon
@@ -213,59 +404,145 @@ function icon(Static: LucideIcon, Animated: AnimComponent): LucideIcon {
    Name-for-name with Lucide where the animated family has the icon; where it
    does not, the substitute and the reason are on the line.                   */
 
-export const AlertCircle = icon(Lu.AlertCircle, Anim.TriangleAlertIcon) // animated: no circle-alert
+/*
+Failure, and only failure — F5, 2026-08-22.
+
+There were two names here for one drawing: `AlertCircle` and `CircleAlert` are
+the same lucide glyph, kept side by side because lucide keeps its deprecated
+alias next to the replacement. Nothing in the source showed it, and the two
+names had drifted onto two different meanings — one saying "this request
+failed" in the error state, the other saying "this task is late" on a row.
+One picture, two meanings, which is the fault Imran's rule names from the
+other direction.
+
+Worse, both were paired with `TriangleAlertIcon`, because the animated set has
+no circle-alert: the resting glyph was a circle and the hover animation was a
+triangle, so every one of them changed shape under the pointer.
+
+The triangle is the conventional glyph for *something went wrong*, and it is
+the one with a real animated twin, so failure takes it and the static and the
+animation are finally the same shape. Lateness stops borrowing it — see the
+due chip, which now keeps `CalendarDays` in every state and says "Overdue" in
+danger red, because a field that changes glyph with its state is a field you
+cannot find by shape.
+*/
+export const TriangleAlert = icon(Lu.TriangleAlert, Anim.TriangleAlertIcon)
 export const AlignLeft = icon(Lu.AlignLeft, Anim.AlignLeftIcon)
-export const Ban = icon(Lu.Ban, Anim.FlagOffIcon) // animated: no ban. Abandoned is a
+export const Ban = icon(Lu.Ban, null) // animated: no ban. Abandoned is a
 export const Bell = icon(Lu.Bell, Anim.BellIcon)
+export const ArrowLeft = icon(Lu.ArrowLeft, Anim.ArrowLeftIcon)
+export const ArrowRight = icon(Lu.ArrowRight, Anim.ArrowRightIcon)
+export const CalendarCheck2 = icon(Lu.CalendarCheck, Anim.CalendarCheckIcon)
+export const CalendarClock = icon(Lu.CalendarClock, Anim.CalendarClockIcon)
+/* No date on it — the other value of the axis `CalendarDays` carries, and
+   the filter's own words for it ("No due date"). Static and animation are the
+   same drawing. */
+export const CalendarX = icon(Lu.CalendarX, Anim.CalendarXIcon)
+export const Download = icon(Lu.Download, Anim.DownloadIcon)
+export const FolderOpen = icon(Lu.FolderOpen, Anim.FolderOpenIcon)
+export const MailPlus = icon(Lu.MailPlus, Anim.MailPlusIcon)
+export const MailWarning = icon(Lu.MailWarning, Anim.MailWarningIcon)
+/* animated: no user-round-plus, and the family's user-plus is the same act */
+export const UserRoundPlus = icon(Lu.UserRoundPlus, null)
 export const CalendarDays = icon(Lu.CalendarDays, Anim.CalendarDaysIcon)
 export const Check = icon(Lu.Check, Anim.CheckIcon)
-export const CheckCircle2 = icon(Lu.CheckCircle2, Anim.CircleCheckBigIcon)
+export const CheckCircle2 = icon(Lu.CircleCheckBig, Anim.CircleCheckBigIcon)
 export const ChevronDown = icon(Lu.ChevronDown, Anim.ChevronDownIcon)
 export const ChevronLeft = icon(Lu.ChevronLeft, Anim.ChevronLeftIcon)
 export const ChevronRight = icon(Lu.ChevronRight, Anim.ChevronRightIcon)
-export const CircleAlert = icon(Lu.CircleAlert, Anim.TriangleAlertIcon)
-export const Clock3 = icon(Lu.Clock3, Anim.ClockIcon)
+export const CircleAlert = icon(Lu.CircleAlert, null)
+export const Clock3 = icon(Lu.Clock, Anim.ClockIcon)
 export const Copy = icon(Lu.Copy, Anim.CopyIcon)
+/* The two acts the object contract named that had no glyph yet. Neither has an
+   animated twin, so both are drawn plain — DES-187 rule. */
+export const OpenInNewTab = icon(Lu.SquareArrowOutUpRight, null)
+export const Workflow = icon(Lu.Workflow, null)
+/* Hiding a view from the sidebar (DES-170). Static and animation are the
+   same drawing, which is the rule the alert glyphs broke. */
+export const EyeOff = icon(Lu.EyeOff, Anim.EyeOffIcon)
 export const FileText = icon(Lu.FileText, Anim.FileTextIcon)
-export const Film = icon(Lu.Film, Anim.VideoIcon) // animated: no film
+export const Video = icon(Lu.Video, Anim.VideoIcon) // animated: no film
 export const Folder = icon(Lu.Folder, Anim.FolderIcon)
-export const FolderInput = icon(Lu.FolderInput, Anim.FolderOpenIcon) // animated: no folder-input
+export const FolderInput = icon(Lu.FolderInput, null) // animated: no folder-input
 export const FolderPlus = icon(Lu.FolderPlus, Anim.FolderPlusIcon)
-export const Folders = icon(Lu.Folders, Anim.FolderClosedIcon) // animated: no folders
-export const GripVertical = icon(Lu.GripVertical, Anim.EllipsisVerticalIcon)
-export const History = icon(Lu.History, Anim.ClockIcon)
+export const Folders = icon(Lu.Folders, null) // animated: no folders
+export const GripVertical = icon(Lu.GripVertical, null)
+export const History = icon(Lu.History, Anim.HistoryIcon)
 export const Image = icon(Lu.Image, Anim.ImageIcon)
+/* Desk's mark (DES-152). The glyph is Lucide's tray, which is the drawing
+   the name describes — a shallow tray things land in — rather than the
+   envelope-adjacent one its Lucide name suggests. */
+export const Inbox = icon(Lu.Inbox, Anim.InboxIcon)
 export const Layers3 = icon(Lu.Layers3, Anim.LayersIcon)
-export const Link2 = icon(Lu.Link2, Anim.LinkIcon)
+export const Link2 = icon(Lu.Link, Anim.LinkIcon)
 export const ListChecks = icon(Lu.ListChecks, Anim.ListChecksIcon)
-export const ListFilter = icon(Lu.ListFilter, Anim.FilterIcon)
-export const ListPlus = icon(Lu.ListPlus, Anim.ListIcon) // animated: no list-plus
-export const ListTodo = icon(Lu.ListTodo, Anim.ListChecksIcon) // animated: no list-todo
+export const Filter = icon(Lu.Filter, Anim.FilterIcon)
+export const ListPlus = icon(Lu.ListPlus, null) // animated: no list-plus
+export const ListTodo = icon(Lu.ListTodo, null) // animated: no list-todo
 export const LogOut = icon(Lu.LogOut, Anim.LogOutIcon)
 export const Mail = icon(Lu.Mail, Anim.MailIcon)
-export const Maximize2 = icon(Lu.Maximize2, Anim.SquareArrowOutUpRightIcon)
+export const Maximize2 = icon(Lu.Maximize2, null)
 export const MoreHorizontal = icon(Lu.MoreHorizontal, Anim.EllipsisIcon)
-export const Palette = icon(Lu.Palette, Anim.BlendIcon) // animated: no palette
-export const PanelLeft = icon(Lu.PanelLeft, Anim.MenuIcon) // animated: no panel-left
+export const Palette = icon(Lu.Palette, null) // animated: no palette
+export const PanelLeft = icon(Lu.PanelLeft, null) // animated: no panel-left
 export const Paperclip = icon(Lu.Paperclip, Anim.PaperclipIcon)
 export const Pencil = icon(Lu.Pencil, Anim.PencilIcon)
 export const Pin = icon(Lu.Pin, Anim.PinIcon)
 export const Play = icon(Lu.Play, Anim.PlayIcon)
 export const Plus = icon(Lu.Plus, Anim.PlusIcon)
-export const Redo2 = icon(Lu.Redo2, Anim.CornerUpRightIcon) // animated: no redo
+export const Redo2 = icon(Lu.Redo2, null) // animated: no redo
 export const RefreshCw = icon(Lu.RefreshCw, Anim.RefreshCwIcon)
 export const Repeat2 = icon(Lu.Repeat2, Anim.Repeat2Icon)
-export const RotateCcw = icon(Lu.RotateCcw, Anim.HistoryIcon) // animated: no rotate-ccw
+export const RotateCcw = icon(Lu.RotateCcw, null) // animated: no rotate-ccw
 export const Search = icon(Lu.Search, Anim.SearchIcon)
-export const Settings2 = icon(Lu.Settings2, Anim.SettingsIcon)
+export const Settings = icon(Lu.Settings, Anim.SettingsIcon)
 export const Share2 = icon(Lu.Share2, Anim.ShareIcon)
 export const SlidersHorizontal = icon(Lu.SlidersHorizontal, Anim.SlidersHorizontalIcon)
+/* F5, for the rebuilt filter's arrangement axes and its Save as view. */
+export const ArrowDownUp = icon(Lu.ArrowDownUp, Anim.ArrowDownUpIcon)
+export const Bookmark = icon(Lu.Bookmark, Anim.BookmarkIcon)
+export const Group = icon(Lu.Group, null)
 export const Star = icon(Lu.Star, Anim.StarIcon)
 export const SunMedium = icon(Lu.SunMedium, Anim.SunMediumIcon)
 export const Trash2 = icon(Lu.Trash2, Anim.Trash2Icon)
-export const Undo2 = icon(Lu.Undo2, Anim.CornerUpLeftIcon) // animated: no undo
+export const Undo2 = icon(Lu.Undo2, null)
+/*
+Desk's mark, ruled by Imran 2026-08-22: a desk lamp.
+
+Desk replaced Inbox because Inbox carries email posture (DES-152) — and
+then went on wearing the literal tray, so the page had escaped the word and
+not the picture. A lamp is where you work rather than where things arrive,
+which is the whole distinction the rename was for.
+
+The animated family has no desk lamp and it is drawn plain rather than
+animated into something else; see the note on `icon`.
+*/
+export const LampDesk = icon(Lu.LampDesk, null)
 export const UserPlus = icon(Lu.UserPlus, Anim.UserPlusIcon)
+/*
+People's own mark.
+
+Imran, on the sidebar: Assignments and People were both round-head person
+glyphs, and at 16px two figures of the same family read as the same row. The
+split that fixes it is a real difference rather than a different accessory:
+**Assignments is work that belongs to somebody** — a person carrying a tick —
+while **People is the roster of humans you share with**, which is a card with
+a person on it. The card's rectangle dominates at 16px, so the two are told
+apart by shape rather than by a detail nobody can see at that size.
+
+`one-page-one-mark` could not have caught this: two *different* names is
+exactly what that rule wants, and no static rule can judge that two drawings
+look alike. What it can see now is the footer, because the footer's two
+screens joined `nav-model` in the same pass.
+*/
+export const Contact = icon(Lu.Contact, Anim.ContactIcon)
 export const UserRound = icon(Lu.UserRound, Anim.UserRoundIcon)
+/* Assignments' own mark. `UsersRound` was carrying five meanings at once —
+   the People roster, the Assignments page, the "Everyone" scope, a folder's
+   members and a landing-page bullet — so the page that means "work that
+   belongs to somebody" takes the person-with-a-check and leaves the plain
+   group to mean a group of people. */
+export const UserRoundCheck = icon(Lu.UserRoundCheck, Anim.UserRoundCheckIcon)
 export const UsersRound = icon(Lu.UsersRound, Anim.UsersRoundIcon)
 export const WifiOff = icon(Lu.WifiOff, Anim.WifiOffIcon)
 export const X = icon(Lu.X, Anim.XIcon)
@@ -289,11 +566,17 @@ export const List = icon(Lu.List, Anim.ListIcon)
 export const ArrowDown = icon(Lu.ArrowDown, Anim.ArrowDownIcon)
 export const ArrowUp = icon(Lu.ArrowUp, Anim.ArrowUpIcon)
 export const ArrowUpRight = icon(Lu.ArrowUpRight, Anim.ArrowUpRightIcon)
-export const Fullscreen = icon(Lu.Fullscreen, Anim.ScanIcon) // animated: no fullscreen; Scan is the same corners without the centre pane
+export const Fullscreen = icon(Lu.Fullscreen, null) // animated: no fullscreen; Scan is the same corners without the centre pane
+/* A dialog: a panel standing over the page. It had been drawn with
+   `Fullscreen`, which is a different thing entirely and the one place a task
+   can open that this is not. animated: the set has no plain square, and Scan
+   is the nearest true shape — a bounded region drawn by its edges, which is
+   what both of these are. */
+export const SquareSquare = icon(Lu.SquareSquare, null)
 export const Heading1 = icon(Lu.Heading1, Anim.Heading1Icon)
 export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
-export const PanelRight = icon(Lu.PanelRight, Anim.LayoutListIcon) // animated: no panel-right; layout-list reads as a panel beside a page, where the menu glyph read as a hamburger
-export const PictureInPicture2 = icon(Lu.PictureInPicture2, Anim.ExternalLinkIcon) // animated: no pip; the out-of-flow meaning survives
+export const PanelRight = icon(Lu.PanelRight, null) // animated: no panel-right; layout-list reads as a panel beside a page, where the menu glyph read as a hamburger
+export const PictureInPicture2 = icon(Lu.PictureInPicture2, null) // animated: no pip; the out-of-flow meaning survives
 export const Pilcrow = icon(Lu.Pilcrow, Anim.PilcrowIcon)
 export const ThumbsUp = icon(Lu.ThumbsUp, Anim.ThumbsUpIcon)
 
@@ -320,7 +603,7 @@ export const Drum = icon(Lu.Drum, Anim.DrumIcon)
 export const Fish = icon(Lu.Fish, Anim.FishIcon)
 export const Flame = icon(Lu.Flame, Anim.FlameIcon)
 export const Footprints = icon(Lu.Footprints, Anim.FootprintsIcon)
-export const Gamepad = icon(Lu.Gamepad, Anim.GamepadIcon)
+export const Gamepad = icon(Lu.Gamepad2, Anim.GamepadIcon)
 export const Gift = icon(Lu.Gift, Anim.GiftIcon)
 export const Globe = icon(Lu.Globe, Anim.GlobeIcon)
 export const Guitar = icon(Lu.Guitar, Anim.GuitarIcon)

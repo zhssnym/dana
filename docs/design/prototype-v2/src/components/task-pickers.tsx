@@ -515,11 +515,22 @@ export function RepeatPanel({ task, patch }: PanelProps) {
             }
           />
           {(task.repeatUnit ?? "week") === "week" ? (
-            <div className="flex items-center gap-2 px-2 py-1">
-              <span className="w-12 shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+            <div className="px-2 py-1">
+              {/* The weekday row gets its own line and a seven-column grid.
+
+                  It was a label plus seven 28px circles on one line: 48 + 8 +
+                  7×28 + 6×4 = 292px inside a 268px panel, so the last day sat
+                  outside the popover's own edge — the thing Imran saw as
+                  "elements out of the margins". A row of seven fixed circles
+                  beside a fixed label cannot fit a panel sized for prose, and
+                  widening the panel to suit one row would make every other
+                  picker wider for nothing (DES-147: a popover is as wide as
+                  what it holds). A grid divides whatever width there is, so
+                  this row cannot overflow at any panel size. */}
+              <span className="mb-1 block text-[12px] leading-4 text-[var(--color-graphite-500)]">
                 On
               </span>
-              <div className="flex gap-1">
+              <div className="grid grid-cols-7 gap-1">
                 {WEEKDAY_KEYS.map((day) => {
                   const on = task.repeatDays?.includes(day) ?? false
                   return (
@@ -536,7 +547,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                         })
                       }
                       className={cn(
-                        "size-7 rounded-full text-[11px] leading-4 transition-colors",
+                        "flex h-7 w-full items-center justify-center rounded-full text-[11px] leading-4 transition-colors",
                         T_FAST,
                         FOCUS,
                         on

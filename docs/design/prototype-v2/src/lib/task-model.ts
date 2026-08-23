@@ -36,6 +36,38 @@ Fixtures only, and further from shipping than most of what the card draws:
 there is no message table, no audio storage and no delivery story behind any
 of it. DES-129 carries the four facts.
 */
+/*
+Something attached to a task or hung on a comment.
+
+One declaration. It was written out twice — once for a task's attachments and
+once for a comment's files — with the same four fields, which is how a `link`
+kind can be added to one and not the other.
+
+**`link` is a kind, not a file with an address**, and that distinction is the
+whole of the fault Imran found: a pasted link was stored as `kind: "file"`, so
+it landed in the file list wearing a paperclip and a row that said
+**"Download"**. It was neither downloadable nor openable — the only thing you
+could click did nothing at all, because the row's click only opens an image
+preview.
+
+A link has a `url` and is rendered as an anchor. A file does not and is not.
+
+`kind` stays a small closed set rather than a MIME type, for the reason
+DES-055 gives: a server has to decide this by sniffing the bytes anyway,
+because a browser will happily run a script a client labelled image/png, so
+the client never sees a type it might be tempted to trust.
+*/
+export interface Attachment {
+  name: string
+  meta: string
+  kind: "image" | "video" | "document" | "file" | "link"
+  /* A thumbnail, where there is something to see. */
+  preview?: string
+  /* Where the link goes. Set only on `kind: "link"`; a file has no address
+     that outlives the session. */
+  url?: string
+}
+
 export interface ConceptComment {
   id: string
   author: { initials: string; name: string; image?: string }
@@ -55,12 +87,7 @@ export interface ConceptComment {
      a fixture sweeps its progress and stays silent, which is as far as a
      drawing can honestly go. */
   voice?: { seconds: number; bars: number[]; url?: string }
-  files?: {
-    name: string
-    meta: string
-    kind: "image" | "video" | "document" | "file"
-    preview?: string
-  }[]
+  files?: Attachment[]
   /* Mine, so the prototype knows which comments offer Delete without
      pretending it has an identity system. */
   mine?: boolean
@@ -103,12 +130,7 @@ export interface ConceptTask {
      server has to decide this by sniffing the bytes anyway — a browser will
      happily run a script that a client labelled image/png — so the client
      never sees a MIME type it might be tempted to trust. */
-  attachments?: {
-    name: string
-    meta: string
-    kind: "image" | "video" | "document" | "file"
-    preview?: string
-  }[]
+  attachments?: Attachment[]
   /* Which unit a recurrence counts in. Added with the rebuilt Repeat picker,
      which offers daily, weekly, monthly and yearly where the old one offered
      weekly or nothing. Fixtures only; DES-107 territory for the port. */
@@ -133,12 +155,57 @@ export function stepCount(task: ConceptTask) {
 
 /* --------------------------------------------------------------- dates -- */
 /*
-The lab's notional today. The fixtures were written around it — 6 and 8 August
-are overdue and 14 August is not — so anything drawing a calendar has to agree
-with them, or the row and the picker open above it will contradict each other
-on screen while each looks right on its own.
+The prototype's notional today, and there is exactly one of it.
+
+The fixtures were written around it — 6 and 8 August are overdue and 14 August
+is not — so anything drawing a calendar has to agree with them, or the row and
+the picker open above it will contradict each other on screen while each looks
+right on its own.
+
+**Corrected at F5, 2026-08-22, from Thursday 13 August to Monday 10 August**,
+because three places named today and only one of them was consulted here. The
+shell's own tasks carry `dueDate: "2026-08-10"` and read "Due today"; My Day's
+fact says "Monday, 10 August" in the copy and in DES-149's entry; the Scheduled
+ladder keyed off its own `"2026-08-10"`. Against Thursday the 13th, a task the
+row calls "12 Aug" is overdue and does not say so, and the Due picker's
+calendar circled a different day from the one the row it opened over called
+today. The 10th is a Monday, which is what the copy claims; the 13th is a
+Thursday, which nothing claimed. DES-154 again: one fact, one definition.
 */
-export const LAB_TODAY = new Date(2026, 7, 13)
+export const LAB_TODAY = new Date(2026, 7, 10)
+
+/* The same day as an ISO key, for the screens that bucket by string rather
+   than compare Dates. `Date.toISOString` is UTC and would hand back the day
+   before for anyone west of Greenwich, which is why this is built by hand. */
+export function isoDay(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+export const TODAY_ISO = isoDay(LAB_TODAY)
+
+/* `isoDay`'s inverse. Local, not `new Date("2026-08-10")`, which parses as
+   UTC midnight and lands on the previous day for anyone west of Greenwich. */
+export function parseIsoDate(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number)
+  return new Date(year ?? 2026, (month ?? 1) - 1, day ?? 1)
+}
+
+/*
+A person's first name, lowercased — the prototype's only way of telling two
+mentions of one person apart.
+
+The fixtures disagree with themselves about the rest of it: a row's person is
+"Sara" and the same task's record says "Sara Khan", so an exact match silently
+drops half the rows and reads as a broken filter rather than a fixture fault.
+Three places needed this by F5 — the Assignments page, the filter's people
+axes, and grouping by person — and each had written it out again, which is
+DES-154's own example. A real client would compare ids and none of this
+survives the port.
+*/
+export const firstName = (name: string | undefined) =>
+  name?.trim().split(/\s+/)[0]?.toLowerCase() ?? ""
 
 export const MONTH_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -190,17 +257,50 @@ export function parseDueLabel(label: string): Date | null {
   return new Date(2026, month, Number(found[1]))
 }
 
+/*
+The relative ladder, decided once — R5.
+
+The arithmetic behind "is it late, is it today, is it tomorrow, or is it a
+date" had been written out three times: here for the row's chip, in
+`groupTasks` for a date grouping's headings, and again in the filter panel's
+range labels. Three copies of one ladder is three chances for two of them to
+disagree about what "tomorrow" means, and nothing in the product would have
+said so.
+
+The *rung* is shared; the *words* are not, and deliberately. A row says "Due
+tomorrow" because it is describing one task; a heading says "Tomorrow" because
+it is naming a bucket. Sharing the sentence would have forced one of them to
+read wrongly, so what is shared is the decision underneath it.
+*/
+export type DayRung = "overdue" | "today" | "tomorrow" | "later"
+
+export function dayRung(date: Date): DayRung {
+  const days = daysBetween(LAB_TODAY, date)
+  if (days < 0) return "overdue"
+  if (days === 0) return "today"
+  if (days === 1) return "tomorrow"
+  return "later"
+}
+
+/* The short absolute form — "18 Aug" — which every chip, heading and range
+   label uses. The long form is the Done page's day headings, and the two are
+   the only two this product has (R5's "two absolute formats"). */
+export function dayStamp(date: Date) {
+  return `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`
+}
+
 /* And back out again in the fixtures' own words, so a date set from the picker
    reads in the row exactly like one that was always there. Overdue is derived
    here rather than passed in, because it is a fact about the date rather than
    a second thing somebody could set wrongly. */
 export function dueLabelFor(date: Date): { label: string; overdue?: boolean } {
-  const days = daysBetween(LAB_TODAY, date)
-  if (days === 0) return { label: "Due today" }
-  if (days === 1) return { label: "Due tomorrow" }
-  const stamp = `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`
-  if (days < 0) return { label: `Overdue · ${stamp}`, overdue: true }
-  return { label: `Due ${stamp}` }
+  const rung = dayRung(date)
+  if (rung === "today") return { label: "Due today" }
+  if (rung === "tomorrow") return { label: "Due tomorrow" }
+  if (rung === "overdue") {
+    return { label: `Overdue · ${dayStamp(date)}`, overdue: true }
+  }
+  return { label: `Due ${dayStamp(date)}` }
 }
 
 /* "Sat 15 Aug" — the hint beside a preset, so "This weekend" says which day it
@@ -360,10 +460,10 @@ export const FERN = "var(--color-folder-fern)"
 export const TEAL = "var(--color-folder-teal)"
 
 export const FOLDERS = [
-  { name: "Wedding", color: VIOLET },
-  { name: "Community planning committee", color: FERN },
+  { name: "Travel", color: VIOLET },
+  { name: "Office", color: FERN },
   { name: "Home", color: TEAL },
-  { name: "Inbox", color: "var(--color-graphite-400)" },
+  { name: "Desk", color: "var(--color-graphite-400)" },
 ]
 
 export const PEOPLE = [
@@ -371,3 +471,41 @@ export const PEOPLE = [
   { initials: "SK", name: "Sara", image: FACE_SARA },
   { initials: "HN", name: "Hassan", image: FACE_HASSAN },
 ]
+
+/*
+A person's colour, derived from their name.
+
+Imran, 2026-08-22: the avatars "feel underpolished and make the design feel
+generic and AI-generated". Every fallback was the same flat grey, so a row of
+people read as a row of identical discs and the initials did all the work.
+
+A tint earns its place twice: it is **deterministic**, so one person is the
+same colour on every surface and a face becomes scannable before the initials
+are read; and it introduces **no new colour** — these are the ten folder
+swatches the tokens have carried since v1, which is W1's rule that one palette
+serves the whole product. Hashing the name means nothing has to be stored and
+two surfaces cannot disagree.
+
+It lives here rather than beside either avatar because both `task-card` and
+`comments` need it and neither should own the other's copy.
+*/
+const PERSON_TINTS = [
+  "--color-folder-cobalt",
+  "--color-folder-fern",
+  "--color-folder-plum",
+  "--color-folder-teal",
+  "--color-folder-clay",
+  "--color-folder-violet",
+  "--color-folder-sky",
+  "--color-folder-ochre",
+  "--color-folder-rose",
+  "--color-folder-olive",
+]
+
+export function personTint(name: string) {
+  let hash = 0
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) % 100000
+  }
+  return `var(${PERSON_TINTS[hash % PERSON_TINTS.length]})`
+}
