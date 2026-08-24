@@ -25,7 +25,9 @@ export interface RawResponse {
 export interface RawRequestOptions {
   method?: string
   headers?: Record<string, string>
-  body?: string
+  /** A Buffer is written raw; the byte length is computed either way. Added
+   * for the 7.15 multipart criteria, whose payloads are binary. */
+  body?: string | Buffer
   /** Sent verbatim as the Host header; fetch cannot do this. */
   hostHeader?: string
 }

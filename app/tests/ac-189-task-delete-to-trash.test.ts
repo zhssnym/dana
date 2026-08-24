@@ -55,7 +55,7 @@ describe('AC-189 a deleted task waits in Trash', () => {
     ).toBe(true)
 
     const folderView = await owner.browser.json(
-      `/folders/${folderId}/tasks`,
+      `/folders/${folderId}/tasks?tz=UTC`,
       'GET',
     )
     expectStatus(folderView, 200, 'the folder view must still answer (spec 6 Q7)')
