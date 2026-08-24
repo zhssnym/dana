@@ -376,6 +376,18 @@ ground-ready note now; the reference exports after Codex's landing pass),
 then V10's side-by-side against production for the two SESSION-LOG
 verdicts, then the pricing session with Hassan.
 
+**V9's records half ran the same day.** The fold: `design-contract.md` gained
+its v2 part — a preamble with the approval basis and precedence rule, a
+table of v1 decisions amended by v2, the full v2 register DES-093 → DES-224
+as an index over this register's reasoning, and the v2 approval block — and
+ten fully-superseded v1 rows were flipped in place with pointers (DES-021,
+023, 025, 049, 052, 059, 062, 067, 074, 085). `screen-registry.csv` took a
+V2 note on all 28 rows and three new surfaces (Shelf page, Trash,
+Assignments). `notes.md` gained the v2 addendum for the port. And the **W6
+ground-ready note** exists: `v2-ground-ready.md`, the five constraints and
+their seams. **V9 now owes only the reference exports**, held until Codex's
+landing pass so the captured set shows one design; then V10.
+
 **And widened the same day, at his instruction** — "hand off every frontend
 related thing which will not change backend or a design decision to Codex."
 The lane now carries four items, written up as `codex-handoff.md`: the

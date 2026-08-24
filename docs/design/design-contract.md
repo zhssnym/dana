@@ -1,8 +1,8 @@
 # Dana UI design contract
 
-Status: **Sessions 1-7 APPROVED; Session 8 REVIEW**  
+Status: **v1 Sessions 1-8 APPROVED and shipped; v2 refresh register folded 2026-08-24, approved through DES-222**  
 Scope: **desktop UI design and handoff at 1440px; mobile UI deferred**  
-Implementation status: **DESKTOP DESIGN PROTOTYPE AND HANDOFF PACKAGE COMPLETE; AWAITING IMRAN APPROVAL; PRODUCTION REPOSITORY NOT VERIFIED**
+Implementation status: **v1 IN PRODUCTION AT 1.0.0; v2 EXISTS AS `prototype-v2` ON FIXTURES; THE v2 PORT AWAITS THE SPEC RFC AND RFC 0004**
 
 ## Current delivery scope
 
@@ -132,11 +132,11 @@ Statuses: `OPEN`, `PROPOSED`, `APPROVED`, `LOCKED`, `SUPERSEDED`.
 | DES-018 | Ten folder swatches: clay, ochre, olive, fern, teal, sky, cobalt, violet, plum and rose; every swatch travels with a visible folder name | APPROVED | Imran; `tokens.css`; Session 2 approval, 2026-08-10 |
 | DES-019 | Compact 4px-base spacing scale: 4, 8, 12, 16, 20, 24, 32, 40, 48 and 64px; standard interactive targets remain 44px | SUPERSEDED | Superseded by DES-050 for the desktop-only handoff |
 | DES-020 | Radius scale 4/6/10/14px plus full; borders structure pages; elevation 1 is for menus/popovers/toasts and elevation 2 for dialogs/confirms | APPROVED | Imran; `tokens.css`; Session 2 approval, 2026-08-10 |
-| DES-021 | Lucide is Dana's single application icon family: 16px for metadata/chips, 20px for controls/navigation/actions, 1.75 stroke, round caps and joins, no library mixing | APPROVED | Imran; Session 2 direction decision, 2026-08-10 |
+| DES-021 | Lucide is Dana's single application icon family: 16px for metadata/chips, 20px for controls/navigation/actions, 1.75 stroke, round caps and joins, no library mixing | SUPERSEDED | v2: animated Lucide via one icon module, DES-125/DES-162; sizes and stroke survive |
 | DES-022 | Dana motion confirms state change without decorating idle content: menus/selects/popovers approximately 100ms; dialogs 150ms; sidebar/sheet/TaskRow layout 200ms; folder completion collapses after 240ms and keeps Undo for five seconds; no spring, bounce, parallax or continuous motion; production suppresses nonessential transitions for reduced-motion users | APPROVED | Consolidated from the approved prototype in Session 8; implementation reference in `notes.md` |
-| DES-023 | The desktop shell uses a Graphite 50 sidebar with the Dana Mark, Search and collapse controls in its header; a single-current-page 40px page bar; a maximum 1120px content area; and a scrolling folder region while New folder and the footer stay available. Active navigation keeps the Graphite 100 row surface and changes its label/icon to Graphite 900 without an accent stripe | APPROVED | Imran; Session 4 approval, 2026-08-11 |
+| DES-023 | The desktop shell uses a Graphite 50 sidebar with the Dana Mark, Search and collapse controls in its header; a single-current-page 40px page bar; a maximum 1120px content area; and a scrolling folder region while New folder and the footer stay available. Active navigation keeps the Graphite 100 row surface and changes its label/icon to Graphite 900 without an accent stripe | SUPERSEDED | v2: the 800px reading measure (DES-135), the window bar (DES-139) and the tab strip (DES-217); the sidebar's resize range survives as DES-053 |
 | DES-024 | Mobile navigation pattern | OPEN | Deferred beyond the current desktop handoff |
-| DES-025 | The reusable desktop TaskForm uses a resizable shadcn right-side `Sheet` (480-720px, 540px default) for both create and edit; the title is the editable heading, Important stays inline at the right, edit-only destructive actions live in overflow, properties use compact rows, Notes is last, and Cancel/Escape replace a competing close icon. Phone presentation remains deferred | APPROVED | Imran; Session 5 approval, 2026-08-11 |
+| DES-025 | The reusable desktop TaskForm uses a resizable shadcn right-side `Sheet` (480-720px, 540px default) for both create and edit; the title is the editable heading, Important stays inline at the right, edit-only destructive actions live in overflow, properties use compact rows, Notes is last, and Cancel/Escape replace a competing close icon. Phone presentation remains deferred | SUPERSEDED | v2: the form is deleted — a task is its row, card and page (DES-093, DES-136); the card carries the fields (DES-118) |
 | DES-026 | Desktop sharing uses a 440px shadcn Sheet with member, connection, email-invite and pending-invite states; phone presentation remains deferred | APPROVED | Imran continued beyond the Folder/sharing review in Session 6, 2026-08-11 |
 | DES-027 | Detailed responsive transformations | OPEN | Deferred beyond the current desktop handoff |
 | DES-028 | Rich empty-state illustration approach beyond restrained contextual icons | SUPERSEDED | DES-048 approved the restrained contextual Lucide treatment; no illustration system is required for this handoff |
@@ -160,32 +160,32 @@ Statuses: `OPEN`, `PROPOSED`, `APPROVED`, `LOCKED`, `SUPERSEDED`.
 | DES-046 | Inline TaskRow actions use Graphite 200 (`#DDDEE2`) on hover/expanded state | SUPERSEDED | Rejected during Session 3 final review |
 | DES-047 | Inline TaskRow actions have no separate pointer-hover fill; the Graphite 100 full-row hover carries the pointer state, while individual keyboard focus rings remain visible | APPROVED | Imran; Session 3 approval, 2026-08-10 |
 | DES-048 | Reusable empty states may use one restrained contextual Lucide icon in Graphite 400; the icon supports rather than replaces the authoritative copy, and the calendar empty state remains a bare grid | APPROVED | Imran; Session 3 approval, 2026-08-10 |
-| DES-049 | The desktop floating add action is a labelled 40px Graphite 900 `New task` button at bottom right with elevation 1; it is absent on Done | APPROVED | Imran; Session 4 approval, 2026-08-11 |
+| DES-049 | The desktop floating add action is a labelled 40px Graphite 900 `New task` button at bottom right with elevation 1; it is absent on Done | SUPERSEDED | v2: the button retires wherever a capture row or column exists and survives on exactly three pages (DES-133, DES-182) |
 | DES-050 | The desktop handoff uses the approved 4px-base spacing scale and 40px compact control targets; TaskRow retains its separately approved 44px row geometry; 4.5:1 text contrast, visible focus and non-color cues remain required | APPROVED | Imran; Session 4 refinement, 2026-08-11 |
 | DES-051 | The Folders category uses the Lucide `Folders` icon and folder rows use the colored Lucide `Folder` icon | APPROVED | Imran; Session 4 approval, 2026-08-11 |
-| DES-052 | The persistent New folder action is a centered 40px soft Graphite 100 button with 10px radius and Lucide `FolderPlus`; it has no adjacent separators and uses no unreliable browser-reserved shortcut | APPROVED | Imran selected Option C; Session 4, 2026-08-11 |
+| DES-052 | The persistent New folder action is a centered 40px soft Graphite 100 button with 10px radius and Lucide `FolderPlus`; it has no adjacent separators and uses no unreliable browser-reserved shortcut | SUPERSEDED | v2: one primary New folder over a row of three placed by role — New shelf, Import, Trash (DES-209, DES-221) |
 | DES-053 | The desktop sidebar may be resized from 224px to 360px, defaults to 256px, remembers the chosen width locally, and preserves it through collapse/expand; the 56px collapsed rail is unchanged | APPROVED | Imran; Session 4 approval, 2026-08-11 |
 | DES-054 | A user-selectable per-folder Lucide icon or emoji picker is a future proposal, not Dana v1 scope; it requires data-model and API support for persistence before design or implementation | PROPOSED | Deferred for a later version; discuss with Hassan before reopening |
 | DES-055 | Notion-like custom task fields, file or image attachments, and arbitrary content blocks are a future product proposal, not Dana v1 scope; they require explicit product rules plus data-model, API, storage, permission and security support | PROPOSED | Imran idea recorded during Session 5; discuss with Hassan before any design or implementation |
 | DES-056 | Labeled folder-group parents use a 14px semibold label and Graphite 700 emphasis; their 13px child rows use compact indentation and rounded 1px Graphite 400 elbow connectors visible only while the parent is expanded. Child hover, focus and active surfaces begin after the connector instead of extending to the parent edge. The approved 40px sidebar rhythm remains unchanged | APPROVED | Imran; Session 5 shell refinement, 2026-08-11 |
 | DES-057 | Labeled folder-group parents use a larger Lucide `FolderOpen` icon while expanded and `Folder` while collapsed, with each group assigned a distinct existing Dana folder-palette color in the UI fixture; production persistence or customization is not implied | APPROVED | Imran; Session 5 shell refinement approval, 2026-08-11 |
 | DES-058 | My Day uses a quiet date header, an `Important only` switch, separate `Carried over` and `Today` groups, and a collapsed `Done today (N)` recap. It reuses the approved 44px TaskRow and does not introduce card containers around task groups | APPROVED | Imran; Session 6 My Day approval, 2026-08-11 |
-| DES-059 | Tasks follows Q2 directly: Inbox rows come first without a heading, remaining non-empty folders appear as alphabetized folder-headed groups, and each group ends with a quiet inline QuickAdd that creates an undated task in that folder or escalates to the full TaskForm | APPROVED | Imran; Session 6 Tasks approval, 2026-08-11 |
+| DES-059 | Tasks follows Q2 directly: Inbox rows come first without a heading, remaining non-empty folders appear as alphabetized folder-headed groups, and each group ends with a quiet inline QuickAdd that creates an undated task in that folder or escalates to the full TaskForm | SUPERSEDED | v2: the Tasks page is retired by the navigation model — Desk and Anytime absorb it (DES-152); spec RFC owed |
 | DES-060 | A shared Folder page uses permanent Scheduled and Unscheduled visual sections with separate contextual QuickAdds | SUPERSEDED | Superseded by DES-062 after Imran rejected the permanent section hierarchy |
 | DES-061 | Completing a task on a Folder page checks and fades the row before a 240ms collapse, immediately updates the header ratio, briefly emphasizes the collapsed Completed count, and shows a five-second monochrome `Completed: [task]` confirmation with Undo. Completed remains collapsed by default as required by Q7 | APPROVED | Imran continued beyond the Folder completion review in Session 6, 2026-08-11 |
-| DES-062 | Replace the permanent Scheduled and Unscheduled visual sections on every Folder page with one open-task list and a compact filter offering `All open tasks`, `With due date`, and `Without due date`. The default concatenates the API's scheduled and unscheduled arrays without client re-sorting; Completed remains separate and collapsed. This deliberately amends Q7 and 9.6 presentation and reduces their two contextual QuickAdds to one context-aware QuickAdd | APPROVED | Imran required the filter on every Folder page in Session 6; frontend-compatible with the existing 7.10 response; Hassan must acknowledge the specification amendment before production implementation |
+| DES-062 | Replace the permanent Scheduled and Unscheduled visual sections on every Folder page with one open-task list and a compact filter offering `All open tasks`, `With due date`, and `Without due date`. The default concatenates the API's scheduled and unscheduled arrays without client re-sorting; Completed remains separate and collapsed. This deliberately amends Q7 and 9.6 presentation and reduces their two contextual QuickAdds to one context-aware QuickAdd | SUPERSEDED | v2: the folder page rebuilt whole — cover, mark, sections, blocks, one shared filter (DES-130-133, DES-140, DES-165-169) |
 | DES-063 | Planned uses a persistent List/Calendar switch. List is the server-ordered Q3 TaskRow sequence with one dated QuickAdd. Calendar defaults to month and offers day/week/month zoom, previous/next/today controls, a bare grid, all-day-before-timed event ordering, truthful completed/abandoned records, and outlined recurrence ghosts that open the current task with the normative banner. Month cells show at most two events plus a `+N more` control that opens Day view, preserving a clear bottom safe area above the floating New task action | APPROVED | Imran; Session 6 approval, 2026-08-11 |
 | DES-064 | The persistent `New folder` sidebar button opens a focused shadcn dialog containing only the v1 API-supported folder name field, validates the 1-100 character contract, adds the created folder to the alphabetized unlabeled folder list, and immediately opens its reusable empty Folder screen with an inline QuickAdd. Label, color and sharing remain post-creation actions | APPROVED | Imran; Session 6 approval, 2026-08-11 |
 | DES-065 | Edit-mode TaskForm places the standard completion checkbox immediately left of the editable title for pending and completed tasks; create mode has no completion control, completed uses the normative `Mark as not done` label, and abandoned tasks continue to use Restore instead. Recurrence successor warnings remain governed by G-SERIES | APPROVED | Imran; Session 6 approval, 2026-08-11 |
 | DES-066 | Important is one ungrouped Q4 server-ordered list with dated tasks before undated tasks. Every row keeps the active star, including abandoned tasks; its tooltip points to Planned or Tasks using the normative examples, and un-starring removes the row immediately. No page-specific filter or card treatment is added | APPROVED | Imran; Session 7 Important approval, 2026-08-11 |
-| DES-067 | Replace the approved 40px static current-page bar in DES-023 with a 24px non-interactive Graphite 25 strip and an attached square white active tab extending through the strip edges with a 1px sidebar-seam overlap. Interactive update presentation retains a 40px target | APPROVED | Imran; Session 7 shell refinement approval, 2026-08-11 |
+| DES-067 | Replace the approved 40px static current-page bar in DES-023 with a 24px non-interactive Graphite 25 strip and an attached square white active tab extending through the strip edges with a 1px sidebar-seam overlap. Interactive update presentation retains a 40px target | SUPERSEDED | v2: the strip is a real tab strip over a window bar (DES-139, DES-217) |
 | DES-068 | All renders exactly two static sections in one scroll: Planned first in Q3 order, then Tasks using Q2 Inbox/folder grouping. Each section reuses its approved TaskRow and contextual QuickAdd behavior; no third ordering, cards or linked headings are added | APPROVED | Imran; Session 7 All approval, 2026-08-11 |
 | DES-069 | Done is one completion-history scroll grouped by completion day in Q6 server order. Completed rows retain folder, original due treatment and important star, expose `Mark as not done`, and never expose New task, QuickAdd or Abandon. Repeating un-complete with a successor uses the normative confirmation before mutation | APPROVED | Imran; Session 7 approval, 2026-08-11 |
 | DES-070 | TaskRow folder metadata uses the same Lucide `Folder` glyph as sidebar folders, scaled to the approved 16px metadata size and colored with the folder token, instead of a colored circle. The adjacent visible folder name remains the non-color cue | APPROVED | Imran; Session 7 approval, 2026-08-11 |
 | DES-071 | Drag-and-drop reordering of task rows and task steps is a future product proposal, not Dana v1 scope. V1 task rows retain the server-authoritative orders in specification section 6, and steps retain their specified up/down reorder controls. Task dragging requires a persisted task-position model, API contract and ordering rules for every affected view; step dragging requires an approved UI-contract amendment and verified position-update behavior | PROPOSED | Imran idea recorded during Session 7; do not design or implement without Hassan's backend review and an explicit scope decision |
 | DES-072 | Planned calendar uses one restrained bordered surface with an integrated Graphite 25 navigation toolbar, compact day/week/month controls, quiet grid lines, distinct today and outside-month treatment, and compact events using their actual colored folder icons. Completed, abandoned, timed and recurring-ghost states preserve the Q3C behavior and the grid keeps a clear safe area above New task | APPROVED | Imran; Session 7 calendar refinement approval, 2026-08-11 |
 | DES-073 | Expand global Search beyond the v1 task-title-and-notes query to find folder names, personal folder-group labels and task step titles, with entity filters for All, Tasks, Folders and Steps | PROPOSED | Future product proposal from Imran, 2026-08-11. Current Q8 and `GET /search` do not support these entities or filters. Hassan must define mixed-result shapes, permissions, ordering, pagination and indexes before UI design or implementation. Dana folders remain flat; “parent folders” in the prototype are the per-member `folder_members.label` groups, not nested folder records |
-| DES-074 | Dana v1 Search uses a centered shadcn dialog opened from the sidebar header, Ctrl+K or slash; it searches accessible task titles and notes after a 300ms debounce, groups results Pending, Abandoned and Completed, and supports arrow navigation plus Enter/click to open the task. Folder and step search remain the DES-073 future proposal | APPROVED | Imran accepted the current v1 Search on 2026-08-11; Q8 and 9.9 |
+| DES-074 | Dana v1 Search uses a centered shadcn dialog opened from the sidebar header, Ctrl+K or slash; it searches accessible task titles and notes after a 300ms debounce, groups results Pending, Abandoned and Completed, and supports arrow navigation plus Enter/click to open the task. Folder and step search remain the DES-073 future proposal | SUPERSEDED | v2: the expanded overlay reaches tasks, folders, pages, steps and prose (DES-203, drawing DES-073); backend remains Lane 2 |
 | DES-075 | Edit-mode TaskForm shows a quiet read-only Task history area below the editable fields: exact viewer-local creation date/time and creator, plus completion date/time and completing actor when present. Create mode shows no empty history. Removed accounts render the specification fallback `Deleted user`. Updated-at is not shown as an actor event because the contract has no `updated_by` field | APPROVED | Requested by Imran and retained through the Session 7 integrated review, 2026-08-11; supported by task `created_at`, `created_by`, `completed_at` and `completed_by`; durable reopen/delete history remains the separate DES-076 proposal |
 | DES-076 | Retain an immutable task audit trail with exact event time and actor for creation, completion, reopening and deletion, and expose it through Task history | PROPOSED | Important requirement from Imran, 2026-08-11. Current un-complete clears `completed_at`/`completed_by`, and delete hard-deletes the row, so neither event remains as durable history. Requires Hassan to approve an audit/activity data model, retention and permission rules, API shape and product-scope amendment before production UI implementation; the current specification places Activity log in v2 |
 | DES-077 | People uses the approved secondary-page language for connection management: a focused email invitation action, quiet connection and pending-invitation rows, explicit cancel/resend states, and the normative removal confirmation without implying that a connection automatically shares a folder | APPROVED | Imran; Session 7 People approval, 2026-08-11 |
@@ -196,7 +196,7 @@ Statuses: `OPEN`, `PROPOSED`, `APPROVED`, `LOCKED`, `SUPERSEDED`.
 | DES-082 | PWA/system feedback remains inside the approved product shell: the persistent offline warning sits directly below the page bar; update availability is an unobtrusive user-triggered reload action in the page bar; failed writes use DES-036; and Settings explains the browser-native install affordance without presenting a custom install button or intercepting the native flow | APPROVED | Imran accepted the Session 7 system/PWA group on 2026-08-11; offline, offline-plus-update, dismissal, Settings hint, overflow and console QA passed |
 | DES-083 | Dana's three transactional email families share one disciplined 600px text-first template mapped to the approved shadcn language: a thin Graphite 950 brand edge; a clean white Dana header with a quiet purpose Badge; one Lucide purpose-icon tile; compact title/body rhythm; a single shadcn Item-like context row for sender, folder or due information; exactly one standard Graphite Button action; and a quiet `Sent by Dana` footer. The locked mark has no added ring, outline or shadow. Invite supports folder and bare-connection copy; reminder supports timed and date-only copy. No marketing modules, social links or secondary actions are added | APPROVED | Imran approved the refined email visual system on 2026-08-11. All five variants pass one-link, destination, 600px-card, no-overflow, clean-mark and console QA at 1280 x 720. Production email HTML must translate these primitives into email-safe inline/table markup rather than importing interactive shadcn components. Exact body and action copy remains an OPEN product decision for Imran and Hassan because the specification leaves it unresolved |
 | DES-084 | Current desktop folder menus follow UI section 9.6: owners see Rename, Label and color, and Delete; non-owners see Label and color and Leave; Inbox exposes Rename and Label and color but never Share or Delete. Whether an owner should also receive a Leave/ownership-transfer UI remains OPEN because 5.3 and API 7.4 permit it while 9.6 assigns Leave only to non-owners | OPEN | SHOULD RESOLVE with Hassan before production folder-menu wiring; the prototype does not invent an owner-transfer flow |
-| DES-085 | TaskRow keeps the approved 44px full-row hover. The important star and overflow menu form a compact trailing action group at the far-right edge, after automatically sized metadata, and reveal from the full-row hover or keyboard focus. An active important star remains visible as persistent task state. This preserves stable checkbox/title alignment; the rejected before-title variation is not retained | APPROVED | Imran selected the right-edge Option A after direct comparison, 2026-08-11 |
+| DES-085 | TaskRow keeps the approved 44px full-row hover. The important star and overflow menu form a compact trailing action group at the far-right edge, after automatically sized metadata, and reveal from the full-row hover or keyboard focus. An active important star remains visible as persistent task state. This preserves stable checkbox/title alignment; the rejected before-title variation is not retained | SUPERSEDED | v2: the row rebuilt at two densities with declared chip and assignee sets (DES-113, DES-194); trailing-action placement survives in spirit |
 | DES-086 | Custom-folder overflow menus expose `Move to group` as a focused submenu of the existing personal-label capability. Destinations are the viewer's existing labels plus `No group`; selection moves the sidebar row immediately without changing the folder, its tasks, sharing or other members' organization. The production mutation is `PATCH /api/v1/folders/:id/my-membership` with `{ label: destination-or-null, color: current-my_color }`, followed by the returned Folder object as truth. Inbox remains pinned and has no Move item. This is not nested folders | APPROVED | Requested by Imran, 2026-08-11; supported by 7.4 and AC-023 without backend or data-model expansion |
 | DES-087 | Folder-group management remains an orchestration of the current member's `folder_members.label`, not a new parent-folder resource. The collapsible Folders directory overflow exposes the fully labelled `New folder group` action instead of giving it a competing permanent button or an ambiguous icon-only plus. Creation requires selecting at least one non-Inbox folder because the current model cannot persist an empty group. A parent-group overflow exposes Rename group and Delete group. Rename applies the new 1-40 character label to every child membership; Delete clears those labels so every folder and task remains visible in the ungrouped list. Production uses one `PATCH /api/v1/folders/:id/my-membership` per affected folder, preserves each `my_color`, treats returned Folder objects as truth, and refreshes plus shows the standard failed-write feedback if a multi-folder operation only partly succeeds | APPROVED | Revised with Imran and approved with the final Session 8 handoff on 2026-08-11; prototype create, open-child persistence, rename and safe-delete interaction QA plus production build passed. Supported by 4.4, 7.4, 9.1 and AC-023 without backend or data-model expansion |
 | DES-088 | Sidebar folder utilities are contextual and capability-specific. `Folders` is a title-case collapsible directory heading led by typography rather than a decorative icon; its disclosure chevron appears directly after the text on hover/focus, and its directory overflow holds the fully labelled creation actions. Labeled groups use the simpler neutral Lucide `Folders` cue so a closed group cannot be mistaken for a single folder, and hovering or focusing a group replaces that cue with its left-side disclosure chevron. Folder glyphs are slightly quieter and smaller than navigation icons. The group row reveals `+` for creating a folder already labeled into it plus its overflow. Inbox and custom folders reveal `+` for a folder-scoped TaskForm; their overflow mirrors permitted folder management: Rename, Label and color, Move to group for non-Inbox folders, and owner-only Delete. Sidebar rows update immediately after personal label/color changes or a shared rename. Broad horizontal sidebar separators are omitted in favor of spacing and behavioral grouping. The production UI must continue to permission-gate owner/member actions per DES-084. None of this changes Dana's flat-folder model, and labels have no independent backend color field | APPROVED | Refined with Imran and approved with the final Session 8 handoff on 2026-08-11; build and browser QA passed for directory collapse, group/folder distinction, folder-scoped creation, full folder menu, live rename, live label/color movement and Move-to-group destinations |
@@ -333,4 +333,191 @@ the integrated QA pass on 2026-08-11.**
   Lucide sizing and collapsed-rail centering are approved under DES-090 through
   DES-092.
 - DES-089 remains a future icon-system comparison, not part of this handoff.
+
+---
+
+# Dana UI v2 refresh (2026-08-17 to 2026-08-24)
+
+The v2 refresh redesigned the desktop application over the shipped v1, on the
+`design/v2-refresh` branch in `docs/design/prototype-v2/`, governed by
+`docs/design/v2-refresh-plan.md`. This part of the contract is the durable
+index of its decisions; **the long-form reasoning for every row lives in
+`docs/design/v2-decisions.md`, which remains part of the record** — unlike v1,
+where this file is the sole register, the v2 register and this index are read
+together, and the register wins on detail.
+
+**Approval basis.** V3's row and card were accepted 2026-08-18; the F1-F2
+concept work was approved whole on 2026-08-18; the navigation model was ruled
+2026-08-21; and everything from F5 through the close-out — **DES-155 through
+DES-222 — was approved in one click-through pass with zero findings on
+2026-08-24**, through the thirteen-station instrument. Lane 2 rows remain
+PROPOSED regardless of how finished they look on screen: they reach `app/`
+only through an accepted RFC, never on a design session's say-so.
+
+**Precedence.** Where a v1 row and a v2 row disagree, the v2 row wins. The
+fully superseded v1 rows are flipped in the v1 table above with a pointer;
+the partially amended ones are listed here so the port meets them as a list:
+
+| v1 decision | What v2 changed | By |
+| --- | --- | --- |
+| DES-016 accent reservation | Kept; accent lifted to 85% vividness, tints re-derived | DES-214 |
+| DES-018 ten swatches | Kept; all ten lifted ~30 points chroma at held contrast; cobalt re-hued 224 → 242 off the accent | DES-215 |
+| DES-022 motion | Kept; tiers became tokens with global reduced-motion suppression | DES-097 |
+| DES-053 sidebar resize | Kept unchanged (224-360px, 256 default) | — |
+| DES-058 My Day composition | My Day is Today; the important-only switch moved into the bar's shared filter (spec 9.4 edit owed as B3); Carried over / Today grouping survives | DES-149; DES-150; DES-152 |
+| DES-063 Planned | Planned is Scheduled; the calendar's chrome joined the shell's grammar; a time ladder of headings replaced the scope control; Q3C behavior survives | DES-152; DES-164; DES-177 |
+| DES-066/068/069 Important, All, Done | Pages survive under DES-152; compositions took the shared page head, group headings and row-emphasis rules | DES-149; DES-151; DES-183 |
+| DES-084 owner-leave question | Still OPEN, unchanged by v2 | — |
+| DES-090-092 density and glyph rules | Kept; extended by the icon module, default sizes and the animated family | DES-125; DES-162 |
+
+## The v2 decision register
+
+Statuses as in v1: `OPEN`, `PROPOSED`, `APPROVED`, `LOCKED`, `SUPERSEDED`.
+"Pass 2026-08-24" means Imran's zero-findings click-through of that date.
+
+| ID | Decision | Status | Source or gate |
+| --- | --- | --- | --- |
+| DES-093 | A task expands in place, inside its TaskRow; nothing opens a sheet | APPROVED | Imran, 2026-08-17 |
+| DES-094 | One icon vocabulary shared by the row and the form | APPROVED | V3, 2026-08-17 |
+| DES-095 | A task renames in place, in its row | APPROVED | Imran, 2026-08-17 |
+| DES-096 | Details sit on a second line beneath the title | APPROVED | V3, 2026-08-17 |
+| DES-097 | A motion scale lives in the tokens; reduced motion zeroes it globally | APPROVED | V3, 2026-08-17 |
+| DES-098 | Custom tags or labels on a task | PROPOSED | NEEDS BACKEND; deliberately not drawn |
+| DES-099 | The expanded card: one header strip, then Steps and Notes as blocks | APPROVED | V3, 2026-08-17 |
+| DES-100 | A step as a first-class object: its own menu, promote to task | PROPOSED | NEEDS BACKEND; not drawn in the shipping prototype |
+| DES-101 | Notes that can contain check items | PROPOSED | NEEDS BACKEND; not drawn |
+| DES-102 | The card body as movable blocks, and an Attachments block | PROPOSED | NEEDS BACKEND; drawn on fixtures |
+| DES-103 | Drag a row; a 1.5s dwell on another folds both into a folder | PROPOSED | NEEDS BACKEND for persistence; drawn |
+| DES-104 | Make this task a folder; its steps become the tasks | PROPOSED | NEEDS BACKEND; drawn in the lab |
+| DES-105 | What an attachment may be, and which ones can be viewed | PROPOSED | NEEDS BACKEND; storage question carries DES-130's covers too |
+| DES-106 | Five verbs for moving things between levels, not one generic Move | APPROVED | Imran, 2026-08-18 |
+| DES-107 | A fifth type size (13px) the v1 contract did not name | APPROVED | Imran, 2026-08-17 |
+| DES-108 | The control-font reset lives in @layer base so utilities win | APPROVED | Imran, 2026-08-17; applied |
+| DES-109 | The card has no Save button; every edit commits as made; the footer is a toolbar | APPROVED | Imran, 2026-08-17 |
+| DES-110 | The V3 question reduced to one-line-or-two | SUPERSEDED | By DES-113 |
+| DES-111 | A row is as tall as it needs to be | APPROVED | Imran, 2026-08-17 |
+| DES-112 | What a selection can do, at both levels | APPROVED | V3, 2026-08-17 |
+| DES-113 | Row density is a setting; two lines is the default; the row rebuilt | APPROVED | Imran, 2026-08-17; control built at DES-189 |
+| DES-114 | Every folder list ends in "New folder…" | APPROVED | V3, 2026-08-17 |
+| DES-115 | An empty block is the control that fills it | APPROVED | V3, 2026-08-17 |
+| DES-116 | The card's metadata icons are 14px | APPROVED | Imran, 2026-08-17 |
+| DES-117 | One form, two presentations; the freed right panel's tenant question | APPROVED | Answered by DES-142 and DES-186; settled at DES-222 |
+| DES-118 | The card carries the form's nine missing fields | APPROVED | Imran, 2026-08-17; header revised |
+| DES-119 | What the V3 port left behind, recorded not hidden | OPEN | Card collapse animation now in the Codex lane |
+| DES-120 | The three pickers open on the answer, not the instrument | APPROVED | Imran, 2026-08-18 |
+| DES-121 | The clock is a preference; 12-hour default | APPROVED | Imran, 2026-08-18; account sync is Lane 2 |
+| DES-122 | A due date is a day, not a moment | APPROVED | Imran, 2026-08-18; spec ruling closed by DES-178 |
+| DES-123 | One picker, wherever it is opened from | APPROVED | Imran, 2026-08-18 |
+| DES-124 | Concepts compare in a lab; the winner is extracted the moment it wins | APPROVED | Imran, 2026-08-18; standing process rule |
+| DES-125 | The icon family is animated Lucide, one module, no direct imports | APPROVED | Imran, 2026-08-18; supersedes DES-021 |
+| DES-126 | The logo is a component; the mark draws itself on hover | APPROVED | Imran, 2026-08-18 |
+| DES-127 | The mark has two colourways, for light and dark panels | APPROVED | Imran, 2026-08-18 |
+| DES-128 | A step is a label; a note is a field | APPROVED | Imran, 2026-08-18 |
+| DES-129 | Comments on a task: threads, replies, likes, files, voice notes | PROPOSED | NEEDS BACKEND; drawn; polish in the Codex lane |
+| DES-130 | A folder wears an identity: icon, colour, cover, description | PROPOSED | NEEDS BACKEND; drawn; draws v1's DES-054 |
+| DES-131 | The folder page's controls as one steady cluster | SUPERSEDED | By the window bar, DES-139; settled at DES-222 |
+| DES-132 | Sections and paragraphs organise a folder page | PROPOSED | NEEDS BACKEND; drawn; behavior at DES-165-169 |
+| DES-133 | The floating New task button retires where a quick-add row lives | APPROVED | Imran, 2026-08-18; amends W5's reading; extended by DES-182 |
+| DES-134 | A folder's conversation, and where it lives | PROPOSED | NEEDS BACKEND; drawn; homes ruled at DES-142 |
+| DES-135 | The list measure is a reading measure: 800px, tokenized | APPROVED | Provisional from F2a; every station of the pass 2026-08-24 reviewed at this measure; supersedes DES-023's 1120px in part |
+| DES-136 | A task in a surface is a page, not a row | APPROVED | Imran, 2026-08-18 |
+| DES-137 | A view switcher is a strip of icons; labels live in tooltips | APPROVED | Imran, 2026-08-18 |
+| DES-138 | Where a task opens is a preference, not a window manager | APPROVED | Imran, 2026-08-18; account sync is Lane 2 |
+| DES-139 | The window bar: chrome belongs to the window, not the page | APPROVED | Imran, 2026-08-18; supersedes DES-067 |
+| DES-140 | One filter, every place-page | APPROVED | Imran, 2026-08-18 |
+| DES-141 | A cover is native to every page except a task's | APPROVED | Imran, 2026-08-18 |
+| DES-142 | The conversation has two homes; the page's is a closed section | APPROVED | Imran, 2026-08-18 |
+| DES-143 | A message is told apart by tone, never by hue | APPROVED | Imran, 2026-08-18 |
+| DES-144 | Every menu item is real; an act with no handler does not draw | APPROVED | Imran, 2026-08-18; made structural by DES-197 |
+| DES-145 | A paragraph belongs between a heading and its first row | APPROVED | Imran, 2026-08-18 |
+| DES-146 | Three homes for a task; a like is the whole reaction set | APPROVED | Imran, 2026-08-18 |
+| DES-147 | A popover is as wide as what it holds | APPROVED | Imran, 2026-08-18 |
+| DES-148 | An affordance may not charge rent for unused space | APPROVED | Imran, 2026-08-18 |
+| DES-149 | One page head for every place; a system page's mark is not pickable | APPROVED | Pass 2026-08-24 |
+| DES-150 | A place-page's controls leave the content column for the bar | APPROVED | Imran, 2026-08-19; spec 9.4 edit owed as B3 |
+| DES-151 | A group heading is the section tier on every page that has one | APPROVED | Pass 2026-08-24 |
+| DES-152 | The navigation: Desk · Today · Scheduled · Assignments · Important · All, Done unpinned | APPROVED | Imran, 2026-08-21; spec RFC owed before the port |
+| DES-153 | A page is a view; the filter is the instrument that makes one | APPROVED for the filter; PROPOSED for custom views | Custom saved views are NEEDS BACKEND; Save as view drawn |
+| DES-154 | A settled behaviour belongs to the mechanism, not each screen | APPROVED | Imran, 2026-08-22; standing process rule |
+| DES-155 | A mark stands on ground, not in a box; one resolver | APPROVED | Pass 2026-08-24 |
+| DES-156 | Grouping replaces a page's arrangement; it never nests inside it | APPROVED | Pass 2026-08-24 |
+| DES-157 | Every rule proves it still bites, or it fails as BLIND | APPROVED | Standing gate discipline; both tools carry probes |
+| DES-158 | Undo is an act with a name — one bar, Ctrl+Z, no redo | APPROVED | Pass 2026-08-24 |
+| DES-159 | One drawing, one name; one field, one glyph | APPROVED | Pass 2026-08-24 |
+| DES-160 | A control comes from the system or it becomes one | APPROVED | Pass 2026-08-24 |
+| DES-161 | A link is a link, not a file with an address | APPROVED | Pass 2026-08-24; kinds are Lane 2 under DES-105 |
+| DES-162 | An icon has a size before anyone chooses one | APPROVED | Pass 2026-08-24 |
+| DES-163 | Making a task means making it, from every door | APPROVED | Pass 2026-08-24 |
+| DES-164 | The calendar's chrome is the shell's chrome | APPROVED | Pass 2026-08-24; amends DES-063/072 presentation |
+| DES-165 | A section somebody made is the same section component | APPROVED | Pass 2026-08-24 |
+| DES-166 | A section is a place a task can be moved to; the section rides the row | APPROVED | Pass 2026-08-24 |
+| DES-167 | The way in stays until it has been used | APPROVED | Pass 2026-08-24 |
+| DES-168 | A block earns the top of the page by having something in it | APPROVED | Pass 2026-08-24 |
+| DES-169 | An arrangement is a person's, so it is kept | APPROVED | Pass 2026-08-24; persistence is Lane 2 |
+| DES-170 | Settings is a pin list; Completed is Done; Abandoned and Anytime ship unpinned | APPROVED | Pass 2026-08-24 |
+| DES-171 | The alphabet is a seed; the sidebar reorders by drag, one column | APPROVED | Pass 2026-08-24; persistence is Lane 2 |
+| DES-172 | A task tab's controls live in the window bar; its folder is the breadcrumb | APPROVED | Pass 2026-08-24 |
+| DES-173 | A page description Dana wrote is a first draft, editable | APPROVED | Pass 2026-08-24 |
+| DES-174 | A board column is a place; Done is a status — drop completes | APPROVED | Pass 2026-08-24 |
+| DES-175 | People is a roster; Assignments is work; each wears its own mark | APPROVED | Pass 2026-08-24 |
+| DES-176 | The shell has no hairlines left; tone separates | APPROVED | Pass 2026-08-24 |
+| DES-177 | A view is a shape, not a question — offered when it can draw everything | APPROVED | Pass 2026-08-24 |
+| DES-178 | A due date is a day; due-time and start date deferred, not dropped | APPROVED | Imran, 2026-08-22; spec RFC owed; reminder question is DES-224 |
+| DES-179 | A filter belongs to the page and to the session | APPROVED | Pass 2026-08-24 |
+| DES-180 | An arrangement is a person's, not the folder's | APPROVED | Pass 2026-08-24; preference bundle for Hassan |
+| DES-181 | Desk is where the lamp is | APPROVED | Imran, 2026-08-22 |
+| DES-182 | A task made on a page belongs to that page; a column captures with its value | APPROVED | Pass 2026-08-24 |
+| DES-183 | A row says what its page does not — emphasis decided per list | APPROVED | Pass 2026-08-24 |
+| DES-184 | The states sheet is drawn by the shipping row | APPROVED | Pass 2026-08-24 |
+| DES-185 | One task, one copy — every surface writes through the shell's path | APPROVED | Pass 2026-08-24 |
+| DES-186 | The page makes room for the panel rather than being covered | APPROVED | Pass 2026-08-24 |
+| DES-187 | An icon animates as itself; a tenth audit rule renders both and compares | APPROVED | Pass 2026-08-24 |
+| DES-188 | The star is graphite everywhere; the fill is the whole difference | APPROVED | Pass 2026-08-24 |
+| DES-189 | Row density has its control in Settings | APPROVED | Pass 2026-08-24 |
+| DES-190 | A group moves like anything else in its column | APPROVED | Pass 2026-08-24 |
+| DES-191 | A caveat belongs in the register, not in the panel | APPROVED | Imran, 2026-08-23 |
+| DES-192 | Keep the animation where the animated drawing is the better one; nine restored, twenty stay plain with reasons beside the code | APPROVED | Imran, 2026-08-23; CircleAlert moot — ships nowhere |
+| DES-193 | Prose runs on; blocks get air — the gap knows what it separates | APPROVED | Pass 2026-08-24 |
+| DES-194 | The row's chips and its assignee are open sets, declared as data | APPROVED | Pass 2026-08-24; closes W2 |
+| DES-195 | A Shelf holds folders and is yours — Option A, personal, no members | APPROVED | Imran, 2026-08-23; Option B deferred, not rejected |
+| DES-196 | Arrangement is cheap; inherited permission is the expensive part | APPROVED | Imran, 2026-08-23; the analysis behind DES-195 |
+| DES-197 | An object declares what can be done to it; one contract, one menu | APPROVED | Pass 2026-08-24; server half is Lane 2 |
+| DES-198 | A copy takes the structure, never the grants or the progress | APPROVED | Pass 2026-08-24; endpoints are Lane 2 |
+| DES-199 | The act writes the record — one event log behind Activity and History | APPROVED | Pass 2026-08-24; answers v1's DES-076; audit model is Lane 2 |
+| DES-200 | Deleting moves a thing to Trash (30 days) rather than ending it | APPROVED | Pass 2026-08-24; deleted_at and purge are Lane 2 |
+| DES-201 | A task is an object with an address: ?task=<id> | APPROVED | Pass 2026-08-24; real route is Lane 2 |
+| DES-202 | A page holds headings, prose and pictures; images survive reload | APPROVED | Pass 2026-08-24; object storage and quota are Lane 2 |
+| DES-203 | Search finds everything you can go to — tasks, folders, pages, steps, prose | APPROVED | Pass 2026-08-24; draws v1's DES-073; backend is Lane 2 |
+| DES-204 | The profile picture is the control | APPROVED | Pass 2026-08-24; storage is Lane 2 |
+| DES-205 | The theme control lives under Appearance; a first-pass dark sits behind it | APPROVED for placement | The dark ramp itself is the later colourway session with Imran |
+| DES-206 | A workflow is a shape, not a copy — structure and titles travel, people and time do not | APPROVED | Pass 2026-08-24; import endpoints are Lane 2 |
+| DES-207 | A shelf is the folder page one level up | APPROVED | Pass 2026-08-24 |
+| DES-208 | Folder acts raised from the sidebar actually happen; checks operate, not read | APPROVED | Pass 2026-08-24 |
+| DES-209 | The second review pass: footer by role, image blocks fold, search reaches prose, History opens, panel makes room | APPROVED | Imran's pass of 2026-08-23-24 |
+| DES-210 | The shelf page earns its place: address, Copy link, workflow round-trip | APPROVED | Imran, 2026-08-23 |
+| DES-211 | An instruction that has been carried out is no longer an instruction | APPROVED | Pass 2026-08-24 |
+| DES-212 | A layout that cannot be explained cannot be relied on; measure animated things with a driven browser | APPROVED | Standing process rule |
+| DES-213 | Desk's glyph stays still; the swatches were never the problem | APPROVED | Imran, 2026-08-23 |
+| DES-214 | The accent lifted to 85% vividness at held contrast; tints re-derived | APPROVED | Imran, 2026-08-23 |
+| DES-215 | All ten swatches lifted at held contrast; folder cobalt re-hued 224 → 242 off the accent | APPROVED | Imran, 2026-08-23; hue delegated and ruled 2026-08-24 |
+| DES-216 | The third review pass: six faults in places nothing had pressed, each now an operation in the sweep | APPROVED | Imran, 2026-08-24 |
+| DES-217 | The tab strip has no special first tab: equal, closable, reorderable, a "+", neighbour-then-Desk on close | APPROVED | Pass 2026-08-24 |
+| DES-218 | A shelf's name is its label; renaming rewrites members and moves the page's stores | APPROVED | Pass 2026-08-24 |
+| DES-219 | The shelf page takes the folder page's grammar whole; folder rows are arrangeable blocks | APPROVED | Pass 2026-08-24 |
+| DES-220 | The sidebar's folder block is labelled Library | APPROVED | Imran, 2026-08-24 |
+| DES-221 | Whose footer label survives narrowing is arithmetic; New shelf keeps its word | APPROVED | Pass 2026-08-24 |
+| DES-222 | The last drawing pass: C4, S1-S5, W1, P1, the nativeButton mechanism, the stress block | APPROVED | Pass 2026-08-24 |
+| DES-223 | Notifications: assignment and conversation events reach the person | PROPOSED | NEEDS BACKEND; deliberately not drawn; price with DES-129/134 |
+| DES-224 | What a reminder means when a due date is a day | OPEN | Blocks DES-178's spec RFC; cannot be cut, only answered |
+
+## v2 approval
+
+**DES-155 through DES-222 APPROVED by Imran on 2026-08-24** — the
+thirteen-station click-through, zero findings — on top of the explicit
+per-entry approvals of 2026-08-17 to 2026-08-23 recorded above. Standing
+gates at approval: 12 audit rules and a 31-route driven sweep, both green,
+every rule carrying a probe it must catch (DES-157). Remaining before the
+phase closes: the reference exports (after the Codex landing pass), the two
+SESSION-LOG verdicts of V10, and the S5 landing-headline pick. The spec RFC
+(DES-152, DES-178, B3) and the Lane 2 pricing session follow the close.
 - Mobile remains deferred and the explicit open decisions remain unresolved.
