@@ -408,3 +408,17 @@ RFC 0004 is the plan; RFC 0005 is the contract. One row per package session.
 | 6 | **S5, Systems C and E.** The 7.16 workshop: folder pages and shelf pages under 4.17's per-block last-write-wins with 409 on stale evidence, shelves holding name and label in step, the folder identity split (name the owner's, the dressing any member's, DES-225), duplicate under DES-198's whole-plan re-anchor, the workflow import whose refusals are the schema's shape, the direct 8.9 transfer, task duplication, section assignment on the task surface, and 7.18's three search kinds. AC-193 and AC-197 to AC-203 plus AC-210 green; certified at 221 of 227 with exactly the S6 and S7 reds standing. Change control: AC-200's date arm corrected to the design record, DELETE /folders/:id/my-membership as the leave's own address, the icon key pattern-validated until S8 exports the set. The Folder, TaskDetail and search key transcriptions across the contract and shared suites gained the amendment's keys | 04, with 11 for the transcriptions and 05 for the search seam | Attended | Done |
 | 7 | **S6, System D.** The 7.14 conversation: threads on folders and tasks, one reply level enforced where only the API can (4.15), likes as one idempotent bit with no event (a glance, not an act), author-or-owner deletion with the DES-225 403 for the member who can see and may not, and fan-out to the thread's participants rather than the roster (4.14). AC-204 to AC-207 green on the first run; lint and typecheck clean; CI's run on the merge is the certification, the expected reds being AC-208 and AC-209 alone | 03 | Attended | Done pending CI |
 | 8 | **S7, System F.** The person's bundle at its own address: GET and PATCH /settings beside frozen 7.2's /me/settings, migration 0004 adding pinned_views as one nullable column, and the pin fold ruled a derivation (null derives pins from the v1 flags, written pins become the record; no data migration, no drop, AC-119 to AC-123 untouched, recorded as change control item 6). Saved views at /views under the 50 cap, definitions stored as ids. AC-208, AC-209, AC-001 and the whole v1 settings range green in scoped runs; lint, typecheck clean. Certified: 1659 of 1659 tests green across the whole suite plus the one flake-hit file green alone, build clean, the first fully green run since S1 planted its reds | 05, with 01 for the migration | Attended | Done |
+
+**One commit does not say what it carries, and it is not being rewritten.**
+`5763f70`, the tip of `s4-files`, is titled and bodied for the uploads-harness
+fixture and the AC-196 read — neither of which is in it, both having landed in
+`1162e60`, S4's own commit. What it carries instead, unnamed, is 1,372 lines of
+S5's workshop modules: `domain/acts.ts`, `domain/pages.ts`, `domain/shelves.ts`,
+`routes/workshop.ts` and the three shared schema files, committed on the S4
+branch an hour before S5's own commit. Nothing behaves differently; the cost is
+paid by anyone measuring a package by its diff, because the S4 merge `ff6a287`
+then reads 2,690 insertions and the S5 merge `c8508fa` reads 441, where the
+honest split is about 1,318 to S4 and 1,813 to S5. The aggregate across the v2
+range is untouched. The correction is attached to the commit as a git note
+rather than rebased in, because six branches descend from it and one of them is
+the live S8 branch; the row stays because it is what happened.

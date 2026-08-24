@@ -2,70 +2,65 @@
 Dana's design tokens: the single file of 11.4, and the only place in this
 client where a raw colour, type size, spacing step or radius may be written.
 
-**What this file is, after RFC 0002.** It is the designer's
-`docs/design/prototype/src/styles/tokens.css` and his
-`docs/design/prototype/src/styles/app.css`, carried in as one file at package
-P8R session R2. Under 11.13 as that RFC amends it, his prototype is the source
-the client is built from rather than a reference it is compared against, so a
-difference between his values and these is a defect in the port unless a
-numbered section says otherwise.
+**What this file is, after RFC 0004.** It is
+`docs/design/prototype-v2/src/styles/tokens.css`, the approved v2 foundation,
+carried in whole at package S8, beside the four imports this client needs and
+the base rules his `app.css` carries. Under 11.13 as RFC 0002 amends it his
+prototype is the source the client is built from rather than a reference it is
+compared against, so a difference between his values and these is a defect in
+the port unless a numbered section says otherwise, and S8's acceptance is that
+the v2 section of this file matches his character for character.
 
-**Why the two files became one.** 11.4 says design tokens live in exactly one
-file and that this is the only place raw values may appear, and his `app.css`
-is full of raw values: a sheet width, four type sizes for the sidebar and the
-task form, a selection colour. Splitting them across two files would put half
-of them outside the file the rule names. One file also keeps the entry point
-untouched: `main.tsx` belongs to the Frontend Architect and already imports
-this path, so nothing outside this role's paths had to change for the
-stylesheet to arrive. His import order is preserved exactly, Tailwind then
-tw-animate-css then shadcn's sheet then his own values, because that order is
-what lets his values override the distribution's defaults.
+**What changed from the v1 file this replaces**, so that nobody reads a moved
+value as a mistake: cobalt is raised from 52% to 85% saturation (DES-214), the
+ten folder swatches are raised about thirty points each (DES-215), the folder
+cobalt swatch moves to hue 242 so it stops colliding with the brand accent, the
+sidebar plane steps from graphite-25 to graphite-50 so tone rather than a
+hairline separates the two surfaces, the reading measure becomes a clamp, and
+motion, dark-mode and reduced-motion blocks arrive that v1 had none of. Every
+one of those carries its own reasoning below, in his words.
 
-**What the P8 client's markup loses here, stated plainly because it is not a
-regression to be discovered later.** The file this replaces carried 94
-`@utility` definitions, and every page, shell and state P8 built writes those
-class names. They are gone, so that markup renders unstyled until R3 to R10
-replace it, which is the interim RFC 0002 chose when it chose a wholesale
-replacement over a second restyle. They were not kept beside his values,
-because they are written against token names this file no longer defines: a
-retained utility would resolve half its `var()` references and silently
-produce a broken layout, which is worse to look at and far worse to diagnose
-than an unstyled one.
-
-**Three departures from his two files, each with its reason.**
+**Five departures from his file, each with its reason.**
 
 His `min-width: 1180px` on `html` and on `body` is absent, and it is the one
 thing here that is forbidden rather than merely changed. Section 13 item 32
 rules it out in terms: it is his prototype declaring its own delivery scope,
 and porting it would convert a deferral of mobile into a hard refusal to
-render, on the one surface 10.6 promises will open when installed. The same
-item requires that a narrow viewport be no worse after this package than
-before it, which is cheap to hold because P8's client carried no media query
-at all. The floor appears a third time as a bracketed `min-w-` utility on his
-AppShell root in `app-shell.tsx`; that file arrives with R5 and the removal is
-owed there too.
+render, on the one surface 10.6 promises will open when installed.
 
 **Do not write that utility's literal form in any file Tailwind scans, this
 comment included.** It is a class name, so writing it anywhere the build looks
 is enough to emit the declaration it names, whatever the surrounding prose
-says about forbidding it. Measured at R2: the sentence above once spelled the
-utility, in this comment and in `components/README.md`, and the built
-stylesheet came back carrying a real `min-width` rule at that value from the
-markdown alone. CSS input is not scanned as content and markdown is, which is
-a distinction no reader should have to hold, so the literal is spelled nowhere
-and this paragraph is the reason. The check that matters is the built output
-rather than the source.
+says about forbidding it. Measured at P8R session R2: the sentence above once
+spelled the utility, in this comment and in `components/README.md`, and the
+built stylesheet came back carrying a real `min-width` rule at that value from
+the markdown alone. CSS input is not scanned as content and markdown is, which
+is a distinction no reader should have to hold, so the literal is spelled
+nowhere and this paragraph is the reason. The check that matters is the built
+output rather than the source.
 
-`Inter Variable` is prepended to his sans stack. His stack opens with `Inter`,
-and the package 11.4 requires for self-hosting registers the family as
-`Inter Variable`, so his stack never reaches the face he loaded. This is not
-a reading of his file: opened at 127.0.0.1:5199 on 2026-08-13, the running
-prototype reports `Inter Variable` as `unloaded` and computes a system
-fallback for `body`. Everything after the prepended name is his, character for
-character, so the correction adds a font rather than choosing one.
+`--sharing-panel-width` is this client's and not his, and it is in a marked
+interim block below that dies with S12. DES-026's sharing panel is v1 markup
+`pages/FolderSharingPanel.tsx` still renders; the v2 prototype has no such
+panel and therefore no such token. Deleting the value with the rest of v1
+would leave a live page reaching for a variable that resolves to nothing, so
+it stays, fenced, until the page that reads it is replaced.
 
-His header comment's em dash is a comma here, protocol section 7 holding
-across the whole corpus including material adopted from outside it.
+His em dashes are commas, colons or semicolons here, protocol section 7
+holding across the whole corpus including material adopted from outside it.
+Twenty-seven of them, in comments only; no value moved.
+
+Two rules from his `app.css` are taken and one is left. The DES-108 fix is
+taken: the control font reset sits in `@layer base` rather than unlayered,
+because unlayered CSS beats layered CSS regardless of specificity and every
+Tailwind utility lives in `@layer utilities`, so while those four lines were
+unlayered they silently beat every text-size utility applied to a button,
+input, textarea or select. That is a fault the primitives arriving in this
+package would inherit, which is what makes it S8's rather than S9's. His
+tokenized scrollbar pair is taken for the same reason, being furniture every
+scrolling surface gets. His `[data-measure]` block is **not** here: it styles
+shell markup that does not exist in this client yet, and it arrives with the
+shell at S9.
 
 **One line is this client's own and is kept.** `@source` below is explicit
 where his prototype relies on automatic detection, because a change to where
@@ -137,8 +132,10 @@ typeface only while online.
   color-scheme: light;
 
   /* Typography. `Inter Variable` leads the stack because that is the family
-   * @fontsource-variable/inter registers; the rest is the design's own. */
-  --font-family-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui,
+     @fontsource-variable/inter registers; v1's stack opened with `Inter` and
+     never reached the face it loaded (review A4; production fixed the same
+     way at P8R session R2). */
+  --font-family-sans: "Inter Variable", Inter, ui-sans-serif, system-ui,
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -167,13 +164,43 @@ typeface only while online.
   --color-graphite-900: #1b1c20;
   --color-graphite-950: #0a0a0a;
 
-  /* Dana cobalt: interaction only, never task status or folder identity */
-  --color-dana-accent-50: #f2f4fc;
-  --color-dana-accent-100: #e3e8f9;
-  --color-dana-accent-200: #c9d3f2;
-  --color-dana-accent-600: #3c5bbf;
-  --color-dana-accent-700: #334da3;
-  --color-dana-accent-800: #2b4088;
+  /*
+  Dana cobalt: interaction only, never task status or folder identity.
+
+  **Raised from 52% to 85% saturation** (DES-214, dialled up by Imran). Imran, 2026-08-23: "the
+  vividness is very less in the current brand accents… make it a bit more vivid
+  according to shadcn UI". He is right and it is measurable: the shipped accent
+  was `hsl(226 52% 49%)` where the blue shadcn ships against, Tailwind's
+  `blue-600`, is `hsl(221 83% 53%)`. Beside that, Dana's read as a greyed blue
+  rather than a brand.
+
+  **The hue does not move.** 226 is Dana's cobalt and Tailwind's is 221; taking
+  their hue as well as their saturation would be adopting their blue rather than
+  making ours brighter. Only the chroma changed.
+
+  **And the contrast was budgeted, not spent.** The obvious way to get vivid is
+  to raise saturation and lightness together until white-on-it just clears
+  4.5:1, which lands around 4.55 and leaves nothing in hand for a focus ring on
+  a tinted row, or for anyone whose screen is dimmer than mine. Tailwind's own
+  600 keeps **5.17**, so this is tuned to **5.20**: the same headroom they keep,
+  spent on saturation instead of lightness.
+
+  The tints below it are re-derived from the new 600 rather than kept, or the
+  hover wash would be a paler version of a colour that no longer exists.
+  */
+  --color-dana-accent-50: #f3f4fa;
+  --color-dana-accent-100: #e3e7f5;
+  --color-dana-accent-200: #c3cdee;
+  --color-dana-accent-600: #335fee;
+  --color-dana-accent-700: #1346ea;
+  --color-dana-accent-800: #113cc9;
+
+  /* W1, the vision's standing constraint, written where the port will meet
+     it first: Dana has ONE accent, and this ramp is it. When AI arrives it
+     renders native, its work drawn with the same ink as a person's, marked
+     by provenance (who did this), never by a second hue. A colour that means
+     "the machine did this" is a decision this file refuses on purpose; do
+     not add a ramp for it. */
 
   /* Semantic colors */
   --color-success-100: #ddf2e2;
@@ -192,17 +219,49 @@ typeface only while online.
   --color-info-200: #c2e2ee;
   --color-info-700: #0f6e8c;
 
-  /* Folder identity swatches; always pair with a visible folder name */
-  --color-folder-clay: #c4705d;
-  --color-folder-ochre: #b08034;
-  --color-folder-olive: #8a8a3a;
-  --color-folder-fern: #52975d;
-  --color-folder-teal: #3d998c;
-  --color-folder-sky: #4292bc;
-  --color-folder-cobalt: #6683d6;
-  --color-folder-violet: #8e71cf;
-  --color-folder-plum: #b562a9;
-  --color-folder-rose: #c4627b;
+  /*
+  Folder identity swatches; always pair with a visible folder name.
+
+  **Raised about 30 points of saturation each** (DES-215). Imran, 2026-08-23:
+  "it's not only about accent, the swatches also lack the vividness". The same
+  complaint as the accent and the same answer, applied ten times.
+
+  **Every one holds its own hue and its own contrast.** The lightness is
+  re-solved per swatch so that each lands within 0.02 of the ratio it had on
+  white before: clay was 3.61 and is 3.61, teal was 3.42 and is 3.41. Nothing
+  became more or less legible; they became more coloured. That is the only way
+  to compare a palette honestly, because raising chroma and lightness together
+  makes every swatch "look better" on the screen it was picked on.
+
+  DES-018's requirement is unchanged and is why these ratios are allowed to sit
+  near 3.5: a swatch never carries meaning alone, it travels with a folder name.
+
+  **One adjacency is now a question rather than a coincidence**, see the note
+  on cobalt below.
+  */
+  --color-folder-clay: #e55939;
+  --color-folder-ochre: #bd7a10;
+  --color-folder-olive: #8b8b18;
+  --color-folder-fern: #289d3a;
+  --color-folder-teal: #189c8a;
+  --color-folder-sky: #1a92d1;
+  /*
+  Cobalt sits at hue 242, moved off the accent's 226, ruled 2026-08-24.
+
+  It sat at 224, two degrees from the brand accent, a collision as old as
+  DES-018 that was survivable while both were dull enough for lightness to
+  tell them apart (49% against 62%). DES-215's vividness lift made them one
+  colour wearing two names, and a folder whose mark is the interaction colour
+  is exactly what DES-018's "identity, never interaction" line exists to
+  stop. Imran ruled for vividness and delegated the hue; 242 keeps the
+  saturation and the contrast of the lifted palette, clears the accent at
+  226, and stays clear of violet at 259. The comparison that decided it was
+  drawn at `?view=swatches`.
+  */
+  --color-folder-cobalt: #7b77f6;
+  --color-folder-violet: #9168ee;
+  --color-folder-plum: #d73bc0;
+  --color-folder-rose: #e5446d;
 
   /* shadcn/ui semantic role mapping */
   --background: var(--color-graphite-25);
@@ -224,7 +283,13 @@ typeface only while online.
   --border: var(--color-graphite-200);
   --input: var(--color-graphite-300);
   --ring: var(--color-dana-accent-600);
-  --sidebar: var(--color-graphite-25);
+  /* The shell has two planes and they are told apart by tone, never by a rule
+     (Imran, 2026-08-22): the recessed plane the furniture sits on, and the
+     white sheet the work sits on. The step used to be graphite-25 against
+     white, one percent of lightness, so the hairline was carrying the whole
+     separation and every panel needed one. At graphite-50 the step does the
+     job by itself and the lines can go. */
+  --sidebar: var(--color-graphite-50);
   --sidebar-foreground: var(--color-graphite-800);
   --sidebar-primary: var(--color-dana-accent-600);
   --sidebar-primary-foreground: var(--color-graphite-0);
@@ -258,6 +323,26 @@ typeface only while online.
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
+  /* Motion. Opened at session V3, because the row concepts needed durations
+   * and there were none, and six components each inventing 200ms is how a
+   * product ends up feeling almost consistent.
+   *
+   * Three durations, and the rule is what moves rather than how far. A colour
+   * or an opacity is -fast; a thing that changes size or position is -base;
+   * -slow is for a surface arriving from nowhere, and if you reach for it on
+   * a hover you have chosen wrong.
+   *
+   * Two easings. -exit is symmetric because a thing leaving should not
+   * perform; -enter overshoots very slightly so that an expanding panel
+   * settles rather than stops, which is the difference people read as
+   * "polished" without being able to name it. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 0.6, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
   /* Repeated control sizes: primary desktop controls are 40px; dense
    * navigation and property rows use their own application-specific rhythm. */
   --control-height: 40px;
@@ -268,24 +353,112 @@ typeface only while online.
   --switch-width: 40px;
   --switch-height: 22px;
   --avatar-size: 28px;
+  /* Three icon sizes, and the third is scoped. DES-021 set two: compact for
+   * metadata and chips, default for controls, navigation and actions. The
+   * dense step was added at V3 (DES-116) for icons inside dense card
+   * metadata only, never in a row, and never away from 12px type. The test:
+   * it sits beside 12px text inside a card, and more than three of its kind
+   * are in view at once. */
+  --icon-size-dense: 14px;
   --icon-size-compact: 16px;
   --icon-size-default: 20px;
   --icon-stroke-width: 1.75;
 
   /* Session 4 approved desktop shell */
   --shell-sidebar-width: 256px;
-  /* DES-026's sharing panel, the width neither stylesheet collision reached;
-   * requested a home here by the R9 session's report and granted at polish. */
+
+  /* ---------------------------------------------------- v1 interim block --
+   * One variable, and it is not his. DES-026's sharing panel is v1 markup
+   * that `pages/FolderSharingPanel.tsx` still renders; the v2 prototype has
+   * no such panel and therefore no such token. It stays until the page that
+   * reads it is replaced, and this block is deleted whole at S12. Nothing
+   * new may be added to it. */
   --sharing-panel-width: 440px;
+  /* -------------------------------------------------- end v1 interim block */
   --shell-sidebar-item-height: var(--control-height);
   --shell-sidebar-section-font-size: 11px;
   --shell-sidebar-row-font-size: 13px;
   --shell-pagebar-height: 24px;
-  --shell-content-max: 1120px;
+  /* The window bar under the tabs (DES-139). A token because surfaces that
+   * sit below it, the conversation panel and the task sidebars, have to know
+   * where the chrome ends. */
+  --shell-windowbar-height: 36px;
+  /* The reading measure, adopted provisionally 2026-08-18 (DES-135): Imran
+   * expressed no preference when asked, so the studio recommendation stands
+   * until his eye rules at F2d; flip back with ?measure=wide. Supersedes
+   * DES-023's 1120px content area in part once confirmed. */
+  --shell-content-max: var(--content-list);
+
+  /* V1's measure tokens (review L6). Candidate A reads lists at ~800px,
+   * a task title is a sentence, and 1120px of sentence is a stretch no
+   * typographer would set, while candidate B keeps DES-023's 1120px with
+   * the two-line row already pulling metadata under the title. Until Imran
+   * picks, `?measure=narrow` shows A over every list screen through the
+   * data-measure hook in app-shell; the winner becomes the default and the
+   * losing variant leaves with the decision. --content-form is L6's second
+   * token, reserved here for V4 and V6 (the form sheet and Settings). */
+  /* Narrowed 800 -> 720 at Imran's direction, 2026-08-18: the header felt
+   * wide once the window bar took its controls away. DES-135 stays
+   * provisional either way; his eye rules at F2d. */
+  /*
+  The list measure, made responsive. Imran, 2026-08-22: "All folder pages
+  leave a bit too much empty space at both sides… we need a proper and
+  standard approach."
+
+  720px was a fixed reading measure, chosen when the question was whether a
+  task *title* is legible at 1120 (DES-135, and it was right about that). But
+  a task row is not a paragraph: it carries a title, an information line and a
+  trailing column of controls, so it reads more like a table than like prose,
+  and a fixed measure that suits the sentence strands the row in margin.
+
+  So the column scales with the window between two honest bounds: never
+  narrower than the measure that made titles readable, never wider than the
+  point where the eye loses the line returning to the left edge. Prose inside
+  it keeps its own cap, which is what `--content-form` is for: the paragraph
+  and the description stay at a sentence's width whatever the column does.
+  */
+  --content-list: clamp(720px, 66vw, 1040px);
+  --content-form: 640px;
 
   /* Installed light shell */
   --pwa-theme-color: #ffffff;
   --pwa-background-color: #ffffff;
+
+  /* The Dana mark's two colours. Previously hardcoded inside
+   * `components/dana-mark.tsx`, where they were copied from
+   * `public/dana-mark.svg`; they are here now because there are two colourways
+   * rather than one and a component picking its own hexes is how the second
+   * one drifts from the first. Hex values still match the source file. */
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
+}
+
+/* The reversed mark, for the dark panels. A logo whose plate is graphite-950
+ * disappears on a surface that is also graphite-950, which is exactly what the
+ * three dark panels on the public screens were showing: a bare white D with no
+ * tile under it, on every one of them, since the day the panels were drawn.
+ *
+ * `surface` names what the mark is sitting on rather than what colour it is,
+ * because at a call site "this is on a dark panel" is a fact one can check and
+ * "this one is the light version" is a thing one has to remember.
+ *
+ * The `.dark` rule is the prototype's only dark-mode-aware line, and it is
+ * here rather than waiting because it is what makes this a colourway for dark
+ * mode rather than a second asset somebody has to remember to reach for. It
+ * changes nothing today: no code adds that class, and this file's header still
+ * stands: a dark *theme* is out of scope, and one component being ready for
+ * one is not the same undertaking. */
+:root:is(.dark, .dark *),
+[data-dana-mark-surface="dark"] {
+  --dana-mark-plate: var(--color-graphite-0);
+  --dana-mark-glyph: var(--color-graphite-950);
+}
+
+/* Pinned back to the default for a mark on a light surface inside a dark
+ * document, the case the cascade would otherwise get wrong. */
+[data-dana-mark-surface="light"] {
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
 }
 
 /* Accessibility guardrails approved with the palette:
@@ -294,9 +467,159 @@ typeface only while online.
  * - Status and folder colors always travel with a text or icon cue.
  */
 
+
+/* ------------------------------------------------------------- dark mode --
+ *
+ * DES-205. Imran's brief of 2026-08-23, item 6, asked for a dark-mode toggle
+ * and scoped it to *placement*. This is the colourway behind it, offered as a
+ * first pass for his ruling rather than as a settled palette, because a
+ * control that switches to nothing is a control that lies, and the toggle is
+ * more useful to rule on with something behind it.
+ *
+ * **One ramp, not a hundred edits.** Every surface in this prototype draws
+ * from --color-graphite-N and --color-dana-accent-N, and the shadcn mapping is
+ * built on those rather than on values of its own. So a dark theme is this
+ * block: re-author the two ramps, and the whole product follows. That was the
+ * bet the token file made and this is it being collected.
+ *
+ * **The ramp is not the light one reversed.** Roles are preserved and values
+ * re-authored, because dark surfaces need different spacing between steps:
+ * the eye separates light greys far better than dark ones, so the low end is
+ * pushed further apart than a mirror would put it.
+ *
+ * **Elevation inverts.** In light, a raised surface is whiter and casts a
+ * shadow. In dark, a shadow on near-black is invisible, and raising something
+ * means making it *lighter*. This is why --color-graphite-0, the sheet the
+ * work sits on, is lighter than --color-graphite-25, the recessed plane the
+ * furniture sits on: the relationship the light theme states is kept and the
+ * physics is turned over. The shadows stay, dropped to a trace, because they
+ * still do the job at the popover's edge where two dark planes meet.
+ *
+ * **The accent is lifted a full step.** Cobalt 600 at #3c5bbf carries text on
+ * white and disappears on a dark plate; the dark theme's 600 is the step that
+ * clears the same contrast bar against #17181b. The tints below it stop being
+ * pale blues and become dark blues, since in dark a tint is a *deeper* wash
+ * rather than a lighter one.
+ *
+ * **What is still Imran's**, and the reason this is a proposal: the ten folder
+ * swatches (DES-018) are unchanged here. They are mid-tone by construction and
+ * they survive the move, but DES-018 requires each to travel with a legible
+ * folder name and that is a judgement per swatch against a new ground, not one
+ * ruling. The same goes for whether the recessed/raised step reads at all on
+ * an OLED panel, which is a thing to look at rather than to calculate.
+ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* The ramp. 0 is still the sheet and 25 still the ground; in dark that means
+     0 is the lighter of the two. */
+  --color-graphite-0: #17181b;
+  --color-graphite-25: #0f1013;
+  --color-graphite-50: #1f2126;
+  --color-graphite-100: #272a30;
+  --color-graphite-200: #32363d;
+  --color-graphite-300: #434850;
+  --color-graphite-400: #7b7f88;
+  --color-graphite-500: #9aa0a8;
+  --color-graphite-600: #b5bac1;
+  --color-graphite-700: #cbcfd5;
+  --color-graphite-800: #e3e6ea;
+  --color-graphite-900: #f2f3f5;
+  --color-graphite-950: #ffffff;
+
+  /*
+  Cobalt, lifted, and lifted at the *new* saturation (DES-214).
+
+  The dark ramp was derived from the old, greyer 600; leaving it would have made
+  the accent vivid in light and washed in dark, which is the two-themes-drifting
+  fault in its purest form. Same hue, same chroma, raised until it clears 4.5:1
+  against the dark card.
+
+  The tints are washes of the ground rather than of white: in dark a tint is a
+  *deeper* colour, not a paler one.
+  */
+  /* Stepped to match the neutral hover in dark, which moves 1.10 from the card
+     (graphite-50 against graphite-0). The first pass sat at 1.06: a wash you
+     cannot see is a hover state that does not exist. */
+  --color-dana-accent-50: #121f49;
+  --color-dana-accent-100: #17285e;
+  --color-dana-accent-200: #1f347a;
+  --color-dana-accent-600: #567af1;
+  --color-dana-accent-700: #7b98f4;
+  --color-dana-accent-800: #a1b5f7;
+
+  /* The semantic four. Their 600/700 steps carry text, so they lift the same
+     way the accent does; their 100/200 steps are fills and go dark. */
+  --color-success-100: #14251a;
+  --color-success-200: #1b3524;
+  --color-success-600: #6cc98a;
+  --color-success-700: #86d6a0;
+  --color-warning-100: #2a2113;
+  --color-warning-200: #3b2e18;
+  --color-warning-500: #dfae5c;
+  --color-warning-700: #e8c27f;
+  --color-danger-100: #2b1817;
+  --color-danger-200: #3d201e;
+  --color-danger-600: #f08d84;
+  --color-danger-700: #f5a9a1;
+  --color-info-100: #12242b;
+  --color-info-200: #17333d;
+  --color-info-700: #74c4dd;
+
+  /* Dropped to a trace: on near-black a shadow does nothing but dirty the
+     edge, and the lighter plate is what says "raised" now. */
+  --elevation-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --elevation-2: 0 2px 8px rgb(0 0 0 / 50%);
+}
+
+/*
+ * The mark, inverted for dark, and the first version of this was inverted
+ * twice, which is the same as not at all.
+ *
+ * Imran, 2026-08-23: "the dark mode still uses the current version of the
+ * logo while it should use the logo which is inverted". It did. The rule said
+ * plate: graphite-0, glyph: graphite-950, the reversal, written against the
+ * *light* ramp's meaning. But the ramp itself had already reversed above, so
+ * graphite-0 is now the near-black sheet and graphite-950 is white: the rule
+ * resolved to a near-black tile carrying a white D, on a near-black page. The
+ * mark disappeared into its own background, which is precisely the fault the
+ * note beside `.dark` was written about.
+ *
+ * The lesson is worth more than the fix: **a rule written in terms of a ramp
+ * cannot also be the thing that flips the ramp.** Stated by role instead (the plate is the opposite of the page, always) it
+ * cannot double-negate.
+ */
+[data-theme="dark"] {
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
+}
+
+/* Reduced motion. The tokens are collapsed at the source rather than each
+ * component being asked to remember, so a transition written against
+ * --duration-base simply stops moving when the operating system says so and
+ * no animation can be forgotten. State still changes; only the travel is
+ * removed. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-slow: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /*
 Everything below is his `app.css`, in his order, less the two `min-width`
-declarations section 13 item 32 forbids.
+declarations section 13 item 32 forbids and less the `[data-measure]` block,
+which styles shell markup S9 brings.
 */
 
 @layer base {
@@ -332,14 +655,36 @@ body {
   min-height: 100vh;
 }
 
-button,
-input,
-textarea,
-select {
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
+/* Controls inherit the page's font rather than the browser's.
+ *
+ * This lives in @layer base deliberately, and the reason is worth keeping.
+ * Unlayered CSS beats layered CSS regardless of specificity, and Tailwind 4
+ * puts every utility in @layer utilities. While these four lines were
+ * unlayered they silently beat every text-size utility applied to a button,
+ * input, textarea or select in the whole prototype: the class was in the
+ * markup, the rule was in the stylesheet, and the rendered size was whatever
+ * the parent happened to be. Nothing warned, because the code read as though
+ * it worked.
+ *
+ * Found 2026-08-17 when an expanded task title carrying a 16px utility kept
+ * rendering at 14px. Fixed the same day under DES-108, after measuring the
+ * real blast radius: six controls across the shell and the states page were
+ * rendering at a size their own code did not ask for, some too big and some
+ * too small depending on what they sat inside.
+ *
+ * In @layer base the reset still does its job and a utility can now override
+ * it, which is what everyone writing one intended.
+ */
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
 }
 
 button:not(:disabled),
@@ -350,6 +695,16 @@ button:not(:disabled),
 ::selection {
   background: var(--color-dana-accent-100);
   color: var(--color-graphite-900);
+}
+
+/* Thin tokenized scrollbars (review P1). The standard pair rather than the
+ * ::-webkit- pseudo-elements: both engines honour it now, and a scrollbar
+ * drawn from the ramp follows the dark colourway without a second rule.
+ * The track stays transparent so the bar reads as content furniture, not
+ * chrome, a scrollbar being an indicator first and a control second. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-graphite-300) transparent;
 }
 
 /* The desktop TaskForm is deliberately wider than the shadcn Sheet default so
