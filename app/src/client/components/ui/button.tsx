@@ -1,3 +1,4 @@
+import { isValidElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -9,6 +10,23 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        /*
+        Dana's commit button, F5, 2026-08-22.
+
+        The product's strongest action is graphite-900 on white, not the
+        accent: `--primary` is cobalt, which DES-016 reserves for selection,
+        focus and today, and a page full of blue Save buttons would spend that
+        meaning on furniture. So every real commit (Create group, New folder,
+        Post a comment, the destructive confirm) has been written as the same
+        hand-copied class string in seven places, each free to drift.
+
+        It is a variant now, which is where shadcn keeps this decision, so
+        there is one graphite and one hover step. The sizes above are already
+        this project's rather than upstream's (`icon-xs`, `icon-sm`), so
+        naming a variant here is in keeping rather than a departure.
+        */
+        commit:
+          "bg-[var(--color-graphite-900)] text-white hover:bg-[var(--color-graphite-800)]",
         outline:
           "border-border hover:bg-input/50 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30",
         secondary:
@@ -44,9 +62,24 @@ function Button({
   size = "default",
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  /*
+  A Button rendered as something else says so itself.
+
+  Base UI's `nativeButton` defaults to true and warns when the `render` prop
+  substitutes a non-<button>, which the two public screens do, rendering
+  their calls to action as real anchors. That warning was carried as a known
+  fault for a month because each call site was expected to remember
+  `nativeButton={false}`; deriving it here from what `render` actually is
+  makes the next anchor-rendered Button correct without anyone remembering
+  (DES-154). An explicit `nativeButton` prop still wins.
+  */
+  const rendersNativeButton =
+    props.render === undefined ||
+    (isValidElement(props.render) && props.render.type === "button")
   return (
     <ButtonPrimitive
       data-slot="button"
+      nativeButton={rendersNativeButton}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
