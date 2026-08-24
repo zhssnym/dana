@@ -1,6 +1,10 @@
 # RFC 0005: The v2 specification — navigation, day-level dates, roles, and the six systems
 
-- **Status:** Draft
+- **Status:** Accepted — by Imran, 2026-08-24 ("accepted, start S1"), recorded
+  the same day. Provisional numbers checked against the specification at
+  acceptance: sections 4.13 to 4.19, 7.12 to 7.18, 9.10 to 9.12 and criteria
+  from AC-184 are unclaimed and stand. The criteria units arrive from S1 per
+  the plan and complete inventory item 17.
 - **Created:** 2026-08-24
 - **Target release:** 2.0.0, September 2026 — a plan, not a promise; the
   infrastructure half is date-bound (database expiry 2026-09-12)
