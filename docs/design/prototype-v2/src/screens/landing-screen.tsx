@@ -122,7 +122,7 @@ function ProductShowcase() {
             >
               <span
                 className={`flex size-5 items-center justify-center rounded-full border text-[10px] tabular-nums ${activeId === item.id ? "" : "border-white/20"}`}
-                style={activeId === item.id ? { color: "#fff", backgroundColor: "#000", borderColor: "#000" } : undefined}
+                style={activeId === item.id ? { color: "#fff", backgroundColor: "var(--color-dana-accent-600)", borderColor: "var(--color-dana-accent-600)" } : undefined}
               >
                 {index + 1}
               </span>
@@ -144,6 +144,7 @@ function ProductShowcase() {
 
 function EvidenceSection({
   eyebrow,
+  eyebrowColor,
   heading,
   body,
   points,
@@ -151,6 +152,7 @@ function EvidenceSection({
   imageFirst = false,
 }: {
   eyebrow: string
+  eyebrowColor?: string
   heading: string
   body: string
   points: string[]
@@ -159,7 +161,12 @@ function EvidenceSection({
 }) {
   const copy = (
     <div className={imageFirst ? "lg:pl-8" : "lg:pr-8"}>
-      <p className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">{eyebrow}</p>
+      <p
+        className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase"
+        style={eyebrowColor ? { color: eyebrowColor } : undefined}
+      >
+        {eyebrow}
+      </p>
       <h2 className="mt-4 max-w-[13ch] text-[clamp(34px,4vw,52px)] leading-[1.06] font-semibold tracking-[-0.045em]">{heading}</h2>
       <p className="mt-6 max-w-[50ch] text-[15px] leading-7 text-muted-foreground">{body}</p>
       <ul className="mt-7 space-y-3 text-sm" aria-label={`${heading} details`}>
@@ -193,17 +200,17 @@ function WorkflowSection() {
   return (
     <div className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
       <div>
-        <p className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">Reusable workflows</p>
+        <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">Reusable workflows</p>
         <h2 className="mt-4 max-w-[13ch] text-[clamp(34px,4vw,52px)] leading-[1.06] font-semibold tracking-[-0.045em]">Good process should not start from zero.</h2>
         <p className="mt-6 max-w-[50ch] text-[15px] leading-7 text-muted-foreground">Save a folder or shelf as a workflow file and import it into a clean new workspace. The structure travels; private history does not.</p>
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           <div className="border-t border-border pt-4">
-            <Workflow className="size-5" />
+            <Workflow className="size-5 text-primary" />
             <p className="mt-3 text-sm font-semibold">Save as workflow</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">Keep the page, sections, task titles, and steps.</p>
           </div>
           <div className="border-t border-border pt-4">
-            <FolderOpen className="size-5" />
+            <FolderOpen className="size-5 text-primary" />
             <p className="mt-3 text-sm font-semibold">Import into a new folder</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">Dates, people, comments, and completion stay behind.</p>
           </div>
@@ -237,7 +244,7 @@ export default function LandingScreen() {
           <a href="#product" className={`hidden rounded-md px-3 py-2 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 sm:block ${interaction}`}>Product</a>
           <a href="#features" className={`hidden rounded-md px-3 py-2 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 sm:block ${interaction}`}>Features</a>
           <a href="#workflows" className={`hidden rounded-md px-3 py-2 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 sm:block ${interaction}`}>Workflows</a>
-          <Button type="button" size="sm" className="ml-2 bg-foreground text-background shadow-none hover:bg-card-foreground">Sign in</Button>
+          <Button type="button" size="sm" className="ml-2 bg-primary text-primary-foreground shadow-none hover:bg-[var(--color-dana-accent-700)]">Sign in</Button>
         </nav>
       </header>
 
@@ -251,7 +258,7 @@ export default function LandingScreen() {
           </h1>
           <p className="mx-auto mt-8 max-w-[660px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">Dana brings tasks, projects, schedules, and collaboration into one focused workspace—so the plan and the work stay together.</p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button type="button" className={`h-11 min-w-56 gap-3 bg-foreground px-5 text-sm font-medium text-background shadow-none hover:bg-card-foreground active:translate-y-px ${interaction}`}><GoogleGlyph />Continue with Google</Button>
+            <Button type="button" className={`h-11 min-w-56 gap-3 bg-primary px-5 text-sm font-medium text-primary-foreground shadow-none hover:bg-[var(--color-dana-accent-700)] active:translate-y-px ${interaction}`}><GoogleGlyph />Continue with Google</Button>
             <Button variant="ghost" className="h-11 gap-2 px-4 text-sm" render={<a href="#product" />}>See Dana in action<ArrowRight className="size-4" /></Button>
           </div>
           <p className="mx-auto mt-4 max-w-[44ch] text-xs leading-5 text-muted-foreground">Dana requests only your Google profile and email for sign-in, sharing, and invitations.</p>
@@ -266,7 +273,8 @@ export default function LandingScreen() {
       <section id="features" className="border-b border-border px-5 py-24 sm:px-8 sm:py-32">
         <div className="mx-auto w-full max-w-[1180px]">
           <EvidenceSection
-            eyebrow="Projects with shape"
+            eyebrow="Travel · Projects with shape"
+            eyebrowColor="var(--color-folder-violet)"
             heading="A folder can carry the whole plan."
             body="Dana pages combine the fast clarity of a task list with the structure a real project needs. Everything remains visible and editable in one place."
             points={["Group work into shelves, folders, and sections", "Add writing between task groups to preserve decisions", "Switch between list and board views without changing the work"]}
@@ -278,7 +286,8 @@ export default function LandingScreen() {
       <section className="border-b border-border bg-[var(--color-graphite-25)] px-5 py-24 sm:px-8 sm:py-32">
         <div className="mx-auto w-full max-w-[1180px]">
           <EvidenceSection
-            eyebrow="Work together in context"
+            eyebrow="Office · Work together in context"
+            eyebrowColor="var(--color-folder-teal)"
             heading="Open the task. Keep the project in view."
             body="A task expands where it lives. Steps, notes, attachments, comments, and the shared folder conversation remain connected instead of scattering across tools."
             points={["Break outcomes into clear, checkable steps", "Keep notes, files, and links on the task", "Use comments and the folder conversation for shared decisions"]}
@@ -291,7 +300,8 @@ export default function LandingScreen() {
       <section className="border-b border-border px-5 py-24 sm:px-8 sm:py-32">
         <div className="mx-auto w-full max-w-[1180px]">
           <EvidenceSection
-            eyebrow="A schedule across projects"
+            eyebrow="Scheduled · Across projects"
+            eyebrowColor="var(--color-dana-accent-600)"
             heading="See every dated task without losing where it belongs."
             body="Scheduled gathers commitments from across Dana and groups them by folder. Update the task here or return to its project with the same details intact."
             points={["Bring due and overdue work into one view", "Keep folder identity, assignees, steps, and recurrence visible", "Choose list, board, or calendar presentation for the moment"]}
@@ -309,7 +319,7 @@ export default function LandingScreen() {
           <DanaMark className="mx-auto size-11" />
           <h2 className="mt-7 text-[clamp(34px,4.4vw,54px)] leading-[1.04] font-semibold tracking-[-0.045em]">A clear place for the work ahead.</h2>
           <p className="mx-auto mt-5 max-w-[52ch] text-[15px] leading-7 text-muted-foreground">Start privately, invite people when the work needs them, and keep every next step attached to its project.</p>
-          <Button type="button" className={`mt-8 h-11 min-w-56 gap-3 bg-foreground px-5 text-sm font-medium text-background shadow-none hover:bg-card-foreground active:translate-y-px ${interaction}`}><GoogleGlyph />Continue with Google</Button>
+          <Button type="button" className={`mt-8 h-11 min-w-56 gap-3 bg-primary px-5 text-sm font-medium text-primary-foreground shadow-none hover:bg-[var(--color-dana-accent-700)] active:translate-y-px ${interaction}`}><GoogleGlyph />Continue with Google</Button>
         </div>
       </section>
 
