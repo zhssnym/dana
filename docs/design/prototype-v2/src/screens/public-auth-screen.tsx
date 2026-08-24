@@ -11,6 +11,8 @@ import { DanaMark } from "@/components/dana-mark"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 
+export { default as LandingScreen } from "@/screens/landing-screen"
+
 function DanaIdentity() {
   return (
     <a
@@ -63,7 +65,7 @@ function ShellPreview() {
   )
 }
 
-export function LandingScreen() {
+function LegacyLandingScreen() {
   /* Review S5's instrument: the headline's second line steps back either by
      tone (the standing treatment) or by weight (`?headline=weight`), and
      Imran picks by looking — the plan's rule for a decision of this size.
