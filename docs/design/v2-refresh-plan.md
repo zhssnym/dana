@@ -365,6 +365,17 @@ click-through has its instrument: thirteen stations with links covering
 DES-155 to DES-222, published as the "Dana v2 Click-Through" artifact. His
 pass, one fix round, then V10.
 
+**"All stations are good" — Imran's click-through pass, 2026-08-24.** The
+whole backlog, DES-155 through DES-222, approved in one pass with zero
+findings, through the thirteen-station instrument. This is the look the
+plan's own rule has owed on everything since F4, and no fix round is needed.
+The per-entry "Imran's look owed" flags in the register are settled by this
+line and are updated wholesale at V9's fold rather than one at a time. What
+remains of the design phase: V9's records (the fold, the registry, the
+ground-ready note now; the reference exports after Codex's landing pass),
+then V10's side-by-side against production for the two SESSION-LOG
+verdicts, then the pricing session with Hassan.
+
 **And widened the same day, at his instruction** — "hand off every frontend
 related thing which will not change backend or a design decision to Codex."
 The lane now carries four items, written up as `codex-handoff.md`: the
