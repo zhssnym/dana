@@ -177,8 +177,11 @@ describe('the handshake (AC-005, AC-105 to AC-107)', () => {
       dbClient.db,
       sql`SELECT id, name, is_default FROM folders WHERE owner_id = ${userId}`,
     )
-    expect(folders, 'one Inbox').toHaveLength(1)
-    expect(folders[0]?.name).toBe('Inbox')
+    expect(folders, 'one default folder').toHaveLength(1)
+    expect(
+      folders[0]?.name,
+      'RFC 0005: provisioning names the catch-all Desk',
+    ).toBe('Desk')
     expect(folders[0]?.is_default).toBe(true)
     const members = await rows(
       dbClient.db,

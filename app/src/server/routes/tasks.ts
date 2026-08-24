@@ -64,6 +64,7 @@ import {
   transitionTask,
 } from '../domain/tasks.js'
 import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
+import { restoreTask } from '../domain/trash.js'
 
 export interface TasksRouterOptions {
   dbClient?: DbClient
@@ -358,6 +359,26 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         const zone = zoneOf(req, res)
         if (zone === null) return
         tz = zone
+      }
+      /*
+      One path, two graves, disjoint by construction (RFC 0005, 7.13): a
+      trashed task is invisible to the 5.1 transition below, and a visible
+      task is by definition not trashed, so "restore" means the one thing
+      the row's state admits. The un-trash is tried first because its
+      domain is the one the transition cannot see, and a miss costs one
+      indexed read.
+      */
+      if (event === 'restore') {
+        const untrashed = await restoreTask(db, viewer(req), taskId)
+        if (untrashed === 'restored') {
+          const returned = await taskView(db, viewer(req), taskId)
+          if (returned === null) {
+            notFound(res)
+            return
+          }
+          res.status(200).json(transitionBody(returned))
+          return
+        }
       }
       const result = await transitionTask(db, viewer(req), taskId, event, tz)
       switch (result.kind) {

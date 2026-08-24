@@ -104,8 +104,8 @@ describe('AC-025: a title-only create lands in the Inbox with the 7.6 defaults',
     ).toBe(true)
     expect(
       folder.name,
-      'provisioning names the default folder Inbox (spec 7.1)',
-    ).toBe('Inbox')
+      'provisioning names the default folder Desk (RFC 0005; spec 2)',
+    ).toBe('Desk')
   })
 
   test('AC-025: the task is assigned to the caller', async () => {

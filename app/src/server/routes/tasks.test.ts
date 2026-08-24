@@ -813,9 +813,16 @@ describe('the tasks router, driven through the harness idiom', () => {
     )
 
     expectStatus(await deleteTask(owner, created.id), 204, 'any member deletes (7.6)')
-    expect(await stepRows(app.db, created.id), '4.6 cascades').toEqual([])
-    expect(await myDayRows(app.db, created.id), '4.7 cascades').toEqual([])
-    expect(await reminderRow(app.db, created.id), '4.8 cascades').toBeUndefined()
+    // RFC 0005: the delete marks (7.13) and the parts wait for restore; the
+    // 4.6, 4.7 and 4.8 cascades fire at the 11.7 purge, which AC-042 owns.
+    expect(
+      (await myDayRows(app.db, created.id)).length,
+      'both members\' pulls wait in Trash with the row (7.13)',
+    ).toBe(2)
+    expect(
+      await reminderRow(app.db, created.id),
+      'so does the reminder',
+    ).toBeDefined()
     expectStatus(
       await deleteTask(owner, created.id),
       404,
