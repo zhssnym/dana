@@ -44,7 +44,8 @@ describe('AC-196 the picture is the control', () => {
 
     const me = await owner.browser.json('/me', 'GET')
     expectStatus(me, 200, 'the profile reads back (spec 7.1)')
-    const url = (me.json() as { avatar_url?: unknown }).avatar_url
+    const url = (me.json() as { user?: { avatar_url?: unknown } }).user
+      ?.avatar_url
     expect(typeof url, 'avatar_url is set (spec 4.1)').toBe('string')
     expect(
       String(url).includes('/files/') || String(url).includes('/avatar'),

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -18,8 +19,11 @@ import { createServerErrorTracker } from './observability/error-tracker.js'
 import type { ErrorTracker } from './observability/error-tracker.js'
 import { createApplicationLogger } from './observability/logger.js'
 import { createRequestErrorHandler } from './observability/request-errors.js'
+import { createDiskStore } from './files/store.js'
+import type { ObjectStore } from './files/store.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createEventsRouter } from './routes/events.js'
+import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
@@ -78,6 +82,14 @@ export interface AppOptions {
   /** Explicit limiter set for focused tests. Production constructs its own. */
   rateLimits?: RateLimits
   /**
+   * The S4 object store (files/store.ts), bytes behind one interface.
+   * Absent, a disk store is constructed over DANA_FILES_DIR, or the OS
+   * temporary directory when that is unset, which is the test default;
+   * construction does no I/O either way (11.10), the directory being made
+   * at the first put.
+   */
+  fileStore?: ObjectStore
+  /**
    * Directory of the built client, present only after npm run build. The
    * boot path performs the existence check and passes the result, because
    * createApp itself performs no I/O (11.10).
@@ -108,6 +120,14 @@ export function createApp(options: AppOptions = {}): express.Express {
     )
   const securityLog = options.securityLog ?? createSecurityLogger(logger)
   const errorTracker = options.errorTracker ?? createServerErrorTracker()
+  const fileStore =
+    options.fileStore ??
+    createDiskStore(
+      process.env.DANA_FILES_DIR !== undefined &&
+        process.env.DANA_FILES_DIR !== ''
+        ? process.env.DANA_FILES_DIR
+        : path.join(os.tmpdir(), 'dana-files'),
+    )
   const notifyLogger = {
     info(fields: Record<string, unknown>): void {
       securityLog.operation('info', 'notification_configuration', {
@@ -242,6 +262,14 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createTrashRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+
+  // The S4 files surface (7.15): uploads, authenticated serving, the
+  // avatar. Same position as its S3 siblings; its paths meet nothing the
+  // earlier routers claim.
+  app.use(
+    '/api/v1',
+    createFilesRouter({ dbClient: options.dbClient, fileStore, rateLimits }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {
