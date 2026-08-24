@@ -957,7 +957,17 @@ fold, the way P7's mid-package change control ratified the pass callable:
    Third, the 4.3 icon key is pattern-validated until S8 exports the set;
    the server stores the key opaquely, so tightening to the allowlist later
    is a validation change and not a migration.
-6. **The pin fold ships with S7, not S2.** The rule that the show_* flags
+6. **The pin fold is a derivation, not a drop (S7, 2026-08-24).** AC-208
+   settles the design: pinned_views is one nullable column, null meaning
+   never chosen, and the pins derive from the three v1 flags until the
+   person first writes pins, after which the column is the record for the
+   v2 surface. The flags stay stored and frozen 7.2's /me/settings keeps
+   them untouched, so AC-119 to AC-123 hold as written and no data
+   migration runs at all. "Two records of one fact are not kept" is
+   enforced by derivation: at no moment are two records authoritative for
+   one reader. The v2 surface is GET and PATCH /settings, beside
+   /me/settings and never instead of it.
+7. **The pin fold ships with S7, not S2.** The rule that the show_* flags
    fold into the pinned-views value in the same migration that adds it is
    kept literally: that migration is S7's, landing beside the server switch
    whose acceptance line owns "one record of visibility". S2 adding the

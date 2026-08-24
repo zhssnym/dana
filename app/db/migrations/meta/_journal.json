@@ -29,6 +29,13 @@
       "when": 1787876400000,
       "tag": "0003_v2_expand",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787894000000,
+      "tag": "0004_pinned_views",
+      "breakpoints": true
     }
   ]
 }
