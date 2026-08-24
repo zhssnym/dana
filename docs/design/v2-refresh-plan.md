@@ -348,6 +348,14 @@ shape when search learns to reach messages, and stage 6 converts whatever ramp
 colour is left in the file. Its session log line is marked parallel, so the log
 stops being a strict sequence from this date.
 
+**Reaffirmed by Imran, 2026-08-24**, after the close-out review found the
+session had delivered nothing yet: the conversation surface stays with Codex
+and the boundary stands. Nothing in that work moves a backend decision — the
+conversation's backend shape is already recorded with its four facts
+(DES-129, DES-134, DES-142, DES-146), and what Codex owes is polish on a
+drawn surface. Its three debts from the brief are unchanged: a diff limited
+to the five files, a parallel log line here, and a handoff paragraph.
+
 **F7 in progress, 2026-08-23.** Working through `docs/design/f7-brief.md`, which
 reads Imran's fifteen-item brief as a system rather than a list. Stages 1 to 3
 of its sequence are done:
@@ -444,6 +452,20 @@ question DES-178 opened); one more prototype session of drawing work remains
 (V5/V6/V7/V8 remnants); V9 and V10 are untouched; the messaging session has
 delivered nothing and needs a decision; and the run order to close the phase
 is written at its foot. The next session starts from that document.
+
+**Its step 1 ran the same day (DES-222): the last drawing pass is closed.**
+C4 fixed and C1/C3 verified, C2 recorded superseded by DES-164; V6 closed
+whole — S2’s 560px column, S3’s chip dropped, S4’s label deduped, S1 verified
+built, S5 drawn as the `?headline=weight` instrument for Imran’s pick; W1’s
+comment written into `tokens.css`; P1’s scrollbars stated once in tokens; the
+`nativeButton` warning killed as a mechanism in `ui/button` with the two
+public screens joining the sweep’s routes; and V8’s stress pass now lives as
+a sweep block built through the app’s own stores. Statuses settled: L3, L4,
+DES-131 and DES-117. **Three rulings landed the same day**: cobalt to hue
+242 (DES-215, delegated and ruled), Library accepted (DES-220), and the
+messaging boundary reaffirmed with Codex. Still owed to close the phase: S5’s
+pick and the DES-155→222 click-through (V10’s side-by-side), V9’s handoff
+package, and the two SESSION-LOG verdicts. Then the Lane 2 pricing session.
 
 ### The F6 handover, kept
 

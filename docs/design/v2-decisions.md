@@ -5877,6 +5877,13 @@ saturation and same contrast, clear of the accent at 226 and still clear of
 violet at 259 — is drawn at `?view=swatches` beside the applied value, for Imran
 to rule on. Until then cobalt keeps its hue and takes the same lift as the rest.
 
+**Ruled, 2026-08-24: cobalt moves to 242.** Imran stated the principle —
+"I prefer vividness" — and delegated the hue explicitly ("you know the best
+what to decide then. It's on you"). Vividness is what created the collision,
+so keeping both vivid forces the split: identity and interaction cannot share
+a hue once lightness stops separating them. `#7b77f6` is applied; the dark
+variant is re-solved with the rest of the dark ramp at the colourway session.
+
 **A flaky check was hardened rather than shrugged at.** The workflow-import
 block failed once in three runs on a fixed 1500ms wait: the import navigates to
 a new folder, and a page still mounting has neither its section nor its task in
@@ -6027,7 +6034,7 @@ shelf **opens as its own tab and lands you there**, the shelf kept open
 beside it, because a shelf presents a workflow and what it opens should stay
 open.
 
-### DES-220, the sidebar's folder block is labelled Library — PROPOSED
+### DES-220, the sidebar's folder block is labelled Library
 
 Imran, 2026-08-24: the collapsible "Folders" label "does not feel good" now
 that the block holds shelves too, offering "Shelfs and Folders" or "User
@@ -6035,7 +6042,10 @@ Library" and asking for better. **Library** is the offer: one word, plain
 English, naming the place rather than half its contents — and it is the room
 shelves already stand in, so the metaphor was chosen the day "shelf" was.
 "Shelves and folders" names the contents and grows wrong the day the block
-holds a third thing. His eye rules; the word swaps in one line.
+holds a third thing.
+
+**Ruled the same day: "Library as the sidebar block's current name is good
+and accepted."**
 
 ### DES-221, whose footer label survives narrowing is arithmetic
 
@@ -6050,6 +6060,58 @@ their icons until the row genuinely fits all three** (about 262px), which is
 the same behaviour the whole row already had when narrowed, applied two at a
 time. Tooltips name all three in every state; the collapsed rail still
 stacks, which is [[DES-216]]'s arithmetic unchanged.
+
+### DES-222, the last drawing pass: the review's tail, closed against the code
+
+The close-out review of 2026-08-24 found the original 39-finding review's tail
+still open — V5's calendar remnants, V6 whole, V7's one comment, V8 whole —
+and this pass closed it. Item by item, because each was checked against the
+thing rather than the memory of it:
+
+- **C4**: an abandoned chip at month zoom quiets to its glyph and a faded
+  tone; the strike survives only at day and week, where a chip has room to be
+  read. **C1** verified done (times prefix timed chips at every zoom); **C3**
+  was done ("+N more" is a real control that opens the day). **C2 is
+  superseded, not skipped**: the finding asked for the weekday header one
+  step up, and DES-164 later made the calendar's heads match the date
+  picker's — a deliberate, recorded choice that outranks an older finding.
+- **S2**: Settings' control column narrowed to 560px — every row is a label
+  with a control at its far end, and at 820 the switch sat a reading-line
+  away from its words. The People form already kept this discipline.
+- **S3**: the invite gate's count chip dropped; the dark panel's 34px numeral
+  already states the count. **S4**: the reminder email stopped saying "Task
+  reminder" twice — the context meta now carries the half the heading has
+  not said, "In Travel". **S1** verified already built (Send invite's
+  enabled and disabled states, plus the duplicate-invite message).
+- **S5** is an instrument, not a decision: the landing headline's second
+  line steps back by tone at the plain URL and by weight at
+  `?headline=weight`; Imran picks by looking and the losing rule leaves.
+- **W1's comment** now sits in `tokens.css` beside the accent ramp: one
+  accent; AI renders native and gets provenance, not a hue.
+- **P1**: thin scrollbars, stated once as the standard `scrollbar-width` and
+  `scrollbar-color` pair riding the graphite ramp, so the dark colourway
+  gets them without a second rule.
+- **The `nativeButton` warning died as a mechanism, not a patch**: our
+  Button now derives Base UI's `nativeButton` from what its `render` prop
+  actually is, so the two public screens are clean and the next
+  anchor-rendered Button is born correct (DES-154). The two screens joined
+  the sweep's routes — the warning survived a month precisely because no
+  route ever loaded them.
+- **V8 became a block rather than a memory**: the sweep now builds the
+  stress state through the app's own stores — a 360px sidebar with a folder
+  name that will not stop, a 100-character task, 50 steps, 20 folders in one
+  group — and asserts no overflow and no silent absence. Writing it caught
+  two blind spots in its own first draft (a missing row read as a pass; a
+  box measured where scroll-width was the fact), and its truncation probe
+  was defeated for the best possible reason: the sidebar primitive enforces
+  truncation itself, at the span, whatever the call site writes. The
+  motion half of V8 was already answered at the token level — the
+  reduced-motion block zeroes every duration globally.
+- **Statuses settled while closing**: L3 (the page strip) is superseded by
+  DES-139 and DES-217; L4's rest state is the quick-add's shipped ghost row,
+  one of the finding's own two candidates; DES-131's control cluster is
+  superseded by the window bar; DES-117's freed-panel question was answered
+  by DES-142 and DES-186.
 
 ## Carried from v1, still unresolved
 
