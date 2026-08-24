@@ -1,0 +1,456 @@
+/*
+The 7.16 surface (RFC 0005): pages, shelves, and the object acts. One
+router because 7.16 is one section: the folder page, the shelf family with
+its own page, duplicate for tasks and folders, the workflow import, and the
+direct ownership transfer. Handlers validate with the shared schemas,
+resolve access, delegate, and serialize.
+
+Status grammar (7.0, 10.2): scope failures 404, never 403, except where the
+viewer demonstrably sees the thing and lacks the role, which is 403 by the
+DES-225 matrix (a member asking to transfer ownership); stale page evidence
+409 with 5.1's copy; shape and cap failures 422 naming the field.
+*/
+import { Router } from 'express'
+import type { NextFunction, Request, Response } from 'express'
+import { z } from 'zod'
+
+import type { Db, DbClient } from '../../../db/client.js'
+import { putPageBody } from '../../shared/pages.js'
+import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
+import { importWorkflowBody } from '../../shared/workflows.js'
+import {
+  attachSession,
+  requireCsrf,
+  requireSession,
+  sessionOf,
+} from '../auth/index.js'
+import {
+  duplicateFolder,
+  duplicateTask,
+  importWorkflow,
+  transferOwnershipTo,
+} from '../domain/acts.js'
+import { accessOf } from '../domain/folders.js'
+import { pageView, putPage } from '../domain/pages.js'
+import {
+  createShelf,
+  deleteShelf,
+  listShelves,
+  patchShelf,
+  shelfView,
+} from '../domain/shelves.js'
+import { accessibleTask, taskView } from '../domain/tasks.js'
+import { sendError, sendValidationError } from '../http/errors.js'
+import { optionalLimit } from '../security/rate-limit.js'
+import type { RateLimits } from '../security/rate-limit.js'
+
+export interface WorkshopRouterOptions {
+  dbClient?: DbClient
+  rateLimits?: RateLimits
+}
+
+const uuidParam = z.uuid()
+
+export function createWorkshopRouter(
+  options: WorkshopRouterOptions = {},
+): Router {
+  const router = Router()
+  const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+
+  const database = (res: Response): Db | null => {
+    if (options.dbClient === undefined) {
+      sendError(
+        res,
+        500,
+        'internal_error',
+        'The application was constructed without a database.',
+      )
+      return null
+    }
+    return options.dbClient.db
+  }
+
+  if (options.dbClient !== undefined) {
+    const attach = attachSession(options.dbClient.db)
+    router.use((req: Request, res: Response, next: NextFunction) => {
+      if (sessionOf(req) !== undefined) {
+        next()
+        return
+      }
+      attach(req, res, next)
+    })
+  }
+
+  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
+
+  const parsedId = (res: Response, raw: unknown): string | null => {
+    const parsed = uuidParam.safeParse(raw)
+    if (!parsed.success) {
+      sendError(res, 404, 'not_found', 'Not found.')
+      return null
+    }
+    return parsed.data
+  }
+
+  /* ---------------------------------------------------------------- *
+   * The folder page (4.17): any member reads, any member edits (D1)
+   * ---------------------------------------------------------------- */
+
+  router.get(
+    '/folders/:id/page',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      if ((await accessOf(db, viewer(req), folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json(await pageView(db, { folderId, shelfId: null }))
+    },
+  )
+
+  router.put(
+    '/folders/:id/page',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      if ((await accessOf(db, viewer(req), folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const parsed = putPageBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const outcome = await putPage(
+        db,
+        { folderId, shelfId: null },
+        viewer(req),
+        parsed.data.blocks,
+      )
+      if (outcome.kind === 'stale') {
+        // 5.1's copy for the lost half of a last-write-wins race.
+        sendError(
+          res,
+          409,
+          'conflict',
+          'Someone else changed this block. Reload the page to see it.',
+        )
+        return
+      }
+      res.status(200).json(outcome.page)
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * Shelves (4.18): private by construction, every path viewer-scoped
+   * ---------------------------------------------------------------- */
+
+  router.get('/shelves', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    res.status(200).json(await listShelves(db, viewer(req)))
+  })
+
+  router.post(
+    '/shelves',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const parsed = postShelvesBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const outcome = await createShelf(db, viewer(req), parsed.data)
+      if (outcome.kind === 'name_taken') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'name: you already have a shelf with this name.',
+        )
+        return
+      }
+      res.status(201).json(outcome.shelf)
+    },
+  )
+
+  router.get(
+    '/shelves/:id',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      const shelf = await shelfView(db, viewer(req), shelfId)
+      if (shelf === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json(shelf)
+    },
+  )
+
+  router.patch(
+    '/shelves/:id',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      const parsed = patchShelfBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const outcome = await patchShelf(db, viewer(req), shelfId, parsed.data)
+      if (outcome.kind === 'not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'name_taken') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'name: you already have a shelf with this name.',
+        )
+        return
+      }
+      res.status(200).json(outcome.shelf)
+    },
+  )
+
+  router.delete(
+    '/shelves/:id',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      if ((await deleteShelf(db, viewer(req), shelfId)) === 'not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(204).end()
+    },
+  )
+
+  router.get(
+    '/shelves/:id/page',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      if ((await shelfView(db, viewer(req), shelfId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      res.status(200).json(await pageView(db, { folderId: null, shelfId }))
+    },
+  )
+
+  router.put(
+    '/shelves/:id/page',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      if ((await shelfView(db, viewer(req), shelfId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const parsed = putPageBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const outcome = await putPage(
+        db,
+        { folderId: null, shelfId },
+        viewer(req),
+        parsed.data.blocks,
+      )
+      if (outcome.kind === 'stale') {
+        sendError(
+          res,
+          409,
+          'conflict',
+          'Someone else changed this block. Reload the page to see it.',
+        )
+        return
+      }
+      res.status(200).json(outcome.page)
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * The object acts
+   * ---------------------------------------------------------------- */
+
+  router.post(
+    '/folders/:id/duplicate',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      if ((await accessOf(db, viewer(req), folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const outcome = await duplicateFolder(db, viewer(req), folderId)
+      if (outcome.kind === 'folder_cap') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'You already have 200 custom folders, the most an account can hold.',
+        )
+        return
+      }
+      res.status(201).json({ id: outcome.id, name: outcome.name })
+    },
+  )
+
+  router.post(
+    '/tasks/:id/duplicate',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const source = await accessibleTask(db, viewer(req), taskId)
+      if (source === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const newId = await duplicateTask(db, viewer(req), {
+        id: source.id,
+        folderId: source.folderId,
+        title: source.title,
+      })
+      res.status(201).json(await taskView(db, viewer(req), newId))
+    },
+  )
+
+  router.post(
+    '/workflows/import',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const parsed = importWorkflowBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const outcome = await importWorkflow(db, viewer(req), parsed.data)
+      if (outcome.kind === 'folder_cap') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'folders: this file would take the account past 200 custom folders.',
+        )
+        return
+      }
+      res.status(201).json({ folders: outcome.folders })
+    },
+  )
+
+  router.post(
+    '/folders/:id/transfer-ownership',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      const parsed = z.object({ to: z.uuid() }).safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const access = await accessOf(db, viewer(req), folderId)
+      if (access === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (!access.isOwner) {
+        // Visible but not permitted (DES-225): the member sees the folder,
+        // so the refusal may say why.
+        sendError(
+          res,
+          403,
+          'forbidden',
+          'Only the folder owner can transfer ownership.',
+        )
+        return
+      }
+      if (access.isDefault) {
+        sendError(
+          res,
+          409,
+          'conflict',
+          'The default folder cannot change hands (INV-2).',
+        )
+        return
+      }
+      const outcome = await transferOwnershipTo(
+        db,
+        viewer(req),
+        folderId,
+        parsed.data.to,
+      )
+      if (outcome.kind === 'target_not_member') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'to: must be a member of this folder.',
+        )
+        return
+      }
+      res.status(200).json({ owner_id: outcome.ownerId })
+    },
+  )
+
+  return router
+}
