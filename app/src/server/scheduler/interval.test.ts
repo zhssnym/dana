@@ -128,7 +128,10 @@ describe('the in-flight guard (spec 11.7)', () => {
 
     stub.release()
     await vi.advanceTimersByTimeAsync(0)
-    expect(stub.finished(), 'the held pass ran to completion').toBe(1)
+    // Four statements follow the delivery transaction since S3: the session
+    // prune and the three purge DELETEs (Trash folders, Trash tasks,
+    // events), each a single statement needing no wrapper.
+    expect(stub.finished(), 'the held pass ran to completion').toBe(4)
 
     await vi.advanceTimersByTimeAsync(1_000)
     expect(

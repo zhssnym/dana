@@ -207,7 +207,7 @@ export function createFoldersRouter(
       }
       // 7.4: works for the default folder too; rename carries no guard
       // beyond ownership.
-      await renameFolder(db, folderId, parsed.data.name)
+      await renameFolder(db, viewer(req), folderId, parsed.data.name)
       const folder = await folderView(db, viewer(req), folderId)
       res.status(200).json(folder)
     },
@@ -241,7 +241,7 @@ export function createFoldersRouter(
         )
         return
       }
-      const deleted = await deleteFolder(db, folderId)
+      const deleted = await deleteFolder(db, viewer(req), folderId)
       securityLog.deletionEvent('folder_deleted', {
         actorId: viewer(req),
         folderId,
@@ -413,6 +413,7 @@ export function createFoldersRouter(
         }
         await removeMembership(db, folderId, targetId, {
           transferOwnership: false,
+          actorId,
         })
         res.status(204).end()
         return
@@ -431,6 +432,7 @@ export function createFoldersRouter(
         }
         await removeMembership(db, folderId, actorId, {
           transferOwnership: true,
+          actorId,
         })
         res.status(204).end()
         return
@@ -438,6 +440,7 @@ export function createFoldersRouter(
 
       await removeMembership(db, folderId, actorId, {
         transferOwnership: false,
+        actorId,
       })
       res.status(204).end()
     },

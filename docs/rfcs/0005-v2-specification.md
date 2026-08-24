@@ -820,6 +820,39 @@ untouched; the new criteria extend them rather than restate them.*
 - AC-094 Given the assignee control in a multi-member folder, then its choices are that folder's members, Invite by email, and Unassigned; given a single-member folder, then the control is hidden and the server still enforces INV-5.
 ```
 
+### Replace AC-014
+
+*Deletion splits into mark and purge (7.13, 11.7); the frozen 7.4 response and 8.8's cascades are unchanged, the cascades firing at the purge.*
+
+```markdown
+- AC-014 Given the owner deletes a custom folder, then the response carries 7.4's exact counts, the folder leaves every list and view, and it waits in Trash with its memberships, tasks of all statuses, steps, My Day entries, reminders, and pending invites held; when the 30 day window lapses and the pass runs, then the folder, all of those rows, and the folder's invites are gone, bare invites and other folders untouched.
+```
+
+### Replace AC-042
+
+*The same split for a task; 4.9's SET NULL asymmetry now fires at the purge.*
+
+```markdown
+- AC-042 Given a task deletion, then the task leaves every list and view and waits in Trash with its steps, My Day entries, and reminder held for restore, any invite keeping its task_id; when the 30 day window lapses and the pass runs, then the row and those dependents are gone and the invite survives with task_id null.
+```
+
+### Replace AC-005 and AC-025, name only
+
+*The Inbox becomes Desk (section 2); each criterion's logic is untouched and only the asserted name moves.*
+
+```markdown
+- AC-005 ... the default folder is named Desk ... (otherwise verbatim)
+- AC-025 ... a title-only create lands in the caller's Desk ... (otherwise verbatim)
+```
+
+### Replace AC-066, the deleted-in-the-meantime arm only
+
+*A delete now marks (7.13), so the parked task_id survives the trip to Trash and the acceptance skips the assignment because the task is trashed, not because 4.9 fired; 4.9 fires at the purge.*
+
+```markdown
+- AC-066 ... given the task was deleted before acceptance, then the invite keeps its parked task_id, the acceptance grants the folder and skips the assignment, and the task waits in Trash unassigned ... (the moved-folder arms verbatim)
+```
+
 ### Append to section 13
 
 ```markdown
@@ -902,7 +935,20 @@ fold, the way P7's mid-package change control ratified the pass callable:
 2. **notifications carries UNIQUE (user_id, event_id).** 11.7 requires each
    tick duty to be idempotent, and fan-out replayed after a crash must land
    on a constraint rather than double-notify. The 4.14 fold gains the line.
-3. **The pin fold ships with S7, not S2.** The rule that the show_* flags
+3. **Two more v1 criteria were invalidated than S1 enumerated.** Found
+   opening S3: AC-014 and AC-042 assert the v1 hard delete that 7.13
+   retires. Their Replace units are above, added 2026-08-24 with the tests
+   reworked red-first, the criteria package's own discipline applied late
+   rather than skipped.
+4. **Fan-out is the chokepoint's, not the tick's.** AC-187 and AC-188 read
+   a notification in the same breath as the mutation, and they are right
+   to: a bell that lags a minute is a worse product for no gain at Dana's
+   scale. The chokepoint writes the notification rows in the mutation's own
+   transaction beside the event, atomic and never double-sent, and 11.7's
+   five duties become four (reminders, session prune, the 30 day Trash
+   purge, the 90 day event purge). The 4.14 uniqueness stays as the
+   backstop it always was.
+5. **The pin fold ships with S7, not S2.** The rule that the show_* flags
    fold into the pinned-views value in the same migration that adds it is
    kept literally: that migration is S7's, landing beside the server switch
    whose acceptance line owns "one record of visibility". S2 adding the

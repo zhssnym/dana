@@ -349,7 +349,8 @@ export async function createInvite(
       const inFolder = await rowsOf(
         tx,
         sql`SELECT 1 AS present FROM tasks
-            WHERE id = ${taskId} AND folder_id = ${folderId}`,
+            WHERE id = ${taskId} AND folder_id = ${folderId}
+              AND deleted_at IS NULL`,
       )
       if (inFolder.length === 0) return { kind: 'task_not_in_folder' }
     }
@@ -602,11 +603,13 @@ export async function acceptInvite(
       }
 
       /*
-      The conditional assignment, its three conditions read as one guarded
-      UPDATE: the task exists, it is still in the invite's folder, and it is
-      still unassigned. Anything else is skipped silently (8.7), because a
-      skipped assignment loses a convenience while a refusal would consume
-      the recipient's one chance at the folder over a task that moved on.
+      The conditional assignment, its conditions read as one guarded UPDATE:
+      the task exists, it is still in the invite's folder, it is still
+      unassigned, and since RFC 0005 it is not waiting in Trash, a trashed
+      task being 8.7's "moved on" in its newest form. Anything else is
+      skipped silently (8.7), because a skipped assignment loses a
+      convenience while a refusal would consume the recipient's one chance
+      at the folder over a task that moved on.
       */
       let assignedTaskId: string | null = null
       if (taskId !== null && folderId !== null) {
@@ -615,7 +618,7 @@ export async function acceptInvite(
           sql`UPDATE tasks SET assignee_id = ${acceptorId}::uuid,
                                updated_at = now()
                WHERE id = ${taskId} AND folder_id = ${folderId}::uuid
-                 AND assignee_id IS NULL
+                 AND assignee_id IS NULL AND deleted_at IS NULL
                RETURNING id`,
         )
         assignedTaskId = nullableString(assigned[0]?.id)

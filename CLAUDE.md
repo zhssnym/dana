@@ -64,6 +64,13 @@ protocol points here rather than repeating them.
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
   naming files imports only those, while `-t` imports every file and skips
   execution in the rest. The Playwright leg is separate and is 135 cases.
+- Under load, parallel PGlite workers can die mid-run: the report shows
+  "[vitest-pool]: Worker forks emitted error" or whole files failed with
+  their tests skipped, and both read as broken code and are not. Observed
+  three times on 2026-08-24 with a dev server and a second agent running.
+  Cap the workers (`--maxWorkers=2`, or 1 for certainty) and rerun the
+  affected files alone before believing any of those failures; CI's serial
+  clean-checkout run is the authority.
 - Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
   arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
