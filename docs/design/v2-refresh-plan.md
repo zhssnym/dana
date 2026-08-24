@@ -433,6 +433,18 @@ folder cobalt moves off the brand hue (224 → 242) now that both are vivid
 still. DES-155 onwards still await his click-through, DES-217 to DES-221 now
 with them.
 
+**The close-out review, 2026-08-24.** At Imran’s instruction — “look 360
+degree everywhere, what’s left and what should be done” before the backend
+sessions are planned — everything still open was swept into one document:
+`docs/design/v2-closeout-review.md`. Its shape: the Lane 2 pile is
+priced-ready with the frontend drawn for nearly all of it; six things need
+backend and have no drawing (four deliberately, plus **notifications**, which
+nothing in the spec or prototype has ever mentioned, and the reminder
+question DES-178 opened); one more prototype session of drawing work remains
+(V5/V6/V7/V8 remnants); V9 and V10 are untouched; the messaging session has
+delivered nothing and needs a decision; and the run order to close the phase
+is written at its foot. The next session starts from that document.
+
 ### The F6 handover, kept
 
 
