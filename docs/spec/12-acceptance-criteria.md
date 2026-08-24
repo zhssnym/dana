@@ -372,3 +372,47 @@ The criterion asserts the dot as identification rather than as a colour value, f
 - AC-181 Given the "New folder" action of 9.1, then it opens a dialog taking a name and creating the folder; and given 9.6's "Label and color", then it opens a dialog taking the personal label and the colour together and writing both.
 - AC-182 Given the sidebar collapsed to its rail or resized, and given the task form resized, then each state survives a reload of the page, and the sidebar collapsed to its rail still reaches every page and every folder 9.1 puts in it.
 - AC-183 Given each of section 9's normative strings that the designer's prototype omitted, split or reworded, then the built client renders each as one text run, character for character as its section writes it: 9.1's failed-read line and 404 line, 9.3's steps cap notice, 9.4's abandon confirm, 9.6's leave, remove-member and delete-folder confirms, and 9.8's already-connected refusal and remove-connection confirm.
+
+**RFC 0005's forty-two criteria (transcribed at the S9 kickoff on 2026-08-24; authored and numbered by S1 at that RFC's acceptance on 2026-08-24).** The RFC's own split at its Append unit: AC-184 to AC-213 run in the API legs, AC-214 to AC-225 in the browser leg. The three criteria that RFC replaces rather than appends (AC-014, AC-093, AC-094) keep their v1 texts above until the delta folds wholesale, the reworked tests already asserting the RFC's texts; a reader comparing the two reads the RFC as the authority, which is what change control means.
+- AC-184 Given any authenticated mutation that changes a task, folder, shelf, or comment, when it succeeds, then exactly one events row records it, carrying the actor, the verb, and the subject.
+- AC-185 Given a folder member, when they list the folder's events, then events return newest first; given a non-member, then the 10.2 not-found shape.
+- AC-186 Given an event whose subject the viewer cannot read, when they read events by subject, then the 10.2 not-found shape.
+- AC-187 Given a task assigned to another member, when the assignment commits, then the assignee gains one unread notification and the actor gains none.
+- AC-188 Given unread notifications, when the recipient marks one read and then all read, then read_at is set accordingly and the unread count agrees at each step.
+- AC-189 Given a task, when it is deleted, then deleted_at is set, the row leaves every section 6 query, and it appears in the Trash listing of every member of its folder.
+- AC-190 Given a trashed task, when a different member of its folder restores it, then the task returns exactly once with its fields intact.
+- AC-191 Given a trashed folder 30 days old, when the 11.7 pass runs, then the folder and its tasks are permanently gone; given one 29 days old, then both remain.
+- AC-192 Given a folder owner, when they delete the folder, then deleted_at is set and each other member gains a notification; given a non-owner member attempting the delete, then 403 and no change.
+- AC-193 Given a non-owner member, when they rename the folder, then 403; when they set its icon, colour, cover, or description, then success, and every member reads the same identity.
+- AC-194 Given an upload within the 10.3 caps, then a files row exists and the uploader's quota is spent; given an account at quota, then 413; given a mime that does not match the declared kind, then 422 naming the field.
+- AC-195 Given a stored file in a shared folder, when a non-member requests it, then the 10.2 not-found shape; when a member requests it, then the bytes.
+- AC-196 Given an avatar upload, then users.avatar_url resolves to the stored object.
+- AC-197 Given a page-block write carrying a stale updated_at, then 409 with the 5.1 conflict copy; given a fresh one, then success and the last write stands for that block.
+- AC-198 Given a page holding 500 blocks, when one more is added, then 422.
+- AC-199 Given a task assigned to a section block, when that section is deleted, then the task survives with section_block_id null.
+- AC-200 Given a folder duplicated, then the copy carries tasks, sections, paragraphs, and section assignments; carries no members, comments, assignees, or completion; re-anchors spent due dates on today and keeps future ones; and belongs to the duplicator alone.
+- AC-201 Given a workflow file naming ids, members, dates, or statuses, when imported, then only structure and titles are created; given a file over the 10.3 import caps, then 422.
+- AC-202 Given an owner and another member, when ownership is transferred to that member, then owner_id changes and the previous owner may leave; the default successor is the longest-standing member per 8.9.
+- AC-203 Given shelves, then (user_id, name) is unique; renaming keeps the shelf's id and its page; deleting clears the member labels and keeps every folder.
+- AC-204 Given a reply to a reply, then 422; comment threads hold one level.
+- AC-205 Given a comment in a folder, when a non-member reads or writes its thread, then the 10.2 not-found shape; when the author or the folder owner deletes it, then success; when another member tries, then 403.
+- AC-206 Given the same user liking a comment twice, then one like exists; unliking removes it.
+- AC-207 Given a comment in a thread with participants, then each participant except the actor gains a notification.
+- AC-208 Given the v2 settings fields written and re-read, then they round trip; given a v1 account with show_done true, when the migration runs, then Done is pinned for it.
+- AC-209 Given a saved view naming an assignee by id, when that person's display name changes, then the view still matches them.
+- AC-210 Given a search term matching a page paragraph, a shelf name, and a step title, then each returns under its kind; given a reader consuming only the v1 task results, then its view of the response is unchanged.
+- AC-211 Given default folders named Inbox, when the migration runs, then they are named Desk; given a default the owner renamed, then its name is kept.
+- AC-212 Given a task with a due date and no due time, when a reminder is set for 17:45, then the reminder stores time_of_day mode and the 11.7 pass fires it on the due date at 17:45 in the viewer's timezone.
+- AC-213 Given events older than 90 days, when the 11.7 pass runs, then they are purged and newer events remain.
+- AC-214 Given the sidebar, then Desk, Today, Scheduled, Assignments, Important, and All are links in that order, Done is absent until pinned, and the folder block is headed Library.
+- AC-215 Given /app/planned and /app/tasks, then the browser lands on /app/scheduled and /app respectively.
+- AC-216 Given a strip of two tabs, when the active one closes, then the neighbouring place shows; when the last one closes, then Desk; tabs reorder by pointer drag; the strip's plus opens a folder as a new tab beside the current one.
+- AC-217 Given a folder shared with the viewer, then its menu offers Leave folder and neither Rename nor Delete folder, and its page title is not editable; given an owned folder, then the reverse.
+- AC-218 Given unread notifications, then the bell's accessible name carries the count; pressing a row opens its subject and marks it read; Mark all read zeroes the badge.
+- AC-219 Given the due picker, then it offers no time-of-day control; given the reminder picker on a dated task, then it offers a time on that day.
+- AC-220 Given the assignee menu in a multi-member folder, then it lists that folder's members, Invite by email, and Unassigned last; choosing Unassigned clears the assignment.
+- AC-221 Given a board on Today grouped by folder, when a task is captured in a column, then it lands in that column's folder and appears on Today; given board view, then no floating add button renders.
+- AC-222 Given a filter set on Scheduled, when the viewer navigates away and returns, then it holds; when they visit Today, then Today's filter is independent.
+- AC-223 Given a shelf page, when a folder row is pressed, then the folder opens as its own tab beside the shelf's; when Add folder places an existing folder, then it joins the page without a reload.
+- AC-224 Given Trash holding a deleted folder, when Restore is pressed, then the folder returns to the sidebar exactly once with its tasks.
+- AC-225 Given a completion, when Ctrl+Z is pressed within five seconds, then the task is pending again through an ordinary mutation, and the wire never held the completion back.
