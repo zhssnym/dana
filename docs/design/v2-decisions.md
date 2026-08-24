@@ -156,6 +156,8 @@ that will cost time later.
 | DES-130 | A folder wears an identity: icon, colour, cover, description | PROPOSED | F1 | **NEEDS BACKEND**, see below |
 | DES-132 | Sections and paragraphs organise a folder page | PROPOSED | F1 | **NEEDS BACKEND**, see below |
 | DES-134 | A folder's conversation, and where it lives | PROPOSED | F1 | **NEEDS BACKEND**, see below |
+| DES-223 | Being told: assignment and conversation notifications | PROPOSED | close-out | **NEEDS BACKEND**, entry after DES-222 |
+| DES-224 | What a reminder means when a due date is a day | OPEN | close-out | **Spec ruling owed with DES-178's RFC**, entry after DES-222 |
 
 ### DES-098, custom tags or labels on a task
 
@@ -6112,6 +6114,69 @@ thing rather than the memory of it:
   one of the finding's own two candidates; DES-131's control cluster is
   superseded by the window bar; DES-117's freed-panel question was answered
   by DES-142 and DES-186.
+
+### DES-223, being told: notifications — PROPOSED, NEEDS BACKEND, not drawn
+
+The close-out review's one genuine new find, 2026-08-24, recorded before the
+pricing session so it is priced with its cause. Deliberately **not drawn**:
+the register's own rule is that a Lane 2 idea drawn before it is priced
+becomes an assumption.
+
+**What the user does.** Learns that something happened *to them* without
+going looking: they were assigned a task, someone answered them in a
+conversation, someone commented on work they own.
+
+**What the product cannot do today.** Dana notifies by email for exactly two
+things — invitations and task reminders — and has no in-app notification
+surface at all. Nothing anywhere, email included, fires on an assignment, a
+comment, a reply or a like. The moment DES-129 and DES-134 ship, every
+conversation in Dana happens silently: the only way to learn you were
+answered is to revisit the page you asked on.
+
+**What it would need** (a guess, marked as one). A notification record —
+recipient, actor, verb, subject, read state — which is substantially the
+same fact DES-199's event log already writes, plus a recipient and a read
+bit; endpoints to list and mark read; delivery rules (in-app first; whether
+email joins, and per-user preference for it, is its own question); and a
+client surface — a bell, a list, a badge — that no screen currently draws.
+Likely additive to section 7 rather than a change to it; the section 6
+queries look untouched.
+
+**What happens if it never ships.** Assignment and comments still *function*
+but die socially — so the pricing point is that DES-129/134's value partly
+depends on this. Pricing comments without pricing notifications misprices
+comments.
+
+### DES-224, what a reminder means when a due date is a day — OPEN
+
+The second close-out find, and the one that **blocks the port RFC** rather
+than merely awaiting a price: [[DES-178]] cannot be written into spec text
+without answering it.
+
+**What the user does.** Asks to be reminded of a task, and is reminded at a
+moment they could have predicted — while the design no longer asks them for
+a time of day on the due date.
+
+**What the product cannot do today.** Nothing — the collision runs the other
+way. Production's `due_at` carries a timestamp and the 60-second reminder
+tick fires off it; presets like "30 minutes before" assume that time exists.
+[[DES-178]] narrowed the *interface* to a day, deferring due-time rather than
+deleting the column, so a new task made under the v2 design gives the tick
+nothing to anchor to.
+
+**What it would need.** A ruling more than a schema: what a reminder anchors
+to when the date has no time. The candidates, for the RFC to weigh — a fixed
+default hour written into spec; a per-person "start of my day" preference
+(which would join the preference bundle DES-113/121/138/180 already form);
+or reminders carrying their own explicit timestamp, decoupled from the due
+date entirely. If "remind me at 17:45" survives as an explicit ask, one
+small picker drawing is owed to the prototype — the only drawing this entry
+might ever cost.
+
+**What happens if it never ships.** Reminders degrade silently in the worst
+way: they either keep firing off a time nobody chose, or stop firing for
+every task made under the new design. Unlike DES-223 this cannot be cut —
+only answered.
 
 ## Carried from v1, still unresolved
 

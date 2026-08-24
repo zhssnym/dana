@@ -356,6 +356,15 @@ conversation's backend shape is already recorded with its four facts
 drawn surface. Its three debts from the brief are unchanged: a diff limited
 to the five files, a parallel log line here, and a handoff paragraph.
 
+**The pricing dossier completed and the review instrumented, same day.** The
+close-out's two undocumented finds took their entries — DES-223,
+notifications, NEEDS BACKEND and deliberately undrawn; DES-224, what a
+reminder means when a due date is a day, OPEN and blocking DES-178's RFC —
+so the Lane 2 pile is now complete for the pricing session. And Imran's
+click-through has its instrument: thirteen stations with links covering
+DES-155 to DES-222, published as the "Dana v2 Click-Through" artifact. His
+pass, one fix round, then V10.
+
 **And widened the same day, at his instruction** — "hand off every frontend
 related thing which will not change backend or a design decision to Codex."
 The lane now carries four items, written up as `codex-handoff.md`: the
