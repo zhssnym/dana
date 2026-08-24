@@ -508,7 +508,7 @@ Statuses as in v1: `OPEN`, `PROPOSED`, `APPROVED`, `LOCKED`, `SUPERSEDED`.
 | DES-221 | Whose footer label survives narrowing is arithmetic; New shelf keeps its word | APPROVED | Pass 2026-08-24 |
 | DES-222 | The last drawing pass: C4, S1-S5, W1, P1, the nativeButton mechanism, the stress block | APPROVED | Pass 2026-08-24 |
 | DES-223 | Notifications: assignment and conversation events reach the person | PROPOSED | NEEDS BACKEND; deliberately not drawn; price with DES-129/134 |
-| DES-224 | What a reminder means when a due date is a day | OPEN | Blocks DES-178's spec RFC; cannot be cut, only answered |
+| DES-224 | A v2 reminder is the reminders table's time-of-day mode: "remind me at HH:MM on that day" | APPROVED | Answered by section 4 at the pricing session, 2026-08-24; folds into DES-178's spec RFC |
 
 ## v2 approval
 
