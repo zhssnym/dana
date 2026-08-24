@@ -15,7 +15,8 @@ first pass is one engineer's answer to something nothing has ruled on.
 | - | - |
 | the seven lower-case files in this directory | The designer's presentational components, copied from `docs/design/prototype/src/components/` at P8R session R3, relabelled to section 9's names and corrected to 9.1's roles table |
 | `index.ts` | The ported set's entry point, and the second import of `styles/tokens.css` |
-| `ui/`, the twenty lower-case files | The shadcn primitives of 11.4, copied from `docs/design/prototype/src/components/ui/` at P8R session R2. Behaviour under them is @base-ui/react |
+| `ui/`, the lower-case files | The shadcn primitives of 11.4: twenty copied from `docs/design/prototype/src/components/ui/` at P8R session R2, re-ported and joined by six more from `docs/design/prototype-v2/src/components/ui/` at S8. Behaviour under them is @base-ui/react |
+| `../lib/icons.tsx`, `../lib/time-format.ts` | The animated icon module of DES-125 and the time-format store it and the calendar read, ported at S8. Every icon Dana uses is an export of that module and nothing imports `lucide-react` directly; the v1 files still doing so are the named exemption lists in `ui/foundation.test.ts`, shrinking to empty as S9 to S13 land |
 | `ui/utils.ts`, `ui/use-mobile.ts` | The designer's `cn` and his viewport predicate, which those primitives import |
 | `ui/copy.ts` | The strings section 9 writes word for word and a component renders |
 | `ui/index.ts` | The P8 set's entry point, and the first import of `styles/tokens.css` |
@@ -291,24 +292,22 @@ form as well as the declaration. And a name that section 9 fixes is still
 fixed: the tables above this section are section 9's contract and no change of
 styling idiom touches them.
 
-**Icons come from `lucide-react`, imported per icon, and the stroke rule
-inverted at R2.** The P8 client set the design's 1.75 once, in a `.lucide`
-rule in `tokens.css`, and this file told every session never to pass
-`strokeWidth`. That rule left with the old token file. His prototype does the
-opposite and passes `strokeWidth={1.75}` at the call site, which is the idiom
-his components arrive in, and his `tokens.css` carries `--icon-stroke-width`
-as a value that nothing currently reads. So an icon ported from his files
-keeps the explicit prop it came with, and an icon written fresh should match
-it. A decorative glyph is always `aria-hidden`, unchanged and unrelated,
-because the accessible name belongs to the control around it.
+**Icons come from `../lib/icons.tsx`, the animated icon module, since S8.**
+DES-125 rules that `@animateicons/react/lucide` is the family and that one
+module owns it: every icon is an export of that file, nothing imports
+`lucide-react` directly, and where the animated set lacks a drawing the
+substitution and its reason are written on the line that makes it.
+`ui/foundation.test.ts` holds the rule, with an exact list of the v1 files
+still importing per icon; each leaves with the package that replaces it.
+The stroke idiom is unchanged: call sites pass `strokeWidth={1.75}` and the
+animated wrapper accepts and ignores it, which the module's own header
+explains. A decorative glyph is always `aria-hidden`, unchanged and
+unrelated, because the accessible name belongs to the control around it.
 
-Whether the global rule should be restored, at the cost of departing from his
-files in a way none of them expects, is a real question and is left open here
-rather than decided by this session: it is one line in `tokens.css` against an
-explicit prop on every glyph, and the argument for the prop is that it is what
-the source says. R11's copy sweep is the natural place to settle it if the
-visual review of item 33 raises a stroke difference.
-
+The open question this section used to carry, whether the global `.lucide`
+stroke rule should be restored, is closed by the family change: the
+animated wrapper hardcodes its stroke and the prop survives only as call
+site idiom, so there is no longer a rule to restore.
 ## Owed, and by whom
 
 Each of these is a control section 9 names that this package cannot finish

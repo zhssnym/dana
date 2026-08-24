@@ -24,9 +24,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "./tooltip.js"
-import { PanelLeftIcon } from "lucide-react"
+import { PanelLeftIcon } from "../../lib/icons.js"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
+
+function readStoredOpen() {
+  if (typeof document === "undefined") return true
+  const found = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(SIDEBAR_COOKIE_NAME + "="))
+  return found ? found.split("=")[1] !== "false" : true
+}
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
@@ -55,7 +64,12 @@ function useSidebar() {
 }
 
 function SidebarProvider({
-  defaultOpen = true,
+  /* The cookie the provider itself writes is the only record of this choice,
+     and in a client-only prototype nobody reads it back, shadcn expects a
+     server to and to pass `defaultOpen`. So a collapsed sidebar sprang open
+     again on every navigation, which is what Imran saw when pressing a nav
+     item while collapsed. Reading our own cookie is the whole fix. */
+  defaultOpen = readStoredOpen(),
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -235,7 +249,12 @@ function Sidebar({
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+            /* No border. The shell separates its surfaces tonally, the
+               sidebar's graphite-50 against the page's white, and this line
+               was the last 1px rule left standing after that pass, drawing a
+               seam the tone already draws. shadcn ships it because its
+               sidebar and its content share one ground; Dana's do not. */
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
           className
         )}
         {...props}
@@ -254,11 +273,12 @@ function Sidebar({
 
 /*
 The two controls below are the sidebar's rail control of 9.1, and their names
-are the one place this file departs from the shadcn distribution it was copied
-in from at P8R session R2.
+are the one place this file departs from the prototype it was ported from at
+S8, as they were the one place it departed from the shadcn distribution it
+was copied in from at P8R session R2.
 
-That distribution names both "Toggle Sidebar", one string across both states.
-9.1's names table took this control at the P8R mid-package change control on
+Both name the control "Toggle Sidebar", one string across both states. 9.1's
+names table took this control at the P8R mid-package change control on
 2026-08-13 and gave it two, "Collapse sidebar" when expanded and "Expand
 sidebar" when collapsed, for the reason it gives the completion checkbox and
 9.5 gives the star: the control is an icon-only toggle, so each state owes a

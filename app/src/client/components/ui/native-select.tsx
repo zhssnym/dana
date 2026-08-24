@@ -13,7 +13,7 @@ second chevron beside ours.
 The chevron is `aria-hidden` and `pointer-events-none`: the select underneath
 is the control, full stop.
 */
-import { ChevronDownIcon } from 'lucide-react'
+import { ChevronDownIcon } from '../../lib/icons.js'
 
 import { cn } from './utils.js'
 
