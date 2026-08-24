@@ -99,7 +99,7 @@ export function FolderGroupDialog({
               <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
             <DialogTitle>
-              {mode === "rename" ? "Rename folder group" : "New folder group"}
+              {mode === "rename" ? "Rename shelf" : "New shelf"}
             </DialogTitle>
             <DialogDescription>
               {mode === "rename"

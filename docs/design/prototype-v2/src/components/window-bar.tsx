@@ -31,7 +31,7 @@ import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { type HistoryEvent, lineFor, verbFor, whenFor } from "@/lib/history"
+import { agoFor, type HistoryEvent, lineFor, verbFor, whenFor } from "@/lib/history"
 
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
@@ -161,7 +161,7 @@ export function WindowActivity({ events }: { events: HistoryEvent[] }) {
             one press below it said Completed. Same length, same shape, and now
             the two agree because both come from the verb.
             */}
-            {verbFor(newest)} {whenFor(newest.at).toLowerCase()}
+            {verbFor(newest)} {agoFor(newest.at)}
           </button>
         }
       />

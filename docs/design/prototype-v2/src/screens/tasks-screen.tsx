@@ -1,4 +1,3 @@
-import { useState } from "react"
 
 import { ListTodo } from "@/lib/icons"
 import { folderMarkFor } from "@/components/folder-mark"
@@ -14,16 +13,6 @@ import {
   type TaskRowProps,
   type TaskOpenMode,
 } from "@/components/task-row"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import {
   Empty,
   EmptyDescription,
@@ -66,10 +55,6 @@ export function TasksScreen({
   onAbandon,
   onDelete,
 }: TasksScreenProps) {
-  const [pendingAction, setPendingAction] = useState<{
-    type: "abandon" | "delete"
-    taskId: string
-  } | null>(null)
   const hasTasks = inbox.length > 0 || groups.some((group) => group.tasks.length > 0)
 
   /* The screen keeps its own row, because its completion is conditional —
@@ -88,8 +73,8 @@ export function TasksScreen({
             : onToggleComplete(task.id, completed)
         }
         onToggleImportant={() => onToggleImportant(task.id)}
-        onAbandon={() => setPendingAction({ type: "abandon", taskId: task.id })}
-        onDelete={() => setPendingAction({ type: "delete", taskId: task.id })}
+        onAbandon={() => onAbandon(task.id)}
+        onDelete={() => onDelete(task.id)}
       />
     )
   }
@@ -167,44 +152,6 @@ export function TasksScreen({
         )}
       </div>
 
-      <AlertDialog
-        open={pendingAction !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingAction(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingAction?.type === "abandon"
-                ? "Abandon this task?"
-                : "Delete this task?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingAction?.type === "abandon"
-                ? "You can restore it from Tasks later."
-                : "This can’t be undone."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              destructive
-              onClick={() => {
-                if (!pendingAction) return
-                if (pendingAction.type === "abandon") {
-                  onAbandon(pendingAction.taskId)
-                } else {
-                  onDelete(pendingAction.taskId)
-                }
-                setPendingAction(null)
-              }}
-            >
-              {pendingAction?.type === "abandon" ? "Abandon" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

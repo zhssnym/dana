@@ -50,6 +50,9 @@ import {
 } from "@/lib/icons"
 
 import { FolderRow } from "@/components/folder-row"
+import { ObjectMenu } from "@/components/object-menu"
+import { HistorySheet } from "@/components/history-sheet"
+import { copyShelfLink, duplicateShelf } from "@/lib/shelf-acts"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -168,6 +171,9 @@ function FolderGroupEntry({
   registerZone,
   onAddFolder,
   onRenameGroup,
+  onOpenGroup,
+  onOpenFolderInTab,
+  onSaveShelfWorkflow,
   onDeleteGroup,
   children,
 }: {
@@ -196,10 +202,15 @@ function FolderGroupEntry({
   registerZone: (key: string) => (element: HTMLElement | null) => void
   onAddFolder?: (label: string) => void
   onRenameGroup?: (label: string, folders: ShellFolderFixture[]) => void
+  /* A shelf has a page now, so its row can go there (DES-207). */
+  onOpenGroup?: (label: string) => void
+  onOpenFolderInTab?: (name: string) => void
+  onSaveShelfWorkflow?: (label: string) => void
   onDeleteGroup?: (label: string, folders: ShellFolderFixture[]) => void
   children: ReactNode
 }) {
   const [open, setOpen] = useState(true)
+  const [shelfHistoryOpen, setShelfHistoryOpen] = useState(false)
   const carried = dragState.isActive && !dragState.isSettling
   const childActive = folders.some((folder) => folder.folderKey === activeFolder)
   const groupIconTone = childActive
@@ -246,9 +257,20 @@ function FolderGroupEntry({
             childActive ? "text-[var(--color-graphite-900)]" : "",
           )}
         >
+          {/*
+          The glyph is the disclosure; the name is the way in (DES-207).
+
+          The whole row used to toggle, which was right while a shelf was only
+          a heading over some folders. It has a page now, so the row has to
+          behave like every other row that names something you can open: the
+          label goes there, and the disclosure keeps the corner it already
+          announced — the Folders glyph has swapped to a chevron on hover since
+          the day it was drawn, which was the affordance saying so all along.
+          */}
           <CollapsibleTrigger
             data-sidebar-tier="group"
-            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+            aria-label={`Show the folders on ${label}`}
+            className="flex h-full shrink-0 items-center rounded-md py-0 pl-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           >
             <span className="relative size-4 shrink-0" aria-hidden="true">
               <Folders
@@ -267,8 +289,15 @@ function FolderGroupEntry({
                 />
               )}
             </span>
-            <span className="truncate">{label}</span>
           </CollapsibleTrigger>
+          <button
+            type="button"
+            data-sidebar-tier="group"
+            onClick={() => onOpenGroup?.(label)}
+            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-2 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+          >
+            <span className="truncate">{label}</span>
+          </button>
           {/* The grip is the whole entry, so the controls on it have to say
               they are not. */}
           <div data-no-drag className="flex items-center">
@@ -282,32 +311,49 @@ function FolderGroupEntry({
             >
               <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                    aria-label={`Manage ${label} folder group`}
-                  />
-                }
-              >
-                <MoreHorizontal className="size-4" strokeWidth={1.75} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={() => onRenameGroup?.(label, asFixtures)}>
-                  <Pencil className="size-4" />Rename group
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => onDeleteGroup?.(label, asFixtures)}
+            {/*
+            From the contract, like every other object's menu (DES-197). No
+            Copy link: a shelf page is private by construction (DES-196), so a
+            link to send is a link that does nothing — and an act with no
+            handler simply does not draw, which is how that is expressed.
+            */}
+            <ObjectMenu
+              kind="shelf"
+              name={label}
+              width="w-44"
+              handlers={{
+                open: onOpenGroup ? () => onOpenGroup(label) : undefined,
+                history: () => setShelfHistoryOpen(true),
+                rename: onRenameGroup
+                  ? () => onRenameGroup(label, asFixtures)
+                  : undefined,
+                "copy-link": () => copyShelfLink(label),
+                duplicate: () => duplicateShelf(label),
+                workflow: onSaveShelfWorkflow
+                  ? () => onSaveShelfWorkflow(label)
+                  : undefined,
+                delete: onDeleteGroup
+                  ? () => onDeleteGroup(label, asFixtures)
+                  : undefined,
+              }}
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                  aria-label={`Manage ${label} shelf`}
                 >
-                  <Trash2 className="size-4" />Delete group…
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <MoreHorizontal className="size-4" strokeWidth={1.75} />
+                </Button>
+              }
+            />
+            <HistorySheet
+              kind="shelf"
+              subject={label}
+              name={label}
+              open={shelfHistoryOpen}
+              onOpenChange={setShelfHistoryOpen}
+            />
           </div>
         </div>
         <CollapsibleContent>
@@ -347,9 +393,13 @@ export function FolderDirectory({
   onMoveFolderToLabel,
   onOpenFolderAction,
   onRenameGroup,
+  onOpenGroup,
+  onOpenFolderInTab,
+  onSaveShelfWorkflow,
   onDeleteGroup,
   onCopyFolderLink,
   onDuplicateFolder,
+  onDeleteFolder,
   onGroupFolders,
 }: {
   /* Alphabetical, which is the seed the stored arrangement is laid over. */
@@ -362,11 +412,17 @@ export function FolderDirectory({
   onMoveFolderToLabel?: (folderName: string, label: string | null) => void
   onOpenFolderAction?: (folderName: string, action: FolderAction) => void
   onRenameGroup?: (label: string, folders: ShellFolderFixture[]) => void
+  /* A shelf has a page now, so its row can go there (DES-207). */
+  onOpenGroup?: (label: string) => void
+  onOpenFolderInTab?: (name: string) => void
+  onSaveShelfWorkflow?: (label: string) => void
   onDeleteGroup?: (label: string, folders: ShellFolderFixture[]) => void
   /* The object contract's acts, threaded down so every folder row in this
      column offers exactly what a folder offers anywhere else. */
   onCopyFolderLink?: (name: string) => void
   onDuplicateFolder?: (name: string) => void
+  /* Deleting happens where you are (DES-216) — see the note in app-shell. */
+  onDeleteFolder?: (name: string) => void
   /* Two folders that met. The naming panel is the group dialog the shell
      already owns — one mechanism, a second door onto it (DES-154). */
   onGroupFolders?: (folderNames: string[]) => void
@@ -654,6 +710,9 @@ export function FolderDirectory({
               registerZone={registerZone}
               onAddFolder={onAddFolder}
               onRenameGroup={onRenameGroup}
+              onOpenGroup={onOpenGroup}
+              onOpenFolderInTab={onOpenFolderInTab}
+              onSaveShelfWorkflow={onSaveShelfWorkflow}
               onDeleteGroup={onDeleteGroup}
             >
               <GroupFolders
@@ -674,6 +733,8 @@ export function FolderDirectory({
                 onOpenFolderAction={onOpenFolderAction}
                 onCopyFolderLink={onCopyFolderLink}
                 onDuplicateFolder={onDuplicateFolder}
+                onDeleteFolder={onDeleteFolder}
+                onOpenFolderInTab={onOpenFolderInTab}
               />
             </FolderGroupEntry>
           )
@@ -708,7 +769,12 @@ export function FolderDirectory({
             onMoveToLabel={(label) => onMoveFolderToLabel?.(folder.folderKey, label)}
             onRename={() => onOpenFolderAction?.(folder.folderKey, "rename")}
             onEditAppearance={() => onOpenFolderAction?.(folder.folderKey, "appearance")}
-            onDelete={() => onOpenFolderAction?.(folder.folderKey, "delete")}
+            onDelete={
+              onDeleteFolder ? () => onDeleteFolder(folder.folderKey) : undefined
+            }
+            onOpenInTab={
+              onOpenFolderInTab ? () => onOpenFolderInTab(folder.folderKey) : undefined
+            }
             onCopyLink={
               onCopyFolderLink ? () => onCopyFolderLink(folder.folderKey) : undefined
             }
@@ -746,6 +812,8 @@ function GroupFolders({
   onOpenFolderAction,
   onCopyFolderLink,
   onDuplicateFolder,
+  onDeleteFolder,
+  onOpenFolderInTab,
 }: {
   label: string
   folders: DirectoryFolder[]
@@ -769,6 +837,9 @@ function GroupFolders({
   onOpenFolderAction?: (folderName: string, action: FolderAction) => void
   onCopyFolderLink?: (name: string) => void
   onDuplicateFolder?: (name: string) => void
+  /* Deleting happens where you are (DES-216) — see the note in app-shell. */
+  onDeleteFolder?: (name: string) => void
+  onOpenFolderInTab?: (name: string) => void
 }) {
   const self = groupEntry(label)
 
@@ -848,7 +919,12 @@ function GroupFolders({
             onEditAppearance={() =>
               onOpenFolderAction?.(folder.folderKey, "appearance")
             }
-            onDelete={() => onOpenFolderAction?.(folder.folderKey, "delete")}
+            onDelete={
+              onDeleteFolder ? () => onDeleteFolder(folder.folderKey) : undefined
+            }
+            onOpenInTab={
+              onOpenFolderInTab ? () => onOpenFolderInTab(folder.folderKey) : undefined
+            }
             onCopyLink={
               onCopyFolderLink ? () => onCopyFolderLink(folder.folderKey) : undefined
             }

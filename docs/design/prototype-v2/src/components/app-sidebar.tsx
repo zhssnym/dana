@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -6,6 +7,8 @@ import {
 } from "react"
 import { IconMotion, type LucideIcon } from "@/lib/icons"
 import {
+  Workflow,
+  CircleQuestionMark,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -25,6 +28,8 @@ import {
   Trash2,
   UsersRound,
 } from "@/lib/icons"
+import { useHelpSheet } from "@/components/help-sheet"
+import { ViewerFace } from "@/components/viewer-face"
 
 import { DanaMark } from "@/components/dana-mark"
 import { FolderDirectory } from "@/components/folder-directory"
@@ -59,8 +64,13 @@ import {
   shellUnlabelledFolders,
   type ShellFolderFixture,
 } from "@/fixtures"
-import type { PrototypeFolderMemberships } from "@/lib/folder-membership"
+import {
+  baseShelfLabels,
+  folderShelf,
+  type PrototypeFolderMemberships,
+} from "@/lib/folder-membership"
 import { FOOTER_PAGES, NAV_PAGES, readNavModel } from "@/lib/nav-model"
+import { cn } from "@/lib/utils"
 import { isPagePinned, usePagePins } from "@/lib/page-pins"
 
 export type ShellPageName =
@@ -72,6 +82,7 @@ export type ShellPageName =
   | "Done"
   | "People"
   | "Settings"
+  | "Trash"
   /* DES-152's set, live behind `?nav=v2` beside the old one so the two can be
      compared by looking. Both are in the union while the flag exists. */
   | "Desk"
@@ -177,19 +188,17 @@ function ProfileMenu({
   defaultOpen?: boolean
   onOpenSettings?: () => void
 }) {
+  const help = useHelpSheet()
   return (
-    <DropdownMenu defaultOpen={defaultOpen} modal={!defaultOpen}>
+    <>
+      <DropdownMenu defaultOpen={defaultOpen} modal={!defaultOpen}>
       <DropdownMenuTrigger
         render={
           <SidebarMenuButton
             className="h-[var(--shell-sidebar-item-height)] gap-2 px-2 text-[13px] font-semibold text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]"
             aria-label="Open Imran Wafa's account menu"
           >
-            <Avatar className="size-7 group-data-[collapsible=icon]:size-5">
-              <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
-                IW
-              </AvatarFallback>
-            </Avatar>
+            <ViewerFace className="size-7 group-data-[collapsible=icon]:size-5" />
             <span className="min-w-0 text-[13px] font-semibold group-data-[collapsible=icon]:hidden">
               Imran Wafa
             </span>
@@ -204,13 +213,39 @@ function ProfileMenu({
           <Settings className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Settings
         </DropdownMenuItem>
+        {/*
+        Help, placed by the same rule as Trash and New shelf.
+
+        It is not a destination inside your work and it does not make anything;
+        it is about the *application*, which is what everything else in this
+        menu is about. A sidebar row for it would have made the footer's
+        navigation list mean two things at once — three places in your data and
+        one page of documentation — and the list's legibility is the only thing
+        holding it together as items arrive.
+
+        Dana's answer to a first-time user is not this link. It is a page that
+        arrives with something on it, which is what the image block and the
+        worked example are for.
+        */}
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={() => help.setOpen(true)}
+        >
+          <CircleQuestionMark className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Help
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="min-h-[var(--control-height)] text-sm">
           <LogOut className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+      {/* A sibling of the menu, not a child of it: the sheet has to outlive
+          the press that opened it, and a dialog nested inside a menu unmounts
+          with the menu the moment it closes. */}
+      </DropdownMenu>
+      {help.sheet}
+    </>
   )
 }
 
@@ -334,6 +369,10 @@ export function AppSidebar({
   deletedFolderNames = [],
   onCreateFolder,
   onCreateFolderGroup,
+  onImportWorkflow,
+  onOpenShelf,
+  onOpenFolderInTab,
+  onSaveShelfWorkflow,
   onCreateFolderInGroup,
   onMoveFolderToLabel,
   onAddTaskToFolder,
@@ -343,6 +382,7 @@ export function AppSidebar({
   onNavigateFolder,
   onCopyFolderLink,
   onDuplicateFolder,
+  onDeleteFolder,
   onOpenSearch,
   onGroupFolders,
   pageVisibility,
@@ -364,6 +404,12 @@ export function AppSidebar({
   deletedFolderNames?: string[]
   onCreateFolder?: () => void
   onCreateFolderGroup?: () => void
+  /* A file's text, straight through: only the shell can turn it into a folder
+     and its tasks. */
+  onImportWorkflow?: (text: string) => void
+  onOpenShelf?: (label: string) => void
+  onOpenFolderInTab?: (name: string) => void
+  onSaveShelfWorkflow?: (label: string) => void
   onCreateFolderInGroup?: (label: string) => void
   onMoveFolderToLabel?: (
     folderName: string,
@@ -387,6 +433,7 @@ export function AppSidebar({
      and somewhere to put a copy. */
   onCopyFolderLink?: (name: string) => void
   onDuplicateFolder?: (name: string) => void
+  onDeleteFolder?: (name: string) => void
   onOpenSearch?: () => void
   /* Two folders held together long enough to become a group. The naming
      panel is the shell's, so this only reports the pair. */
@@ -397,6 +444,17 @@ export function AppSidebar({
      head of the block because it is native, undeletable and where a new
      account lands — which is also why it is no longer listed among the
      folders a person can delete. Done ships unpinned. */
+  const workflowInput = useRef<HTMLInputElement>(null)
+  /* The tab strip's "+" offers Import too, and this input is the one file
+     picker — a second input would be a second copy of the act, and the two
+     would answer one selector. The request travels as an event because the
+     strip is not this component's child (DES-217). */
+  useEffect(() => {
+    const openPicker = () => workflowInput.current?.click()
+    window.addEventListener("dana:prototype-import-workflow", openPicker)
+    return () =>
+      window.removeEventListener("dana:prototype-import-workflow", openPicker)
+  }, [])
   const pagePins = usePagePins()
   const navModel = readNavModel()
   /*
@@ -434,11 +492,7 @@ export function AppSidebar({
             pageVisibility?.[page.name as "Important" | "All" | "Done"] !==
               false,
         )
-  const baseLabels = new Map(
-    shellFolderGroups.flatMap((group) =>
-      group.folders.map((folder) => [folder.name, group.label] as const),
-    ),
-  )
+  const baseLabels = baseShelfLabels(shellFolderGroups)
   const allFolders: SidebarFolderFixture[] = [
     ...shellFolderGroups.flatMap((group) => group.folders),
     ...shellUnlabelledFolders,
@@ -451,17 +505,28 @@ export function AppSidebar({
       name: folderNameOverrides[folder.name] ?? folder.name,
       color: folderMemberships[folder.name]?.color ?? folder.color,
     }))
+    /*
+    One folder, one row (DES-216).
+
+    Imran, 2026-08-23: a folder restored from the Trash "becomes two instead of
+    one". This list is built from three sources — the fixture groups, the
+    unlabelled fixtures and whatever a person has made — and any name appearing
+    in two of them was drawn twice. `folderLibrary()` has de-duplicated since it
+    was written, which is why the pickers and search were always right and only
+    the sidebar doubled; the column that draws folders had its own list and its
+    own rules.
+
+    De-duplicated by `folderKey` rather than by the displayed name, so a rename
+    cannot make one folder look like two or two look like one.
+    */
+    .filter((folder, index, all) =>
+      all.findIndex((other) => other.folderKey === folder.folderKey) === index,
+    )
   const groupedFolders = new Map<string, SidebarFolderFixture[]>()
   const unlabelledFolders: SidebarFolderFixture[] = []
 
   allFolders.forEach((folder) => {
-    const hasOverride = Object.prototype.hasOwnProperty.call(
-      folderMemberships,
-      folder.folderKey,
-    )
-    const label = hasOverride
-      ? folderMemberships[folder.folderKey]?.label
-      : baseLabels.get(folder.folderKey)
+    const label = folderShelf(folder.folderKey, baseLabels, folderMemberships)
 
     if (!label) {
       unlabelledFolders.push(folder)
@@ -538,7 +603,13 @@ export function AppSidebar({
                 data-sidebar-tier="section"
                 className="group/folder-directory-trigger flex h-6 min-w-0 flex-1 items-center rounded-md px-2 text-left text-[11px] font-semibold text-[var(--color-graphite-600)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-ring/30"
               >
-                <span className="truncate">Folders</span>
+                {/* "Library", not "Folders": the section has held shelves as
+                    well as folders since DES-195, and a label naming half its
+                    contents reads wrong the moment a shelf is looked at. A
+                    library is the place shelves stand — the metaphor was
+                    already chosen when "shelf" was (Imran asked for a better
+                    word, 2026-08-24; this one is offered, not ruled). */}
+                <span className="truncate">Library</span>
                 <ChevronDown
                   className={`ml-1 size-3.5 shrink-0 text-[var(--color-graphite-500)] opacity-0 transition-[opacity,transform] group-hover/folder-directory-trigger:opacity-100 group-focus-visible/folder-directory-trigger:opacity-100 ${foldersOpen ? "" : "-rotate-90"}`}
                   strokeWidth={1.75}
@@ -553,7 +624,7 @@ export function AppSidebar({
                       variant="ghost"
                       size="icon"
                       className="size-6 shrink-0 rounded-md text-[var(--color-graphite-500)] opacity-0 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] group-hover/folder-directory:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                      aria-label="Folder directory options"
+                      aria-label="Library options"
                     />
                   }
                 >
@@ -564,7 +635,7 @@ export function AppSidebar({
                     <FolderPlus className="size-4" />New folder
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={onCreateFolderGroup}>
-                    <Folders className="size-4" />New folder group
+                    <Folders className="size-4" />New shelf
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -604,9 +675,13 @@ export function AppSidebar({
               onMoveFolderToLabel={onMoveFolderToLabel}
               onOpenFolderAction={onOpenFolderAction}
               onRenameGroup={onRenameFolderGroup}
+              onOpenGroup={onOpenShelf}
+              onOpenFolderInTab={onOpenFolderInTab}
+              onSaveShelfWorkflow={onSaveShelfWorkflow}
               onDeleteGroup={onDeleteFolderGroup}
               onCopyFolderLink={onCopyFolderLink}
               onDuplicateFolder={onDuplicateFolder}
+              onDeleteFolder={onDeleteFolder}
               onGroupFolders={onGroupFolders}
             />
               </SidebarGroupContent>
@@ -616,13 +691,49 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter className="gap-0 py-2" >
+        {/*
+        One primary button, then a row of three (DES-209).
+
+        Imran, 2026-08-23: "remember that 'New folder' should be a single
+        button, you can organize things as I expected under that" — and, from
+        the original brief, "three buttons in a row, icon first and label beside
+        it, when a sidebar is shrinked by the user, only icons are left".
+
+        **Why these three, and in this order.** The row is *the things you reach
+        for occasionally*, and it reads left to right from most to least like
+        making something. **New shelf** makes a container, so it is nearest the
+        button above it. **Import** also makes one, from a file somebody sent
+        you, which is rarer. **Trash** is where things go, and it ends the row
+        because it is the only one that is a destination rather than an act —
+        it sits here rather than with People and Settings because Imran asked
+        for it in the footer's buttons, and a person looking for what they
+        deleted looks near the things they made.
+
+        **Help is not here**, and that is the one departure. It is neither a
+        thing you make nor a place inside your work; it is about the
+        application, which is what everything in the account menu is about. A
+        fourth item would also have broken the row of three he asked for.
+
+        **Narrow, they stay a row and drop their labels** (DES-216). Imran,
+        2026-08-23, pointing at Notion's own nav, where exactly that happens.
+        The trigger is the sidebar's *width* rather than the collapsed state:
+        Dana's sidebar is draggable from 224px to 360px, and 224 is about where
+        three labels stop fitting — which is the same place Notion drops
+        theirs. A container query asks the row how much room it has, so the
+        answer follows the drag rather than a breakpoint somebody guessed.
+
+        In the fully collapsed 56px rail they do stack, and that is arithmetic
+        rather than a choice: three 32px icons and their gaps need 100px and
+        there are 56. The tooltip names each one in both states, because with
+        the label gone it is the only thing that does.
+        */}
         <SidebarMenu className="mb-1">
           <SidebarMenuItem>
             <SidebarMenuButton
               data-sidebar-new-folder
               data-sidebar-tier="action"
               tooltip="New folder"
-              className="h-[var(--shell-sidebar-item-height)] justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)]"
+              className="h-[var(--shell-sidebar-item-height)] w-full justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0"
               onClick={onCreateFolder}
             >
               <FolderPlus className="!size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -630,6 +741,85 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <SidebarMenu className="@container mb-1 flex-row gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-0.5">
+          {[
+            {
+              key: "shelf",
+              label: "New shelf",
+              tooltip: "New shelf — a group of folders",
+              icon: Folders,
+              onClick: onCreateFolderGroup,
+              mark: { "data-sidebar-new-shelf": true },
+            },
+            {
+              key: "import",
+              label: "Import",
+              tooltip: "Import a workflow",
+              icon: Workflow,
+              onClick: () => workflowInput.current?.click(),
+              mark: { "data-sidebar-import-workflow": true },
+            },
+            {
+              key: "trash",
+              label: "Trash",
+              tooltip: "Trash — deleted items, kept 30 days",
+              icon: Trash2,
+              onClick: () => onNavigate?.("Trash"),
+              mark: {},
+            },
+          ].map((action) => (
+            <SidebarMenuItem
+              key={action.key}
+              /* Content-sized, not equal thirds: equal shares gave "New
+                 shelf" the same room as "Trash" and clipped it at the default
+                 width while its neighbours sat in slack (Imran, 2026-08-24). */
+              className="min-w-0 flex-auto"
+            >
+              <SidebarMenuButton
+                {...action.mark}
+                data-sidebar-tier="action"
+                tooltip={action.tooltip}
+                isActive={action.key === "trash" && activePage === "Trash"}
+                className="h-[var(--shell-sidebar-item-height)] w-full justify-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0"
+                onClick={action.onClick}
+              >
+                <action.icon className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+                {/*
+                Whose label survives narrowing is decided by arithmetic, not
+                rank: the three words need 256px and the default row has 240,
+                so at the default width something has to give (Imran,
+                2026-08-24: "New shelf … is not fully visible, the remaining
+                two should be shortened"). New shelf keeps its word at every
+                row width, because it is the label that was clipping and the
+                one that reads worst clipped; Import and Trash go to their
+                icons until the row genuinely fits all three, which is what
+                the whole row already does when the person narrows the
+                sidebar. The tooltip names them in every state.
+                */}
+                <span
+                  className={cn(
+                    "truncate group-data-[collapsible=icon]:hidden",
+                    action.key !== "shelf" && "@max-[262px]:hidden",
+                  )}
+                >
+                  {action.label}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+        <input
+          ref={workflowInput}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ""
+            if (!file || !onImportWorkflow) return
+            void file.text().then(onImportWorkflow)
+          }}
+        />
         <SidebarMenu>
           {/* From the model, so the audit's collision rule sees these two
               exactly as it sees every page above them. */}

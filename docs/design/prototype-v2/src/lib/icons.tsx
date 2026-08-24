@@ -455,7 +455,18 @@ export const Clock3 = icon(Lu.Clock, Anim.ClockIcon)
 export const Copy = icon(Lu.Copy, Anim.CopyIcon)
 /* The two acts the object contract named that had no glyph yet. Neither has an
    animated twin, so both are drawn plain — DES-187 rule. */
+/* A picture on a page (DES-202). The family's animated twin is `ImageIcon`,
+   which draws lucide's plain `Image` — a different picture from `ImagePlus`,
+   so pairing them would be exactly the morph the glyph rule exists to catch.
+   Drawn plain instead (DES-187). */
+export const ImagePlus = icon(Lu.ImagePlus, null)
 export const OpenInNewTab = icon(Lu.SquareArrowOutUpRight, null)
+/* Help, which the account menu gained when the footer was sorted by role
+   (DES-200). Lucide carries this drawing under three names — CircleHelp,
+   HelpCircle and CircleQuestionMark — and only one of them may be exported
+   here, or the "one drawing, one name" rule is right to complain. The
+   family has no animated twin, so it is drawn plain (DES-187). */
+export const CircleQuestionMark = icon(Lu.CircleQuestionMark, null)
 export const Workflow = icon(Lu.Workflow, null)
 /* Hiding a view from the sidebar (DES-170). Static and animation are the
    same drawing, which is the rule the alert glyphs broke. */
@@ -514,8 +525,14 @@ then went on wearing the literal tray, so the page had escaped the word and
 not the picture. A lamp is where you work rather than where things arrive,
 which is the whole distinction the rename was for.
 
-The animated family has no desk lamp and it is drawn plain rather than
-animated into something else; see the note on `icon`.
+The animated family has no desk lamp, and Imran ruled on 2026-08-23 that it
+**stays still** rather than becoming an animated lightbulb or having one
+hand-written. That is DES-187 applied rather than an exception to it: an icon
+with no twin is drawn plain, because the alternative is a glyph that changes
+into a different picture on hover — the exact fault the share icon had.
+
+The question is closed; it does not need re-opening the next time somebody
+notices Desk sitting still while its neighbours move.
 */
 export const LampDesk = icon(Lu.LampDesk, null)
 export const UserPlus = icon(Lu.UserPlus, Anim.UserPlusIcon)
@@ -616,6 +633,12 @@ export const Lightbulb = icon(Lu.Lightbulb, Anim.LightbulbIcon)
 export const MapIcon = icon(Lu.Map, Anim.MapIcon)
 export const MapPin = icon(Lu.MapPin, Anim.MapPinIcon)
 export const Moon = icon(Lu.Moon, Anim.MoonIcon)
+/* The theme control's other two (DES-205). `Sun` rather than the `SunMedium`
+   the Today page wears: they are different drawings, and giving the light
+   theme the page's own glyph would say the two are related when they are not.
+   `Monitor` is "whatever this machine says", which is what System means. */
+export const Sun = icon(Lu.Sun, Anim.SunIcon)
+export const Monitor = icon(Lu.Monitor, Anim.MonitorIcon)
 export const Mountain = icon(Lu.Mountain, Anim.MountainIcon)
 export const Music = icon(Lu.Music, Anim.MusicIcon)
 export const Piano = icon(Lu.Piano, Anim.PianoIcon)

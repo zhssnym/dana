@@ -38,6 +38,10 @@ dangerous item moves is a menu you cannot use without reading.
 import type { ReactNode } from "react"
 
 import {
+  RotateCcw,
+  Fullscreen,
+  Folders,
+  Ban,
   Copy,
   FolderInput,
   History,
@@ -64,13 +68,20 @@ duplicate or delete it; what it offers is pinning, which Settings owns
 export type ObjectKind = "task" | "folder" | "shelf"
 
 export type ActKey =
-  | "open-tab"
+  /* Renamed from `open-tab` when tasks joined the contract. A folder offers
+     one way in and a task offers four, so the act is *reaching the object* and
+     the label says how per kind — the key had been named after the folder's
+     only answer. */
+  | "open"
   | "history"
   | "rename"
   | "move"
+  | "make-folder"
   | "copy-link"
   | "duplicate"
   | "workflow"
+  | "abandon"
+  | "restore"
   | "delete"
 
 export interface ActSpec {
@@ -78,8 +89,16 @@ export interface ActSpec {
   label: string
   icon: LucideIcon
   /* Acts of a kind sit together, and a separator falls between groups:
-     1 reach it · 2 change it · 3 copy it · 4 destroy it. */
-  group: 1 | 2 | 3 | 4
+     1 reach it · 2 change it · 3 copy it · 4 stop it · 5 destroy it.
+
+     **Stopping and destroying are two groups, not one.** Abandon says "I am
+     not doing this" and keeps the task; Delete says the task should not exist.
+     The hand-written row menu already separated them, with the note that they
+     "are not neighbours in meaning and should not look like neighbours in the
+     menu" — which is a rule about the acts rather than about that menu, so it
+     belongs here now. Folders have no fourth group; nothing draws an empty
+     one. */
+  group: 1 | 2 | 3 | 4 | 5
   destructive?: boolean
 }
 
@@ -87,15 +106,19 @@ export interface ActSpec {
    person should never have to guess the object of. */
 const OBJECT_ACTS: Record<ObjectKind, ActSpec[]> = {
   task: [
-    { key: "open-tab", label: "Open in a new tab", icon: OpenInNewTab, group: 1 },
+    /* Four ways in rather than one, so this is a choice — see `ActHandler`. */
+    { key: "open", label: "Open in…", icon: Fullscreen, group: 1 },
     { key: "history", label: "History", icon: History, group: 1 },
     { key: "move", label: "Move to folder…", icon: FolderInput, group: 2 },
+    { key: "make-folder", label: "Make this a folder…", icon: Folders, group: 2 },
     { key: "copy-link", label: "Copy link", icon: Link2, group: 3 },
     { key: "duplicate", label: "Duplicate", icon: Copy, group: 3 },
-    { key: "delete", label: "Delete task…", icon: Trash2, group: 4, destructive: true },
+    { key: "abandon", label: "Abandon", icon: Ban, group: 4 },
+    { key: "restore", label: "Restore", icon: RotateCcw, group: 4 },
+    { key: "delete", label: "Delete task…", icon: Trash2, group: 5, destructive: true },
   ],
   folder: [
-    { key: "open-tab", label: "Open in a new tab", icon: OpenInNewTab, group: 1 },
+    { key: "open", label: "Open in a new tab", icon: OpenInNewTab, group: 1 },
     { key: "history", label: "History", icon: History, group: 1 },
     { key: "rename", label: "Rename", icon: Pencil, group: 2 },
     /*
@@ -125,15 +148,35 @@ const OBJECT_ACTS: Record<ObjectKind, ActSpec[]> = {
     { key: "copy-link", label: "Copy link", icon: Link2, group: 3 },
     { key: "duplicate", label: "Duplicate", icon: Copy, group: 3 },
     { key: "workflow", label: "Save as workflow", icon: Workflow, group: 3 },
-    { key: "delete", label: "Delete folder…", icon: Trash2, group: 4, destructive: true },
+    { key: "delete", label: "Delete folder…", icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
-    { key: "open-tab", label: "Open in a new tab", icon: OpenInNewTab, group: 1 },
+    { key: "open", label: "Open shelf", icon: OpenInNewTab, group: 1 },
+    /* Declared here because a shelf is renamed, moved onto and emptied like
+       anything else, and "what happened to this" is the same question at every
+       level of the product (DES-210). */
+    { key: "history", label: "History", icon: History, group: 1 },
     { key: "rename", label: "Rename shelf", icon: Pencil, group: 2 },
+    /*
+    Copy link came back, and the distinction it forced is worth keeping.
+
+    DES-196 left it out because a shelf page is private by construction, so a
+    link "would open nothing for whoever received it". Imran, 2026-08-23: "If a
+    Shelf page can have an address and can be saved as a workflow, so we can
+    leave it, otherwise it's good to remove the shelf pages."
+
+    He is right that those two are the test, and the earlier reasoning confused
+    **an address** with **a share**. A shelf page has an address the moment it
+    has a route, and that address is worth copying for the thing people
+    actually copy links for most: putting one in a note, a message to yourself,
+    a document. What it is not is an invitation — nobody else can open it,
+    because there is nobody else on a shelf. The act is *copy the address*; it
+    was only ever sharing that Option A ruled out.
+    */
     { key: "copy-link", label: "Copy link", icon: Link2, group: 3 },
     { key: "duplicate", label: "Duplicate", icon: Copy, group: 3 },
     { key: "workflow", label: "Save as workflow", icon: Workflow, group: 3 },
-    { key: "delete", label: "Delete shelf…", icon: Trash2, group: 4, destructive: true },
+    { key: "delete", label: "Delete shelf…", icon: Trash2, group: 5, destructive: true },
   ],
 }
 

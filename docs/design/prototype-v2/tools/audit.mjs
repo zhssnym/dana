@@ -68,7 +68,7 @@ hand-written folder menu on its first run, which was the rule working — a
 frozen control is allowed to be out of date, and the way to say so is to name
 it here rather than to keep repairing it.
 */
-const LAB = /row-concepts|row-lab|task-row-baseline|folder-screen/
+const LAB = /row-concepts|row-lab|task-row-baseline|folder-screen|swatch-options/
 
 function walk(dir) {
   return readdirSync(dir).flatMap((entry) => {

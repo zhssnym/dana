@@ -24,6 +24,15 @@ notifications for a folder she has never seen. So the copy's work is the
 duplicator's, unassigned, and one principle covers members, sharing and
 assignment rather than three remembered exceptions.
 
+**But a grant not travelling is not the same as the work becoming nobody's.**
+The first version cleared the assignee to empty, which contradicted the sentence
+above it — if the copy's work is the duplicator's, then the duplicator is who it
+is assigned to. Empty meant the copy appeared in *nobody's* Assignments,
+including the copier's, so a folder duplicated to run again produced eight tasks
+that no page about people would ever show. Sara's grant does not travel; the
+work lands on whoever made the copy. Importing a workflow already behaved this
+way, which is how the two were found to disagree.
+
 The conversation is excluded for a second reason worth keeping separate: a
 message is something a person *said*, at a time, to someone. Copying it puts
 their words in a room they were never in.
@@ -53,6 +62,7 @@ them, and the bar says which happened, so it is never silent.
 
 import { readFolderLayout, saveFolderLayout } from "@/lib/folder-layout"
 import { dueLabelFor, parseIsoDate } from "@/lib/task-model"
+import { VIEWER_NAME } from "@/lib/viewer"
 
 /*
 The least a task must be for this to copy it.
@@ -80,6 +90,7 @@ export interface DuplicableTask {
   comments?: unknown
   form: {
     id: string
+    title?: string
     folder: string
     assignee: string
     dueDate: string
@@ -158,7 +169,8 @@ export function copyFolderContents<Task extends DuplicableTask>(
       /* Unstarted, and every step with it. */
       status: "pending" as const,
       completedAt: undefined,
-      /* A grant is not a thing: the copy's work is the duplicator's. */
+      /* A grant is not a thing — but the work is somebody's, and it is the
+         copier's. The row's chip goes; the form says who owns it. */
       assignee: undefined,
       steps: task.steps ? { complete: 0, total: task.steps.total } : undefined,
       /*
@@ -201,7 +213,7 @@ export function copyFolderContents<Task extends DuplicableTask>(
         ...task.form,
         id,
         folder: to,
-        assignee: "",
+        assignee: VIEWER_NAME,
         invitePending: "",
         completedAt: undefined,
         completedBy: undefined,
@@ -216,7 +228,11 @@ export function copyFolderContents<Task extends DuplicableTask>(
      and data" half of the ask. Assignments are remapped through the same id
      map that minted the copies, so a copied task lands under the copied
      heading rather than pointing back at the original's. */
-  const layout = readFolderLayout<unknown>(from)
+  /* Only when it is going somewhere else. Duplicating a single task inside its
+     own folder comes through here with `from === to`, and writing the layout
+     then would replace that folder's whole assignment map with the one entry
+     this copy produced — every other task would fall out of its section. */
+  const layout = from === to ? null : readFolderLayout<unknown>(from)
   if (layout) {
     saveFolderLayout(to, {
       items: layout.items,
@@ -266,4 +282,70 @@ export function readCopiedTasks<Task>(): Task[] {
 export function saveCopiedTasks<Task>(tasks: Task[]) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(COPIED_TASKS_STORAGE_KEY, JSON.stringify(tasks))
+}
+
+/*
+One task, copied.
+
+The same rules as a folder's contents and deliberately the same code path: a
+copy is unstarted, unassigned, unspoken-about, and its date is re-anchored on
+today when it has already passed. Reusing \`copyFolderContents\` rather than
+writing a second version is the point — two functions that must agree about
+what a copy is would drift on the first rule somebody remembered in only one of
+them, which is the fault this whole session has been undoing.
+
+The only thing added is the name. "X (copy)" is what the step duplication in
+the row already says, so a task copied from its menu and a step copied from its
+list read the same.
+*/
+export function duplicateTask<Task extends DuplicableTask & { title: string }>(
+  task: Task,
+  now = Date.now(),
+): Task {
+  const [copy] = copyFolderContents(
+    task.form.folder,
+    task.form.folder,
+    [task],
+    now,
+  ).tasks
+  const named = `${task.title} (copy)`
+  /*
+  Two differences from a folder's contents, and both come from one question:
+  what is a copy *for*?
+
+  **A single task's copy keeps its place.** `copyFolderContents` drops My Day
+  membership, because a folder is duplicated to run the same plan again and
+  pulling something into today was a decision made during the *original* run.
+  A single task is duplicated to sit beside the one you are looking at. Clearing
+  it here made the copy vanish from the page you made it on — which is the exact
+  fault the entry defaults had, where a task made on Today never appeared on
+  Today, invisible because the surface covers the page it failed to add to.
+
+  **And the name**, in both fields: the row's title and the form's are two
+  fields carrying one fact, the same split that made a copied deadline disagree
+  with its label.
+  */
+  return {
+    ...(copy as Task),
+    title: named,
+    myDayGroup: task.myDayGroup,
+    pulled: task.pulled,
+    hiddenFromMyDay: task.hiddenFromMyDay,
+    form: { ...copy!.form, title: named },
+  }
+}
+
+/*
+A task's own address (DES-201), which is what Copy link copies.
+
+The same shape the folder's link uses and for the same reason: the string a
+person sends is the one the product navigates by, rather than a second scheme
+invented for sharing.
+*/
+export function taskLink(taskId: string) {
+  const url = new URL(window.location.href)
+  url.search = ""
+  url.hash = ""
+  url.searchParams.set("task", taskId)
+  return url.toString()
 }

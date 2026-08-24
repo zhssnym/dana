@@ -4923,6 +4923,1134 @@ thing as one undo. Two entries would have meant two presses to take back one
 press.
 
 
+### DES-199, the act writes the record
+
+Imran, 2026-08-23: "Task and folder edit history: record the actor and time for
+creation, modification, completion, reopening a checked task, and deletion. We
+already included this but needs consistency and proper planning."
+
+**What "already included" was.** Three surfaces drew a history and none of them
+had one. The folder page's bar, the shell's page bar and a task's footer each
+passed `WindowActivity` the same two hand-written lines — an "Edited, just now"
+and a "Created, 4 August" — over a folder made that morning and a task you had
+just typed. Three drawings of a record that did not exist.
+
+**The record is written by the act, never by the screen.** This is [[DES-158]]'s
+lesson at a second scale: undo works because the shell's mutators register the
+inverse as they run, so every page gets it without knowing. A log has the same
+requirement and the same failure mode — a screen that must remember to write
+one will forget on a path, and the missing line is invisible until somebody
+asks what happened.
+
+So `reversibly`, the one function five task acts already passed through, stopped
+taking the undo bar's **sentence** and started taking the **verb**. Both the
+sentence and the log line are derived from it, which means an act cannot be
+recorded but unlabelled, or labelled but unrecorded. Folder rename, delete and
+shelf-move are written inside their stores for the same reason: three menus can
+rename a folder and only one of them would have remembered.
+
+Four things fell out of building it, each a fault rather than a preference:
+
+- **A board drop could not be undone.** `moveTaskToGroup` had four branches that
+  each mutated and returned on the spot, so the most mis-aimed gesture in the
+  product — a card released over the wrong column — had nothing in the corner to
+  take it back. A branch now only *decides* what the drop means and how to say
+  it; one tail performs it through `reversibly`, which writes it, records it and
+  offers it back. The log did not add undo here so much as reveal it was absent.
+- **One press wrote two lines.** A row that ticks its checkbox reports the change
+  like any other edit *and* tells the screen a completion happened, because
+  completion is the screen's fact rather than the row's. Both calls are correct;
+  the log listened to both and recorded `Completed` and `Edited` in the same
+  millisecond. The rule belongs to the log — a change already spoken for by a
+  stronger verb is not also an edit.
+- **A log that wrote every keystroke would be a keylogger with a nicer name.**
+  Typing a title fires a change per character. A new event of the same verb on
+  the same object within two minutes now replaces the previous one, which is how
+  every edit history a person has used already behaves.
+- **A task is created when it gets a name.** The floating button makes the task
+  the moment it opens the surface, so the commonest way to make a task would
+  have left two lines describing one act — `Created ""` then `Renamed`. Naming a
+  blank task is its creation, and the two halves of that rule sit in `createTask`
+  and in the edit funnel.
+
+**And the native pages lost their Activity control.** Today, Important and All
+are views, not things. Nobody edits Today; it edits itself as the clock moves.
+The control's whole design is a resting line stating a fact about the object in
+front of you, and on a page that cannot be edited there is no true sentence for
+it to say. What a person wants there is "what did I finish", and Done is the
+page that answers it — so it went, rather than being rewired to a
+plausible-looking feed of whatever happened to today's rows.
+
+**The resting line names the act.** The reference's phrasing was "Edited 8m ago"
+and a fixed word was the obvious reading, but it made the control lie in the
+common case: tick one thing off a folder and the bar said the folder had been
+edited while the line one press below said Completed. Same length, same shape,
+and now both come from the verb.
+
+The folder page's control shows the folder's own acts **and** what happened to
+the work in it, which is a decision rather than a convenience: a folder's own
+acts are rare — you name it once and move it once — so a control showing only
+those would say "Created, 4 August" for months. What a person means by "what has
+been happening here" is the work.
+
+Fixtures-and-presentation, and Lane 2 travels with it: the ported version is an
+append-only table written inside the same transaction as the mutation it
+describes. The *shape* ports — subject, verb, actor, time, detail — even though
+`localStorage` does not.
+
+
+### DES-200, deleting moves a thing rather than ending it
+
+Imran's brief of 2026-08-23, item 13: a Trash with thirty-day restore, for
+"deleted pages", and a sidebar footer that finds room for it, for Help, and for
+New folder group.
+
+**Tasks go to the Trash too**, which he did not ask for and which the asymmetry
+argues for: a deleted folder is a container you rebuild in a minute, while a
+deleted task is a sentence somebody wrote that nobody can reconstruct — and it
+is the one people delete by accident, from a row, in one press. Past the undo
+window it was gone for ever. Trash then has one rule, *everything deletable is
+restorable for thirty days*, rather than a rule with an exception nobody can
+predict from outside.
+
+**Undo still comes first, and the two are not redundant.** The bar is for the
+half-second where you already know; it puts the thing back with no journey.
+Trash is for the hour later, when you no longer remember what it was called.
+Remove the bar and every mis-press becomes an errand.
+
+**And Trash deleted seven dialogs.** "Delete this task? This can't be undone."
+was written into seven screens — the same fault class as the folder's two
+menus, at seven copies instead of two — and the moment the bin existed every
+copy was saying something false. But the deeper point is not the copy: **a
+confirmation on a reversible act is friction that teaches people to click
+through dialogs**, which is what makes the one dialog that matters stop working.
+So the rule is now *ask only when there is no way back*, and after this the
+product asks exactly twice: delete for ever, and empty the trash. Abandon went
+with them, for the same reason — it has a bar and a restore.
+
+One dialog survived the sweep and deserves its place, because it is a different
+question. Reopening a repeating task drops the next occurrence and any edits to
+it, and nothing about pressing a checkbox says so. That is a question about
+**scope**, not about risk, which is why the rule above does not reach it.
+
+**The footer is sorted by role, and that is the whole layout decision.** The row
+at the top *makes* things — New folder, and now New shelf beside it, because a
+shelf holds folders and a shelf with nothing on it is furniture; it had lived
+only in the Folders header's overflow, which is where a thing goes when nobody
+has decided where it belongs. The rows beneath *go* somewhere: People, Trash,
+Settings. **Help is neither**, so it sits in the account menu with the other
+things that are about the application rather than about your work. A sidebar row
+for Help would have made the destination list mean two things at once, and that
+list's legibility is the only thing holding the footer together as items arrive
+— three arrived at once.
+
+Help's content is the harder half, because Help is the easiest control in any
+product to fill with a plausible lie: a Getting started that starts nothing, a
+Documentation link to a page nobody has written. It lists the shortcuts that are
+wired today, read off the handlers, and says one true sentence about what this
+build is. Every line in it can be pressed.
+
+Two things this turned up:
+
+- **A page defined as "none of the others" breaks the next time something is
+  added.** Trash rendered My Day, because that branch was a hand-written list of
+  exceptions that could not know about a page which did not exist yet — the same
+  shape that killed `?mode=calendar` at F6. People, Settings and Trash are now
+  one named predicate, `isUtilityPage`: pages that render their own body, take
+  no task filters and host no floating button. The next one joins in a single
+  place and all four branches learn about it together.
+- **A deleted task came back from the fixtures on the next click** while still
+  sitting in the bin — the same in-memory fault [[DES-198]] hit, wearing a
+  second face. The shell now reads the trash when it seeds, rather than keeping
+  a second list of deleted ids: the bin already knows, and two stores that must
+  agree about one fact is precisely what this session keeps removing.
+
+Lane 2 travels with it. The ported version is a `deleted_at` column rather than
+a second table — section 10.2's chokepoint has to see a deleted row in order to
+keep it out of every list, which is an argument for soft delete rather than for
+moving rows about. Thirty days is counted on read, never by a timer, because an
+expiry that only happens while the app is open is not an expiry.
+
+
+### DES-201, a task is an object too, and it has an address
+
+[[DES-197]] declared what each kind of object supports and wired the folders to
+it. The task row was left hand-written, and that is the whole reason a folder
+could be copied, linked, duplicated and asked about its history while a task
+could not: the acts existed in `lib/object-acts` and there was nothing in the
+row reading them. Six items were written into `task-row`; four more were
+declared and undrawable. "Consistently everywhere", which is what Imran asked
+for on 2026-08-23, means the row as well.
+
+Three things the task forced the contract to learn, each of which improves it
+for the kinds already on it:
+
+- **The act is *reaching* the object, not "open in a new tab".** A folder offers
+  one way in and a task offers four, so the key was named after the folder's
+  only answer. It is `open` now, and each kind says how.
+- **Stopping and destroying are two groups.** Abandon says "I am not doing
+  this" and keeps the task; Delete says it should not exist. The hand-written
+  menu already separated them, noting they "are not neighbours in meaning and
+  should not look like neighbours in the menu" — which is a rule about the acts
+  rather than about that menu, so it moved into the contract.
+- **Abandon and Restore are one slot seen from two states**, and only one is
+  ever supplied. No condition is written anywhere: an act with no handler stays
+  out of the menu, which is the safety property doing the work a branch used to.
+
+**A task has an address now, `?task=<id>`.** Copy link forced it, and the
+forcing was the useful part: the act could not be supplied because a task had no
+URL, while every other object in Dana had one. A Copy link that pointed at the
+page the task happens to be on would be worse than none — the page changes and
+the task does not. It opens in whichever surface the person prefers, the same as
+pressing the row, because a link is somebody saying "look at this" rather than
+"look at this in a dialog". It is also the review instrument this plan lacked:
+until now a link could name a page and not a row.
+
+**History got the fuller view Imran said the footer could not be.** He was right
+that they are two jobs: the footer's control answers *is this fresh?* and shows
+the last handful beside its own line; the sheet answers *what happened to this?*
+— the whole record, grouped by day, with the actor on every line rather than
+only where it changes. They are not two readers: both draw the same events
+through the same `lineFor`, so the sentence is one string and only the framing
+differs.
+
+**And a task's copy keeps its place**, which is where the folder's rules had to
+be told apart from a task's. `copyFolderContents` drops My Day membership,
+because a folder is duplicated to run the same plan again and pulling something
+into today was a decision made during the *original* run. A single task is
+duplicated to sit beside the one you are looking at. Clearing it made the copy
+vanish from the page it was made on — the exact fault the entry defaults had,
+invisible for the same reason: the surface covers the page it failed to add to.
+The copy also lands immediately after the original rather than at the end,
+because a copy you cannot see is one you assume did not happen.
+
+One seam rather than two: the duplicate event now carries the **kind**. Both
+halves have the same shape — the surface raising the act can always *name* the
+thing and can never *hold* the result — and a task's row is nested deep enough
+that threading a prop down to it through ten screens would have been the same
+coupling with more typing. Two events for one idea would have been the
+duplication this contract exists to remove.
+
+A guard worth recording, because it was nearly a silent data loss:
+`duplicateTask` reuses `copyFolderContents` deliberately, so that what a copy
+*is* lives in one place — but that function also writes the folder's section
+layout, and a single task duplicated inside its own folder arrives with
+`from === to`. Writing the layout then would have replaced that folder's whole
+assignment map with the one entry this copy produced, dropping every other task
+out of its section.
+
+
+### DES-202, a page holds headings, prose and pictures
+
+Imran's brief of 2026-08-23, item 5: a folder page should be able to hold an
+image. It is also the answer to a question he asked earlier that no control
+could answer — *how does the first user get an idea of what to do here* —
+because a page that can hold a picture can hold a worked example.
+
+**Three kinds, and the list stays at three.** A page is headings, prose and
+pictures; almost everything people ask for on a page like this turns out to be
+one of the three wearing a hat. Naming that is what keeps the insert menu one
+glance long.
+
+**The block is deliberately small, and every decision in it is about not
+becoming a photo editor.** No sizing, no alignment, no columns: a picture sits
+in the page's own column at its own aspect ratio, the way a paragraph sits in it
+at its own length. The moment an image can be half-width and left-aligned, the
+text beside it has to be laid out too, on a page whose whole argument is that it
+is a document.
+
+**The caption is prose, on the prose tier.** [[DES-148]] put paragraphs at 12px
+in graphite-600 and gave the folder description the same, because they are the
+same kind of writing. A caption is too, so it takes the tier rather than
+inventing a fourth size — and its placeholder is invisible until you reach for
+it, because a picture that explains itself should not carry a blank line.
+
+**It survives a reload, and that is the whole difference from the cover.** The
+folder cover takes an upload as a session-only object URL and says so, which is
+right for decoration you choose again in a second. An image *block* is content —
+it is the worked example — and one that vanished on refresh would make the page
+a worse demo than no picture at all. So a file is downscaled on the way in:
+1600px on the long edge at 0.72, which puts a photograph near 200KB. PNG keeps
+its format, because a screenshot of a UI is the commonest thing anybody will put
+on a Dana page and JPEG turns its flat areas to mush at that quality.
+
+**The bytes live in their own store.** A folder's sections, paragraphs and
+assignments share one `localStorage` key, and images are three orders of
+magnitude larger than anything else on a page. In that key, the first person to
+add two photographs loses their sections to a quota error. Separated, a full
+store costs pictures and nothing else — and when it does refuse, the block says
+so rather than letting the picture disappear on the next load with no
+explanation.
+
+**The space is reserved before the picture paints.** `scaleImageFile` returns
+the aspect ratio as well as the bytes, and the block holds it, so the page never
+jumps by the height of an image — the single most noticeable thing a page of
+text can do wrong. A new empty block starts at 16:9 for the same reason: the
+drop zone and the picture that replaces it are close to the same height.
+
+Three ways in, because people reach for different ones and all three are one
+line apart: choose a file, drop one, paste one. Paste is the one that matters
+for a worked example, since the example is usually a screenshot already on the
+clipboard — and the listener is scoped to the block rather than the document,
+or it would steal the clipboard from every text field on the page.
+
+The audit caught the caption as a bare `<input>` and was right to: a field
+spelling its own border, radius and ring is how six spellings of one control
+happened last time. It uses `InlineInput` now, differing only by the two things
+it genuinely differs by.
+
+Lane 2 travels with it and is larger than usual: the ported version is object
+storage plus a row, an upload endpoint, a size limit, a content-type allowlist
+and a signed URL. What ports is the *block* — that a page is a list of things
+and one of them can be a picture.
+
+
+### DES-203, search finds everything you can go to
+
+Imran's brief of 2026-08-23, item 7: expand it. It found **tasks**, by title and
+notes, and nothing else — so a folder you had made was unfindable by name, a page
+you wanted was unreachable by typing it, and the paragraphs written on a folder
+page were invisible to the one control in Dana whose job is finding words. The
+prose on those pages is the largest body of writing the product holds and
+nothing could reach it.
+
+**Three kinds: tasks, folders, pages.** Every kind you can *go to*. Shelves will
+be a fourth once they have a page, and until then they are absent rather than
+listed and dead — the same rule the object contract follows for an act with no
+handler.
+
+**Grouped by kind, ordered by status within Tasks.** Grouping by status at the
+top level was right while tasks were the only thing search returned. With three
+kinds it would have made "Pending", "Abandoned", "Completed", "Folders" and
+"Pages" peers — two classification schemes presented as one list, which is
+exactly the fault [[DES-152]] took out of the sidebar. So kind decides the
+headings and status decides the order inside Tasks, where every row wears its
+own badge anyway.
+
+**Each result matches on more than its title.** A task adds its notes and the
+titles of its steps; a folder adds its description and the prose on its page.
+A title match still outranks a body match, because somebody typing "venue" means
+the thing *called* venue before the thing that mentions it.
+
+**An empty box offers the pages.** `Ctrl/Cmd+K` is a palette, and a palette that
+shows a blank panel with "enter at least two characters" until you have typed is
+one you have to already know the answer to. The pages are few and fixed, so they
+cost a glance and turn the control into a way of *getting somewhere* as well as
+a way of finding something.
+
+**Opening one is the shell's business.** Search says which thing and which kind;
+the shell opens a task into its surface and navigates for the other two, using
+the same folder address `folderLink` copies — so the URL a result navigates to
+and the URL a person sends are one string.
+
+A page's glyph now comes from `pageGlyph`, beside the list the sidebar draws,
+rather than from an icon imported into the overlay. Importing one is how a
+folder ended up wearing a tray in the sidebar and a plain folder on task chips
+([[DES-155]]); one resolver, asked by everybody, is the standing answer.
+
+Lane 2 travels with it: [[DES-073]] has owed mixed-result shapes, ordering and
+permissions since v1, and this is the *shape* of that answer rather than the
+answer. Nothing here is ranked by recency or by anything a server would know,
+and the permission line under the results still says what it said.
+
+
+### DES-204, the picture is the control
+
+Imran's brief of 2026-08-23, item 2: a profile picture, uploaded in Settings.
+The row was already there, drawn with initials in a circle; what it lacked was
+that the circle could be pressed.
+
+**No "Upload photo" button beside it.** That is a second thing to look at where
+there is only one thing to do, and every product a person has used already
+teaches that the circle is the button. Hovering says so. The one extra control,
+Remove, appears only once there is a picture to remove.
+
+**It is a store, not a Settings detail**, which is the whole reason it lives in
+`lib/viewer` rather than in the screen. The viewer's face is drawn in four
+places — the sidebar's account button, the Settings row, the sharing panel's
+owner line, and a folder page's member group — and all four were spelling out an
+`Avatar` with "IW" by hand. Adding a picture to that arrangement means adding it
+four times and forgetting one, which is [[DES-154]] at its smallest scale and
+exactly as certain. There is one `ViewerFace` now.
+
+**Cropped square and shrunk to 256px.** Square because every avatar in the
+product is a circle, and an un-cropped portrait lets the browser choose what to
+cut, which is usually the top of somebody's head; centre-cropping to the short
+edge is the choice a person would make. 256 because nothing draws an avatar
+above 40px, so anything larger is bytes nobody sees.
+
+Lane 2: object storage plus a column, and the more interesting half is that
+Google sign-in already carries a picture — the honest ported default is *that*,
+with an upload as the override. The drawing is the same either way.
+
+### DES-205, a theme belongs under Appearance, and here is one to rule on
+
+Imran's brief of 2026-08-23, item 6: a dark-mode toggle, scoped to *placement*.
+
+**Placement, which is what he asked.** It goes in Settings under Appearance, and
+the two tempting alternatives are wrong for the same reason. **Not the account
+menu**, where a lot of products put it: that menu is about *you* — your picture,
+your sign-out, help with the app — and a theme is about how Dana draws, which is
+what the Appearance section already says it is for. **Not the window bar**,
+because a control in the chrome is one you press by accident, and nobody changes
+their theme often enough to pay rent there. It sits above Row height because it
+is the larger of the two: one changes every colour, the other a list's spacing.
+
+**Three states, not a switch**, and the third is the one people want. A two-way
+toggle makes you re-choose at sunset and leaves Dana disagreeing with every other
+window on the screen for half the day.
+
+**And a colourway behind it, offered for his ruling.** A control that switches to
+nothing is a control that lies, and the toggle is far more useful to rule on with
+something behind it than as a placement sketch. So:
+
+- **One ramp, not a hundred edits.** Every surface here draws from
+  `--color-graphite-N` and `--color-dana-accent-N`, and the shadcn mapping is
+  built on those rather than on values of its own. A dark theme is therefore one
+  block that re-authors two ramps. That was the bet the token file made and this
+  is it being collected.
+- **The ramp is not the light one reversed.** Roles are preserved and values
+  re-authored, because the eye separates light greys far better than dark ones,
+  so the low end is pushed further apart than a mirror would put it.
+- **Elevation inverts.** In light a raised surface is whiter and casts a shadow;
+  on near-black a shadow is invisible and raising something means making it
+  *lighter*. So `--color-graphite-0`, the sheet the work sits on, is lighter than
+  `--color-graphite-25`, the recessed plane the furniture sits on — the
+  relationship the light theme states is kept and the physics turned over.
+- **The accent lifts a full step**, because cobalt-600 carries text on white and
+  disappears on a dark plate, and its tints stop being pale blues and become
+  dark ones.
+
+**What is still Imran's**, and why this is a proposal rather than a decision: the
+ten folder swatches ([[DES-018]]) are unchanged. They are mid-tone by
+construction and survive the move, but DES-018 requires each to travel with a
+legible folder name, and that is a judgement per swatch against a new ground
+rather than one ruling. Whether the recessed/raised step reads at all on an OLED
+panel is the same kind of question — a thing to look at, not to calculate.
+
+**Checked by measurement, because a colourway cannot be checked from here by
+looking.** The sweep measures every text pair on four routes and every wide
+surface. The first version of that check held dark to WCAG's 4.5:1 and flagged
+two things that were not faults: the floating New task button, a deliberate
+contrast plate that is near-black in light and near-white in dark — the
+inversion working — and a row's count on graphite-400, a deliberately faint step
+the *light* theme draws at 2.9:1. Holding dark to a bar the design does not
+claim is not a check, it is noise. So the question it asks now is the one a dark
+theme actually has to answer: **did anything get worse.** The same page is
+measured twice and dark must be no worse than light, which catches a surface
+that failed to follow the ramp precisely, because it keeps a light background
+under text that went light with everything else.
+
+
+### DES-206, a workflow is a shape, not a copy
+
+Imran's brief of 2026-08-23, item 14: "a folder or a group saved locally as a
+workflow, and imported."
+
+**One sentence settles the format.** Duplicate ([[DES-198]]) makes another
+instance of your own folder inside your own account, where keeping somebody
+else's assignment would merely be wrong. A workflow *leaves*: it becomes a file,
+and a file gets sent to people. So the rule that governed duplicate — a grant is
+not a thing — is not enough, because the risk is no longer "Sara gets eight tasks
+she did not accept" but "Sara's name, and what she was asked to do, and when, in
+a file on somebody else's machine."
+
+So a workflow carries the structure and the words — the folder's name, glyph and
+colour, its sections in order, the paragraphs between them, its **images**, its
+task titles and which section each sits under, and the titles of a task's steps,
+which are the checklist and are the point. It carries **nothing about people or
+time**: no assignee, no date, no reminder or repeat, no completion, no comment,
+no member, no history.
+
+Images travel with their bytes inlined, because a workflow is one file by design
+— a folder of assets beside it is a thing to lose, and the whole promise is "send
+this to somebody". A worked example that arrives without its picture is not a
+worked example.
+
+**One thing the sweep found that is worth stating rather than fixing:** the prose
+on a page can name people. Travel's own paragraph says "Sara is holding the guest
+list", and that travels. It is not the same class as an assignee — a paragraph is
+the author's own writing, chosen deliberately, and stripping it would gut the
+feature. What the bar now says is the honest and checkable claim: "8 tasks and
+the page, without dates, assignees or comments." Not "no people".
+
+**Imported as a new folder, never merged.** Merging raises a question with no
+good answer — what happens to a section that exists in both — and somebody who
+wanted a merge can import and then move things, which is a sequence they can see.
+Importing something you already have gives you "Travel 2", the naming duplicate
+already uses, because importing a workflow twice is usually a second trip rather
+than a mistake.
+
+**Import lives in the Folders menu, not the footer.** It *makes a container*, so
+by the footer's own rule ([[DES-200]]) it belongs with New folder and New shelf —
+but not as a third button in a row of two, because those are things you do weekly
+and this is a thing you do when somebody sends you a file. The rare making act
+goes in the menu beside the heading; the common ones keep their buttons.
+
+**And it exposed a contradiction in DES-198 that had shipped.** That entry says
+"the copy's work is the duplicator's" and then implemented the assignee as
+*empty*, which is not the same thing: an empty assignee means the copy appears in
+**nobody's** Assignments, including the copier's, so a folder duplicated to run
+again produced eight tasks no page about people would ever show. Importing a
+workflow already assigned the work to the importer, the way a task they typed
+would be, which is how the two were caught disagreeing. One rule now: a grant
+does not travel, and the work lands on whoever made the copy.
+
+The check that found it was wrong first — it asserted "no assignee" on an
+imported task, which is the file's property mistaken for the folder's. It asks
+two things now, on both paths: nobody else's name came with it, and it belongs to
+somebody.
+
+Lane 2 is small, which is why this item was cheap: nothing here needs a server,
+and that is what "saved locally" means. A ported Dana that lets people *publish*
+workflows needs a validating parser, a size limit, and a decision about images
+that this does not make.
+
+
+### DES-207, a shelf is the folder page one level up
+
+Imran's brief of 2026-08-23, item 15, built to his ruling: **Option A**
+([[DES-195]], [[DES-196]]). A shelf stays a personal label and gains a page — a
+cover, an icon, a description, blocks — with no link to send and no members.
+
+**It is the folder page at another level, not a second idea.** A folder page is
+a cover, a mark, a title, a description, its **tasks**, and blocks arranged
+around them; a shelf page is that page whose contents are **folders**. Two ideas
+would have drifted; one idea at two levels means somebody who has used one has
+used the other, and it is why this took a screen rather than a subsystem.
+
+**The folders are derived, never blocks.** Item 15 asked for "blocks of
+folders/sections/text/images", and folders are the one of the four that must not
+be a block: a folder is on this shelf because its membership says so, and a
+block would be a second record of that — stale the moment somebody drags a
+folder in the sidebar. The page shows what the label holds; the blocks are the
+writing around it.
+
+**No sections, either**, and for a related reason: the thing a section would
+group is derived from a label, and a folder cannot sit under two headings on one
+page without the label meaning something it does not. Two block kinds, not
+three.
+
+**No Copy link, and that is a ruling rather than an omission.** DES-196 draws
+the consequence of Option A: the page is private *by construction*, because the
+label is personal, so its cover, icon and arrangement are personal too. A link
+you send opens nothing for whoever receives it. It is the one act the contract
+declares for the other two kinds and deliberately does not declare here.
+
+**The row's two jobs became two controls.** The whole shelf row used to toggle,
+which was right while a shelf was a heading over some folders. It names something
+you can open now, so the label goes there and the disclosure keeps the corner it
+had already announced — the Folders glyph has swapped to a chevron on hover since
+the day it was drawn, which was the affordance saying so all along.
+
+Two faults it surfaced, both the same shape as ones already fixed this session:
+
+- **A third default written as exceptions.** `isDesk` was "no page requested and
+  the state is not folder and not done", so `?state=shelf` rendered the Desk
+  page. That is the third time — Trash rendered My Day, and `?mode=calendar`
+  died at F6 — and the answer is the same: name the list once, and the next
+  state joins it there.
+- **Shelf membership was resolved inside the sidebar.** *An override if there is
+  one, otherwise the fixture's label* — two words of logic living in the surface
+  that needed it first, so the Shelf page would have written a second copy and
+  the two would disagree the first time somebody moved a folder. It is
+  `folderShelf` now, asked by both. The distinction it carries is the part that
+  cannot be guessed: **no entry is different from an entry of `null`** — the
+  first means "nobody has moved this", the second means "somebody took it off
+  its shelf", and collapsing them puts a folder back where its owner removed it
+  from.
+
+A note on the check, because the first version of it was weak: asserting the
+menu has no Copy link cannot catch a change to the *contract*, since an act
+with no handler does not draw either way. The safety property is doing the work,
+and the check earns its place by catching the thing that would actually leak —
+somebody supplying a handler. Probed that way, it bites.
+
+
+### DES-208, five faults behind one sentence, and why the sweep missed them
+
+Imran, 2026-08-23, reviewing: folder-as-a-tab is not there, deleting a folder
+does not work, Desk still has no description, the dark mode uses the light logo.
+Four reports, five faults, and every one had passed a green sweep — which is the
+finding worth recording above any of the fixes.
+
+**The sweep read the wiring instead of pressing the control.** Nothing in it had
+ever opened a folder row's menu. So:
+
+- **Open in a new tab was never built.** The contract declared the act, both
+  folder menus wired a prop for it, and no shell ever supplied one — so the
+  safety property correctly drew nothing, and I twice reported it working from
+  reading `open: onOpenInTab` in the source. A handler that nobody passes is
+  indistinguishable from a feature, in the source and only in the source.
+- **Rename and Delete from a folder row did nothing at all.**
+  `?folder-action=` has existed since the v1 page and only the v1 page ever read
+  it. Both acts navigated here carrying an instruction the shipped page ignored.
+- **Then the delete raced its own listener.** Wired up, the act ran from a mount
+  effect — and React runs a child's effects before its parent's, so the page
+  dispatched `prototype-delete-folder` before `AppShell` had attached the
+  listener that answers it. The folder vanished from the screen, came back on
+  reload, and left nothing in the Trash. **A destructive act must not depend on
+  who mounted first**, so the store is written directly and the event goes out
+  only for the bookkeeping that needs it; `deletePrototypeFolder` is idempotent
+  so whichever arrives second changes nothing.
+- **And two identical handlers meant the fix landed on the wrong page.** The v1
+  and v2 call sites were byte-identical, so a string replace patched the one
+  nobody uses. Both are patched, by splitting on the text rather than replacing
+  it once — the same hazard as any "fix the first match" edit.
+
+**A one-shot instrument.** `?folder-action=delete` now strikes itself from the
+URL the moment it is obeyed. A destructive act sitting in the address bar is a
+trap: a reload, a bookmark or the back button performs it again, on whatever
+folder the URL happens to name. `navigateToPage` also clears `folder`,
+`folder-action` and `shelf`, which is how that param survived a navigation and
+sat pointing at a folder nobody was looking at.
+
+**The folder's delete confirmation went**, and it is the last of the nine.
+[[DES-200]] removed seven and left this one only because nothing could reach it
+— so its copy had not been re-read since Trash existed, and it still said "This
+**permanently** deletes … for every member". The rule stands: ask only when
+there is no way back.
+
+**A folder tab navigates; a task tab replaces the page.** That asymmetry is the
+design. A task has no route of its own — its tab *is* where it lives. A folder
+already has a route, the one the sidebar uses, and rendering a second copy of
+that page inside the strip would mean maintaining forty props at two call sites,
+which is the fault this whole stretch has been removing. So a folder tab is what
+a browser tab is: a place kept in a strip that you go to.
+
+**Desk's description was a missing fallback, not a missing sentence.**
+`PageDescription` has always taken Dana's own wording as a fallback; the folder
+page passed none, because a person's own folder has no shipped sentence. Desk is
+a folder, so it rendered the empty state. Asking `pageQuestion(storageName)`
+gives Desk its line and changes nothing else, since that returns undefined for
+every folder somebody made. A rule, not an exception for one name.
+
+**The dark logo was inverted twice, which is the same as not at all.** The rule
+said plate: graphite-0, glyph: graphite-950 — the reversal, written against the
+*light* ramp's meaning. But the ramp itself reverses in dark, so it resolved to a
+near-black tile carrying a white D on a near-black page. **A rule written in
+terms of a ramp cannot also be the thing that flips the ramp.** Stated by role —
+the plate is the opposite of the page, always — it cannot double-negate.
+
+
+### DES-209, the second review pass
+
+Imran's list of 2026-08-23, after clicking through. Six changes, and three of
+them overturn something I had argued for — which is worth recording as such,
+because a decision reversed with a reason is worth more than one defended.
+
+**A workflow carries everything but people and dates.** He drew the line:
+"only due dates, people, conversations can't be exported". The first version
+carried titles and nothing else, which made a workflow a table of contents
+rather than a copy of the work — a template of a launch is not much of one if
+the notes, the checklists and the stars have to be typed again. So notes, stars,
+repeats, reminders, steps *with their ticks* and the task's own state all
+travel; assignee, invitation, due date, conversation, and the completion stamp
+and its "by" do not. The consequence, stated: a folder saved half-finished
+imports half-finished. That is what a *save* means, where duplicate is a fresh
+run — two acts, two rules, deliberately.
+
+**One primary button, then a row of three.** He asked for this twice and I
+placed by role instead, arguing Trash was a destination. The shape he described
+is better than my argument: New folder stands alone, and under it sit **New
+shelf · Import · Trash**, left to right from most to least like making
+something. Help stays in the account menu, which is the one departure — it is
+neither a thing you make nor a place inside your work, and a fourth item would
+have broken the row he asked for.
+
+**The Activity indicator was correct and invisible.** It draws nothing when
+nothing has happened, which is right in the small — a control opening onto an
+empty popover is a promise the page cannot keep — and wrong in the whole,
+because on a fresh browser *nothing* has a history, so it was invisible on every
+page at once. A thing that exists was created, and that is a fact rather than a
+fiction: every object is seeded with the line that says so, from the fixtures'
+own `createdAt`. The store is never empty now, which also changed what the check
+can ask — "this press wrote one line", not "the store holds one line".
+
+**And a folder got its History**, which a task has had since [[DES-201]]. On the
+question Imran raised — whether the indicator and History should differ by
+*restoring* — the answer is no, and structurally rather than by preference.
+Restoring needs snapshots, and Dana stores events. A restore offered over an
+event log is either a lie or a promise to rebuild state by replaying acts
+backwards, which is a different product. The two differ by **depth**: the line
+answers *is this fresh*, the sheet answers *what happened to this*. Undo covers
+seconds and Trash covers thirty days; between them there is no gap a version
+history would fill at a price worth paying here.
+
+**Search reaches the last three sources.** Sections and captions were missed for
+one reason — the filter asked for paragraphs *by name* instead of asking each
+block for its words, so the next kind of block would have been missed too.
+Messages needed the folder conversations to leave the screen that drew them, the
+same extraction the page seeds needed when duplicate became their second reader.
+Shelves joined because [[DES-207]] gave them somewhere to land and the reason
+for leaving them out expired.
+
+**An image resizes, and blocks fold with their heading.** The first version
+refused sizing, arguing that a picture which can be half-width and left-aligned
+drags the text beside it into a layout problem. Half of that holds: **alignment
+is what causes the trouble, not size.** A narrower picture that stays in the
+column changes nothing about the text above and below it; a *floated* one makes
+the paragraph beside it a layout question. So the handle changes width, the
+block stays in the column, and there is no left, no right and no wrap. A drag
+rather than Small/Medium/Large, because three named sizes are three guesses at
+what somebody wants.
+
+Folding was a plain omission: only tasks answered to a section, so a heading
+closed over its prose and its pictures and left them behind. **Belonging is
+decided by position**, not by a field on each block — a block after a heading
+and before the next is in it, which is what a document means and what a reader
+already assumes. A `section` field would be a second fact that can disagree with
+the order it is drawn in.
+
+One thing this pass taught about the checks themselves: five of the six failures
+on the first run were **my own older checks guarding decisions Imran had since
+changed**. A check that outlives its decision reads exactly like a regression,
+and the cost of not noticing is undoing good work to satisfy a stale rule. Each
+was rewritten to guard the *new* rule with the reason attached, rather than
+deleted.
+
+### DES-210, the shelf page earns its place
+
+Imran set the test himself: "If a Shelf page can have an address and can be
+saved as a workflow, so we can leave it, otherwise it's good to remove the shelf
+pages." Both are true now, so it stays — and it grew into the folder page's
+grammar rather than keeping its own.
+
+**Copy link came back, and the distinction it forced is the useful part.**
+[[DES-196]] left it out because a shelf page is private by construction, so a
+link "would open nothing for whoever received it". That confused **an address**
+with **a share**. A shelf page has an address the moment it has a route, and
+that address is worth copying for what people copy links for most — a note, a
+message to yourself, a document. What it is not is an invitation. Option A ruled
+out sharing, not addressing.
+
+**The same components, not lookalikes.** The insert line, the grip, the drag
+engine, the collapse rule and the three blocks are the folder page's own. Two
+pages that mean the same thing must not grow two grammars for it, or the product
+has a page you have to learn twice.
+
+**Sections belong on a shelf after all.** The first version left them out,
+reasoning that the thing a section would group is derived from a label. That
+answered a different question: a section here groups the **writing**, exactly as
+on a folder page. What it does not group is the folders, which still come from
+the label — and that remains true.
+
+**A shelf's workflow is its page and its folders' names**, never those folders'
+contents. A shelf is an arrangement over things that exist without it, so a file
+dragging eight folders' tasks along would be a backup of half an account wearing
+a shelf's name.
+
+**And a shelf's duplicate takes no folders.** A folder can only be on one shelf,
+so moving them would empty the original — the copy is a second label with the
+same page, ready to fill. That falls out of what a shelf is rather than being a
+rule to remember, which is the test this whole contract keeps applying to
+itself.
+
+
+### DES-211, an instruction that has been carried out is no longer an instruction
+
+Imran: "whenever you open a folder, a task is always open in the left sidebar."
+I could not reproduce it and said so, which was honest and useless — I was
+opening tasks by pressing rows, and pressing a row puts nothing in the URL.
+
+**Arrive by a link and it reproduces every time.** [[DES-201]] gave a task an
+address, `?task=<id>`. `navigateToFolder` clears `page`, `folder-state`,
+`folder-action` and `folder-page` — and had never heard of `task`, because
+`task` did not exist when that list was written. So the param rode along: every
+folder opened afterwards re-opened the same task, for ever, with the only clue
+in the address bar. That is exactly what "always" means, and it is why a
+reproduction attempt that never used a link could never find it.
+
+**The third time this shape has failed in one session.** Trash rendered My Day,
+because Desk was "no page and not folder and not done". `?state=shelf` rendered
+Desk, for the same reason. And now a param survived because a delete-list did
+not know about it. All three are *a list somebody has to remember to extend*,
+and all three went wrong the first time something was added.
+
+So the fix is not a longer list. **The param removes itself the moment the
+surface opens.** An instruction that has been carried out is no longer an
+instruction, and nothing downstream has to know it ever existed —
+`?folder-action` already worked this way ([[DES-208]]) and this is the same
+rule reaching the second instrument. The navigators clear it too, but as a
+belt rather than the mechanism.
+
+**What it costs, stated:** the address bar no longer shows the task you are
+looking at, so you cannot re-copy the link from it. That is a real loss and a
+small one — Copy link is in the task's own menu, which is where people copy it
+from, and the alternative was a URL that quietly followed you around the
+product changing what every folder looked like.
+
+**And a note on the check.** The first version of it pressed a folder in the
+sidebar while the task surface was open, and Playwright could not: the surface
+is a panel over the page. That is not a flaw in the test but the real sequence —
+a person shuts the panel and *then* presses the folder. The bug survived exactly
+that, because it lived in the URL rather than in the surface, which is what made
+it feel like the product was broken rather than like something was open.
+
+
+### DES-212, a layout that cannot be explained cannot be relied on
+
+Imran asked whether I was sure. I was not, and pressing every item found two
+more things — one of them a fault in how I had been *measuring* all session,
+which matters more than the fix.
+
+**The right edge is a number now, not a CSS variable.** The first version
+published the panel's width as a custom property on `<html>` and let the shell
+consume it with `padding-right: var(--right-panel-width, 0px)`. On paper that is
+the elegant answer: one variable, no wiring, nothing threaded. Measured, the
+variable resolved to `360px` on the very element whose padding resolved to
+`0px` — and a `!important` pixel value set on that element by hand computed to
+`0px` too, while `margin-right` on the same element applied fine. A clone with
+the identical classes and the identical inline style computed `360px`.
+
+I could not account for it, and that is the point at which a mechanism has to go
+rather than be defended. The width is a number in a store now, read with a hook,
+written as a plain pixel padding: nothing resolves at paint time, nothing depends
+on inheritance, and **the value that lays the page out is the value you can
+print.** The elegance was worth exactly what it laid out, which was nothing.
+
+**And then the real cause turned out to be my instrument.** The browser pane I
+verify in is not displayed, so `document.visibilityState` is `hidden` — and a
+hidden document does not tick CSS transitions. The scroll container has
+`transition-[padding]`, so its transition started, never advanced, and pinned
+the computed value at where it began. Every measurement I took of that padding
+by hand read `0px` and every one of them was wrong.
+
+**The operational rule this leaves:** *any transitioned or animated property
+must be measured in Playwright, never in the pane.* The pane is fine for text,
+structure, storage and geometry that does not animate; it silently lies about
+anything mid-transition. Checked in a real browser, the page keeps 360px clear
+when the conversation panel opens and 0 when it closes — which is what Imran
+reported was missing, and is now in the sweep so it cannot go quiet again.
+
+The swap stands regardless. Two mechanisms were candidates and only one could be
+explained; keeping the inexplicable one because the fault turned out to be
+elsewhere would leave the next person a puzzle in place of a rule.
+
+**Three acts had also never been pressed by anything** — not by me, not by the
+sweep: importing a workflow through the new footer button, duplicating a shelf,
+and the footer collapsing to icons. All three work, and all three are now
+checked. That they were unverified is the same gap that let "open in a new tab"
+be reported done twice: **a handler that nobody has pressed is indistinguishable
+from a feature, in the source and only in the source.**
+
+
+### DES-213, Desk stays still, and the swatches were never the problem
+
+Two things Imran's ruling closes, and the second one closes differently from how
+it was framed.
+
+**Desk's glyph stays still.** Imran, 2026-08-23. The animated family has no desk
+lamp, and the alternatives were to become an animated lightbulb or to have one
+hand-written. Staying still is [[DES-187]] applied rather than an exception to
+it: an icon with no twin is drawn plain, because the alternative is a glyph that
+turns into a *different picture* on hover — the exact fault the share icon had
+and that the glyph rule was built to catch. Nothing changed in the code; what
+changed is that the question is now answered, so the next person to notice Desk
+sitting still while its neighbours move does not re-open it.
+
+**The swatches: measuring first changed what the options are.** [[DES-205]] left
+them open on the assumption that a mid-tone palette would go dim on near-black
+and that each of the ten would need re-judging against a new ground. Measured,
+that assumption is simply wrong, and in the opposite direction:
+
+- against the dark card, the ten score **4.47 to 5.19**
+- against white, the same ten score **3.42 to 3.97**
+
+They read **better** on dark than on light. That is what a deliberately mid-tone
+set is *for*, and [[DES-018]] chose one on purpose — the low scores on white were
+accepted there because a swatch always travels with a legible folder name. The
+same property that made them acceptable on white makes them comfortable on dark.
+
+So there is no legibility work to do. Exactly one swatch, plum at 4.47, misses a
+4.5 bar that **no swatch meets in the light theme**, which is a rounding-level
+miss rather than a fault.
+
+What is left is a question of taste and it is a real one: saturated colour on
+near-black vibrates in a way it does not on white. That cannot be settled by
+arithmetic, which is the whole reason it was flagged for Imran rather than
+decided. So the three options are drawn rather than described, at
+`?view=swatches`, as a glyph and a folder name at sidebar size on both grounds
+at once:
+
+- **A · As they are** — unchanged.
+- **B · Plum nudged** — one value, `#b562a9` → `#b765ab`, nothing else touched.
+- **C · Softened** — all ten, 14 points less saturated and lifted back to the
+  bar. Vividness traded for calm.
+
+**A caution worth recording with them.** A page that exists to be ruled on is a
+page that must not quietly become the ruling. This one is a lab route, excluded
+from the audit's rules like the row lab beside it, and it holds no values the
+product reads — the three sets are literals in that file. Whichever option is
+chosen, the change lands in `tokens.css` and this page stays a comparison.
+
+
+### DES-214, the accent was greyer than it meant to be
+
+Imran, 2026-08-23: "the vividness is very less in the current brand accents, if
+you can change it and make it a bit more vivid according to shadcn UI".
+
+He is right, and the gap is larger than it looks by eye. The shipped accent was
+`hsl(226 52% 49%)`. The blue shadcn ships against — Tailwind's `blue-600` — is
+`hsl(221 83% 53%)`. **Thirty-one points of saturation.** Beside that, Dana's
+read as a greyed blue rather than as a brand, which is exactly what he noticed
+without needing the numbers.
+
+Raised to **75%**, `#3b62e3`.
+
+**The hue does not move.** 226 is Dana's cobalt and Tailwind's is 221. Taking
+their hue as well as their chroma would be adopting their blue rather than
+making ours brighter, and the point of a brand colour is that it is not the
+default one.
+
+**And the contrast was budgeted rather than spent**, which is the part worth
+keeping. The obvious way to get vivid is to raise saturation and lightness
+together until white-on-it just clears 4.5:1 — every candidate produced that way
+landed at 4.54 to 4.66, leaving nothing in hand for a focus ring on a tinted row
+or for a screen dimmer than the one it was picked on. Tailwind's own 600 keeps
+**5.17**. So this is tuned to **5.20**: their headroom, spent on saturation
+instead of lightness. The 700 lands at 6.8, which is right for a hover state.
+
+Two things moved with it, and both would have been easy to miss:
+
+- **The tints were re-derived, not kept.** A hover wash that is a paler version
+  of a colour the product no longer uses is a colour nobody chose.
+- **The dark ramp was re-derived too.** It had been generated from the old,
+  greyer 600; leaving it would have made the accent vivid in light and washed in
+  dark — two themes drifting apart, in the purest form of the fault this whole
+  stretch keeps removing.
+
+**And the dark tints were wrong before this touched them.** They sat at 1.06
+against the dark card where the neutral hover step (graphite-50 against
+graphite-0) is 1.10. A wash you cannot see is a hover state that does not exist,
+so they are stepped to match the neutral: 1.12 and 1.28 against 1.10 and 1.23.
+That is a fault the accent change surfaced rather than caused, and it would have
+gone on being invisible precisely because it was invisible.
+
+The dial is on the same page as the swatches, at `?view=swatches`: five rows —
+52% as it was, 65%, 75% applied, 85%, and Tailwind's own for reference — each
+drawn as a primary button, a tinted chip and a link, **all at the same 5.20
+contrast** so the only variable changing is chroma. Comparing vividness while
+also varying contrast would make the brightest look best on a bright screen and
+worst everywhere else.
+
+
+### DES-215, the whole palette was greyer than it meant to be
+
+Imran, 2026-08-23: 85% for the accent, "and it's not only about accent, the
+swatches also lack the vividness, do similar thing to swatches too."
+
+**The accent went to 85%, `#335fee`.** Contrast 5.23 — still the headroom
+Tailwind's own 600 keeps, still hue 226 rather than their 221. The dark ramp and
+both sets of tints were re-derived from it rather than left, for the reason
+[[DES-214]] gives: a wash that is a paler version of a colour the product no
+longer uses is a colour nobody chose.
+
+**And the ten folder swatches went up about 30 points each.** The same
+complaint, the same answer, applied ten times — and the discipline is what makes
+it a change rather than a redraw:
+
+> **Every swatch holds its own hue and its own contrast.** The lightness is
+> re-solved per swatch so each lands within 0.02 of the ratio it had on white.
+> Clay was 3.61 and is 3.61; teal was 3.42 and is 3.41. The band is **3.41–3.98
+> where it was 3.42–3.97**. Nothing became more or less legible. They became
+> more coloured.
+
+That is the only honest way to compare a palette, and it is the same rule the
+accent got: change one variable. Raising chroma *and* lightness together makes
+every candidate look better on the screen it was chosen on and worse on every
+other one.
+
+[[DES-018]]'s requirement is untouched and is why these ratios are allowed near
+3.5: a swatch never carries meaning alone, it travels with a folder name.
+
+**One collision surfaced, and it is not new.** Folder **cobalt sits at hue 224**
+and the brand accent at **226** — two degrees apart, since the palette was
+drawn. It was survivable while both were dull enough for lightness to separate
+them (49% against 62%). Vivid, they are one colour with two jobs, and DES-018's
+own line is that a folder colour is *identity* while the accent is *interaction*.
+
+It is **not silently re-hued**. A folder colour is somebody's choice about their
+own folder, and moving it changes what their sidebar looks like tomorrow morning
+without them asking. The proposal — cobalt to hue **242**, `#7b77f6`, same
+saturation and same contrast, clear of the accent at 226 and still clear of
+violet at 259 — is drawn at `?view=swatches` beside the applied value, for Imran
+to rule on. Until then cobalt keeps its hue and takes the same lift as the rest.
+
+**A flaky check was hardened rather than shrugged at.** The workflow-import
+block failed once in three runs on a fixed 1500ms wait: the import navigates to
+a new folder, and a page still mounting has neither its section nor its task in
+`innerText` yet. It waits for the content now. A check that cries wolf is worse
+than no check, because a suite whose failures get waved through is a suite that
+has stopped working while still printing green.
+
+
+### DES-216, the third review pass: surfaces reasoned about and never operated
+
+Imran's review of 2026-08-23, six reports. The pattern across them is one
+sentence: **every fault sat in a place nothing had ever pressed** — not by him,
+not by me, not by the sweep. Each is fixed, and each now has an operation in the
+sweep rather than a reading.
+
+**History did not open, because the sheet was never rendered.** The folder's
+menu had the act, the handler set state, and the `HistorySheet` the state was
+for did not exist in the tree — an earlier edit's anchor had not matched and
+nothing said so. A handler wired to state that nothing reads is the quietest
+form of dead control there is: the menu item exists, the click works, and
+nothing happens. The sheet is rendered now, and shelves joined the creation
+seed so their History has the line every other object gets.
+
+**Restore made two rows because the sidebar had its own list.** It is built
+from three sources — the fixture groups, the unlabelled fixtures, and whatever
+a person has made — and any name in two of them drew twice. `folderLibrary()`
+has de-duplicated since the day it was written, which is why every picker and
+search stayed correct while the one column that *draws* folders doubled. The
+sidebar de-duplicates by `folderKey` now: one folder, one row, however the
+overlap arises. De-duped by key rather than display name, so a rename can
+neither split one folder into two nor merge two into one.
+
+**The folder delete's undo did not exist, twice over.** [[DES-200]] removed the
+delete confirmation on the grounds that a folder has two ways back — the bar
+and the Trash. First: the record passed no inverse, so the bar never appeared.
+Removing a question on the strength of a safety net that was never built is the
+worst kind of mistake, because the reasoning reads correct in the decision
+record while the product is quietly less safe than it claims. Second, and
+found by the new check the moment the first fix landed: the sidebar's delete
+**navigated to the folder's page to perform it**, and undo is in-memory, so the
+bar died with the page load. Deleting happens where you stand now —
+`deleteFolder` in the shell chrome, no travel — and only deleting the folder
+you are *standing on* still navigates, because the page under you is gone.
+
+**A shelf file could be written and not read.** The import path checked for
+`dana: "workflow"` and a shelf file says `dana: "shelf-workflow"`, so it was
+refused by the very guard that exists to refuse *foreign* files. A format you
+can export and not import is not a format, it is a leak. `parseAnyWorkflow`
+reads both and tags the result. Importing a shelf makes its page and **joins
+the folders you already have rather than duplicating them** — a file that
+mentions Travel should put your Travel on the shelf, not make a second one —
+and folders named but absent are created empty. Shelf names are made unique
+among *shelves*, not among folders: `availableFolderName` asks the folder
+library, which knows nothing about labels, so importing "Personal" over an
+existing Personal silently merged two arrangements.
+
+**The shelf page joined the folder page's measure and got its control row.**
+It had `--shell-page-max` and its own padding where every other page uses
+`pageBodyClass` — a page written beside a component instead of with it. Its
+control row carries the Activity line and the full shelf contract: History,
+Rename (which focuses the title field, the folder page's arrangement), Copy
+link, Duplicate, Save as workflow, Delete. Deliberately absent: the view strip
+and filters. A view switches how a list of tasks is drawn and a shelf holds
+folders; a filter narrows a list somebody built, and a shelf's list *is* its
+label — narrowing it would be editing it. Deleting a shelf unlabels its
+folders and keeps them: the arrangement goes, the things arranged stay
+([[DES-195]]).
+
+**The footer's three buttons keep their line as the sidebar narrows.** Imran
+pointed at Notion's nav: labels drop, icons hold the row. The trigger is the
+sidebar's *width* — a container query on the row, breaking at about 212px —
+because the sidebar is draggable from 224 to 360 and a breakpoint someone
+guessed would fight the drag. In the fully collapsed 56px rail they do stack,
+and that is arithmetic rather than taste: three 32px icons and their gaps need
+100px and there are 56.
+
+
+### DES-217, the tab strip stops having a special first tab
+
+Imran's fourth review pass, 2026-08-24, and four of his reports were one
+mechanism: the first tab was wider than the rest, could not be closed, and
+silently mirrored the URL — so a folder asked to open as a second tab appeared
+to open as the first, because opening navigated and the mirror followed. The
+strip drew tabs; it did not have them.
+
+It has them now. **Every tab is the same tab**: one width, one mark-and-title
+anatomy, one close control, task tabs and place tabs in one ordered list
+(`page:` / `folder:` / `shelf:` / a bare task id — the one-list-with-a-kind
+that search and duplicate settled). The place you are standing on is simply
+the active tab. Ordinary navigation retargets the tab you were on, the way a
+browser's address bar does; **Open in a new tab appends one and goes to it**,
+and the tab that was showing the old place keeps saying so, because it is an
+entry in a list rather than a mirror. **Closing the active tab lands on the
+neighbouring place, and an emptied strip lands on Desk** — Imran's rule, and
+the browser's. **Tabs reorder by pointer drag**, a horizontal bespoke like the
+board's columns, with a 5px arming threshold so a click is never eaten. And
+the strip gained its **"+"**: every shelf and folder, then New folder, New
+shelf, Import workflow — the same handlers the sidebar uses, so the two ways
+into a tab cannot drift.
+
+One fault this surfaced had been true since the shelf page landed: a shelf
+fell through `activePage`'s chain to "Today", so a shelf page lit Today's
+sidebar row — and, once the strip drew from one list, dressed the shelf's tab
+as Today's. A shelf is its own place now, like a folder.
+
+### DES-218, a shelf's name is its label, so renaming is the shell's act
+
+"Renaming Shelfs doesn't work" — Imran, 2026-08-24 — and it did not, from
+either surface. The page's name field wrote a display-name mapping into the
+identity store under `shelf:<name>`, which nothing reads, because a shelf *has
+no record to rename*: its name is the membership label on its folders. The
+sidebar dialog rewrote the labels — the actual rename — but left the page's
+stores behind, so a renamed shelf forgot its cover, icon, description and
+blocks.
+
+One act now, supplied by the shell: rewrite the label on every member folder,
+move the page's stores to the new key (`moveShelfPage`, shared by both
+surfaces so they cannot drift), carry any tab naming the shelf, refuse a name
+another shelf holds, record `renamed`, and follow the page to its new address.
+
+### DES-219, the shelf page takes the folder page's grammar whole
+
+Imran, 2026-08-24: the shelf page should follow "the exact folder page
+structure — distances, dragging, and even kinda hierarchy". Three moves:
+
+**A folder row is a block.** [[DES-207]] kept the folders out of the blocks
+entirely, reasoning that a block would be a second record of the membership.
+Half right: *which* folders are on the shelf stays the label's fact — a
+membership the layout has never seen joins after the last folder row, an
+entry whose membership is gone is dropped on read — but *where* a row sits
+among the writing is an arrangement, exactly like a task's position on a
+folder page. So a folder row moves on the same grip as everything else, sits
+under a heading and folds with it, and takes prose before and after it. The
+insert strip learned [[DES-193]]'s dense rule for folder runs too, which is
+what "the + line is too disconnected" was.
+
+**The page has the folder page's chrome.** Its control row — Activity and the
+overflow — moved out of the page body into the window bar, where the folder
+page's has lived since [[DES-139]]; and the cover affordance arrived, the F3
+fault repeated: the band rendered, nothing offered it.
+
+**It captures like one.** An add-folder row sits at the end of the folder
+run, offering every folder not on the shelf — choosing one is the same act as
+the sidebar's Move to shelf, live without a reload — plus New folder, which
+opens the shell's own dialog with the shelf pre-filled. Desk is refused:
+native, undeletable, off every shelf ([[DES-152]]). And a folder pressed on a
+shelf **opens as its own tab and lands you there**, the shelf kept open
+beside it, because a shelf presents a workflow and what it opens should stay
+open.
+
+### DES-220, the sidebar's folder block is labelled Library — PROPOSED
+
+Imran, 2026-08-24: the collapsible "Folders" label "does not feel good" now
+that the block holds shelves too, offering "Shelfs and Folders" or "User
+Library" and asking for better. **Library** is the offer: one word, plain
+English, naming the place rather than half its contents — and it is the room
+shelves already stand in, so the metaphor was chosen the day "shelf" was.
+"Shelves and folders" names the contents and grows wrong the day the block
+holds a third thing. His eye rules; the word swaps in one line.
+
+### DES-221, whose footer label survives narrowing is arithmetic
+
+The three footer words need about 256px and the default row has 240, so at
+the default width something must give — which is why "New shelf" was
+clipping, the fault Imran named. Equal thirds gave the longest label the same
+room as the shortest. The buttons are content-sized now, and the label that
+yields is decided by the numbers rather than by rank: **New shelf keeps its
+word at every row width** — it was the one clipping, and a truncated "New
+she…" is the worst of the three readings — while **Import and Trash go to
+their icons until the row genuinely fits all three** (about 262px), which is
+the same behaviour the whole row already had when narrowed, applied two at a
+time. Tooltips name all three in every state; the collapsed rail still
+stacks, which is [[DES-216]]'s arithmetic unchanged.
+
 ## Carried from v1, still unresolved
 
 These are `design-contract.md`'s existing Lane 2 items, listed so a v2 session

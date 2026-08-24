@@ -97,3 +97,44 @@ export function removePrototypeFolderMembership(folderName: string) {
     JSON.stringify(next),
   )
 }
+
+/*
+Which shelf a folder is on — the one answer, asked by everybody.
+
+Imran, 2026-08-23: the Shelf page needed this and the sidebar already had it,
+written inline: *an override if there is one, otherwise the fixture's own
+label.* Two words of logic, and exactly the shape [[DES-155]] took out of the
+folder mark — a rule living inside the surface that happened to need it first,
+so the second surface writes a second copy and the two disagree the first time
+somebody moves a folder.
+
+The distinction the override carries is the part that cannot be guessed:
+**having no entry is different from having an entry of `null`.** No entry means
+"nobody has moved this, use the fixture"; `null` means "somebody took it off its
+shelf". Collapsing the two puts a folder back on a shelf its owner removed it
+from.
+*/
+export function folderShelf(
+  folderName: string,
+  base: Map<string, string> | Record<string, string>,
+  memberships: PrototypeFolderMemberships = readPrototypeFolderMemberships(),
+): string | null {
+  if (Object.prototype.hasOwnProperty.call(memberships, folderName)) {
+    return memberships[folderName]?.label ?? null
+  }
+  const fallback =
+    base instanceof Map ? base.get(folderName) : base[folderName]
+  return fallback ?? null
+}
+
+/* The fixtures' own labels, as a map. Built from whatever list of groups the
+   caller has, so this module never imports the fixtures. */
+export function baseShelfLabels(
+  groups: Array<{ label: string; folders: Array<{ name: string }> }>,
+) {
+  return new Map(
+    groups.flatMap((group) =>
+      group.folders.map((folder) => [folder.name, group.label] as const),
+    ),
+  )
+}

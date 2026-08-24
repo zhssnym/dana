@@ -8,6 +8,7 @@ import {
 import { TransactionalEmailScreen } from "@/screens/transactional-email-screen"
 import { PublicLegalScreen } from "@/screens/public-legal-screen"
 import { RowLabPage } from "@/screens/row-lab"
+import { SwatchOptions } from "@/screens/swatch-options"
 
 export function App() {
   const view = new URLSearchParams(window.location.search).get("view")
@@ -18,6 +19,8 @@ export function App() {
   if (view === "invites") return <InviteGateScreen />
   if (view === "email") return <TransactionalEmailScreen />
   if (view === "rowlab") return <RowLabPage />
+  /* A ruling waiting to be made, drawn rather than described (DES-213). */
+  if (view === "swatches") return <SwatchOptions />
   if (view === "privacy") return <PublicLegalScreen page="privacy" />
   if (view === "terms") return <PublicLegalScreen page="terms" />
 

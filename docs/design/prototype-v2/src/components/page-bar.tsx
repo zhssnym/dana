@@ -1,28 +1,32 @@
 /*
-The page bar, grown into what it always drew itself as: a tab strip.
+The page bar: a real tab strip now (DES-217).
 
-The strip has rendered the current page as a browser-style tab since v1 —
-border on three sides, lifted onto the card ground — while being the only tab
-there could ever be. Imran's direction, 2026-08-18: a task opened full screen
-can become a tab, so the strip now holds the page tab plus any task tabs, and
-the drawing finally means what it says.
+The strip has rendered the current page as a browser-style tab since v1, and
+grew task tabs at F2 — but the first tab stayed special: wider than the rest,
+unclosable, and silently retargeted by every "Open in a new tab", so a folder
+asked to open as a second tab appeared to open as the first (Imran,
+2026-08-24). The strip now means what it draws:
 
-Front-end truths, considered rather than discovered:
+- **Every tab is the same tab.** One width, one mark-and-title anatomy, one
+  close control. The place you are standing on is simply the active tab, not
+  a different kind of thing.
+- **Closing the tab you are on goes somewhere honest.** The neighbouring
+  place takes over; an emptied strip lands on Desk. The shell owns that rule —
+  this component only reports the close.
+- **Tabs reorder by drag**, on a pointer with a 5px arming threshold so a
+  click is never eaten. The strip is a row, so the drag is horizontal and
+  bespoke — `use-sortable-list` is vertical and the board's column drag is
+  the same judgement one level up.
+- **The strip can open things**: the shell passes `addMenu`, a "+" at the end
+  of the row, because a tab strip that can only close tabs is half of one.
 
-- **The page tab is the home tab.** It cannot be closed, and selecting it
-  returns to the page the URL names. Task tabs sit after it, close on their
-  X or middle-click, and the strip returns to the page when the active one
-  closes.
-- **Task tabs survive navigation.** They live in sessionStorage (the shell
-  navigates by full page load), so switching to My Day does not eat the tab
-  a person opened from a folder's board. Session-scoped on purpose: tabs are
-  working state, not data, and a fresh visit starts clean.
-- **The active tab owns the ground.** One tab is visually "up" at a time —
-  the page tab when the page shows, a task tab when its task does.
-
-Lane 1: presentation over existing state. The tab model ships nothing the
-shell does not already hold in memory.
+Tabs live in sessionStorage (the shell navigates by full page load) and are
+working state, not data: a fresh visit starts clean. The shell owns the list;
+this component draws it.
 */
+
+import { useRef, useState } from "react"
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 
 import type { LucideIcon } from "@/lib/icons"
 import { RefreshCw, X } from "@/lib/icons"
@@ -34,19 +38,10 @@ import { cn } from "@/lib/utils"
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 
 /*
-What an inactive tab does when you touch it — F5, 2026-08-22, the last of the
-shell pass Imran listed.
+What an inactive tab does when you touch it — F5, 2026-08-22.
 
-It used to go **darker**: the strip's ground is graphite-50 and hover painted
-graphite-100 over it. That is backwards, and at a 24px tab it was actively
-confusing. Pressing a tab makes it white — so hover, which is the preview of
-that press, has to move toward white, not away from it. Going darker says
-"recessed", which is the one thing a click will not do, and it left hover and
-active reading as two filled tabs one step apart in opposite directions.
-
-So hover is the tab three-fifths of the way up to the card ground, with the
-label darkening the same distance. It is unmistakably on its way to being the
-active tab, and never mistakable for one.
+Pressing a tab makes it white, so hover, the preview of that press, moves
+toward white rather than away from it. See the note this carried since F5.
 */
 const TAB_HOVER =
   "hover:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))]"
@@ -54,32 +49,114 @@ const TAB_HOVER =
 export interface PageTab {
   id: string
   title: string
-  /* The folder the task is in. A tab's mark says what kind of thing it holds
-     and, for a task, *where* it lives — an unfiled one resolves to Desk in
-     the one resolver rather than here. */
+  /* A place tab wears its page's own mark; a folder or task tab wears the
+     folder's, resolved by name so a dressed folder follows its tasks into
+     the strip. Exactly one of these two is set. */
+  icon?: LucideIcon
+  iconColor?: string
   folder?: { name?: string; color?: string }
 }
 
 export function PageBar({
-  title,
-  icon: Icon,
-  iconColor,
+  tabs = [],
+  activeTab = null,
   showUpdate = false,
-  taskTabs = [],
-  activeTaskTab = null,
   onSelectTab,
   onCloseTab,
+  onReorderTabs,
+  addMenu,
 }: {
-  title: string
-  icon?: LucideIcon
-  iconColor?: string
+  tabs?: PageTab[]
+  activeTab?: string | null
   showUpdate?: boolean
-  taskTabs?: PageTab[]
-  activeTaskTab?: string | null
-  onSelectTab?: (id: string | null) => void
+  onSelectTab?: (id: string) => void
   onCloseTab?: (id: string) => void
+  onReorderTabs?: (from: number, to: number) => void
+  /* The "+" at the row's end — a menu the shell owns, because opening an
+     existing page and making a new one are the shell's acts, not the strip's. */
+  addMenu?: ReactNode
 }) {
-  const pageActive = activeTaskTab === null
+  const tabRefs = useRef<(HTMLDivElement | null)[]>([])
+  /*
+  The drag, measured once at arming.
+
+  The rects are captured when the pointer crosses the threshold and never
+  re-read during the move, because the move itself transforms the siblings —
+  measuring a thing you are in the middle of moving is the fault DES-212
+  recorded for the shell's padding, one gesture over.
+  */
+  const gesture = useRef<{
+    index: number
+    startX: number
+    armed: boolean
+    pointerId: number
+    rects: (DOMRect | null)[]
+  } | null>(null)
+  const [drag, setDrag] = useState<{ index: number; dx: number; to: number } | null>(
+    null,
+  )
+  const dragRef = useRef<typeof drag>(null)
+  const suppressClick = useRef(false)
+
+  const beginDrag = (index: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    gesture.current = {
+      index,
+      startX: event.clientX,
+      armed: false,
+      pointerId: event.pointerId,
+      rects: [],
+    }
+  }
+
+  const moveDrag = (index: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+    const active = gesture.current
+    if (!active || active.index !== index) return
+    const dx = event.clientX - active.startX
+    if (!active.armed) {
+      if (Math.abs(dx) < 5) return
+      active.armed = true
+      active.rects = tabRefs.current.map((el) =>
+        el ? el.getBoundingClientRect() : null,
+      )
+      event.currentTarget.setPointerCapture(active.pointerId)
+    }
+    const own = active.rects[index]
+    if (!own) return
+    const centre = own.left + own.width / 2 + dx
+    let to = 0
+    active.rects.forEach((rect, i) => {
+      if (i === index || !rect) return
+      if (rect.left + rect.width / 2 < centre) to++
+    })
+    const next = { index, dx, to }
+    dragRef.current = next
+    setDrag(next)
+  }
+
+  const endDrag = () => {
+    const active = gesture.current
+    const landed = dragRef.current
+    gesture.current = null
+    dragRef.current = null
+    setDrag(null)
+    if (!active?.armed) return
+    /* The press moved: it was a drag, so the click that follows it is not a
+       selection. */
+    suppressClick.current = true
+    if (landed && landed.to !== landed.index) {
+      onReorderTabs?.(landed.index, landed.to)
+    }
+  }
+
+  /* How far a resting tab steps aside while another passes it. */
+  const shiftFor = (index: number) => {
+    if (!drag || index === drag.index) return 0
+    const width = gesture.current?.rects[drag.index]?.width ?? 0
+    if (drag.to > drag.index && index > drag.index && index <= drag.to) return -width
+    if (drag.to < drag.index && index >= drag.to && index < drag.index) return width
+    return 0
+  }
 
   return (
     <header
@@ -87,54 +164,43 @@ export function PageBar({
         ? "flex h-[var(--control-height)] shrink-0 items-center bg-sidebar"
         : "flex h-[var(--shell-pagebar-height)] shrink-0 items-center bg-sidebar"}
     >
-      <button
-        type="button"
-        data-static-page-tab
-        onClick={() => onSelectTab?.(null)}
-        className={cn(
-          /* The active tab is the sheet reaching up into the chrome: it is
-             simply white, continuous with the page below it, and needs no
-             outline to say so. The inactive ones are nothing at all until you
-             touch them, when they take the chrome's own hover wash. Three
-             borders and a negative-margin stack used to draw this; the tonal
-             step draws it now (Imran, 2026-08-22). */
-          "group/tab relative flex min-w-48 max-w-64 items-center gap-2 self-stretch rounded-t-lg px-3 text-left transition-colors",
-          T_FAST,
-          pageActive ? "bg-card" : cn("text-[var(--color-graphite-500)]", TAB_HOVER),
-        )}
-        aria-label={`Open page: ${title}`}
-        aria-current={pageActive ? "page" : undefined}
-      >
-        {Icon ? (
-          <Icon
-            className="size-3.5 shrink-0"
-            style={iconColor ? { color: iconColor } : undefined}
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-        ) : null}
-        <span
-          className={cn(
-            "truncate text-xs leading-4 font-medium transition-colors",
-            T_FAST,
-            pageActive
-              ? "text-[var(--color-graphite-800)]"
-              : "text-[var(--color-graphite-500)] group-hover/tab:text-[var(--color-graphite-700)]",
-          )}
-        >
-          {title}
-        </span>
-      </button>
-
-      {taskTabs.map((tab) => {
-        const active = activeTaskTab === tab.id
+      {tabs.map((tab, index) => {
+        const active = activeTab === tab.id
+        const dragging = drag?.index === index
+        const Icon = tab.icon
         return (
           <div
             key={tab.id}
+            ref={(node) => {
+              tabRefs.current[index] = node
+            }}
+            onPointerDown={beginDrag(index)}
+            onPointerMove={moveDrag(index)}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onClickCapture={(event) => {
+              if (!suppressClick.current) return
+              suppressClick.current = false
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            style={{
+              transform: dragging
+                ? `translate3d(${drag.dx}px, 0, 0)`
+                : shiftFor(index)
+                  ? `translate3d(${shiftFor(index)}px, 0, 0)`
+                  : undefined,
+              transition:
+                drag && !dragging
+                  ? "transform var(--duration-fast) var(--ease-standard)"
+                  : undefined,
+              zIndex: dragging ? 30 : undefined,
+            }}
             className={cn(
               "group/tab relative flex min-w-32 max-w-56 items-center self-stretch rounded-t-lg transition-colors",
               T_FAST,
               active ? "bg-card" : TAB_HOVER,
+              dragging && "cursor-grabbing",
             )}
           >
             <button
@@ -147,20 +213,16 @@ export function PageBar({
               className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-6 pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-inset"
             >
               {/*
-              A tab says what kind of thing it holds, and a task tab says
-              which folder it came out of — Imran's point 17.
+              A tab says what kind of thing it holds — Imran's point 17, kept
+              from the first strip. Place tabs carry their page's own mark
+              (already resolved by the shell, folder identity included); task
+              and folder tabs resolve the folder's mark by name, so a folder
+              somebody has dressed follows its tasks here.
 
-              It wore a generic tick, which was the fault DES-155 named one
-              level up: an identity only some surfaces honour is a decoration
-              on one screen. The mark comes from the one resolver, so a folder
-              somebody has dressed follows its tasks into the tab strip, and
-              one nobody has dressed answers the plain folder exactly as
-              before.
-
-              Emphasis rides opacity rather than the hue, the same arithmetic
-              the sidebar's folder row settled at F5: the colour is the
-              folder's identity and has to survive, so an inactive tab's mark
-              fades rather than greys.
+              Emphasis rides opacity rather than the hue, the arithmetic the
+              sidebar's folder row settled at F5: the colour is the thing's
+              identity and has to survive, so an inactive tab's mark fades
+              rather than greys.
               */}
               <span
                 className={cn(
@@ -169,11 +231,20 @@ export function PageBar({
                   active ? "opacity-100" : "opacity-[0.62] group-hover/tab:opacity-100",
                 )}
               >
-                <FolderMark
-                  name={tab.folder?.name}
-                  color={tab.folder?.color}
-                  className="size-3.5"
-                />
+                {Icon ? (
+                  <Icon
+                    className="size-3.5"
+                    style={tab.iconColor ? { color: tab.iconColor } : undefined}
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <FolderMark
+                    name={tab.folder?.name}
+                    color={tab.folder?.color}
+                    className="size-3.5"
+                  />
+                )}
               </span>
               <span
                 className={cn(
@@ -202,6 +273,8 @@ export function PageBar({
           </div>
         )
       })}
+
+      {addMenu}
 
       {showUpdate ? (
         <Button

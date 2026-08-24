@@ -1,7 +1,7 @@
 import { UndoBar } from "@/components/undo-bar"
+import { useRightEdge } from "@/components/right-edge"
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
-import type { LucideIcon } from "@/lib/icons"
-import { Plus } from "@/lib/icons"
+import { FolderPlus, Folders, Plus, Workflow } from "@/lib/icons"
 
 import {
   AppSidebar,
@@ -13,8 +13,18 @@ import {
   type FolderGroupOption,
 } from "@/components/folder-group-dialog"
 import { NewFolderDialog } from "@/components/new-folder-dialog"
-import { PageBar } from "@/components/page-bar"
+import { FolderMark, folderPageMark } from "@/components/folder-mark"
+import { PageBar, type PageTab } from "@/components/page-bar"
 import { WindowBar } from "@/components/window-bar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { record } from "@/lib/history"
+import { moveShelfPage, shelfKey } from "@/lib/shelf-acts"
 import {
   OfflineBanner,
   SystemToast,
@@ -98,6 +108,11 @@ function readShellFolders(): ShellFolderFixture[] {
 }
 
 export function AppShell({
+  onImportWorkflow,
+  onOpenShelf,
+  onOpenFolderInTab,
+  onOpenShelfInTab,
+  onSaveShelfWorkflow,
   children,
   activePage = "My Day",
   activeFolder,
@@ -106,20 +121,23 @@ export function AppShell({
   showUpdate = false,
   systemToast,
   avatarMenuOpen = false,
-  pageTitle = "My Day",
-  pageIcon,
-  pageIconColor,
   onCreateTask,
   onCreateTaskForFolder,
   onNavigate,
   onOpenSearch,
   pageVisibility,
   hideCreate = false,
-  taskTabs,
-  activeTaskTab,
+  tabs,
+  activeTab,
   onSelectTab,
   onCloseTab,
+  onReorderTabs,
 }: {
+  onImportWorkflow?: (text: string) => void
+  onOpenShelf?: (label: string) => void
+  onOpenFolderInTab?: (name: string) => void
+  onOpenShelfInTab?: (label: string) => void
+  onSaveShelfWorkflow?: (label: string) => void
   children: ReactNode
   activePage?: ShellPageName | null
   activeFolder?: string
@@ -128,9 +146,6 @@ export function AppShell({
   showUpdate?: boolean
   systemToast?: SystemToastKind
   avatarMenuOpen?: boolean
-  pageTitle?: string
-  pageIcon?: LucideIcon
-  pageIconColor?: string
   onCreateTask?: () => void
   onCreateTaskForFolder?: (folderName: string) => void
   onNavigate?: (page: ShellPageName) => void
@@ -140,11 +155,12 @@ export function AppShell({
      quick-add row is the capture point (DES-133). A screen-by-screen ruling,
      so it arrives as a prop rather than a policy here. */
   hideCreate?: boolean
-  /* The tab strip's task tabs — owned by the shell page, drawn by PageBar. */
-  taskTabs?: { id: string; title: string }[]
-  activeTaskTab?: string | null
-  onSelectTab?: (id: string | null) => void
+  /* The tab strip — owned by the shell page, drawn by PageBar (DES-217). */
+  tabs?: PageTab[]
+  activeTab?: string | null
+  onSelectTab?: (id: string) => void
   onCloseTab?: (id: string) => void
+  onReorderTabs?: (from: number, to: number) => void
 }) {
   const showAdd =
     !hideCreate &&
@@ -285,6 +301,26 @@ export function AppShell({
       }
   }, [])
 
+  /*
+  A page can ask for the New folder dialog (DES-219).
+
+  The shelf page's add-folder row offers "New folder…", and the dialog it
+  means is this shell's — the same one the sidebar opens, label pre-filled so
+  the folder lands on the shelf it was made from. The page is a child of the
+  shell page, not of this component, so the request travels as an event, the
+  arrangement `prototype-delete-folder` already uses and for the same reason.
+  */
+  useEffect(() => {
+    function openNewFolder(event: Event) {
+      const label = (event as CustomEvent<{ label?: string }>).detail?.label
+      setNewFolderGroupLabel(label ?? null)
+      setNewFolderOpen(true)
+    }
+    window.addEventListener("dana:prototype-new-folder", openNewFolder)
+    return () =>
+      window.removeEventListener("dana:prototype-new-folder", openNewFolder)
+  }, [])
+
   function persistSidebarWidth(width: number) {
     if (typeof window === "undefined") return
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(width))
@@ -303,11 +339,40 @@ export function AppShell({
     nextUrl.searchParams.set("folder", name)
     nextUrl.searchParams.delete("folder-state")
     nextUrl.searchParams.delete("folder-action")
+    /* And the task somebody arrived by a link to open: it belongs to the
+       arrival, not to every folder pressed afterwards (DES-211). */
+    nextUrl.searchParams.delete("task")
+    nextUrl.searchParams.delete("open")
     /* The v1 comparison switch never survives a navigation. It stuck once —
        every folder opened from the sidebar kept showing the previous screen,
        silently — so ordinary navigation always returns to the concept. */
     nextUrl.searchParams.delete("folder-page")
     window.location.assign(nextUrl)
+  }
+
+  /*
+  Deleting a folder happens where you are standing (DES-216).
+
+  It used to navigate to the folder's own page and delete on arrival, which was
+  the v1 instrument being reused. Two things went wrong with that and only the
+  second is obvious. The page had to honour a URL — three faults' worth, fixed
+  in DES-208. And the act was immediately followed by a **navigation**, so the
+  undo bar it pushed died with the page load: the "two ways back" DES-200 spent
+  the delete confirmation on was one way back and a bar nobody could ever see.
+
+  Deleting from a row does not need to travel anywhere. Only leaving the page
+  you are *on* does, which is the one case that still navigates.
+  */
+  function deleteFolder(name: string) {
+    deletePrototypeFolder(name)
+    window.dispatchEvent(
+      new CustomEvent("dana:prototype-delete-folder", { detail: { name } }),
+    )
+    if (activeFolder === name) {
+      const nextUrl = new URL(window.location.href)
+      nextUrl.search = ""
+      window.location.assign(nextUrl)
+    }
   }
 
   function openFolderAction(
@@ -343,6 +408,89 @@ export function AppShell({
     setFolderMemberships((current) => ({ ...current, ...updates }))
   }
 
+  /* Room the open panel has asked the page to keep clear (DES-212). */
+  const rightEdge = useRightEdge()
+
+  /*
+  The strip's "+" (DES-217). Imran: "in the tabs row, we should always have a
+  '+' sign for opening the existing pages (shelfs and folders) or adding a new
+  shelf, folder, and importing a workflow."
+
+  It lives here rather than in PageBar because everything it offers is this
+  component's: the folder and shelf lists, the two dialogs, and the sidebar's
+  import input. Opening an existing page goes through the same handlers the
+  sidebar's "Open in a new tab" uses, so the two ways into a tab cannot drift.
+  */
+  const addTabMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label="New tab"
+            className="ml-1 flex size-6 shrink-0 items-center justify-center self-center rounded-md text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] data-popup-open:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))]"
+          />
+        }
+      >
+        <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-96 w-56 overflow-y-auto">
+        {existingFolderGroupLabels.map((label) => {
+          const Mark = folderPageMark(shelfKey(label))
+          return (
+            <DropdownMenuItem
+              key={`shelf-${label}`}
+              onClick={() => onOpenShelfInTab?.(label)}
+            >
+              <Mark className="size-4" />
+              <span className="truncate">{label}</span>
+            </DropdownMenuItem>
+          )
+        })}
+        {folderGroupOptions.map((folder) => (
+          <DropdownMenuItem
+            key={`folder-${folder.name}`}
+            onClick={() => onOpenFolderInTab?.(folder.name)}
+          >
+            <FolderMark
+              name={folder.name}
+              color={folder.color}
+              className="size-4"
+            />
+            <span className="truncate">
+              {folderPresentation.names[folder.name] ?? folder.name}
+            </span>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => {
+            setNewFolderGroupLabel(null)
+            setNewFolderOpen(true)
+          }}
+        >
+          <FolderPlus className="size-4" />
+          New folder…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setFolderGroupDialog({ mode: "create" })}>
+          <Folders className="size-4" />
+          New shelf…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() =>
+            /* The sidebar owns the one file input; a second input here would
+               be a second copy of the same act (and two inputs answering one
+               selector). It listens for this. */
+            window.dispatchEvent(new CustomEvent("dana:prototype-import-workflow"))
+          }
+        >
+          <Workflow className="size-4" />
+          Import workflow…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
   return (
     <div className="flex h-svh min-w-[1180px] flex-col overflow-hidden bg-background">
       <SidebarProvider
@@ -377,6 +525,10 @@ export function AppShell({
             setNewFolderOpen(true)
           }}
           onCreateFolderGroup={() => setFolderGroupDialog({ mode: "create" })}
+          onImportWorkflow={onImportWorkflow}
+          onOpenShelf={onOpenShelf}
+          onOpenFolderInTab={onOpenFolderInTab}
+          onSaveShelfWorkflow={onSaveShelfWorkflow}
           onCreateFolderInGroup={(label) => {
             setNewFolderGroupLabel(label)
             setNewFolderOpen(true)
@@ -395,6 +547,7 @@ export function AppShell({
           onNavigateFolder={navigateToFolder}
           onCopyFolderLink={copyFolderLink}
           onDuplicateFolder={duplicateFolder}
+          onDeleteFolder={deleteFolder}
           onOpenSearch={onOpenSearch}
           onGroupFolders={(folderNames) =>
             setFolderGroupDialog({ mode: "create", preselect: folderNames })
@@ -413,14 +566,13 @@ export function AppShell({
           className="min-w-0 overflow-hidden bg-card"
         >
           <PageBar
-            title={pageTitle}
-            icon={pageIcon}
-            iconColor={pageIconColor}
             showUpdate={showUpdate}
-            taskTabs={taskTabs}
-            activeTaskTab={activeTaskTab}
+            tabs={tabs}
+            activeTab={activeTab}
             onSelectTab={onSelectTab}
             onCloseTab={onCloseTab}
+            onReorderTabs={onReorderTabs}
+            addMenu={addTabMenu}
           />
           {/* The window's own thin strip: breadcrumbs to come on the left,
               this tab's controls on the right (DES-139). */}
@@ -437,7 +589,7 @@ export function AppShell({
           <div
             data-shell-scroll
             className="min-h-0 flex-1 overflow-y-auto transition-[padding] duration-[var(--duration-slow)] ease-[var(--ease-enter)]"
-            style={{ paddingRight: "var(--right-panel-width, 0px)" }}
+            style={{ paddingRight: rightEdge }}
           >
             {children}
           </div>
@@ -535,9 +687,46 @@ export function AppShell({
           onOpenChange={(open) => {
             if (!open) setFolderGroupDialog(null)
           }}
-          onSubmit={(label, folderNames) =>
+          onSubmit={(label, folderNames) => {
+            /*
+            A renamed shelf keeps its page (DES-218).
+
+            This dialog rewrites the label on its folders, which is the rename
+            — a shelf's name *is* its membership label. But the page it has
+            grown since DES-207 — cover, icon, description, blocks — is stored
+            under the old name, so without moving it the shelf answers to its
+            new name with a page that has forgotten everything. Same helper as
+            the page's own rename field, so the two paths cannot drift.
+            */
+            const renamedFrom =
+              folderGroupDialog?.mode === "rename" &&
+              folderGroupDialog.label !== label
+                ? folderGroupDialog.label
+                : null
             applyFolderGroupLabel(folderNames, label)
-          }
+            if (renamedFrom) {
+              moveShelfPage(renamedFrom, label)
+              record({
+                kind: "shelf",
+                subject: label,
+                name: label,
+                verb: "renamed",
+                detail: `from “${renamedFrom}”`,
+              })
+              /* Standing on the shelf you just renamed: the URL still names
+                 the old label, and a page addressed by a name that no longer
+                 exists is an empty shelf. Follow it. */
+              const params = new URLSearchParams(window.location.search)
+              if (
+                params.get("state") === "shelf" &&
+                params.get("shelf") === renamedFrom
+              ) {
+                const nextUrl = new URL(window.location.href)
+                nextUrl.searchParams.set("shelf", label)
+                window.location.assign(nextUrl)
+              }
+            }
+          }}
         />
         <AlertDialog
           open={Boolean(folderGroupDelete)}
@@ -547,7 +736,7 @@ export function AppShell({
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete folder group?</AlertDialogTitle>
+              <AlertDialogTitle>Delete shelf?</AlertDialogTitle>
               <AlertDialogDescription>
                 {folderGroupDelete
                   ? `“${folderGroupDelete.label}” will be removed from ${folderGroupDelete.folders.length} ${folderGroupDelete.folders.length === 1 ? "folder" : "folders"}. The folders and their tasks will remain in the ungrouped list.`
