@@ -231,10 +231,12 @@ export class TestBrowser {
     return this.request(`/api/v1${path}`, options)
   }
 
+  /** body is optional for the bodyless verbs; JSON.stringify(undefined) is
+   * undefined, so a GET sends no payload and no content-length. */
   json(
     path: string,
     method: string,
-    body: unknown,
+    body?: unknown,
     options: { csrf?: 'auto' | 'omit' | string } = {},
   ): Promise<RawResponse> {
     return this.api(path, {
