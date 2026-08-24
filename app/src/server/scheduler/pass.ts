@@ -109,6 +109,11 @@ export interface ReminderPassOutcome {
   failed: number
   /** Expired session rows the second duty removed (11.6, 11.7). */
   prunedSessions: number
+  /** Trash rows past 30 days the third duty purged: folders and tasks,
+   * their cascades uncounted (RFC 0005, 11.7). */
+  purgedTrash: number
+  /** Events past 90 days the fourth duty purged (4.13). */
+  purgedEvents: number
 }
 
 export type ReminderPass = () => Promise<ReminderPassOutcome>
@@ -145,7 +150,8 @@ const claimDueReminders = sql`
          u.email AS assignee_email,
          now() - r.fire_at > ${STALE_WINDOW}::interval AS stale
     FROM reminders r
-    JOIN tasks t ON t.id = r.task_id
+    JOIN tasks t ON t.id = r.task_id AND t.deleted_at IS NULL
+    JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
     LEFT JOIN users u ON u.id = t.assignee_id
    WHERE r.state = 'scheduled'
      AND r.fire_at <= now()
@@ -305,6 +311,47 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
 
     const prunedSessions = await pruneExpiredSessions(db)
 
+    /*
+    The third and fourth duties (RFC 0005, 11.7): the 30 day Trash purge and
+    the 90 day event purge. Each claims its rows the way the reminder duty
+    always has, SKIP LOCKED, and each is one DELETE whose subselect and
+    removal are a single statement and therefore one transaction of their
+    own: no wrapper, like the session prune above and for its reason, so a
+    purge that fails can never roll back a delivery that already happened.
+    A repeat finds nothing, so the missed-tick and overlap properties hold
+    unchanged. Folders go before tasks so a task inside a purged folder
+    goes by its folder's cascade rather than being counted twice. The fifth
+    duty the RFC text named, notification fan-out, moved to the 10.2
+    chokepoint at S3's change control; the tick carries four.
+    */
+    const purgedFolders = await rowsOf(
+      db,
+      sql`DELETE FROM folders WHERE id IN (
+            SELECT id FROM folders
+             WHERE deleted_at < now() - interval '30 days'
+             FOR UPDATE SKIP LOCKED)
+          RETURNING id`,
+    )
+    const purgedTasks = await rowsOf(
+      db,
+      sql`DELETE FROM tasks WHERE id IN (
+            SELECT id FROM tasks
+             WHERE deleted_at < now() - interval '30 days'
+             FOR UPDATE SKIP LOCKED)
+          RETURNING id`,
+    )
+    const purgedTrash = purgedFolders.length + purgedTasks.length
+    const purgedEvents = (
+      await rowsOf(
+        db,
+        sql`DELETE FROM events WHERE id IN (
+              SELECT id FROM events
+               WHERE created_at < now() - interval '90 days'
+               FOR UPDATE SKIP LOCKED)
+            RETURNING id`,
+      )
+    ).length
+
     // Both liveness signals, after the work and only on a cycle that
     // completed: /api/health's age since P0 (11.12), and the heartbeat whose
     // silence alerts.
@@ -313,6 +360,6 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
       await pingHeartbeat(deps.heartbeatUrl, logger)
     }
 
-    return { sent, skipped, failed, prunedSessions }
+    return { sent, skipped, failed, prunedSessions, purgedTrash, purgedEvents }
   }
 }

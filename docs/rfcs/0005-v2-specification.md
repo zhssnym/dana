@@ -836,6 +836,23 @@ untouched; the new criteria extend them rather than restate them.*
 - AC-042 Given a task deletion, then the task leaves every list and view and waits in Trash with its steps, My Day entries, and reminder held for restore, any invite keeping its task_id; when the 30 day window lapses and the pass runs, then the row and those dependents are gone and the invite survives with task_id null.
 ```
 
+### Replace AC-005 and AC-025, name only
+
+*The Inbox becomes Desk (section 2); each criterion's logic is untouched and only the asserted name moves.*
+
+```markdown
+- AC-005 ... the default folder is named Desk ... (otherwise verbatim)
+- AC-025 ... a title-only create lands in the caller's Desk ... (otherwise verbatim)
+```
+
+### Replace AC-066, the deleted-in-the-meantime arm only
+
+*A delete now marks (7.13), so the parked task_id survives the trip to Trash and the acceptance skips the assignment because the task is trashed, not because 4.9 fired; 4.9 fires at the purge.*
+
+```markdown
+- AC-066 ... given the task was deleted before acceptance, then the invite keeps its parked task_id, the acceptance grants the folder and skips the assignment, and the task waits in Trash unassigned ... (the moved-folder arms verbatim)
+```
+
 ### Append to section 13
 
 ```markdown
