@@ -59,6 +59,8 @@ import { folderGlyph } from "@/components/folder-icon-picker"
 import { folderPageMark } from "@/components/folder-mark"
 import {
   PROTOTYPE_DUPLICATE_EVENT,
+  PROTOTYPE_WORKFLOW_EVENT,
+  type DuplicateRequest,
   copyFolderLink,
   duplicateFolder,
   readCreatedFolders,
@@ -66,32 +68,75 @@ import {
 } from "@/lib/folder-acts"
 import {
   copyFolderContents,
+  duplicateTask,
   readCopiedTasks,
   saveCopiedTasks,
 } from "@/lib/folder-duplicate"
-import { type HistoryVerb, record } from "@/lib/history"
+import { type HistoryVerb, record, seedHistory } from "@/lib/history"
+
+/* The day the fixtures are written for — the same one their own `createdAt`
+   carries, so a seeded folder and a seeded task agree about when this account
+   started. */
+const FIXTURE_BIRTHDAY = Date.parse("2026-08-04T09:14:00-06:00")
+import {
+  applyShelfWorkflow,
+  applyWorkflow,
+  availableFolderName,
+  parseAnyWorkflow,
+  folderToWorkflow,
+  parseWorkflow,
+  saveShelfWorkflowFile,
+  saveWorkflowFile,
+  shelfToWorkflow,
+} from "@/lib/workflow"
+import { type TrashItem, readTrash, trash, untrash } from "@/lib/trash"
 import { folderLibrary } from "@/lib/folder-library"
 import { readPageFilters, writePageFilters } from "@/lib/page-filters"
 import { TaskWriter } from "@/lib/task-writer"
 import { useFolderIdentity } from "@/lib/folder-presentation"
 import { SearchOverlay } from "@/components/search-overlay"
 import {
+  FOOTER_PAGES,
   NAV_PAGES,
+  TRASH_PAGE,
+  pageGlyph,
   pageQuestion,
   readNavModel,
   type NavPageName,
 } from "@/lib/nav-model"
-import { pushUndo } from "@/lib/undo"
+import { type PageTab } from "@/components/page-bar"
+import { notice, pushUndo } from "@/lib/undo"
 import { setPagePinned } from "@/lib/page-pins"
-import { shellConnections, shellFolderGroups, shellPreviewTasks } from "@/fixtures"
 import {
+  shellConnections,
+  shellFolderGroups,
+  shellInbox,
+  shellPreviewTasks,
+} from "@/fixtures"
+import {
+  PROTOTYPE_FOLDER_MEMBERSHIP_EVENT,
+  baseShelfLabels,
+  folderShelf,
   readPrototypeFolderMemberships,
   savePrototypeFolderMembership,
+  savePrototypeFolderMemberships,
 } from "@/lib/folder-membership"
+import { readFolderLayout, saveFolderLayout } from "@/lib/folder-layout"
+import {
+  PROTOTYPE_SHELF_DUPLICATE_EVENT,
+  copyShelfLink,
+  duplicateShelf,
+  moveShelfPage,
+  shelfKey,
+} from "@/lib/shelf-acts"
+import { folderThreadWords } from "@/lib/folder-threads"
 import {
   PROTOTYPE_FOLDER_PRESENTATION_EVENT,
   readPrototypeFolderPresentation,
+  deletePrototypeFolder,
   renamePrototypeFolder,
+  restorePrototypeFolder,
+  savePrototypeFolderIdentity,
   type PrototypeFolderPresentation,
 } from "@/lib/folder-presentation"
 import { MyDayScreen } from "@/screens/my-day-screen"
@@ -114,6 +159,8 @@ import {
   SettingsScreen,
   type PageVisibility,
 } from "@/screens/settings-screen"
+import { TrashScreen } from "@/screens/trash-screen"
+import { ShelfPage } from "@/screens/shelf-page"
 
 /*
 The view a page is drawn in — list, board, or calendar.
@@ -642,10 +689,32 @@ export function ShellPage() {
      is a full page load, so without the second half a copied folder's tasks
      would be gone by the time you clicked into it — the very complaint this
      answers, one navigation later (see lib/folder-duplicate). */
-  const [tasks, setTasks] = useState<ShellTask[]>(() => [
-    ...shellTaskFixtures,
-    ...readCopiedTasks<ShellTask>(),
-  ])
+  const [tasks, setTasks] = useState<ShellTask[]>(() => {
+    /*
+    The fixtures, minus what is in the trash, plus what a duplicate copied.
+
+    Both halves exist for the same reason and it is worth saying once: every
+    navigation here is a full page load and the task list is memory-only, so
+    anything an act did at runtime is undone by the next click. That never
+    mattered while acts were momentary. It matters for these two, because both
+    are *about* what you find when you come back — a copied folder that arrives
+    empty, or a task sitting in Trash and in Today at the same time, are the
+    same bug wearing two faces.
+
+    Reading the trash rather than keeping a second list of deleted ids: the
+    trash already knows, and two stores that must agree about one fact is the
+    fault this session keeps removing.
+    */
+    const binned = new Set(
+      readTrash()
+        .filter((item) => item.kind === "task")
+        .map((item) => item.subject),
+    )
+    return [
+      ...shellTaskFixtures.filter((task) => !binned.has(task.id)),
+      ...readCopiedTasks<ShellTask>().filter((task) => !binned.has(task.id)),
+    ]
+  })
   const [pageVisibility, setPageVisibility] = useState<PageVisibility>(() => ({
     Important: searchParams.get("show-important") !== "false",
     All: searchParams.get("show-all") !== "false",
@@ -659,35 +728,6 @@ export function ShellPage() {
         ? false
         : requestedPage !== "settings",
   }))
-  /* The tab strip's task tabs. Ids in sessionStorage so a tab survives the
-     full-page navigation the shell uses; titles resolve from the fixtures on
-     read, so a rename reaches the tab. Session-scoped on purpose — tabs are
-     working state, not data. */
-  const [taskTabIds, setTaskTabIds] = useState<string[]>(() => {
-    try {
-      const stored = JSON.parse(
-        window.sessionStorage.getItem("dana:task-tabs") ?? "[]",
-      )
-      return Array.isArray(stored)
-        ? stored.filter((id): id is string => typeof id === "string")
-        : []
-    } catch {
-      return []
-    }
-  })
-  const [activeTaskTab, setActiveTaskTab] = useState<string | null>(null)
-  const persistTabs = (ids: string[]) => {
-    setTaskTabIds(ids)
-    window.sessionStorage.setItem("dana:task-tabs", JSON.stringify(ids))
-  }
-  const openTaskTab = (taskId: string) => {
-    if (!taskTabIds.includes(taskId)) persistTabs([...taskTabIds, taskId])
-    setActiveTaskTab(taskId)
-  }
-  const closeTaskTab = (taskId: string) => {
-    persistTabs(taskTabIds.filter((id) => id !== taskId))
-    if (activeTaskTab === taskId) setActiveTaskTab(null)
-  }
   const [folderPresentation, setFolderPresentation] =
     useState<PrototypeFolderPresentation>(() =>
       isCleanHandoffPreview
@@ -699,7 +739,60 @@ export function ShellPage() {
   const [shellSurface, setShellSurface] = useState<{
     id: string
     mode: TaskSurfaceMode
-  } | null>(null)
+  } | null>(() => {
+    /*
+    A task has an address now: `?task=<id>`.
+
+    Copy link forced it. The act was declared for tasks in the contract and
+    could not be supplied, because a task had no URL — every other object in
+    Dana is reachable by one and a task was reachable only by finding it. A
+    Copy link that produced a link to the page the task happens to be on would
+    have been worse than none, since the page changes and the task does not.
+
+    It opens in whichever surface the person prefers, the same as pressing the
+    row, because a link is somebody saying "look at this" rather than "look at
+    this in a dialog". `&open=tab` overrides it for the case where the sender
+    means the tab.
+
+    It is also the instrument this plan has been missing: every review link so
+    far could point at a page, and now one can point at a row.
+    */
+    const wanted = new URLSearchParams(window.location.search).get("task")
+    if (!wanted) return null
+    const mode = new URLSearchParams(window.location.search).get("open")
+    return {
+      id: wanted,
+      mode: (mode as TaskSurfaceMode | null) ?? taskSurfacePreference(),
+    }
+  })
+  /*
+  `?task=` is an arrival instruction, and it stops being true once obeyed
+  (DES-211).
+
+  Imran: "whenever you open a folder, a task is always open in the left
+  sidebar." He was right and I could not reproduce it because I was opening
+  tasks by pressing rows, which never puts anything in the URL. Arrive by a
+  *link* — which is the whole point of DES-201's address — and the param stays
+  there, because `navigateToFolder` clears `page`, `folder-state`,
+  `folder-action` and `folder-page` and had never heard of `task`. So every
+  folder opened afterwards re-opened the same task, for ever, and the only clue
+  was in the address bar.
+
+  Two fixes, and the second is the one that matters. The navigators clear it —
+  but a list of params to clear is a list somebody has to extend, and this is
+  the third time this session that shape has failed (Trash rendered My Day,
+  `?state=shelf` rendered Desk). So the param removes *itself* the moment the
+  surface opens: an instruction that has been carried out is no longer an
+  instruction, and nothing downstream has to remember it exists.
+  */
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("task")) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete("task")
+    url.searchParams.delete("open")
+    window.history.replaceState(null, "", url)
+  }, [])
+
   const isDone = state === "done" || requestedPage === "done"
   /* DES-152's page set, behind `?nav=v2`. Most of it maps onto the branches
      already here — Today renders My Day's screen, Scheduled renders Planned's
@@ -710,10 +803,25 @@ export function ShellPage() {
      changed. */
   const isNavV2 = readNavModel() === "v2"
   const isAssignments = isNavV2 && requestedPage === "assignments"
+  /* A shelf's own page (DES-207), addressed the way a folder's is: one param
+     naming the state and one naming the thing. */
+  const isShelf = state === "shelf"
+  const selectedShelfName = searchParams.get("shelf") ?? ""
+  /*
+  Desk is where you land with nothing else asked for — and "nothing else" has
+  to be a named list, not a pair of exceptions.
+
+  The condition was `state !== "folder" && state !== "done"`, so every state
+  added after it landed on Desk: `?state=shelf` rendered the Desk page, which
+  is the third time this session a default written as exceptions has swallowed
+  something new (Trash rendered My Day; `?mode=calendar` died at F6). One list
+  now, and the next state joins it here.
+  */
+  const NAMED_STATE = ["folder", "done", "shelf"]
   const isDesk =
     isNavV2 &&
     (requestedPage === "desk" ||
-      (!requestedPage && state !== "folder" && state !== "done"))
+      (!requestedPage && !NAMED_STATE.includes(state ?? "")))
   const isFolder = state === "folder" || isDesk
   const isTasks = requestedPage === "tasks"
   const isPlanned =
@@ -726,6 +834,23 @@ export function ShellPage() {
   const isAnytime = isNavV2 && requestedPage === "anytime"
   const isPeople = requestedPage === "people"
   const isSettings = requestedPage === "settings"
+  const isTrash = requestedPage === "trash"
+  /*
+  The pages that are not a list of your work.
+
+  People, Settings and Trash each render their own body, take no task filters,
+  host no floating button and are not what "group by folder" could ever mean.
+  Four places were spelling that out as `!isPeople && !isSettings`, and Trash
+  proved why that is a fault rather than a style: it landed inside the My Day
+  branch, because that branch is defined as *none of the others* and nobody
+  had told it about a page that did not exist yet.
+
+  That is the same shape that killed `?mode=calendar` at F6 — a default
+  written as a list of exceptions is a default that goes wrong the next time
+  something is added. Named once, the next page joins here and all four
+  branches learn about it together.
+  */
+  const isUtilityPage = isPeople || isSettings || isTrash || isShelf
   const selectedFolderName = isDesk
     ? "Desk"
     : (searchParams.get("folder") ?? "Travel")
@@ -824,8 +949,7 @@ export function ShellPage() {
   const isGrouped =
     (pageFilters.groupBy !== "none" || isAbandoned || isAnytime || view === "board") &&
     !isFolder &&
-    !isPeople &&
-    !isSettings
+    !isUtilityPage
   /*
   What each place-page is *about*, as one predicate — its spine (DES-152).
 
@@ -853,8 +977,7 @@ export function ShellPage() {
     !isPlanned &&
     !isImportant &&
     !isFolder &&
-    !isPeople &&
-    !isSettings
+    !isUtilityPage
 
   const pageSpine = (task: ShellTask) =>
     isAbandoned ? task.status === "abandoned"
@@ -920,18 +1043,34 @@ export function ShellPage() {
         updateFolderPresentation,
       )
   }, [])
+  /* Memberships are read fresh each render; this makes a change *cause* one.
+     Without it, adding a folder from the shelf page's own row wrote the store
+     and drew nothing until the next navigation (DES-219). */
+  const [, setMembershipStamp] = useState(0)
+  useEffect(() => {
+    const bump = () => setMembershipStamp((stamp) => stamp + 1)
+    window.addEventListener(PROTOTYPE_FOLDER_MEMBERSHIP_EVENT, bump)
+    return () =>
+      window.removeEventListener(PROTOTYPE_FOLDER_MEMBERSHIP_EVENT, bump)
+  }, [])
   /* One name per page, used by the sidebar's active row, the tab, and the
      page's own title. The v2 names sit beside the v1 ones rather than
      replacing them, because the flag has to show both. */
   const abandonedOrAnytime = isAbandoned ? "Abandoned" : isAnytime ? "Anytime" : null
   const activePage: ShellPageName | null = abandonedOrAnytime ? (abandonedOrAnytime as ShellPageName) : isDesk
     ? "Desk"
-    : isFolder
+    /* A shelf is its own place: no sidebar page-row is the one you are on.
+       It fell through this chain to "Today", which lit Today's row from a
+       shelf page and, once the strip drew from one list, named the shelf's
+       tab Today too (DES-219). */
+    : isFolder || isShelf
       ? null
       : isPeople
         ? "People"
         : isSettings
           ? "Settings"
+          : isTrash
+            ? "Trash"
           : isDone
             ? "Done"
             : isAssignments
@@ -988,6 +1127,194 @@ export function ShellPage() {
   const pageIconColor = isFolder
     ? folderIdentity.color ?? selectedFolderColor
     : undefined
+
+  /*
+  The tab strip (DES-217): one ordered list, every tab equal and closable.
+
+  A tab id says what kind of thing it holds — `page:`, `folder:`, `shelf:`, or
+  a bare task id — the same one-list-with-a-kind that search and duplicate
+  settled. The list lives in sessionStorage because the shell navigates by
+  full page load; tabs are working state, not data, so a fresh visit starts
+  clean.
+
+  **The strip used to have a special first tab** — wider, unclosable, silently
+  showing whatever the URL named — and that is why a folder asked to open as a
+  second tab appeared to open as the first: opening navigated, and the first
+  tab followed the URL to the same folder (Imran, 2026-08-24). Now the place
+  you are on is simply the active tab. Ordinary navigation retargets the tab
+  you were standing on, the way a browser's address bar does; "Open in a new
+  tab" appends one and goes to it; and the tab that was showing the old place
+  keeps saying so, because it is an entry in the list rather than a mirror of
+  the URL.
+
+  A place tab **navigates**, and a task tab replaces the page below the strip.
+  That asymmetry is the design rather than a shortcut: a place already has a
+  route — the same one the sidebar uses — and rendering a second copy of its
+  page inside the strip would mean maintaining forty props at two call sites.
+  A task has no route of its own; its tab *is* where it lives (DES-208).
+  */
+  const isPlaceTabId = (id: string) =>
+    id.startsWith("page:") || id.startsWith("folder:") || id.startsWith("shelf:")
+  const currentPlaceId = isShelf
+    ? `shelf:${selectedShelfName}`
+    : isFolder && !isDesk
+      ? `folder:${selectedFolderName}`
+      : `page:${activePage ?? (isNavV2 ? "Today" : "My Day")}`
+  const [tabIds, setTabIds] = useState<string[]>(() => {
+    if (isCleanHandoffPreview) return [currentPlaceId]
+    let stored: string[] = []
+    try {
+      const raw = JSON.parse(
+        window.sessionStorage.getItem("dana:tabs") ??
+          /* The strip's previous key, holding task and folder ids in the same
+             shape — a session that spans the change keeps its tabs. */
+          window.sessionStorage.getItem("dana:task-tabs") ??
+          "[]",
+      )
+      stored = Array.isArray(raw)
+        ? raw.filter((id): id is string => typeof id === "string")
+        : []
+    } catch {
+      /* First visit, or somebody else's JSON. */
+    }
+    if (stored.length === 0) return [currentPlaceId]
+    if (stored.includes(currentPlaceId)) return stored
+    /* The URL names a place no tab holds: ordinary navigation goes to the tab
+       you were on rather than opening a new one. `dana:active-place` is the
+       place tab that was showing before this load. */
+    const lastPlace = window.sessionStorage.getItem("dana:active-place")
+    const at = lastPlace ? stored.indexOf(lastPlace) : -1
+    if (at >= 0) {
+      const next = [...stored]
+      next[at] = currentPlaceId
+      return next
+    }
+    return [currentPlaceId, ...stored]
+  })
+  const [activeTaskTab, setActiveTaskTab] = useState<string | null>(null)
+  const persistTabs = (ids: string[]) => {
+    setTabIds(ids)
+    /* Written synchronously, not from an effect: most callers navigate in the
+       same breath, and state that has not flushed dies with the page. */
+    window.sessionStorage.setItem("dana:tabs", JSON.stringify(ids))
+  }
+  /* The reconciled list and the place now showing, recorded once per load —
+     the next load's reconciliation reasons from them. */
+  useEffect(() => {
+    if (isCleanHandoffPreview) return
+    window.sessionStorage.setItem("dana:tabs", JSON.stringify(tabIds))
+    window.sessionStorage.setItem("dana:active-place", currentPlaceId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const navigateToPlace = (id: string) => {
+    if (id.startsWith("folder:")) navigateToFolder(id.slice("folder:".length))
+    else if (id.startsWith("shelf:")) navigateToShelf(id.slice("shelf:".length))
+    else navigateToPage(id.slice("page:".length) as ShellPageName)
+  }
+  /* Selecting and opening are one act: an id already in the strip is not
+     appended twice, a place lands you there, a task shows over the page. */
+  const openTab = (id: string) => {
+    if (!tabIds.includes(id)) persistTabs([...tabIds, id])
+    if (!isPlaceTabId(id)) {
+      setActiveTaskTab(id)
+      return
+    }
+    if (id === currentPlaceId) {
+      setActiveTaskTab(null)
+      return
+    }
+    navigateToPlace(id)
+  }
+  const openTaskTab = (taskId: string) => openTab(taskId)
+  const openFolderTab = (name: string) => openTab(`folder:${name}`)
+  const openShelfTab = (label: string) => openTab(`shelf:${label}`)
+  const closeTab = (id: string) => {
+    const at = tabIds.indexOf(id)
+    if (at < 0) return
+    const next = tabIds.filter((candidate) => candidate !== id)
+    if (!isPlaceTabId(id)) {
+      let final = next
+      if (activeTaskTab === id) {
+        setActiveTaskTab(null)
+        /* Closing the task returns to the page beneath it — and if that
+           page's own tab was closed while the task was up, it gets one back,
+           in the closed tab's place. */
+        if (!next.includes(currentPlaceId)) {
+          final = [...next]
+          final.splice(Math.min(at, final.length), 0, currentPlaceId)
+        }
+      }
+      persistTabs(final)
+      return
+    }
+    persistTabs(next)
+    if (id !== currentPlaceId) return
+    /* Closing the place you are standing on: the neighbouring place takes
+       over — the one after it, else the one before — and an emptied strip
+       lands on Desk (Imran, 2026-08-24). */
+    const after = next.slice(at).find(isPlaceTabId)
+    const before = [...next.slice(0, at)].reverse().find(isPlaceTabId)
+    const neighbour = after ?? before
+    if (neighbour) navigateToPlace(neighbour)
+    else navigateToPage(isNavV2 ? "Desk" : "My Day")
+  }
+  const reorderTabs = (from: number, to: number) => {
+    /* The strip's indices are over the tabs it draws, and a tab whose subject
+       has stopped existing draws nothing — so the drawn list is reordered and
+       the dead ids ride at the end rather than skewing every index. */
+    const visible = tabIds.filter((id) => tabFor(id) !== null)
+    const moved = visible[from]
+    if (moved === undefined || from === to) return
+    const without = visible.filter((_, index) => index !== from)
+    without.splice(to, 0, moved)
+    persistTabs([...without, ...tabIds.filter((id) => tabFor(id) === null)])
+  }
+  /* What each tab draws. The current place borrows the page's own identity —
+     folder glyphs and colours included — because they are one thing; the
+     others resolve by kind. A tab whose subject has stopped existing draws
+     nothing rather than a dead row. */
+  const tabFor = (id: string): PageTab | null => {
+    /*
+    Shelves before the current-place shortcut: `pageTitle` never learned about
+    shelves — a shelf page fell through its chain to "Today" — so the shortcut
+    dressed the shelf tab as Today's. The shelf you are standing on always
+    draws, even mid-rename or freshly duplicated, when the label list has not
+    caught up.
+    */
+    if (id.startsWith("shelf:")) {
+      const label = id.slice("shelf:".length)
+      if (id !== currentPlaceId && !availableFolderLabels.includes(label)) {
+        return null
+      }
+      return { id, title: label, icon: folderPageMark(shelfKey(label)) }
+    }
+    if (id === currentPlaceId) {
+      return { id, title: pageTitle, icon: PageIcon, iconColor: pageIconColor }
+    }
+    if (id.startsWith("folder:")) {
+      const name = id.slice("folder:".length)
+      const folder = folderLibrary().find((candidate) => candidate.name === name)
+      return folder
+        ? {
+            id,
+            title: folderPresentation.names[name] ?? folder.name,
+            folder: { name: folder.name, color: folder.color },
+          }
+        : null
+    }
+    if (id.startsWith("shelf:")) {
+      const label = id.slice("shelf:".length)
+      return availableFolderLabels.includes(label)
+        ? { id, title: label, icon: folderPageMark(shelfKey(label)) }
+        : null
+    }
+    if (id.startsWith("page:")) {
+      const name = id.slice("page:".length)
+      return { id, title: name, icon: pageGlyph(name) ?? undefined }
+    }
+    const task = tasks.find((candidate) => candidate.id === id)
+    return task ? { id, title: task.title, folder: task.folder } : null
+  }
   /* Where a task opens, once it leaves the list: the surface in one of its
      five modes, or the tab strip. The row's view strip and the card's
      full-screen action both arrive here (DES-136). No mode means the row
@@ -1266,6 +1593,39 @@ const OWNED_ELSEWHERE = new Set(["done"])
   that knows which is the record that just changed.
   */
   /*
+  Every object starts with the line that says it exists (DES-209).
+
+  Once, into an empty store. Without it the Activity control is correct and
+  invisible on a fresh browser — nothing has happened to anything — which is
+  indistinguishable from the control not being built.
+  */
+  useEffect(() => {
+    seedHistory([
+      ...shellTaskFixtures.map((task) => ({
+        kind: "task" as const,
+        subject: task.id,
+        name: task.title,
+        at: Date.parse(task.form.createdAt ?? "") || FIXTURE_BIRTHDAY,
+        actor: task.form.createdBy,
+      })),
+      ...folderLibrary().map((folder) => ({
+        kind: "folder" as const,
+        subject: folder.name,
+        name: folder.name,
+        at: FIXTURE_BIRTHDAY,
+      })),
+      /* Shelves too, or their Activity control is the one that draws nothing
+         while every other object has a line (DES-216). */
+      ...availableFolderLabels.map((label) => ({
+        kind: "shelf" as const,
+        subject: label,
+        name: label,
+        at: FIXTURE_BIRTHDAY,
+      })),
+    ])
+  }, [])
+
+  /*
   A folder was duplicated somewhere, so its contents follow.
 
   The shell is the only holder of the task list, and one of the three surfaces
@@ -1278,7 +1638,42 @@ const OWNED_ELSEWHERE = new Set(["done"])
   */
   useEffect(() => {
     function onDuplicate(event: Event) {
-      const { from, to } = (event as CustomEvent<{ from: string; to: string }>).detail
+      const request = (event as CustomEvent<DuplicateRequest>).detail
+      if (request.kind === "task") {
+        /*
+        A task's copy, by the same rules as a folder's contents: unstarted,
+        unassigned, and re-dated if its deadline is spent (`lib/folder-duplicate`
+        holds them, and holds them once).
+
+        It lands beside the original rather than at the end, because a copy you
+        cannot see is one you assume did not happen.
+        */
+        const source = tasks.find((task) => task.id === request.subject)
+        if (!source) return
+        const copy = duplicateTask(source)
+        setTasks((current) => {
+          const at = current.findIndex((task) => task.id === source.id)
+          const next = [...current]
+          next.splice(at + 1, 0, copy)
+          return next
+        })
+        saveCopiedTasks([...readCopiedTasks<ShellTask>(), copy])
+        record({
+          kind: "task",
+          subject: copy.id,
+          name: copy.title,
+          verb: "created",
+          detail: `from “${source.title}”`,
+          undo: () => {
+            setTasks((live) => live.filter((task) => task.id !== copy.id))
+            saveCopiedTasks(
+              readCopiedTasks<ShellTask>().filter((task) => task.id !== copy.id),
+            )
+          },
+        })
+        return
+      }
+      const { from, to } = request
       /* Computed out here rather than inside the updater: writing the layout
          and pushing a history entry are effects, and a state updater is called
          twice in development, which would have written the copy's history
@@ -1313,6 +1708,159 @@ const OWNED_ELSEWHERE = new Set(["done"])
     return () => window.removeEventListener(PROTOTYPE_DUPLICATE_EVENT, onDuplicate)
   }, [tasks])
 
+  /* Save as workflow, answered here because the file needs the task list
+     (DES-206). Same seam as Duplicate, same reason. */
+  useEffect(() => {
+    function onSave(event: Event) {
+      const { name } = (event as CustomEvent<{ name: string }>).detail
+      const file = folderToWorkflow(name, tasks)
+      saveWorkflowFile(file)
+      /* Says what travelled, in the terms somebody about to send the file
+         cares about. Not "no people": the prose on a page is the author's own
+         writing and may name anybody — what is left behind is every *field*
+         about a person, which is a different and checkable claim. */
+      notice(
+        `${name} saved as a workflow — ${file.tasks.length} task${
+          file.tasks.length === 1 ? "" : "s"
+        } and the page, without dates, assignees or comments`,
+      )
+    }
+    window.addEventListener(PROTOTYPE_WORKFLOW_EVENT, onSave)
+    return () => window.removeEventListener(PROTOTYPE_WORKFLOW_EVENT, onSave)
+  }, [tasks])
+
+  /*
+  A workflow, back into a folder.
+
+  It arrives as a new folder rather than merging into one, which is the
+  decision `lib/workflow` records: merging raises a question with no good
+  answer — what happens to a section that exists in both — and somebody who
+  wanted a merge can import and then move things, which is a sequence they can
+  see.
+  */
+  const importWorkflow = (text: string) => {
+    const parsed = parseAnyWorkflow(text)
+    if (!parsed) {
+      notice("That file is not a Dana workflow")
+      return
+    }
+    /* A shelf's file makes a shelf: its page, plus the folders it named —
+       joining the ones you already have rather than duplicating them
+       (DES-216). */
+    if (parsed.kind === "shelf") {
+      /*
+      Unique among **shelves**, not among folders (DES-216).
+
+      `availableFolderName` asks the folder library, which knows nothing about
+      labels — so importing a shelf called Personal when one already existed
+      reused the name and quietly merged two arrangements into one. A folder and
+      a shelf may share a name; two shelves may not.
+      */
+      const takenShelves = new Set(availableFolderLabels)
+      let label = parsed.file.name
+      let nth = 2
+      while (takenShelves.has(label)) label = `${parsed.file.name} ${nth++}`
+      const { join, create } = applyShelfWorkflow(
+        parsed.file,
+        label,
+        shelfKey(label),
+      )
+      const made = create.map((folderName) => ({
+        name: folderName,
+        pending: 0,
+        color: "var(--color-graphite-900)",
+      }))
+      if (made.length) saveCreatedFolders([...readCreatedFolders(), ...made])
+      savePrototypeFolderMemberships(
+        Object.fromEntries(
+          [...join, ...create].map((folderName) => [
+            folderName,
+            { label, color: null },
+          ]),
+        ),
+      )
+      record({
+        kind: "shelf",
+        subject: label,
+        name: label,
+        verb: "created",
+        detail: "from a workflow",
+      })
+      notice(
+        `${label} created — ${join.length} folder${join.length === 1 ? "" : "s"} joined, ` +
+          `${create.length} made`,
+      )
+      navigateToShelf(label)
+      return
+    }
+    const workflow = parsed.file
+    const name = availableFolderName(workflow.name)
+    const stamp = Date.now()
+    const seeds = applyWorkflow(workflow, name, (index) => `task-${stamp}-${index}`)
+    saveCreatedFolders([
+      ...readCreatedFolders(),
+      { name, pending: seeds.length, color: workflow.color ?? "var(--color-graphite-900)" },
+    ])
+    /*
+    Everything the file carried, put back (DES-209).
+
+    The notes, the star, the repeat, the checklist and whether each item on it
+    was ticked — Imran's line is people and dates, and nothing else. The task's
+    own state comes back too, which is what makes this a *save* of a folder
+    rather than a fresh run of it; duplicate is the act with the other rule.
+    */
+    const made: ShellTask[] = seeds.map((seed) => ({
+      id: seed.id,
+      title: seed.title,
+      folder: { name, color: workflow.color ?? "var(--color-graphite-900)" },
+      status: seed.status ?? "pending",
+      important: seed.important || undefined,
+      steps: seed.steps.length
+        ? {
+            complete: seed.steps.filter((step) => step.done).length,
+            total: seed.steps.length,
+          }
+        : undefined,
+      form: {
+        ...createTaskForm(seed.id, seed.title, name, { dueDate: "" }),
+        notes: seed.notes,
+        important: seed.important,
+        reminder: seed.reminder,
+        repeat: seed.repeat,
+        repeatDays: seed.repeatDays,
+        repeatInterval: seed.repeatInterval,
+        repeatMonthlyDay: seed.repeatMonthlyDay,
+        repeatEnds: seed.repeatEnds,
+        /* No assignee: the work is the importer's, the way a task they typed
+           would be (DES-206). */
+        steps: seed.steps.map((step, index) => ({
+          id: index + 1,
+          title: step.title,
+          done: step.done,
+        })),
+      },
+    }))
+    setTasks((current) => [...current, ...made])
+    saveCopiedTasks([...readCopiedTasks<ShellTask>(), ...made])
+    record({
+      kind: "folder",
+      subject: name,
+      name,
+      verb: "created",
+      detail: "from a workflow",
+      undo: () => {
+        const ids = new Set(made.map((task) => task.id))
+        setTasks((live) => live.filter((task) => !ids.has(task.id)))
+        saveCopiedTasks(readCopiedTasks<ShellTask>().filter((task) => !ids.has(task.id)))
+        saveCreatedFolders(readCreatedFolders().filter((folder) => folder.name !== name))
+        window.dispatchEvent(
+          new CustomEvent("dana:prototype-delete-folder", { detail: { name } }),
+        )
+      },
+    })
+    navigateToFolder(name)
+  }
+
   /*
   One act on one task: written, recorded, and offered back.
 
@@ -1335,6 +1883,24 @@ const OWNED_ELSEWHERE = new Set(["done"])
     const before = tasks.find((task) => task.id === taskId)
     write()
     if (!before) return
+    /*
+    A delete moves the task rather than ending it (DES-200).
+
+    Here rather than in `deleteTask`, for the reason this function keeps
+    earning: the row's menu, the card's footer and the board can all delete,
+    and a Trash that depended on each of them remembering would be a safety net
+    with holes in the shape of whichever path nobody thought about. The verb
+    already says which act this is; the net follows the verb.
+    */
+    if (verb === "deleted") {
+      trash({
+        kind: "task",
+        subject: taskId,
+        name: before.title,
+        from: before.folder?.name,
+        payload: before,
+      })
+    }
     record({
       kind: "task",
       subject: taskId,
@@ -1554,10 +2120,180 @@ const OWNED_ELSEWHERE = new Set(["done"])
     )
   }
 
+  /* One folder, by name — the same address `folderLink` copies, so the URL a
+     search result navigates to and the URL a person sends are one string. */
+  const navigateToFolder = (name: string) => {
+    const nextUrl = new URL(window.location.href)
+    nextUrl.search = ""
+    nextUrl.searchParams.set("state", "folder")
+    nextUrl.searchParams.set("folder", name)
+    window.location.assign(nextUrl)
+  }
+
+  /*
+  The words on a folder that are not its name.
+
+  Its description and every paragraph on its page. Without this a folder is
+  findable only by a name you already remember, which is the opposite of what
+  a search is for — and the prose on a page was the largest body of writing in
+  Dana that nothing could reach.
+  */
+  const folderHaystack = (name: string) => {
+    type Block = {
+      kind: string
+      paragraph?: { text: string }
+      section?: { name: string }
+      image?: { caption: string }
+    }
+    const layout = readFolderLayout<Block>(name)
+    /*
+    Everything written on this folder (DES-209).
+
+    Imran's list was "foldernames, group of folders, task steps, sections,
+    paragraphs, notes, even messages". Sections and captions were the two the
+    first pass missed for the same reason: the filter asked for paragraphs by
+    name instead of asking each block for its words. Asking the block means the
+    next kind of block is searchable the day it is added rather than the day
+    somebody remembers this line.
+    */
+    return [
+      folderPresentation.identity[name]?.description,
+      ...(layout?.items ?? []).map((item) =>
+        item.paragraph?.text ?? item.section?.name ?? item.image?.caption ?? "",
+      ),
+      /* And what people said on it. A message is kept out of a *workflow*
+         because that file leaves; finding a word somebody wrote to you, inside
+         your own account, is the opposite case (DES-209). */
+      folderThreadWords(name),
+    ]
+      .filter(Boolean)
+      .join(" ")
+  }
+
+  /* A shelf's page, addressed like a folder's: one param for the state and
+     one for the thing (DES-207). */
+  /* A shelf's file: its page and the names of the folders on it, never those
+     folders' contents — see the note in lib/workflow (DES-210). */
+  const saveShelfWorkflow = (label: string) => {
+    const on = folderLibrary()
+      .filter(
+        (folder) =>
+          folderShelf(folder.name, baseShelfLabels(shellFolderGroups), folderMemberships) ===
+          label,
+      )
+      .map((folder) => folder.name)
+    saveShelfWorkflowFile(shelfToWorkflow(shelfKey(label), label, on))
+    notice(
+      `${label} saved as a workflow — the page and ${on.length} folder${
+        on.length === 1 ? "" : "s"
+      } by name`,
+    )
+  }
+
+  /*
+  A shelf's copy: the label and its page, no folders (DES-210).
+
+  Answered here because the new label has to reach the shelf list the sidebar
+  draws, and only the shell holds that.
+  */
+  useEffect(() => {
+    function onDuplicate(event: Event) {
+      const { label } = (event as CustomEvent<{ label: string }>).detail
+      const taken = new Set(availableFolderLabels)
+      let name = `${label} copy`
+      let n = 2
+      while (taken.has(name)) name = `${label} copy ${n++}`
+      const from = shelfKey(label)
+      const to = shelfKey(name)
+      const layout = readFolderLayout<unknown>(from)
+      if (layout) saveFolderLayout(to, { items: layout.items, assign: {} })
+      const identity = readPrototypeFolderPresentation().identity[from]
+      if (identity) savePrototypeFolderIdentity(to, identity)
+      record({
+        kind: "shelf",
+        subject: name,
+        name,
+        verb: "created",
+        detail: `from ${label}`,
+      })
+      notice(`${name} created — the page, with no folders on it yet`)
+      navigateToShelf(name)
+    }
+    window.addEventListener(PROTOTYPE_SHELF_DUPLICATE_EVENT, onDuplicate)
+    return () =>
+      window.removeEventListener(PROTOTYPE_SHELF_DUPLICATE_EVENT, onDuplicate)
+  })
+
+  const navigateToShelf = (label: string) => {
+    const nextUrl = new URL(window.location.href)
+    nextUrl.search = ""
+    nextUrl.searchParams.set("state", "shelf")
+    nextUrl.searchParams.set("shelf", label)
+    window.location.assign(nextUrl)
+  }
+
+  /*
+  Renaming a shelf (DES-218).
+
+  A shelf's name *is* its membership label — there is no shelf record to put a
+  new name on — so the rename rewrites the label on every member folder, moves
+  the page's stores to the new key (cover, icon, description, blocks travel),
+  carries any tab that names it, records the act, and follows the page to its
+  new address. The field on the page reported the rename before and nothing
+  answered it, which is why it "didn't work": the identity store took a name
+  nothing reads, and the label — the actual name — never changed.
+  */
+  const renameShelf = (from: string, to: string) => {
+    const next = to.trim()
+    if (!next || next === from) return
+    if (availableFolderLabels.includes(next)) {
+      notice(`A shelf called ${next} already exists`)
+      return
+    }
+    const members = folderLibrary().filter(
+      (folder) =>
+        folderShelf(
+          folder.name,
+          baseShelfLabels(shellFolderGroups),
+          folderMemberships,
+        ) === from,
+    )
+    savePrototypeFolderMemberships(
+      Object.fromEntries(
+        members.map((folder) => [
+          folder.name,
+          { label: next, color: folder.color ?? null },
+        ]),
+      ),
+    )
+    moveShelfPage(from, next)
+    if (tabIds.includes(`shelf:${from}`)) {
+      persistTabs(
+        tabIds.map((id) => (id === `shelf:${from}` ? `shelf:${next}` : id)),
+      )
+    }
+    record({
+      kind: "shelf",
+      subject: next,
+      name: next,
+      verb: "renamed",
+      detail: `from “${from}”`,
+    })
+    navigateToShelf(next)
+  }
+
   const navigateToPage = (nextPage: ShellPageName) => {
     const nextUrl = new URL(window.location.href)
     nextUrl.searchParams.delete("state")
     nextUrl.searchParams.delete("folder-page")
+    /* And the folder that is no longer open, with whatever was being asked of
+       it. Leaving those behind is how `?folder-action=delete` survived a
+       navigation and sat in the address bar pointing at a folder nobody was
+       looking at. */
+    nextUrl.searchParams.delete("folder")
+    nextUrl.searchParams.delete("folder-action")
+    nextUrl.searchParams.delete("shelf")
+    nextUrl.searchParams.delete("task")
     if (nextPage !== "My Day" && nextPage !== "Desk") {
       nextUrl.searchParams.set("page", nextPage.toLowerCase())
     } else {
@@ -1573,6 +2309,10 @@ const OWNED_ELSEWHERE = new Set(["done"])
     <TaskWriter patch={patchTaskFromCard}>
       <AppShell
       activePage={activePage}
+      onImportWorkflow={importWorkflow}
+      onOpenFolderInTab={openFolderTab}
+      onSaveShelfWorkflow={saveShelfWorkflow}
+      onOpenShelf={navigateToShelf}
       activeFolder={isFolder ? selectedFolderName : undefined}
       corePagesOnly={state === "compact"}
       offline={state === "offline" || state === "offline-update"}
@@ -1585,9 +2325,6 @@ const OWNED_ELSEWHERE = new Set(["done"])
           : undefined
       }
       avatarMenuOpen={state === "avatar"}
-      pageTitle={pageTitle}
-      pageIcon={PageIcon}
-      pageIconColor={pageIconColor}
       /*
       Abandoned has no capture at all, and for DES-182's reason rather than
       W5's: a task made there would arrive pending, and the page holds only
@@ -1619,18 +2356,19 @@ const OWNED_ELSEWHERE = new Set(["done"])
         view === "board" ||
         (isNavV2
           ? isAbandoned ||
-            !(isImportant || isAssignments || (!isFolder && !isTasks && !isPlanned && !isAll && !isDone && !isPeople && !isSettings))
+            !(isImportant || isAssignments || (!isFolder && !isTasks && !isPlanned && !isAll && !isDone && !isUtilityPage))
           : isFolder && folderPageVariant === "v2")
       }
-      taskTabs={taskTabIds
-        .map((id) => {
-          const task = tasks.find((candidate) => candidate.id === id)
-          return task ? { id, title: task.title, folder: task.folder } : null
-        })
-        .filter((tab) => tab !== null)}
-      activeTaskTab={activeTaskTab}
-      onSelectTab={setActiveTaskTab}
-      onCloseTab={closeTaskTab}
+      tabs={tabIds
+        .map(tabFor)
+        .filter((tab): tab is PageTab => tab !== null)}
+      activeTab={
+        activeTaskTab ?? (tabIds.includes(currentPlaceId) ? currentPlaceId : null)
+      }
+      onSelectTab={openTab}
+      onCloseTab={closeTab}
+      onReorderTabs={reorderTabs}
+      onOpenShelfInTab={openShelfTab}
       /* The floating button's entry defaults, per page and per 9.3: it lands
          in Desk, and the page it was pressed on says what else is true —
          Today gives it today's date, Important stars it, Assignments gives it
@@ -1649,7 +2387,7 @@ const OWNED_ELSEWHERE = new Set(["done"])
             bar's controls and a cover it can be given (DES-139, DES-141).
             A task is not a place — it is a thing inside one — so a task tab
             gets neither. The folder page brings its own, richer set. */}
-        {!activeTaskTab && !isFolder && !isPeople && !isSettings ? (
+        {!activeTaskTab && !isFolder && !isUtilityPage ? (
           <>
             {/*
             One strip for every place-page, from the rule rather than from
@@ -1777,11 +2515,11 @@ const OWNED_ELSEWHERE = new Set(["done"])
                      the thing it was showing has left the list. */
                   onAbandon: () => {
                     abandonTask(tabTask.id)
-                    closeTaskTab(tabTask.id)
+                    closeTab(tabTask.id)
                   },
                   onDelete: () => {
                     deleteTask(tabTask.id)
-                    closeTaskTab(tabTask.id)
+                    closeTab(tabTask.id)
                   },
                 }}
               />
@@ -1874,8 +2612,7 @@ const OWNED_ELSEWHERE = new Set(["done"])
         !isPlanned &&
         !isImportant &&
         !isAll &&
-        !isPeople &&
-        !isSettings ? (
+        !isUtilityPage ? (
           <MyDayScreen
             title={isNavV2 ? "Today" : "My Day"}
             description={isNavV2 ? pageQuestion("Today") : undefined}
@@ -2053,6 +2790,24 @@ const OWNED_ELSEWHERE = new Set(["done"])
             onAbandon={abandonTask}
             onDelete={deleteTask}
             onDeleteFolder={() => {
+              /*
+              The delete happens here, not only in a listener (DES-208).
+
+              It used to be a dispatch and nothing else, and that worked while
+              the only way to raise it was pressing a menu on a page that had
+              been open for a while. The sidebar's Delete arrives as a *URL*,
+              so the act runs from a mount effect — and React runs a child's
+              effects before its parent's, so the page fired the event before
+              `AppShell` had attached the listener for it. The event went
+              nowhere and the page navigated away: a folder that vanished from
+              the screen, reappeared on reload, and left nothing in the Trash.
+
+              A destructive act must not depend on who mounted first. So the
+              store is written directly and the event still goes out for the
+              bookkeeping only it can do — `deletePrototypeFolder` is
+              idempotent, so whichever arrives second changes nothing.
+              */
+              deletePrototypeFolder(selectedFolderName)
               window.dispatchEvent(
                 new CustomEvent("dana:prototype-delete-folder", {
                   detail: { name: selectedFolderName },
@@ -2075,6 +2830,19 @@ const OWNED_ELSEWHERE = new Set(["done"])
              `?folder-page=v1` above keeps the previous screen reachable so
              the two are compared by looking (DES-130 to DES-134). */
           <FolderPageV2
+            onOpenFolderInTab={() => openFolderTab(selectedFolderName)}
+            /* The instrument the sidebar navigates with. It reached the v1
+               page and never this one, so Rename and Delete from a folder row
+               did nothing at all (DES-208). */
+            initialFolderAction={
+              searchParams.get("folder-action") === "rename"
+                ? "rename"
+                : searchParams.get("folder-action") === "appearance"
+                  ? "appearance"
+                  : searchParams.get("folder-action") === "delete"
+                    ? "delete"
+                    : undefined
+            }
             storageName={selectedFolderName}
             onOpenInTab={openTaskTab}
             onCopyLink={() => copyFolderLink(selectedFolderName)}
@@ -2159,6 +2927,9 @@ const OWNED_ELSEWHERE = new Set(["done"])
             onAbandon={abandonTask}
             onDelete={deleteTask}
             onDeleteFolder={() => {
+              /* Written directly as well as announced — see the note at the
+                 other folder page's handler (DES-208). */
+              deletePrototypeFolder(selectedFolderName)
               window.dispatchEvent(
                 new CustomEvent("dana:prototype-delete-folder", {
                   detail: { name: selectedFolderName },
@@ -2360,6 +3131,126 @@ const OWNED_ELSEWHERE = new Set(["done"])
             initialPendingInvites={peoplePendingInvites}
             previewState={searchParams.get("people-state") ?? state}
           />
+        ) : isShelf ? (
+          <ShelfPage
+            name={selectedShelfName}
+            /* Derived from the label, never a stored list: a folder is on this
+               shelf because its membership says so, and a second record of
+               that would go stale the moment somebody dragged one. */
+            folders={folderLibrary()
+              .filter(
+                (folder) =>
+                  folderShelf(
+                    folder.name,
+                    baseShelfLabels(shellFolderGroups),
+                    folderMemberships,
+                  ) === selectedShelfName,
+              )
+              .map((folder) => ({
+                name: folder.name,
+                color: folder.color,
+                /* The count comes from the tasks the shell already holds,
+                   rather than from a field the folder library does not carry. */
+                pending: tasks.filter(
+                  (task) =>
+                    task.form.folder === folder.name && task.status !== "completed",
+                ).length,
+              }))}
+            /* A folder pressed on a shelf opens as its own tab and lands you
+               there (DES-219): a shelf presents a workflow, so what it opens
+               stays open beside it. */
+            onOpenFolder={openFolderTab}
+            addableFolders={folderLibrary()
+              .filter(
+                (folder) =>
+                  /* Desk is native and undeletable and stays off every shelf
+                     (DES-152) — its own menu offers no Move to shelf, and a
+                     row that could shelve it here would be the same act
+                     through a side door. */
+                  folder.name !== shellInbox.name &&
+                  folderShelf(
+                    folder.name,
+                    baseShelfLabels(shellFolderGroups),
+                    folderMemberships,
+                  ) !== selectedShelfName,
+              )
+              .map((folder) => ({ name: folder.name, color: folder.color }))}
+            onAddFolder={(name) => {
+              const folder = folderLibrary().find(
+                (candidate) => candidate.name === name,
+              )
+              savePrototypeFolderMembership(name, {
+                label: selectedShelfName,
+                color: folder?.color ?? null,
+              })
+            }}
+            onCreateFolder={() =>
+              window.dispatchEvent(
+                new CustomEvent("dana:prototype-new-folder", {
+                  detail: { label: selectedShelfName },
+                }),
+              )
+            }
+            onRename={(next) => renameShelf(selectedShelfName, next)}
+            onCopyLink={() => copyShelfLink(selectedShelfName)}
+            onDuplicate={() => duplicateShelf(selectedShelfName)}
+            onSaveWorkflow={() => saveShelfWorkflow(selectedShelfName)}
+            onDelete={() => {
+              const on = folderLibrary().filter(
+                (folder) =>
+                  folderShelf(
+                    folder.name,
+                    baseShelfLabels(shellFolderGroups),
+                    folderMemberships,
+                  ) === selectedShelfName,
+              )
+              /* Deleting a shelf takes the label off its folders and keeps the
+                 folders — the arrangement goes, the things arranged stay
+                 (DES-195). */
+              savePrototypeFolderMemberships(
+                Object.fromEntries(
+                  on.map((folder) => [folder.name, { label: null, color: null }]),
+                ),
+              )
+              record({
+                kind: "shelf",
+                subject: selectedShelfName,
+                name: selectedShelfName,
+                verb: "deleted",
+              })
+              navigateToPage("My Day")
+            }}
+          />
+        ) : isTrash ? (
+          <TrashScreen
+            /*
+            Restoring is the shell's business because the shell holds the
+            tasks, exactly as duplicating was. The page knows what was deleted
+            and nothing else; where a thing goes back to is the list's own
+            question.
+            */
+            onRestore={(item) => {
+              const taken = untrash(item.id)
+              if (!taken) return
+              if (taken.kind === "task") {
+                const task = taken.payload as ShellTask
+                setTasks((current) =>
+                  current.some((candidate) => candidate.id === task.id)
+                    ? current
+                    : [...current, task],
+                )
+              } else {
+                restorePrototypeFolder(taken.subject)
+              }
+              record({
+                kind: taken.kind === "task" ? "task" : "folder",
+                subject: taken.subject,
+                name: taken.name,
+                verb: "restored",
+                detail: taken.from ? `to ${taken.from}` : undefined,
+              })
+            }}
+          />
         ) : isSettings ? (
           <SettingsScreen
             onOpenPeople={() => navigateToPage("People")}
@@ -2479,20 +3370,82 @@ const OWNED_ELSEWHERE = new Set(["done"])
         onOpenChange={setSearchOpen}
         initialQuery={searchParams.get("q") ?? ""}
         previewState={searchParams.get("search-state")}
-        items={tasks.map((task) => ({
-          id: task.id,
-          title: task.title,
-          notes: task.form.notes,
-          status: task.status ?? "pending",
-          folder: task.folder ?? {
-            name: task.form.folder,
-            color:
-              formFolderColors[task.form.folder] ??
-              "var(--color-graphite-900)",
-          },
-          dueDate: task.form.dueDate || undefined,
-        }))}
-        onOpenResult={openTask}
+        /*
+        Everything you can go to (DES-203).
+
+        Assembled here rather than inside the overlay, for the same reason a
+        menu's handlers are: only the shell knows what exists. Each kind
+        contributes its own haystack — a task adds its notes and the titles of
+        its steps, a folder adds its description and the prose written on its
+        page, because the words on a folder page were invisible to the one
+        control whose job is finding words.
+        */
+        items={[
+          ...tasks.map((task) => ({
+            kind: "task" as const,
+            id: task.id,
+            title: task.title,
+            haystack: [
+              task.form.notes,
+              ...task.form.steps.map((step) => step.title),
+              /* "even messages" — what people said on this task. A message is
+                 excluded from a *workflow* because a file leaves; searching
+                 your own account for a word somebody wrote to you is the
+                 opposite case. */
+              ...(task.comments ?? []).map((comment) => comment.body),
+            ]
+              .filter(Boolean)
+              .join(" "),
+            hint: task.folder?.name ?? task.form.folder,
+            status: task.status ?? "pending",
+            folder: task.folder ?? {
+              name: task.form.folder,
+              color:
+                formFolderColors[task.form.folder] ??
+                "var(--color-graphite-900)",
+            },
+            dueDate: task.form.dueDate || undefined,
+          })),
+          ...folderLibrary().map((folder) => ({
+            kind: "folder" as const,
+            id: folder.name,
+            title: folder.name,
+            haystack: folderHaystack(folder.name),
+            hint: folderMemberships[folder.name]?.label ?? undefined,
+            color: folder.color,
+          })),
+          /* Shelves, which were left out while they had nowhere to go
+             (DES-203). DES-207 gave them a page, so the reason expired. */
+          ...availableFolderLabels.map((label) => ({
+            kind: "shelf" as const,
+            id: label,
+            title: label,
+            hint: "Shelf",
+            haystack: folderLibrary()
+              .filter(
+                (folder) =>
+                  folderShelf(
+                    folder.name,
+                    baseShelfLabels(shellFolderGroups),
+                    folderMemberships,
+                  ) === label,
+              )
+              .map((folder) => folder.name)
+              .join(" "),
+          })),
+          ...[...NAV_PAGES, ...FOOTER_PAGES, TRASH_PAGE].map((page) => ({
+            kind: "page" as const,
+            id: page.name,
+            title: page.name,
+            hint: pageQuestion(page.name),
+          })),
+        ]}
+        onOpenResult={(id, kind) => {
+          if (kind === "task") openTask(id)
+          else if (kind === "folder") navigateToFolder(id)
+          else if (kind === "shelf") navigateToShelf(id)
+          else navigateToPage(id as ShellPageName)
+        }}
       />
       {/* On the previous folder page, the road back to the concept is drawn
           rather than remembered. The compare link once became a one-way door:

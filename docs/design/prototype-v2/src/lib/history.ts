@@ -269,6 +269,20 @@ A history is read by scanning, so the near past is relative — that is the part
 a person is placing against their own memory — and anything older than a week
 takes a date, because "23 days ago" is arithmetic nobody wants to do.
 */
+/*
+The same moment, worded to follow a verb.
+
+"Completed just now", "Renamed 4 minutes ago", "Created 5 Aug" — so the
+relative forms lower-case and the date does not, because a month is a proper
+noun and "5 aug" is a typo rather than a style. The Activity control used to
+lower-case the whole string, which read correctly for every form except the one
+a fixture actually shows.
+*/
+export function agoFor(at: number, now = Date.now()) {
+  const said = whenFor(at, now)
+  return /^[0-9]+ [A-Z]/.test(said) ? said : said.toLocaleLowerCase()
+}
+
 export function whenFor(at: number, now = Date.now()) {
   const seconds = Math.max(0, Math.round((now - at) / 1000))
   if (seconds < 45) return "Just now"
@@ -285,4 +299,52 @@ export function whenFor(at: number, now = Date.now()) {
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ]
   return `${date.getDate()} ${MONTHS[date.getMonth()]}`
+}
+
+/*
+The line every thing starts with.
+
+Imran, 2026-08-23: the "edited just now" indicator "can't be found anywhere".
+It could not, and the cause was a decision that was right in the small and wrong
+in the whole: the control draws nothing when there is nothing to say, because a
+control that opens onto an empty popover is a promise the page cannot keep
+(DES-144). On a browser that has never been used, *nothing* has a history — so
+the control was correct and invisible on every page at once, which is the same
+as not existing.
+
+**A thing that exists was created**, and that is a fact rather than a fiction.
+The fixtures carry `createdAt` and `createdBy` already; the folders do not, so
+they take the same date the fixture tasks were written for. Seeding those makes
+every object's history one line long instead of zero, which is what a real
+account looks like five seconds after it is made — and the indicator is visible
+from the first load, where a person can find it.
+
+Written once, only into an empty store, so it can never overwrite a real
+history and never re-appear after somebody clears one deliberately.
+*/
+export function seedHistory(
+  entries: Array<{
+    kind: HistorySubjectKind
+    subject: string
+    name: string
+    at: number
+    actor?: string
+  }>,
+) {
+  if (typeof window === "undefined") return
+  if (window.localStorage.getItem(HISTORY_STORAGE_KEY) !== null) return
+  write(
+    entries
+      .map((entry, index) => ({
+        id: `seed-${entry.kind}-${entry.subject}-${index}`,
+        kind: entry.kind,
+        subject: entry.subject,
+        name: entry.name,
+        verb: "created" as const,
+        actor: entry.actor ?? VIEWER,
+        at: entry.at,
+      }))
+      .sort((a, b) => b.at - a.at)
+      .slice(0, DEPTH),
+  )
 }

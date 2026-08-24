@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react"
 import { record } from "@/lib/history"
+import { trash } from "@/lib/trash"
 
 export const PROTOTYPE_FOLDER_PRESENTATION_STORAGE_KEY =
   "dana:prototype-folder-presentation"
@@ -157,11 +158,36 @@ export function renamePrototypeFolder(folderName: string, displayName: string) {
 
 export function deletePrototypeFolder(folderName: string) {
   const current = snapshot()
+  /* Idempotent, because the act now has two callers — the shell does it and
+     the event listener does it — and the second must not write a second
+     history line or a second trash entry. Saying "already gone" here is
+     cheaper than making the callers coordinate. */
+  if (current.deleted.includes(folderName)) return
+  /* Restorable for thirty days, like everything else deletable. A folder
+     already had a `deleted` list here, which is the soft delete Trash needs —
+     what was missing was anywhere to see it from. */
+  trash({
+    kind: "folder",
+    subject: folderName,
+    name: current.names[folderName] ?? folderName,
+  })
+  /*
+  With the bar, which it did not have (DES-216).
+
+  [[DES-200]] removed the folder's delete confirmation on the stated grounds
+  that a folder now has *two* ways back — the undo bar and thirty days in the
+  Trash. Only one of them existed: this recorded the act and passed no inverse,
+  so nothing appeared in the corner. Removing a question on the strength of a
+  safety net that was never built is the worst kind of mistake to make, because
+  the reasoning reads correct in the decision record while the product is
+  quietly less safe than it says.
+  */
   record({
     kind: "folder",
     subject: folderName,
     name: current.names[folderName] ?? folderName,
     verb: "deleted",
+    undo: () => restorePrototypeFolder(folderName),
   })
   savePresentation({
     ...current,

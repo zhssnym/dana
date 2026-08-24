@@ -50,10 +50,17 @@ export function DoneScreen({
   onToggleImportant,
   onDelete,
 }: DoneScreenProps) {
-  const [pendingAction, setPendingAction] = useState<{
-    type: "uncomplete-series" | "delete"
-    taskId: string
-  } | null>(null)
+  /*
+  The one question on this page that is still worth asking.
+
+  The delete half of this dialog went with the six others when Trash arrived
+  (DES-200): a task you delete now has two ways back, so a confirmation on it
+  was friction that taught people to click through dialogs. This is different
+  and stays, because it is not a question about *risk* — it is a question about
+  *scope*. Reopening one occurrence of a repeating task drops the next one and
+  any edits made to it, and nothing about pressing a checkbox says so.
+  */
+  const [uncompleteSeries, setUncompleteSeries] = useState<string | null>(null)
   const hasTasks = groups.some((group) => group.tasks.length > 0)
 
   return (
@@ -108,17 +115,14 @@ export function DoneScreen({
                       onToggleComplete={(completed) => {
                         if (completed) return
                         if (task.hasRecurrenceSuccessor) {
-                          setPendingAction({
-                            type: "uncomplete-series",
-                            taskId: task.id,
-                          })
+                          setUncompleteSeries(task.id)
                         } else {
                           onMarkNotDone(task.id)
                         }
                       }}
                       onToggleImportant={() => onToggleImportant(task.id)}
                       onDelete={() =>
-                        setPendingAction({ type: "delete", taskId: task.id })
+                        onDelete(task.id)
                       }
                     />
                   )}
@@ -135,39 +139,30 @@ export function DoneScreen({
       </div>
 
       <AlertDialog
-        open={pendingAction !== null}
+        open={uncompleteSeries !== null}
         onOpenChange={(open) => {
-          if (!open) setPendingAction(null)
+          if (!open) setUncompleteSeries(null)
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingAction?.type === "uncomplete-series"
-                ? "Mark this repeating task as not done?"
-                : "Delete this task?"}
+              Mark this repeating task as not done?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingAction?.type === "uncomplete-series"
-                ? "This removes the next scheduled occurrence (including any edits to it). Continue?"
-                : "This can’t be undone."}
+              This removes the next scheduled occurrence, including any edits to
+              it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              destructive={pendingAction?.type === "delete"}
               onClick={() => {
-                if (!pendingAction) return
-                if (pendingAction.type === "uncomplete-series") {
-                  onMarkNotDone(pendingAction.taskId)
-                } else {
-                  onDelete(pendingAction.taskId)
-                }
-                setPendingAction(null)
+                if (uncompleteSeries) onMarkNotDone(uncompleteSeries)
+                setUncompleteSeries(null)
               }}
             >
-              {pendingAction?.type === "uncomplete-series" ? "Continue" : "Delete"}
+              Continue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

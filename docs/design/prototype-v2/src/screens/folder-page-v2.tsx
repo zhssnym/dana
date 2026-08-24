@@ -32,6 +32,7 @@ import {
   useMemo,
 } from "react"
 import {
+  ImagePlus,
   AlignLeft,
   ArrowDown,
   ArrowUp,
@@ -76,6 +77,7 @@ import {
 import { ViewStrip } from "@/components/view-strip"
 import { WindowActivity, WindowBarActions } from "@/components/window-bar"
 import { useAllHistory } from "@/lib/history"
+import { pageQuestion } from "@/lib/nav-model"
 import { PageDescription, PageMark, pageBodyClass } from "@/components/page-head"
 import { ObjectMenu } from "@/components/object-menu"
 import { ReservesRightEdge } from "@/components/right-edge"
@@ -101,6 +103,11 @@ import {
   resolveCover,
 } from "@/components/folder-cover"
 import { FolderIconPicker, folderGlyph } from "@/components/folder-icon-picker"
+import { PageImage, type PageImageModel } from "@/components/page-image"
+import { ViewerFace } from "@/components/viewer-face"
+import { FOLDER_THREADS } from "@/lib/folder-threads"
+import { HistorySheet } from "@/components/history-sheet"
+import { saveFolderAsWorkflow } from "@/lib/folder-acts"
 import { QuickAdd } from "@/components/quick-add"
 import { SharingPanel } from "@/components/sharing-panel"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
@@ -205,50 +212,15 @@ interface ParagraphModel {
 type PageItem =
   | { kind: "section"; section: SectionModel }
   | { kind: "paragraph"; paragraph: ParagraphModel }
+  /* A picture (DES-202). Third of three, and the list is deliberately short:
+     a page is headings, prose and pictures, and everything else people ask
+     for on a page like this turns out to be one of the three wearing a hat. */
+  | { kind: "image"; image: PageImageModel }
 
 /* The page's seed moved into `lib/folder-layout` when duplicate became a
    second reader of it: a fixture that only one screen can see is one the rest
    of the product cannot copy (Imran, 2026-08-23). */
 
-const FOLDER_THREADS: Record<string, ConceptComment[]> = {
-  Travel: [
-    {
-      id: "folder-wedding-1",
-      author: PEOPLE[1]!,
-      at: "Yesterday 19:04",
-      body: "Florist confirmed for the 12th. She asked for the table count by Friday.",
-    },
-    {
-      id: "folder-wedding-2",
-      author: PEOPLE[0]!,
-      at: "Yesterday 19:20",
-      mine: true,
-      body: "I'll close the guest list tomorrow, then the count falls out of it.",
-      replies: [
-        {
-          id: "folder-wedding-2r",
-          author: PEOPLE[1]!,
-          at: "Yesterday 19:31",
-          body: "Perfect — I'll hold her until Saturday morning.",
-        },
-      ],
-    },
-    {
-      id: "folder-wedding-3",
-      author: PEOPLE[2]!,
-      at: "Today 8:41",
-      voice: { seconds: 9, bars: voiceBars(9) },
-    },
-  ],
-  "Office": [
-    {
-      id: "folder-cpc-1",
-      author: PEOPLE[2]!,
-      at: "Mon 11:18",
-      body: "Committee meets on the 20th — anything for the agenda goes here.",
-    },
-  ],
-}
 
 let seedCounter = 0
 function pageId(prefix: string) {
@@ -455,9 +427,10 @@ function ConversationViewMenu({
    Tasks are absent from the menu on purpose: a task's position is DES-071's
    unresolved ordering question, and a control that pretended otherwise would
    be drawing a lie. */
-function InsertLine({
+export function InsertLine({
   onSection,
   onParagraph,
+  onImage,
   dense = false,
 }: {
   /* Omitted inside a section: a section within a section is not a thing
@@ -465,6 +438,9 @@ function InsertLine({
      shorter menu. */
   onSection?: () => void
   onParagraph: () => void
+  /* Absent wherever a section is absent, for the same reason: this line is
+     the page's own, and the one inside a section belongs to the section. */
+  onImage?: () => void
   /* Between a heading and its first row the line has to be nearly free:
      24px of permanent gap there made the section and its tasks read as
      two separate things whenever nobody had written a paragraph
@@ -508,6 +484,11 @@ function InsertLine({
           <DropdownMenuItem onClick={onParagraph}>
             <Pilcrow className="size-4" />Paragraph here
           </DropdownMenuItem>
+          {onImage ? (
+            <DropdownMenuItem onClick={onImage}>
+              <ImagePlus className="size-4" />Image here
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       <span
@@ -537,6 +518,15 @@ interface FolderPageV2Props {
   isOwner?: boolean
   isDefault?: boolean
   initialShareOpen?: boolean
+  /*
+  What the sidebar asked for on the way here (DES-208).
+
+  `?folder-action=` has existed since the v1 page and only the v1 page ever
+  read it. Every Rename and every Delete raised from a sidebar row navigated
+  to this page carrying an instruction it ignored — so both acts appeared to
+  do nothing, on the shipped page, from the surface most people use.
+  */
+  initialFolderAction?: "rename" | "appearance" | "delete"
   onAdd: (section: "scheduled" | "unscheduled", title: string) => void
   onOpenFullForm: (section: "scheduled" | "unscheduled") => void
   onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
@@ -572,6 +562,7 @@ export function FolderPageV2({
   isOwner = true,
   isDefault = false,
   initialShareOpen = false,
+  initialFolderAction,
   onAdd,
   onOpenFullForm,
   onOpenTask,
@@ -641,8 +632,27 @@ export function FolderPageV2({
   useEffect(() => {
     writePageFilters(`folder:${storageName}`, filters)
   }, [storageName, filters])
-  const [deleteFolderOpen, setDeleteFolderOpen] = useState(false)
-  const [markOpen, setMarkOpen] = useState(false)
+  /*
+  The sidebar's instruction, honoured once and then struck from the URL.
+
+  Delete happens on arrival rather than opening a question (DES-200's rule),
+  and the instrument has to *stop being true* the moment it is obeyed — a
+  destructive act sitting in the address bar is a trap, because a reload, a
+  bookmark or the back button would perform it again on whatever folder the
+  URL happens to name. `replaceState` rather than a navigation, so the page
+  does not reload to forget something.
+  */
+  useEffect(() => {
+    if (!initialFolderAction) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete("folder-action")
+    window.history.replaceState(null, "", url)
+    if (initialFolderAction === "delete") onDeleteFolder?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFolderAction])
+  const [markOpen, setMarkOpen] = useState(initialFolderAction === "appearance")
+  const [historyOpen, setHistoryOpen] = useState(false)
+
   const [pendingTaskAction, setPendingTaskAction] = useState<{
     type: "abandon" | "delete"
     taskId: string
@@ -730,7 +740,11 @@ export function FolderPageV2({
 
   /* Rename's second route (K5): the menu arms the inline edit — for the
      folder title and for any section. */
-  const [titleEditing, setTitleEditing] = useState(false)
+  /* Rename is a field rather than a dialog, so the sidebar's instruction is
+     honoured by opening the field — the same flag the page's own menu sets. */
+  const [titleEditing, setTitleEditing] = useState(
+    initialFolderAction === "rename",
+  )
   const [renamingSection, setRenamingSection] = useState<string | null>(null)
 
   /* Escape closes whichever conversation or task surface is up; focus
@@ -1072,11 +1086,19 @@ export function FolderPageV2({
     )
   }
 
-  function insertItem(index: number, kind: "section" | "paragraph") {
+  function insertItem(index: number, kind: PageItem["kind"]) {
     const item: PageItem =
       kind === "section"
         ? { kind: "section", section: { id: pageId("section"), name: "New section" } }
-        : { kind: "paragraph", paragraph: { id: pageId("paragraph"), text: "" } }
+        : kind === "image"
+          ? {
+              kind: "image",
+              /* 16:9 until a file says otherwise, so the empty block and the
+                 picture that replaces it are close to the same height and the
+                 page does not jump when one arrives. */
+              image: { id: pageId("image"), ratio: 16 / 9, caption: "" },
+            }
+          : { kind: "paragraph", paragraph: { id: pageId("paragraph"), text: "" } }
     setItems((current) => {
       const next = [...current]
       next.splice(Math.min(index, next.length), 0, item)
@@ -1288,7 +1310,7 @@ export function FolderPageV2({
         <WindowActivity events={folderActivity} />
         {isShared && !isDefault ? (
           <AvatarGroup>
-            <Avatar size="sm"><AvatarFallback>IW</AvatarFallback></Avatar>
+            <ViewerFace size="sm" />
             <Avatar size="sm"><AvatarFallback>S</AvatarFallback></Avatar>
           </AvatarGroup>
         ) : null}
@@ -1332,7 +1354,7 @@ export function FolderPageV2({
             </button>
           }
           handlers={{
-            "open-tab": onOpenFolderInTab,
+            open: onOpenFolderInTab,
             rename: isOwner ? () => setTitleEditing(true) : undefined,
             move: isDefault
               ? undefined
@@ -1358,9 +1380,30 @@ export function FolderPageV2({
                     </DropdownMenuRadioGroup>
                   ),
                 },
+            /*
+            A folder's History, which a task has had since DES-201 and a folder
+            has not (Imran, 2026-08-23). Same sheet, same events, same wording —
+            what differs is only the subject.
+
+            **And the difference from the "edited just now" line beside it** is
+            depth, not kind. That control answers *is this fresh* and shows the
+            last handful; this answers *what happened to this* and shows the
+            whole record, grouped by day, with the actor on every line. Imran
+            asked whether the second should offer **restoring to a point** and
+            said to choose if it does not make sense: it does not, and the
+            reason is structural rather than a preference. Restoring needs
+            snapshots — the folder as it stood at each moment — and Dana stores
+            events, not versions. Offering a restore over an event log would
+            either be a lie or a promise to rebuild state by replaying acts
+            backwards, which is a different product. Undo covers the last few
+            seconds and Trash covers thirty days; between them there is no gap
+            a version history would fill that is worth its cost here.
+            */
+            history: () => setHistoryOpen(true),
             "copy-link": onCopyLink,
             duplicate: isDefault ? undefined : onDuplicate,
-            delete: !isDefault && isOwner ? () => setDeleteFolderOpen(true) : undefined,
+            workflow: () => saveFolderAsWorkflow(storageName),
+            delete: !isDefault && isOwner ? onDeleteFolder : undefined,
           }}
         />
       </div>
@@ -1504,9 +1547,36 @@ export function FolderPageV2({
       <InsertLine
         onSection={() => insertItem(0, "section")}
         onParagraph={() => insertItem(0, "paragraph")}
+        onImage={() => insertItem(0, "image")}
       />
 
       {items.map((item, index) => {
+        /*
+        A block under a heading collapses with it (DES-209).
+
+        Imran, 2026-08-23: "an image can't collapse under a section". Nor could
+        a paragraph — every block sat at the page's top level while only tasks
+        answered to a section, so folding a heading left its prose and its
+        pictures behind, orphaned under a closed heading.
+
+        **Belonging is decided by position, not by a record.** A block after a
+        heading and before the next one is in that heading, which is what a
+        document means by it and what a person reading the page already
+        assumes. A second record — a `section` field on each block — would be
+        a fact that can disagree with the order it is drawn in, and would need
+        rewriting every time somebody dragged a block past a heading.
+        */
+        const owner = items
+          .slice(0, index)
+          .reverse()
+          .find((earlier) => earlier.kind === "section")
+        if (
+          owner?.kind === "section" &&
+          collapsedSections.has(owner.section.id) &&
+          item.kind !== "section"
+        ) {
+          return null
+        }
         const dragState = pageDrag.itemState(index)
         const wrapperStyle = {
           transform:
@@ -1564,8 +1634,47 @@ export function FolderPageV2({
             dense={item.kind === "paragraph" && items[index + 1]?.kind === "paragraph"}
             onSection={() => insertItem(index + 1, "section")}
             onParagraph={() => insertItem(index + 1, "paragraph")}
+            onImage={() => insertItem(index + 1, "image")}
           />
         )
+
+        if (item.kind === "image") {
+          const { image } = item
+          return (
+            <div
+              key={image.id}
+              ref={pageDrag.setItemRef(index)}
+              style={wrapperStyle}
+              className={wrapperClass}
+            >
+              {grip}
+              <PageImage
+                image={image}
+                onChange={(next) =>
+                  setItems((current) =>
+                    current.map((candidate) =>
+                      candidate.kind === "image" && candidate.image.id === image.id
+                        ? { kind: "image", image: next }
+                        : candidate,
+                    ),
+                  )
+                }
+                /* Removing the picture removes the block: an empty image block
+                   left behind would be a drop zone nobody asked for, sitting
+                   where a picture used to be. */
+                onRemove={() =>
+                  setItems((current) =>
+                    current.filter(
+                      (candidate) =>
+                        candidate.kind !== "image" || candidate.image.id !== image.id,
+                    ),
+                  )
+                }
+              />
+              {insertAfter}
+            </div>
+          )
+        }
 
         if (item.kind === "paragraph") {
           const { paragraph } = item
@@ -2056,6 +2165,18 @@ export function FolderPageV2({
               needed the same one and a second copy is how two descriptions
               come to behave differently (DES-149, DES-154). */}
           <PageDescription
+            /*
+            Dana's own sentence, where Dana has one (DES-208).
+
+            Imran, twice: Desk is the only native page without a description.
+            It was, and the cause is that Desk is a *folder* — it renders
+            through this page, and this page passed no fallback because a
+            person's own folder has no shipped sentence. `pageQuestion` is
+            undefined for every folder somebody made, so asking it here gives
+            Desk its line and changes nothing else. A rule, not an exception
+            for one name.
+            */
+            fallback={pageQuestion(storageName)}
             storageName={storageName}
             label="Folder description"
             offer={pristine}
@@ -2230,6 +2351,17 @@ export function FolderPageV2({
         </div>
       ) : null}
 
+      {/* A folder's own past (DES-209). It was declared, handled, and never
+          rendered — an earlier edit's anchor did not match and nothing said
+          so, which is why the act drew a menu item that opened nothing. */}
+      <HistorySheet
+        kind="folder"
+        subject={storageName}
+        name={displayName}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
+
       <AlertDialog
         open={pendingTaskAction !== null}
         onOpenChange={(open) => !open && setPendingTaskAction(null)}
@@ -2264,29 +2396,21 @@ export function FolderPageV2({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleteFolderOpen} onOpenChange={setDeleteFolderOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {displayName}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes {openCount} open, {completed.length}{" "}
-              completed, and {abandonedCount} abandoned tasks for every member.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              destructive
-              onClick={() => {
-                onDeleteFolder?.()
-                setDeleteFolderOpen(false)
-              }}
-            >
-              Delete folder
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/*
+      No confirmation, for the reason that removed seven of them (DES-200).
+
+      This one survived because nothing could reach it — the sidebar's Delete
+      navigated to an instrument the page ignored, so the dialog was never
+      seen and never re-read. Wiring it up put its copy in front of somebody
+      for the first time since Trash existed, and it said "**This permanently
+      deletes** … for every member", which has been false since the day a
+      deleted folder started going somewhere it can be fetched back from.
+
+      The rule stands: *ask only when there is no way back.* A folder now has
+      two — the bar, and thirty days in the Trash — so the question is friction
+      that teaches people to click through dialogs, which is what stops the one
+      dialog that matters from working.
+      */}
     </div>
   )
 }

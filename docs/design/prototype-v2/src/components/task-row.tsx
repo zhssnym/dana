@@ -94,6 +94,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ObjectMenu } from "@/components/object-menu"
+import { HistorySheet } from "@/components/history-sheet"
+import { copyTaskLink, duplicateTaskById } from "@/lib/task-acts"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ActionStrip, type ViewStripOption } from "@/components/view-strip"
@@ -1171,6 +1174,9 @@ export function Actions({
   onMoveToFolder,
   onAbandon,
   onDelete,
+  onHistory,
+  onCopyLink,
+  onDuplicate,
   extra,
   quietStar = false,
   /* A page shows its controls; a row reveals them on hover. */
@@ -1197,6 +1203,9 @@ export function Actions({
   onMoveToFolder?: (folder: { name: string; color: string }) => void
   onAbandon?: () => void
   onDelete?: () => void
+  onHistory?: () => void
+  onCopyLink?: () => void
+  onDuplicate?: () => void
   extra?: ReactNode
   persistent?: boolean
 }) {
@@ -1277,48 +1286,48 @@ export function Actions({
           aria-hidden="true"
         />
       </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <button
-              type="button"
-              onClick={(e) => e.stopPropagation()}
-              /* Spec 9.1's names table gives a task row's overflow menu the
-                 name "More actions"; this read "More task actions", which is
-                 a rename, and design may restyle without renaming. */
-              aria-label="More actions"
-              className={cn(
-                "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] data-popup-open:opacity-100",
-                T_FAST,
-                FOCUS,
-                /* Hover-reveal belongs to a row, where a gutter full of
-                   permanent icons would shout down the titles. A page has no
-                   row to hover and no such crowd, so there the menu simply
-                   stands there — which is why it was invisible on the task
-                   surface until now. */
-                persistent
-                  ? "opacity-100"
-                  : "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
-              )}
-            >
-              <MoreHorizontal className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          }
-        />
-        {/* Wide enough for its own words: every item was wrapping onto two
-            lines, which is what made this menu read as unfinished (Imran,
-            2026-08-18). Every item here also *does* something now — the
-            four that did nothing are either wired or gone, because a menu
-            of dead items is the least premium thing an interface owns. */}
-        <DropdownMenuContent align="end" className="w-56">
-          {onOpenIn ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="whitespace-nowrap">
-                <Fullscreen />
-                Open in…
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-52">
-                {TASK_OPEN_OPTIONS.map(({ key, label, icon: Icon }) => (
+      {/*
+      The row's menu comes from the contract now (DES-201).
+
+      It was the last hand-written menu of any size, and being hand-written is
+      exactly why a task could not be copied, linked, duplicated or asked about
+      its history while a folder could — the acts existed in `lib/object-acts`
+      and there was nothing here reading them. Six items were written in this
+      file and four more were declared and undrawable.
+
+      The trigger keeps its own styling, because hover-reveal is the row's
+      business and not the contract's: a gutter of permanent icons would shout
+      down the titles, while a page has no row to hover and shows its controls.
+      That is what `persistent` decides, and it is why the trigger is passed
+      rather than left to `ObjectMenu`'s default.
+      */}
+      <ObjectMenu
+        kind="task"
+        name={task.title}
+        width="w-56"
+        trigger={
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            /* Spec 9.1's names table gives a task row's overflow menu the
+               name "More actions". */
+            aria-label="More actions"
+            className={cn(
+              "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] data-popup-open:opacity-100",
+              T_FAST,
+              FOCUS,
+              persistent
+                ? "opacity-100"
+                : "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
+            )}
+          >
+            <MoreHorizontal className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        }
+        handlers={{
+          open: onOpenIn
+            ? {
+                choose: TASK_OPEN_OPTIONS.map(({ key, label, icon: Icon }) => (
                   <DropdownMenuItem
                     key={key}
                     className="whitespace-nowrap"
@@ -1327,102 +1336,61 @@ export function Actions({
                     <Icon />
                     {label}
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : null}
-          {onMoveToFolder ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="whitespace-nowrap">
-                <FolderInput />
-                Move to folder…
-              </DropdownMenuSubTrigger>
-              {/*
-              The person's real folders, not the lab's four — Imran,
-              2026-08-22: this menu "still does not carry an update folder
-              library".
+                )),
+              }
+            : undefined,
+          history: onHistory,
+          move: onMoveToFolder
+            ? {
+                /*
+                The person's real folders, not the lab's four — Imran,
+                2026-08-22: this menu "still does not carry an update folder
+                library". `folderLibrary()` is the one answer, and this menu
+                was the third place still reading the hardcoded fixture.
 
-              It did not, and this was the third place: `folderLibrary()` was
-              written for the folder chip and two other menus went on reading
-              `FOLDERS`, the hardcoded fixture from the row lab. So the list
-              you moved a task with disagreed with the sidebar beside it —
-              missing Business, Ideas and Reading list, missing anything you
-              had made, still offering anything you had deleted, and using the
-              old name for anything you had renamed.
-
-              **And it ends in New folder**, because "none of these" is a real
-              answer to "where does this go" and a menu that cannot express it
-              sends you somewhere else to do the obvious thing.
-              */}
-              <DropdownMenuSubContent className="w-52">
-                {folderLibrary().map((folder) => (
-                  <DropdownMenuItem
-                    key={folder.name}
-                    className="whitespace-nowrap"
-                    onClick={() => onMoveToFolder(folder)}
-                  >
-                    <FolderMark name={folder.name} color={folder.color} />
-                    {folder.name}
-                  </DropdownMenuItem>
-                ))}
-                {onNewFolderFor ? (
+                **And it ends in New folder**, because "none of these" is a
+                real answer to "where does this go", and a menu that cannot
+                express it sends you elsewhere to do the obvious thing.
+                */
+                choose: (
                   <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="whitespace-nowrap"
-                      onClick={onNewFolderFor}
-                    >
-                      <FolderPlus />
-                      New folder…
-                    </DropdownMenuItem>
+                    {folderLibrary().map((folder) => (
+                      <DropdownMenuItem
+                        key={folder.name}
+                        className="whitespace-nowrap"
+                        onClick={() => onMoveToFolder(folder)}
+                      >
+                        <FolderMark name={folder.name} color={folder.color} />
+                        {folder.name}
+                      </DropdownMenuItem>
+                    ))}
+                    {onNewFolderFor ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="whitespace-nowrap"
+                          onClick={onNewFolderFor}
+                        >
+                          <FolderPlus />
+                          New folder…
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
                   </>
-                ) : null}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : null}
-          {onMakeFolder ? (
-            <DropdownMenuItem onClick={onMakeFolder} className="whitespace-nowrap">
-              <Folders />
-              Make this a folder…
-            </DropdownMenuItem>
-          ) : null}
-          {/* Abandon before Delete, and separated from it: one says "I am not
-              doing this" and keeps the task, the other destroys it. They are
-              not neighbours in meaning and should not look like neighbours
-              in the menu. */}
-          {onAbandon && !task.abandoned ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onAbandon} className="whitespace-nowrap">
-                <Ban />
-                Abandon
-              </DropdownMenuItem>
-            </>
-          ) : null}
-          {onRestore && task.abandoned ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onRestore} className="whitespace-nowrap">
-                <RotateCcw />
-                Restore
-              </DropdownMenuItem>
-            </>
-          ) : null}
-          {onDelete ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={onDelete}
-                className="whitespace-nowrap"
-              >
-                <Trash2 />
-                Delete
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
+                ),
+              }
+            : undefined,
+          "make-folder": onMakeFolder,
+          "copy-link": onCopyLink,
+          duplicate: onDuplicate,
+          /* Abandon and Restore are the same slot seen from two states, so
+             only one is ever supplied — which is how an act with no handler
+             stays out of the menu without anybody writing a condition. */
+          abandon: onAbandon && !task.abandoned ? onAbandon : undefined,
+          restore: onRestore && task.abandoned ? onRestore : undefined,
+          delete: onDelete,
+        }}
+      />
       {extra}
     </span>
   )
@@ -2427,6 +2395,7 @@ export function TaskRow(props: TaskRowProps) {
     </div>
   )
 
+  const [historyOpen, setHistoryOpen] = useState(false)
   const actions = (
     <Actions
       task={task}
@@ -2441,11 +2410,41 @@ export function TaskRow(props: TaskRowProps) {
       onNewFolderFor={props.onNewFolder}
       onAbandon={props.onAbandon}
       onDelete={props.onDelete}
+      /*
+      Two of the three new acts need nothing from the screen.
+
+      A row knows its own id, so it can copy its own link and open its own
+      history without a prop threaded through ten call sites — and the object
+      contract's rule is that a surface supplies what it can *do*, not what it
+      can ask somebody else to do. Duplicate is the exception and stays a prop,
+      because adding a task is the shell's business: the row would have nowhere
+      to put the copy.
+
+      All three are absent without an id, which is the row lab and the concept
+      screens. That is the safety property doing its job rather than a special
+      case: no id, no handler, no menu item.
+      */
+      onHistory={props.id ? () => setHistoryOpen(true) : undefined}
+      onCopyLink={props.id ? () => copyTaskLink(props.id!, task.title) : undefined}
+      onDuplicate={props.id ? () => duplicateTaskById(props.id!) : undefined}
       /* No standalone "Open in…" here any more (Imran, 2026-08-18): the
          card's footer carries it once the row is open, and the overflow
          carries it while the row is shut. Two routes are enough; a third
          icon in the row's gutter was paying rent it could not afford. */
-      extra={<ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />}
+      extra={
+        <>
+          <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
+          {props.id ? (
+            <HistorySheet
+              kind="task"
+              subject={props.id}
+              name={task.title}
+              open={historyOpen}
+              onOpenChange={setHistoryOpen}
+            />
+          ) : null}
+        </>
+      }
     />
   )
 

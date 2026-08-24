@@ -1,20 +1,9 @@
-import { useState } from "react"
 
 import { CalendarCheck2, SunMedium } from "@/lib/icons"
 import { PageHead, pageBodyClass } from "@/components/page-head"
 import { CompletedSection, TaskSection } from "@/components/task-section"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
 import { TaskList, type TaskOpenMode, type TaskRowProps } from "@/components/task-row"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import {
   Empty,
   EmptyDescription,
@@ -105,10 +94,6 @@ export function MyDayScreen({
   title = "My Day",
   description = "Monday, 10 August",
 }: MyDayScreenProps) {
-  const [pendingAction, setPendingAction] = useState<{
-    type: "abandon" | "delete"
-    taskId: string
-  } | null>(null)
   /* The tasks arrive already filtered: importance is one of the window bar
      filter's four variables (DES-140), and this page used to keep a second
      switch of its own that the bar's copy could contradict. One variable now,
@@ -170,10 +155,10 @@ export function MyDayScreen({
               onToggleImportant={onToggleImportant}
               onRemoveFromMyDay={onRemoveFromMyDay}
               onRequestAbandon={(taskId) =>
-                setPendingAction({ type: "abandon", taskId })
+                onAbandon(taskId)
               }
               onRequestDelete={(taskId) =>
-                setPendingAction({ type: "delete", taskId })
+                onDelete(taskId)
               }
             />
             <TaskGroup
@@ -184,10 +169,10 @@ export function MyDayScreen({
               onToggleImportant={onToggleImportant}
               onRemoveFromMyDay={onRemoveFromMyDay}
               onRequestAbandon={(taskId) =>
-                setPendingAction({ type: "abandon", taskId })
+                onAbandon(taskId)
               }
               onRequestDelete={(taskId) =>
-                setPendingAction({ type: "delete", taskId })
+                onDelete(taskId)
               }
             />
 
@@ -206,10 +191,10 @@ export function MyDayScreen({
                     onTaskToggleComplete={onToggleComplete}
                     onTaskToggleImportant={onToggleImportant}
                     onTaskAbandon={(taskId) =>
-                      setPendingAction({ type: "abandon", taskId })
+                      onAbandon(taskId)
                     }
                     onTaskDelete={(taskId) =>
-                      setPendingAction({ type: "delete", taskId })
+                      onDelete(taskId)
                     }
                   />
             </CompletedSection>
@@ -217,44 +202,6 @@ export function MyDayScreen({
         )}
       </div>
 
-      <AlertDialog
-        open={pendingAction !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingAction(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingAction?.type === "abandon"
-                ? "Abandon this task?"
-                : "Delete this task?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingAction?.type === "abandon"
-                ? "It stops appearing in My Day but stays everywhere else."
-                : "This can’t be undone."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              destructive
-              onClick={() => {
-                if (!pendingAction) return
-                if (pendingAction.type === "abandon") {
-                  onAbandon(pendingAction.taskId)
-                } else {
-                  onDelete(pendingAction.taskId)
-                }
-                setPendingAction(null)
-              }}
-            >
-              {pendingAction?.type === "abandon" ? "Abandon" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

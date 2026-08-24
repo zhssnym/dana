@@ -1,5 +1,9 @@
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import {
+  Sun,
+  Moon,
+  Monitor,
+  ImagePlus,
   Download,
   Globe,
   ListTodo,
@@ -21,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -29,12 +33,84 @@ import { Switch } from "@/components/ui/switch"
 import { NAV_PAGES, pageQuestion } from "@/lib/nav-model"
 import { isPagePinned, setPagePinned, usePagePins } from "@/lib/page-pins"
 import { setRowDensity, useRowDensity } from "@/lib/row-density"
+import { setTheme, useTheme } from "@/lib/theme"
+import { setViewerImage, squareImageFile, useViewer } from "@/lib/viewer"
 import { cn } from "@/lib/utils"
 
 export type PageVisibility = {
   Important: boolean
   All: boolean
   Done: boolean
+}
+
+/*
+The account's own row, and the picture in it (DES-204).
+
+Imran, 2026-08-23: "a profile picture can be uploaded in Settings". The row was
+already here, drawn with initials in a circle; what it lacked was that the
+circle could be pressed.
+
+**The picture is the control.** A separate "Upload photo" button beside an
+avatar is a second thing to look at where there is only one thing to do, and
+every product a person has used already teaches that the circle is the button.
+Hovering says so; the menu behind it is only needed once there is a picture to
+replace or remove.
+*/
+function ViewerPictureRow() {
+  const viewer = useViewer()
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  async function take(file: File | undefined | null) {
+    if (!file) return
+    const square = await squareImageFile(file)
+    if (square) setViewerImage(square)
+  }
+
+  return (
+    <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
+      <div className="group/pic relative">
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          aria-label={viewer.image ? "Change your picture" : "Add a picture"}
+          className="block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-2"
+        >
+          <Avatar className="size-10">
+            {viewer.image ? <AvatarImage src={viewer.image} alt="" /> : null}
+            <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
+              {viewer.initials}
+            </AvatarFallback>
+          </Avatar>
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-[var(--color-graphite-900)]/55 opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/pic:opacity-100">
+            <ImagePlus className="size-4 text-white" strokeWidth={1.75} aria-hidden="true" />
+          </span>
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => void take(event.target.files?.[0])}
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{viewer.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          imran@example.com · Google account
+        </p>
+      </div>
+      {viewer.image ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-[var(--color-graphite-600)]"
+          onClick={() => setViewerImage(undefined)}
+        >
+          Remove
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 function SettingsSection({
@@ -127,6 +203,7 @@ export function SettingsScreen({
 }) {
   const pins = usePagePins()
   const density = useRowDensity()
+  const theme = useTheme()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
@@ -270,6 +347,68 @@ export function SettingsScreen({
                   </div>
                 }
               />
+              {/*
+              Theme, under Appearance and nowhere else (DES-205).
+
+              Imran, 2026-08-23, asked where the toggle goes. It goes here, and
+              the two tempting alternatives are both worse for the same reason.
+              **Not the account menu**, which is where a lot of products put it
+              and where it does not belong: that menu is about *you* — your
+              picture, your sign-out, help with the app — and a theme is about
+              how Dana draws, which is what this section already says it is
+              for. **Not the window bar**, because a control in the chrome is a
+              control you press by accident, and nobody changes their theme
+              often enough to pay rent in the bar.
+
+              **Three states rather than a switch**, and the third is the one
+              people want: a two-way toggle makes you re-choose at sunset and
+              leaves Dana disagreeing with every other window for half the day.
+
+              It sits above Row height because it is the larger of the two —
+              one changes every colour, the other changes a list's spacing.
+              */}
+              <SettingRow
+                icon={theme === "dark" ? Moon : theme === "light" ? Sun : Monitor}
+                title="Theme"
+                description={
+                  theme === "system"
+                    ? "Following your device"
+                    : theme === "dark"
+                      ? "Dark, whatever your device says"
+                      : "Light, whatever your device says"
+                }
+                control={
+                  <div
+                    role="radiogroup"
+                    aria-label="Theme"
+                    className="flex items-center gap-0.5 rounded-lg bg-[var(--color-graphite-100)] p-0.5"
+                  >
+                    {(
+                      [
+                        ["system", "System"],
+                        ["light", "Light"],
+                        ["dark", "Dark"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={theme === value}
+                        onClick={() => setTheme(value)}
+                        className={cn(
+                          "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
+                          theme === value
+                            ? "bg-card text-[var(--color-graphite-900)] shadow-[var(--elevation-1)]"
+                            : "text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-900)]",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              />
               {/* The choice is worth seeing rather than reading, so the row
                   above is followed by the thing it changes. */}
               <p className="mt-3 px-2 text-xs text-muted-foreground">
@@ -280,17 +419,7 @@ export function SettingsScreen({
 
             <SettingsSection id="settings-account" title="Account">
               <div className="space-y-0.5">
-                <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
-                  <Avatar className="size-10">
-                    <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
-                      IW
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">Imran Wafa</p>
-                    <p className="truncate text-xs text-muted-foreground">imran@example.com · Google account</p>
-                  </div>
-                </div>
+              <ViewerPictureRow />
 
                 <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
                   <div className="flex size-10 shrink-0 items-center justify-center text-[var(--color-graphite-500)]">

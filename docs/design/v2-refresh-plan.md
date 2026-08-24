@@ -349,35 +349,89 @@ colour is left in the file. Its session log line is marked parallel, so the log
 stops being a strict sequence from this date.
 
 **F7 in progress, 2026-08-23.** Working through `docs/design/f7-brief.md`, which
-reads Imran's fifteen-item brief as a system rather than a list. Done so far:
+reads Imran's fifteen-item brief as a system rather than a list. Stages 1 to 3
+of its sequence are done:
 
-- **The object contract** (DES-197). `lib/object-acts` declares what each kind of
-  object supports; `ObjectMenu` draws it; a surface supplies handlers, and an act
-  with no handler does not appear. Both folder menus — sidebar row and page bar —
-  now come from it and are identical. The stale "Label and Color" act was removed
-  from the vocabulary: "Label" was v1's word for what is now a shelf, so the menu
-  offered "Move to shelf" and "Label and colour" one line apart.
-- **Duplicate carries the folder's contents** (DES-198). Tasks, sections,
-  paragraphs and section assignments; not members, sharing, the conversation, the
-  assignee, or any progress. Due dates shift to re-anchor a spent plan on today
-  and are left alone when they are still ahead. Guarded by a sweep block that was
-  proved to bite.
-- **The event log** (`lib/history.ts`). Actor, verb, subject and time, written by
-  the act rather than by the screen, and the undo bar's sentence is derived from
-  the same event so the two can never word one fact differently. **Wired to
-  duplicate only so far.**
+1. **The object contract** (DES-197). `lib/object-acts` declares what each kind
+   of object supports; `ObjectMenu` draws it; an act with no handler does not
+   appear. Both folder menus now come from it and are identical. The stale
+   "Label and Color" act was removed: "Label" was v1's word for what is now a
+   shelf, so the menu offered "Move to shelf" and "Label and colour" one line
+   apart.
+2. **Duplicate carries the folder's contents** (DES-198) — tasks, sections,
+   paragraphs, section assignments; not members, sharing, the conversation, the
+   assignee, or any progress. Due dates re-anchor a spent plan on today and are
+   left alone when they are still ahead.
+3. **The event log** (DES-199). `reversibly` takes a verb instead of a sentence,
+   so an act cannot be recorded but unlabelled or labelled but unrecorded.
+   Reading it: the folder page's Activity control, and a task's footer. The
+   native pages lost theirs — a view is not a thing you edit.
+4. **Trash, and the footer sorted by role** (DES-200). Deleting moves a thing
+   rather than ending it, which deleted seven copies of "This can't be undone".
+   New shelf joined New folder; Help went to the account menu.
 
-**Next, in order.** Finish the event log: complete, reopen, abandon, delete and
-rename all need to call `record`, and it has two readers to build — the window
-bar's Activity control, which is still two hardcoded lines, and a task's own
-History, which is declared in the object contract and draws nothing until a
-handler exists. Then Trash, which needs the log; then the sidebar footer; then
-the image block, the expanded search, the profile picture and dark-mode toggle,
-workflows, and the Shelf page.
+6. **The image block** (DES-202) — a page holds headings, prose and pictures.
+   Downscaled on the way in and kept in its own store, so it survives a reload
+   and a quota failure costs pictures rather than sections.
 
-**Open for Imran:** the Desk lamp glyph has no animated twin — it can stay still,
-become an animated lightbulb, or have an animation hand-written. And DES-155 to
-DES-198 are all still awaiting his click-through.
+7. **Expanded search** (DES-203) — tasks, folders and pages, grouped by kind,
+   matching on steps and page prose, and offering the pages when nothing is
+   typed.
+
+8. **Profile picture** (DES-204) and **the theme control** (DES-205) — the
+   placement Imran asked for, with a first-pass dark colourway behind it so the
+   toggle is not a control that switches to nothing. **The ten folder swatches
+   are his ruling and are unchanged.**
+
+9. **Workflows** (DES-206) — a folder saved out as a file and imported back as
+   a new folder. Structure and words travel; nothing about people or time does.
+
+**Next, in `f7-brief.md`'s order:**
+the Shelf page (item 15).
+
+5. **Tasks joined the contract** (DES-201). The row's menu was the last
+   hand-written one; it now offers History, Copy link and Duplicate alongside
+   what it had. A task has an address, `?task=<id>`, which Copy link forced and
+   which is also the review instrument this plan lacked — a link can name a row
+   now, not only a page.
+
+**Still owed inside the finished stages:** the shelf is declared in the contract
+and has no menu drawing it, because it has no page yet — that is stage 8. Save
+as workflow is declared and supplied by nothing, which is stage 7.
+
+**Imran’s third review pass is closed** (DES-216): History renders, restore
+makes one row, folder delete has its undo and happens in place, shelf files
+round-trip, the shelf page sits on the shared measure with a full control row,
+and the footer’s three buttons hold their line as the sidebar narrows.
+
+**Imran’s fourth review pass is closed** (DES-217 to DES-221), 2026-08-24, in
+a fresh session after the previous one stalled on server errors with the
+batch unanswered. Four of his reports were one mechanism: the tab strip’s
+special first tab. The strip is a real tab strip now — every tab equal and
+closable, close-active lands on the neighbour and an emptied strip lands on
+Desk, tabs reorder by pointer drag, and a “+” at the row’s end opens any
+shelf or folder as a tab or makes a new one (DES-217). Shelf rename works
+from both surfaces, because a shelf’s name is its membership label and the
+shell now performs the whole act — labels, page stores, tabs, history, URL
+(DES-218). The shelf page took the folder page’s grammar whole: folder rows
+are arrangeable blocks under sections with prose insertable around them, the
+control row moved into the window bar, the cover affordance arrived, and an
+add-folder capture row lands folders on the shelf live — a folder pressed on
+a shelf opens as its own tab beside it (DES-219). The sidebar’s folder block
+is labelled **Library** (DES-220, PROPOSED — his word to change), and the
+footer’s New shelf label is whole at every width, Import and Trash going to
+icons until the row fits all three words (DES-221). Both gates green: 12
+audit rules, 29 sweep routes plus a new driven block for the strip, the
+rename, the add row and the footer — every new check watched to fail against
+a deliberately broken build before being trusted. One incidental fault fixed:
+a shelf page lit Today’s sidebar row, because `activePage` had never learned
+about shelves.
+
+**Open for Imran:** one colour ruling, drawn at `?view=swatches` — whether
+folder cobalt moves off the brand hue (224 → 242) now that both are vivid
+(DES-215). The accent is settled at 85% and the ten swatches are applied vivid. Desk’s glyph is settled: it stays
+still. DES-155 onwards still await his click-through, DES-217 to DES-221 now
+with them.
 
 ### The F6 handover, kept
 
@@ -400,6 +454,13 @@ the view strip checked against DES-177's rule page by page, and a filter
 watched to stay on its own page**.
 
 ### Ground rules for whoever picks this up
+
+- **Never measure a transitioned property in the browser pane.** It is not
+  displayed, so `document.visibilityState` is `hidden` and CSS transitions do
+  not tick: a transition that has started pins the computed value at where it
+  began, for ever. Every hand measurement of the shell’s `padding-right` read
+  `0px` and every one was wrong (DES-212). Use Playwright — the sweep, or a
+  one-off script — for anything that animates.
 
 - **One session on this task.** Two agents edited this tree at once on
   2026-08-22 and their changes collided mid-turn; the other sessions were

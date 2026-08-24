@@ -36,10 +36,35 @@ page will be a third, so the store says when it changes and whoever is showing
 folders listens — the arrangement every other store here already uses.
 */
 export const PROTOTYPE_FOLDERS_EVENT = "dana:prototype-folders-change"
-/* "I made this folder; it is a copy of that one." Said rather than done,
-   because the contents live with the shell and the act is raised from three
-   surfaces, one of which cannot see them. */
+/*
+"Make a copy of this." Said rather than done.
+
+One event for both kinds, because it is one idea: the surface raising it can
+always *name* the thing and can never *hold* the result. A folder's Duplicate
+is raised from a sidebar row inside `app-shell`, which has no task list; a
+task's is raised from a row nested five components deep, and threading a prop
+down to it through ten screens would be the same coupling with more typing.
+
+The folder half computes its new name here, because naming a copy needs only
+the folder library. The task half cannot: it needs the task.
+*/
 export const PROTOTYPE_DUPLICATE_EVENT = "dana:prototype-duplicate-folder"
+/*
+"Save this folder as a workflow." Raised from both folder menus, answered by
+the shell — the same arrangement Duplicate uses and for the same reason: the
+file needs the task list and neither menu can see it.
+*/
+export const PROTOTYPE_WORKFLOW_EVENT = "dana:prototype-save-workflow"
+
+export function saveFolderAsWorkflow(name: string) {
+  window.dispatchEvent(
+    new CustomEvent(PROTOTYPE_WORKFLOW_EVENT, { detail: { name } }),
+  )
+}
+
+export type DuplicateRequest =
+  | { kind: "folder"; from: string; to: string }
+  | { kind: "task"; subject: string }
 
 export interface CreatedFolder {
   name: string
@@ -141,7 +166,7 @@ export function duplicateFolder(name: string) {
      press — two entries would mean two presses to undo one act. */
   window.dispatchEvent(
     new CustomEvent(PROTOTYPE_DUPLICATE_EVENT, {
-      detail: { from: name, to: candidate },
+      detail: { kind: "folder", from: name, to: candidate } satisfies DuplicateRequest,
     }),
   )
   return candidate

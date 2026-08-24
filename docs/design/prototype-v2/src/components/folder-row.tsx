@@ -4,6 +4,8 @@ import { FolderPlus, MoreHorizontal, Plus } from "@/lib/icons"
 
 import { folderGlyph } from "@/components/folder-icon-picker"
 import { ObjectMenu } from "@/components/object-menu"
+import { HistorySheet } from "@/components/history-sheet"
+import { saveFolderAsWorkflow } from "@/lib/folder-acts"
 import { useFolderIdentity } from "@/lib/folder-presentation"
 import type { SortableItemState } from "@/lib/use-sortable-list"
 
@@ -112,6 +114,7 @@ export function FolderRow({
   const Glyph = folderGlyph(identity.glyph, name)
   const glyphColor = identity.color ?? color
 
+  const [historyOpen, setHistoryOpen] = useState(false)
   return (
     <SidebarMenuItem
       ref={itemRef}
@@ -246,7 +249,7 @@ export function FolderRow({
               kind="folder"
               name={name}
               handlers={{
-                "open-tab": onOpenInTab,
+                open: onOpenInTab,
                 rename: onRename,
                 move: onMoveToLabel
                   ? {
@@ -270,8 +273,15 @@ export function FolderRow({
                       ),
                     }
                   : undefined,
+                /* The same act the page offers, from the row — DES-197's whole
+                   point is that where you stand does not decide what you can
+                   do to a folder. */
+                history: () => setHistoryOpen(true),
                 "copy-link": onCopyLink,
                 duplicate: onDuplicate,
+                /* No prop: a workflow is made from what the shell holds, and
+                   the row asks for it the same way Duplicate does. */
+                workflow: () => saveFolderAsWorkflow(name),
                 delete: onDelete,
               }}
               width="w-52"
@@ -288,6 +298,13 @@ export function FolderRow({
               }
             />
           ) : null}
+          <HistorySheet
+            kind="folder"
+            subject={name}
+            name={name}
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+          />
         </div>
       ) : null}
 

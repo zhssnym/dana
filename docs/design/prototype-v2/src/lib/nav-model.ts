@@ -69,6 +69,7 @@ import {
   Star,
   SunMedium,
   Settings,
+  Trash2,
   UserRoundCheck,
   type LucideIcon,
 } from "@/lib/icons"
@@ -249,10 +250,30 @@ can be pinned or unpinned, and neither belongs in Settings' pin list. What
 they share with a page is a name and a mark, which is exactly the pair the
 collision rule cares about.
 */
-export const FOOTER_PAGES: { name: "People" | "Settings"; icon: LucideIcon }[] = [
+/*
+The footer's destinations, and why Trash is one of them.
+
+A destination is somewhere you *go*; an action is something you *do*. Trash is
+the first — you visit it, look around, and come back — which is why it sits
+here beside People and Settings rather than as a button in the row above them,
+where New folder lives. Placing it by role rather than by novelty is also what
+keeps the footer legible as it grows: everything in this list answers "take me
+somewhere", and everything above it answers "make something".
+*/
+export const FOOTER_PAGES: {
+  name: "People" | "Settings" | "Trash"
+  icon: LucideIcon
+}[] = [
   { name: "People", icon: Contact },
+  /* Trash moved up into the footer's own row of three (DES-209), where Imran
+     asked for it. It keeps its entry in this union because it is still a page
+     the shell routes to and the collision rule still has to see its mark. */
   { name: "Settings", icon: Settings },
 ]
+
+/* Every page with a mark, including the ones no list draws. The collision rule
+   and `pageGlyph` both need the whole set, not the drawn subset. */
+export const TRASH_PAGE = { name: "Trash" as const, icon: Trash2 }
 
 export type ScheduledScope = "today" | "week" | "month" | "year"
 
@@ -304,4 +325,20 @@ sentence back.
 */
 export function pageQuestion(name: string): string | undefined {
   return NAV_PAGES.find((page) => page.name === name)?.question
+}
+
+/*
+The mark a page wears, from the one list the sidebar draws.
+
+Search needed it and could have imported an icon of its own, which is how a
+folder ended up wearing a tray in one place and a plain folder in another
+([[DES-155]]). One resolver, asked by everybody.
+*/
+export function pageGlyph(name: string): LucideIcon | null {
+  if (name === TRASH_PAGE.name) return TRASH_PAGE.icon
+  return (
+    NAV_PAGES.find((page) => page.name === name)?.icon ??
+    FOOTER_PAGES.find((page) => page.name === name)?.icon ??
+    null
+  )
 }

@@ -1,5 +1,7 @@
 import { Input } from "@/components/ui/input"
 import { FolderMark } from "@/components/folder-mark"
+import { pageGlyph } from "@/lib/nav-model"
+import { Folders } from "@/lib/icons"
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import {
   ArrowRight,
@@ -23,19 +25,57 @@ import { cn } from "@/lib/utils"
 
 export type SearchResultStatus = "pending" | "abandoned" | "completed"
 
+/*
+What search can find (DES-203).
+
+Imran's brief of 2026-08-23, item 7: expand it. It found tasks, by title and
+notes, and nothing else — so a folder you had made was unfindable by name, a
+page you wanted was unreachable by typing it, and the words you had written on a
+folder page were invisible to the one control whose job is finding words.
+
+Four kinds, which is every kind Dana has that you can go to. Shelves were the
+one absent, and only because they had nowhere to land — [[DES-207]] gave them a
+page, so the reason expired and they joined.
+*/
+export type SearchResultKind = "task" | "folder" | "shelf" | "page"
+
 export type SearchResultItem = {
+  kind: SearchResultKind
   id: string
   title: string
-  notes?: string
-  status: SearchResultStatus
-  folder: {
-    name: string
-    color: string
-  }
+  /* Everything else this result should match on, joined: a task's notes and
+     step titles, a folder's prose and description. Searching a title alone is
+     what made a paragraph you wrote unfindable. */
+  haystack?: string
+  /* The second line — a task's folder, a folder's shelf, a page's question. */
+  hint?: string
+  status?: SearchResultStatus
+  folder?: { name: string; color: string }
   dueDate?: string
+  /* A folder's own colour, for its mark. */
+  color?: string
 }
 
 const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
+
+/*
+Grouped by **kind**, and the ordering inside Tasks is by status.
+
+Grouping by status at the top level was right while tasks were the only thing
+search could return. With three kinds it would have made "Pending", "Abandoned",
+"Completed", "Folders" and "Pages" peers — two classification schemes presented
+as one list, which is precisely the fault [[DES-152]] took out of the sidebar.
+So kind decides the headings, and status decides the order within Tasks, where
+each row wears its own badge anyway.
+*/
+const kindOrder: SearchResultKind[] = ["task", "folder", "shelf", "page"]
+
+const kindLabels: Record<SearchResultKind, string> = {
+  task: "Tasks",
+  folder: "Folders",
+  shelf: "Shelves",
+  page: "Pages",
+}
 
 const statusLabels: Record<SearchResultStatus, string> = {
   pending: "Pending",
@@ -102,7 +142,7 @@ export function SearchOverlay({
   items: SearchResultItem[]
   initialQuery?: string
   previewState?: string | null
-  onOpenResult: (taskId: string) => void
+  onOpenResult: (id: string, kind: SearchResultKind) => void
 }) {
   const [query, setQuery] = useState(initialQuery)
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim())
@@ -134,22 +174,55 @@ export function SearchOverlay({
   }, [query, debouncedQuery])
 
   const results = useMemo(() => {
-    if (debouncedQuery.length < 2) return []
-    const normalized = debouncedQuery.toLocaleLowerCase()
-    return items.filter((item) =>
-      `${item.title} ${item.notes ?? ""}`.toLocaleLowerCase().includes(normalized),
-    )
+    const normalized = debouncedQuery.trim().toLocaleLowerCase()
+    /*
+    An empty box offers the places rather than nothing.
+
+    `Ctrl/Cmd+K` is a palette, and a palette that shows a blank panel until you
+    have typed two characters is one you have to already know the answer to.
+    The pages are few and fixed, so they cost one glance and turn the control
+    into a way of *getting somewhere* as well as a way of finding something.
+    */
+    if (normalized.length < 2) {
+      return items.filter((item) => item.kind === "page")
+    }
+    const scored = items
+      .filter((item) =>
+        `${item.title} ${item.hint ?? ""} ${item.haystack ?? ""}`
+          .toLocaleLowerCase()
+          .includes(normalized),
+      )
+      /* A title match beats a body match, because somebody typing "venue"
+         means the thing called venue before the thing that mentions it. */
+      .map((item) => ({
+        item,
+        rank: item.title.toLocaleLowerCase().includes(normalized) ? 0 : 1,
+      }))
+    return scored
+      .sort((a, b) => a.rank - b.rank)
+      .map((entry) => entry.item)
   }, [debouncedQuery, items])
 
-  const groupedResults = statusOrder.map((status) => ({
-    status,
-    rows: results.filter((result) => result.status === status),
+  const groupedResults = kindOrder.map((kind) => ({
+    kind,
+    rows:
+      kind === "task"
+        ? results
+            .filter((result) => result.kind === "task")
+            .sort(
+              (a, b) =>
+                statusOrder.indexOf(a.status ?? "pending") -
+                statusOrder.indexOf(b.status ?? "pending"),
+            )
+        : results.filter((result) => result.kind === kind),
   }))
   const orderedResults = groupedResults.flatMap((group) => group.rows)
 
   function openResult(item: SearchResultItem) {
     onOpenChange(false)
-    onOpenResult(item.id)
+    /* The surface decides what opening one means — a task into its surface, a
+       folder or a page by navigating. Search's job ends at saying which. */
+    onOpenResult(item.id, item.kind)
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -176,7 +249,9 @@ export function SearchOverlay({
       <DialogContent className="top-[12vh] w-[min(680px,calc(100vw-32px))] translate-y-0 overflow-hidden rounded-[var(--radius-xl)] p-0 shadow-[var(--elevation-2)]">
         <DialogHeader className="sr-only">
           <DialogTitle>Search Dana</DialogTitle>
-          <DialogDescription>Search tasks you can access.</DialogDescription>
+          <DialogDescription>
+            Search the tasks, folders and pages you can access.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex h-14 items-center gap-3 border-b border-border px-4">
@@ -190,8 +265,8 @@ export function SearchOverlay({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder="Search tasks"
-            aria-label="Search tasks"
+            placeholder="Search Dana"
+            aria-label="Search Dana"
             aria-controls="dana-search-results"
             aria-activedescendant={
               orderedResults.length > 0
@@ -227,22 +302,6 @@ export function SearchOverlay({
                 <p className="mt-1 text-xs text-muted-foreground">Try searching again.</p>
               </div>
             </div>
-          ) : debouncedQuery.length < 2 ? (
-            <div className="flex min-h-40 items-center justify-center px-6 text-center">
-              <div>
-                <Search
-                  className="mx-auto size-6 text-[var(--color-graphite-400)]"
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                <p className="mt-3 text-sm font-medium text-[var(--color-graphite-700)]">
-                  Search by task title or notes
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Enter at least two characters.
-                </p>
-              </div>
-            </div>
           ) : results.length === 0 ? (
             <div className="flex min-h-40 items-center justify-center px-6 text-center">
               <div>
@@ -260,12 +319,12 @@ export function SearchOverlay({
             <div className="space-y-2">
               {groupedResults.map((group) =>
                 group.rows.length > 0 ? (
-                  <section key={group.status} aria-labelledby={`search-${group.status}`}>
+                  <section key={group.kind} aria-labelledby={`search-${group.kind}`}>
                     <h3
-                      id={`search-${group.status}`}
+                      id={`search-${group.kind}`}
                       className="flex h-7 items-center px-2 text-[0.625rem] font-semibold tracking-[0.08em] text-[var(--color-graphite-500)] uppercase"
                     >
-                      {statusLabels[group.status]}
+                      {kindLabels[group.kind]}
                       <span className="ml-1.5 tabular-nums">{group.rows.length}</span>
                     </h3>
                     <div className="space-y-0.5">
@@ -287,20 +346,40 @@ export function SearchOverlay({
                                 : "hover:bg-[var(--color-graphite-50)]",
                             )}
                           >
-                            {/* A search result names a folder, so it wears
-                                that folder's own mark. */}
-                            <FolderMark
-                              name={item.folder.name}
-                              color={item.folder.color}
-                              className="size-4 shrink-0"
-                            />
+                            {/* Each result wears the mark of what it is: a
+                                task wears its folder's, a folder wears its
+                                own, and a page wears the glyph the sidebar
+                                gives it — all from the one resolver, so a
+                                folder found by searching looks like the same
+                                folder in the sidebar (DES-155). */}
+                            {item.kind === "page" || item.kind === "shelf" ? (
+                              (() => {
+                                const Glyph =
+                                  item.kind === "shelf" ? Folders : pageGlyph(item.title)
+                                return Glyph ? (
+                                  <Glyph
+                                    className="size-4 shrink-0 text-[var(--color-graphite-500)]"
+                                    strokeWidth={1.75}
+                                    aria-hidden="true"
+                                  />
+                                ) : null
+                              })()
+                            ) : (
+                              <FolderMark
+                                name={item.folder?.name ?? item.title}
+                                color={item.folder?.color ?? item.color ?? "var(--color-graphite-900)"}
+                                className="size-4 shrink-0"
+                              />
+                            )}
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm font-medium text-[var(--color-graphite-800)]">
                                 {item.title}
                               </span>
-                              <span className="mt-0.5 block truncate text-xs text-[var(--color-graphite-500)]">
-                                {item.folder.name}
-                              </span>
+                              {item.hint ? (
+                                <span className="mt-0.5 block truncate text-xs text-[var(--color-graphite-500)]">
+                                  {item.hint}
+                                </span>
+                              ) : null}
                             </span>
                             {item.dueDate ? (
                               <span className="flex shrink-0 items-center gap-1 text-xs text-[var(--color-graphite-500)]">
@@ -308,7 +387,7 @@ export function SearchOverlay({
                                 {formatDueDate(item.dueDate)}
                               </span>
                             ) : null}
-                            <StatusBadge status={item.status} />
+                            {item.status ? <StatusBadge status={item.status} /> : null}
                             <ArrowRight
                               className={cn(
                                 "size-4 shrink-0 text-[var(--color-graphite-500)] transition-opacity",

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+import { ViewerFace } from "@/components/viewer-face"
 import { useState } from "react"
 import { Mail, UserPlus, UsersRound } from "@/lib/icons"
 
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/tooltip"
 
 function MemberRow({
+  face,
   initials,
   name,
   joined,
@@ -43,6 +46,10 @@ function MemberRow({
   removable = false,
   onRemove,
 }: {
+  /* The viewer's own row supplies their face, which knows about their
+     picture; everybody else's is initials, because a fixtures prototype has
+     no pictures for other people. */
+  face?: ReactNode
   initials: string
   name: string
   joined: string
@@ -52,9 +59,11 @@ function MemberRow({
 }) {
   return (
     <div className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-[var(--color-graphite-50)]">
-      <Avatar className="size-8">
-        <AvatarFallback className="text-xs font-medium">{initials}</AvatarFallback>
-      </Avatar>
+      {face ?? (
+        <Avatar className="size-8">
+          <AvatarFallback className="text-xs font-medium">{initials}</AvatarFallback>
+        </Avatar>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-foreground">{name}</p>
@@ -115,7 +124,7 @@ export function SharingPanel({
               <h3 id="share-members" className="text-sm font-semibold">Members</h3>
             </div>
             <div className="space-y-0.5">
-              <MemberRow initials="IW" name="Imran Wafa" joined="4 Aug 2026" owner />
+              <MemberRow face={<ViewerFace size="sm" />} initials="IW" name="Imran Wafa" joined="4 Aug 2026" owner />
               {saraPresent ? (
                 <MemberRow
                   initials="S"
