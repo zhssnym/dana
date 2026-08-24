@@ -259,6 +259,26 @@ dates — it belongs in the plan so the plan is honest.
 | D6 | The cut/defer list above | **As listed** |
 | D7 | Desktop-first launch | **Yes**, mobile as its own later phase |
 
+## Ruled
+
+**All seven decisions ruled as recommended by Imran, 2026-08-24** — D1 the
+folder's page, D2 the full A–F build, D3 polling, D4 voice yes, D5 1 GB,
+D6 the cut/defer list, D7 desktop-first.
+
+**And an eighth system question, raised by Imran in the same breath and
+settled the same day: the role axis (DES-225).** "Can a team member delete a
+shared folder?" exposed that the v2 object contract had lost v1's
+owner/member distinction entirely — the member's Leave act was gone from the
+design. The model is now ruled (Rename/Delete the owner's; Leave the
+member's, confirming, no Trash row; everything else any member's;
+arrangement always personal; DES-084's owner-leave question closed via
+ownership transfer with the oldest-member default), **built in the prototype
+with Office as Hassan's folder so the member state is real**, gated in the
+sweep, and probed. Price impact: none on the systems above — `owner_id` and
+the Leave path already exist; the matrix rides the spec RFC as 9.6's
+successor, and the owner-transfer flow adds one small endpoint-and-dialog
+item to System E.
+
 ## The shape of the plan that follows
 
 Once ruled: **V10's hour → the spec RFC (G) → RFC 0004** carrying the

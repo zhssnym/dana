@@ -6,6 +6,7 @@ import { folderGlyph } from "@/components/folder-icon-picker"
 import { ObjectMenu } from "@/components/object-menu"
 import { HistorySheet } from "@/components/history-sheet"
 import { saveFolderAsWorkflow } from "@/lib/folder-acts"
+import { requestLeaveFolder, viewerOwnsFolder } from "@/lib/folder-ownership"
 import { useFolderIdentity } from "@/lib/folder-presentation"
 import type { SortableItemState } from "@/lib/use-sortable-list"
 
@@ -250,7 +251,11 @@ export function FolderRow({
               name={name}
               handlers={{
                 open: onOpenInTab,
-                rename: onRename,
+                /* Rename and Delete are the owner's; Leave is the member's
+                   (DES-225, restoring v1's DES-084). The contract's safety
+                   property does the permission work: the act the viewer's
+                   role does not permit is simply not supplied. */
+                rename: viewerOwnsFolder(name) ? onRename : undefined,
                 move: onMoveToLabel
                   ? {
                       choose: (
@@ -282,7 +287,10 @@ export function FolderRow({
                 /* No prop: a workflow is made from what the shell holds, and
                    the row asks for it the same way Duplicate does. */
                 workflow: () => saveFolderAsWorkflow(name),
-                delete: onDelete,
+                leave: viewerOwnsFolder(name)
+                  ? undefined
+                  : () => requestLeaveFolder(name),
+                delete: viewerOwnsFolder(name) ? onDelete : undefined,
               }}
               width="w-52"
               trigger={

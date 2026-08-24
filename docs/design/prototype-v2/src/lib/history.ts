@@ -65,6 +65,10 @@ export type HistoryVerb =
   | "duplicated"
   | "removed"
   | "deleted"
+  /* Leaving is its own verb because it is neither of its neighbours: the
+     thing is not deleted (it lives on for everyone else) and the person was
+     not removed (they chose to go). One word, DES-225. */
+  | "left"
 
 export interface HistoryEvent {
   id: string
@@ -138,6 +142,7 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
   duplicated: "Duplicated",
   removed: "Removed",
   deleted: "Deleted",
+  left: "Left",
 }
 
 export function sentenceFor(event: Pick<HistoryEvent, "name" | "verb" | "detail">) {

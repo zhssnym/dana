@@ -108,6 +108,7 @@ import { ViewerFace } from "@/components/viewer-face"
 import { FOLDER_THREADS } from "@/lib/folder-threads"
 import { HistorySheet } from "@/components/history-sheet"
 import { saveFolderAsWorkflow } from "@/lib/folder-acts"
+import { requestLeaveFolder } from "@/lib/folder-ownership"
 import { QuickAdd } from "@/components/quick-add"
 import { SharingPanel } from "@/components/sharing-panel"
 import { InlineError, SkeletonList } from "@/components/state-patterns"
@@ -1403,6 +1404,13 @@ export function FolderPageV2({
             "copy-link": onCopyLink,
             duplicate: isDefault ? undefined : onDuplicate,
             workflow: () => saveFolderAsWorkflow(storageName),
+            /* A member's exit, where the owner's Delete would be (DES-225).
+               Never both: the role supplies exactly one way for this folder
+               to stop being on your sidebar. */
+            leave:
+              !isDefault && !isOwner
+                ? () => requestLeaveFolder(storageName)
+                : undefined,
             delete: !isDefault && isOwner ? onDeleteFolder : undefined,
           }}
         />
@@ -2140,18 +2148,28 @@ export function FolderPageV2({
               progress figure is a footnote to the name, not a paragraph of
               its own (Imran, 2026-08-18). */}
           <div className="mt-1.5 flex items-baseline gap-3">
-            <InlineName
-              key={titleEditing ? "menu-edit" : "resting"}
-              value={displayName}
-              ariaLabel={`Folder name: ${displayName}`}
-              className="min-w-0 text-2xl leading-8 font-semibold text-foreground"
-              autoEdit={titleEditing}
-              onDoneEditing={() => setTitleEditing(false)}
-              onCommit={(name) => {
-                setDisplayName(name)
-                onRenameFolder?.(name)
-              }}
-            />
+            {isOwner ? (
+              <InlineName
+                key={titleEditing ? "menu-edit" : "resting"}
+                value={displayName}
+                ariaLabel={`Folder name: ${displayName}`}
+                className="min-w-0 text-2xl leading-8 font-semibold text-foreground"
+                autoEdit={titleEditing}
+                onDoneEditing={() => setTitleEditing(false)}
+                onCommit={(name) => {
+                  setDisplayName(name)
+                  onRenameFolder?.(name)
+                }}
+              />
+            ) : (
+              /* A member reads the name; only the owner may change it — the
+                 folder's name is its address in everyone's sidebar (DES-225,
+                 v1's 9.6 rule). A field that accepted the edit and discarded
+                 it would be worse than no field. */
+              <h1 className="min-w-0 truncate text-2xl leading-8 font-semibold text-foreground">
+                {displayName}
+              </h1>
+            )}
             {completionTotal > 0 ? (
               <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
                 {completedCount} of {completionTotal} done

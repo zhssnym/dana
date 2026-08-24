@@ -195,6 +195,31 @@ export function deletePrototypeFolder(folderName: string) {
   })
 }
 
+/*
+Leaving a shared folder (DES-225).
+
+Deliberately NOT deletePrototypeFolder minus a line: the differences are the
+design. No Trash entry and no undo, because leaving is self-inflicted and
+the way back is an invitation from a member, not a restore — a Trash row
+here would promise a return nobody can grant themselves. The history line
+says "Left", its own verb, because the folder was not deleted (it lives on
+for everyone else) and the person was not removed (they chose to go).
+*/
+export function leavePrototypeFolder(folderName: string) {
+  const current = snapshot()
+  if (current.deleted.includes(folderName)) return
+  record({
+    kind: "folder",
+    subject: folderName,
+    name: current.names[folderName] ?? folderName,
+    verb: "left",
+  })
+  savePresentation({
+    ...current,
+    deleted: [...new Set([...current.deleted, folderName])],
+  })
+}
+
 export function restorePrototypeFolder(folderName: string) {
   const current = snapshot()
   if (!current.deleted.includes(folderName)) return
