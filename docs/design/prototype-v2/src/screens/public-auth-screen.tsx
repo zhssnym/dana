@@ -1,13 +1,9 @@
 import {
   TriangleAlert,
   ArrowLeft,
-  Check,
-  Folder,
   FolderOpen,
   MailWarning,
-  Star,
   UserRoundPlus,
-  UsersRound,
 } from "@/lib/icons"
 import { useState } from "react"
 
@@ -45,155 +41,25 @@ function GoogleGlyph() {
   )
 }
 
-function PreviewTask({
-  title,
-  folder,
-  folderColor,
-  meta,
-  important = false,
-  complete = false,
-}: {
-  title: string
-  folder: string
-  folderColor: string
-  meta: string
-  important?: boolean
-  complete?: boolean
-}) {
+function ShellPreview() {
   return (
-    <div className="flex min-h-11 items-center gap-3 border-b border-[var(--color-graphite-100)] last:border-b-0">
-      <span
-        className={
-          complete
-            ? "flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-graphite-700)] bg-[var(--color-graphite-700)] text-white"
-            : "size-5 shrink-0 rounded-[4px] border border-[var(--color-graphite-300)] bg-white"
-        }
-      >
-        {complete ? <Check className="size-3.5" strokeWidth={2} aria-hidden="true" /> : null}
-      </span>
-      <span
-        className={
-          complete
-            ? "min-w-0 flex-1 truncate text-sm text-[var(--color-graphite-600)]"
-            : "min-w-0 flex-1 truncate text-sm font-medium text-[var(--color-graphite-800)]"
-        }
-      >
-        {title}
-      </span>
-      {important ? (
-        <Star
-          className="size-4 shrink-0 fill-[var(--color-graphite-800)] text-[var(--color-graphite-800)]"
-          strokeWidth={1.75}
-          aria-hidden="true"
+    <figure className="mx-auto w-full max-w-[1280px]">
+      <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-[var(--elevation-2)]">
+        <img
+          src="/v2-shell-travel.png"
+          alt="Dana showing the Travel folder with tasks, sections, sharing, views, filters, and comments."
+          className="block h-auto w-full"
         />
-      ) : null}
-      <span className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--color-graphite-500)]">
-        <Folder className="size-4" style={{ color: folderColor }} strokeWidth={1.75} aria-hidden="true" />
-        {folder}
-      </span>
-      <span className="w-16 shrink-0 text-right text-xs text-[var(--color-graphite-500)]">
-        {meta}
-      </span>
-    </div>
-  )
-}
-
-function ProductPreview() {
-  return (
-    <div className="relative flex h-full min-h-[620px] items-center justify-center overflow-hidden border-l border-[var(--color-graphite-900)] bg-[var(--color-graphite-950)] px-[clamp(36px,4vw,72px)] py-14">
-      <DanaMark
-        className="pointer-events-none absolute -top-36 -right-36 size-[520px] opacity-[0.14]"
-        surface="dark"
-        plate={false}
-      />
-
-      <div className="relative z-10 w-full max-w-[560px]">
-        <div className="flex items-center justify-between gap-5 text-[11px] font-semibold tracking-[0.1em] text-[var(--color-graphite-400)] uppercase">
-          <span>Built around shareable folders</span>
-          <span className="flex items-center gap-2 tracking-normal normal-case">
-            <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            3 people
-          </span>
-        </div>
-
-        <div className="mt-9 overflow-hidden rounded-[14px] border border-white/15 bg-white shadow-[0_24px_80px_rgb(0_0_0/45%)]">
-          <div className="flex min-h-24 items-center gap-3 border-b border-[var(--color-graphite-200)] px-6">
-            <div className="flex size-10 items-center justify-center rounded-[10px] bg-[var(--color-graphite-100)]">
-              <FolderOpen className="size-5 text-[var(--color-graphite-900)]" strokeWidth={1.75} aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium tracking-[0.08em] text-[var(--color-graphite-500)] uppercase">
-                Shared folder
-              </p>
-              <h2 className="mt-0.5 text-lg font-semibold text-[var(--color-graphite-900)]">Travel</h2>
-            </div>
-            <div className="ml-auto flex -space-x-2" aria-label="Folder members: Imran, Sara and Hassan">
-              {[
-                ["IW", "var(--color-folder-cobalt)"],
-                ["SK", "var(--color-folder-rose)"],
-                ["HA", "var(--color-folder-fern)"],
-              ].map(([initials, color]) => (
-                <span
-                  key={initials}
-                  className="flex size-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white"
-                  style={{ background: color }}
-                >
-                  {initials}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="px-6 py-4">
-            <div className="mb-2 flex items-center justify-between text-xs text-[var(--color-graphite-500)]">
-              <span>Today</span>
-              <span className="tabular-nums">1 of 4 complete</span>
-            </div>
-            <div className="border-t border-[var(--color-graphite-200)]">
-              <PreviewTask
-                title="Confirm the final guest count"
-                folder="Travel"
-                folderColor="var(--color-graphite-900)"
-                meta="Today"
-                important
-              />
-              <PreviewTask
-                title="Review the ceremony timeline"
-                folder="Travel"
-                folderColor="var(--color-graphite-900)"
-                meta="2:00 PM"
-              />
-              <PreviewTask
-                title="Share the transport plan"
-                folder="Travel"
-                folderColor="var(--color-graphite-900)"
-                meta="Today"
-              />
-              <PreviewTask
-                title="Send the venue deposit"
-                folder="Travel"
-                folderColor="var(--color-graphite-900)"
-                meta="Done"
-                complete
-              />
-            </div>
-          </div>
-
-          <div className="flex min-h-12 items-center border-t border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-6 text-xs text-[var(--color-graphite-600)]">
-            One folder keeps every person, task, and decision in context.
-          </div>
-        </div>
-
-        <div className="mt-9 flex items-end justify-between gap-8">
-          <p className="text-2xl leading-8 font-medium tracking-[-0.025em] text-white">
-            Plan privately.<br />Coordinate clearly.
-          </p>
-          <p className="max-w-[230px] text-xs leading-5 text-[var(--color-graphite-400)]">
-            Keep personal work focused, then share only the folders that need other people.
-          </p>
-        </div>
       </div>
-    </div>
+      {/* This is a deliberate two-tone brand surface. Its light text must
+          stay light when the semantic theme roles invert. */}
+      <figcaption className="mt-5 flex items-start justify-between gap-8 text-xs leading-5 text-[var(--color-graphite-400)]">
+        <span className="font-semibold tracking-[0.1em] uppercase">Built around shareable folders</span>
+        <span className="max-w-[46ch] text-right">
+          One folder keeps every person, task, and decision in context.
+        </span>
+      </figcaption>
+    </figure>
   )
 }
 
@@ -206,54 +72,99 @@ export function LandingScreen() {
   const headlineByWeight =
     new URLSearchParams(window.location.search).get("headline") === "weight"
   return (
-    <main className="grid min-h-screen grid-cols-[minmax(560px,1fr)_minmax(620px,1fr)] bg-white">
-      <section className="flex min-h-screen flex-col px-[clamp(48px,5vw,80px)] py-10">
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-8 py-6">
         <DanaIdentity />
+        <nav className="flex items-center gap-6 text-sm text-muted-foreground" aria-label="Public navigation">
+          <a href="#privacy" className="rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+            Privacy
+          </a>
+          <a href="#terms" className="rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+            Terms
+          </a>
+        </nav>
+      </header>
 
-        <div className="my-auto max-w-[600px] py-16">
-          <p className="text-xs font-semibold tracking-[0.1em] text-[var(--color-graphite-500)] uppercase">
+      <section className="px-8 pt-16 pb-20 text-center">
+        <div className="mx-auto max-w-[940px]">
+          <p className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
             Personal focus. Shared plans.
           </p>
-          <h1 className="mt-5 text-[clamp(46px,4.2vw,62px)] leading-[1.03] font-semibold tracking-[-0.045em]">
-            <span className="block text-[var(--color-graphite-950)]">Your tasks, kept clear.</span>
+          <h1 className="mt-5 text-[clamp(46px,4.2vw,62px)] leading-[1.03] font-semibold tracking-[-0.045em] text-foreground">
+            <span className="block">Your tasks, kept clear.</span>
             <span
               className={
                 headlineByWeight
-                  ? "mt-1 block font-normal text-[var(--color-graphite-950)]"
-                  : "mt-1 block text-[var(--color-graphite-500)]"
+                  ? "mt-1 block font-normal"
+                  : "mt-1 block text-muted-foreground"
               }
             >
               Your plans, shared.
             </span>
           </h1>
-          <p className="mt-7 max-w-[46ch] text-base leading-7 text-[var(--color-graphite-600)]">
+          <p className="mx-auto mt-7 max-w-[600px] text-base leading-7 text-muted-foreground">
             Dana brings personal tasks and collaborative to-do lists together in clear, shareable folders—so everyone knows what comes next.
           </p>
 
           <Button
             type="button"
-            className="mt-9 h-11 min-w-56 gap-3 bg-[var(--color-graphite-950)] px-5 text-sm font-medium text-white shadow-none hover:bg-[var(--color-graphite-800)]"
+            className="mt-9 h-11 min-w-56 gap-3 bg-foreground px-5 text-sm font-medium text-background shadow-none hover:bg-card-foreground"
           >
             <GoogleGlyph />
             Continue with Google
           </Button>
-          <p className="mt-4 max-w-[44ch] text-xs leading-5 text-[var(--color-graphite-500)]">
+          <p className="mx-auto mt-4 max-w-[44ch] text-xs leading-5 text-muted-foreground">
             Dana requests only your Google profile and email for sign-in, sharing, and invitations.
           </p>
         </div>
 
-        <footer className="flex items-center gap-5 text-xs text-[var(--color-graphite-500)]">
-          <span>© 2026 Dana</span>
-          <a href="#privacy" className="rounded-sm hover:text-[var(--color-graphite-800)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
-            Privacy
-          </a>
-          <a href="#terms" className="rounded-sm hover:text-[var(--color-graphite-800)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
-            Terms
-          </a>
-        </footer>
       </section>
 
-      <ProductPreview />
+      {/* Deliberate two-tone public surface: the graphite ground and reversed
+          mark are brand composition, not theme roles, so they must not invert. */}
+      <section className="relative overflow-hidden bg-[var(--color-graphite-950)] px-8 py-16">
+        <DanaMark
+          className="pointer-events-none absolute -top-36 -right-36 size-[520px] opacity-[0.14]"
+          surface="dark"
+          plate={false}
+        />
+        <div className="relative z-10">
+          <ShellPreview />
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-card px-8 py-16">
+        <div className="mx-auto grid w-full max-w-[1280px] grid-cols-3 divide-x divide-border">
+          <article className="pr-12">
+            <p className="text-2xl leading-8 font-medium tracking-[-0.025em]">Plan privately.</p>
+            <p className="mt-4 max-w-[36ch] text-sm leading-6 text-muted-foreground">
+              Keep personal work focused.
+            </p>
+          </article>
+          <article className="px-12">
+            <p className="text-2xl leading-8 font-medium tracking-[-0.025em]">Coordinate clearly.</p>
+            <p className="mt-4 max-w-[36ch] text-sm leading-6 text-muted-foreground">
+              Share only the folders that need other people.
+            </p>
+          </article>
+          <article className="pl-12">
+            <p className="text-2xl leading-8 font-medium tracking-[-0.025em]">Built around shareable folders</p>
+            <p className="mt-4 max-w-[36ch] text-sm leading-6 text-muted-foreground">
+              One folder keeps every person, task, and decision in context.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <footer className="mx-auto flex w-full max-w-[1280px] items-center gap-5 px-8 py-8 text-xs text-muted-foreground">
+          <span>© 2026 Dana</span>
+          <a href="#privacy" className="rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+            Privacy
+          </a>
+          <a href="#terms" className="rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+            Terms
+          </a>
+      </footer>
     </main>
   )
 }
