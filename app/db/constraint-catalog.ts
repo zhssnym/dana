@@ -362,6 +362,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     checks: [
       { name: 'user_settings_arrangements_object_check', columns: ['arrangements'] },
       { name: 'user_settings_clock_check', columns: ['clock'] },
+      { name: 'user_settings_pinned_views_array_check', columns: ['pinned_views'] },
       { name: 'user_settings_row_density_check', columns: ['row_density'] },
       { name: 'user_settings_sidebar_order_array_check', columns: ['sidebar_order'] },
       { name: 'user_settings_task_open_check', columns: ['task_open'] },
