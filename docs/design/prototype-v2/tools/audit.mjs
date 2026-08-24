@@ -617,7 +617,7 @@ const RULES = [
     */
     check(input) {
       const OBJECT_LABELS =
-        /Delete folder|Delete task|Delete shelf|Label and colou?r|Save as workflow|Copy link|Move to shelf/
+        /Delete folder|Delete task|Delete shelf|Leave folder|Label and colou?r|Save as workflow|Copy link|Move to shelf/
       const out = []
       for (const { path, text } of input) {
         if (/components\/object-menu|lib\/object-acts/.test(path)) continue

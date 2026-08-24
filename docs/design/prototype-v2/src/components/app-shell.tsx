@@ -71,6 +71,12 @@ import {
   readCreatedFolders,
   saveCreatedFolders,
 } from "@/lib/folder-acts"
+import {
+  FOREIGN_FOLDERS,
+  PROTOTYPE_LEAVE_FOLDER_EVENT,
+} from "@/lib/folder-ownership"
+import { leavePrototypeFolder } from "@/lib/folder-presentation"
+import { notice } from "@/lib/undo"
 
 const DEFAULT_SIDEBAR_WIDTH = 256
 const MIN_SIDEBAR_WIDTH = 224
@@ -199,6 +205,10 @@ export function AppShell({
     label: string
     folders: ShellFolderFixture[]
   } | null>(null)
+  /* The one leave-folder confirmation (DES-225): rows and pages raise the
+     request as an event, the shell asks the question — like the one undo bar,
+     because two surfaces asking it differently is how copy drifts. */
+  const [leaveFolderName, setLeaveFolderName] = useState<string | null>(null)
   const [toastVisible, setToastVisible] = useState(Boolean(systemToast))
 
   const baseFolderLabels = new Map(
@@ -319,6 +329,16 @@ export function AppShell({
     window.addEventListener("dana:prototype-new-folder", openNewFolder)
     return () =>
       window.removeEventListener("dana:prototype-new-folder", openNewFolder)
+  }, [])
+
+  useEffect(() => {
+    function askToLeave(event: Event) {
+      const name = (event as CustomEvent<{ name?: string }>).detail?.name
+      if (name) setLeaveFolderName(name)
+    }
+    window.addEventListener(PROTOTYPE_LEAVE_FOLDER_EVENT, askToLeave)
+    return () =>
+      window.removeEventListener(PROTOTYPE_LEAVE_FOLDER_EVENT, askToLeave)
   }, [])
 
   function persistSidebarWidth(width: number) {
@@ -757,6 +777,53 @@ export function AppShell({
                 }}
               >
                 Delete group
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        {/*
+        Leaving confirms; deleting no longer does — and that asymmetry is
+        DES-200's own reasoning pointed the other way. Delete lost its
+        question because a deleted folder has two ways back, the bar and the
+        Trash. Leaving has none you can take yourself: the way back is an
+        invitation, so the question is earned. No Trash row is written and no
+        undo is offered, because either would promise a return nobody can
+        grant themselves (DES-225).
+        */}
+        <AlertDialog
+          open={Boolean(leaveFolderName)}
+          onOpenChange={(open) => {
+            if (!open) setLeaveFolderName(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Leave {leaveFolderName}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {leaveFolderName
+                  ? `You'll lose access to “${leaveFolderName}” and its tasks. The folder stays as it is for ${
+                      FOREIGN_FOLDERS[leaveFolderName] ?? "its owner"
+                    } and the other members, and the way back is an invitation from one of them.`
+                  : ""}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const name = leaveFolderName
+                  if (!name) return
+                  setLeaveFolderName(null)
+                  leavePrototypeFolder(name)
+                  notice(`You left ${name}`)
+                  if (activeFolder === name) {
+                    const nextUrl = new URL(window.location.href)
+                    nextUrl.search = ""
+                    window.location.assign(nextUrl)
+                  }
+                }}
+              >
+                Leave folder
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

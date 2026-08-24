@@ -2755,6 +2755,93 @@ while renaming nothing.
 }
 
 /*
+The role axis (DES-225): a folder shared WITH you offers Leave, never
+Rename or Delete; your own offers the reverse. Driven, not read — the whole
+fault existed because every fixture folder was the viewer's own and no check
+ever asked a member's menu what it held. Leave confirms (the way back is an
+invitation, not a Trash row), removes the folder from the sidebar, records
+"Left", and writes nothing to the Trash.
+*/
+{
+  await p.goto(B + "/?page=today")
+  await p.waitForTimeout(700)
+  await p.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("dana:")) localStorage.removeItem(k)
+    }
+    sessionStorage.clear()
+  })
+  await p.goto(B + "/?page=today")
+  await p.waitForTimeout(800)
+
+  const rowMenuItems = async (folder) => {
+    await p.keyboard.press("Escape")
+    await p.waitForTimeout(200)
+    await p.hover('button[title="' + folder + '"][data-sidebar-tier="folder"]')
+    await p.waitForTimeout(200)
+    await p.click('button[aria-label="Manage ' + folder + ' folder"]')
+    await p.waitForTimeout(350)
+    return p.evaluate(() =>
+      [...document.querySelectorAll('[role="menuitem"]')].map((el) =>
+        el.textContent.trim(),
+      ),
+    )
+  }
+
+  const foreign = await rowMenuItems("Office")
+  if (!foreign.some((item) => /^Leave folder/.test(item))) {
+    bad.push("roles: a folder shared with you offers no Leave — " + foreign.join(", "))
+  }
+  if (foreign.some((item) => /^Rename$|^Delete folder/.test(item))) {
+    bad.push("roles: a member is offered the owner's acts — " + foreign.join(", "))
+  }
+  const owned = await rowMenuItems("Ideas")
+  if (owned.some((item) => /^Leave folder/.test(item))) {
+    bad.push("roles: your own folder offers Leave — " + owned.join(", "))
+  }
+  if (!owned.some((item) => /^Delete folder/.test(item))) {
+    bad.push("roles: your own folder lost Delete — " + owned.join(", "))
+  }
+
+  /* Leaving, driven through the confirm. */
+  await p.keyboard.press("Escape")
+  await p.waitForTimeout(200)
+  await p.hover('button[title="Office"][data-sidebar-tier="folder"]')
+  await p.waitForTimeout(200)
+  await p.click('button[aria-label="Manage Office folder"]')
+  await p.waitForTimeout(300)
+  await p.locator('[role="menuitem"]', { hasText: /^Leave folder/ }).first().click()
+  await p.waitForTimeout(400)
+  const asked = await p.evaluate(() =>
+    Boolean(document.querySelector('[role="alertdialog"]')),
+  )
+  if (!asked) bad.push("roles: leaving did not confirm")
+  await p.locator('button', { hasText: /^Leave folder$/ }).last().click()
+  await p.waitForTimeout(700)
+  const left = await p.evaluate(() => ({
+    gone: !document.querySelector('button[title="Office"][data-sidebar-tier="folder"]'),
+    trash: JSON.parse(localStorage.getItem("dana:prototype-trash") || "[]").map(
+      (item) => item.kind + ":" + item.name,
+    ),
+    verb: JSON.parse(localStorage.getItem("dana:prototype-history") || "[]").some(
+      (event) => event.verb === "left" && event.subject === "Office",
+    ),
+  }))
+  if (!left.gone) bad.push("roles: the folder is still in the sidebar after leaving")
+  if (left.trash.includes("folder:Office")) {
+    bad.push("roles: leaving wrote a Trash row — a return nobody can grant themselves")
+  }
+  if (!left.verb) bad.push("roles: leaving recorded no 'Left' line")
+
+  await p.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("dana:")) localStorage.removeItem(k)
+    }
+    sessionStorage.clear()
+  })
+}
+
+/*
 The stress pass (review V8), as a block rather than a memory.
 
 The invariant checks above all run against the fixtures, which are polite:

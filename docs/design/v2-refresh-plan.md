@@ -377,7 +377,13 @@ then V10's side-by-side against production for the two SESSION-LOG
 verdicts, then the pricing session with Hassan.
 
 **The pricing session was held the same day** — Imran with Claude in
-Hassan's seat, at Hassan's own word. Its record is
+Hassan's seat, at Hassan's own word — **and its seven decisions were all
+ruled as recommended the same evening.** In the same message Imran asked the
+shared-folder question that exposed the v2 contract's missing role axis;
+DES-225 rules the whole matrix (owner's Rename/Delete, member's Leave,
+everything else any member's), closes v1's DES-084, and was built, gated
+and probed in the prototype that hour — Office is Hassan's folder now, so
+the member state is on screen. The session's record is
 `docs/design/v2-pricing.md`: the pile priced as six systems plus the port
 and the September go-live, eight bugs found in the pile's own logic (the
 largest: DES-224's "blocking" question was already answered by section 4's

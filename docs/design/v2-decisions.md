@@ -6193,6 +6193,89 @@ marked "blocking" for a day because nobody had opened `04-data-model.md`.
 Status: OPEN → **APPROVED** as the v2 reminder model, folded into the spec
 RFC's due-date section.
 
+### DES-225, the role axis: what a member may do to a shared folder
+
+Imran, at the pricing session, 2026-08-24: "A folder is shared with a team
+member, can a team member delete that folder? … maybe there are some more
+scenarios too, but you should handle them with proper logical and safe
+reasonings." He had found a real hole: **the v2 object contract had no role
+axis.** v1 had one (DES-084: owners delete, members Leave) and v2 lost it
+without noticing, because every fixture folder was the viewer's own — the
+member's Leave act simply vanished from the design, and every menu offered
+every act to everybody. The contract's own safety property ("an act with no
+handler does not draw") was doing no permission work because nothing varied
+the handlers.
+
+**The model, ruled and built:**
+
+- **Delete and Rename are the owner's.** Each changes or ends the folder
+  *for everybody* — and the name is the folder's address in every member's
+  sidebar and conversation. A member is never offered either; the server
+  refuses them regardless (the 10.2 chokepoint, as v1 already required).
+- **Leave is the member's, and it is not a delete-for-me.** Leaving removes
+  *your membership*: the folder, its tasks, its page and every other member
+  are untouched. There is no per-person copy of a shared folder to delete —
+  one folder, seen by its members, is the model's whole point.
+- **Leaving confirms; deleting does not — and the asymmetry is DES-200's
+  own logic pointed the other way.** Delete lost its confirmation because a
+  deleted folder has two ways back, the undo bar and thirty days of Trash.
+  Leaving has none you can take yourself: the way back is an invitation
+  from a member. So Leave asks first, writes **no Trash row** and offers
+  **no undo** — either would promise a return nobody can grant themselves —
+  and records **"Left"**, its own history verb, because the folder was not
+  deleted and the person was not removed.
+- **Everything else is any member's**: tasks (create, edit, complete,
+  abandon, delete-to-trash), the page's blocks, cover, icon and description
+  (D1 ruled the page the folder's, member-editable, the event log saying
+  who), History, Copy link, Duplicate (the copy is private and grant-free,
+  DES-198), Save as workflow (structure only, DES-206). **Arrangement is
+  always personal and never gated** — shelf, order, label colour (DES-180).
+- **The name/dressing split is deliberate**: members may dress the page but
+  not rename the folder, because the name is identity-as-address (v1 9.6's
+  rule, kept) while the dressing is content. If this ever reads wrong in
+  use it is one rule to flip, recorded here so the flipping is a decision.
+
+**The scenarios, answered directly:**
+
+1. *Member presses Delete on a shared folder* — they cannot; their menu
+   offers Leave where the owner's offers Delete, and the server refuses the
+   act anyway.
+2. *Owner deletes a shared folder* — it goes to the owner's Trash and
+   disappears for **every** member (there is no "deleted only for me");
+   members get a notification event (System A) rather than a silent
+   vanishing; the owner can restore within 30 days, membership intact.
+3. *Member leaves* — their membership ends, their shelf placement goes with
+   it, everyone else is untouched; tasks assigned to the leaver are
+   unassigned by the existing membership-removal rules.
+4. *Owner wants to leave* — **DES-084, open since v1, closes here**: an
+   owner with other members leaves only through ownership transfer
+   (choose a successor; default the longest-standing member, which is
+   4.4's `created_at` order and 8.9's own precedent). A sole owner cannot
+   leave — they delete, which is spec 5.3's existing "delete instead" copy.
+5. *Member deletes a task in a shared folder* — allowed; it goes to Trash,
+   restorable by **any member of that folder** (Trash is scoped by access
+   to the object, not by who deleted it), and the event log says who.
+6. *Desk* — never shareable, never deletable, never leavable; INV-2/3
+   unchanged.
+7. *A member is standing in a folder the owner deletes* — their next write
+   meets the standard not-found discipline (10.2) with the normal failure
+   feedback; the notification explains what happened.
+
+**Built in the prototype the same day**: the `leave` act joined the object
+contract; `lib/folder-ownership` holds the fixture fact (**Office is
+Hassan's**, so the member state is real on screen; `?role=member` still
+forces the member view of any folder); the sidebar row and the folder page
+supply Rename/Delete or Leave by role; a member's page title is a heading,
+not a field; the shell owns the one Leave confirmation; leaving hides the
+folder with no Trash row and a "Left" history line. Both gates green, and
+the new sweep block was watched to fail against two deliberate breaks — a
+member offered Rename, and a Leave that wrote a Trash row.
+
+**Lane 2 rides light**: `folders.owner_id` and the Leave path already exist
+in section 4 and 7.4; the port's work is supplying handlers per role and
+the RFC's work is restating this matrix as spec text (9.6's successor),
+plus the owner-transfer flow of scenario 4.
+
 ## Carried from v1, still unresolved
 
 These are `design-contract.md`'s existing Lane 2 items, listed so a v2 session

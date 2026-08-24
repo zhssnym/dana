@@ -130,6 +130,7 @@ import {
   shelfKey,
 } from "@/lib/shelf-acts"
 import { folderThreadWords } from "@/lib/folder-threads"
+import { viewerOwnsFolder } from "@/lib/folder-ownership"
 import {
   PROTOTYPE_FOLDER_PRESENTATION_EVENT,
   readPrototypeFolderPresentation,
@@ -2738,7 +2739,13 @@ const OWNED_ELSEWHERE = new Set(["done"])
               )
               .map((task) => ({ ...task, folder: undefined }))}
             previewState={searchParams.get("folder-state")}
-            isOwner={searchParams.get("role") !== "member"}
+            isOwner={
+              /* The ownership fact (DES-225): Office is Hassan's in the
+                 fixtures, and `?role=member` still forces the member view of
+                 any folder as the preview instrument it always was. */
+              searchParams.get("role") !== "member" &&
+              viewerOwnsFolder(selectedFolderName)
+            }
             isDefault={selectedFolderName === "Desk"}
             initialShareOpen={searchParams.get("share") === "open"}
             initialFolderAction={
@@ -2884,7 +2891,13 @@ const OWNED_ELSEWHERE = new Set(["done"])
               )
               .map((task) => ({ ...task, folder: undefined }))}
             previewState={searchParams.get("folder-state")}
-            isOwner={searchParams.get("role") !== "member"}
+            isOwner={
+              /* The ownership fact (DES-225): Office is Hassan's in the
+                 fixtures, and `?role=member` still forces the member view of
+                 any folder as the preview instrument it always was. */
+              searchParams.get("role") !== "member" &&
+              viewerOwnsFolder(selectedFolderName)
+            }
             isDefault={selectedFolderName === "Desk"}
             initialShareOpen={searchParams.get("share") === "open"}
             onAdd={(section, title) => {

@@ -46,6 +46,7 @@ import {
   FolderInput,
   History,
   Link2,
+  LogOut,
   Pencil,
   OpenInNewTab,
   Trash2,
@@ -82,6 +83,11 @@ export type ActKey =
   | "workflow"
   | "abandon"
   | "restore"
+  /* The member's exit from a shared folder (DES-225). Group 4 with Abandon's
+     reasoning: it stops your participation and destroys nothing — the folder
+     lives on for everyone else. v1 had this act (DES-084) and v2 lost it
+     because every fixture folder was the viewer's own. */
+  | "leave"
   | "delete"
 
 export interface ActSpec {
@@ -148,6 +154,12 @@ const OBJECT_ACTS: Record<ObjectKind, ActSpec[]> = {
     { key: "copy-link", label: "Copy link", icon: Link2, group: 3 },
     { key: "duplicate", label: "Duplicate", icon: Copy, group: 3 },
     { key: "workflow", label: "Save as workflow", icon: Workflow, group: 3 },
+    /* Leave and Delete are never offered together: a surface supplies the
+       one its viewer's role permits (lib/folder-ownership), which is the
+       contract's own safety property doing the permission work. The ellipsis
+       is honest — leaving confirms, because the way back is an invitation
+       rather than a Trash row. */
+    { key: "leave", label: "Leave folder…", icon: LogOut, group: 4 },
     { key: "delete", label: "Delete folder…", icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
