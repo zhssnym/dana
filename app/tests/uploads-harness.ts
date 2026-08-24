@@ -42,11 +42,13 @@ export function multipartBody(
   }
 }
 
-/** A real, minimal 1x1 PNG so a server that sniffs bytes sees a true image. */
+/** A real 1x1 cobalt PNG (sharp's own output) so a server that decodes
+ * bytes sees a true image; a hand-assembled one was refused for its CRCs,
+ * which is the server doing its job. */
 export const ONE_PIXEL_PNG = Buffer.from(
-  '89504e470d0a1a0a0000000d4948445200000001000000010806000000' +
-    '1f15c4890000000d49444154789c626001000000ffff03000006000557' +
-    'bfabd40000000049454e44ae426082',
+  '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489' +
+    '0000000970485973000003e8000003e801b57b526b0000000d49444154789c63a8' +
+    '2efff61f00064102e8e9eec40b0000000049454e44ae426082',
   'hex',
 )
 
