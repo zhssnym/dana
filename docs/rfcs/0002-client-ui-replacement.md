@@ -13,6 +13,15 @@
 - **Re-accepted:** 2026-08-13 by the human owner, on those three amendments
   alone rather than on the RFC again; numbering re-checked and unchanged by the
   Integration Steward on the same date
+- **Folded:** 2026-08-17. The sixteen delta units below were merged into
+  `docs/spec/` on this date, having sat unfolded since acceptance while the
+  status already read Implemented, found and corrected at the v2 design
+  review. One deliberate departure from the text below: the three section 13
+  items this RFC numbers 35 to 37 are folded as 36 to 38, because the P10
+  release recorded the host's idle suspension as item 35 in the spec file on
+  2026-08-16, while this delta sat unfolded and its claim on the number was
+  invisible; each folded item and the one cross-reference in item 30 carry a
+  note saying so
 - **Target release:** v1, in place of the remainder of package P8D
 - **Spec sections touched:** 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.8, 11.4, 11.13, 12, 13
 - **Frozen interfaces touched:** none
