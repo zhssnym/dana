@@ -1269,3 +1269,103 @@ export function watchWire(page: Page): WireLog {
 export function tzOf(url: string): string | null {
   return new URL(url).searchParams.get('tz')
 }
+
+/* ------------------------------------------------------------------ *
+ * The v2 shell (RFC 0005; AC-214 to AC-225)
+ * ------------------------------------------------------------------ */
+
+/**
+ * 9.1's v2 routes table, the half the v1 `routes` object above does not
+ * carry. Kept beside it rather than replacing it because the v1 criteria
+ * keep asserting their own paths until each is reworked or retired; the two
+ * objects agree wherever they overlap (/app, /app/important, /app/all,
+ * /app/done, the folder page, Settings, People).
+ */
+export const routesV2 = {
+  desk: '/app',
+  today: '/app/today',
+  scheduled: '/app/scheduled',
+  assignments: '/app/assignments',
+  abandoned: '/app/abandoned',
+  anytime: '/app/anytime',
+  trash: '/app/trash',
+  shelf: (id: string) => `/app/shelves/${id}`,
+  task: (id: string) => `/app/tasks/${id}`,
+} as const
+
+/**
+ * PATCH /settings, the v2 bundle of 4.19 beside frozen 7.2's /me/settings.
+ * AC-214's "Done is absent until pinned" is this surface: the pin list is
+ * `pinned_views`, and a criterion about pinning has to write the pin the way
+ * the Settings page of 9.7 does rather than assume the default.
+ */
+export async function patchBundle(
+  page: Page,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.patch('/api/v1/settings', {
+    data: body,
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PATCH /settings answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/** POST /folders. A spec's own folder, so no seed row is ever mutated. */
+export async function createFolder(page: Page, name: string): Promise<{ id: string }> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.post('/api/v1/folders', {
+    data: { name },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `POST /folders for the fixture ${JSON.stringify(name)} answered ` +
+      `${response.status()}: ${await response.text()}`,
+  ).toBe(201)
+  return (await response.json()) as { id: string }
+}
+
+/** DELETE /folders/:id, which since 7.13 marks rather than purges. */
+export async function deleteFolder(page: Page, id: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.delete(`/api/v1/folders/${id}`, {
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `DELETE /folders/${id} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/** POST /shelves (7.16). */
+export async function createShelf(page: Page, name: string): Promise<{ id: string }> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.post('/api/v1/shelves', {
+    data: { name },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `POST /shelves for the fixture ${JSON.stringify(name)} answered ` +
+      `${response.status()}: ${await response.text()}`,
+  ).toBe(201)
+  return (await response.json()) as { id: string }
+}
+
+/**
+ * The tab strip of 9.1, addressed the way its roles table fixes: a tablist
+ * of tabs, the active one current. `getByRole('tab')` resolves through
+ * aria, so these return nothing at all against a client with no strip,
+ * which is the red AC-216 is supposed to show until S9 lands it.
+ */
+export function tabStrip(page: Page): Locator {
+  return page.getByRole('tablist')
+}
+
+export function tabNamed(page: Page, name: string | RegExp): Locator {
+  return page.getByRole('tab', { name })
+}
