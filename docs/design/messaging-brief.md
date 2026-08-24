@@ -19,7 +19,11 @@ must not cross* below.
 ## Where the tree stands
 
 Branch `design/v2-refresh`, baseline **`f2e8fe6`**, working tree clean at the
-time of writing.
+time of writing. *(Updated 2026-08-24: the tree has moved on — commit on top
+of the **current head**, same discipline. And this brief is no longer the
+whole boundary: `codex-handoff.md` widens the lane to the public screens, the
+colour-role conversion and the card's collapse, at Imran's instruction. Its
+test for what belongs in the lane governs both files.)*
 
 That commit is five sessions of work — F3 through F7 — committed as one
 recoverable baseline. It is **unapproved**: Imran's look is owed on DES-155

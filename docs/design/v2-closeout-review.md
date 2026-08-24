@@ -32,8 +32,14 @@ accepted (DES-220), and CircleAlert resolved as moot — it appears in no
 shipping screen. **§4's messaging question is answered**: the surface stays
 with Codex, boundary reaffirmed; nothing in it moves a backend decision.
 What remains to close the phase: S5's pick, the DES-155→222 click-through
-with V10's two verdicts, and V9's handoff package. The ramp-to-role
-conversion stays with the dark session by design.
+with V10's two verdicts, and V9's handoff package.
+
+And later still: **the polish lane went to Codex** (`codex-handoff.md`), at
+Imran's word — the landing page under his direction, the colour-role
+conversion as prep for the dark session, the card's collapse animation, and
+the messaging surface as before. The studio keeps the token values, the
+normative copy, the contracts, the instruments, and V9's records; the
+reference set is captured after Codex's landing pass.
 
 ## 1. Requires backend, frontend already drawn — the priceable pile
 
