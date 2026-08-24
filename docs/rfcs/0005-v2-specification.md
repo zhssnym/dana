@@ -948,7 +948,16 @@ fold, the way P7's mid-package change control ratified the pass callable:
    five duties become four (reminders, session prune, the 30 day Trash
    purge, the 90 day event purge). The 4.14 uniqueness stays as the
    backstop it always was.
-5. **The pin fold ships with S7, not S2.** The rule that the show_* flags
+5. **S5 mid-package, 2026-08-24, three notes.** First, AC-200's date arm
+   first asserted the per-date rule DES-198 rejected; corrected to the
+   design record's whole-plan re-anchor (intervals kept, earliest spent
+   date landing on today). Second, the leave gains an address of its own,
+   DELETE /folders/:id/my-membership, an alias of 5.3's leave with the
+   target fixed to the caller; the 9.6 door and AC-202 walk through it.
+   Third, the 4.3 icon key is pattern-validated until S8 exports the set;
+   the server stores the key opaquely, so tightening to the allowlist later
+   is a validation change and not a migration.
+6. **The pin fold ships with S7, not S2.** The rule that the show_* flags
    fold into the pinned-views value in the same migration that adds it is
    kept literally: that migration is S7's, landing beside the server switch
    whose acceptance line owns "one record of visibility". S2 adding the

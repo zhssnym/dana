@@ -192,6 +192,13 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             'must be a member of the folder the task is created in',
           )
           return
+        case 'section_not_here':
+          fieldError(
+            res,
+            'section_block_id',
+            'must name a section of the folder the task is created in',
+          )
+          return
         case 'created':
           res.status(201).json(result.task)
           return
@@ -259,6 +266,13 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             res,
             'assignee_id',
             'must be a member of the task\'s folder',
+          )
+          return
+        case 'section_not_here':
+          fieldError(
+            res,
+            'section_block_id',
+            'must name a section of the folder the task ends in',
           )
           return
         case 'unassign_single_member':

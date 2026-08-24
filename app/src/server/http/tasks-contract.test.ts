@@ -160,6 +160,7 @@ const TASK_DETAIL_KEYS = [
   'notes',
   'recurrence_rule',
   'reminder',
+  'section_block_id',
   'series_id',
   'steps',
 ].sort()

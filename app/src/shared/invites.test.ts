@@ -44,6 +44,10 @@ const FOLDER = {
   counts: { pending: 1, completed: 0 },
   my_label: null,
   my_color: null,
+  icon: null,
+  color: null,
+  cover_file_id: null,
+  description: null,
 }
 
 /** The 7.4 member element, the settled conversion response's membership. */

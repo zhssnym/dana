@@ -29,6 +29,7 @@ import {
   markNotificationRead,
 } from '../domain/events.js'
 import { accessOf } from '../domain/folders.js'
+import { shelfView } from '../domain/shelves.js'
 import { accessibleTask } from '../domain/tasks.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
@@ -89,9 +90,9 @@ export function createEventsRouter(options: EventsRouterOptions = {}): Router {
       return
     }
 
-    // The subject scope: readable exactly when the subject is (7.12).
-    // Shelves and comments gain their resolutions with the packages that
-    // write their events; until then a reference to one names nothing the
+    // The subject scope: readable exactly when the subject is (7.12). A
+    // shelf is its owner's alone (4.18, S5); comments gain their
+    // resolution with S6; until then a reference to one names nothing the
     // viewer can read, which 10.2 answers as not-found rather than a hint.
     const subject = parseSubjectRef(String(parsed.data.subject))
     const readable =
@@ -99,7 +100,9 @@ export function createEventsRouter(options: EventsRouterOptions = {}): Router {
         ? (await accessOf(db, viewer(req), subject.id)) !== null
         : subject.kind === 'task'
           ? (await accessibleTask(db, viewer(req), subject.id)) !== null
-          : false
+          : subject.kind === 'shelf'
+            ? (await shelfView(db, viewer(req), subject.id)) !== null
+            : false
     if (!readable) {
       sendError(res, 404, 'not_found', 'Not found.')
       return
