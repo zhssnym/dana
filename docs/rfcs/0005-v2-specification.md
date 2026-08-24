@@ -12,13 +12,15 @@
   the pricing session's cut list (`docs/design/v2-pricing.md`) written as
   specification.
 
-> **Draft note on baselines.** Session V0 recorded that RFC 0002's delta was
-> never folded into `docs/spec/` despite its Implemented status. Every Replace
-> unit below that targets section 9 therefore has an ambiguous "before" text.
-> The Steward must resolve that fold-debt first (fold 0002, then this), and
-> the stubbed units below are finalized against the folded text. Units marked
-> **[STUB]** state their full intent and await that baseline; units with
-> fenced bodies are merge-ready as written.
+> **Draft note on baselines — updated 2026-08-24, S0 in progress.** The RFC
+> 0002 fold-debt is **resolved**: the prepared fold branch
+> (`claude/rfc-0002-spec-fold`, sixteen units, the section 13 renumbering
+> documented in the RFC's own Folded line) was reviewed and merged at
+> `04465d1`, so section 9's baseline is now unambiguous. Units 10, 11, 12,
+> 13, 14, 15, 16 and 18 below are merge-ready verbatim. Still **[STUB]**,
+> being the RFC's remaining authoring work against the folded text: units
+> 1–3 (the section 1/2/6 renames), 4–9 (the six section 9 rewrites), and 17
+> (criteria, written red-first by RFC 0004's S1).
 
 ## Summary
 
@@ -64,10 +66,10 @@ section 9 baseline before acceptance (see the Draft note).*
 8. Replace section 9.6 folder page and roles — **the DES-225 matrix**, verbatim body below, woven into the folded 9.6 at finalization — **[PARTIAL: matrix text final]**
 9. Replace section 9.7 settings: the pin list, appearance, preferences bundle — **[STUB]**
 10. Insert new sections 4.13–4.19 — the six systems' tables, **verbatim below**
-11. Replace sections 4.3 and 4.5 to add `deleted_at` columns (expand-only) — **[STUB: one column row each, CHECK-free, default null]**
+11. Replace sections 4.3 and 4.5 — `deleted_at` plus the folder identity columns and the task's section assignment (expand-only) — **verbatim below**
 12. Insert new sections 7.12–7.17 — the six systems' endpoint families, **verbatim below**
-13. Replace section 10 limits table: upload size, quota, import caps — **[STUB]**
-14. Replace section 11.5 migrations note (unchanged rules; adds the Inbox→Desk data migration to the worked example list) and 11.7 tick: the tick carries reminders, trash purge and notification fan-out, single instance restated — **[STUB]**
+13. Replace section 10.3: the limits table gains the v2 rows — **verbatim below**
+14. Replace section 11.7: the pass gains two duties — **verbatim below** (11.5's rules need no change; the Inbox→Desk migration is Compatibility's, executed by RFC 0004's S2)
 15. Append rows to the table in section 11.13 for `prototype-v2/` and `v2-refs/` — **verbatim below**
 16. Append to section 11.15 hazards: ids-never-names in stored client state; the DoneRow duplication to reunify; prototype name-keyed stores are not a storage design — **verbatim below**
 17. Append to section 12: acceptance criteria for each unit above, numbered from the next free number at acceptance — **[STUB: drafted with the criteria package, RFC 0004 S1]**
@@ -247,6 +249,112 @@ Serialized by ids, never display names.
 (12/24), theme (system/light/dark), task-open surface, pinned native views
 (migrating show_important/show_all/show_done in one migration — two records
 of one fact are not kept), sidebar order, per-shelf/folder arrangement keys.
+```
+
+### Replace section 4.3
+
+```markdown
+### 4.3 folders
+
+| Column | Type | Null | Default | Constraint |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| owner_id | uuid | no | none | FK users(id) ON DELETE RESTRICT |
+| name | text | no | none | length 1 to 100 |
+| is_default | boolean | no | false | none |
+| icon | text | yes | none | key from the server-known icon set (RFC 0005) |
+| color | text | yes | none | CHECK matches '#RRGGBB' hex pattern |
+| cover_file_id | uuid | yes | none | FK files(id) ON DELETE SET NULL |
+| description | text | yes | none | length up to 500 |
+| deleted_at | timestamptz | yes | none | set marks Trash; purged by the 11.7 pass at 30 days |
+| created_at | timestamptz | no | now() | none |
+
+UNIQUE INDEX ON (owner_id) WHERE is_default: one Inbox per account (INV-2). ON DELETE RESTRICT on owner_id is a tripwire: the account deletion transaction must transfer or delete owned folders first; if it fails to, the database refuses rather than corrupting. Ownership is read from owner_id only; the role column below never encodes it (one source of truth).
+
+The four identity columns are the folder's, not a member's (pricing decision D1): one look for every member, any member may change it, and the event log of 4.13 records who. A member's personal label and color on 4.4 are untouched and remain per-viewer. Reads exclude rows with deleted_at set except through the Trash surface of 7.13; every query in section 6 gains the implicit `deleted_at IS NULL` guard at fold time.
+```
+
+### Replace section 4.5
+
+```markdown
+### 4.5 tasks
+
+| Column | Type | Null | Default | Constraint |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| folder_id | uuid | no | none | FK folders(id) ON DELETE CASCADE |
+| title | text | no | none | length 1 to 300 |
+| notes | text | yes | none | length up to 10000 |
+| status | text | no | 'pending' | CHECK (status IN ('pending','completed','abandoned')) |
+| important | boolean | no | false | none |
+| due_date | date | yes | none | floating calendar date |
+| due_time | time | yes | none | minute precision; CHECK (due_time IS NULL OR due_date IS NOT NULL); v2 interfaces do not set it (RFC 0005); existing values are honored |
+| recurrence_rule | text | yes | none | RRULE subset, section 4.11; CHECK (recurrence_rule IS NULL OR due_date IS NOT NULL); length up to 200 |
+| series_id | uuid | yes | none | CHECK (recurrence_rule IS NULL OR series_id IS NOT NULL) (INV-13) |
+| assignee_id | uuid | yes | none | see composite FK below |
+| section_block_id | uuid | yes | none | FK page_blocks(id) ON DELETE SET NULL; the section this task sits under on its folder's page (4.17); null is the loose block |
+| created_by | uuid | no | none | FK users(id) ON DELETE RESTRICT (users are soft-deleted) |
+| completed_at | timestamptz | yes | none | CHECK ((status = 'completed') = (completed_at IS NOT NULL)) |
+| completed_by | uuid | yes | none | FK users(id); CHECK ((status = 'completed') = (completed_by IS NOT NULL)) |
+| deleted_at | timestamptz | yes | none | set marks Trash; purged by the 11.7 pass at 30 days |
+| created_at | timestamptz | no | now() | none |
+| updated_at | timestamptz | no | now() | touched on every mutation |
+
+Composite foreign key enforcing INV-4: FOREIGN KEY (folder_id, assignee_id) REFERENCES folder_members (folder_id, user_id) ON DELETE SET NULL (assignee_id). The column-targeted SET NULL form requires Postgres 15 or later; on older engines, drop the ON DELETE clause and unassign inside the member-removal transaction instead (section 8.8 does so anyway; the FK is belt and braces). This constraint also validates folder moves automatically: changing folder_id with a stale assignee fails at the database.
+
+Rationale lines: series_id groups a recurrence chain for guards (INV-7) and Done-page trails; completed_by feeds the My Day recap (Q1R), makes the completion race guard natural (section 8.5), and feeds the activity log of 4.13; updated_at is the last-write-wins tiebreak evidence and the search recency key. Reads exclude rows with deleted_at set except through the Trash surface of 7.13, the same guard 4.3 states for folders; a task in a trashed folder is unreachable while its folder is, and purges with it.
+```
+
+### Replace section 10.3
+
+```markdown
+### 10.3 Input validation and limits
+
+| Value | Limit |
+| - | - |
+| Task title, step title | 1 to 300 characters |
+| Notes | up to 10000 characters |
+| Folder name | 1 to 100 characters |
+| Personal label, shelf name | 1 to 40 characters |
+| Steps per task | 50 |
+| Custom folders per account | 200 |
+| Members per folder | 25 |
+| Recurrence rule string | up to 200 characters, subset of 4.11 only |
+| Reminder offset | 0 to 10080 minutes |
+| Search query | 2 to 100 characters |
+| Calendar range | up to 62 days |
+| List responses | capped at 1000 rows with truncated flag |
+| Email address | up to 320 characters, syntactically valid, stored lowercased |
+| Timezone | valid IANA identifier |
+| Comment body | up to 4000 characters |
+| Page paragraph | up to 4000 characters |
+| Page section name | 1 to 120 characters |
+| Folder and shelf description | up to 500 characters |
+| Blocks per page | 500 |
+| One uploaded file | up to 25 MB; a voice note up to 10 minutes |
+| Files per comment | 10 |
+| Storage per account | 1 GB across every kind of 4.16 |
+| Workflow import | up to 50 folders and 500 blocks per file; structure and titles only, never ids, people, dates or states |
+| Saved views per account | 50 |
+
+All numbers are server-enforced and returned as 422 with the field named, except the storage quota, which returns 413 with the copy of section 9.
+```
+
+### Replace section 11.7
+
+```markdown
+### 11.7 Reminder scheduler
+
+The 8.6 delivery loop runs in-process: a 60-second interval in the server, guarded against overlapping passes, executing the poll-classify-send-mark cycle in a transaction that claims due rows with SELECT ... FOR UPDATE SKIP LOCKED. Consequences, each intended:
+
+- A missed tick self-heals: the poll is over fire_at <= now(), so the next pass picks up anything a missed one would have sent, inside the 6-hour stale window.
+- The deploy overlap window can run two instances for about ninety seconds; SKIP LOCKED makes concurrent ticks contend safely instead of double-sending. A crash between send and mark can duplicate at most one batch; 8.6 accepts duplicates.
+- Tick liveness is monitored separately from process liveness (11.12), because a dead interval inside a live server is invisible to an uptime check.
+- The same pass prunes expired session rows, purges Trash rows whose deleted_at is older than 30 days and events older than 90 (RFC 0005), and fans events out to notification rows — so 8.6's statement that the reminder loop is the only background execution stays true: one scheduled process, five duties. Each added duty claims its rows the way the reminder duty always has, SKIP LOCKED in its own transaction, and each is idempotent, so the missed-tick and overlap properties above hold for all five unchanged. This is also three more reasons the single-instance rule of 11.2 must be flagged before it ever changes, and none of these duties may migrate into request handlers.
+
+The pass is a plain callable function and must stay one: if hosting ever moves somewhere without an always-on process, the replacement is an external per-minute trigger (Google Cloud Scheduler or equivalent) hitting an authenticated endpoint that runs one pass.
+
+That callable is the acceptance suite's only way in, ratified here at the P7 mid-package change control on 2026-08-10 rather than left assumed, the way 11.10 ratified options.notifications when the same need appeared for sends. Everything else the suite reaches, it reaches over HTTP through the 11.10 seam, and frozen section 7 offers no endpoint that runs a pass, so without this the delivery criteria could not be written at all. `app/src/server/scheduler/index.ts` exports the pass as `createReminderPass(deps)` or as `runReminderPass(deps)`, either name, with deps of { dbClient, notifications } reusing 11.10's own option names for the same two things. The tolerance over the name is deliberate and costs nothing: the harness accepts both, so the choice is the implementing session's and no drift is possible in the suite. What is fixed is only what the suite must know in advance, the module path and the two dependencies, both already determined by 11.10 and by the scheduler directory this section's implementer owns; the pass's internals, its transaction shape and its return value are untouched by this and stay that session's. Two things it is not. It is not an HTTP endpoint, adding one being a change to frozen section 7 that the paragraph above contemplates only if hosting moves. And it is not a second export path for production, which composes the same callable at boot as it always did.
 ```
 
 ### Insert new sections 7.12–7.17 after 7.11
