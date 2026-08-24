@@ -25,7 +25,10 @@ import { fileURLToPath } from "node:url"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const appPackage = path.resolve(here, "../../../../app/package.json")
 const { chromium } = createRequire(appPackage)("playwright")
-const B = "http://127.0.0.1:5240"
+/* 5240 is the canonical review server; SWEEP_BASE lets a session gate
+   against its own instance when another session holds the port — two
+   sessions sharing one flapping dev server is how false reds happen. */
+const B = process.env.SWEEP_BASE ?? "http://127.0.0.1:5240"
 const routes = [
   "/", "/?page=today", "/?page=scheduled", "/?page=scheduled&mode=calendar",
   "/?page=assignments", "/?page=important", "/?page=all", "/?page=done",
@@ -2833,6 +2836,90 @@ invitation, not a Trash row), removes the folder from the sidebar, records
   }
   if (!left.verb) bad.push("roles: leaving recorded no 'Left' line")
 
+  await p.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("dana:")) localStorage.removeItem(k)
+    }
+    sessionStorage.clear()
+  })
+}
+
+/*
+The bell (DES-226): notifications drawn for RFC 0005's 9.12. Driven, because
+its whole contract is operations — the badge says the unread count, a row
+goes to its thing and reads itself, mark-all zeroes the badge — and none of
+that is visible to a page at rest.
+*/
+{
+  await p.goto(B + "/?page=today")
+  await p.waitForTimeout(700)
+  await p.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("dana:")) localStorage.removeItem(k)
+    }
+    sessionStorage.clear()
+  })
+  await p.goto(B + "/?page=today")
+  await p.waitForTimeout(800)
+
+  const bell = p.locator('button[aria-label^="Notifications"]')
+  if (!(await bell.count())) bad.push("bell: no notifications control in the header")
+  else {
+    const label = await bell.getAttribute("aria-label")
+    if (label !== "Notifications, 2 unread") {
+      bad.push("bell: the badge does not say the unread count — " + label)
+    }
+    await bell.click()
+    await p.waitForTimeout(400)
+    const list = await p.evaluate(() => ({
+      rows: [...document.querySelectorAll('[data-slot="popover-content"] button')]
+        .map((el) => el.textContent.trim())
+        .filter((t) => /assigned|replied|liked|shared|completed/.test(t)).length,
+      markAll: [...document.querySelectorAll("button")].some(
+        (el) => el.textContent.trim() === "Mark all read",
+      ),
+    }))
+    if (list.rows !== 5) bad.push("bell: " + list.rows + " of 5 rows drawn")
+    if (!list.markAll) bad.push("bell: no Mark all read while unread exist")
+
+    /* A row is a pointer: pressing it reads itself and goes to the thing. */
+    await p.locator('[data-slot="popover-content"] button', { hasText: "venue deposit" })
+      .first()
+      .click()
+    await p.waitForTimeout(1300)
+    /* Not the URL: `?task=` strikes itself out the moment the surface obeys
+       it (DES-211), so the proof is the opened surface, not the address. */
+    const landed = await p.evaluate(() => ({
+      /* The surface's one stable marker in both presentations is its close
+         control; the dialog and the panel each render one. */
+      surface: Boolean(document.querySelector('button[aria-label="Close task"]')),
+      title: document.body.innerText.includes("Send the venue deposit"),
+    }))
+    if (!landed.surface || !landed.title) {
+      bad.push(
+        "bell: the assignment row did not open its task — surface " +
+          landed.surface + ", title " + landed.title,
+      )
+    }
+    const after = await p
+      .locator('button[aria-label^="Notifications"]')
+      .getAttribute("aria-label")
+    if (after !== "Notifications, 1 unread") {
+      bad.push("bell: pressing a row did not read it — " + after)
+    }
+    await p.keyboard.press("Escape")
+    await p.waitForTimeout(300)
+    await p.locator('button[aria-label^="Notifications"]').click()
+    await p.waitForTimeout(300)
+    await p.locator("button", { hasText: /^Mark all read$/ }).first().click()
+    await p.waitForTimeout(300)
+    const zero = await p
+      .locator('button[aria-label^="Notifications"]')
+      .getAttribute("aria-label")
+    if (zero !== "Notifications") {
+      bad.push("bell: mark-all did not zero the badge — " + zero)
+    }
+  }
   await p.evaluate(() => {
     for (const k of Object.keys(localStorage)) {
       if (k.startsWith("dana:")) localStorage.removeItem(k)

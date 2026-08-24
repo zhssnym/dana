@@ -472,7 +472,7 @@ server rendering.
 ```markdown
 ### 9.1 Global chrome
 
-- Sidebar: a navigation landmark and the application's only side chrome. Header carrying the app name (links to /app) and the global search control (Ctrl+K or /). Then the page block, in fixed order: Desk, Today, Scheduled, Assignments, Important, All, plus any unpinned view the pin list of 9.7 has pinned (Done, Abandoned, Anytime, and the viewer's saved views), each present only when pinned and each a link. Then the Library block; then the footer.
+- Sidebar: a navigation landmark and the application's only side chrome. Header carrying the app name (links to /app), the notifications bell (9.12), and the global search control (Ctrl+K or /). Then the page block, in fixed order: Desk, Today, Scheduled, Assignments, Important, All, plus any unpinned view the pin list of 9.7 has pinned (Done, Abandoned, Anytime, and the viewer's saved views), each present only when pinned and each a link. Then the Library block; then the footer.
 - Library: a collapsible block headed "Library", holding the viewer's shelves and folders as one ordered list. A shelf is a collapsible group of folder rows headed by its name; folders on no shelf follow. Each folder row carries the folder's mark (its icon in its colour, 4.3), its name, and its pending count. The order is the viewer's own, seeded alphabetically and rearranged by dragging: rows reorder, move onto and off shelves, and two folders held together create a shelf; shelf headings drag as rows too. A group being closed is never sprung open by a drag hovering it; the drop reads "Into {shelf}".
 - Footer: one primary "New folder" action; then a row of three placed by role — "New shelf", "Import" (a workflow file), and "Trash", the first two acts of making and the third a destination. When the sidebar narrows, "New shelf" keeps its label and the other two drop to icons, all three named by tooltip in every state. Then People and Settings as links; then the avatar menu ("Account": Settings, Help, Sign out).
 - Tab strip: a row of tabs above the window bar, session-scoped working state, never stored server-side. Every tab is the same tab: one anatomy (mark, title, close control), equal treatment, closable, and reorderable by drag. The place the viewer stands on is the active tab. "Open in a new tab" on a folder, shelf, or task appends a tab and goes to it; ordinary navigation retargets the active tab, as an address bar does. Closing the active tab lands on the neighbouring place; closing the last tab lands on Desk. A "+" at the row's end opens any shelf or folder as a tab, or begins New folder, New shelf, or Import.
@@ -537,6 +537,8 @@ Names, the fixed strings a criterion may address; a control not named here is re
 | The important star | "Important" when on, "Mark as important" when off |
 | The filter control | "Filter" |
 | The save-view control inside it | "Save as view" |
+| The notifications bell | "Notifications", suffixed ", N unread" while any are — the badge said aloud |
+| The read-all control inside it | "Mark all read" |
 | A folder's member exit | "Leave folder" |
 | The avatar menu | "Account" |
 | The sidebar's rail control | "Collapse sidebar" / "Expand sidebar" |
@@ -694,6 +696,27 @@ A shelf is the folder page one level up: a per-user arrangement of folders with 
 One page listing every deleted task and folder the viewer can still reach, inside the 30-day window of 4.3/4.5, newest first, each row naming what it was, where it lived, who deleted it and when (from 4.13). Restore puts the thing back where it was as exactly one row; a restored folder returns with its membership intact. Anyone with access to the object may restore it — Trash is scoped by access, not by who deleted. The page states the rule once: "Deleted things stay here for 30 days, then they're gone for good." Empty state: "Nothing in the Trash." No capture anywhere on the page.
 ```
 
+### Insert new section 9.12 after 9.11
+
+```markdown
+### 9.12 Notifications
+
+The bell sits in the sidebar header (9.1) with a monochrome badge carrying
+the unread count, capped at "9+". It opens a list of the viewer's
+notifications (4.14), newest first, each row one sentence — the actor
+emphasised, the act, the thing, and a relative or short time — with unread
+told by tone and a dot, never by hue, and no more than the last 30 days
+rendered. A notification is a pointer, not a task: pressing a row marks it
+read and opens its subject — a task in the viewer's preferred surface via
+its /app/tasks/:id address, a folder at its page — and carries no per-row
+actions; invites never appear here, the gate of 9.8 being theirs. "Mark all
+read" shows while any row is unread and is the surface's only other verb;
+nothing here is deleted by hand, rows aging out with 4.13's retention. An
+actor is never notified of their own act (4.14's rule, restated where a
+reader will look). Empty state: "Nothing new. When someone assigns you a
+task or answers you, it lands here."
+```
+
 ### Insert new section 7.18 after 7.17
 
 ```markdown
@@ -786,11 +809,13 @@ Consequences the delta above creates, stated so none is met as a surprise:
 
 - ~~The folded section 9 baseline~~ — resolved 2026-08-24: the fold merged
   at `04465d1` and every section-9 unit above is written against it.
-- The notifications surface drawing (DES-223 is deliberately undrawn) — a
-  half design day producing section 9.12 and the bell's row in 9.1's names
-  table, before acceptance. The one remaining opening in the delta.
+- ~~The notifications surface drawing~~ — resolved 2026-08-24: drawn as
+  DES-226 in the prototype (the sidebar bell), gated and probed; section
+  9.12 and the bell's names-table rows are in the delta above. **The delta
+  is now complete.**
 - The criteria units (inventory item 17) are authored red-first by RFC
-  0004's S1 and land here as Append/Replace units before acceptance.
+  0004's S1 and land here as Append/Replace units before acceptance — the
+  one remaining opening, and it is S1's by design.
 
 ## Implementation plan
 

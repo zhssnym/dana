@@ -33,6 +33,7 @@ import { ViewerFace } from "@/components/viewer-face"
 
 import { DanaMark } from "@/components/dana-mark"
 import { FolderDirectory } from "@/components/folder-directory"
+import { NotificationsBell } from "@/components/notifications-bell"
 import { FolderRow } from "@/components/folder-row"
 import { folderPageMark } from "@/components/folder-mark"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -159,6 +160,10 @@ function SidebarBrandHeader({ onOpenSearch }: { onOpenSearch?: () => void }) {
           </span>
         </a>
         <div className="ml-auto flex items-center gap-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:flex-col">
+          {/* Awareness is global chrome, so the bell lives with the header's
+              one other everywhere-control rather than in any page's bar
+              (DES-226). */}
+          <NotificationsBell />
           <Tooltip>
             <TooltipTrigger
               render={

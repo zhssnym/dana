@@ -61,8 +61,9 @@ Omitted — RFC 0005 owns it; this plan's S2 executes it.
 - The v2 reference exports (`v2-refs/`) regenerate after the Codex landing
   pass; S8–S13 compare against them, so the export set must exist before S8
   starts (it gates no backend package).
-- The notifications surface drawing (half a design day) must exist before
-  S12 builds its UI; DES-223 stays deliberately undrawn until then.
+- ~~The notifications surface drawing~~ — done 2026-08-24 (DES-226, the
+  sidebar bell, gated and probed); S12 builds against it and RFC 0005's
+  9.12.
 
 ## Implementation plan
 
