@@ -109,6 +109,13 @@
   --color-dana-accent-700: #1346ea;
   --color-dana-accent-800: #113cc9;
 
+  /* W1, the vision's standing constraint, written where the port will meet
+     it first: Dana has ONE accent, and this ramp is it. When AI arrives it
+     renders native — its work drawn with the same ink as a person's, marked
+     by provenance (who did this), never by a second hue. A colour that means
+     "the machine did this" is a decision this file refuses on purpose; do
+     not add a ramp for it. */
+
   /* Semantic colors */
   --color-success-100: #ddf2e2;
   --color-success-200: #bfe5ca;
@@ -153,21 +160,19 @@
   --color-folder-teal: #189c8a;
   --color-folder-sky: #1a92d1;
   /*
-  Cobalt sits at hue 224 and the brand accent at 226 — two degrees apart.
+  Cobalt sits at hue 242 — moved off the accent's 226, ruled 2026-08-24.
 
-  That collision is not new; it has been in DES-018 since the palette was
-  drawn, and it was survivable because both were dull enough that lightness
-  told them apart (49% against 62%). Raising both to 85-ish makes them the same
+  It sat at 224, two degrees from the brand accent, a collision as old as
+  DES-018 that was survivable while both were dull enough for lightness to
+  tell them apart (49% against 62%). DES-215's vividness lift made them one
   colour wearing two names, and a folder whose mark is the interaction colour
-  is exactly what DES-018's "identity, never interaction" line exists to stop.
-
-  It is **not silently re-hued here**, because a folder colour is somebody's
-  choice about their own folder and moving it changes what their sidebar looks
-  like. The proposal, drawn at `?view=swatches` for Imran to rule on, is to
-  move cobalt to about hue 242 — clear of the accent, still clear of violet at
-  259. Until then it keeps its hue and takes the same lift as the rest.
+  is exactly what DES-018's "identity, never interaction" line exists to
+  stop. Imran ruled for vividness and delegated the hue; 242 keeps the
+  saturation and the contrast of the lifted palette, clears the accent at
+  226, and stays clear of violet at 259. The comparison that decided it was
+  drawn at `?view=swatches`.
   */
-  --color-folder-cobalt: #5780f4;
+  --color-folder-cobalt: #7b77f6;
   --color-folder-violet: #9168ee;
   --color-folder-plum: #d73bc0;
   --color-folder-rose: #e5446d;

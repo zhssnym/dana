@@ -225,7 +225,11 @@ export function SettingsScreen({
         </div>
       </header>
 
-      <div className="mt-7 max-w-[820px]">
+      {/* ~560px, not the page measure (review S2): every row here is a label
+          with a control at its far end, and at 820px the switch sat a whole
+          reading-line away from the words that name it. 560 is the same
+          discipline the People screen's form already keeps. */}
+      <div className="mt-7 max-w-[560px]">
         {previewState === "loading" ? (
           <SettingsSkeleton />
         ) : previewState === "error" ? (

@@ -13,7 +13,6 @@ import { useState } from "react"
 
 import { DanaMark } from "@/components/dana-mark"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 function DanaIdentity() {
@@ -199,6 +198,13 @@ function ProductPreview() {
 }
 
 export function LandingScreen() {
+  /* Review S5's instrument: the headline's second line steps back either by
+     tone (the standing treatment) or by weight (`?headline=weight`), and
+     Imran picks by looking — the plan's rule for a decision of this size.
+     The copy does not move either way; the losing rule and the param leave
+     with the decision. */
+  const headlineByWeight =
+    new URLSearchParams(window.location.search).get("headline") === "weight"
   return (
     <main className="grid min-h-screen grid-cols-[minmax(560px,1fr)_minmax(620px,1fr)] bg-white">
       <section className="flex min-h-screen flex-col px-[clamp(48px,5vw,80px)] py-10">
@@ -210,7 +216,15 @@ export function LandingScreen() {
           </p>
           <h1 className="mt-5 text-[clamp(46px,4.2vw,62px)] leading-[1.03] font-semibold tracking-[-0.045em]">
             <span className="block text-[var(--color-graphite-950)]">Your tasks, kept clear.</span>
-            <span className="mt-1 block text-[var(--color-graphite-500)]">Your plans, shared.</span>
+            <span
+              className={
+                headlineByWeight
+                  ? "mt-1 block font-normal text-[var(--color-graphite-950)]"
+                  : "mt-1 block text-[var(--color-graphite-500)]"
+              }
+            >
+              Your plans, shared.
+            </span>
           </h1>
           <p className="mt-7 max-w-[46ch] text-base leading-7 text-[var(--color-graphite-600)]">
             Dana brings personal tasks and collaborative to-do lists together in clear, shareable folders—so everyone knows what comes next.
@@ -370,12 +384,9 @@ export function InviteGateScreen() {
                 Invitations
               </h1>
             </div>
-            <Badge
-              variant="secondary"
-              className="ml-auto border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)] px-2.5 text-[var(--color-graphite-600)]"
-            >
-              {invites.length} pending
-            </Badge>
+            {/* No count chip here (review S3): the dark panel already states
+                the count as its 34px numeral, and a number said twice on one
+                screen is a number the reader has to reconcile. */}
           </div>
 
           {actionError ? (

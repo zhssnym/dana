@@ -20,6 +20,21 @@ and priced-ready (§1), with a short deliberate list that has no drawing yet
 (§2). Nothing here blocks starting the backend *planning*; several things
 block calling the design phase *done*.
 
+## Addendum, later the same day
+
+Step 1 of the run order ran immediately (DES-222): **§3 is closed** — C4
+fixed, C1/C3/S1 verified, C2 recorded superseded, S2/S3/S4 fixed, S5 drawn
+as the `?headline=weight` instrument awaiting Imran's pick, W1's comment and
+P1's scrollbars in the tokens, the `nativeButton` warning killed as a
+mechanism, and the V8 stress pass now a repeatable sweep block. **Three of
+§5's rulings landed**: cobalt moved to hue 242 (DES-215, delegated), Library
+accepted (DES-220), and CircleAlert resolved as moot — it appears in no
+shipping screen. **§4's messaging question is answered**: the surface stays
+with Codex, boundary reaffirmed; nothing in it moves a backend decision.
+What remains to close the phase: S5's pick, the DES-155→222 click-through
+with V10's two verdicts, and V9's handoff package. The ramp-to-role
+conversion stays with the dark session by design.
+
 ## 1. Requires backend, frontend already drawn — the priceable pile
 
 This is what the Lane 2 pricing session with Hassan works through. Each line

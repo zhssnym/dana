@@ -59,7 +59,10 @@ function readEmailContent(): EmailContent {
       contextIcon: CalendarClock,
       contextColor: "var(--color-graphite-700)",
       contextTitle: variant === "date-only" ? "Today" : "Today, 2:00 PM",
-      contextMeta: "Travel · Task reminder",
+      /* The purpose line above already says "Task reminder"; saying it again
+         two lines down was review S4's duplicate. The meta's job is the half
+         the heading has not said — where the task lives. */
+      contextMeta: "In Travel",
       action: "Open task",
       href: "?variant=sidebar-first&view=form&form=expanded&entry=folder&review=edit",
     }

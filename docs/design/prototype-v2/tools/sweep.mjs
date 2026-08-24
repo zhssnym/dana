@@ -33,6 +33,10 @@ const routes = [
   "/?page=people", "/?page=settings", "/?page=trash",
   "/?state=shelf&shelf=Personal", "/?view=states", "/?search=open",
   "/?state=empty", "/?state=offline", "/?view=landing", "/?view=form&form=expanded",
+  /* The two public screens that carried the nativeButton warning for a month
+     precisely because no route reached them — a page the sweep does not load
+     is a page whose console nobody reads (V6). */
+  "/?view=email&type=reminder", "/?view=invites",
   "/?page=abandoned", "/?page=anytime",
   /* The views a link can name. A route check that only asks whether a page
      rendered cannot see *which* view it rendered, which is how ?mode=calendar
@@ -2742,6 +2746,137 @@ while renaming nothing.
   )
   if (!libraryLabel) bad.push("sidebar: the folder block is not labelled Library")
 
+  await p.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("dana:")) localStorage.removeItem(k)
+    }
+    sessionStorage.clear()
+  })
+}
+
+/*
+The stress pass (review V8), as a block rather than a memory.
+
+The invariant checks above all run against the fixtures, which are polite:
+short names, few folders, four steps. These are the extremes the review named
+— a 360px sidebar with a folder name that will not stop, a 100-character
+title, a 50-step task, 20 folders in one group — built through the same
+stores the app reads, so the pass is repeatable instead of a thing somebody
+once looked at.
+*/
+{
+  await p.goto(B + "/?page=today")
+  await p.waitForTimeout(600)
+  await p.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("dana:")) localStorage.removeItem(k)
+    }
+    sessionStorage.clear()
+    const LONG =
+      "Confirm the extended venue contingency arrangements with the caterer, the florist and both transport vendors before Friday"
+    const steps = Array.from({ length: 50 }, (_, i) => ({
+      id: i + 1,
+      title: "Step " + (i + 1) + " of the long checklist",
+      done: i < 12,
+    }))
+    localStorage.setItem(
+      "dana:prototype-copied-tasks",
+      JSON.stringify([
+        {
+          id: "task-stress",
+          title: LONG,
+          myDayGroup: "today",
+          steps: { complete: 12, total: 50 },
+          folder: { name: "Travel", color: "var(--color-graphite-900)" },
+          form: {
+            id: "task-stress", title: LONG, dueDate: "", important: false,
+            notes: "", folder: "Travel", assignee: "Imran Wafa", dueTime: "",
+            reminder: "none", repeat: "none", repeatDays: ["Mo"],
+            repeatInterval: "2", repeatMonthlyDay: "10", repeatEnds: "",
+            invitePending: "", createdAt: "2026-08-04T09:14:00-06:00",
+            createdBy: "Imran Wafa", steps,
+          },
+        },
+      ]),
+    )
+    localStorage.setItem(
+      "dana:prototype-folder-presentation",
+      JSON.stringify({
+        names: {
+          Ideas:
+            "A very long folder name that keeps going and refuses to stop anywhere sensible",
+        },
+        deleted: [],
+        identity: {},
+      }),
+    )
+    const twenty = Array.from({ length: 20 }, (_, i) => ({
+      name: "Stress folder " + (i + 1),
+      pending: 0,
+      color: "var(--color-graphite-900)",
+    }))
+    localStorage.setItem("dana:prototype-created-folders", JSON.stringify(twenty))
+    localStorage.setItem(
+      "dana:prototype-folder-memberships",
+      JSON.stringify(
+        Object.fromEntries(
+          twenty.map((f) => [f.name, { label: "Work", color: "var(--color-graphite-900)" }]),
+        ),
+      ),
+    )
+    localStorage.setItem("dana:desktop-sidebar-width", "360")
+  })
+  const stressPages = [
+    "/?page=today",
+    "/?page=today&task=task-stress&open=tab",
+    "/?state=folder&folder=Ideas",
+    "/?page=all",
+  ]
+  for (const route of stressPages) {
+    await p.goto(B + route)
+    await p.waitForTimeout(900)
+    const shape = await p.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      text: document.body.innerText.trim().length > 40,
+    }))
+    if (shape.overflow) bad.push("stress: horizontal overflow at " + route)
+    if (!shape.text) bad.push("stress: nothing rendered at " + route)
+  }
+  await p.goto(B + "/?page=today")
+  await p.waitForTimeout(900)
+  const stressChecks = await p.evaluate(() => {
+    const row = [...document.querySelectorAll("button, [role='button']")].find(
+      (el) => /extended venue contingency/.test(el.textContent || ""),
+    )
+    const sidebarRows = [...document.querySelectorAll('[data-sidebar-tier="folder"]')]
+    const longRow = sidebarRows.find((el) => /refuses to stop/.test(el.textContent || ""))
+    return {
+      rowFound: Boolean(row),
+      stressFolders: sidebarRows.filter((el) => /Stress folder/.test(el.textContent || ""))
+        .length,
+      /* scrollWidth, not the bounding box: a row whose text refuses to
+         truncate keeps its clamped box and paints the words straight past
+         it, so measuring the box passed while the fault was on screen —
+         this check was watched to MISS its probe once, which is DES-157's
+         BLIND state, and this is the correction. */
+      longRowFits: longRow ? longRow.scrollWidth <= longRow.clientWidth + 1 : null,
+      stepCount: /12\/50/.test(document.body.innerText),
+    }
+  })
+  if (!stressChecks.rowFound) bad.push("stress: the 100-character task is not on Today")
+  if (stressChecks.longRowFits === null) {
+    /* A missing row must not read as a passing one — the first draft of this
+       check returned null for absent and asserted nothing, which is the
+       silent-pass shape DES-157 exists to kill. */
+    bad.push("stress: the long-named folder is not in the sidebar at all")
+  }
+  if (stressChecks.stressFolders !== 20) {
+    bad.push("stress: " + stressChecks.stressFolders + " of 20 folders in the group")
+  }
+  if (stressChecks.longRowFits === false) {
+    bad.push("stress: the long folder name grows its sidebar row")
+  }
+  if (!stressChecks.stepCount) bad.push("stress: the 50-step count is not on the row")
   await p.evaluate(() => {
     for (const k of Object.keys(localStorage)) {
       if (k.startsWith("dana:")) localStorage.removeItem(k)

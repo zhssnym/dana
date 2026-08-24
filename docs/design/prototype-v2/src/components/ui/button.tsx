@@ -1,3 +1,4 @@
+import { isValidElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -61,9 +62,24 @@ function Button({
   size = "default",
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  /*
+  A Button rendered as something else says so itself.
+
+  Base UI's `nativeButton` defaults to true and warns when the `render` prop
+  substitutes a non-<button> — which the two public screens do, rendering
+  their calls to action as real anchors. That warning was carried as a known
+  fault for a month because each call site was expected to remember
+  `nativeButton={false}`; deriving it here from what `render` actually is
+  makes the next anchor-rendered Button correct without anyone remembering
+  (DES-154). An explicit `nativeButton` prop still wins.
+  */
+  const rendersNativeButton =
+    props.render === undefined ||
+    (isValidElement(props.render) && props.render.type === "button")
   return (
     <ButtonPrimitive
       data-slot="button"
+      nativeButton={rendersNativeButton}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

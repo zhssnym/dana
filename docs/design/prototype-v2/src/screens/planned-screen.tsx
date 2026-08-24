@@ -235,7 +235,13 @@ function CalendarEvent({
         "flex w-full items-center gap-1.5 overflow-hidden rounded-[4px] border border-transparent bg-[var(--color-graphite-25)] px-1.5 text-left text-[var(--color-graphite-700)] transition-[background-color,border-color] hover:border-[var(--color-graphite-200)] hover:bg-white focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none",
         compact ? "min-h-5 text-[10px] leading-3" : "min-h-7 text-xs leading-4",
         completed && "bg-white text-[var(--color-graphite-400)]",
-        abandoned && "bg-white text-[var(--color-graphite-500)] line-through",
+        /* Abandoned wears the full treatment only where a chip has room to
+           be read (review C4): at day and week the strike says it plainly,
+           while a month cell's 10px chip quiets to the glyph and a faded
+           tone — a struck-through line at that size reads as damage, not as
+           a state. */
+        abandoned && "bg-white text-[var(--color-graphite-500)]",
+        abandoned && (compact ? "opacity-70" : "line-through"),
         ghost &&
           "border-dashed border-[var(--color-graphite-300)] bg-transparent text-[var(--color-graphite-500)]",
       )}

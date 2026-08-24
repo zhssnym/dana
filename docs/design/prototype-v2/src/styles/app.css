@@ -82,6 +82,16 @@ button:not(:disabled),
   color: var(--color-graphite-900);
 }
 
+/* Thin tokenized scrollbars (review P1). The standard pair rather than the
+ * ::-webkit- pseudo-elements: both engines honour it now, and a scrollbar
+ * drawn from the ramp follows the dark colourway without a second rule.
+ * The track stays transparent so the bar reads as content furniture, not
+ * chrome — a scrollbar is an indicator first and a control second. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-graphite-300) transparent;
+}
+
 /* The desktop TaskForm is deliberately wider than the shadcn Sheet default so
  * its compact field rows do not collapse into a mobile-density layout. */
 [data-slot="sheet-content"].task-form-sheet {
