@@ -53,7 +53,6 @@ import {
   requireTaskRow,
   seedOffsetReminder,
   seedRecurrence,
-  stepRows,
   transition,
   transitionOk,
 } from '../../../tests/tasks-harness.js'
