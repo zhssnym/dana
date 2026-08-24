@@ -22,6 +22,7 @@ import { createRequestErrorHandler } from './observability/request-errors.js'
 import { createDiskStore } from './files/store.js'
 import type { ObjectStore } from './files/store.js'
 import { createConnectionsRouter } from './routes/connections.js'
+import { createConversationRouter } from './routes/conversation.js'
 import { createEventsRouter } from './routes/events.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
@@ -279,6 +280,12 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createWorkshopRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+
+  // The S6 conversation (7.14): threads, replies, likes.
+  app.use(
+    '/api/v1',
+    createConversationRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {
