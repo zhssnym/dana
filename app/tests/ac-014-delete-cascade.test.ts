@@ -1,20 +1,25 @@
 /*
-AC-014: given the owner deletes a custom folder, when the transaction ends,
-then the folder, its tasks of all statuses, steps, My Day entries,
-reminders, and pending folder invites are gone, and the response counts
-match what was deleted.
+AC-014 (as replaced by RFC 0005): given the owner deletes a custom folder,
+then the response carries 7.4's exact counts, the folder leaves every list
+and view, and it waits in Trash with its memberships, tasks of all
+statuses, steps, My Day entries, reminders, and pending invites held; when
+the 30 day window lapses and the pass runs, then all of it is gone.
 
-Section 8.8 makes the deletion one transaction and 7.4 fixes the response as
-200 { deleted: {tasks_open, tasks_completed, tasks_abandoned} }. The counts
-are the dialog's promise, so they are asserted exactly, and 8.11's rule that
-abandoned rows count on neither side of the folder ratio is asserted on the
-way in, against the same rows the deletion will count.
+The v1 criterion asserted the rows gone at delete time, 8.8's one
+transaction being the whole story. RFC 0005 splits it: DELETE marks the
+folder (deleted_at, spec 7.13), the tasks inside carrying no mark of their
+own because a task in a trashed folder is unreachable while its folder is
+(4.5), and the 11.7 pass purges the folder row at 30 days, the named
+cascades of 8.8 firing then. The frozen 7.4 response is unchanged: the
+counts are the dialog's promise either way, so they are asserted exactly,
+and 8.11's rule that abandoned rows count on neither side is asserted on
+the way in, against the same rows the deletion will count.
 
-Everything here rides a control folder alongside: a deletion that sweeps too
+Everything here rides a control folder alongside: a purge that sweeps too
 widely is the failure a cascade test exists to catch, so every gone
 assertion has a still-there twin.
 
-Spec: 7.0, 7.4, 8.8, 8.11.
+Spec: 7.0, 7.4, 7.13, 8.8, 8.11, 11.7 (RFC 0005).
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -37,6 +42,7 @@ import {
   seedTask,
 } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
+import { runPass } from './reminders-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner', 'member'])
@@ -96,7 +102,7 @@ async function stage(): Promise<Stage> {
     await seedReminder(db, pendingAssigned, owner.id)
 
     // Pending folder invites, one carrying a task, and one already terminal:
-    // the invites.folder_id cascade removes them all with the folder (4.9).
+    // the invites.folder_id cascade removes them all at the purge (4.9).
     const doomedInviteIds = [
       await seedInvite(db, { inviterId: owner.id, folderId }),
       await seedInvite(db, {
@@ -111,7 +117,7 @@ async function stage(): Promise<Stage> {
       }),
     ]
     // Controls: a bare invite from the same inviter, and a full second
-    // folder, both of which the transaction must not touch.
+    // folder, both of which neither the delete nor the purge may touch.
     const bareInviteId = await seedInvite(db, { inviterId: owner.id })
     const controlTaskId = await seedTask(db, {
       folderId: controlFolderId,
@@ -146,7 +152,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-014: deleting a custom folder removes everything it holds', () => {
+describe('AC-014: deleting a custom folder marks it, and the pass removes it', () => {
   test('AC-014 adversarial: the folder counts exclude abandoned rows before the delete', async () => {
     // 8.11: abandoned counts on neither side. Asserted against the same
     // rows the deletion response will classify, so the two readings of the
@@ -222,27 +228,88 @@ describe('AC-014: deleting a custom folder removes everything it holds', () => {
     const body = response.json() as { deleted?: unknown }
     expect(
       body.deleted,
-      'the response counts must match what was deleted (spec 7.4: tasks_open, tasks_completed, tasks_abandoned)',
+      'the response counts must match what moved to Trash (spec 7.4: tasks_open, tasks_completed, tasks_abandoned)',
     ).toEqual({ tasks_open: 2, tasks_completed: 1, tasks_abandoned: 1 })
   })
 
-  test('AC-014: the folder and every dependent row are gone', async () => {
-    const { folderId, doomedTaskIds } = await stage()
+  test('AC-014: the folder is marked and every dependent row waits with it', async () => {
+    const { owner, folderId, doomedTaskIds, doomedInviteIds } = await stage()
     const db = app.db
+
+    expect(
+      await countRows(
+        db,
+        sql`SELECT count(*)::int AS n FROM folders
+             WHERE id = ${folderId} AND deleted_at IS NOT NULL`,
+      ),
+      'the folder waits in Trash with deleted_at set (spec 7.13)',
+    ).toBe(1)
+    expect(
+      await folderInList(owner, folderId),
+      'and it has left the list (spec 7.4, the implicit guard of section 6)',
+    ).toBeUndefined()
+    expect(
+      await countRows(
+        db,
+        sql`SELECT count(*)::int AS n FROM folder_members WHERE folder_id = ${folderId}`,
+      ),
+      'its memberships wait: a restore returns the folder to every member (spec 7.13)',
+    ).toBe(2)
+    expect(
+      await countRows(
+        db,
+        sql`SELECT count(*)::int AS n FROM tasks
+             WHERE folder_id = ${folderId} AND deleted_at IS NULL`,
+      ),
+      'its tasks wait unmarked: a task in a trashed folder is unreachable through its folder and needs no mark of its own (spec 4.5)',
+    ).toBe(4)
+    for (const inviteId of doomedInviteIds) {
+      expect(
+        await countRows(
+          db,
+          sql`SELECT count(*)::int AS n FROM invites WHERE id = ${inviteId}`,
+        ),
+        'its invites wait for the purge (spec 4.9)',
+      ).toBe(1)
+    }
+    expect(doomedTaskIds.length, 'the premise still holds').toBe(4)
+  })
+
+  test('AC-014: the trashed folder reads as nonexistent for everyone', async () => {
+    const { owner, member, folderId } = await stage()
+    for (const viewer of [owner, member]) {
+      const probe = await viewer.browser.api(`/folders/${folderId}`)
+      expectStatus(
+        probe,
+        404,
+        'a trashed folder reads 404 for owner and member alike; only 7.13\'s surface sees it (spec 7.0, 10.2)',
+      )
+    }
+  })
+
+  test('AC-014: the lapsed window purges the folder and everything it held', async () => {
+    const { folderId, doomedTaskIds, doomedInviteIds, bareInviteId } =
+      await stage()
+    const db = app.db
+    await db.execute(
+      sql`UPDATE folders SET deleted_at = now() - interval '31 days'
+          WHERE id = ${folderId}`,
+    )
+    await runPass(app)
 
     expect(
       await countRows(
         db,
         sql`SELECT count(*)::int AS n FROM folders WHERE id = ${folderId}`,
       ),
-      'the folder row must be gone (spec 8.8)',
+      'the pass removes the folder row at 30 days (spec 11.7)',
     ).toBe(0)
     expect(
       await countRows(
         db,
         sql`SELECT count(*)::int AS n FROM folder_members WHERE folder_id = ${folderId}`,
       ),
-      'its memberships must be gone (spec 8.8)',
+      'its memberships purge with it (spec 8.8)',
     ).toBe(0)
 
     for (const taskId of doomedTaskIds) {
@@ -251,65 +318,50 @@ describe('AC-014: deleting a custom folder removes everything it holds', () => {
           db,
           sql`SELECT count(*)::int AS n FROM tasks WHERE id = ${taskId}`,
         ),
-        'tasks of every status must be gone (spec 8.8)',
+        'tasks of every status purge with it (spec 8.8)',
       ).toBe(0)
       expect(
         await countRows(
           db,
           sql`SELECT count(*)::int AS n FROM steps WHERE task_id = ${taskId}`,
         ),
-        'steps must be gone with their tasks (spec 8.8)',
+        'steps purge with their tasks (spec 8.8)',
       ).toBe(0)
       expect(
         await countRows(
           db,
           sql`SELECT count(*)::int AS n FROM my_day_entries WHERE task_id = ${taskId}`,
         ),
-        'My Day entries must be gone with their tasks (spec 8.8)',
+        'My Day entries purge with their tasks (spec 8.8)',
       ).toBe(0)
       expect(
         await countRows(
           db,
           sql`SELECT count(*)::int AS n FROM reminders WHERE task_id = ${taskId}`,
         ),
-        'reminders must be gone with their tasks (spec 8.8)',
+        'reminders purge with their tasks (spec 8.8)',
       ).toBe(0)
     }
-  })
 
-  test('AC-014: the folder invites are gone and the bare invite survives', async () => {
-    const { doomedInviteIds, bareInviteId } = await stage()
     for (const inviteId of doomedInviteIds) {
       expect(
         await countRows(
-          app.db,
+          db,
           sql`SELECT count(*)::int AS n FROM invites WHERE id = ${inviteId}`,
         ),
-        'invites carrying the folder must cascade away (spec 4.9, 8.8)',
+        'invites carrying the folder cascade away at the purge (spec 4.9, 8.8)',
       ).toBe(0)
     }
     expect(
       await countRows(
-        app.db,
+        db,
         sql`SELECT count(*)::int AS n FROM invites WHERE id = ${bareInviteId}`,
       ),
-      'a bare invite from the same inviter must survive (spec 8.8)',
+      'a bare invite from the same inviter survives (spec 8.8)',
     ).toBe(1)
   })
 
-  test('AC-014: the deleted folder reads as nonexistent for everyone', async () => {
-    const { owner, member, folderId } = await stage()
-    for (const viewer of [owner, member]) {
-      const probe = await viewer.browser.api(`/folders/${folderId}`)
-      expectStatus(
-        probe,
-        404,
-        'a deleted folder reads 404 for owner and ex-member alike (spec 7.0)',
-      )
-    }
-  })
-
-  test('AC-014 adversarial: the control folder kept every row', async () => {
+  test('AC-014 adversarial: the control folder kept every row through both acts', async () => {
     const { owner, controlFolderId, controlTaskId } = await stage()
     const db = app.db
     expect(
