@@ -348,7 +348,8 @@ relabelling, and every row now runs the prototype before it writes anything.
 | R10 | The landing with his copy and preview panel, the invite gate, and the folder dialogs. Seven closed, none opened, taking the leg to one red | 07 | Unattended | Done, escalated |
 | R11 | The copy sweep, pinned at the one directory that owns it. Found an eleventh copy fault beyond the RFC's table of ten | 08 | Unattended | Done, escalated |
 | R11a | The last red closed: 9.5's "Mark as not done" given back to the task row's completion checkbox, which 9.1's names table, 9.4's row elements, 9.3's confirming control and the designer's own measured Done screen had all already agreed on. The leg reaches 136 of 136 | 07 | Implementers | Done |
-| R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Ready |
+| R12 | The visual review, still a merge precondition under spec 13 item 33, then the findings returns, then the merge review | owner, then each surface's persona, then 12 | mixed | Done via R12a, 2026-08-24 |
+| R12a | **The item-33 verdict, recorded.** Imran walked every production surface beside prototype-v2 on 2026-08-24 through the V10 side-by-side instrument — landing, My Day, Tasks, Planned and its calendar, Important, All, Done, a folder, a task, search, People, Settings — plus the live checklist (focus rings, hover reveals, motion, offline banner). Verdict, in his words: **"v1 good … approved."** No findings; the retroactive line owed since the P8R merge is settled | owner | Manual | Done |
 
 ## P9: hardening (`codex/p9-hardening`)
 
@@ -375,6 +376,15 @@ The web service runs on the host's free plan, which suspends the process while i
 The production database is a Render free instance that **expires on 2026-09-12 and is deleted unless upgraded**, which is why the tag is withheld: a release whose storage has a dated fuse is not a release. The owner chose on 2026-08-16 to defer the hosting decision to early September, with the tested dump of that date held in `Backups/` as the floor under that choice. The migration candidate researched was Supabase's free tier, chosen over Neon because 11.7's 60 second tick means Dana's database is never idle and would exhaust a scale to zero compute allowance within days.
 
 The production database credential was exposed in a screenshot during this session and remains valid. It is reachable from the internet. The planned September migration issues fresh credentials on a new instance and retires it, which is the mitigation of record; anything earlier requires Render support, since the free instance type offers no self-serve password reset.
+
+## Outside the packages: the v2 design phase (`design/v2-refresh`)
+
+The phase's own session record lives in `docs/design/v2-refresh-plan.md`;
+this table carries only the verdict line V10 owed to this log.
+
+| # | Session | Role | Mode | Status |
+| --- | --- | --- | --- | --- |
+| 1 | **The v2 verdict, recorded.** The v2 refresh (register DES-093 to DES-225, `docs/design/prototype-v2/`) was reviewed by Imran beside production 1.0.0 on 2026-08-24, the same V10 walk as R12a, after his zero-findings click-through of the whole ruling backlog earlier that day. Verdict, in his words: **"v2 good, both approved."** Every difference from production reads as an intended change; the design phase is closed, and RFCs 0005 and 0004 carry the work forward | owner, with the design studio | Manual | Done |
 
 ## Outside the packages: infrastructure (`local-ci`)
 
