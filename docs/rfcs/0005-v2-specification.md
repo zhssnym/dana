@@ -56,15 +56,16 @@ section 9 baseline before acceptance (see the Draft note).*
 
 **Unit inventory**
 
-1. Replace section 1.x product summary sentences naming the six pages — **[STUB]**
-2. Replace glossary entries in section 2: My Day→Today, Planned→Scheduled, Inbox→Desk, add Shelf, Board, Event, Notification, Workflow file — **[STUB]**
-3. Replace section 6 view names where Q1–Q8 headings name pages (queries themselves unchanged; All remains Q5's union, Today remains Q1's membership, Scheduled remains Q3) — **[STUB]**
-4. Replace section 9.1 global chrome: the DES-152 sidebar, the tab strip (DES-217), the window bar (DES-139), Library block, footer by role (DES-209/221) — **[STUB]**
-5. Replace section 9.3 task authoring: the row/card/page in place of the form (DES-093/136), day-level due date, reminder as time-of-day, entry defaults per page spine (DES-182) — **[STUB]**
-6. Replace section 9.4 Today: carried/today groups kept; the important-only switch **is the bar filter's switch** (B3's owed sentence lands here) — **[STUB]**
-7. Replace section 9.5 the other views: Scheduled's ladder and calendar, Important, All, Done unpinned, Abandoned and Anytime as unpinned pinnables (DES-170) — **[STUB]**
-8. Replace section 9.6 folder page and roles — **the DES-225 matrix**, verbatim body below, woven into the folded 9.6 at finalization — **[PARTIAL: matrix text final]**
-9. Replace section 9.7 settings: the pin list, appearance, preferences bundle — **[STUB]**
+1. Replace section 1.1's summary paragraph and three bullets of 1.2 — **verbatim below**
+2. Replace and append glossary entries in section 2 — **verbatim below**
+3. Replace five query headings in section 6 and insert one preamble paragraph — **verbatim below**
+4. Replace section 9.1 global chrome — **verbatim below**
+5. Replace section 9.3 task authoring — **verbatim below**
+6. Replace section 9.4 Today — **verbatim below** (B3's owed sentence lands here)
+7. Replace section 9.5 the views — **verbatim below**
+8. Replace section 9.6 folder page — **verbatim below** (carries the DES-225 matrix)
+9. Replace section 9.7 settings — **verbatim below**
+9a. Replace section 9.9 search overlay; insert new sections 9.10 (shelves) and 9.11 (Trash); insert new section 7.18 (search extension) — **verbatim below**. Section 9.12 (notifications surface) is written after its half-day drawing and before acceptance — the delta's one remaining opening, tracked in Open questions.
 10. Insert new sections 4.13–4.19 — the six systems' tables, **verbatim below**
 11. Replace sections 4.3 and 4.5 — `deleted_at` plus the folder identity columns and the task's section assignment (expand-only) — **verbatim below**
 12. Insert new sections 7.12–7.17 — the six systems' endpoint families, **verbatim below**
@@ -74,6 +75,65 @@ section 9 baseline before acceptance (see the Draft note).*
 16. Append to section 11.15 hazards: ids-never-names in stored client state; the DoneRow duplication to reunify; prototype name-keyed stores are not a storage design — **verbatim below**
 17. Append to section 12: acceptance criteria for each unit above, numbered from the next free number at acceptance — **[STUB: drafted with the criteria package, RFC 0004 S1]**
 18. Append to section 13: the open external facts below — **verbatim below**
+
+### Replace the summary paragraph of section 1.1
+
+```markdown
+Dana is a collaborative to-do web application delivered as an installable PWA. A user signs in with Google and gets a set of folders; every task lives in exactly one folder, and a non-deletable default folder named Desk catches anything not filed. Folders are flat, never nested, and are the only shareable unit: sharing one grants another person full access to every task inside it, via an email invite that also creates a lasting people connection for one-tap future sharing. Scheduling is derived, never filed: a task with a due date appears on Scheduled, and Today, Assignments, Important, All, Done, Abandoned and Anytime are queries over the same rows — one page per question, each locking its own axis (RFC 0005, recording DES-152). Today mixes automatic inclusion (assigned to you, due on or before today) with manually pulled tasks, and unfinished items carry forward daily until completed or abandoned. Tasks carry notes, steps, an important flag, optional recurrence, one email reminder, and comments; folders carry an identity (icon, colour, cover, description), page blocks, and a conversation; a member arranges folders on personal shelves. Everything is manual in v2: no AI, no integrations. The goal is unchanged: a boring, correct, low-operations product that a two-person team can run.
+```
+
+### Replace three bullets of section 1.2
+
+*The Folders, Tasks, and Pages bullets; the other bullets of 1.2 are untouched.*
+
+```markdown
+- Folders: one Desk per account plus custom folders; rename (owner); delete to Trash (owner); leave (member); icon, colour, cover and description shared by the folder; page blocks; per-member shelf placement; completion count; duplicate; save and import as a workflow file.
+- Tasks: title, notes, important, due date (day-level in v2 interfaces; a stored due time is honored), recurrence (optionally end-bounded), one reminder at a time of day, steps, assignee (assignable and unassignable), comments with likes and files; three statuses (pending, completed, abandoned) with restore; delete to Trash; duplicate; a URL of its own.
+- Pages: Desk, Today, Scheduled (list, board and calendar), Assignments, Important, All, and the unpinned views Done, Abandoned and Anytime, governed by the pin list; folder pages; shelf pages; Trash; global search; saved views.
+```
+
+### Replace and append glossary entries in section 2
+
+*Each named entry replaces its current line; entries not named are untouched; the new entries append at the end of the list.*
+
+```markdown
+- **Default Folder / Desk**: the one folder per account created at signup, initial name "Desk" (accounts created before RFC 0005 had "Inbox"; the migration renames only defaults still carrying that name). Cannot be shared, deleted, or left; always exactly one member, its owner; never on a shelf.
+- **Home**: the view a task belongs to by derivation: Anytime when due_date is null, Scheduled when set. Never assigned manually.
+- **View**: a page that queries tasks without being their home: Today, Assignments, Important, All, Done, Abandoned. A view is pinned or unpinned per the pin list of 9.7.
+- **Pull into focus**: the manual act of adding a task to the viewer's own Today, stored as a Today entry.
+- **Today entry**: a row (task_id, user_id, added_on) recording a pull. Personal to one user. Stored in the table 4.7 names my_day_entries, which keeps its name; a stored identifier is not display copy.
+- **Carried**: the Today group for items whose qualify date is before today; the complement is the Today group.
+- **Recap**: Today's collapsed section of tasks completed today.
+- **Reminder**: at most one per task: an offset before the due instant (when a stored due_time exists) or a time on the due date — the only mode v2 interfaces create — delivered by email to the assignee.
+- **Shelf**: a per-user container arranging folders, stored as 4.18 plus the member's label of 4.4, held in step by the API. Private by construction: no members, no sharing.
+- **Shelf page**: a shelf's own page of blocks and folder references (4.17), one per shelf, the viewer's alone.
+- **Page block**: one ordered unit of a folder or shelf page: a section, a paragraph, an image, or (shelf pages only) a folder reference.
+- **Event**: one recorded act (4.13): actor, verb, subject, time. The source of history, Activity, and notifications.
+- **Notification**: an event fanned out to a recipient with a read state (4.14).
+- **Trash**: where deleted tasks and folders wait 30 days (deleted_at), restorable by anyone with access to the object, then purged.
+- **Workflow file**: an exported shape of a folder or shelf — structure and titles only, never ids, people, dates, or states — importable to create new folders.
+- **Saved view**: a named, pinnable filter definition of the viewer's (4.19), serialized by ids.
+- **Board**: a page's grouped columns rendered as cards; dropping a card into a column writes that column's value. Offered wherever the page has a grouping; Done's column completes.
+- **Tab strip**: the client's row of open places and tasks. Working state, session-scoped, never stored server-side.
+```
+
+### Replace five query headings in section 6
+
+*Heading lines only; every query's logic, ordering and criteria references are untouched. The v1 page name stays in parentheses because acceptance criteria and older RFCs cite these queries by their original names.*
+
+```markdown
+### Q1: Today, open list (v1: My Day)
+### Q1R: Today, recap section (v1: My Day recap)
+### Q2: Undated open tasks (v1: Tasks; serves Desk's grouping and the Anytime view)
+### Q3: Scheduled, list mode (v1: Planned)
+### Q3C: Scheduled, calendar mode (v1: Planned calendar)
+```
+
+### Insert a paragraph at the end of section 6's preamble
+
+```markdown
+Two v2 notes that touch every query above. First, rows with deleted_at set are excluded everywhere except the Trash surface of 7.13; the guard is implicit in each query rather than restated per query. Second, Assignments is not a query of its own: it is a client-side composition over the open tasks the viewer can already read, grouped by assignee with the unassigned last, which is why it appears in section 9 and not here.
+```
 
 ### Insert new section 4.13 after 4.12 (events)
 
@@ -407,6 +467,241 @@ existing reads; the section 10.2 not-found discipline covers both. No new
 server rendering.
 ```
 
+### Replace section 9.1
+
+```markdown
+### 9.1 Global chrome
+
+- Sidebar: a navigation landmark and the application's only side chrome. Header carrying the app name (links to /app) and the global search control (Ctrl+K or /). Then the page block, in fixed order: Desk, Today, Scheduled, Assignments, Important, All, plus any unpinned view the pin list of 9.7 has pinned (Done, Abandoned, Anytime, and the viewer's saved views), each present only when pinned and each a link. Then the Library block; then the footer.
+- Library: a collapsible block headed "Library", holding the viewer's shelves and folders as one ordered list. A shelf is a collapsible group of folder rows headed by its name; folders on no shelf follow. Each folder row carries the folder's mark (its icon in its colour, 4.3), its name, and its pending count. The order is the viewer's own, seeded alphabetically and rearranged by dragging: rows reorder, move onto and off shelves, and two folders held together create a shelf; shelf headings drag as rows too. A group being closed is never sprung open by a drag hovering it; the drop reads "Into {shelf}".
+- Footer: one primary "New folder" action; then a row of three placed by role — "New shelf", "Import" (a workflow file), and "Trash", the first two acts of making and the third a destination. When the sidebar narrows, "New shelf" keeps its label and the other two drop to icons, all three named by tooltip in every state. Then People and Settings as links; then the avatar menu ("Account": Settings, Help, Sign out).
+- Tab strip: a row of tabs above the window bar, session-scoped working state, never stored server-side. Every tab is the same tab: one anatomy (mark, title, close control), equal treatment, closable, and reorderable by drag. The place the viewer stands on is the active tab. "Open in a new tab" on a folder, shelf, or task appends a tab and goes to it; ordinary navigation retargets the active tab, as an address bar does. Closing the active tab lands on the neighbouring place; closing the last tab lands on Desk. A "+" at the row's end opens any shelf or folder as a tab, or begins New folder, New shelf, or Import.
+- Window bar: a thin strip under the tabs belonging to the window, not the page. Its left end holds the active filter's removable chips; its right end holds the active tab's controls — the view strip, the filter control, the Activity line ("{verb} {ago}", opening the recent events of the thing shown), and the object's overflow menu. The page's title is not repeated in it; the tab already says it.
+- The view strip: one control per place-page offering the views the page can honestly draw — list always; board wherever the page has a grouping (a board column captures with its own value, and dropping a card in a column writes that value); calendar only where having a date is what puts a task on the page, which is Scheduled. The chosen view is one client-side preference across pages; a page not offering the remembered view falls back to list without forgetting it. `?mode=` names a view in the URL.
+- The filter: one control with the same meaning on every place-page — due presence and ranges, assignee (multi-value, "Unassigned" included), important, repeating, created-by, show-abandoned, group-by, sort, and "Save as view". Active state renders as removable chips in the window bar, never as a count alone. A filter belongs to the page and to the session: kept on return to that page, never carried to another. Grouping replaces the page's own arrangement rather than nesting inside it.
+- Capture: each page has one always-visible capture point. Quick-add rows sit where a page has a natural landing place (a section, a group, a list foot); in board view every column captures and the floating button is absent; the floating "Add task" button appears only on the pages with no capture affordance of their own — Today, Important, and Assignments — and never on Done or Abandoned. Every capture creates the task with the entry defaults of 9.3 for where it stands, so a task made on a page appears on that page.
+- Undo: one bar for the whole window, bottom-left, naming the act it can take back ("Deleted "{title}""), for five seconds, with Ctrl+Z or Cmd+Z as its shortcut; no redo. Acts register their own inverse; the bar is the same sentence the event log records. Undo issues the inverse mutation — no write is ever held back waiting for the window to close.
+- Offline banner (global, persistent while offline): "You're offline. Dana needs a connection; changes can't be saved right now." Writes attempted offline fail with the toast "Couldn't save. You're offline."
+- Global error toast for failed requests: "Something went wrong. Nothing was saved. Try again." 409 conflicts show the state machine copy of 5.1 verbatim; a stale page-block write (4.17) uses the same treatment.
+
+Routes. The paths are derived as before: 11.1 gives the server the landing page and the built client, 10.6 fixes the installed app's start_url at /app, and the page set and order are this section's own. /app renders Desk, the account's default folder, which is where the product lands a person with nothing else asked for.
+
+| Surface | Path |
+| - | - |
+| Landing (9.2) | / |
+| Desk | /app |
+| Today | /app/today |
+| Scheduled | /app/scheduled |
+| Assignments | /app/assignments |
+| Important | /app/important |
+| All | /app/all |
+| Done | /app/done |
+| Abandoned | /app/abandoned |
+| Anytime | /app/anytime |
+| Folder page (9.6) | /app/folders/:id |
+| Shelf page (9.10) | /app/shelves/:id |
+| A task (9.3) | /app/tasks/:id |
+| Trash (9.11) | /app/trash |
+| Settings (9.7) | /app/settings |
+| People (9.8) | /app/people |
+
+The two retired v1 paths redirect rather than 404, because bookmarks exist: /app/planned to /app/scheduled, and /app/tasks to /app. A hidden (unpinned) page still renders at its URL, as AC-095 has always required. The search overlay, Planned's old mode split, the unverified-email response and the invite gate keep their pathless rationales unchanged. /app/tasks/:id opens the task in the viewer's preferred surface over the page beneath; an inaccessible or absent id answers with the 404 copy of this section under 10.2.
+
+Addressing. Every control this section names is reachable by its accessible role and by its normative name; the copy above is what a screen reader announces and what a test addresses. Roles, carried and amended:
+
+| Element | Role |
+| - | - |
+| The sidebar | A navigation landmark |
+| The page entries, and each folder and shelf row | Links |
+| A task row | A list item, or a row |
+| A tab in the strip | A tab, current when active |
+| The task surface | A dialog when opened as one; a page when opened as a tab or by its URL |
+| A toggle switch | A switch |
+| A calendar day | A grid cell within a grid |
+| A board column | A named region; its cards, list items or rows |
+
+Names, the fixed strings a criterion may address; a control not named here is reached by its role in the ordinary sense:
+
+| Control | Name |
+| - | - |
+| Global search control | "Search" |
+| Floating add button | "Add task" |
+| Inline quick-add, collapsed and expanded alike | "Add a task" |
+| The strip's new-tab control | "New tab" |
+| A tab's close control | "Close tab", addressed within the tab its title names |
+| Every overflow menu (a row's, a folder's, a shelf's, the surface's) | "More actions" |
+| The two controls of every confirmation | "Continue" and "Cancel" |
+| The inline retry control | "Try again" |
+| A task's completion control | "Complete task" when open, "Mark as not done" when complete |
+| The footer's four actions | "New folder", "New shelf", "Import", "Trash" |
+| The important star | "Important" when on, "Mark as important" when off |
+| The filter control | "Filter" |
+| The save-view control inside it | "Save as view" |
+| A folder's member exit | "Leave folder" |
+| The avatar menu | "Account" |
+| The sidebar's rail control | "Collapse sidebar" / "Expand sidebar" |
+| The two resize handles | "Resize sidebar" and "Resize panel" |
+
+Regions. Every section a page's structure names is a named region; the name is the heading where this section gives one and the datum the section is generated from where it does not. Per page: the sidebar, one region per shelf named by it; Today, "Carried over", "Today", "Done today (N)"; Scheduled's list, one per ladder rung named as its heading reads; Assignments, one per person named by them, "Unassigned" last; All, its two halves' regions as their home pages define them; Done, one per day group; a folder page, one per user section named by it, plus "Completed" and "Sharing panel"; a board, one region per column named by its value; the tab strip's tabs, each addressed by its title. A collapsible section remains a named region plus a control carrying that name, whose expanded state is what open and collapsed mean.
+
+Inline state copy, normative and unchanged from v1:
+
+| State | Copy |
+| - | - |
+| A read that failed, beside the thing that failed | "Couldn't load this. Nothing was changed.", with "Try again" |
+| A resource that answers 404 (10.2) | "Not found. This may have been deleted, or it may never have been yours to see." |
+| A response carrying truncated (section 6's cap rule) | "This list is long, so only the first part is shown. Narrow it down to see the rest." |
+| A write refused by the storage quota (10.3) | "Out of space. Delete some files in Settings, or remove attachments you no longer need." |
+
+The inline failed-read line is the page's own words and never the global toast's; the two answer different questions, and a page showing "Nothing was saved" where nothing was being saved tells a person something false about their own data.
+```
+
+### Replace section 9.3
+
+```markdown
+### 9.3 The task (create and edit are one artifact, and the artifact is the task)
+
+There is no task form. A task is its row, its card, and its page: the row expands in place into the card; the card is the same surface a dialog, a side panel, or a tab presents; and /app/tasks/:id is that surface as a page. Every edit commits as it is made — there is no Save control and no draft state — and the undo bar of 9.1 covers the destructive ones. Where a task opens (dialog, panel, or tab) is a client-side preference; a row offers the choice and remembers it. The side panel makes the page narrower rather than covering it. A task opened as a tab carries its own window-bar controls, and its folder and section stand at the bar's left.
+
+The card holds, in order: the title (editable in place, required); a header strip of chips — due date, folder, assignee, reminder, repeat — each opening its picker in place; then Steps, Notes, and Attachments as blocks; then Comments (9.6's conversation rules apply); then a footer toolbar carrying the completion control, the star, and "More actions" (History, Copy link, Duplicate, Move to folder, Make this a folder, Abandon or Restore, Delete). The pickers open on the answer, not the instrument: resolved presets first, a calendar or list behind them, one shape at one width.
+
+Field rules:
+
+| Field | Rule |
+| - | - |
+| title | 1 to 300; empty commits are refused with "Give it a title" |
+| due date | a day; the pickers offer no time of day (a stored due_time from v1 is displayed and clearable, never settable) |
+| reminder | requires a due date; one picker, a time on that day, writing 4.8's time_of_day mode; disabled helper "Set a due date first" |
+| repeat | requires a due date; preset-driven exactly as v1 (daily, weekdays, weekly on chosen days, every N days or weeks, monthly on day 1 to 28, yearly, optional "Ends on"); never a raw RRULE box; same helper |
+| folder | the real folder library plus "New folder…" |
+| assignee | the target folder's members plus "Invite by email", and — new in v2, closing section 13 item 28 — "Unassigned", offered last after a separator; hidden in single-member folders (INV-5) |
+| steps | add, check, delete, reorder by drag or keyboard; cap notice "Limit 50 steps" |
+| notes | up to 10000 |
+| attachments | files and links per 4.16 and 10.3; a pasted URL becomes a link, never a fake file |
+
+Clearing the date keeps 8.4's warning verbatim: "Clearing the date also ends the repeat and removes the reminder." Moving keeps the unassign warning: "Moving will unassign Sara; she isn't a member of Home." Deleting moves the task to Trash with the undo bar, and no confirmation: two ways back is why the question left. The completion control and the history read stay: the footer renders the task's own events from 4.13 — created, completed, and the rest — actor and viewer-local time, "Deleted user" fallback unchanged.
+
+Entry defaults, derived from the page's own spine so a made task appears where it was made:
+
+| Opened from | defaults |
+| - | - |
+| Desk, All, or the bare strip control | folder Desk, undated |
+| Today | folder Desk, a Today entry (membership), dated today |
+| Scheduled list | folder Desk, dated today |
+| A calendar cell | folder Desk, dated that cell's day |
+| Important | folder Desk, important on |
+| Assignments | folder Desk, assigned to the viewer |
+| A folder page, its loose block | that folder |
+| A section's capture | that folder, that section |
+| A board column | that column's value, whatever its axis — folder, person, day, or section |
+
+Validation copy is v1's: "Give it a title", "Too long: limit N characters", 422 with the field named.
+```
+
+### Replace section 9.4
+
+```markdown
+### 9.4 Today
+
+Structure: the shared page head (the page's mark, title, editable description, and the fact "N of M done"); then the Carried group (heading "Carried over"); the Today group (heading "Today"); and the recap collapsed at bottom (heading "Done today (N)").
+
+The important-only narrowing is the window bar filter's important switch; the page's header carries no control of its own for it, because two controls for one variable forty pixels apart is how the two disagree. `?state=important` (and any link that means "Today, important only") seeds that filter rather than a page-local switch.
+
+Row elements are the row's own (9.3), with this page's emphasis rules: a carried row keeps its "Carried over" words and drops the red — a warning true of every row in the group warns nobody; the pulled marker and its "Remove from My Day" un-pull control carry from v1 unchanged in behavior, the control reading "Remove from Today"; an unfiled task's folder chip says Desk. Abandon-from-here copy carries: "Abandon this task? It stops appearing in Today but stays everywhere else." Empty state per Q1. Error state: global toast plus inline retry.
+
+A task row opens that task, on every page that draws one and whatever the task's status — the rule of v1's 9.4, unchanged, now through the surfaces of 9.3.
+```
+
+### Replace section 9.5
+
+```markdown
+### 9.5 Scheduled, Assignments, Important, All, and the unpinned views
+
+- Scheduled: everything with a date. The list is Q3's order under a ladder of headings — Today, Tomorrow, the days of this week, then week and month rungs — headings being structure, not controls; a row says "Due tomorrow" about one task and a heading says "Tomorrow" about a bucket, one date vocabulary at two altitudes. The calendar keeps Q3C whole: day, week, month zooms; previous/next/today; six-week month grid, Monday start; all-day before timed; times prefix timed chips at every zoom; ghost styling and the banner "Upcoming occurrence of a repeating task"; empty cell creates with that date; "+N more" is a control opening the day. An abandoned chip at month zoom quiets to its glyph and a faded tone, the strike appearing only at day and week. Mode and zoom persist client-side; `?mode=` reaches them by URL.
+- Assignments: who is carrying what — every open task the viewer can read, grouped by person, the viewer's own group first, "Unassigned" last; the "from" half of a row names the creator, Dana recording no assigner. The board groups by person; dropping a card on a person assigns them. Capture assigns the viewer.
+- Important: single list per Q4; un-star removes immediately; the star's two names are 9.1's. On this one page the star rests unfilled, because a filled star on every row of the starred page distinguishes nothing.
+- All: locks nothing — Q5's union rendered whole, with completed work carried in a collapsed section at the foot. Section labels are static.
+- Done: unpinned by default (the pin list governs); day-grouped infinite scroll per Q6; rows drop the spent due-date echo under headings that already group by completion; "Mark as not done" with the G-SERIES successor confirmation verbatim; no capture anywhere on the page.
+- Abandoned: an unpinned view of the one status with no other home; faded, struck, chip and "Restore" per the row's rules; no capture, because a task made pending would be filtered off the page it was made on.
+- Anytime: an unpinned view of undated open work (Q2's rows, ungrouped).
+
+Completing is immediate on the wire, as v1 ruled: no write is held back. What v2 adds is the undo bar of 9.1, which takes a completion back by issuing the inverse transition as a new mutation — the same "Mark as not done" a person could press on Done, offered for five seconds where they stand.
+```
+
+### Replace section 9.6
+
+```markdown
+### 9.6 Folder page
+
+The folder page is a page in the full sense: a cover it can be given; its mark (the identity control — pressing it opens the icon-and-colour picker, writing 4.3's shared identity); its name (inline rename, owner only; members read a heading); its editable description; and its body — the loose open tasks with a quick-add, then the page's blocks (sections, paragraphs, images, per 4.17) with tasks assigned to sections, a capture per section, an insert affordance between blocks, and the Completed section collapsed at the foot. Ordering within sections and the block arrangement are the folder's, shared by every member; the filter of 9.1 narrows the page without touching its arrangement. The folder's conversation has two homes — a closed section at the page's foot, or the side panel — switched from the surface itself; a message is told apart by tone, never hue; likes are the whole reaction set.
+
+Who may do what, the role matrix (RFC 0005, recording DES-225):
+
+| Act | Owner | Member |
+| - | - | - |
+| Rename, Delete | yes | no — the name is the folder's address, and delete ends it for everybody |
+| Leave | only via ownership transfer (below) | yes |
+| Tasks: create, edit, complete, abandon, delete-to-Trash | yes | yes |
+| The page: blocks, cover, icon, colour, description | yes | yes — the event log says who |
+| History, Copy link, Duplicate, Save as workflow | yes | yes |
+| Share, remove a member | per the 5.4 matrix, unchanged | per 5.4 |
+| Shelf placement, sidebar arrangement, label colour | personal, always | personal, always |
+
+A surface offers exactly the acts the viewer's role permits — Leave where Delete would be, never both — and the server refuses the rest regardless (10.2). Deleting moves the folder to Trash for every member at once, with the undo bar and no confirmation; members are notified (4.14). Leaving confirms — the way back is an invitation, not a Trash row — writes no Trash entry, offers no undo, and records "Left": "Leave Work? You lose access to it, and anything in it assigned to you becomes unassigned." An owner with other members leaves only by transferring ownership first (7.16), choosing a successor, defaulting to the longest-standing member per 8.9's order; a sole owner is offered Delete instead, 5.3's rule unchanged. Remove-a-member keeps its v1 confirmation verbatim. Each confirmation renders as one sentence, restyled never reworded.
+
+Duplicate takes the structure and never the grants or the progress: tasks, sections, paragraphs, and section assignments copy; members, sharing, the conversation, assignees, and completion do not; spent due dates re-anchor on today and future ones keep. The copy is the duplicator's own private folder.
+
+The sharing panel carries v1's spec unchanged: member list with joined dates and remove controls per 5.4, roster picker, email invite, pending list with Cancel and Resend ("Resent recently" inside 24 hours).
+
+The "Label and color" dialog is retired: the folder's icon and colour are the shared identity above, set from the mark; a member's personal shelf placement is "Move to shelf" on the row; and 4.4's per-member color column is no longer written by any v2 surface (existing values are simply unused — the column is frozen and stays).
+```
+
+### Replace section 9.7
+
+```markdown
+### 9.7 Settings
+
+Sections, each a named region:
+
+- Views — the pin list: every view Dana has, native and saved alike, each with the page's own mark, its one-line question, and a pin switch; Desk locked with the note "Desk cannot be unpinned: it is where a task goes when you have not said where, so it has to stay reachable." Done, Abandoned and Anytime ship unpinned; there is no "Completed" entry, Done already being it.
+- Appearance — the theme control (system, light, dark); row density (comfortable, compact); the clock (12-hour, 24-hour); where a task opens (dialog, panel, tab).
+- Account — Google identity display; profile picture upload (7.15); detected timezone display with the note "Dana follows your device's timezone automatically"; storage used against the quota of 10.3; Sign out.
+- People — a link to 9.8's screen.
+- Danger zone — Delete account, unchanged from v1: two sentences of consequence, typed DELETE, then 8.10: "Folders you share will be handed to their longest-standing member. Private folders and their tasks are permanently deleted."
+```
+
+### Replace section 9.9
+
+```markdown
+### 9.9 Search overlay
+
+Opened by the sidebar's search control or shortcut; input with 300 ms debounce; before anything is typed it offers the places — pages, folders, shelves — as rows to go to. Results group by kind: tasks (matching title, notes, and step titles), folders and shelves (name and description), and pages (matching a page's own prose — sections, paragraphs, captions). Task results keep the Pending, Abandoned, Completed subgrouping of Q8; enter opens the first result; a row opens its thing in place. Footer: "Showing matches from every folder you can access."
+```
+
+### Insert new section 9.10 after 9.9
+
+```markdown
+### 9.10 Shelves
+
+A shelf is the folder page one level up: a per-user arrangement of folders with a page of its own — cover, mark (icon and colour), name (inline rename; renaming rewrites the member labels and re-addresses the page in one act), editable description, and blocks. Folder rows appear on the page as blocks among the writing: their presence is the membership's fact, their position the page's arrangement; a folder row under a heading folds with it; pressing one opens that folder as its own tab. An "Add folder" row offers every folder not on the shelf (never Desk) and "New folder…". The shelf's overflow carries its contract: History, Rename, Copy link, Duplicate (the page, no folders — a folder is on one shelf), Save as workflow, Delete. Deleting a shelf unlabels its folders and keeps them. A shelf offers no views and no filter: a view redraws tasks and a shelf holds folders; its list is its label, and narrowing it would be editing it. Shelves are private by construction — no link to send grants anything, no members exist (DES-195/196); the page's address is still copyable, an address not being an invitation.
+```
+
+### Insert new section 9.11 after 9.10
+
+```markdown
+### 9.11 Trash
+
+One page listing every deleted task and folder the viewer can still reach, inside the 30-day window of 4.3/4.5, newest first, each row naming what it was, where it lived, who deleted it and when (from 4.13). Restore puts the thing back where it was as exactly one row; a restored folder returns with its membership intact. Anyone with access to the object may restore it — Trash is scoped by access, not by who deleted. The page states the rule once: "Deleted things stay here for 30 days, then they're gone for good." Empty state: "Nothing in the Trash." No capture anywhere on the page.
+```
+
+### Insert new section 7.18 after 7.17
+
+```markdown
+### 7.18 Search extension
+
+GET /api/v1/search gains additive result kinds beside Q8's tasks: folders and shelves (matched on name and description) and pages (matched on block text), each entry carrying its kind, id, name, and route. Task matching extends to step titles. The query contract, debounce expectations, the 2-to-100-character limit, and the 1000-row cap are unchanged; a client that ignores the new kinds sees exactly the v1 response.
+```
+
 ### Append rows to the table in section 11.13
 
 ```markdown
@@ -449,8 +744,22 @@ owner-renamed defaults keep their names (DES-152). (2) `user_settings`
 visibility flags fold into the pinned-views value in the same migration that
 adds it. (3) Existing offset-mode reminder rows keep firing wherever a
 `due_time` exists; the v2 interface creates time-of-day rows only (DES-178,
-DES-224). Existing criteria invalidated or reworded are enumerated with the
-criteria package (RFC 0004, S1) and land as Replace units before acceptance.
+DES-224).
+
+Consequences the delta above creates, stated so none is met as a surprise:
+
+- The retired paths redirect: /app/planned → /app/scheduled, /app/tasks →
+  /app. No bookmark 404s.
+- `my_day_entries` (4.7) keeps its table name while every surface says
+  Today; a stored identifier is not display copy.
+- `folder_members.color` stops being written by any v2 surface; the frozen
+  column stays, existing values unused. The folder's colour is 4.3's.
+- Section 13 item 28 closes: the assignee control offers "Unassigned"
+  (DES-194), so AC-094's list is reworded by the criteria package.
+- The due-time and start-date interfaces are deferred, not removed: the
+  columns stay, stored values display and clear, nothing new writes them.
+- Existing criteria invalidated or reworded are enumerated by the criteria
+  package (RFC 0004, S1) and land as Replace units before acceptance.
 
 ## Alternatives considered
 
@@ -475,11 +784,13 @@ criteria package (RFC 0004, S1) and land as Replace units before acceptance.
 
 ## Open questions
 
-- The folded section 9 baseline (RFC 0002's fold-debt) — resolves by the
-  Steward folding 0002 before this RFC's Replace units are finalized.
-- The notifications surface drawing (DES-223 is deliberately undrawn) —
-  resolves at RFC 0004's S1 window, half a design day, before 9.1's unit is
-  finalized to name the bell.
+- ~~The folded section 9 baseline~~ — resolved 2026-08-24: the fold merged
+  at `04465d1` and every section-9 unit above is written against it.
+- The notifications surface drawing (DES-223 is deliberately undrawn) — a
+  half design day producing section 9.12 and the bell's row in 9.1's names
+  table, before acceptance. The one remaining opening in the delta.
+- The criteria units (inventory item 17) are authored red-first by RFC
+  0004's S1 and land here as Append/Replace units before acceptance.
 
 ## Implementation plan
 
