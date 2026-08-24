@@ -19,10 +19,12 @@ import type { ErrorTracker } from './observability/error-tracker.js'
 import { createApplicationLogger } from './observability/logger.js'
 import { createRequestErrorHandler } from './observability/request-errors.js'
 import { createConnectionsRouter } from './routes/connections.js'
+import { createEventsRouter } from './routes/events.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createTasksRouter } from './routes/tasks.js'
+import { createTrashRouter } from './routes/trash.js'
 import { createViewsRouter } from './routes/views.js'
 import { startReminderScheduler } from './scheduler/index.js'
 import { createRateLimits } from './security/rate-limit.js'
@@ -226,6 +228,20 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createConnectionsRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+
+  // The S3 pair (RFC 0005): 7.12's events and notifications, and 7.13's
+  // Trash with its two restores. Same position and session attachment as
+  // the five above; their paths (/events, /notifications, /trash, and the
+  // two /restore tails) meet nothing the earlier routers claim, so the set
+  // stays order-independent.
+  app.use(
+    '/api/v1',
+    createEventsRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+  app.use(
+    '/api/v1',
+    createTrashRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {

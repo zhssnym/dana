@@ -16,6 +16,7 @@ import type { Db } from '../../../db/client.js'
 import type { Folder } from '../../shared/folders.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
+import { recordEvent } from './events.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -58,7 +59,8 @@ export async function accessOf(
     sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default
         FROM folders f
         JOIN folder_members m ON m.folder_id = f.id
-        WHERE f.id = ${folderId} AND m.user_id = ${viewerId}`,
+        WHERE f.id = ${folderId} AND m.user_id = ${viewerId}
+          AND f.deleted_at IS NULL`,
   )
   const row = found[0]
   if (row === undefined) return null
@@ -98,12 +100,14 @@ function folderSelect(viewerId: string, folderId?: string) {
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
            (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'pending') AS pending,
+             WHERE t.folder_id = f.id AND t.status = 'pending'
+               AND t.deleted_at IS NULL) AS pending,
            (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'completed') AS completed
+             WHERE t.folder_id = f.id AND t.status = 'completed'
+               AND t.deleted_at IS NULL) AS completed
     FROM folder_members m
     JOIN folders f ON f.id = m.folder_id
-    WHERE m.user_id = ${viewerId}${scope}
+    WHERE m.user_id = ${viewerId} AND f.deleted_at IS NULL${scope}
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }
 
@@ -157,10 +161,14 @@ export async function createFolder(
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
 
+    // Trashed folders are out of the count: a person who deleted their way
+    // under the cap has done exactly what the cap asks of them, and the
+    // purge would otherwise change what an account may do 30 days late.
     const owned = await rowsOf(
       tx,
       sql`SELECT count(*)::int AS n FROM folders
-          WHERE owner_id = ${viewerId} AND NOT is_default`,
+          WHERE owner_id = ${viewerId} AND NOT is_default
+            AND deleted_at IS NULL`,
     )
     if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' }
 
@@ -177,6 +185,14 @@ export async function createFolder(
       sql`INSERT INTO folder_members (folder_id, user_id)
           VALUES (${id}::uuid, ${viewerId}::uuid)`,
     )
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'created',
+      subjectKind: 'folder',
+      subjectId: id,
+      subjectName: name,
+      folderId: id,
+    })
 
     return {
       kind: 'created',
@@ -200,12 +216,25 @@ export async function createFolder(
 
 export async function renameFolder(
   db: Db,
+  actorId: string,
   folderId: string,
   name: string,
 ): Promise<void> {
-  await db.execute(
-    sql`UPDATE folders SET name = ${name} WHERE id = ${folderId}`,
-  )
+  await inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`UPDATE folders SET name = ${name} WHERE id = ${folderId}`,
+    )
+    // subject_name is the name at act time (4.13): the new one, the name
+    // the line will be read under.
+    await recordEvent(tx, {
+      actorId,
+      verb: 'renamed',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: name,
+      folderId,
+    })
+  })
 }
 
 /* ------------------------------------------------------------------ *
@@ -218,12 +247,16 @@ export interface DeletedCounts {
   tasks_abandoned: number
 }
 
-/** 8.8: count for the confirmation response, then delete the folder row and
- * let the named cascades do the rest, one transaction. The counts and the
- * delete share the transaction so the response can never describe rows the
- * delete did not remove. */
+/** 8.8 as split by RFC 0005 (7.13): count for the confirmation response,
+ * then mark the folder rather than delete it, one transaction. The named
+ * cascades still do the rest, they just fire at the purge (11.7), and the
+ * counts and the mark share the transaction so the response can never
+ * describe rows the mark did not move. The members hear about it (4.14):
+ * a shared folder disappearing without a word is the fan-out's clearest
+ * case. */
 export async function deleteFolder(
   db: Db,
+  actorId: string,
   folderId: string,
 ): Promise<DeletedCounts> {
   return inTransaction(db, async (tx) => {
@@ -234,16 +267,43 @@ export async function deleteFolder(
               (count(*) FILTER (WHERE status = 'pending'))::int AS open,
               (count(*) FILTER (WHERE status = 'completed'))::int AS completed,
               (count(*) FILTER (WHERE status = 'abandoned'))::int AS abandoned
-            FROM tasks WHERE folder_id = ${folderId}`,
+            FROM tasks WHERE folder_id = ${folderId} AND deleted_at IS NULL`,
       )
     )[0]
-    await deleteFolderRow(tx, folderId)
+    const marked = await rowsOf(
+      tx,
+      sql`UPDATE folders SET deleted_at = now()
+          WHERE id = ${folderId} RETURNING name`,
+    )
+    await recordEvent(tx, {
+      actorId,
+      verb: 'deleted',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: String(marked[0]?.name ?? ''),
+      folderId,
+      detail: 'moved to Trash for 30 days',
+      recipients: await memberIdsOf(tx, folderId),
+    })
     return {
       tasks_open: Number(counts?.open ?? 0),
       tasks_completed: Number(counts?.completed ?? 0),
       tasks_abandoned: Number(counts?.abandoned ?? 0),
     }
   })
+}
+
+/** The recipients of a folder-scoped fan-out (4.14); recordEvent drops the
+ * actor from whatever this answers. */
+export async function memberIdsOf(
+  executor: Executor,
+  folderId: string,
+): Promise<string[]> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT user_id FROM folder_members WHERE folder_id = ${folderId}`,
+  )
+  return rows.map((row) => String(row.user_id))
 }
 
 /** The whole of 8.8's deletion once the counts are taken: one statement, and
@@ -464,9 +524,25 @@ export async function addMember(
     // the send rather than mailing nobody.
     const target = await rowsOf(
       tx,
-      sql`SELECT email FROM users
+      sql`SELECT email, display_name FROM users
           WHERE id = ${targetId} AND deleted_at IS NULL`,
     )
+    // A member add has no verb of its own in 4.13; 'edited' carries it with
+    // the half a verb cannot. No fan-out: 4.14 does not name the added
+    // member and the 5.3 share-grant email is already their notice.
+    const named = await rowsOf(
+      tx,
+      sql`SELECT name FROM folders WHERE id = ${folderId}`,
+    )
+    await recordEvent(tx, {
+      actorId,
+      verb: 'edited',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: String(named[0]?.name ?? ''),
+      folderId,
+      detail: `added ${String(target[0]?.display_name ?? 'a member')}`,
+    })
     return { kind: 'added', targetEmail: nullableString(target[0]?.email) }
   })
 }
@@ -525,13 +601,35 @@ export async function removeMembership(
   db: Db,
   folderId: string,
   leaverId: string,
-  options: { transferOwnership: boolean },
+  options: { transferOwnership: boolean; actorId: string },
 ): Promise<void> {
   await inTransaction(db, async (tx) => {
     if (options.transferOwnership) {
       await transferOwnership(tx, folderId, leaverId)
     }
     await runRClean(tx, folderId, leaverId)
+    // 'left' when the leaver acted, 'removed' when someone removed them
+    // (4.13's two verbs for the two directions of the same row change).
+    const named = await rowsOf(
+      tx,
+      sql`SELECT f.name,
+                 (SELECT u.display_name FROM users u
+                   WHERE u.id = ${leaverId}) AS leaver_name
+          FROM folders f WHERE f.id = ${folderId}`,
+    )
+    const left = options.actorId === leaverId
+    await recordEvent(tx, {
+      actorId: options.actorId,
+      verb: left ? 'left' : 'removed',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: String(named[0]?.name ?? ''),
+      folderId,
+      detail: left
+        ? undefined
+        : `removed ${String(named[0]?.leaver_name ?? 'a member')}`,
+      recipients: left ? undefined : [leaverId],
+    })
   })
 }
 

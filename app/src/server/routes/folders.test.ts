@@ -170,8 +170,8 @@ describe('the folders router, driven through the harness idiom', () => {
     const names = list.map((entry) => entry.name)
     expect(
       names[0],
-      'the default folder sorts first (spec 7.4)',
-    ).toBe('Inbox')
+      'the default folder sorts first (spec 7.4; RFC 0005 names it Desk)',
+    ).toBe('Desk')
     expect(
       names.slice(1, 3),
       'custom folders follow in lower(name) order (spec 7.4)',
