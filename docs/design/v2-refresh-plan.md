@@ -393,6 +393,19 @@ list, and seven decisions D1–D7 awaiting Imran's ruling with
 recommendations. Once ruled: V10's hour, the spec RFC, then RFC 0004
 written from the cut list.
 
+**Both RFCs are drafted, 2026-08-24.** `docs/rfcs/0005-v2-specification.md`
+carries the whole v2 delta — navigation, day-level dates with time-of-day
+reminders, the DES-225 role matrix, and the six systems' tables and endpoint
+families written verbatim in the spec's own voice — with the section 9
+Replace units honestly stubbed until the Steward resolves RFC 0002's
+fold-debt (found at V0: its delta was never folded despite Implemented
+status), which is why S0 exists. `docs/rfcs/0004-v2-port-and-build.md` is
+the work order mirroring RFC 0002's machinery: fifteen packages S0–S14 plus
+the date-anchored S-inf (paid Postgres before 2026-09-12), persona owners,
+criteria-first, file boundaries, critical path. 0005 is accepted before
+0004; both wait on V10's verdicts by design (S0's first row). The port keeps
+the number the plan always used.
+
 **V9's records half ran the same day.** The fold: `design-contract.md` gained
 its v2 part — a preamble with the approval basis and precedence rule, a
 table of v1 decisions amended by v2, the full v2 register DES-093 → DES-224
