@@ -21,6 +21,7 @@ import { createApplicationLogger } from './observability/logger.js'
 import { createRequestErrorHandler } from './observability/request-errors.js'
 import { createDiskStore } from './files/store.js'
 import type { ObjectStore } from './files/store.js'
+import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createConversationRouter } from './routes/conversation.js'
 import { createEventsRouter } from './routes/events.js'
@@ -286,6 +287,13 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createConversationRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+
+  // The S7 bundle (4.19): the v2 /settings surface beside frozen 7.2's
+  // /me/settings, and the saved views.
+  app.use(
+    '/api/v1',
+    createBundleRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {
