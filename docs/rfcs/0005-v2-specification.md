@@ -890,6 +890,28 @@ Consequences the delta above creates, stated so none is met as a surprise:
   0004's S1 and land here as Append/Replace units before acceptance — the
   one remaining opening, and it is S1's by design.
 
+## Change control
+
+S2 mid-package, 2026-08-24, three schema rulings recorded for the section 4
+fold, the way P7's mid-package change control ratified the pass callable:
+
+1. **comment_files exists.** 10.3 caps files per comment at 10, and 4.15's
+   table text has no column that stores the binding; a join table
+   (comment_id, file_id, PK pair, both FKs CASCADE) is the only shape that
+   does. The 4.15 fold gains it beside comment_likes.
+2. **notifications carries UNIQUE (user_id, event_id).** 11.7 requires each
+   tick duty to be idempotent, and fan-out replayed after a crash must land
+   on a constraint rather than double-notify. The 4.14 fold gains the line.
+3. **The pin fold ships with S7, not S2.** The rule that the show_* flags
+   fold into the pinned-views value in the same migration that adds it is
+   kept literally: that migration is S7's, landing beside the server switch
+   whose acceptance line owns "one record of visibility". S2 adding the
+   column would keep two records of one fact between packages, and S2
+   cannot touch the v1 handlers that still bind the flags. Comments also
+   carry a composite scope key, FOREIGN KEY (folder_id, task_id) REFERENCES
+   tasks (folder_id, id), the assignee precedent applied: a comment's
+   visibility scope cannot drift from its task's folder.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
