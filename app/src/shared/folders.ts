@@ -51,7 +51,20 @@ export type PostFoldersBody = z.infer<typeof postFoldersBody>
 // each endpoint's body carries its route's name; the shared primitive keeps
 // the two one rule.
 export const patchFolderBody = z.object({
-  name: folderName,
+  name: folderName.optional(),
+  // The 4.3 identity, folder-owned since RFC 0005 (D1): any member writes
+  // these four; the rename above stays the owner's, and the route splits
+  // the two by role rather than this schema. The icon key is
+  // pattern-validated until S8 exports the set; the server stores it
+  // opaquely either way.
+  icon: z
+    .string()
+    .regex(/^[a-z0-9-]{1,40}$/, 'must be an icon key')
+    .nullable()
+    .optional(),
+  color: hexColor.nullable().optional(),
+  cover_file_id: z.uuid().nullable().optional(),
+  description: z.string().max(500).nullable().optional(),
 })
 export type PatchFolderBody = z.infer<typeof patchFolderBody>
 
@@ -110,6 +123,12 @@ export const folder = z.object({
   }),
   my_label: personalLabel.nullable(),
   my_color: hexColor.nullable(),
+  // The 4.3 identity (RFC 0005): the folder's own, one look for every
+  // member, null where never set.
+  icon: z.string().nullable(),
+  color: hexColor.nullable(),
+  cover_file_id: z.uuid().nullable(),
+  description: z.string().nullable(),
 })
 export type Folder = z.infer<typeof folder>
 

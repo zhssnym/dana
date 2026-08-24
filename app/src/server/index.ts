@@ -30,6 +30,7 @@ import { createInvitesRouter } from './routes/invites.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createTrashRouter } from './routes/trash.js'
 import { createViewsRouter } from './routes/views.js'
+import { createWorkshopRouter } from './routes/workshop.js'
 import { startReminderScheduler } from './scheduler/index.js'
 import { createRateLimits } from './security/rate-limit.js'
 import type { RateLimits } from './security/rate-limit.js'
@@ -270,6 +271,14 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createFilesRouter({ dbClient: options.dbClient, fileStore, rateLimits }),
+  )
+
+  // The S5 workshop (7.16): pages, shelves, and the object acts. Its
+  // /tasks/:id/duplicate and /folders/:id/duplicate tails meet nothing the
+  // earlier routers claim, Express matching whole paths.
+  app.use(
+    '/api/v1',
+    createWorkshopRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {

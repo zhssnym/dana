@@ -53,8 +53,8 @@ import {
   membersOf,
   otherMemberCount,
   pendingInvitesOf,
+  patchFolderProfile,
   removeMembership,
-  renameFolder,
   setMyMembership,
 } from '../domain/folders.js'
 
@@ -201,13 +201,29 @@ export function createFoldersRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      if (!access.isOwner) {
+      // The DES-225 split (RFC 0005): the name stays the owner's, works
+      // for the default folder too and carries no guard beyond ownership
+      // (7.4); the 4.3 identity is the folder's and any member writes it.
+      if (parsed.data.name !== undefined && !access.isOwner) {
         sendError(res, 403, 'forbidden', 'Only the folder owner can rename it.')
         return
       }
-      // 7.4: works for the default folder too; rename carries no guard
-      // beyond ownership.
-      await renameFolder(db, viewer(req), folderId, parsed.data.name)
+      const outcome = await patchFolderProfile(db, viewer(req), folderId, {
+        name: parsed.data.name,
+        icon: parsed.data.icon,
+        color: parsed.data.color,
+        coverFileId: parsed.data.cover_file_id,
+        description: parsed.data.description,
+      })
+      if (outcome === 'cover_not_here') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'cover_file_id: must name an image stored in this folder.',
+        )
+        return
+      }
       const folder = await folderView(db, viewer(req), folderId)
       res.status(200).json(folder)
     },
@@ -438,6 +454,63 @@ export function createFoldersRouter(
         return
       }
 
+      await removeMembership(db, folderId, actorId, {
+        transferOwnership: false,
+        actorId,
+      })
+      res.status(204).end()
+    },
+  )
+
+  /*
+  The leave, addressed as one's own membership (RFC 0005; the 9.6 door).
+  The same three shapes as the members path above with the target fixed to
+  the caller, recorded at S5's change control as an alias of 5.3's leave
+  rather than a new act: the ex-owner AC-202 frees walks through here.
+  */
+  router.delete(
+    '/folders/:id/my-membership',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      const actorId = viewer(req)
+      const access = await accessOf(db, actorId, folderId)
+      if (access === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (access.isDefault) {
+        sendError(
+          res,
+          409,
+          'conflict',
+          'The default folder cannot be left (INV-2).',
+        )
+        return
+      }
+      if (access.isOwner) {
+        const others = await otherMemberCount(db, folderId, actorId)
+        if (others === 0) {
+          sendError(
+            res,
+            409,
+            'conflict',
+            'You are the only member. Delete the folder instead.',
+          )
+          return
+        }
+        await removeMembership(db, folderId, actorId, {
+          transferOwnership: true,
+          actorId,
+        })
+        res.status(204).end()
+        return
+      }
       await removeMembership(db, folderId, actorId, {
         transferOwnership: false,
         actorId,

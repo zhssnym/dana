@@ -158,7 +158,7 @@ export async function duplicateFolder(
     const shift = Number(anchor[0]?.shift ?? 0)
     if (shift > 0) {
       await tx.execute(
-        sql`UPDATE tasks SET due_date = due_date + ${shift}
+        sql`UPDATE tasks SET due_date = due_date + ${shift}::int
             WHERE folder_id = ${copyId}::uuid AND due_date IS NOT NULL`,
       )
     }
