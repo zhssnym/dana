@@ -6276,6 +6276,44 @@ in section 4 and 7.4; the port's work is supplying handlers per role and
 the RFC's work is restating this matrix as spec text (9.6's successor),
 plus the owner-transfer flow of scenario 4.
 
+### DES-226, the bell: notifications drawn
+
+The half design day RFC 0005 was waiting on (DES-223 kept the feature
+deliberately undrawn until the pricing session priced it; priced and ruled,
+it now earns its drawing). Built in the prototype the same day, gated, and
+probed.
+
+**Where it lives.** The sidebar header, beside Search — awareness is global
+chrome, and the header is where Dana keeps its one other everywhere-control.
+Not the window bar, which belongs to the active tab; not a page, because a
+feed you must visit is a feed that fails its job.
+
+**What it is.** A bell with a monochrome badge (foreground disc, background
+count, capped at 9+), opening a popover of sentences: who, did what, to
+which thing, when — an assignment, an answer, a like, a share, a deletion.
+**A notification is a pointer, not a task**: pressing a row goes to the
+thing (a task by its DES-201 address, a folder by its route) and marks the
+row read; there are no per-row actions, and invites keep their own gate.
+"Mark all read" is the only other verb; nothing is deleted by hand — rows
+age out with the event retention.
+
+**Unread is told by tone, never by hue** — DES-143's message rule
+generalized: the unread sentence at reading strength with a foreground dot,
+the read one receded. The accent enters nowhere.
+
+**Two faults caught by its own first gate run, both worth their lesson.**
+The badge was written `text-white` on a ramp step, and dark mode flipped the
+ramp under it — white-on-white at 1.11:1, caught by the standing theme
+check. The fix is the colour-by-role rule this register wrote on 2026-08-23:
+`bg-foreground text-background` inverts with the theme by construction. And
+the sweep's first row-press check read the URL for `?task=`, which DES-211
+strikes out the moment the surface obeys it — the check now asserts the
+opened surface, the thing itself rather than the address that pointed at it.
+
+Lane 2 travels as priced: 4.14's rows, 7.12's endpoints, the partial index
+behind the badge. The drawing closes RFC 0005's last delta opening as
+section 9.12.
+
 ## Carried from v1, still unresolved
 
 These are `design-contract.md`'s existing Lane 2 items, listed so a v2 session

@@ -60,9 +60,9 @@ push, mobile, notification email digests.
 | S-inf | The purchases and cutover — runs on the calendar, not the code | platform + **you** |
 
 Parallelism: S3∥S4 after S2; S5∥S6∥S7 after them; the client arm S8→S13
-overlaps the backend arm throughout. Two artifacts gate the client arm: the
-`v2-refs/` exports (after Codex lands the landing) before S8, and the
-half-day notifications drawing before S12.
+overlaps the backend arm throughout. One artifact still gates the client
+arm: the `v2-refs/` exports (after Codex lands the landing) before S8. The
+notifications drawing is **done** (DES-226, the sidebar bell).
 
 ## Honest timeline
 
