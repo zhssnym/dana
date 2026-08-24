@@ -356,6 +356,18 @@ conversation's backend shape is already recorded with its four facts
 drawn surface. Its three debts from the brief are unchanged: a diff limited
 to the five files, a parallel log line here, and a handoff paragraph.
 
+**And widened the same day, at his instruction** — "hand off every frontend
+related thing which will not change backend or a design decision to Codex."
+The lane now carries four items, written up as `codex-handoff.md`: the
+landing page and the public screens (Imran directing, S5's pick included),
+the 650-reference colour-role conversion (prep for the dark session, zero
+pixels moved), the card's collapse animation (DES-119's carried fault,
+`task-card.tsx` transferring now that F7's stages have landed), and the
+messaging surface as before. The studio keeps every token value, all
+normative copy, the contracts and models, the comparison instruments, and
+V9's records — whose reference set is captured **after** Codex's landing
+pass, so the exports show one design.
+
 **F7 in progress, 2026-08-23.** Working through `docs/design/f7-brief.md`, which
 reads Imran's fifteen-item brief as a system rather than a list. Stages 1 to 3
 of its sequence are done:
