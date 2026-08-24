@@ -376,6 +376,17 @@ ground-ready note now; the reference exports after Codex's landing pass),
 then V10's side-by-side against production for the two SESSION-LOG
 verdicts, then the pricing session with Hassan.
 
+**The pricing session was held the same day** — Imran with Claude in
+Hassan's seat, at Hassan's own word. Its record is
+`docs/design/v2-pricing.md`: the pile priced as six systems plus the port
+and the September go-live, eight bugs found in the pile's own logic (the
+largest: DES-224's "blocking" question was already answered by section 4's
+reminders table, and DES-130's ownership ambiguity is now decision D1),
+three additions (starter-workflow onboarding among them), the cut/defer
+list, and seven decisions D1–D7 awaiting Imran's ruling with
+recommendations. Once ruled: V10's hour, the spec RFC, then RFC 0004
+written from the cut list.
+
 **V9's records half ran the same day.** The fold: `design-contract.md` gained
 its v2 part — a preamble with the approval basis and precedence rule, a
 table of v1 decisions amended by v2, the full v2 register DES-093 → DES-224

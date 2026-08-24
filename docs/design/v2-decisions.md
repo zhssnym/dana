@@ -157,7 +157,7 @@ that will cost time later.
 | DES-132 | Sections and paragraphs organise a folder page | PROPOSED | F1 | **NEEDS BACKEND**, see below |
 | DES-134 | A folder's conversation, and where it lives | PROPOSED | F1 | **NEEDS BACKEND**, see below |
 | DES-223 | Being told: assignment and conversation notifications | PROPOSED | close-out | **NEEDS BACKEND**, entry after DES-222 |
-| DES-224 | What a reminder means when a due date is a day | OPEN | close-out | **Spec ruling owed with DES-178's RFC**, entry after DES-222 |
+| DES-224 | What a reminder means when a due date is a day | APPROVED | close-out | Answered by section 4 itself at the pricing session: reminders' `time_of_day` mode is the v2 model |
 
 ### DES-098, custom tags or labels on a task
 
@@ -6177,6 +6177,21 @@ might ever cost.
 way: they either keep firing off a time nobody chose, or stop firing for
 every task made under the new design. Unlike DES-223 this cannot be cut —
 only answered.
+
+**Answered at the pricing session, 2026-08-24 — by the schema itself.** This
+entry reasoned from folklore ("production's `due_at` carries a timestamp");
+section 4 has no `due_at`. Tasks carry `due_date date` plus optional
+`due_time time`, and **`reminders` already has two modes** — an offset when
+a due-time exists, and a `time_of_day` when it does not — with the
+scheduler polling `fire_at` either way. A v2 reminder is simply the
+time-of-day mode universally: "remind me at HH:MM on that day", one picker,
+zero migration, and existing offset rows keep firing for tasks that still
+carry a due-time. The spec RFC narrows the interface; the backend builds
+nothing. The lesson joins DES-157's family: **a claim about the system is
+checked against the system, not against the memory of it** — this one sat
+marked "blocking" for a day because nobody had opened `04-data-model.md`.
+Status: OPEN → **APPROVED** as the v2 reminder model, folded into the spec
+RFC's due-date section.
 
 ## Carried from v1, still unresolved
 
