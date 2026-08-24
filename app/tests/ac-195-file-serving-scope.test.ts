@@ -10,7 +10,7 @@ line.
 
 Spec: 4.16, 7.15, 10.2 (RFC 0005).
 */
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, describe, test } from 'vitest'
 
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
