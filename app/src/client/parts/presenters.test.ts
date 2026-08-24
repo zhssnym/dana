@@ -80,6 +80,10 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     counts: { pending: 3, completed: 1 },
     my_label: null,
     my_color: null,
+    icon: null,
+    color: null,
+    cover_file_id: null,
+    description: null,
     ...overrides,
   }
 }

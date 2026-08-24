@@ -32,6 +32,7 @@ import type { SQL } from 'drizzle-orm'
 
 import type { GetSearchResponse, SearchCursor } from '../../shared/views.js'
 import { encodeSearchCursor } from '../../shared/views.js'
+import { rowsOf } from '../domain/db.js'
 import type { Executor } from '../domain/db.js'
 
 import {
@@ -75,12 +76,61 @@ export async function searchView(
   const rows = await readCards(executor, {
     viewerId,
     // All three statuses: a task being completed or abandoned is a reason to
-    // draw a chip, never a reason to make it unfindable.
-    where: sql`(t.title ILIKE ${pattern} OR t.notes ILIKE ${pattern})${resume}`,
+    // draw a chip, never a reason to make it unfindable. Step titles reach
+    // their task since 7.18 (RFC 0005): the step is not a result of its
+    // own, the task it belongs to is.
+    where: sql`(t.title ILIKE ${pattern} OR t.notes ILIKE ${pattern}
+                OR EXISTS (SELECT 1 FROM steps s
+                            WHERE s.task_id = t.id
+                              AND s.title ILIKE ${pattern}))${resume}`,
     order: Q8_ORDER,
     limit: SEARCH_PAGE_SIZE + 1,
     extra: sql`${utcInstant(sql`t.updated_at`)} AS updated_cursor`,
   })
+
+  /*
+  7.18's additive kinds, each its own scoped query under the same pattern:
+  folders and shelves on name and description, pages on block text. The
+  page read joins the block's home both ways, a folder page being its
+  members' and a shelf page its owner's, and the section 6 trash guard
+  rides each join. Capped at the page size apiece; the 1000-row list cap of
+  10.3 is nowhere near.
+  */
+  const folderHits = await rowsOf(
+    executor,
+    sql`SELECT f.id, f.name FROM folders f
+        JOIN folder_members m
+          ON m.folder_id = f.id AND m.user_id = ${viewerId}
+        WHERE f.deleted_at IS NULL
+          AND (f.name ILIKE ${pattern} OR f.description ILIKE ${pattern})
+        ORDER BY lower(f.name) ASC, f.id ASC
+        LIMIT ${SEARCH_PAGE_SIZE}`,
+  )
+  const shelfHits = await rowsOf(
+    executor,
+    sql`SELECT s.id, s.name FROM shelves s
+        WHERE s.user_id = ${viewerId}
+          AND (s.name ILIKE ${pattern} OR s.description ILIKE ${pattern})
+        ORDER BY lower(s.name) ASC, s.id ASC
+        LIMIT ${SEARCH_PAGE_SIZE}`,
+  )
+  const pageHits = await rowsOf(
+    executor,
+    sql`SELECT b.id AS block_id, b.folder_id, b.shelf_id, b.text
+        FROM page_blocks b
+        LEFT JOIN folders f ON f.id = b.folder_id
+        LEFT JOIN shelves sh ON sh.id = b.shelf_id
+        WHERE b.text ILIKE ${pattern}
+          AND b.kind IN ('section', 'paragraph')
+          AND (
+            (b.folder_id IS NOT NULL AND f.deleted_at IS NULL AND EXISTS (
+              SELECT 1 FROM folder_members m
+              WHERE m.folder_id = b.folder_id AND m.user_id = ${viewerId}))
+            OR (b.shelf_id IS NOT NULL AND sh.user_id = ${viewerId})
+          )
+        ORDER BY b.id ASC
+        LIMIT ${SEARCH_PAGE_SIZE}`,
+  )
 
   const page = rows.slice(0, SEARCH_PAGE_SIZE)
   const last = page[page.length - 1]
@@ -93,5 +143,22 @@ export async function searchView(
         })
       : null
 
-  return { rows: page.map((row) => row.card), next_cursor: next }
+  return {
+    rows: page.map((row) => row.card),
+    next_cursor: next,
+    folders: folderHits.map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+    })),
+    shelves: shelfHits.map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+    })),
+    pages: pageHits.map((row) => ({
+      block_id: String(row.block_id),
+      folder_id: row.folder_id === null ? null : String(row.folder_id),
+      shelf_id: row.shelf_id === null ? null : String(row.shelf_id),
+      text: String(row.text ?? ''),
+    })),
+  }
 }

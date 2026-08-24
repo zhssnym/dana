@@ -37,6 +37,7 @@ const TASK_CARD_KEYS = [
 const TASK_DETAIL_EXTRA_KEYS = [
   'notes',
   'recurrence_rule',
+  'section_block_id',
   'series_id',
   'reminder',
   'steps',
@@ -963,6 +964,7 @@ describe('the 7.0 response shapes', () => {
     notes: null,
     recurrence_rule: null,
     series_id: null,
+    section_block_id: null,
     reminder: null,
     steps: [],
     completed_at: null,

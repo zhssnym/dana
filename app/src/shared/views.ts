@@ -671,8 +671,29 @@ TaskCard already carries, and Q8's Row line lists what the UI shows rather
 than what the wire adds. A second row shape here would be the per-endpoint
 variant this role exists to refuse.
 */
+/** 7.18's additive result kinds (RFC 0005). Each entry carries its kind's
+ * identity and enough to route; a client that ignores the new keys sees
+ * exactly the v1 response. */
+export const searchFolderHit = z.object({
+  id: z.uuid(),
+  name: z.string(),
+})
+export const searchShelfHit = z.object({
+  id: z.uuid(),
+  name: z.string(),
+})
+export const searchPageHit = z.object({
+  block_id: z.uuid(),
+  folder_id: z.uuid().nullable(),
+  shelf_id: z.uuid().nullable(),
+  text: z.string(),
+})
+
 export const getSearchResponse = z.object({
   rows: z.array(taskCard),
   next_cursor: nextCursor,
+  folders: z.array(searchFolderHit).optional(),
+  shelves: z.array(searchShelfHit).optional(),
+  pages: z.array(searchPageHit).optional(),
 })
 export type GetSearchResponse = z.infer<typeof getSearchResponse>

@@ -72,7 +72,8 @@ export const TASK_CARD_KEYS = [
   'updated_at',
 ] as const
 
-/** What TaskDetail adds to TaskCard, spec 7.0. */
+/** What TaskDetail adds to TaskCard, spec 7.0; section_block_id joined the
+ * list with RFC 0005's 4.5 amendment. */
 export const TASK_DETAIL_EXTRA_KEYS = [
   'completed_at',
   'completed_by',
@@ -80,6 +81,7 @@ export const TASK_DETAIL_EXTRA_KEYS = [
   'notes',
   'recurrence_rule',
   'reminder',
+  'section_block_id',
   'series_id',
   'steps',
 ] as const
