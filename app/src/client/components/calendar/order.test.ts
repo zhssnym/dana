@@ -73,6 +73,10 @@ const FOLDERS: Folder[] = [
     counts: { pending: 1, completed: 0 },
     my_label: 'Home',
     my_color: '#33AA55',
+    icon: null,
+    color: null,
+    cover_file_id: null,
+    description: null,
   },
 ]
 

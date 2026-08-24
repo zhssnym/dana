@@ -1,15 +1,17 @@
 /*
 AC-200: given a folder duplicated, then the copy carries tasks, sections,
 paragraphs, and section assignments; carries no members, comments,
-assignees, or completion; re-anchors spent due dates on today and keeps
-future ones; and belongs to the duplicator alone.
+assignees, or completion; and belongs to the duplicator alone. When the
+folder's earliest date has passed, the whole plan re-anchors on today with
+its intervals kept; a plan still ahead copies untouched.
 
 DES-198's rules as one criterion, because they are one rule: a copy takes
 the structure, never the grants or the progress. The staging builds a
 folder with every kind of thing a copy must and must not carry.
 
-Spec: 7.16, 9.6 (RFC 0005).
+Spec: 7.16, 9.6 (RFC 0005), DES-198 as recorded in v2-decisions.
 */
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from './auth-harness.js'
@@ -18,6 +20,7 @@ import {
   Cast,
   addMemberOk,
   connect,
+  countRows,
   createFolder,
   expectStatus,
   membershipUserIds,
@@ -89,13 +92,39 @@ describe('AC-200 the copy takes the shape and leaves the life', () => {
       text.includes(member.id),
       'assignees do not travel (DES-198)',
     ).toBe(false)
+    /*
+    DES-198's date rule as the design record settles it: when the folder's
+    earliest date has passed, the whole plan re-anchors so the intervals
+    hold, the earliest date landing on today and every other date moving by
+    the same days. This test first asserted the future date verbatim, which
+    was the per-date rule DES-198 rejected; corrected at S5's change
+    control. The shifted dates are computed from the database's own
+    current_date so the assertion and the implementation share a clock.
+    */
+    const anchored = await countRows(
+      app.db,
+      sql`SELECT count(*)::int AS n FROM tasks
+          WHERE folder_id = ${copyId} AND title = 's1 ac200 spent deadline'
+            AND due_date = current_date`,
+    )
     expect(
-      text.includes('2030-01-15'),
-      'a future due date keeps (DES-198)',
-    ).toBe(true)
+      anchored,
+      'the earliest spent date lands on today (DES-198: the plan re-anchors)',
+    ).toBe(1)
+    const shifted = await countRows(
+      app.db,
+      sql`SELECT count(*)::int AS n FROM tasks
+          WHERE folder_id = ${copyId} AND title = 's1 ac200 future deadline'
+            AND due_date = ('2030-01-15'::date
+                            + (current_date - '2026-08-01'::date))`,
+    )
+    expect(
+      shifted,
+      'every other date moves by the same days, the intervals being what a template keeps (DES-198)',
+    ).toBe(1)
     expect(
       text.includes('2026-08-01'),
-      'a spent due date re-anchors rather than keeping (DES-198)',
+      'the spent date itself never survives verbatim (DES-198)',
     ).toBe(false)
     void future
   })

@@ -281,7 +281,8 @@ export async function taskView(
                  ORDER BY i.created_at DESC, i.id DESC LIMIT 1)
                  AS pending_invite_email,
                r.task_id AS reminder_task_id, r.offset_minutes,
-               to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day
+               to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day,
+               t.section_block_id
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
@@ -323,6 +324,7 @@ export async function taskView(
     notes: nullableString(row.notes),
     recurrence_rule: nullableString(row.recurrence_rule),
     series_id: nullableString(row.series_id),
+    section_block_id: nullableString(row.section_block_id),
     reminder:
       row.reminder_task_id === null || row.reminder_task_id === undefined
         ? null
@@ -354,6 +356,7 @@ function cardOf(detail: TaskDetail): TaskCard {
     notes: _notes,
     recurrence_rule: _rule,
     series_id: _seriesId,
+    section_block_id: _sectionBlockId,
     reminder: _reminder,
     steps: _steps,
     completed_at: _completedAt,
@@ -554,6 +557,22 @@ export type CreateTaskResult =
   | { kind: 'created'; task: TaskDetail }
   | { kind: 'folder_not_found' }
   | { kind: 'assignee_not_member' }
+  | { kind: 'section_not_here' }
+
+/** 4.17: the block exists, it is a section, and its page is this folder's. */
+async function sectionInFolder(
+  executor: Executor,
+  blockId: string,
+  folderId: string,
+): Promise<boolean> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT 1 AS present FROM page_blocks
+        WHERE id = ${blockId} AND folder_id = ${folderId}
+          AND kind = 'section'`,
+  )
+  return found.length > 0
+}
 
 /*
 7.6's create, one transaction so a body whose steps are refused leaves no
@@ -603,17 +622,24 @@ export async function createTask(
       }
     }
 
+    // 4.5 (RFC 0005): a section assignment names a section block of this
+    // folder's own page, or it names nothing.
+    const sectionId = body.section_block_id ?? null
+    if (sectionId !== null && !(await sectionInFolder(tx, sectionId, folderId))) {
+      return { kind: 'section_not_here' }
+    }
+
     const rule = body.recurrence_rule ?? null
     const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
                              due_time, recurrence_rule, series_id,
-                             assignee_id, created_by)
+                             assignee_id, created_by, section_block_id)
           VALUES (${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false}, ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
-                  ${assigneeId}::uuid, ${viewerId}::uuid)
+                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId})
           RETURNING id`,
     )
     const taskId = String(inserted[0]?.id)
@@ -681,6 +707,7 @@ export type PatchTaskResult =
   | { kind: 'unassign_single_member' }
   | { kind: 'time_without_date' }
   | { kind: 'rule_without_date' }
+  | { kind: 'section_not_here' }
   | { kind: 'reminder_refused'; refusal: ReminderRefusal }
 
 /*
@@ -794,6 +821,22 @@ export async function patchTask(
       assigneeId = onlyMember ?? (survives ? current.assigneeId : null)
     }
 
+    // 4.5 (RFC 0005): a section names a block of the folder the task ends
+    // in; a move that brings no fresh section clears it, because the old
+    // page's furniture stays home.
+    let sectionId: string | null | undefined
+    if (patch.section_block_id !== undefined) {
+      if (
+        patch.section_block_id !== null &&
+        !(await sectionInFolder(tx, patch.section_block_id, folderId))
+      ) {
+        return { kind: 'section_not_here' }
+      }
+      sectionId = patch.section_block_id
+    } else if (moving) {
+      sectionId = null
+    }
+
     const clearing = patch.due_date === null
     const finalDueDate =
       patch.due_date !== undefined ? patch.due_date : current.dueDate
@@ -848,6 +891,9 @@ export async function patchTask(
     if (moving) sets.push(sql`folder_id = ${folderId}::uuid`)
     if (assigneeId !== undefined) {
       sets.push(sql`assignee_id = ${assigneeId}::uuid`)
+    }
+    if (sectionId !== undefined) {
+      sets.push(sql`section_block_id = ${sectionId}`)
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)

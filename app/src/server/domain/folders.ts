@@ -84,6 +84,10 @@ function folderFromRow(row: Record<string, unknown>): Folder {
     },
     my_label: nullableString(row.my_label),
     my_color: nullableString(row.my_color),
+    icon: nullableString(row.icon),
+    color: nullableString(row.color),
+    cover_file_id: nullableString(row.cover_file_id),
+    description: nullableString(row.description),
   }
 }
 
@@ -96,6 +100,7 @@ function folderSelect(viewerId: string, folderId?: string) {
   return sql`
     SELECT f.id, f.name, f.is_default,
            (f.owner_id = ${viewerId}) AS is_owner,
+           f.icon, f.color, f.cover_file_id, f.description,
            m.label AS my_label, m.color AS my_color,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
@@ -205,6 +210,10 @@ export async function createFolder(
         counts: { pending: 0, completed: 0 },
         my_label: null,
         my_color: null,
+        icon: null,
+        color: null,
+        cover_file_id: null,
+        description: null,
       },
     }
   })
@@ -214,26 +223,65 @@ export async function createFolder(
  * PATCH /folders/:id (rename; caller has resolved owner access)
  * ------------------------------------------------------------------ */
 
-export async function renameFolder(
+export interface FolderProfilePatch {
+  name?: string
+  icon?: string | null
+  color?: string | null
+  coverFileId?: string | null
+  description?: string | null
+}
+
+export type PatchProfileResult = 'patched' | 'cover_not_here'
+
+/** The 7.4 rename and the 4.3 identity in one write, because they arrive
+ * in one PATCH: the route has already split who may send what (name the
+ * owner's, the dressing any member's, DES-225), and one mutation is one
+ * event whichever fields it carried. A cover must be a file of this
+ * folder's own, image-kinded, or the reference would smuggle a read. */
+export async function patchFolderProfile(
   db: Db,
   actorId: string,
   folderId: string,
-  name: string,
-): Promise<void> {
-  await inTransaction(db, async (tx) => {
-    await tx.execute(
-      sql`UPDATE folders SET name = ${name} WHERE id = ${folderId}`,
+  patch: FolderProfilePatch,
+): Promise<PatchProfileResult> {
+  return inTransaction(db, async (tx) => {
+    if (patch.coverFileId !== undefined && patch.coverFileId !== null) {
+      const cover = await rowsOf(
+        tx,
+        sql`SELECT 1 AS present FROM files
+            WHERE id = ${patch.coverFileId} AND folder_id = ${folderId}
+              AND kind IN ('cover', 'image')`,
+      )
+      if (cover.length === 0) return 'cover_not_here' as const
+    }
+    const sets = []
+    if (patch.name !== undefined) sets.push(sql`name = ${patch.name}`)
+    if (patch.icon !== undefined) sets.push(sql`icon = ${patch.icon}`)
+    if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
+    if (patch.coverFileId !== undefined) {
+      sets.push(sql`cover_file_id = ${patch.coverFileId}`)
+    }
+    if (patch.description !== undefined) {
+      sets.push(sql`description = ${patch.description}`)
+    }
+    if (sets.length === 0) return 'patched' as const
+    const named = await rowsOf(
+      tx,
+      sql`UPDATE folders SET ${sql.join(sets, sql`, `)}
+          WHERE id = ${folderId} RETURNING name`,
     )
-    // subject_name is the name at act time (4.13): the new one, the name
-    // the line will be read under.
+    // subject_name is the name at act time (4.13): after a rename, the new
+    // one, the name the line will be read under.
     await recordEvent(tx, {
       actorId,
-      verb: 'renamed',
+      verb: patch.name !== undefined ? 'renamed' : 'edited',
       subjectKind: 'folder',
       subjectId: folderId,
-      subjectName: name,
+      subjectName: String(named[0]?.name ?? ''),
       folderId,
+      detail: patch.name !== undefined ? undefined : 'changed the look',
     })
+    return 'patched' as const
   })
 }
 
