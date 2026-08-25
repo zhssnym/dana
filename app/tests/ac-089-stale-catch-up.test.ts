@@ -11,12 +11,29 @@ side of a boundary tests the poll rather than the rule. So two reminders are
 due in the same pass, one just inside the window and one just outside, and the
 pass must treat them differently.
 
-**Just inside and just outside, deliberately, rather than exactly at.** 8.6
-skips when the age is strictly greater than six hours, so the boundary itself
-is a knife edge in wall-clock terms: a row seeded at exactly six hours is
-already older than six hours by the microseconds the pass takes to reach it,
-and a test asserting either answer there would be a coin flip. Five hours
-fifty-nine and six hours one minute are the same rule with no coin in it.
+**Inside and outside, deliberately, rather than exactly at.** 8.6 skips when
+the age is strictly greater than six hours, so the boundary itself is a knife
+edge in wall-clock terms: a row seeded at exactly six hours is already older
+than six hours by the microseconds the pass takes to reach it, and a test
+asserting either answer there would be a coin flip.
+
+**The inside row's headroom was raised from one minute to one hour on
+2026-08-24, and the reason is that a minute is a slower coin rather than no
+coin.** The pair began at five hours fifty-nine and six hours one, a minute
+either side, and the inside row is the one that decays: it ages toward the
+boundary while the fixture is still building the outside row's folder, task
+and reminder on a single-connection backend, and if that takes sixty seconds
+the pass then reads a row that has genuinely gone stale and correctly skips
+it. The test fails, the code is right, and the report names the emptiest
+possible assertion. Measured rather than reasoned about: byte-identical trees
+passed this file three times and failed it once, on a CI job that started
+behind a ten minute browser leg on the same machine.
+
+Five hours is the same rule at the same boundary with an hour of slack, so
+nothing about what this file asserts moves. The outside row keeps its minute
+and needs no more, because it ages away from the boundary: a row already past
+six hours only gets staler, and every extra second makes its assertion more
+true rather than less. Asymmetry here is the point rather than an oversight.
 
 **"The scheduler was down across fire_at" is the suite's ordinary state.** The
 acceptance suite never starts 11.7's interval; it runs single passes on
@@ -83,9 +100,10 @@ import { shiftDate, todayIn } from './views-harness.js'
 let app: AuthTestApp
 const cast = new ZoneCast('p7')
 
-// 8.6's window is six hours, and these two sit either side of it with a
-// minute to spare, because the row ages while the pass runs.
-const JUST_INSIDE = 6 * 60 - 1
+// 8.6's window is six hours. The inside row carries an hour of slack because
+// it ages toward the boundary while the fixture builds the outside row; the
+// outside row keeps a minute because it ages away from it. See the header.
+const INSIDE = 5 * 60
 const JUST_OUTSIDE = 6 * 60 + 1
 
 interface Stage {
@@ -146,7 +164,7 @@ afterAll(async () => {
 describe('AC-089: a restart inside the stale window sends, and beyond it skips', () => {
   test('AC-089: one pass sends the reminder just inside six hours and skips the one just outside', async () => {
     const { owner } = await stage()
-    const inside = await missedReminder('five hours fifty-nine', JUST_INSIDE)
+    const inside = await missedReminder('five hours', INSIDE)
     const outside = await missedReminder('six hours one', JUST_OUTSIDE)
 
     const before = reminderEmailsOf(app, cast).length
@@ -160,7 +178,7 @@ describe('AC-089: a restart inside the stale window sends, and beyond it skips',
     )
     expect(
       insideRow.state,
-      '8.6 skips only when now() minus fire_at exceeds six hours, and this row is 359 minutes old, so the restart delivers it',
+      '8.6 skips only when now() minus fire_at exceeds six hours, and this row is five hours old, so the restart delivers it',
     ).toBe('sent')
     expect(
       insideRow.fired_at,
