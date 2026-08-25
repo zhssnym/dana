@@ -44,8 +44,15 @@ rides the create body. Both paths set the same form state, so the strip and
 the fields below it never disagree about what the surface holds.
 */
 import { useState } from 'react'
-import { Bell, CalendarDays, Folder as FolderIcon, Repeat2, UserRound } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+
+import {
+  Bell,
+  CalendarDays,
+  Folder as FolderIcon,
+  Repeat2,
+  UserRound,
+} from '../../lib/icons.js'
+import type { LucideIcon } from '../../lib/icons.js'
 
 import type { Folder } from '../../../shared/folders.js'
 import { formatDueDate } from '../../parts/presenters.js'
@@ -81,7 +88,7 @@ import {
 const PICKER = 'w-[300px] p-3'
 
 const CHIP =
-  'h-8 shrink-0 gap-1.5 rounded-full border border-[var(--color-graphite-200)] bg-transparent px-3 text-[13px] font-normal text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] disabled:cursor-not-allowed disabled:text-[var(--color-graphite-400)]'
+  'h-8 shrink-0 gap-1.5 rounded-full border border-border bg-transparent px-3 text-[13px] font-normal text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:text-muted-foreground/60'
 
 /** A chip's value when the field holds none, so the strip never renders a gap. */
 const EMPTY = '—'
@@ -338,7 +345,7 @@ export function TaskChips({
         <PopoverContent role="dialog" aria-label={PICKER_REMINDER} className={PICKER}>
           <label
             htmlFor="task-chip-reminder-time"
-            className="block px-1 pb-1 text-[13px] font-medium text-[var(--color-graphite-600)]"
+            className="block px-1 pb-1 text-[13px] font-medium text-muted-foreground"
           >
             {REMINDER_TIME}
           </label>
@@ -350,7 +357,7 @@ export function TaskChips({
               onChange={(event) => {
                 onReminderTimeChange(event.target.value)
               }}
-              className="h-[var(--control-height)] w-full min-w-0 rounded-md border border-[var(--color-graphite-200)] bg-transparent px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="h-[var(--control-height)] w-full min-w-0 rounded-md border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
             {reminderTime === '' ? null : (
               <Button
