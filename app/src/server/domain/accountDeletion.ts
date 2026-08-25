@@ -1,5 +1,5 @@
 /*
-The 8.10 account deletion transaction, steps 1 to 6.
+The 8.10 account deletion transaction, steps 1 to 6a.
 
 Ownership of this file and its caller is the one seam docs/team/README.md
 spells out: the Security engineer owns the DELETE /me route and session
@@ -78,6 +78,17 @@ export async function deleteAccountData(
   // tasks, steps, My Day entries and reminders; pending invites carrying the
   // folder go with it by the FK cascade of 5.2's folder-deleted row, which is
   // removal rather than the invalidation step 1 gave the survivors.
+  //
+  // Step 6a's collection half runs first, because these deletes cascade the
+  // files rows of every doomed folder, whoever uploaded them, and those rows
+  // are the only index to the bytes in the store: read after the delete
+  // there is nothing left that knows the objects exist.
+  const cascadeFiles = await rowsOf(
+    tx,
+    sql`SELECT f.id FROM files f
+        JOIN folders fo ON fo.id = f.folder_id
+        WHERE fo.owner_id = ${userId}`,
+  )
   const doomed = await rowsOf(
     tx,
     sql`SELECT id FROM folders WHERE owner_id = ${userId}`,
@@ -126,6 +137,23 @@ export async function deleteAccountData(
     sql`DELETE FROM my_day_entries WHERE user_id = ${userId}`,
   )
 
+  // 6a. Every files row still owned by the account, wherever it sits: the
+  // folderless avatar, whose id was published on every roster the person
+  // ever appeared in, and their uploads in folders that survive them. A
+  // transferred folder keeps its other members' files; what leaves with the
+  // person is what they put in (8.10 step 6a, RFC 0005 change control item
+  // 18). The rows delete inside the transaction; the objects belong to the
+  // caller, who removes every collected id from the store only after the
+  // commit, the order 7.15's delete uses, so a rollback cannot have already
+  // destroyed bytes whose rows survived.
+  const ownedFiles = await rowsOf(
+    tx,
+    sql`DELETE FROM files WHERE owner_id = ${userId} RETURNING id`,
+  )
+  const fileIds = new Set<string>()
+  for (const row of cascadeFiles) fileIds.add(String(row.id))
+  for (const row of ownedFiles) fileIds.add(String(row.id))
+
   return {
     invites: Number(pendingInvites[0]?.n ?? 0),
     foldersTransferred: transferable.length,
@@ -133,6 +161,8 @@ export async function deleteAccountData(
     memberships: memberships.length,
     connections: Number(connections[0]?.n ?? 0),
     myDayEntries: Number(myDayEntries[0]?.n ?? 0),
+    files: fileIds.size,
+    fileIds: [...fileIds],
   }
 }
 
@@ -143,4 +173,9 @@ export interface AccountDeletionCounts {
   memberships: number
   connections: number
   myDayEntries: number
+  /** Files rows step 3's cascades dropped plus the rows step 6a deleted. */
+  files: number
+  /** The collected object ids: the caller removes each from the store after
+   * the transaction commits (8.10 step 6a). */
+  fileIds: string[]
 }

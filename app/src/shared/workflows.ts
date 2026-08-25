@@ -6,8 +6,11 @@ hostile file's members, statuses and ids are not rejected so much as never
 read, and what remains is exactly what an empty folder plus typed titles
 would have been.
 
-10.3's caps: up to 50 folders and 500 blocks per file; the folder cap is the
-array's, the block cap the whole file's, checked across folders.
+10.3's caps: up to 50 folders, 500 blocks and 1000 tasks per file; the
+folder cap is the array's, the block and task caps the whole file's,
+checked across folders. The task cap was added by RFC 0005 change control
+item 18: until then the array's only bound was the body parser's default,
+an accident a parser configuration change would have widened silently.
 */
 import { z } from 'zod'
 
@@ -46,6 +49,17 @@ export const importWorkflowBody = z
         code: 'custom',
         path: ['folders'],
         message: 'blocks: a workflow file carries at most 500 across folders',
+      })
+    }
+    const tasks = file.folders.reduce(
+      (sum, folder) => sum + (folder.tasks?.length ?? 0),
+      0,
+    )
+    if (tasks > 1000) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['folders'],
+        message: 'tasks: a workflow file carries at most 1000 across folders',
       })
     }
   })
