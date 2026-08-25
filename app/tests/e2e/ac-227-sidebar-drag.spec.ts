@@ -163,68 +163,65 @@ function groupControl(page: Page, label: string): Locator {
  */
 async function carryOnto(page: Page, from: Locator, onto: Locator): Promise<void> {
   /*
-  Both ends of the gesture on screen before either is measured, because a
-  clipped row still reports a bounding box and still counts as visible, and a
-  drag driven to its remembered position lands wherever the scroller's edge
-  actually is, the sidebar footer here. A person cannot drop on a row they
-  cannot see either; what they would do is what this does, bring it into
-  view first. The destination is scrolled last so a long list settles with
-  the release point on screen, and the two rows of this criterion sit close
-  enough that the grab stays on screen with it.
+  The gesture a person makes with a list longer than the window: grab the row
+  you can see, carry it toward where the destination is, let the scroller
+  follow the pointer until the destination arrives under it, and rest there.
+
+  Only the grabbed row is scrolled into view first, because scrolling the
+  destination into view scrolls the grab off it when the two do not fit the
+  window together, which after a hundred and fifty specs' folders they do
+  not; a drag driven from a remembered position presses the wrong row. The
+  destination is never pre-scrolled at all. Its live position is re-read
+  every pass, the waypoint clamped into the window so the pointer can go
+  there, and a clamped waypoint lands inside the engine's edge band, which
+  is what makes the list travel. The loop rests when the destination's true
+  centre and the pointer agree, and its bound is the scroller's own speed:
+  sixteen pixels a frame, so a long sidebar takes seconds, not the timeout.
+  Each pass moves in small steps because the engine, which listens to moves,
+  must see travel rather than a teleport.
   */
   await from.scrollIntoViewIfNeeded()
-  await onto.scrollIntoViewIfNeeded()
   const start = await from.boundingBox()
-  const end = await onto.boundingBox()
   expect(start, 'the row being carried is on the page and has a box to grab').not.toBeNull()
-  expect(end, 'the destination is on the page and has a box to land in').not.toBeNull()
-  if (start === null || end === null) return
+  if (start === null) return
+  const viewport = page.viewportSize()
+  expect(viewport, 'the page has a viewport to clamp waypoints into').not.toBeNull()
+  if (viewport === null) return
 
   const fromX = start.x + start.width / 2
   const fromY = start.y + start.height / 2
-  let toX = end.x + end.width / 2
-  let toY = end.y + end.height / 2
-
   await page.mouse.move(fromX, fromY)
   await page.mouse.down()
-  // Ten steps, because the engine turns a press into a drag only once it has
-  // travelled its lift threshold and recomputes its proposal on every move.
-  for (let step = 1; step <= 10; step += 1) {
-    await page.mouse.move(
-      fromX + ((toX - fromX) * step) / 10,
-      fromY + ((toY - fromY) * step) / 10,
-    )
-  }
-  /*
-  Then follow the destination until it holds still, which is what a hand
-  does. A drop point near the scroller's edge is inside the engine's
-  auto-scroll band, so the act of hovering it scrolls the list and carries
-  the destination away from the pointer; a person watches the row move and
-  puts the pointer back on it, and this loop is that. It converges because
-  the scroll saturates at the scroller's end, three passes measured as
-  plenty. Each pass moves in small steps so the engine, which listens to
-  moves, sees the travel rather than a teleport.
-  */
-  for (let pass = 0; pass < 4; pass += 1) {
-    await page.waitForTimeout(150)
+
+  let atX = fromX
+  let atY = fromY
+  // Rested means on screen unclamped AND no longer moving between passes:
+  // a destination inside the edge band keeps travelling until the scroll
+  // saturates, and releasing on a row still in motion is releasing beside it.
+  let previousY = Number.POSITIVE_INFINITY
+  for (let pass = 0; pass < 40; pass += 1) {
     const now = await onto.boundingBox()
-    if (now === null) break
-    const nx = now.x + now.width / 2
-    const ny = now.y + now.height / 2
-    for (let step = 1; step <= 3; step += 1) {
+    expect(now, 'the destination exists somewhere in the list').not.toBeNull()
+    if (now === null) return
+    const trueX = now.x + now.width / 2
+    const trueY = now.y + now.height / 2
+    const clampedY = Math.min(Math.max(trueY, 40), viewport.height - 40)
+    for (let step = 1; step <= 4; step += 1) {
       await page.mouse.move(
-        toX + ((nx - toX) * step) / 3,
-        toY + ((ny - toY) * step) / 3,
+        atX + ((trueX - atX) * step) / 4,
+        atY + ((clampedY - atY) * step) / 4,
       )
     }
-    if (Math.abs(ny - toY) < 2 && Math.abs(nx - toX) < 2) break
-    toX = nx
-    toY = ny
+    atX = trueX
+    atY = clampedY
+    if (Math.abs(trueY - clampedY) < 1 && Math.abs(trueY - previousY) < 2) break
+    previousY = trueY
+    await page.waitForTimeout(150)
   }
   // A last small wander where the destination settled, so the engine's
   // latest answer is about the point the release will land on.
   for (const nudge of [1, -1, 0]) {
-    await page.mouse.move(toX + nudge, toY + nudge)
+    await page.mouse.move(atX + nudge, atY + nudge)
   }
 }
 
