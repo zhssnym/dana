@@ -21,6 +21,7 @@ provisional.
 | `states/` | The shared loading, empty, error states and the named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
 | `pages/` | One file per surface of 9.2 and 9.4 to 9.8 | Frontend Architect |
+| `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the board, the Scheduled ladder, and the spine table 9.3's entry defaults are read from | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |
 | `parts/` | **The page layer.** The row callbacks, and since P8R session R4 the presenters that map our API shapes onto the designer's display props | Frontend Architect |
@@ -1069,3 +1070,60 @@ their object is the whole of what tells them apart.
   footer owes and the delta's copy table transcribes seven strings from his
   screen without it, so a copyright line is a legal statement no numbered
   section carries, and the one he wrote hardcodes a year.
+
+## S10, the place pages
+
+The eight surfaces of 9.4 and 9.5 and the machinery they share. Three of the
+paths rendered v1 pages as interim and said so in `Router.tsx`, and
+`/app/assignments` had no route at all; all four are drawn now, and the three
+v1 pages are in git rather than beside their replacements.
+
+| Page | File | Reads | Views | Captures |
+| - | - | - | - | - |
+| Today (9.4) | `pages/TodayPage.tsx` | Q1 and Q1R | list, board | the floating button |
+| Scheduled | `pages/ScheduledPage.tsx` | Q3, Q3C | list, board, calendar | its list foot, dated today |
+| Assignments | `pages/AssignmentsPage.tsx` | Q5, composed | list, board | the floating button |
+| Important | `pages/ImportantPage.tsx` | Q4 | list, board | the floating button |
+| All | `pages/AllPage.tsx` | Q5, and Q6 collapsed | list, board | its undated half |
+| Done | `pages/DonePage.tsx` | Q6 | list | nothing (9.5) |
+| Abandoned | `pages/AbandonedPage.tsx` | Q5, narrowed by status | list, board | nothing (9.5) |
+| Anytime | `pages/AnytimePage.tsx` | Q2, ungrouped | list, board | its list foot, undated |
+
+**One table decides the entry defaults, and it is `views/place-pages.ts`.**
+DES-182 found the fault of not having one: a task made on Today never appeared
+on Today, because the floating button, the quick-add and the board column each
+decided the defaults for themselves and none of them matched the page's spine.
+The three read one row now, and a fourth capture cannot be written without it.
+
+**The filter is `views/filter.ts` and it never asks the server for anything.**
+Section 6 offers no parameter for any of its axes, so every function there
+takes rows and returns rows; AC-167 measures that by counting requests. Its
+state is `sessionStorage`, one key per page, which is DES-179's ruling and the
+only reason AC-222 can pass a full document load.
+
+**The window bar's store gained a named slot rather than a sibling.** 9.1 puts
+the chips at the bar's left end and the tab's controls at its right, so a
+place-page renders into both; `shell/window-bar.ts` holds one store keyed by
+slot and `WindowBarActions` takes which one, so the registration, the
+subscription and the absent-before-mount case are written once.
+
+### Owed after this session, and by whom
+
+- **A board column receives no drop.** 9.1 gives one that writes the column's
+  value; RFC 0004 assigns every drag engine to S11, and building a second one
+  here is what moving the sidebar drag out of S9 was for. Recorded as change
+  control item 9 in RFC 0005.
+- **Done offers no board**, for the neighbouring reason: it draws `DoneRow`
+  where every other page draws `TaskRow`, and 11.15's reunion of the two is
+  S11's.
+- **The filter has no created-by axis and an Assignments row has no "from"
+  half.** Both want `created_by` on `TaskCard`, which frozen 7.0 does not
+  carry. Escalated in change control item 9 with a recommendation.
+- **A place-page has no cover and no editable description.** DES-141 and 9.4
+  ask for both and nothing stores either for a native view. The head is
+  waiting for a table, not for a component.
+- **9.7's Settings is still v1's three booleans**, so "Save as view" writes a
+  view already pinned: a view saved unpinned would have no address a person
+  could reach, which is DES-189. RFC 0004 assigns the Settings rewrite to no
+  package; whoever writes the pin list takes the default out with it, and no
+  data moves when they do.
