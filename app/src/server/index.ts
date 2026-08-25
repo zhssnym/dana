@@ -100,11 +100,57 @@ export interface AppOptions {
   clientDist?: string
 }
 
+/** The production store over DANA_FILES_DIR, or the OS temp path when that
+ * is unset. Construction does no I/O (11.10); the directory is made at the
+ * first put. Named so createApp's default and main() resolve one way: the
+ * boot passes one instance to both the application and the scheduler, the
+ * purge and DELETE /me removing objects from the store uploads land in. */
+function defaultDiskStore(): ObjectStore {
+  return createDiskStore(
+    process.env.DANA_FILES_DIR !== undefined && process.env.DANA_FILES_DIR !== ''
+      ? process.env.DANA_FILES_DIR
+      : path.join(os.tmpdir(), 'dana-files'),
+  )
+}
+
 // createApp is synchronous, performs no I/O, and opens no database (11.10):
 // everything a route needs arrives through options, already opened.
 export function createApp(options: AppOptions = {}): express.Express {
   const app = express()
   app.disable('x-powered-by')
+
+  /*
+  10.8's response headers (RFC 0005 unit 13a, change control item 18), first
+  in the chain so every response carries them, refusals and errors included.
+  The policy is sized to what the client actually loads and no wider, and
+  each widening past 'self' carries its reason:
+
+  - style-src 'unsafe-inline': React style attributes carry runtime data the
+    stylesheet cannot, 7.4's my_color on the sidebar dot among them, and the
+    server-rendered signin page ships its own style element. Inline styles
+    execute nothing; the directive that matters for scripts stays 'self'.
+  - img-src data:: Vite inlines assets under its size threshold as data:
+    URIs at build time. A data: image is bytes, not a document.
+  - connect-src https://*.sentry.io: 11.12 sends client errors to Sentry
+    when the build carried VITE_SENTRY_DSN; the wildcard covers the
+    per-organization ingest hosts.
+
+  HSTS is deliberately absent: 10.8 gives it to the edge in front of the
+  process, which is the only party that knows TLS is really terminating.
+  */
+  const securityHeaders: ReadonlyArray<[string, string]> = [
+    [
+      'Content-Security-Policy',
+      "default-src 'self'; base-uri 'self'; object-src 'none'; " +
+        "frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data:; connect-src 'self' https://*.sentry.io",
+    ],
+    ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+  ]
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    for (const [name, value] of securityHeaders) res.setHeader(name, value)
+    next()
+  })
   const runningTests =
     process.env.NODE_ENV === 'test' || process.env.VITEST === 'true'
   const rateLimits =
@@ -123,14 +169,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     )
   const securityLog = options.securityLog ?? createSecurityLogger(logger)
   const errorTracker = options.errorTracker ?? createServerErrorTracker()
-  const fileStore =
-    options.fileStore ??
-    createDiskStore(
-      process.env.DANA_FILES_DIR !== undefined &&
-        process.env.DANA_FILES_DIR !== ''
-        ? process.env.DANA_FILES_DIR
-        : path.join(os.tmpdir(), 'dana-files'),
-    )
+  const fileStore = options.fileStore ?? defaultDiskStore()
   const notifyLogger = {
     info(fields: Record<string, unknown>): void {
       securityLog.operation('info', 'notification_configuration', {
@@ -164,7 +203,13 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  app.use(express.json())
+  // 10.3's JSON body row (RFC 0005 change control item 18): 3 MB, sized
+  // above the largest legal workflow file so every cap in the limits table
+  // is reachable. The parser's default 100 kB was refusing legal imports
+  // before 10.3's own caps could speak. Over the row, the parser answers
+  // 400 before any field is read, which the table's closing sentence
+  // records as the body ceiling's honest answer.
+  app.use(express.json({ limit: 3 * 1024 * 1024 }))
 
   // The amended 7.0 bullet, ruled at the P1 merge and held at this
   // package's gate: a body that parses to something other than an object is
@@ -209,6 +254,10 @@ export function createApp(options: AppOptions = {}): express.Express {
       auth: options.auth,
       rateLimits,
       securityLog,
+      // 8.10 step 6a: DELETE /me removes the deleted account's objects
+      // after its transaction commits, so the auth router holds the same
+      // store the files router serves from.
+      fileStore,
     }),
   )
 
@@ -323,15 +372,25 @@ check existed it started anyway and answered /api/health with 200, so a deploy
 carrying a typo in an environment variable went green and only the first person
 to try signing in found out.
 
+In production the count of doors is one, and the guard must say so (F-3 of
+the S14 security review, RFC 0005 change control item 18): 11.6 makes the
+development login absent from the compiled output regardless of environment
+variables, so a production deploy carrying only DANA_DEV_LOGIN=1 used to
+pass this check, boot, go green on its health check, 404 the door the flag
+names and 500 the one it lacks the secrets for. That is the exact failure
+the paragraph above says this guard exists to prevent, so under
+NODE_ENV=production the Google trio is required unconditionally.
+
 Refusing to start is the right failure because of what 11.5 already arranges:
 the host keeps the old instance serving until the new one passes its health
 check, so a boot that fails here cancels the deploy instead of replacing a
 working sign-in with a broken one. The variables themselves are the module's
 to interpret (11.10 keeps them the production path behind createApp's options);
-this only asks whether one of the two doors is configured at all.
+this only asks whether a door that will actually exist is configured.
 */
 function assertSignInIsPossible(): void {
-  if (process.env.DANA_DEV_LOGIN === '1') return
+  const production = process.env.NODE_ENV === 'production'
+  if (!production && process.env.DANA_DEV_LOGIN === '1') return
   const missing = [
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
@@ -339,7 +398,7 @@ function assertSignInIsPossible(): void {
   ].filter((name) => (process.env[name] ?? '') === '')
   if (missing.length === 0) return
   throw new Error(
-    `sign-in is not configured: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} unset, and DANA_DEV_LOGIN is not enabled`,
+    `sign-in is not configured: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} unset, and ${production ? 'a production build has no development login whatever DANA_DEV_LOGIN says (11.6)' : 'DANA_DEV_LOGIN is not enabled'}`,
   )
 }
 
@@ -405,10 +464,13 @@ async function main(): Promise<void> {
 
   const port = Number(process.env.PORT ?? 3000)
   const runtimeSecurityLog = createSecurityLogger(runtimeLogger)
+  // One store instance for the whole process: the application serves and
+  // deletes through it, and the scheduler's purge removes from it (11.7).
+  const fileStore = defaultDiskStore()
   const app = createApp(
     hasClientBuild
-      ? { dbClient, clientDist, securityLog: runtimeSecurityLog }
-      : { dbClient, securityLog: runtimeSecurityLog },
+      ? { dbClient, clientDist, securityLog: runtimeSecurityLog, fileStore }
+      : { dbClient, securityLog: runtimeSecurityLog, fileStore },
   )
   const server = app.listen(port, () => {
     runtimeBootLog.operation('info', 'server_listening', { port })
@@ -434,6 +496,7 @@ async function main(): Promise<void> {
     notifications: notifierOf(app),
     logger: runtimeLogger,
     heartbeatUrl: process.env.SCHEDULER_HEARTBEAT_URL,
+    fileStore,
   })
   // Binding errors (port in use, no permission) fire on the server after
   // main() resolves, so they need their own route into the structured
