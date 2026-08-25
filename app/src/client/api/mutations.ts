@@ -40,6 +40,8 @@ import type {
   PatchFolderMyMembershipBody,
   PostFoldersBody,
 } from '../../shared/folders.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
+import type { GetSettingsResponse, PatchSettingsBody } from '../../shared/bundle.js'
 import {
   acceptInviteResponse,
   cancelInviteResponse,
@@ -446,5 +448,43 @@ export function useCreateInvite(): UseMutationResult<
         body: parsed,
       })
     },
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The v2 surfaces (RFC 0005)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The 4.19 bundle's write, at the v2 address.
+ *
+ * Beside frozen 7.2's `useUpdateSettings` and never instead of it: that one
+ * still owns the three v1 page flags, and this owns the pin list, the theme,
+ * the density, the clock, the task-open surface and the arrangements.
+ */
+export function usePatchBundle(): UseMutationResult<
+  GetSettingsResponse,
+  Error,
+  PatchSettingsBody
+> {
+  return useMutation({
+    mutationFn: (body: PatchSettingsBody) =>
+      mutateApi(getSettingsResponse, { method: 'PATCH', path: '/settings', body }),
+  })
+}
+
+/**
+ * 7.13's folder restore.
+ *
+ * The task restore is not here and that is not an omission: 7.13 and frozen
+ * 7.6 share one address, `POST /tasks/:id/restore`, the server forking on the
+ * row's state because the two meanings have disjoint domains (S3's own
+ * ruling). `useTransitionTask` already sends it, so a trashed task is
+ * restored by the transition hook this client has had since P5.
+ */
+export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(folder, { method: 'POST', path: `/folders/${id}/restore` }),
   })
 }

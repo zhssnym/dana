@@ -43,8 +43,11 @@ is 9.1's table as code.
 */
 import { useLocation } from 'react-router'
 
+import { pushUndo, undoLabel } from '../shell/undo.js'
+
 import {
   useDeleteTask,
+  usePullIntoMyDay,
   useRemoveFromMyDay,
   useTransitionTask,
   useUpdateTask,
@@ -74,25 +77,64 @@ export function useRowActions(): RowActions {
   const update = useUpdateTask()
   const unpull = useRemoveFromMyDay()
   const remove = useDeleteTask()
+  const pull = usePullIntoMyDay()
   const location = useLocation()
   return {
+    /*
+    Each act registers its own inverse as it runs (9.1's undo paragraph), and
+    this hook is where that belongs: every page spreads these callbacks into
+    its list, so undo reaches every page without any page knowing it exists,
+    and a page written next year gets it too. A screen that had to remember
+    to register is a screen that will forget.
+
+    The forward mutation is fired first and unconditionally in every case.
+    9.1: "no write is ever held back waiting for the window to close", which
+    is the clause AC-225 watches the wire for, and the reason is that a
+    queued write is a lie on every other member's screen for five seconds.
+    */
     onToggleComplete: (task) => {
+      const completing = task.status !== 'completed'
       transition.mutate({
         id: task.id,
-        event: task.status === 'completed' ? 'uncomplete' : 'complete',
+        event: completing ? 'complete' : 'uncomplete',
+      })
+      pushUndo(undoLabel(completing ? 'Completed' : 'Reopened', task.title), () => {
+        transition.mutate({ id: task.id, event: completing ? 'uncomplete' : 'complete' })
       })
     },
     onToggleImportant: (task) => {
-      update.mutate({ id: task.id, body: { important: !task.important } })
+      const next = !task.important
+      update.mutate({ id: task.id, body: { important: next } })
+      pushUndo(
+        undoLabel(next ? 'Marked important' : 'Unmarked important', task.title),
+        () => {
+          update.mutate({ id: task.id, body: { important: !next } })
+        },
+      )
     },
+    /*
+    Restore un-abandons, so its inverse abandons again. It is offered on an
+    abandoned row, where 9.5 puts the control, and the row it acts on is
+    gone from that list the moment it succeeds; the bar is the only thing
+    left naming what happened, which is what makes it worth registering.
+    */
     onRestore: (task) => {
       transition.mutate({ id: task.id, event: 'restore' })
+      pushUndo(undoLabel('Restored', task.title), () => {
+        transition.mutate({ id: task.id, event: 'abandon' })
+      })
     },
     onRemoveFromMyDay: (task) => {
       unpull.mutate(task.id)
+      pushUndo(undoLabel('Removed from My Day', task.title), () => {
+        pull.mutate(task.id)
+      })
     },
     onAbandon: (task) => {
       transition.mutate({ id: task.id, event: 'abandon' })
+      pushUndo(undoLabel('Abandoned', task.title), () => {
+        transition.mutate({ id: task.id, event: 'restore' })
+      })
     },
     /*
     The two entries `components/README.md` recorded as owed, arriving with the
@@ -109,8 +151,18 @@ export function useRowActions(): RowActions {
     onOpenTask: (task) => {
       openTask(task.id)
     },
+    /*
+    Delete marks rather than purges since 7.13, so its inverse is the un-trash
+    that shares frozen 7.6's restore address (S3 forked the handler on the
+    row's state). That is what makes this act undoable at all: before Trash
+    there was nothing to put back, and 9.1's own example of the bar's sentence
+    is this one.
+    */
     onDelete: (task) => {
       remove.mutate(task.id)
+      pushUndo(undoLabel('Deleted', task.title), () => {
+        transition.mutate({ id: task.id, event: 'restore' })
+      })
     },
     starTooltipMode: location.pathname === paths.important ? 'outward' : 'inward',
   }

@@ -581,9 +581,14 @@ export function firstOfMonth(monthsAhead: number): string {
 
 /**
  * The route table 9.1 gained at the P8 kickoff, restated rather than
- * imported. AC-095 asserts that a page hidden from the sidebar still renders
- * at its URL, which is unaskable without these paths being specification
- * text; every other spec here navigates through them for the same reason.
+ * imported, and superseded by `routesV2` at the foot of this file.
+ *
+ * It is still here because eighteen v1 spec files still address these paths.
+ * Two of the rows are no longer routes at all: RFC 0005 retires /app/tasks
+ * and /app/planned into redirects (AC-215) and moves My Day off /app, where
+ * Desk now is. A spec reaching `routes.tasks` for "a page with rows" still
+ * lands on one, which is why those files are green rather than broken, and
+ * it is also why nothing new should be written against this object.
  */
 export const routes = {
   landing: '/',
@@ -1268,4 +1273,156 @@ export function watchWire(page: Page): WireLog {
 /** The `tz` a request carried, or null when it carried none (7.0). */
 export function tzOf(url: string): string | null {
   return new URL(url).searchParams.get('tz')
+}
+
+/* ------------------------------------------------------------------ *
+ * The v2 shell (RFC 0005; AC-214 to AC-225)
+ * ------------------------------------------------------------------ */
+
+/**
+ * 9.1's v2 routes table, whole.
+ *
+ * It carried only the rows the v1 `routes` object above does not have, until
+ * the twenty-criteria rework of 2026-08-24 moved eighteen v1 spec files plus
+ * `rendered-halves` and `session-path` onto the v2 surfaces and needed the
+ * rest of the table: a file that reaches Today through one object and
+ * Important through another is a file whose reader has to know which half
+ * each name came from. So this is the table as RFC 0005 replaces it, every
+ * row, and the two objects agree wherever they overlap.
+ *
+ * `routes` stays because eighteen other v1 spec files still address v1 paths
+ * and are green doing it, /app/tasks and /app/planned redirecting per
+ * AC-215. It goes when the last of them is reworked or retired, and not
+ * before: deleting it now would rework those files by side effect rather
+ * than by decision.
+ */
+export const routesV2 = {
+  landing: '/',
+  /** Desk, the default folder, and 10.6's start_url. Where My Day was. */
+  desk: '/app',
+  today: '/app/today',
+  scheduled: '/app/scheduled',
+  assignments: '/app/assignments',
+  important: '/app/important',
+  all: '/app/all',
+  done: '/app/done',
+  abandoned: '/app/abandoned',
+  anytime: '/app/anytime',
+  folder: (id: string) => `/app/folders/${id}`,
+  shelf: (id: string) => `/app/shelves/${id}`,
+  task: (id: string) => `/app/tasks/${id}`,
+  trash: '/app/trash',
+  settings: '/app/settings',
+  people: '/app/people',
+} as const
+
+/**
+ * The pin list a criterion writes when it needs 9.1's page block in a known
+ * state, in that section's own order.
+ *
+ * 9.7's Views section is the v2 toggle, where v1's three booleans were:
+ * every view Dana has carries a pin switch, Desk locked. The three criteria
+ * that used to set `show_important`, `show_all` and `show_done` write pins
+ * instead, because S7's fold makes `pinned_views` the record the moment it
+ * is written and the flags stop reaching this surface. Restated here rather
+ * than imported from `src/client`, which is this file's standing rule.
+ */
+export const DEFAULT_PINS = [
+  'desk',
+  'today',
+  'scheduled',
+  'assignments',
+  'important',
+  'all',
+] as const
+
+/**
+ * 9.1's page block in its fixed order, by the names that section gives it.
+ * The six that ship pinned; Done, Abandoned and Anytime join it when the pin
+ * list says so.
+ */
+export const V2_PAGE_NAMES = [
+  'Desk',
+  'Today',
+  'Scheduled',
+  'Assignments',
+  'Important',
+  'All',
+] as const
+
+/**
+ * PATCH /settings, the v2 bundle of 4.19 beside frozen 7.2's /me/settings.
+ * AC-214's "Done is absent until pinned" is this surface: the pin list is
+ * `pinned_views`, and a criterion about pinning has to write the pin the way
+ * the Settings page of 9.7 does rather than assume the default.
+ */
+export async function patchBundle(
+  page: Page,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.patch('/api/v1/settings', {
+    data: body,
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PATCH /settings answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/** POST /folders. A spec's own folder, so no seed row is ever mutated. */
+export async function createFolder(page: Page, name: string): Promise<{ id: string }> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.post('/api/v1/folders', {
+    data: { name },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `POST /folders for the fixture ${JSON.stringify(name)} answered ` +
+      `${response.status()}: ${await response.text()}`,
+  ).toBe(201)
+  return (await response.json()) as { id: string }
+}
+
+/** DELETE /folders/:id, which since 7.13 marks rather than purges. */
+export async function deleteFolder(page: Page, id: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.delete(`/api/v1/folders/${id}`, {
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `DELETE /folders/${id} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/** POST /shelves (7.16). */
+export async function createShelf(page: Page, name: string): Promise<{ id: string }> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.post('/api/v1/shelves', {
+    data: { name },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `POST /shelves for the fixture ${JSON.stringify(name)} answered ` +
+      `${response.status()}: ${await response.text()}`,
+  ).toBe(201)
+  return (await response.json()) as { id: string }
+}
+
+/**
+ * The tab strip of 9.1, addressed the way its roles table fixes: a tablist
+ * of tabs, the active one current. `getByRole('tab')` resolves through
+ * aria, so these return nothing at all against a client with no strip,
+ * which is the red AC-216 is supposed to show until S9 lands it.
+ */
+export function tabStrip(page: Page): Locator {
+  return page.getByRole('tablist')
+}
+
+export function tabNamed(page: Page, name: string | RegExp): Locator {
+  return page.getByRole('tab', { name })
 }

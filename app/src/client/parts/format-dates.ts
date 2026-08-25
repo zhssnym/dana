@@ -164,3 +164,38 @@ export function formatRelativeDay(instant: string, today: string): string {
   if (date === dayBefore(today)) return 'yesterday'
   return formatCompactDate(date)
 }
+
+/**
+ * An instant as elapsed time: "just now", "5 minutes ago", "3 hours ago",
+ * then a date.
+ *
+ * 9.1's Activity line is "{verb} {ago}" and DES-139's own example is "Edited
+ * just now", so what it wants is elapsed time and not a calendar day.
+ * `formatRelativeDay` above is the wrong tool for it and says so in its own
+ * header: it reads an instant's *UTC* date, which is right for the coarse
+ * joined and sent stamps it was written for and wrong here, because the
+ * newest event is usually the thing the person did seconds ago. Measured at
+ * S9 on a machine six hours behind UTC: a folder edited at 19:04 local read
+ * as "25 Aug 2026", tomorrow's date, on a line whose whole job is to say
+ * "just now".
+ *
+ * Elapsed time needs no timezone at all, which is the other half of why this
+ * is the right shape: two instants subtract the same in every zone, so this
+ * function cannot have the bug the one above documents.
+ *
+ * The ladder stops at a week. Past that, "23 days ago" is arithmetic a person
+ * has to do in their head to learn a date, so the date is given instead.
+ */
+export function formatAgo(instant: string, now: number): string {
+  const at = Date.parse(instant)
+  if (Number.isNaN(at)) return instant
+  const seconds = Math.max(0, Math.round((now - at) / 1000))
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${String(minutes)} minute${minutes === 1 ? '' : 's'} ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${String(hours)} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${String(days)} day${days === 1 ? '' : 's'} ago`
+  return formatCompactDate(instant.slice(0, 10))
+}

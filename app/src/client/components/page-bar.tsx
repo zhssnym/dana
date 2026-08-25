@@ -22,7 +22,10 @@ that does not exist: a screen reader is told the element opens a page and
 pressing it does nothing. The visible title is what the element is, so it is
 the only thing announced now. Nothing in section 9 names this element.
 */
-import type { LucideIcon } from 'lucide-react'
+/* The icon module's type since S8 (DES-125). This file's own glyph import
+   moves with the rest of the v1 markup; the type moves now because the shell
+   above it already passes the module's components. */
+import type { LucideIcon } from '../lib/icons.js'
 import { RefreshCw } from 'lucide-react'
 
 import { Button } from './ui/button.js'
