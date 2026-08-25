@@ -169,6 +169,20 @@ export interface TaskRowProps {
   menuOpen?: boolean
   completionPreview?: boolean
   collapsing?: boolean
+  /**
+   * The three things a surface carrying this row on a drag needs to attach,
+   * all optional and all inert where nothing drags.
+   *
+   * They land on the row's own element rather than on a wrapper, because the
+   * wrapper would sit between 9.1's list and its list items and the row is
+   * the thing the engine measures and moves. The board is the first caller
+   * (9.1: dropping a card in a column writes that column's value).
+   */
+  rowRef?: (element: HTMLElement | null) => void
+  dragProps?: { onPointerDown: (event: React.PointerEvent) => void }
+  dragStyle?: React.CSSProperties
+  /** What a release would do, drawn on the row being carried. */
+  proposal?: string
   onOpen?: () => void
   onToggleComplete?: (completed: boolean) => void
   onToggleImportant?: () => void
@@ -310,6 +324,10 @@ export function TaskRow({
   menuOpen = false,
   completionPreview = false,
   collapsing = false,
+  rowRef,
+  dragProps,
+  dragStyle,
+  proposal,
   onOpen,
   onToggleComplete,
   onToggleImportant,
@@ -399,6 +417,9 @@ export function TaskRow({
       // enumerates what one holds, so this is a real thing here rather than a
       // div the suite is guessing at. The list around it is the page's.
       role="listitem"
+      ref={rowRef}
+      style={dragStyle}
+      {...dragProps}
       tabIndex={onOpen ? 0 : undefined}
       aria-label={onOpen ? `Open task: ${title}` : undefined}
       onClick={(event) => {
@@ -423,7 +444,7 @@ export function TaskRow({
       }}
       data-task-status={status}
       className={cn(
-        'group/task grid h-[var(--task-row-height)] w-full cursor-pointer grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-0 overflow-hidden rounded-md border-0 bg-card p-0 transition-[height,opacity,transform,background-color] duration-200 ease-out hover:bg-[var(--color-graphite-100)] focus-within:bg-[var(--color-graphite-100)] focus-within:ring-2 focus-within:ring-ring/30',
+        'group/task relative grid h-[var(--task-row-height)] w-full cursor-pointer grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-0 overflow-hidden rounded-md border-0 bg-card p-0 transition-[height,opacity,transform,background-color] duration-200 ease-out hover:bg-[var(--color-graphite-100)] focus-within:bg-[var(--color-graphite-100)] focus-within:ring-2 focus-within:ring-ring/30',
         collapsing && 'pointer-events-none h-0 -translate-y-1 scale-[0.99] opacity-0',
         visualState === 'hover' && 'bg-[var(--color-graphite-100)]',
         visualState === 'focus' &&
@@ -432,6 +453,14 @@ export function TaskRow({
           'bg-[var(--color-dana-accent-50)] ring-1 ring-[var(--color-dana-accent-200)]',
       )}
     >
+      {/* What a release would do, on the row being carried. Words rather
+          than an outline, for DES-171's reason at the sidebar: a container
+          takes the drop and says so. */}
+      {proposal === undefined ? null : (
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+          {proposal}
+        </span>
+      )}
       <ItemMedia
         className="size-[var(--control-height)]"
         onClick={(event) => event.stopPropagation()}
