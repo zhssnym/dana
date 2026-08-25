@@ -23,31 +23,38 @@ add button leaving every page with a capture affordance of its own, and it is
 reworked here because leaving it would carry a knowingly red criterion
 through a merge.
 
-**Six of the nine rows are asserted and three are not, and the three are
-named rather than skipped.** A capture point can only be measured where it
-exists, and the pages that hold these three arrive with later packages:
+**Seven of the nine rows are asserted and two are not, and the two are named
+rather than skipped.** A capture point can only be measured where it exists,
+and the pages that hold these two arrive with later packages:
 
-- **All's undated capture.** 9.5 makes All "Q5's union rendered whole", and
-  9.1's regions table gives it "its two halves' regions as their home pages
-  define them", so the region the undated capture sits in is one S10 renames
-  when it redraws that page. Addressing it by the name the v1 page happens to
-  use today would be asserting the implementation, which 9.1's addressing
-  paragraph exists to forbid.
-- **Assignments, and any board column.** Neither surface exists: S10 lands
-  the place pages and their views. AC-221 already reads the board column's
+- **All's undated capture is asserted since S10**, which is what the row was
+  waiting for. 9.5 makes All "Q5's union rendered whole", and 9.1's regions
+  table gives it "its two halves' regions as their home pages define them";
+  the home page of the undated half is Anytime since RFC 0005 renamed it, so
+  S10's redraw named the region and the case below addresses it by that name.
+  Addressing it by the name the v1 page happened to use would have been
+  asserting the implementation, which 9.1's addressing paragraph forbids.
+- **Assignments, and any board column.** AC-221 reads the board column's
   capture, and reads it against the sharper case, a task made on Today from a
-  column that must then appear on Today.
+  column that must then appear on Today; Assignments' own capture is the
+  floating button, whose defaults 7.6 supplies rather than the body, so this
+  file has no third column to read there.
 - **A section's capture, and Today's membership.** A folder page's sections
   are 4.17 page blocks, which S12 lands; and Today's row asks for a Today
   entry as well as today's date, which is the membership half AC-221 states
-  and which the shell deliberately does not write, the page's spine being
-  S10's. So the Today case below asserts the date and says what it is not
-  asserting.
+  and asserts. So the Today case below asserts the date and says what it is
+  not asserting.
 
-That leaves this criterion owing four assertions to two packages. It is
-recorded in RFC 0005's change control item 8 as well as here, because a
-coverage gap that lives only in a comment is a gap the next session does not
-know it inherited.
+That leaves this criterion owing the section's capture to S12. It is recorded
+in RFC 0005's change control as well as here, because a coverage gap that
+lives only in a comment is a gap the next session does not know it inherited.
+
+**This case was written by S10 rather than by the criteria package, on Imran's
+instruction of 2026-08-25, and the boundary is flagged rather than crossed
+silently** — the same flag row 10 of the session log carries for the browser
+half of S1. Protocol section 8 gives the acceptance tests to persona 11; the
+instruction was to close All's arm with the surface that makes it assertable,
+and this file records who wrote it.
 
 **"The bare control" has no opening in v2 and that is not an omission.** v1's
 phrase meant the floating add button on a page with no row of its own, and
@@ -83,7 +90,7 @@ calendar, its mode toggle, its next control, the click on an empty cell),
 board column and Today's membership).
 */
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
@@ -94,6 +101,7 @@ import {
   floatingAddButton,
   formField,
   quickAddControl,
+  regionOf,
   routesV2,
   seedDate,
   seedIds,
@@ -164,9 +172,9 @@ async function expectDefaults(
  * activated first, and the escalation control exists only in the state that
  * activation produces.
  */
-async function openFromQuickAdd(page: Page): Promise<void> {
+async function openFromQuickAdd(page: Page, within?: Locator): Promise<void> {
   await clickControl(
-    quickAddControl(page).first(),
+    quickAddControl(within ?? page).first(),
     'spec 9.1: a page with a capture point of its own carries the inline quick-add, ' +
       'collapsed to a single control named "Add a task"',
   )
@@ -267,6 +275,23 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, 'Important', {
       dueDate: '',
       important: true,
+      folder: 'Inbox',
+    })
+  })
+
+  test("AC-093: All's undated capture opens with no date and Desk", async ({ page }) => {
+    // The row this criterion has owed since the twenty-criteria rework, and it
+    // was owed to S10 rather than skipped: 9.1 gives All "its two halves' regions
+    // as their home pages define them", and the home page of the undated half is
+    // Anytime since RFC 0005 renamed it. Addressing the capture by the name the
+    // v1 page happened to use would have been asserting the implementation, which
+    // 9.1's addressing paragraph forbids; addressing it by the section's own name
+    // is what the rename made possible.
+    await page.goto(routesV2.all)
+    await openFromQuickAdd(page, regionOf(page, 'Anytime'))
+    await expectDefaults(page, "All's undated capture", {
+      dueDate: '',
+      important: false,
       folder: 'Inbox',
     })
   })
