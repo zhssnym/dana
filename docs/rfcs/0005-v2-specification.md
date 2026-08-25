@@ -1021,6 +1021,15 @@ fold, the way P7's mid-package change control ratified the pass callable:
    - AC-183 ... 9.6's leave and remove-member confirms ... (otherwise verbatim)
    ```
 
+   **All three were accepted as recommended, by Imran on 2026-08-24**, and
+   section 12 now carries the amended sentences. Two of them are red on
+   acceptance and that is the direction acceptance is supposed to run: the
+   control AC-165 names is renamed by S10 or S11, the filter AC-167 names is
+   built by S10, and each criterion now states the contract and waits for the
+   code rather than the other way round. AC-183 loses one case and stays
+   green. The three tests were moved onto the amended texts in the same act,
+   so no criterion and its test are left disagreeing.
+
    **The list of twenty was three short, and the three were reworked with
    it.** Running the whole browser leg rather than the twenty named files
    found AC-091, AC-092 and AC-093 red for the same causes: AC-091 reads a

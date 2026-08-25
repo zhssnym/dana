@@ -664,8 +664,14 @@ export const copy = {
   /** 9.4, abandon from My Day. */
   abandonConfirm:
     'Abandon this task? It stops appearing in My Day but stays everywhere else.',
-  /** 9.4, the un-pull control's label. */
-  removeFromMyDay: 'Remove from My Day',
+  /**
+   * 9.4, the un-pull control's label, as AC-165 reads it since the owner's
+   * ruling of 2026-08-24. v1 called it "Remove from My Day" and 9.4 renamed
+   * the page and the control together; the criterion carried the old string
+   * until that ruling, and now carries this one. Red until S10 or S11
+   * renames it in the client, which is a criterion waiting for its code.
+   */
+  removeFromTodayControl: 'Remove from Today',
   /** 9.5, the confirm before an uncomplete that takes the G-SERIES successor. */
   uncompleteSeriesConfirm:
     'This removes the next scheduled occurrence (including any edits to it). Continue?',
