@@ -45,9 +45,24 @@ client satisfying this case as it stood could not satisfy that one. What the
 case owes is one activation. Every assertion below is unchanged, and none of
 them was ever about the control's resting state.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), with the twenty
+that rework named.** Nothing this criterion asserts moves; the addresses do.
+The page whose shell is warmed is Today at /app/today, where Q1's rows are
+drawn now that Desk holds /app, and the page the offline write is attempted
+on is Anytime at /app/anytime, where Q2's rows are drawn now that /app/tasks
+redirects. Both render the same screens under the names DES-152 gives them,
+which is why every assertion is the one it always was. The sidebar entry read
+as evidence that chrome rendered is Desk, that being the one page 9.7 will
+not let a person unpin.
+
+This file was not on the list of twenty Imran ruled on: S9 enumerated the
+failures it had diagnosed and the enumeration was short. Reworked here with
+them, the cause being the same cause and the alternative being a knowingly
+red criterion carried through a merge.
+
 Spec: 10.6 (the PWA and offline contract), 9.1 (the banner, the quick-add
-and its two states, the toast), 9.1's route table, 6 Q2, 11.4
-(vite-plugin-pwa).
+and its two states, the toast), 9.1's v2 route table, 9.7 (Desk locked
+pinned), 6 Q2, 11.4 (vite-plugin-pwa).
 */
 import { expect, test } from '@playwright/test'
 
@@ -57,7 +72,7 @@ import {
   expectServiceWorkerControl,
   fillControl,
   openQuickAdd,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -86,17 +101,17 @@ test.describe('AC-091: the installed app opens offline', () => {
     page,
     context,
   }) => {
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expectServiceWorkerControl(page)
 
     await context.setOffline(true)
     await page.reload()
 
     // The shell is the global chrome of 9.1, and the sidebar is the part of
-    // it that cannot come from an API response: its six page links are the
-    // route table, not data.
+    // it that cannot come from an API response: its page block is the route
+    // table, not data.
     await expect(
-      page.getByRole('link', { name: 'My Day', exact: true }),
+      page.getByRole('link', { name: 'Desk', exact: true }),
       'spec 10.6: navigations fall back to the cached shell so the installed app always ' +
         'opens, so the sidebar of 9.1 renders with no network at all',
     ).toBeVisible()
@@ -110,11 +125,11 @@ test.describe('AC-091: the installed app opens offline', () => {
     // A page reached by navigation rather than by reload, because 10.6's
     // fallback is about navigations and a reload is the easiest one to
     // satisfy by accident.
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expect(
       page.getByText(copy.offlineBanner),
       'spec 10.6: every /app path falls back to the cached shell (9.1 route table), so ' +
-        'Tasks opens offline too and 9.1 makes the banner global rather than per page',
+        'Anytime opens offline too and 9.1 makes the banner global rather than per page',
     ).toBeVisible()
   })
 
@@ -122,11 +137,11 @@ test.describe('AC-091: the installed app opens offline', () => {
     page,
     context,
   }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expectServiceWorkerControl(page)
 
     await context.setOffline(true)
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
 
     // 9.1's quick-add: collapsed to a single control, activated to reveal a
     // title input, enter saves immediately. The shortest write path the
@@ -168,7 +183,7 @@ test.describe('AC-091: the installed app opens offline', () => {
     // would replay on reconnect has run, and then asked of the server
     // rather than of the page.
     await context.setOffline(false)
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await page.waitForLoadState('networkidle')
 
     const found = await page.request.get(
@@ -196,7 +211,7 @@ test.describe('AC-091: the installed app opens offline', () => {
     // showing the viewer a stale copy of their tasks as though it were
     // current. Q2 puts this seeded undated row on Tasks, so it is the
     // evidence either way.
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expectServiceWorkerControl(page)
     await expect(
       page.getByText('Sort inbox'),
@@ -205,7 +220,7 @@ test.describe('AC-091: the installed app opens offline', () => {
     ).toBeVisible()
 
     await context.setOffline(true)
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expect(
       page.getByText(copy.offlineBanner),
       'the shell rendered from cache, which is what makes the next assertion about the API ' +
@@ -219,7 +234,7 @@ test.describe('AC-091: the installed app opens offline', () => {
 
     // And the folder page of the same viewer, so the assertion is about the
     // API surface rather than about one route's own data hook.
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await expect(
       page.getByText('Buy milk'),
       'spec 10.6: 7.10\'s folder body is an API response like any other, so it is not cached ' +

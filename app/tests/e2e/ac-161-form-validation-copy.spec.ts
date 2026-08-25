@@ -33,8 +33,16 @@ change control on 2026-08-11, "Limit 50 steps", and they ask for the string
 now. The criterion's text does not move: it said the editor shows its cap
 notice, and what changed is that the specification says what the notice says.
 
-Spec: 9.3 (the validation copy and the steps editor), 10.3 (the limits the
-copy reports), 7.11 (why a client-side rule still needs measuring), 7.6.
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where the form is opened from does. 9.1's v2 capture
+rule leaves the floating add button on Today, Important and Assignments
+alone, so the two cases that create a task open it from Today; and the case
+that opens an existing task walks Anytime, which is where Q2's undated rows
+are drawn now that /app/tasks redirects.
+
+Spec: 9.3 (the validation copy and the steps editor), 9.1 (the v2 capture
+rule and the v2 routes table), 10.3 (the limits the copy reports), 7.11 (why
+a client-side rule still needs measuring), 7.6.
 */
 import { expect, test } from '@playwright/test'
 
@@ -47,7 +55,7 @@ import {
   fillControl,
   floatingAddButton,
   formField,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -74,11 +82,11 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('AC-161: the form says why it will not save', () => {
   test('AC-161: an empty title shows the copy of 9.3', async ({ page }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+        + 'of 9.3, and Today is one of the three pages that section leaves it on',
     )
 
     await clickControl(
@@ -100,11 +108,11 @@ test.describe('AC-161: the form says why it will not save', () => {
   })
 
   test('AC-161: an over-limit title names the limit', async ({ page }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+        + 'of 9.3, and Today is one of the three pages that section leaves it on',
     )
 
     await fillControl(
@@ -156,7 +164,7 @@ test.describe('AC-161: the form says why it will not save', () => {
       }
     }
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText('ac-161 task below the step cap'),
       'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
@@ -173,7 +181,7 @@ test.describe('AC-161: the form says why it will not save', () => {
         'always on screen',
     ).toHaveCount(0)
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText('ac-161 task at the step cap'),
       'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',

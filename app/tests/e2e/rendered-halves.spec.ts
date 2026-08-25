@@ -57,7 +57,14 @@ the same adornment, because every one of these is a chip or a state that an
 implementation can draw on everything as easily as on the right thing, and a
 chip drawn on every row satisfies a test that only looks for one.
 
-Spec: 9.4, 9.5, 9.6, 9.8, 6 Q1, Q3, Q7, 7.5, 8.7.
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** None of the four
+clauses moves; two of the pages they are read on do. Q1's rows are drawn by
+Today at /app/today now that Desk holds /app, and Q3's by Scheduled at
+/app/scheduled now that /app/planned redirects. Section 6 keeps the v1 name
+in each heading's parentheses for exactly this reason, so the bullet list
+above still reads true where it says Planned and My Day.
+
+Spec: 9.4, 9.5, 9.6, 9.8, 9.1 (the v2 routes table), 6 Q1, Q3, Q7, 7.5, 8.7.
 */
 import { expect, test } from '@playwright/test'
 
@@ -67,7 +74,7 @@ import {
   createTask,
   csrfToken,
   patchTask,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -112,7 +119,7 @@ test.describe("P8's half of the criteria earlier packages split", () => {
       `POST /tasks/:id/my-day answered ${pulled.status()}: ${await pulled.text()}`,
     ).toBe(200)
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expect(
       taskRow(page, title).getByText('Imran'),
       'spec 9.4 row elements: an assignee chip when the assignee is not the viewer. 8.2 lets ' +
@@ -147,7 +154,7 @@ test.describe("P8's half of the criteria earlier packages split", () => {
     // case Q3's chip is about.
     await patchTask(page, created.id, { assignee_id: null })
 
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
     await expect(
       taskRow(page, title).getByText(/^unassigned$/i),
       'spec 6 Q3 row adornments: an "unassigned" chip when assignee_id is null and the folder ' +
@@ -168,7 +175,7 @@ test.describe("P8's half of the criteria earlier packages split", () => {
     // AC-058's own file: '"Collapsed" is section 9's rendering and arrives
     // with P8'; what P4 owes is that the completed section is a separate,
     // paginated request, which is what makes collapsing possible.
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
 
     await expect(
       page.getByText('Buy milk'),
@@ -210,7 +217,7 @@ test.describe("P8's half of the criteria earlier packages split", () => {
     // AC-141's own file: 9.8 carries the People screen copy, "P8's to
     // render". The owner ruled the 409 on 2026-08-09 and 7.5, 8.7 and 9.8
     // carry it; what is left is that a person sees why.
-    await page.goto(routes.people)
+    await page.goto(routesV2.people)
 
     const email = page.getByLabel(/invite by email/i)
     await expect(

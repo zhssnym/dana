@@ -54,27 +54,48 @@ answer to a question 11.6's double-submit expects one answer to.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import type { LucideIcon } from 'lucide-react'
-import { CalendarDays, CheckCircle2, Folder as FolderIcon, Layers3, ListTodo, Settings2, Star, SunMedium, UsersRound } from 'lucide-react'
+/* The icon module of DES-125, since S8: every icon Dana uses is an export
+   of one file and nothing imports `lucide-react` directly. */
+import type { LucideIcon } from '../lib/icons.js'
+import {
+  Ban,
+  CalendarDays,
+  CalendarX,
+  CheckCircle2,
+  Folder as FolderIcon,
+  LampDesk,
+  Layers3,
+  Settings,
+  Star,
+  SunMedium,
+  Trash2,
+  UserRoundCheck,
+  UsersRound,
+} from '../lib/icons.js'
 
 import { mutateApi } from '../api/http.js'
 import { useCreateFolder } from '../api/mutations.js'
-import { useFolders, useMe, usePendingInvites, useSettings } from '../api/queries.js'
+import { useBundle, useFolders, useMe, usePendingInvites } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
-import { NewFolderDialog, PageBar } from '../components/index.js'
+import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskFormOverlay } from '../components/task-form/index.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
-import { paths, sidebarPages } from '../routes.js'
+import { navPages, paths } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
+import { undoLast, undoShortcutApplies } from './undo.js'
+import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
+import { TabStrip } from './TabStrip.js'
+import { WindowBar } from './WindowBar.js'
+import { retarget } from './tabs.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -99,30 +120,37 @@ const FOLDER_PREFIX = '/app/folders/'
 const NO_FOLDERS: readonly Folder[] = []
 
 /**
- * The entry-point defaults of 9.3, keyed by the page the button sits on.
+ * Where the floating button appears, and what it makes there.
  *
- * The folder page's cell was closed at the P8 change control and restated by
- * RFC 0002 when 9.6 lost its two sections: the value is an empty due date
- * whether the form was opened from the page's quick-add or from this button,
- * because a folder is not a dated page.
+ * **The rule inverted at RFC 0005 and this is the inversion.** v1 put the
+ * button on every page except Done. 9.1 now puts it only on "the pages with
+ * no capture affordance of their own, Today, Important, and Assignments",
+ * and never on Done or Abandoned; in board view every column captures and
+ * the button is absent there too (DES-182, S10 owns that half). Every other
+ * page has a quick-add row where its own list begins, so a second control
+ * floating over it is two ways to do one thing, forty pixels apart.
+ *
+ * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
+ * page." A deleted-things page that offers to make a new thing is offering
+ * an act its own subject cannot receive.
+ *
+ * The defaults themselves are 9.3's entry table, whose v2 rows land with
+ * S10 and the board columns. What is here is the three pages this rule
+ * leaves the button on, each carrying the value its own spine locks.
  */
 function floatingDefaults(pathname: string): TaskFormDefaults | null {
-  if (pathname === paths.done) return null // 9.1: every page except Done.
-  if (pathname === paths.myDay) return { due_date: todayInBrowserZone(), important: false }
-  if (pathname === paths.planned) {
+  /* Today locks the day, so a task made here is due today; the Today
+     membership its spine actually wants is S10's, with the page. */
+  if (pathname === paths.today) {
     return { due_date: todayInBrowserZone(), important: false }
   }
+  /* Important locks the flag. */
   if (pathname === paths.important) return { due_date: null, important: true }
-  if (pathname.startsWith(FOLDER_PREFIX)) {
-    return {
-      due_date: null,
-      important: false,
-      folder_id: pathname.slice(FOLDER_PREFIX.length),
-    }
-  }
-  // Tasks, All, and the bare button: empty date, important off, Inbox, which
-  // the server supplies by defaulting folder_id to the viewer's Inbox (7.6).
-  return { due_date: null, important: false }
+  /* Assignments locks the assignee, and the value it locks is the viewer;
+     the assignee field arrives with S10's page, so the button opens the
+     form with the folder and date empty and the person chooses. */
+  if (pathname === paths.assignments) return { due_date: null, important: false }
+  return null
 }
 
 /** Whether a keystroke landed somewhere a person is typing. */
@@ -134,13 +162,17 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** The glyph the page strip shows, which is the designer's and not 9.1's. */
 const pageIcons: Record<string, LucideIcon> = {
-  [paths.myDay]: SunMedium,
-  [paths.tasks]: ListTodo,
-  [paths.planned]: CalendarDays,
+  [paths.desk]: LampDesk,
+  [paths.today]: SunMedium,
+  [paths.scheduled]: CalendarDays,
+  [paths.assignments]: UserRoundCheck,
+  [paths.abandoned]: Ban,
+  [paths.anytime]: CalendarX,
+  [paths.trash]: Trash2,
   [paths.important]: Star,
   [paths.all]: Layers3,
   [paths.done]: CheckCircle2,
-  [paths.settings]: Settings2,
+  [paths.settings]: Settings,
   [paths.people]: UsersRound,
 }
 
@@ -157,9 +189,7 @@ function currentPage(
   pathname: string,
   folders: readonly Folder[] | undefined,
 ): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
-  const page = sidebarPages.find((candidate) =>
-    candidate.path === paths.myDay ? pathname === paths.myDay : pathname === candidate.path,
-  )
+  const page = navPages.find((candidate) => pathname === candidate.path)
   if (page !== undefined) {
     return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }
   }
@@ -185,7 +215,16 @@ export function AppShell(): React.JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
   const me = useMe()
-  const settings = useSettings()
+  /*
+  The bundle of 4.19 rather than frozen 7.2's settings, since S9.
+
+  The three v1 page flags still exist and still decide the same entries: with
+  no pins written, the server derives the pin list from them (RFC 0005's
+  change control item 6), so a v1 account's show_done arrives as Done pinned
+  and nothing about 7.2 moved. What changed is that the sidebar now reads one
+  record of that fact instead of two, which is what the fold was for.
+  */
+  const bundle = useBundle()
   const folders = useFolders()
   const invites = usePendingInvites()
   const createFolder = useCreateFolder()
@@ -217,6 +256,43 @@ export function AppShell(): React.JSX.Element {
   }, [])
 
   /*
+  9.1's undo shortcut, Ctrl+Z or Cmd+Z, and no redo.
+
+  On the document for the same reason the search shortcut is: undo has to
+  reach the act from wherever the person ended up, which is usually not the
+  bar. It is refused while somebody is typing, and that refusal is the most
+  important line in this block: a text input's own undo is older, better
+  understood, and scoped to the words in front of them, so stealing Ctrl+Z
+  from a half-written task title to un-delete something three screens away
+  would be the most alarming thing this feature could do.
+  */
+  /*
+  Ordinary navigation retargets the active tab, as an address bar does
+  (9.1). One effect on the router's own location covers every way this
+  client can move: a sidebar link, a folder row, a redirect, the back
+  button and a programmatic navigate all land here, so no link in the
+  application has to know that tabs exist. `retarget` is a no-op when the
+  path already matches, which is what stops it looping with the navigations
+  the strip itself asks for.
+  */
+  useEffect(() => {
+    retarget(location.pathname)
+  }, [location.pathname])
+
+  useEffect(() => {
+    function onUndo(event: KeyboardEvent): void {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+      if (!undoShortcutApplies(event.target)) return
+      event.preventDefault()
+      undoLast()
+    }
+    document.addEventListener('keydown', onUndo)
+    return () => {
+      document.removeEventListener('keydown', onUndo)
+    }
+  }, [])
+
+  /*
   The one line that fights the distribution, and the reason is in
   `preferences.ts`. shadcn's `SidebarProvider` mirrors the collapsed state
   into a `sidebar_state` cookie because it is built for a host that reads it
@@ -230,7 +306,6 @@ export function AppShell(): React.JSX.Element {
   }, [railOpen])
 
   const defaults = floatingDefaults(location.pathname)
-  const page = currentPage(location.pathname, folders.data)
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
@@ -327,7 +402,7 @@ export function AppShell(): React.JSX.Element {
           }
         >
           <AppSidebar
-            settings={settings.data}
+            pinnedViews={bundle.data?.pinned_views}
             folders={folders.data}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
@@ -355,10 +430,31 @@ export function AppShell(): React.JSX.Element {
               page strip below it a page's header rather than the
               application's banner (AC-174). */}
           <SidebarInset className="min-w-0 overflow-hidden bg-card">
-            <PageBar
-              title={page.title}
-              icon={page.icon}
-              iconColor={page.iconColor}
+            {/*
+            The tab strip of 9.1, above the window bar and inside `main`.
+
+            Inside rather than above the inset for AC-174's reason: a
+            `header` outside `main` is the banner landmark that criterion
+            asserts the absence of, and the strip is chrome belonging to the
+            window rather than to the application.
+            */}
+            <TabStrip
+              face={(path) => currentPage(path, folders.data)}
+              folders={folders.data ?? NO_FOLDERS}
+              onNavigate={(path) => {
+                void navigate(path)
+              }}
+            />
+            {/*
+            The window bar of 9.1 and DES-139, replacing the v1 page strip.
+
+            The strip it replaces repeated the page's title, which 9.1 now
+            forbids in as many words because the tab above says it. The one
+            thing on it that was not the title, 10.6's update affordance,
+            came across with the bar.
+            */}
+            <WindowBar
+              pathname={location.pathname}
               showUpdate={update.showUpdate}
               onUpdate={update.applyUpdate}
             />
@@ -392,6 +488,10 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
+      {/* 9.1's undo bar: one for the whole window, bottom-left, outside the
+          sidebar provider so it is not clipped by the shell's own layout and
+          so there is exactly one of it however many pages mount. */}
+      <UndoBar />
       <ToastRegion />
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search

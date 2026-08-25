@@ -976,6 +976,83 @@ fold, the way P7's mid-package change control ratified the pass callable:
    carry a composite scope key, FOREIGN KEY (folder_id, task_id) REFERENCES
    tasks (folder_id, id), the assignee precedent applied: a comment's
    visibility scope cannot drift from its task's folder.
+8. **Twenty v1 browser criteria were reworked onto the v2 surfaces, and
+   three of them raise Replace units this role may not write (2026-08-24).**
+   The rework is the package Imran ruled on that day: eighteen numbered
+   criteria plus `rendered-halves` and `session-path` addressed a section 9.1
+   this RFC replaced, and 46 of their cases were red at S9 for four reasons,
+   all deliberate. /app/tasks and /app/planned redirect; /app is Desk;
+   the capture rule inverted; the page block carries the DES-152 names. All
+   46 are green against the v2 addresses, and no criterion's text was edited
+   to get there, which is what the three units below exist for. Each carries
+   a recommendation, as protocol section 6 requires.
+
+   **AC-165 quotes a string 9.4 has rewritten.** Its text is "then it
+   carries 'Remove from My Day'", and 9.4 now says the control reads
+   "Remove from Today". Recommended Replace, name only, on the AC-005 and
+   AC-025 precedent, the logic being untouched:
+
+   ```markdown
+   - AC-165 Given a Today row whose inclusion came from an entry, then it carries "Remove from Today"; given one that also qualifies automatically, then it does not, and using the control removes the row at once.
+   ```
+
+   **AC-167 names a control 9.4 deletes.** Its text is "the important-only
+   toggle on My Day", and 9.4 now reads "the important-only narrowing is the
+   window bar filter's important switch; the page's header carries no control
+   of its own for it." What the criterion measures is Q1's closing line, that
+   the narrowing is client-side over already-fetched groups and changes no
+   query, and nothing else asserts it: AC-222 is about a filter belonging to
+   its page and its session, not about the wire. Recommended Replace,
+   repointing the criterion at the control that survived rather than retiring
+   it:
+
+   ```markdown
+   - AC-167 Given the window bar filter's important switch on Today, then it filters the rows already fetched and issues no request, and turning it off restores them without one either.
+   ```
+
+   **AC-183 enumerates a confirmation 9.6 removes.** Its list of nine strings
+   includes "9.6's ... delete-folder confirm", and 9.6 now reads "deleting
+   moves the folder to Trash for every member at once, with the undo bar and
+   no confirmation: two ways back is why the question left." Recommended
+   Replace, dropping that clause and leaving the other eight strings
+   verbatim; what replaced the confirm is the undo bar, which AC-225 reads:
+
+   ```markdown
+   - AC-183 ... 9.6's leave and remove-member confirms ... (otherwise verbatim)
+   ```
+
+   **The list of twenty was three short, and the three were reworked with
+   it.** Running the whole browser leg rather than the twenty named files
+   found AC-091, AC-092 and AC-093 red for the same causes: AC-091 reads a
+   sidebar entry called My Day, AC-092 and AC-093 open the task form from a
+   floating add button on pages 9.1's v2 capture rule takes it off. S9
+   enumerated the failures it had diagnosed and the enumeration was short,
+   which is a counting error rather than a ruling, so the three were reworked
+   under the same ruling rather than carried red through the merge. Every
+   other v1 browser spec file is green, several of them through the AC-215
+   redirects rather than by addressing a v2 path; that is a tidiness debt and
+   not a defect, and it is named here so the session that clears it knows the
+   list is `grep -l "routes\." app/tests/e2e/*.spec.ts`.
+
+   **AC-093's replacement text is four assertions wider than its surfaces.**
+   Its v2 row set is nine and six are asserted; All's undated capture waits
+   for S10 to redraw that page's two halves and rename the region it sits in,
+   Assignments and any board column wait for S10's place pages, a section's
+   capture waits for S12's page blocks, and Today's row asks for a Today
+   membership the shell deliberately does not write. AC-221 already reads the
+   board column and the Today membership against the sharper case. What is
+   left owing is All's arm to S10 and the section capture to S12, recorded
+   here as well as in the file because a coverage gap that lives only in a
+   comment is a gap the next session does not know it inherited.
+
+   Two adjacent notes, so that a later reader does not take them for
+   oversights. AC-162 needs no unit: its text quantifies rather than
+   enumerates, "each destructive action section 9 puts a confirm on", so the
+   two confirmations v2 removes leave that criterion by its own words when
+   S11 and S12 land the surfaces, and its file records that. And AC-094's
+   Replace unit above is asserted by AC-220 rather than by AC-094's own
+   browser test, which stays on the v1 form until S11 lands the v2 assignee
+   menu; that split is S1's and is recorded in AC-220's file.
 
 ## Implementation plan
 

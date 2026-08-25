@@ -47,10 +47,35 @@ anywhere: a criterion that reads the string it asserts out of the code under
 test asserts that the code equals itself, which is precisely the check a copy
 regression has to survive.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and one clause
+escalated.** Three cases stood on pages that moved: the failed read is
+injected on Anytime, which draws Q2 at /app/anytime now that /app/tasks
+redirects, the steps editor is reached from the same page, and the abandon
+confirm is opened on Today, which draws Q1 at /app/today now that Desk holds
+/app. Nothing about the nine strings moves with them.
+
+The clause escalated is the criterion's seventh string. It names "9.6's
+leave, remove-member and delete-folder confirms", and 9.6 no longer has a
+delete-folder confirm: "deleting moves the folder to Trash for every member
+at once, with the undo bar and no confirmation: two ways back is why the
+question left." A criterion that enumerates a string its own section has
+since removed is a criterion whose text is false in that clause, and
+protocol section 8 does not let this role edit that text: it is a Replace
+unit for RFC 0005's change control and a question for the owner, whose two
+honest answers are to drop the clause or to point it at 9.11's Trash copy
+instead. Until he rules, the case stays and stays green, the client still
+having the confirm; what would be dishonest is deleting a criterion's case
+because the criterion is inconvenient rather than because the owner said so.
+9.4's abandon confirm is a different matter and needs no unit: v2 rewords the
+sentence from "My Day" to "Today", the criterion points at the confirm rather
+than quoting it, and the string moves when S10 redraws the page that renders
+it.
+
 Spec: 9.1 (the inline state copy, the conflict rule, "Continue" and
-"Cancel"), 9.3 (the steps cap notice), 9.4 (the abandon confirm), 9.6 (the
-leave, remove-member and delete-folder confirms), 9.8 (the already-connected
-refusal and the remove-connection confirm), 10.2, 10.3, 7.5.
+"Cancel", and the v2 routes table), 9.3 (the steps cap notice), 9.4 (the
+abandon confirm), 9.6 (the leave, remove-member and delete-folder confirms),
+9.8 (the already-connected refusal and the remove-connection confirm), 10.2,
+10.3, 7.5.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -64,7 +89,7 @@ import {
   expectOneTextRun,
   fillControl,
   regionOf,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -118,7 +143,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
         body: JSON.stringify({ error: { code: 'internal', message: 'Something broke.' } }),
       })
     })
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expectOneTextRun(
       page,
       copy.readFailed,
@@ -133,7 +158,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
 
     // The other seeded user's Inbox exists and this viewer is not a member,
     // so 10.2 answers 404 without anything being broken.
-    await page.goto(routes.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranInbox))
     await expectOneTextRun(
       page,
       copy.notFound,
@@ -161,7 +186,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
       ).toBe(201)
     }
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText(title),
       'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
@@ -181,14 +206,14 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.4's abandon confirm", async ({ page }) => {
-    const title = 'ac-183 abandon me from my day'
+    const title = 'ac-183 abandon me from today'
     await createTask(page, {
       title,
       folder_id: seedIds.groceries,
       due_date: seedDate(0),
       assignee_id: seedIds.hassan,
     })
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await clickControl(
       taskRow(page, title).getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.4: a row carries an overflow menu',
@@ -219,7 +244,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     const context = await browser.newContext()
     const page = await context.newPage()
     await signIn(page, seedSubs.imran)
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await clickControl(
       regionOf(page, 'Folder header').getByRole('button', {
         name: 'More actions',
@@ -250,7 +275,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.6's remove-member confirm", async ({ page }) => {
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await clickControl(
       page.getByRole('button', { name: 'Share' }),
       'spec 9.6: the folder header carries a Share button, which opens the sharing panel',
@@ -304,7 +329,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
       }
     }
 
-    await page.goto(routes.folder(folderId))
+    await page.goto(routesV2.folder(folderId))
     await clickControl(
       regionOf(page, 'Folder header').getByRole('button', {
         name: 'More actions',
@@ -333,7 +358,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.8's already-connected refusal", async ({ page }) => {
-    await page.goto(routes.people)
+    await page.goto(routesV2.people)
     const email = page.getByLabel(/invite by email/i)
     await fillControl(
       email,
@@ -353,7 +378,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.8's remove-connection confirm", async ({ page }) => {
-    await page.goto(routes.people)
+    await page.goto(routesV2.people)
     const entry = page
       .getByRole('listitem')
       .or(page.getByRole('row'))

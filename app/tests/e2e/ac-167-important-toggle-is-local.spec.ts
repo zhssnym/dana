@@ -32,6 +32,24 @@ back or not depending on a predicate Q1 does not have.
 client already had, so an implementation that filters the fetched data
 destructively passes the first half and shows an emptied page on the second.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and one clause
+escalated.** 9.1's route table moves the page this criterion is about off
+/app, where Desk now is, to /app/today. Q1 is unchanged, its heading keeping
+the v1 name in parentheses because acceptance criteria cite it, so every
+assertion below is the one it always was and only the address moved.
+
+The clause escalated is where the toggle lives. This criterion says "the
+important-only toggle on My Day", and 9.4 now says the opposite in terms:
+"the important-only narrowing is the window bar filter's important switch;
+the page's header carries no control of its own for it, because two controls
+for one variable forty pixels apart is how the two disagree." So the control
+this criterion names is one v2 deletes, and AC-222 owns the filter that
+replaces it. What Q1's own closing line rules is untouched, that the
+narrowing is client-side over already-fetched groups and changes no query,
+and that is the whole of what this file measures. A Replace unit for RFC
+0005's change control and a question for the owner; until he rules, the file
+addresses the switch the page still carries.
+
 Spec: 6 Q1 (the toggle is a client-side filter and changes no query), 9.4
 (the important-only toggle switch), 7.10, section 13 item 6.
 */
@@ -42,7 +60,7 @@ import {
   caseTitle,
   clickControl,
   createTask,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -87,7 +105,7 @@ test.describe('AC-167: the important-only toggle is local', () => {
       important: true,
     })
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expect(
       taskRow(page, PLAIN),
       'spec 6 Q1: an unimportant task due today and assigned to the viewer is in the Today ' +
@@ -142,10 +160,10 @@ test.describe('AC-167: the important-only toggle is local', () => {
       assignee_id: seedIds.hassan,
     })
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expect(
       taskRow(page, PLAIN),
-      'spec 6 Q1: the row is on My Day before the filter hides it',
+      'spec 6 Q1: the row is on Today before the filter hides it',
     ).toBeVisible()
 
     const toggle = page.getByRole('switch', { name: /important/i })

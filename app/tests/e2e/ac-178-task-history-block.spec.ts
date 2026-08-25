@@ -44,7 +44,13 @@ carries the day and the year of the created_at the API reports, in the
 viewer's own zone. A block naming the person and no time satisfies half the
 sentence and is exactly as useless as a block naming the time and no person.
 
-Spec: 9.3 (the read-only history block, in edit mode only), frozen 7.2's
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where the task is opened from does. The rows this
+file creates are undated, so their home is Q2's page, which is Anytime at
+/app/anytime now that /app/tasks redirects; Done keeps its own path.
+
+Spec: 9.3 (the read-only history block, in edit mode only), 9.1 (the v2
+routes table), frozen 7.2's
 TaskDetail (created_by, created_at, completed_by, completed_at), 4.1 (the
 display_name note), 8.10 (the deletion and its surviving references), 5.1
 (the completion that fills the second line), section 13 item 27.
@@ -57,7 +63,7 @@ import {
   clickControl,
   createTask,
   csrfToken,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -136,7 +142,7 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     const detail = await detailOf(page, task.id)
     const created = dayAndYear(detail.created_at)
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await openForEdit(page, MINE)
 
     const form = page.getByRole('dialog')
@@ -162,7 +168,7 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     const title = `${MINE} two`
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await openForEdit(page, title)
     await expect(
       page.getByRole('dialog'),
@@ -177,7 +183,7 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     expect(detail.completed_at, 'spec 5.1: completing stamps completed_at').not.toBeNull()
     const done = dayAndYear(detail.completed_at ?? '')
 
-    await page.goto(routes.done)
+    await page.goto(routesV2.done)
     await openForEdit(page, title)
     const form = page.getByRole('dialog')
     await expect(
@@ -271,7 +277,7 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
 
     // The surviving member opens the row the deleted account wrote.
     token = await csrfToken(ownerContext)
-    await owner.goto(routes.folder(folderId))
+    await owner.goto(routesV2.folder(folderId))
     await openForEdit(owner, BY_DOOMED)
     const form = owner.getByRole('dialog')
     await expect(
@@ -294,7 +300,7 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     const title = `${MINE} three`
     await createTask(page, { title, folder_id: seedIds.groceries })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await openForEdit(page, title)
 
     // The block is found by the name it renders and read for controls. 9.3

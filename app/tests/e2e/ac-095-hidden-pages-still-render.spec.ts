@@ -9,37 +9,60 @@ inside a router nobody had written, so the criterion could be read but not
 addressed. 9.1 carries them now and this file navigates to them as
 specification text.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and the toggle is
+what moved.** The criterion's own sentence is untouched and stays true:
+Important, All and Done are all three still hideable, and their paths are the
+three rows of 9.1's table that did not move. What changed is what "toggled"
+means. v1's 9.7 carried three booleans and a note that My Day, Tasks and
+Planned were always shown; v2's 9.7 carries the pin list, "every view Dana
+has, native and saved alike, each with the page's own mark, its one-line
+question, and a pin switch; Desk locked", and only Desk is locked. So the
+three cases that set the state set `pinned_views` through the /settings
+bundle of 4.19, which is what the Settings page writes, and the case about
+what cannot be hidden is about Desk rather than about three pages.
+
+**The order of the cases below is load-bearing, which is unusual enough to
+say.** S7's fold makes `pinned_views` the record from the moment it is first
+written, and derives it from the three v1 flags until then. The case that
+measures the Settings control is therefore first, while the derivation is
+still live; every case after it writes pins outright. A reader reordering
+this file will find the Settings case failing for a reason that has nothing
+to do with the Settings page.
+
 **Rendered, not merely reachable.** A route that answers with an empty page,
-a redirect to My Day, or a "this page is hidden" notice satisfies "the URL
+a redirect to Desk, or a "this page is hidden" notice satisfies "the URL
 still renders" in the loosest reading and defeats the parenthesis, which is
 the operative half: visibility is a navigation preference only, the sentence
 AC-123 pins on the server side. So each hidden page is asserted to show a
-seeded row that belongs on it, which is the only evidence that the page
-under the URL is the page and not a placeholder standing where it was.
+seeded row that belongs on it, which is the only evidence that the page under
+the URL is the page and not a placeholder standing where it was.
 
-**The default state is the first case and needs no toggling.** 4.10 ships
-show_done false, so a seeded account already has one hidden page. It is the
-sharper of the two directions, because an implementation that renders the
-sidebar from a static list and never reads settings passes every toggling
-case by accident and fails here.
+**The default state is a case of its own and needs no toggling.** 9.7 ships
+Done, Abandoned and Anytime unpinned, so a seeded account already has hidden
+pages. It is the sharper direction, because an implementation that renders
+the sidebar from a static list and never reads the pin list passes every
+toggling case by accident and fails there.
 
-**This spec restores the 4.10 defaults after each case.** Every other spec in
-this leg reads the same sidebar out of the same shared database, so leaving
-Important and All hidden would change what they see. Restored through 7.2
-rather than through the page, so the restoration cannot fail for the reason
-the test is about.
+**This spec restores the defaults after each case.** Every other spec in this
+leg reads the same sidebar out of the same shared database, so leaving
+Important and All unpinned would change what they see. Restored through the
+API rather than through the page, so the restoration cannot fail for the
+reason the test is about, and restored as pins rather than as flags because
+after the first write the flags no longer reach this surface.
 
-Spec: 9.7 (the three toggles and the always-shown note), 9.1 (the sidebar's
-fixed order and its route table), 7.2, 4.10, 6 Q4, Q5, Q6.
+Spec: 9.7 (the pin list, and Desk locked), 9.1 (the sidebar's page block in
+its fixed order, and the v2 routes table), 4.19 (pinned_views), 7.2 and 4.10
+(the v1 flags the fold derives from), 6 Q4, Q5, Q6.
 */
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
   clickControl,
-  csrfToken,
-  routes,
+  DEFAULT_PINS,
+  patchBundle,
+  patchSettings,
+  routesV2,
   seedSubs,
   sidebarLink,
   signIn,
@@ -51,48 +74,67 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-/** The three pages 9.7 makes toggleable, with the row each one must show. */
-const TOGGLEABLE = [
-  { name: 'Important', path: routes.important, key: 'show_important', row: 'Buy milk' },
-  { name: 'All', path: routes.all, key: 'show_all', row: 'Sort inbox' },
-  { name: 'Done', path: routes.done, key: 'show_done', row: 'Pay rent' },
+/** The three pages this criterion names, with the row each one must show. */
+const HIDEABLE = [
+  { name: 'Important', path: routesV2.important, key: 'important', row: 'Buy milk' },
+  { name: 'All', path: routesV2.all, key: 'all', row: 'Sort inbox' },
+  { name: 'Done', path: routesV2.done, key: 'done', row: 'Pay rent' },
 ] as const
-
-/** The three 9.7 says are always shown. */
-const PERMANENT = ['My Day', 'Tasks', 'Planned'] as const
-
-async function setPages(page: Page, values: Record<string, boolean>): Promise<void> {
-  const token = await csrfToken(page.context())
-  const response = await page.request.patch('/api/v1/me/settings', {
-    data: values,
-    headers: { 'X-CSRF-Token': token },
-  })
-  expect(
-    response.status(),
-    `PATCH /me/settings answered ${response.status()}: ${await response.text()}`,
-  ).toBe(200)
-}
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
 test.afterEach(async ({ page }) => {
-  // Back to 4.10's defaults, which is the state the seed leaves and every
-  // other spec in this leg assumes.
-  await setPages(page, { show_important: true, show_all: true, show_done: false })
+  // Back to the pin list 9.7 ships, which is the state every other spec in
+  // this leg assumes, and back to 4.10's flags for the same reason.
+  await patchBundle(page, { pinned_views: [...DEFAULT_PINS] })
+  await patchSettings(page, { show_important: true, show_all: true, show_done: false })
 })
 
 test.describe('AC-095: hidden pages are a navigation preference', () => {
-  test('AC-095: Done ships hidden and its URL renders the page', async ({ page }) => {
-    await page.goto(routes.myDay)
+  // First in the file, deliberately: see the header. The fold derives the pin
+  // list from the v1 flags until pins are written, and this is the case that
+  // measures the control a person actually reaches.
+  test('AC-095: the toggle on the Settings page drives the sidebar', async ({ page }) => {
+    // The criterion says "toggled hidden", and 9.7 is where a person toggles.
+    // The cases below set the state through the API so that they measure the
+    // sidebar and the routes rather than the Settings page; this one measures
+    // the control, so the two halves of the surface fail separately and each
+    // red names one of them.
+    await page.goto(routesV2.settings)
+    await clickControl(
+      page.getByRole('switch', { name: 'Important' }),
+      'spec 9.7: the Settings page carries one switch per hideable view. The v2 section calls ' +
+        'it a pin switch in the Views list and the client still renders the v1 page toggle; ' +
+        "S7's fold is what makes the two one record, and the switch this case presses is the " +
+        'one a person can press today',
+    )
+    await page.goto(routesV2.desk)
     await expect(
-      sidebarLink(page, 'Done'),
-      'spec 4.10 defaults show_done to false and 9.7 makes Done one of the three toggles, so ' +
-        'a seeded account opens with Done absent from the sidebar of 9.1',
+      sidebarLink(page, 'Important'),
+      'spec 9.7 and 9.1: turning a view off is what takes its entry out of the sidebar page ' +
+        'block',
     ).toHaveCount(0)
 
-    await page.goto(routes.done)
+    await page.goto(routesV2.important)
+    await expect(
+      page.getByText('Buy milk'),
+      "spec 9.1 route table: the page is still at its URL after a person hid it, which is " +
+        'the whole of AC-095 stated from the control that does the hiding',
+    ).toBeVisible()
+  })
+
+  test('AC-095: Done ships unpinned and its URL renders the page', async ({ page }) => {
+    await page.goto(routesV2.desk)
+    await expect(
+      sidebarLink(page, 'Done'),
+      'spec 9.7: "Done, Abandoned and Anytime ship unpinned", so a seeded account opens with ' +
+        "Done absent from 9.1's page block. This is the direction an implementation that " +
+        'renders a static list passes every other case by accident and fails',
+    ).toHaveCount(0)
+
+    await page.goto(routesV2.done)
     await expect(
       page.getByText('Pay rent'),
       'spec 9.1 route table: /app/done is the Done page whether or not the sidebar links to ' +
@@ -101,21 +143,23 @@ test.describe('AC-095: hidden pages are a navigation preference', () => {
     ).toBeVisible()
   })
 
-  test('AC-095: all three toggled hidden are omitted and all three still render', async ({
+  test('AC-095: all three unpinned are omitted and all three still render', async ({
     page,
   }) => {
-    await setPages(page, { show_important: false, show_all: false, show_done: false })
-    await page.goto(routes.myDay)
+    await patchBundle(page, {
+      pinned_views: ['desk', 'today', 'scheduled', 'assignments'],
+    })
+    await page.goto(routesV2.desk)
 
-    for (const surface of TOGGLEABLE) {
+    for (const surface of HIDEABLE) {
       await expect(
         sidebarLink(page, surface.name),
-        `spec 9.7: ${surface.name} is toggled off, and 9.1's sidebar lists a page only if it ` +
-          'is permanent or toggled visible',
+        `spec 9.7: ${surface.name} is unpinned, and 9.1's page block lists a view only when ` +
+          'the pin list has pinned it',
       ).toHaveCount(0)
     }
 
-    for (const surface of TOGGLEABLE) {
+    for (const surface of HIDEABLE) {
       await page.goto(surface.path)
       await expect(
         page.getByText(surface.row),
@@ -125,63 +169,50 @@ test.describe('AC-095: hidden pages are a navigation preference', () => {
     }
   })
 
-  test('AC-095: the three permanent pages are never omitted', async ({ page }) => {
-    await setPages(page, { show_important: false, show_all: false, show_done: false })
-    await page.goto(routes.myDay)
+  test('AC-095: Desk cannot be unpinned', async ({ page }) => {
+    // v1's 9.7 kept three pages permanent and said so in a note; v2 keeps
+    // one, and gives the reason in the section itself: "Desk cannot be
+    // unpinned: it is where a task goes when you have not said where, so it
+    // has to stay reachable." A person who hid it would go on filling it with
+    // no way back to what they had filed.
+    await patchBundle(page, { pinned_views: [] })
+    await page.goto(routesV2.desk)
 
-    for (const name of PERMANENT) {
-      await expect(
-        sidebarLink(page, name),
-        `spec 9.7: "My Day, Tasks, and Planned are always shown", so hiding everything ` +
-          `hideable leaves ${name} in the sidebar. An implementation reading the three ` +
-          'booleans as a filter over all six pages fails here',
-      ).toBeVisible()
-    }
+    await expect(
+      sidebarLink(page, 'Desk'),
+      'spec 9.7: Desk is locked pinned, so a write that names no pins at all still leaves it ' +
+        'in the sidebar. An implementation reading the pin list as a plain filter empties the ' +
+        'page block here and strands a person on whatever page they are standing on',
+    ).toBeVisible()
+    await expect(
+      sidebarLink(page, 'Today'),
+      'and the write did take: every view but Desk carries a pin switch, so Today goes when ' +
+        'the pin list drops it. Without this half the assertion above passes against a client ' +
+        'that ignored the write',
+    ).toHaveCount(0)
   })
 
-  test('AC-095: toggling a page back on returns it to the sidebar', async ({ page }) => {
-    await setPages(page, { show_important: false, show_all: false, show_done: false })
-    await page.goto(routes.myDay)
+  test('AC-095: pinning a page back returns it to the sidebar', async ({ page }) => {
+    await patchBundle(page, {
+      pinned_views: ['desk', 'today', 'scheduled', 'assignments'],
+    })
+    await page.goto(routesV2.desk)
     await expect(
       sidebarLink(page, 'Important'),
       'spec 9.7: the page starts hidden here, which is the state the restoration below is ' +
         'measured against',
     ).toHaveCount(0)
 
-    await setPages(page, { show_important: true, show_all: true, show_done: true })
-    await page.goto(routes.myDay)
-    for (const surface of TOGGLEABLE) {
+    await patchBundle(page, {
+      pinned_views: [...DEFAULT_PINS, 'done'],
+    })
+    await page.goto(routesV2.desk)
+    for (const surface of HIDEABLE) {
       await expect(
         sidebarLink(page, surface.name),
-        `spec 9.7: ${surface.name} is toggled visible, so 9.1's sidebar lists it. Hiding that ` +
-          'is reversible is what makes it a preference rather than a deletion',
+        `spec 9.7: ${surface.name} is pinned, so 9.1's page block lists it. That hiding is ` +
+          'reversible is what makes it a preference rather than a deletion',
       ).toBeVisible()
     }
-  })
-
-  test('AC-095: the toggles on the Settings page drive the sidebar', async ({ page }) => {
-    // The criterion says "toggled hidden", and 9.7 is where a person toggles.
-    // The four cases above set the state through 7.2 so that they measure the
-    // sidebar and the routes rather than the Settings page; this one measures
-    // the control, so the two halves of the surface fail separately and each
-    // red names one of them.
-    await page.goto(routes.settings)
-    await clickControl(
-      page.getByRole('switch', { name: 'Important' }),
-      'spec 9.7: the Pages section carries three toggles, one per hideable page',
-    )
-    await page.goto(routes.myDay)
-    await expect(
-      sidebarLink(page, 'Important'),
-      'spec 9.7: the Pages section carries three toggles, and turning one off is what hides ' +
-        'its page from the sidebar of 9.1',
-    ).toHaveCount(0)
-
-    await page.goto(routes.important)
-    await expect(
-      page.getByText('Buy milk'),
-      'spec 9.1 route table: the page is still at its URL after a person hid it, which is ' +
-        'the whole of AC-095 stated from the control that does the hiding',
-    ).toBeVisible()
   })
 })
