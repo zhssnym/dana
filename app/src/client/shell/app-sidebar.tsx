@@ -98,7 +98,7 @@ The labels are the viewer's own, from the `my_label` of 7.4's membership row,
 so the same folder is inside a group for one member and among the unlabeled
 for another. AC-155 reads all four clauses.
 */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
 /* The icon module of DES-125, since S8: one file owns the family and
@@ -169,6 +169,21 @@ import { NotificationsBell } from './NotificationsBell.js'
 import { savedViewPath } from '../views/saved-views.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
+/* The one drag engine of RFC 0004's S11 row, and the Library's answers to the
+   two questions it asks about anything outside the list it is sorting. */
+import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
+import type { SortableItemState } from '../lib/use-sortable-list.js'
+import { DIRECTORY, grip, useLibraryZones } from './library-drag.js'
+import type { LibraryZones } from './library-drag.js'
+import {
+  arrangeColumn,
+  encodeColumn,
+  entryName,
+  groupKey,
+  labelOfKey,
+  moveFolderTo,
+} from './library-order.js'
+import type { DirectoryEntry } from './library-order.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
 
@@ -319,16 +334,6 @@ function NavigationRow({
   )
 }
 
-interface LabelGroup {
-  readonly label: string
-  readonly folders: readonly Folder[]
-}
-
-/** Case-insensitive, so "aardvark" and "Aardvark" order together. */
-function byName(a: Folder, b: Folder): number {
-  return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-}
-
 /**
  * 9.1's folder list order, which is deliberately not frozen 7.4's.
  *
@@ -337,30 +342,17 @@ function byName(a: Folder, b: Folder): number {
  * lists the unlabeled by name. A sidebar rendering the response in the order
  * it arrived is wrong in a way that looks right until two folders disagree
  * about it, which is what AC-155's first case creates on purpose.
+ *
+ * **That order is the seed of one column rather than the shape of the list**,
+ * since S11 built DES-171's drag. `shell/library-order.ts` owns both halves:
+ * `seedColumn` is exactly the sentence above and `arrangeColumn` lays the
+ * viewer's stored sequence over it, so an untouched sidebar still reads as
+ * AC-155 asserts. Inbox is not in the column, this section pinning it first
+ * and giving it a clause of its own, so it is read off the list here and
+ * drawn above.
  */
-export function groupFolders(folders: readonly Folder[]): {
-  readonly inbox: Folder | null
-  readonly groups: readonly LabelGroup[]
-  readonly unlabeled: readonly Folder[]
-} {
-  const inbox = folders.find((folder) => folder.is_default) ?? null
-  const rest = folders.filter((folder) => !folder.is_default)
-  const byLabel = new Map<string, Folder[]>()
-  const unlabeled: Folder[] = []
-  for (const folder of rest) {
-    const label = folder.my_label
-    if (label === null || label === '') {
-      unlabeled.push(folder)
-      continue
-    }
-    const bucket = byLabel.get(label)
-    if (bucket === undefined) byLabel.set(label, [folder])
-    else bucket.push(folder)
-  }
-  const groups = [...byLabel.entries()]
-    .map(([label, members]) => ({ label, folders: [...members].sort(byName) }))
-    .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
-  return { inbox, groups, unlabeled: [...unlabeled].sort(byName) }
+function inboxOf(folders: readonly Folder[]): Folder | null {
+  return folders.find((folder) => folder.is_default) ?? null
 }
 
 /**
@@ -387,6 +379,7 @@ function SidebarFolderRow({
   nested = false,
   tree = false,
   treeLast = false,
+  drag,
 }: {
   readonly folder: Folder
   readonly activeId: string | null
@@ -394,10 +387,25 @@ function SidebarFolderRow({
   readonly nested?: boolean
   readonly tree?: boolean
   readonly treeLast?: boolean
+  /**
+   * What the engine has to say about this row, absent for a row no list is
+   * sorting. Inbox is the standing case: 9.1 pins it above the column, so it
+   * is drawn by this component with nothing carrying it.
+   */
+  readonly drag?: {
+    readonly itemRef: (element: HTMLElement | null) => void
+    readonly rowProps: React.ComponentProps<'li'>
+    readonly state: SortableItemState
+    readonly proposal: string | null
+  }
 }): React.JSX.Element {
   const display = folderRowDisplay(folder)
   return (
     <FolderRow
+      itemRef={drag?.itemRef}
+      rowProps={drag?.rowProps}
+      dragState={drag?.state}
+      proposal={drag?.proposal ?? null}
       name={display.name}
       color={display.color}
       href={display.href}
@@ -460,16 +468,104 @@ function FolderGroupBlock({
   group,
   activeId,
   groups,
+  zones,
+  drag,
+  onMoveOut,
+  onReorderWithin,
 }: {
-  readonly group: LabelGroup
+  readonly group: Extract<DirectoryEntry, { kind: 'group' }>
   readonly activeId: string | null
   readonly groups: FolderGroupActions
+  readonly zones: LibraryZones
+  /** This block's own place in the directory's list, from the outer engine. */
+  readonly drag: {
+    readonly itemRef: (element: HTMLElement | null) => void
+    readonly handleProps: { onPointerDown: (event: React.PointerEvent) => void }
+    readonly state: SortableItemState
+    readonly proposal: string | null
+  }
+  /** A folder leaving this group, for the label the release writes. */
+  readonly onMoveOut: (folder: Folder, label: string | null) => void
+  readonly onReorderWithin: (label: string, from: number, to: number) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(true)
+  const self = groupKey(group.label)
+
+  /*
+  The group's own folders, on the same engine as everything else.
+
+  No hold in here, and no option for one: two folders already in a group
+  cannot become a group, Dana nesting one level (DES-171). What this list adds
+  over the directory's is the way out, which needs no target of its own, the
+  space around the containers already meaning unsectioned.
+  */
+  const inner = useSortableList({
+    count: group.folders.length,
+    onLift: swallowNextClick,
+    describe: (index) => group.folders[index]?.name ?? 'Folder',
+    onOver: (_from, point) => zones.containerAt(point, self),
+    onDropAt: (from, point) => {
+      const folder = group.folders[from]
+      if (folder === undefined) return false
+      const container = zones.containerAt(point, self)
+      if (container === null) return false
+      onMoveOut(folder, container === DIRECTORY ? null : labelOfKey(container))
+      return true
+    },
+    onReorder: (from, to) => {
+      onReorderWithin(group.label, from, to)
+    },
+  })
+
+  /*
+  Two refs on one element, because the section is two things at once: the
+  entry the directory's list measures and moves, and the container a release
+  from any other list can land in. Composed here rather than given an element
+  each, a wrapper existing only to hold a ref being a wrapper that changes the
+  layout it was added to.
+  */
+  const sectionRef = (element: HTMLElement | null): void => {
+    drag.itemRef(element)
+    zones.registerZone(self)(element)
+  }
+
+  const offset = drag.state.offset
   return (
-    <section aria-label={group.label}>
+    <section
+      aria-label={group.label}
+      ref={sectionRef}
+      style={
+        offset === 0 && !drag.state.isActive
+          ? undefined
+          : {
+              transform: `translateY(${String(offset)}px)`,
+              transition:
+                drag.state.isActive && !drag.state.isSettling
+                  ? 'none'
+                  : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
+              position: drag.state.isActive ? 'relative' : undefined,
+              zIndex: drag.state.isActive ? 30 : undefined,
+              /* A carried section must not catch the point it follows, for
+                 the reason folder-row.tsx records: containerAt asks the
+                 document what is under the pointer. */
+              pointerEvents: drag.state.isActive ? 'none' : undefined,
+            }
+      }
+    >
       <Collapsible open={open} onOpenChange={setOpen}>
-        <div className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10">
+        <div
+          {...grip(drag.handleProps)}
+          className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10"
+        >
+          {/* What a release would do, on the heading being carried. 9.1 fixes
+              the sentence for the container case and DES-171 gives the reason
+              it is words: a closed group is never sprung open by a drag
+              hovering it, so it takes the drop and says so instead. */}
+          {drag.proposal === null ? null : (
+            <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+              {drag.proposal}
+            </span>
+          )}
           <CollapsibleTrigger
             data-sidebar-tier="group"
             className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
@@ -498,6 +594,10 @@ function FolderGroupBlock({
                   size="icon"
                   className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
                   aria-label={MORE_ACTIONS}
+                  // The heading row is the group's grip, so its own controls
+                  // have to say they are not: a press on a control belongs to
+                  // that control (`grip`, in `library-drag.ts`).
+                  data-no-drag
                 />
               }
             >
@@ -525,21 +625,219 @@ function FolderGroupBlock({
         </div>
         <CollapsibleContent>
           <SidebarMenu className="pb-1">
-            {group.folders.map((folder, index) => (
-              <SidebarFolderRow
-                key={folder.id}
-                folder={folder}
-                activeId={activeId}
-                groups={groups}
-                nested
-                tree
-                treeLast={index === group.folders.length - 1}
-              />
-            ))}
+            {group.folders.map((folder, index) => {
+              const state = inner.itemState(index)
+              return (
+                <SidebarFolderRow
+                  key={folder.id}
+                  folder={folder}
+                  activeId={activeId}
+                  groups={groups}
+                  nested
+                  tree
+                  treeLast={index === group.folders.length - 1}
+                  drag={{
+                    itemRef: inner.setItemRef(index),
+                    rowProps: grip(inner.handleProps(index)),
+                    state,
+                    proposal:
+                      state.isActive && inner.overKey !== null
+                        ? inner.overKey === DIRECTORY
+                          ? 'Out of group'
+                          : `Into ${labelOfKey(inner.overKey)}`
+                        : null,
+                  }}
+                />
+              )
+            })}
           </SidebarMenu>
         </CollapsibleContent>
       </Collapsible>
+      {/* A keyboard move is heard and not only seen: the engine's arrow keys
+          move a row, and this is what says so. */}
+      <span aria-live="polite" className="sr-only">
+        {inner.announcement}
+      </span>
     </section>
+  )
+}
+
+/**
+ * The Library's one ordered column, and DES-171's three gestures on it.
+ *
+ * "The directory is one list, not two. Groups and loose folders share a
+ * column, so a person moving things in that column is arranging one sequence.
+ * A model that kept them apart would have to refuse the obvious drag, a loose
+ * folder above a group, for a reason that exists only in the code."
+ *
+ * The three gestures are one gesture seen from three angles, and stillness is
+ * what separates them:
+ *
+ * - **Travelling proposes a slot.** The rows make space and the carried row
+ *   settles into it. Nothing is outlined, because the space is the answer.
+ * - **Resting inside a container proposes that container.** The list stops
+ *   holding a space open and the container answers instead, in the words 9.1
+ *   fixes: "Into {shelf}".
+ * - **Resting on a folder proposes that the two become a group**, and that one
+ *   takes a deliberate hold, because making a container is a larger act than
+ *   using one. A group created by every clumsy pass of the pointer would be
+ *   worse than no grouping at all.
+ *
+ * **The hold hands its pair to the panel that already existed**, with both
+ * ticked (DES-154, DES-171): everything about making a group, the name, the
+ * validation, adding a third folder before committing, stays one surface
+ * reached through a second door. A group carried onto another proposes
+ * nothing, because Dana nests one level and the honest answer to that drag is
+ * that the group moves past.
+ */
+function LibraryColumn({
+  folders,
+  order,
+  onOrderChange,
+  activeId,
+  groups,
+}: {
+  readonly folders: readonly Folder[]
+  readonly order: readonly string[]
+  readonly onOrderChange: (ids: readonly string[]) => void
+  readonly activeId: string | null
+  readonly groups: FolderGroupActions
+}): React.JSX.Element {
+  const zones = useLibraryZones()
+  const entries = useMemo(() => arrangeColumn(folders, order), [folders, order])
+
+  /** The column with one entry moved, written back as a folder sequence. */
+  function commit(next: readonly DirectoryEntry[]): void {
+    onOrderChange(encodeColumn(next))
+  }
+
+  const outer = useSortableList({
+    count: entries.length,
+    onLift: swallowNextClick,
+    describe: (index) => {
+      const entry = entries[index]
+      return entry === undefined ? 'Folder' : entryName(entry)
+    },
+    onOver: (from, point) => {
+      const entry = entries[from]
+      /* A group cannot be put inside anything. Dana nests one level, and the
+         honest answer to dragging a group onto a group is that it moves past
+         it (DES-171's first deliberate limit). */
+      if (entry === undefined || entry.kind === 'group') return null
+      const container = zones.containerAt(point, null)
+      return container === null || container === DIRECTORY ? null : container
+    },
+    onDropAt: (from, point) => {
+      const entry = entries[from]
+      if (entry === undefined || entry.kind === 'group') return false
+      const container = zones.containerAt(point, null)
+      if (container === null || container === DIRECTORY) return false
+      const label = labelOfKey(container)
+      /* Two writes, and they are two different records: the membership is the
+         server's, through 7.4's my-membership, and the sequence is this
+         viewer's arrangement of a column. Without the second the folder would
+         keep the rank it had as a loose row and the group it joined would
+         take that rank, so one gesture would move two things. */
+      groups.onMoveToGroup(entry.folder, label)
+      commit(moveFolderTo(entries, entry.folder.id, label))
+      return true
+    },
+    onReorder: (from, to) => {
+      commit(moved(entries, from, to))
+    },
+    /*
+    The hold, and the fallback under it.
+
+    The engine arms on whatever pair it is over, and only folder-on-folder
+    means anything here. But a hold that ends in nothing at all is the worst
+    available answer, because the person waited for it, so an unusable pair
+    falls back to the slot the drag was already proposing.
+    */
+    onDwell: (from, to) => {
+      const carried = entries[from]
+      const onto = entries[to]
+      if (carried === undefined) return
+      if (carried.kind === 'folder' && onto?.kind === 'folder') {
+        groups.onGroupFolders([carried.folder, onto.folder])
+        return
+      }
+      commit(moved(entries, from, to))
+    },
+  })
+
+  /* A group being carried must not be drawn as a merge proposal: the engine
+     arms on any pair, and only two folders make a group. */
+  const carried = outer.activeIndex === null ? null : entries[outer.activeIndex]
+  const canGroup = carried?.kind === 'folder'
+
+  return (
+    <SidebarGroupContent ref={zones.registerZone(DIRECTORY)}>
+      <SidebarMenu className="mt-1">
+        {entries.map((entry, index) => {
+          const state = outer.itemState(index)
+          const holding = canGroup && state.isDwelling && !state.isArmed
+          const armed = canGroup && state.isArmed
+          const proposal = !state.isActive
+            ? null
+            : outer.overKey !== null
+              ? `Into ${labelOfKey(outer.overKey)}`
+              : armed
+                ? 'Release to group'
+                : holding
+                  ? 'Hold to group'
+                  : null
+
+          if (entry.kind === 'group') {
+            return (
+              <FolderGroupBlock
+                key={entry.key}
+                group={entry}
+                activeId={activeId}
+                groups={groups}
+                zones={zones}
+                drag={{
+                  itemRef: outer.setItemRef(index),
+                  handleProps: outer.handleProps(index),
+                  state,
+                  proposal,
+                }}
+                onMoveOut={(folder, label) => {
+                  groups.onMoveToGroup(folder, label)
+                  commit(moveFolderTo(entries, folder.id, label))
+                }}
+                onReorderWithin={(label, from, to) => {
+                  commit(
+                    entries.map((candidate) =>
+                      candidate.kind === 'group' && candidate.label === label
+                        ? { ...candidate, folders: moved(candidate.folders, from, to) }
+                        : candidate,
+                    ),
+                  )
+                }}
+              />
+            )
+          }
+
+          return (
+            <SidebarFolderRow
+              key={entry.key}
+              folder={entry.folder}
+              activeId={activeId}
+              groups={groups}
+              drag={{
+                itemRef: outer.setItemRef(index),
+                rowProps: grip(outer.handleProps(index)),
+                state,
+                proposal,
+              }}
+            />
+          )
+        })}
+      </SidebarMenu>
+      <span aria-live="polite" className="sr-only">
+        {outer.announcement}
+      </span>
+    </SidebarGroupContent>
   )
 }
 
@@ -670,6 +968,8 @@ function AccountMenu({
 export function AppSidebar({
   pinnedViews,
   folders,
+  sidebarOrder,
+  onSidebarOrderChange,
   groups: groupActions,
   displayName,
   activeFolderId,
@@ -695,6 +995,17 @@ export function AppSidebar({
    */
   readonly pinnedViews: readonly string[] | undefined
   readonly folders: readonly Folder[] | undefined
+  /**
+   * The viewer's arrangement of the Library, from the 4.19 bundle.
+   *
+   * A flat folder sequence, for the reason `library-order.ts` records at
+   * length: `sidebar_order` is an array of uuids and a group is a label with
+   * no id, and a column whose groups are drawn as blocks is held whole by the
+   * folder sequence alone. Empty until somebody has dragged something, which
+   * is DES-171's own rule and what keeps AC-155 reading the alphabet.
+   */
+  readonly sidebarOrder: readonly string[]
+  readonly onSidebarOrderChange: (ids: readonly string[]) => void
   /** 9.1's four folder-group operations, held by the shell that mounts them. */
   readonly groups: FolderGroupActions
   readonly displayName: string | null
@@ -715,7 +1026,7 @@ export function AppSidebar({
   readonly onSignOut: () => void
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
-  const { inbox, groups, unlabeled } = groupFolders(folders ?? [])
+  const inbox = inboxOf(folders ?? [])
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
 
@@ -832,6 +1143,11 @@ export function AppSidebar({
               </CollapsibleTrigger>
             </h2>
             <CollapsibleContent>
+              {/* Inbox above the column and never in it: 9.1 pins it first,
+                  above the label groups and never inside one, so it is the
+                  one folder row no arrangement can move. Its row carries no
+                  group action for the same reason, which `SidebarFolderRow`
+                  has enforced since R10. */}
               <SidebarGroupContent>
                 <SidebarMenu>
                   {inbox === null ? null : (
@@ -842,27 +1158,15 @@ export function AppSidebar({
                     />
                   )}
                 </SidebarMenu>
-
-                {groups.map((group) => (
-                  <FolderGroupBlock
-                    key={group.label}
-                    group={group}
-                    activeId={activeFolderId}
-                    groups={groupActions}
-                  />
-                ))}
-
-                <SidebarMenu className="mt-1">
-                  {unlabeled.map((folder) => (
-                    <SidebarFolderRow
-                      key={folder.id}
-                      folder={folder}
-                      activeId={activeFolderId}
-                      groups={groupActions}
-                    />
-                  ))}
-                </SidebarMenu>
               </SidebarGroupContent>
+
+              <LibraryColumn
+                folders={folders ?? []}
+                order={sidebarOrder}
+                onOrderChange={onSidebarOrderChange}
+                activeId={activeFolderId}
+                groups={groupActions}
+              />
             </CollapsibleContent>
           </SidebarGroup>
         </Collapsible>

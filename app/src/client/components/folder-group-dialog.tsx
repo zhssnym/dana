@@ -56,8 +56,8 @@ export function FolderGroupDialog({
   currentLabel?: string
   folders: FolderGroupOption[]
   /**
-   * The folders already checked when the create dialog opens, which is the
-   * folder whose menu opened it.
+   * The folders already checked when the create dialog opens, which are the
+   * folders the act was taken on.
    *
    * Added at P8R session R10 with the sidebar wiring, because 9.1 makes
    * creating a group "naming it on a folder": the action is taken from a
@@ -65,6 +65,12 @@ export function FolderGroupDialog({
    * that opened with nothing selected would ask a person to choose the folder
    * they had just pointed at. Rename ignores it and checks the whole group,
    * there being nothing else a rename could mean.
+   *
+   * **Two folders arrive here since S11**, from DES-171's hold: resting one
+   * folder on another for a second and a half proposes that the two become a
+   * group, and "the naming panel is the one that already existed", so the hold
+   * hands its pair to this dialog with both ticked rather than inventing a
+   * surface of its own (DES-154). One folder or two, the act is the same one.
    */
   preselected?: readonly string[]
   existingLabels: string[]
