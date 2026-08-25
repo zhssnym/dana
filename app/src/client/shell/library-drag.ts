@@ -1,7 +1,7 @@
 /*
-The three things the Library's drag needs that the engine deliberately does
-not know about: which container a point is inside, how a sidebar row becomes a
-grip, and what to do about the click a release leaves behind.
+The Library's own answers to the two questions the engine asks about anything
+that is not the list it is sorting: which container a point is inside, and how
+a sidebar row becomes a grip.
 
 `lib/use-sortable-list.ts` sorts one list and asks two questions about
 anything else, `onOver` while the pointer moves and `onDropAt` on release
@@ -10,8 +10,12 @@ what else is on it. This file is the Library's answers, kept out of
 `app-sidebar.tsx` so that the sidebar reads as a sidebar.
 */
 
-import { useCallback, useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
+
+import { useDropZones } from '../lib/drop-zones.js'
+import type { DropZones } from '../lib/drop-zones.js'
+
+export type { Point, DropZones as LibraryZones } from '../lib/drop-zones.js'
 
 /**
  * The directory itself as a place a release can land.
@@ -27,75 +31,16 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
  */
 export const DIRECTORY = 'library:directory'
 
-export interface Point {
-  readonly x: number
-  readonly y: number
-}
-
-export interface LibraryZones {
-  /** A ref callback registering one container's element under its key. */
-  readonly registerZone: (key: string) => (element: HTMLElement | null) => void
-  /**
-   * Which container a point is inside, `self` excluded, or null for none.
-   *
-   * Groups are tested before the directory, the directory containing all of
-   * them: the innermost container a point is inside is the one it is in.
-   */
-  readonly containerAt: (point: Point, self: string | null) => string | null
-}
-
-/**
- * The registry of drop containers, hit-tested through the document.
- *
- * `document.elementFromPoint` and DOM containment rather than rectangle
- * arithmetic, and the reason is a bug the rectangles version shipped and the
- * AC-227 probe of 2026-08-25 caught: the carried row follows the pointer by
- * a transform, a transformed child expands its ancestor's bounding rect, and
- * the carried row is a DOM child of the group it is leaving. So the group's
- * measured rect followed the row out of the group, the pointer never read as
- * outside it, and the way out never opened. The document's own hit test is
- * immune, because the group's painted box is its laid-out one; what it needs
- * in exchange is that the carried row stop catching the point, which is the
- * `pointer-events: none` its active style now carries.
- */
-export function useLibraryZones(): LibraryZones {
-  const zones = useRef(new Map<string, HTMLElement>())
-
-  const registerZone = useCallback(
-    (key: string) =>
-      (element: HTMLElement | null): void => {
-        if (element === null) zones.current.delete(key)
-        else zones.current.set(key, element)
-      },
-    [],
-  )
-
-  const containerAt = useCallback((point: Point, self: string | null): string | null => {
-    const under = document.elementFromPoint(point.x, point.y)
-    if (under === null) return null
-
-    /*
-    Still inside the container that is asking is not an answer, it is the
-    absence of one: the proposal is an ordinary slot in this list. Checked
-    before the others, because the directory contains every group and a
-    pointer inside a group is also inside the directory; answering "the
-    directory" there would read as "out of this group" and take a folder out
-    of its own group every time somebody reordered inside one.
-    */
-    let group: string | null = null
-    let directory: string | null = null
-    for (const [key, element] of zones.current) {
-      if (!element.contains(under)) continue
-      if (key === self) return null
-      if (key === DIRECTORY) directory = key
-      else group = key
-    }
-    /* A group beats the directory for the same containment reason: the
-       innermost container the pointer is inside is the one it is in. */
-    return group ?? directory
-  }, [])
-
-  return { registerZone, containerAt }
+/*
+The registry itself is `lib/drop-zones.ts` since the board became its second
+caller, and it is re-exported here under the name the sidebar already used so
+that nothing in `app-sidebar.tsx` moved for it. What stays this file's is the
+Library's own answer to what the registry is asked about: `DIRECTORY` is the
+key that names the column itself, and it is the outer one the registry's
+enclosure rule is written for.
+*/
+export function useLibraryZones(): DropZones {
+  return useDropZones(DIRECTORY)
 }
 
 /**

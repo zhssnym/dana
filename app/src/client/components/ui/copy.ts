@@ -24,8 +24,15 @@ export const ABANDON_CONFIRM =
 /** 9.3: delete, which 9.4 also puts in a row's overflow menu. */
 export const DELETE_TASK_CONFIRM = "Delete this task? This can't be undone."
 
-/** 9.4: the un-pull control on a row whose inclusion came from an entry. */
-export const REMOVE_FROM_MY_DAY = 'Remove from My Day'
+/**
+ * 9.4: the un-pull control on a row whose inclusion came from an entry.
+ *
+ * The v2 section renames the page and the control together, "the control
+ * reading 'Remove from Today'", and AC-165 was amended to quote the new string
+ * at RFC 0005's change control item 8. The constant is renamed with its value
+ * rather than left holding a name the string no longer matches.
+ */
+export const REMOVE_FROM_TODAY = 'Remove from Today'
 
 /** 9.1's control table: every row's and every form's overflow menu. */
 export const MORE_ACTIONS = 'More actions'
