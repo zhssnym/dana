@@ -20,14 +20,31 @@ section says it offers: any shelf or folder as a tab. New folder, New shelf
 and Import are the acts it also lists; they arrive with the surfaces that make
 them, and this menu grows those entries rather than a second control.
 
-**The drag is a pointer drag and not a keyboard reorder.** 9.1 says tabs are
-"reorderable by drag", so this listens to pointer events and commits an index
-move when the pointer is released over another tab. A threshold of a few
-pixels separates a drag from a click, because a strip where a slightly shaky
-click reorders the row is worse than one that cannot reorder at all.
-*/
-import { useRef, useState } from 'react'
+**The drag runs on the one engine, since S11.** 9.1 says tabs are "reorderable
+by drag", and this file answered that at S9 with a pointer drag of its own:
+about thirty lines holding a press origin, a threshold, and a rule that the
+tab under the pointer at release is where the carried one lands. It worked and
+it was still the wrong shape, because RFC 0004 gives S11 "one drag engine
+total" and 11.15's task-row hazard is what a second implementation of one
+gesture becomes. The S9 close recorded "no drag code in `app/`" and this was
+it; the record was not wrong about the *engine*, which did not exist, and was
+wrong about the strip.
 
+So the gesture is `lib/use-sortable-list.ts` now, on its `x` axis, and three
+things a person can see changed with it. The strip makes space as a tab
+travels rather than only fading the carried one, because the space is the
+answer and an opacity is a hint. The exchange happens when the two tabs have
+half-passed each other, the engine proposing by midpoint, where before it
+happened wherever the pointer happened to be at release. And a tab reorders
+from the keyboard, the engine's arrow keys on a focused tab, which a strip
+that only answered a mouse never did.
+
+**Selection stays a click and the drag swallows one.** The engine listens on
+the window rather than capturing the pointer, so a release still delivers a
+click onto whichever tab is under the cursor, which in a strip means selecting
+a tab somebody was only moving. `swallowNextClick` is the sidebar's fix and
+the same one here.
+*/
 import { Button } from '../components/ui/button.js'
 import {
   DropdownMenu,
@@ -37,6 +54,7 @@ import {
 } from '../components/ui/dropdown-menu.js'
 import { Folder as FolderIcon, Plus, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
+import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 
 import { closeTab, openInNewTab, reorderTabs, selectTab, useTabs } from './tabs.js'
 import type { Folder } from '../../shared/folders.js'
@@ -44,9 +62,6 @@ import type { Folder } from '../../shared/folders.js'
 /** 9.1's names table, transcribed. */
 const NEW_TAB = 'New tab'
 const CLOSE_TAB = 'Close tab'
-
-/** How far a pointer must travel before a press becomes a drag. */
-const DRAG_THRESHOLD_PX = 4
 
 export interface TabFace {
   readonly title: string
@@ -65,35 +80,18 @@ export function TabStrip({
   readonly onNavigate: (path: string) => void
 }): React.JSX.Element {
   const { tabs, activeId } = useTabs()
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
-  const origin = useRef<{ x: number; index: number } | null>(null)
 
-  function onPointerDown(event: React.PointerEvent, index: number): void {
-    // Only the primary button starts a drag; a middle click is a close on
-    // every strip a person has used and is not this package's to invent.
-    if (event.button !== 0) return
-    origin.current = { x: event.clientX, index }
-  }
-
-  function onPointerMove(event: React.PointerEvent): void {
-    const start = origin.current
-    if (start === null) return
-    if (draggingIndex === null && Math.abs(event.clientX - start.x) >= DRAG_THRESHOLD_PX) {
-      setDraggingIndex(start.index)
-    }
-  }
-
-  function onPointerUp(event: React.PointerEvent, index: number): void {
-    const start = origin.current
-    origin.current = null
-    if (draggingIndex === null) return
-    setDraggingIndex(null)
-    // The tab under the pointer at release is where it lands, which is what
-    // makes dropping on a neighbour move by one rather than by the distance
-    // travelled.
-    void event
-    if (start !== null && start.index !== index) reorderTabs(start.index, index)
-  }
+  const drag = useSortableList({
+    count: tabs.length,
+    // 9.1's one horizontal list.
+    axis: 'x',
+    onReorder: reorderTabs,
+    onLift: swallowNextClick,
+    describe: (index) => {
+      const tab = tabs[index]
+      return tab === undefined ? 'Tab' : face(tab.path).title
+    },
+  })
 
   return (
     <div className="flex min-h-[var(--shell-pagebar-height)] items-end gap-1 px-2">
@@ -101,34 +99,72 @@ export function TabStrip({
         role="tablist"
         aria-label="Open tabs"
         className="flex min-w-0 flex-1 items-end gap-1 overflow-x-auto"
-        onPointerMove={onPointerMove}
-        onPointerLeave={() => {
-          origin.current = null
-          setDraggingIndex(null)
-        }}
       >
         {tabs.map((tab, index) => {
           const { title, icon: Icon, iconColor } = face(tab.path)
           const active = tab.id === activeId
+          const state = drag.itemState(index)
           return (
             <div
               key={tab.id}
               role="tab"
               aria-selected={active}
               tabIndex={active ? 0 : -1}
-              onPointerDown={(event) => onPointerDown(event, index)}
-              onPointerUp={(event) => onPointerUp(event, index)}
+              ref={drag.setItemRef(index)}
+              /*
+              The whole tab is the drag's surface, which is what a strip
+              wants: the thing you move is the thing you grabbed. The engine's
+              own guard is what keeps the close control a close control, a
+              press landing on a `button` belonging to that button, so nothing
+              here has to say so a second time.
+
+              Only the primary button starts a drag; a middle click is a close
+              on every strip a person has used and is not this package's to
+              invent. The engine checks that too.
+              */
+              {...drag.surfaceProps(index)}
+              // The engine's own marker, so that a keyboard reorder can put
+              // focus back on the tab it just moved. In a sidebar row the
+              // marker sits on a grip inside the row; here the tab is the
+              // focusable thing, and the engine tries the item before looking
+              // inside it.
+              data-sort-handle
               onClick={() => onNavigate(selectTab(tab.id))}
               onKeyDown={(event) => {
+                // The engine reads the two arrows that mean "along this list",
+                // which on its `x` axis are Left and Right. It ignores every
+                // other key, so this runs first and falls through.
+                drag.handleProps(index).onKeyDown(event)
+                if (event.defaultPrevented) return
                 if (event.key !== 'Enter' && event.key !== ' ') return
                 event.preventDefault()
                 onNavigate(selectTab(tab.id))
               }}
-              className={`flex h-7 min-w-0 max-w-56 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/30 ${
+              style={{
+                // The browser's own panning must not compete with the drag,
+                // or a touch gesture scrolls the strip instead of moving the
+                // tab. Always set, because it is a property of the surface
+                // rather than of any drag in progress.
+                touchAction: 'none',
+                ...(state.offset === 0 && !state.isActive
+                  ? {}
+                  : {
+                      // A translateX where a row uses translateY: the engine
+                      // returns the shift along the axis and the caller knows
+                      // which one that is.
+                      transform: `translateX(${String(state.offset)}px)`,
+                      transition:
+                        state.isActive && !state.isSettling
+                          ? 'none'
+                          : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
+                      zIndex: state.isActive ? 30 : undefined,
+                    }),
+              }}
+              className={`relative flex h-7 min-w-0 max-w-56 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/30 ${
                 active
                   ? 'bg-card font-medium text-foreground'
                   : 'text-muted-foreground hover:bg-[var(--color-graphite-100)]'
-              } ${draggingIndex === index ? 'opacity-60' : ''}`}
+              } ${state.isActive ? 'opacity-60 shadow-md' : ''}`}
             >
               {Icon === undefined ? null : (
                 <Icon
@@ -144,7 +180,6 @@ export function TabStrip({
                 aria-label={CLOSE_TAB}
                 title={CLOSE_TAB}
                 className="ml-0.5 grid size-4 shrink-0 place-items-center rounded text-muted-foreground hover:bg-[var(--color-graphite-200)] hover:text-foreground"
-                onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation()
                   const to = closeTab(tab.id)
