@@ -24,6 +24,9 @@ ones section 7 names.
 */
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
+// A value import since S12: the transfer answer { owner_id } is 7.16's own
+// one-key shape and no shared module carries it.
+import { z } from 'zod'
 
 import {
   deleteFolderResponse,
@@ -74,6 +77,21 @@ import type {
   TaskTransitionResponse,
 } from '../../shared/tasks.js'
 import { deleteTaskMyDayResponse, postTaskMyDayResponse } from '../../shared/tasks.js'
+import {
+  commentLine,
+  patchCommentResponse,
+} from '../../shared/comments.js'
+import type { CommentLine, PatchCommentBody, PostCommentBody } from '../../shared/comments.js'
+import {
+  postNotificationReadResponse,
+  postNotificationsReadAllResponse,
+} from '../../shared/events.js'
+import { duplicateFolderResponse } from '../../shared/folders.js'
+import type { DuplicateFolderResponse } from '../../shared/folders.js'
+import { getPageResponse } from '../../shared/pages.js'
+import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
+import { shelf } from '../../shared/shelves.js'
+import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
 import { mutateApi, requestTimezone } from './http.js'
 
@@ -486,5 +504,207 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(folder, { method: 'POST', path: `/folders/${id}/restore` }),
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The S12 writes (RFC 0005): pages, shelves, notifications, comments
+ * ------------------------------------------------------------------ */
+
+export interface PutPageVariables {
+  readonly id: string
+  readonly body: PutPageBody
+}
+
+/**
+ * PUT /folders/:id/page (7.16): the block list whole, LWW per block.
+ *
+ * A stale write answers 409 carrying 5.1's copy, which the mutation cache
+ * already raises as the toast 9.1 names for it; the page that issued the
+ * write refetches at its own call site so the winning state replaces the
+ * stale one on screen, both halves of "handled visibly" (RFC 0004's S12
+ * acceptance) without this hook growing either.
+ */
+export function usePutFolderPage(): UseMutationResult<
+  GetPageResponse,
+  Error,
+  PutPageVariables
+> {
+  return useMutation({
+    mutationFn: ({ id, body }: PutPageVariables) =>
+      mutateApi(getPageResponse, { method: 'PUT', path: `/folders/${id}/page`, body }),
+  })
+}
+
+export function usePutShelfPage(): UseMutationResult<
+  GetPageResponse,
+  Error,
+  PutPageVariables
+> {
+  return useMutation({
+    mutationFn: ({ id, body }: PutPageVariables) =>
+      mutateApi(getPageResponse, { method: 'PUT', path: `/shelves/${id}/page`, body }),
+  })
+}
+
+export function useCreateShelf(): UseMutationResult<Shelf, Error, PostShelvesBody> {
+  return useMutation({
+    mutationFn: (body: PostShelvesBody) =>
+      mutateApi(shelf, { method: 'POST', path: '/shelves', body }),
+  })
+}
+
+export interface PatchShelfVariables {
+  readonly id: string
+  readonly body: PatchShelfBody
+}
+
+/** PATCH /shelves/:id (7.16): rename rewrites the member labels in the same
+ * transaction, 4.18's name-and-label lockstep, so no client bookkeeping. */
+export function usePatchShelf(): UseMutationResult<Shelf, Error, PatchShelfVariables> {
+  return useMutation({
+    mutationFn: ({ id, body }: PatchShelfVariables) =>
+      mutateApi(shelf, { method: 'PATCH', path: `/shelves/${id}`, body }),
+  })
+}
+
+/** DELETE /shelves/:id: unlabels its folders and keeps them (9.10). */
+export function useDeleteShelf(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/shelves/${id}` }),
+  })
+}
+
+/** POST /folders/:id/duplicate (7.16): DES-198's copy rules server-side;
+ * the answer is the copy's identity, which the caller navigates to. */
+export function useDuplicateFolder(): UseMutationResult<
+  DuplicateFolderResponse,
+  Error,
+  string
+> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(duplicateFolderResponse, {
+        method: 'POST',
+        path: `/folders/${id}/duplicate`,
+      }),
+  })
+}
+
+export function useMarkNotificationRead(): UseMutationResult<
+  { read: true },
+  Error,
+  string
+> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(postNotificationReadResponse, {
+        method: 'POST',
+        path: `/notifications/${id}/read`,
+      }),
+  })
+}
+
+export function useMarkAllNotificationsRead(): UseMutationResult<
+  { read: number },
+  Error,
+  void
+> {
+  return useMutation({
+    mutationFn: () =>
+      mutateApi(postNotificationsReadAllResponse, {
+        method: 'POST',
+        path: '/notifications/read-all',
+      }),
+  })
+}
+
+export interface PostCommentVariables {
+  readonly folderId: string
+  readonly body: PostCommentBody
+}
+
+export function usePostComment(): UseMutationResult<
+  CommentLine,
+  Error,
+  PostCommentVariables
+> {
+  return useMutation({
+    mutationFn: ({ folderId, body }: PostCommentVariables) =>
+      mutateApi(commentLine, {
+        method: 'POST',
+        path: `/folders/${folderId}/comments`,
+        body,
+      }),
+  })
+}
+
+export interface PatchCommentVariables {
+  readonly id: string
+  readonly body: PatchCommentBody
+}
+
+export function usePatchComment(): UseMutationResult<
+  { edited: true },
+  Error,
+  PatchCommentVariables
+> {
+  return useMutation({
+    mutationFn: ({ id, body }: PatchCommentVariables) =>
+      mutateApi(patchCommentResponse, { method: 'PATCH', path: `/comments/${id}`, body }),
+  })
+}
+
+/** Author or folder owner (7.14); the menu offers it to exactly them. */
+export function useDeleteComment(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/comments/${id}` }),
+  })
+}
+
+/** PUT and DELETE /comments/:id/like, one bit per person (7.14). */
+export function useSetCommentLike(): UseMutationResult<
+  void,
+  Error,
+  { readonly id: string; readonly liked: boolean }
+> {
+  return useMutation({
+    mutationFn: ({ id, liked }) =>
+      mutateApi(null, {
+        method: liked ? 'PUT' : 'DELETE',
+        path: `/comments/${id}/like`,
+      }),
+  })
+}
+
+/**
+ * DELETE /folders/:id/my-membership: 5.3's leave with the target fixed to
+ * the caller, the address RFC 0005 change control item 5 gave the 9.6 door.
+ * 204; the 5.3 rules (default folder, sole owner) answer 409 with their own
+ * copy, which the toast carries verbatim.
+ */
+export function useLeaveFolder(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/folders/${id}/my-membership` }),
+  })
+}
+
+/** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
+ * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
+export function useTransferOwnership(): UseMutationResult<
+  { owner_id: string },
+  Error,
+  { readonly id: string; readonly to: string }
+> {
+  return useMutation({
+    mutationFn: ({ id, to }) =>
+      mutateApi(z.object({ owner_id: z.uuid() }), {
+        method: 'POST',
+        path: `/folders/${id}/transfer-ownership`,
+        body: { to },
+      }),
   })
 }

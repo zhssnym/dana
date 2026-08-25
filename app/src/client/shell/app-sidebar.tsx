@@ -164,6 +164,7 @@ import {
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
 import { paths, pinnedNavPages } from '../routes.js'
+import { NotificationsBell } from './NotificationsBell.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
@@ -588,6 +589,10 @@ function SidebarBrandHeader({
             </TooltipTrigger>
             <TooltipContent side="right">Search · Ctrl K or /</TooltipContent>
           </Tooltip>
+          {/* 9.12's bell, beside Search: awareness is global chrome, and the
+              header is where Dana keeps its one other everywhere-control
+              (DES-226). */}
+          <NotificationsBell />
           <SidebarTrigger className="size-[var(--shell-sidebar-item-height)] shrink-0 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:order-1 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] [&_svg]:!size-4" />
         </div>
       </div>

@@ -71,3 +71,26 @@ export interface PageBlock {
 export interface PageView {
   blocks: PageBlock[]
 }
+
+/*
+The read half, added by the S12 client arm on 2026-08-25, the same gap and
+the same discipline as the ones `shelves.ts`, `events.ts` and `comments.ts`
+record: S5 published `PageBlock` and `PageView` as interfaces only, and
+`api/http.ts` parses every response through a zod schema. Written from
+`domain/pages.ts`'s `pageView`; recorded with the family as one change
+control item.
+*/
+export const pageBlock = z.object({
+  id: z.uuid(),
+  kind: z.enum(PAGE_BLOCK_KINDS),
+  position: z.number().int(),
+  text: z.string().nullable(),
+  file_id: z.uuid().nullable(),
+  ref_folder_id: z.uuid().nullable(),
+  updated_at: z.string(),
+})
+
+export const getPageResponse = z.object({
+  blocks: z.array(pageBlock),
+})
+export type GetPageResponse = z.infer<typeof getPageResponse>

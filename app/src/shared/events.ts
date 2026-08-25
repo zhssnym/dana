@@ -115,3 +115,31 @@ export const getEventsResponse = z.object({
   truncated: z.boolean(),
 })
 export type GetEventsResponse = z.infer<typeof getEventsResponse>
+
+/*
+The notifications read (7.12), added by the S12 client arm on 2026-08-25 for
+the reason the read half above records: `api/http.ts` parses every response
+through a schema, and S3 published `NotificationLine` with no zod for it.
+Written from `domain/events.ts`'s `listNotifications`, the same discipline as
+`getEventsResponse` beside it, and recorded with the S9 additions as one
+change control item.
+*/
+export const notificationLine = z.object({
+  id: z.uuid(),
+  read_at: z.string().nullable(),
+  created_at: z.string(),
+  event: eventLine,
+})
+
+export const getNotificationsResponse = z.object({
+  notifications: z.array(notificationLine),
+  truncated: z.boolean(),
+})
+export type GetNotificationsResponse = z.infer<typeof getNotificationsResponse>
+
+/** POST /notifications/:id/read answers { read: true }; read-all answers
+ * { read: N }, N the rows the pass flipped. Both from `routes/events.ts`. */
+export const postNotificationReadResponse = z.object({ read: z.literal(true) })
+export const postNotificationsReadAllResponse = z.object({
+  read: z.number().int(),
+})

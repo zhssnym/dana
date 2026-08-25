@@ -46,6 +46,8 @@ import { NotFoundPage } from './pages/NotFoundPage.js'
 import { PeoplePage } from './pages/PeoplePage.js'
 import { PlannedPage } from './pages/PlannedPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
+import { ShelfPage } from './pages/ShelfPage.js'
+import { TaskPage } from './pages/TaskPage.js'
 import { TasksPage } from './pages/TasksPage.js'
 import { TrashPage } from './pages/TrashPage.js'
 import { paths, retiredPaths } from './routes.js'
@@ -70,6 +72,11 @@ export function Router(): React.JSX.Element {
           <Route path="done" element={<DonePage />} />
           <Route path="trash" element={<TrashPage />} />
           <Route path="folders/:id" element={<FolderPage />} />
+          {/* The S12 addresses: a shelf's page (9.10), and a task's own
+              (7.17) — matched before the retired "/app/tasks" redirect
+              below, which only claims the bare path. */}
+          <Route path="shelves/:id" element={<ShelfPage />} />
+          <Route path="tasks/:id" element={<TaskPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="people" element={<PeoplePage />} />
           {retiredPaths.map(({ from, to }) => (
