@@ -107,13 +107,32 @@ lessons are in the acceptance column because that is where sessions read.
 | S6 | System D: comments, one reply level, likes, thread reads, notification triggers | S2, S3, S4 | S12 | `03-collaboration-and-permissions.md` | Member-only throughout; author-or-owner delete; the DES-225 matrix's server half enforced and tested for every act |
 | S7 | System F: settings expansion, user_views (ids only), arrangements, pins | S2 | S10 | `05-query-and-read-path.md` | The BUG-8 fold leaves one record of visibility; a saved view survives a rename because it stored ids |
 | S8 | The client foundation: v2 `tokens.css` (accent 85%, swatches, cobalt 242), the role-not-ramp discipline, primitives, the animated icon module | S0; the `v2-refs/` export set | S9–S13 | `08-component-and-design-system.md` | Tokens byte-match the approved prototype's; no direct lucide import; no raw ramp outside `components/ui/` |
-| S9 | The shell port: DES-152 navigation, the tab strip, the window bar, sidebar drag, Library, the undo bar, Trash page | S8; S3 for trash reads | S10–S13 | `07-frontend-architect.md` | The prototype's sweep assertions re-expressed as tests pass against the real API |
+| S9 | The shell port: DES-152 navigation, the tab strip, the window bar, Library, the undo bar, Trash page (the sidebar drag moved to S11, see below) | S8; S3 for trash reads | S10–S13 | `07-frontend-architect.md` | The prototype's sweep assertions re-expressed as tests pass against the real API |
 | S10 | The place pages: Today, Scheduled (+calendar), Assignments, Important, All, Done; the shared filter, saved views, grouping, boards | S9, S7 | S14 | `07-frontend-architect.md` | Page spines match section 6's queries; entry defaults per spine (DES-182) |
-| S11 | The row, card, pickers, drag engines, states page; day-level dates and time-of-day reminders in the UI | S8, S9 | S14 | `09-complex-interaction.md` | One task-row implementation total (the DoneRow reunion, 11.15); reminder picker writes time-of-day mode only |
+| S11 | The row, card, pickers, drag engines, the sidebar drag of DES-171, states page; day-level dates and time-of-day reminders in the UI | S8, S9 | S14 | `09-complex-interaction.md` | One task-row implementation total (the DoneRow reunion, 11.15); one drag engine total, the sidebar's arrangement running on the same one as the rows and the boards; reminder picker writes time-of-day mode only; AC-226 authored by `11-adversarial-test.md` alongside |
 | S12 | The folder page with blocks and identity, shelves, the conversation surfaces, notifications UI from its drawing | S5, S6, S9; the notifications drawing | S14 | `09-complex-interaction.md` | LWW/409 handled visibly; the DES-225 client half supplies acts by role; poll liveness per D3 |
 | S13 | The public faces from the Codex lane's approved output, emails, PWA, onboarding starter workflows (ADD-1) | S9 | S14 | `07-frontend-architect.md` | S5's import serves the starter files; landing carries Imran's S5 pick |
 | S14 | Security review of uploads/import/links; the full gate in CI's order on both database legs plus the browser leg; release 2.0.0; the release verdict lines | S10–S13 | none | `06-security-and-privacy.md`, then `12-integration-steward.md`, then Imran | All legs green; the visual review recorded; CHANGELOG and version |
 | S-inf | The September move: paid Postgres before **2026-09-12**, always-on service, object-store provisioning, verified-restorable backups, domain cutover | none (parallel; hard-dated) | S14's release | `10-platform.md` with Imran (purchases are his) | The new database restored-from-backup once before cutover; dana.so serves the release |
+
+**The sidebar drag moved from S9 to S11 on 2026-08-24, on Imran's ruling.**
+S9 shipped six of its seven items and left DES-171 untouched, and the reason
+it could not simply be finished afterwards is a dependency this table had
+back to front: the row above assigns "drag engines" to S11, and the sidebar
+drag is one of the things that runs on them. DES-171 is written as though the
+engine already exists, naming its `onDropAt` seam and the `onOver` half it
+gained, but no drag code exists in `app/` and none exists in `prototype-v2`
+to port, both searched at the S9 close. So building the sidebar drag on its
+own schedule meant writing a second engine for S11 to duplicate or replace,
+which is the shape 11.15 tells this port to avoid at the task row and which
+is cheaper to prevent than to unpick.
+
+The item moves rather than disappearing, and it takes its criterion with it:
+nothing in section 12 asserts drag today, AC-214 reading the page block's
+order and the Library heading and stopping there, so S11 owes AC-226 and owes
+it from `11-adversarial-test.md` rather than from its own hand. Nothing else
+waits on it: S10 never touches the Library block, and S12's shelves read the
+same membership label the drag would write.
 
 **Critical path**: S0 → S1 → S2 → S3 → S5 → S12 → S14, with S4 beside S3,
 S6/S7 beside S5, and the client arm S8 → S9 → (S10 ∥ S11) → S12 overlapping
