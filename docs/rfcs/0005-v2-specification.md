@@ -74,6 +74,7 @@ section 9 baseline before acceptance (see the Draft note).*
 11. Replace sections 4.3 and 4.5 — `deleted_at` plus the folder identity columns and the task's section assignment (expand-only) — **verbatim below**
 12. Insert new sections 7.12–7.17 — the six systems' endpoint families, **verbatim below**
 13. Replace section 10.3: the limits table gains the v2 rows — **verbatim below**
+13a. Insert new section 10.8, response security headers — **verbatim below**, added 2026-08-25 by change control item 18
 14. Replace section 11.7: the pass gains two duties — **verbatim below** (11.5's rules need no change; the Inbox→Desk migration is Compatibility's, executed by RFC 0004's S2)
 15. Append rows to the table in section 11.13 for `prototype-v2/` and `v2-refs/` — **verbatim below**
 16. Append to section 11.15 hazards: ids-never-names in stored client state; the DoneRow duplication to reunify; prototype name-keyed stores are not a storage design — **verbatim below**
@@ -398,10 +399,29 @@ Rationale lines: series_id groups a recurrence chain for guards (INV-7) and Done
 | One uploaded file | up to 25 MB; a voice note up to 10 minutes |
 | Files per comment | 10 |
 | Storage per account | 1 GB across every kind of 4.16 |
-| Workflow import | up to 50 folders and 500 blocks per file; structure and titles only, never ids, people, dates or states |
+| Workflow import | up to 50 folders, 500 blocks and 1000 tasks per file; structure and titles only, never ids, people, dates or states |
 | Saved views per account | 50 |
+| JSON request body | up to 3 MB, sized above the largest legal workflow file so every cap in this table is reachable |
 
-All numbers are server-enforced and returned as 422 with the field named, except the storage quota, which returns 413 with the copy of section 9.
+All numbers are server-enforced and returned as 422 with the field named, except the storage quota, which returns 413 with the copy of section 9, and the body ceiling, which the parser refuses as 400 before any field is read. The task cap and the body row were added 2026-08-25 by change control item 18: the parser's undocumented 100 kB default was refusing legal workflow files before this table's own import cap could, and was the only bound on the task array.
+```
+
+### Insert new section 10.8 after 10.7
+
+```markdown
+### 10.8 Response security headers
+
+Every response carries Content-Security-Policy with default-src 'self' and
+frame-ancestors 'none', sized to what the client actually loads and no wider,
+plus Referrer-Policy: strict-origin-when-cross-origin. HSTS is the edge's,
+set by the host in front of the process, never by the process itself. The
+7.15 serving rules keep their own stricter per-file headers (nosniff on
+everything served, attachment for kind file) and this section does not relax
+them. Added 2026-08-25 by change control item 18: section 10 was silent on
+response headers, the whole posture was one disabled x-powered-by, and the
+upload path's safety rested on a single predicate with no second line behind
+it. One acceptance criterion is owed; its number is the test persona's to
+assign.
 ```
 
 ### Replace section 11.7
@@ -414,7 +434,7 @@ The 8.6 delivery loop runs in-process: a 60-second interval in the server, guard
 - A missed tick self-heals: the poll is over fire_at <= now(), so the next pass picks up anything a missed one would have sent, inside the 6-hour stale window.
 - The deploy overlap window can run two instances for about ninety seconds; SKIP LOCKED makes concurrent ticks contend safely instead of double-sending. A crash between send and mark can duplicate at most one batch; 8.6 accepts duplicates.
 - Tick liveness is monitored separately from process liveness (11.12), because a dead interval inside a live server is invisible to an uptime check.
-- The same pass prunes expired session rows, purges Trash rows whose deleted_at is older than 30 days and events older than 90 (RFC 0005), and fans events out to notification rows — so 8.6's statement that the reminder loop is the only background execution stays true: one scheduled process, five duties. Each added duty claims its rows the way the reminder duty always has, SKIP LOCKED in its own transaction, and each is idempotent, so the missed-tick and overlap properties above hold for all five unchanged. This is also three more reasons the single-instance rule of 11.2 must be flagged before it ever changes, and none of these duties may migrate into request handlers.
+- The same pass prunes expired session rows, purges Trash rows whose deleted_at is older than 30 days and events older than 90 (RFC 0005), and fans events out to notification rows — so 8.6's statement that the reminder loop is the only background execution stays true: one scheduled process, five duties. The Trash purge collects the files rows its folder deletes will cascade away and removes their objects from the store after the delete commits, because those rows are the only index to the bytes and a purge that drops them without the objects grows the disk without bound (change control item 18, 2026-08-25). Each added duty claims its rows the way the reminder duty always has, SKIP LOCKED in its own transaction, and each is idempotent, so the missed-tick and overlap properties above hold for all five unchanged. This is also three more reasons the single-instance rule of 11.2 must be flagged before it ever changes, and none of these duties may migrate into request handlers.
 
 The pass is a plain callable function and must stay one: if hosting ever moves somewhere without an always-on process, the replacement is an external per-minute trigger (Google Cloud Scheduler or equivalent) hitting an authenticated endpoint that runs one pass.
 
@@ -1417,6 +1437,76 @@ fold, the way P7's mid-package change control ratified the pass callable:
     strict mode. Every conformant day grid carries both, that being what the
     two roles are for, so the locator could only ever have passed against a
     picker missing one of them. The `.first()` moves outside the `or`.
+
+18. **S14's steward clause: the security review's seven findings ruled on,
+    its record ratified, and the amendments applied (Integration Steward,
+    2026-08-25).** The review is
+    `docs/security/2026-08-25-s14-uploads-import-links.md`, written by
+    persona 06 against `48183c8` and merged with this item; its home is
+    ratified as `docs/security/`, dated in the filename so a second review
+    appends rather than overwrites, and RFC 0004's S14 row now points at it,
+    which makes the record reachable from a protocol section 2 state source
+    rather than by luck. Dispositions, one per finding:
+
+    F-1, account deletion left the person's files and avatar readable:
+    accepted at moderate. 8.10 gains step 6a naming the files cleanup, the
+    amendment applied to `docs/spec/08-business-logic.md` directly because
+    8.10 has no Replace unit in this RFC and section 8 is not frozen. The
+    implementation is two routed legs, the transaction's step to
+    `03-collaboration-and-permissions.md` and the store removals to
+    `10-platform.md`.
+
+    F-2, hard-deleting a folder orphans its bytes: accepted at moderate. The
+    11.7 unit's purge sentence now requires the purge to collect the files
+    rows its cascades drop and remove their objects after commit; 8.10's
+    step 6a covers the account-deletion path. Routed with F-1's legs, the
+    purge to `10-platform.md`.
+
+    F-3, the boot guard accepts the dev-login door a production build does
+    not have: accepted at low, no spec change needed, the guard's own
+    comment already states the intent it misses. Routed to `10-platform.md`
+    with the reviewer's second option recommended: require the Google trio
+    whenever NODE_ENV is production.
+
+    F-4, no response security headers: ruled a real gap, resolved by
+    decision rather than silence. New section 10.8 inserted (unit 13a) with
+    the reviewer's recommended set; the middleware is `10-platform.md`'s to
+    wire. The criterion it owes is the test persona's to number.
+
+    F-5 and F-6, the unreachable import cap and the uncapped task array:
+    ruled together as the reviewer asked, taking the first option. The 10.3
+    unit's import row gains a 1000-task cap, the table gains a 3 MB JSON
+    body row sized above the largest legal workflow file, and the closing
+    sentence now records the parser's 400 as the body ceiling's honest
+    answer. The `express.json` limit is `10-platform.md`'s (`index.ts`), the
+    schema's `.max()` is `04-api-and-contract.md`'s.
+
+    F-7, uploads buffer before judging quota: accepted as an observation.
+    An upload-specific limiter is agreed, the limiter module being persona
+    06's own and the wiring `10-platform.md`'s, and it is deferred to 2.0.x
+    rather than gating the release, the worst case being bounded and
+    already refused at 413. The sharp `limitInputPixels` note is asked of
+    `10-platform.md` as a comment beside the call.
+
+    The eight proposed criteria go to `11-adversarial-test.md` with the
+    numbering confirmed against the merged tree at this item's writing:
+    AC-229 is the highest in section 12 and `app/tests/`, S11's remainder
+    having merged, so the eight take AC-230 to AC-237 as proposed, plus
+    10.8's owed criterion at that persona's discretion. AC-236, the
+    structural sweep, is endorsed hardest here for the reviewer's own
+    reason: it is the one that makes the next review's route sweep
+    unnecessary.
+
+    The steward's release ruling, subject to Imran's veto because it adds a
+    fix package RFC 0004's table does not name: F-1, F-2, F-3, F-4 and
+    F-5's one-line body limit are release-gating and land as one fix
+    session before S14's gate runs, with the new criteria red-first ahead
+    of it; F-6's schema `.max()` rides the same session; F-7's limiter does
+    not gate. Three items stay Imran's alone and are not closed here: the
+    GOOGLE_CLIENT_SECRET rotation (`bf90c0a` is still in published
+    history), and the two frozen section 7 widenings the S10 session
+    escalated, `created_by` on TaskCard and `section_block_id` on the
+    folder read.
 
 ## Implementation plan
 
