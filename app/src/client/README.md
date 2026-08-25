@@ -1122,3 +1122,8 @@ subscription and the absent-before-mount case are written once.
 - **A place-page has no cover and no editable description.** DES-141 and 9.4
   ask for both and nothing stores either for a native view. The head is
   waiting for a table, not for a component.
+- **9.7's Settings is still v1's three booleans**, so "Save as view" writes a
+  view already pinned: a view saved unpinned would have no address a person
+  could reach, which is DES-189. RFC 0004 assigns the Settings rewrite to no
+  package; whoever writes the pin list takes the default out with it, and no
+  data moves when they do.

@@ -1097,6 +1097,17 @@ fold, the way P7's mid-package change control ratified the pass callable:
    parameter joins `?mode=` and `?state=important`, which that section already
    uses for exactly this: a link that seeds a page's client state.
 
+   **A saved view is pinned when it is saved, until 9.7's pin list exists.**
+   DES-153 makes saving and pinning two choices, and the surface the second
+   belongs to is the v2 Settings pin list, "every view Dana has, native and
+   saved alike, each with a pin switch". That page is still v1's three
+   booleans: RFC 0004 gives the Settings rewrite to no package, and S10's row
+   is the place pages. A view saved unpinned would therefore have no address a
+   person could reach, which is DES-189 exactly, "a setting with no way in is a
+   setting nobody has". So "Save as view" writes `pinned: true` and the view
+   appears in the page block at once; the pin list takes it out again the day
+   that page is written, and no data moves when it does.
+
    **Assignments and Abandoned gained an empty state each, and they are the
    only copy S10 wrote.** Section 6 gives every query an empty state and
    section 9 writes none for these two, because neither is a query: this RFC's
