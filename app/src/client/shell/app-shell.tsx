@@ -75,7 +75,7 @@ import {
 
 import { mutateApi } from '../api/http.js'
 import { useCreateFolder } from '../api/mutations.js'
-import { useBundle, useFolders, useMe, usePendingInvites } from '../api/queries.js'
+import { useBundle, useFolders, useMe, usePendingInvites, useShelves } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
@@ -106,9 +106,12 @@ import {
 } from './preferences.js'
 import type { TaskFormDefaults } from './overlays.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
 
 /** The prefix 9.1's routes table gives a folder page. */
 const FOLDER_PREFIX = '/app/folders/'
+const SHELF_PREFIX = '/app/shelves/'
+const TASK_PREFIX = '/app/tasks/'
 
 /**
  * The folder list before it has arrived, held once so its identity is stable.
@@ -188,6 +191,7 @@ const pageIcons: Record<string, LucideIcon> = {
 function currentPage(
   pathname: string,
   folders: readonly Folder[] | undefined,
+  shelves: readonly Shelf[] | undefined,
 ): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
   const page = navPages.find((candidate) => pathname === candidate.path)
   if (page !== undefined) {
@@ -208,6 +212,18 @@ function currentPage(
       iconColor: folder?.my_color ?? DEFAULT_FOLDER_COLOR,
     }
   }
+  /* A shelf tab wears the shelf's name (9.1: every tab is the same tab),
+     from the shelves read the sidebar's Library will share. */
+  if (pathname.startsWith(SHELF_PREFIX)) {
+    const id = pathname.slice(SHELF_PREFIX.length)
+    const shelf = shelves?.find((candidate) => candidate.id === id)
+    return { title: shelf?.name ?? '', icon: FolderIcon, iconColor: undefined }
+  }
+  /* A task tab: the title would need the task read, which only the page
+     holds; "Task" keeps the tab honest without a second fetch path. */
+  if (pathname.startsWith(TASK_PREFIX)) {
+    return { title: 'Task', icon: undefined, iconColor: undefined }
+  }
   return { title: '', icon: undefined, iconColor: undefined }
 }
 
@@ -226,6 +242,8 @@ export function AppShell(): React.JSX.Element {
   */
   const bundle = useBundle()
   const folders = useFolders()
+  // The shelves read (7.16), which a shelf tab's face resolves through.
+  const shelves = useShelves()
   const invites = usePendingInvites()
   const createFolder = useCreateFolder()
   const update = useUpdateAffordance()
@@ -439,7 +457,7 @@ export function AppShell(): React.JSX.Element {
             window rather than to the application.
             */}
             <TabStrip
-              face={(path) => currentPage(path, folders.data)}
+              face={(path) => currentPage(path, folders.data, shelves.data)}
               folders={folders.data ?? NO_FOLDERS}
               onNavigate={(path) => {
                 void navigate(path)

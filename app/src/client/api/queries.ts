@@ -19,8 +19,12 @@ import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-que
 import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
 import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
-import { getEventsResponse } from '../../shared/events.js'
-import type { GetEventsResponse } from '../../shared/events.js'
+import { getEventsResponse, getNotificationsResponse } from '../../shared/events.js'
+import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
+import { getThreadResponse } from '../../shared/comments.js'
+import type { GetThreadResponse } from '../../shared/comments.js'
+import { getPageResponse } from '../../shared/pages.js'
+import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -28,8 +32,8 @@ import { getInvitesPendingResponse, getInvitesSentResponse } from '../../shared/
 import type { GetInvitesPendingResponse, GetInvitesSentResponse } from '../../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
 import type { MeResponse, Settings } from '../../shared/me.js'
-import { getShelvesResponse } from '../../shared/shelves.js'
-import type { GetShelvesResponse } from '../../shared/shelves.js'
+import { getShelvesResponse, shelf } from '../../shared/shelves.js'
+import type { GetShelvesResponse, Shelf } from '../../shared/shelves.js'
 import { getTaskResponse } from '../../shared/tasks.js'
 import { getTrashResponse } from '../../shared/trash.js'
 import type { GetTrashResponse } from '../../shared/trash.js'
@@ -408,5 +412,76 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
     queryKey: queryKeys.events(subject ?? ''),
     queryFn: () => getPlain(getEventsResponse, '/events', { subject: subject ?? '' }),
     enabled: subject !== null,
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The S12 surfaces (RFC 0005): pages, shelves, notifications, threads
+ * ------------------------------------------------------------------ */
+
+/** One shelf's identity (7.16), which its page's head renders. */
+export function useShelf(id: string): UseQueryResult<Shelf> {
+  return useQuery({
+    queryKey: queryKeys.shelf(id),
+    queryFn: () => getPlain(shelf, `/shelves/${id}`),
+  })
+}
+
+/** A folder page's block list (7.16, 4.17), which 9.6 draws. */
+export function useFolderPage(id: string): UseQueryResult<GetPageResponse> {
+  return useQuery({
+    queryKey: queryKeys.folderPage(id),
+    queryFn: () => getPlain(getPageResponse, `/folders/${id}/page`),
+  })
+}
+
+/** A shelf page's block list (7.16), which 9.10 draws. */
+export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
+  return useQuery({
+    queryKey: queryKeys.shelfPage(id),
+    queryFn: () => getPlain(getPageResponse, `/shelves/${id}/page`),
+  })
+}
+
+/**
+ * The viewer's notifications (7.12), which the 9.12 bell renders.
+ *
+ * `poll` is D3's ruling applied to this surface: refetch-on-focus is the
+ * client's one global liveness rule, and a polite poll runs only while the
+ * surface is open, so an idle Dana in a background tab costs the server
+ * nothing. Thirty seconds is polite for a feed whose producer is another
+ * person's hand.
+ */
+export function useNotifications(poll: boolean): UseQueryResult<GetNotificationsResponse> {
+  return useQuery({
+    queryKey: queryKeys.notifications(),
+    queryFn: () => getPlain(getNotificationsResponse, '/notifications'),
+    refetchInterval: poll ? 30_000 : false,
+  })
+}
+
+/**
+ * One conversation (7.14): the folder's own thread, or a task's.
+ *
+ * `open` gates the fetch the way the Completed section's does, because both
+ * homes of 9.6's conversation start closed; while the surface is open the
+ * same flag runs D3's polite poll, which is the whole of the liveness the
+ * pricing session bought (no sockets, no SSE).
+ */
+export function useThread(
+  folderId: string,
+  taskId: string | null,
+  open: boolean,
+): UseQueryResult<GetThreadResponse> {
+  return useQuery({
+    queryKey: queryKeys.thread(folderId, taskId),
+    queryFn: () =>
+      getPlain(
+        getThreadResponse,
+        `/folders/${folderId}/comments`,
+        taskId === null ? undefined : { task: taskId },
+      ),
+    enabled: open,
+    refetchInterval: open ? 30_000 : false,
   })
 }

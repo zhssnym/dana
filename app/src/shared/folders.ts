@@ -206,3 +206,16 @@ export const deleteFolderResponse = z.object({
   }),
 })
 export type DeleteFolderResponse = z.infer<typeof deleteFolderResponse>
+
+/*
+POST /folders/:id/duplicate (7.16) answers the copy's identity and nothing
+more: the copy is the duplicator's own private folder, and the client's next
+read of /folders carries it in full. Written from `routes/workshop.ts` by the
+S12 client arm on 2026-08-25, the read-half discipline of the sibling
+modules.
+*/
+export const duplicateFolderResponse = z.object({
+  id: z.uuid(),
+  name: z.string(),
+})
+export type DuplicateFolderResponse = z.infer<typeof duplicateFolderResponse>
