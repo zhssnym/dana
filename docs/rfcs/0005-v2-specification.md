@@ -1063,6 +1063,32 @@ fold, the way P7's mid-package change control ratified the pass callable:
    browser test, which stays on the v1 form until S11 lands the v2 assignee
    menu; that split is S1's and is recorded in AC-220's file.
 
+9. **S12's owner cell read against the persona files it repeats (Imran,
+   2026-08-24, ruled at S12's opening).** RFC 0004's table assigns S12 and
+   S11 to `09-complex-interaction.md`, whose Owns section holds exactly the
+   calendar, task-form and search directories; every surface S12 builds (the
+   9.6 folder page, 9.10's shelves, the conversation, 9.12's bell) sits in
+   `07-frontend-architect.md`'s claim, which names the page assembly of 9.4
+   to 9.8 and the residue of `app/src/client/**`. RFC 0004's own sentence
+   decides it: the persona files are the authority on ownership and the
+   table repeats their claims. So the repeat is corrected rather than the
+   source: S12 runs under persona 07, no persona file is edited, and S11,
+   which carries the same mismatch for the task components, takes the same
+   answer when it opens. Options weighed and rejected: widening persona
+   09's Owns (rewrites two permanent files for one release) and splitting
+   the package (cuts the folder page from its own conversation).
+
+10. **AC-226 was claimed twice, and S13's claim keeps the number (Imran,
+    2026-08-24, ruled at S12's opening).** The S9 close moved the sidebar
+    drag to S11 and wrote that S11 owes AC-226; `s13-public`, unmerged and
+    invisible to that session, had already spent AC-226 on the starter
+    workflows, in section 12's text and in a built test. Two sessions
+    reached for the next free number in parallel and drew the same one.
+    S13's criterion is written and asserted, S11's is a debt with no text
+    yet, so S13 keeps AC-226 and S11's sidebar-drag criterion is AC-227.
+    The SESSION-LOG row that says "S11 owes AC-226" stays as written, the
+    record being what happened; this item is the correction it points to.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
