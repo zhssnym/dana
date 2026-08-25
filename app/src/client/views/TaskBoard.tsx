@@ -49,6 +49,18 @@ export function TaskBoard({
   readonly actions: RowActions
   readonly onAsk: (message: string, run: () => void) => void
 }): React.JSX.Element {
+  /*
+  A row in a folder column does not repeat the folder, which is Q2's own rule
+  applied one surface further on ("Q2 gives a row no folder label, the group
+  heading above it being the folder") and DES-183's, that a row says what its
+  page does not. It is also what makes the row fit: a column is a fraction of
+  a page's width, the row's metadata and controls take their own, and the
+  title is what gives way when the folder chip is drawn beside a heading that
+  already says the same word.
+  */
+  const columnContext: RowContext =
+    place.groupBy === 'folder' ? { ...context, showFolder: false } : context
+
   return (
     <div className="flex items-start gap-4 overflow-x-auto pb-2">
       {columns.map((column) => (
@@ -57,7 +69,7 @@ export function TaskBoard({
           // 9.1's roles table: a board column is a named region, named by its
           // value. AC-221 addresses the Groceries column by exactly this.
           aria-label={column.name}
-          className="flex w-72 shrink-0 flex-col gap-1 rounded-lg bg-[var(--color-graphite-25)] p-2"
+          className="flex w-80 shrink-0 flex-col gap-1 rounded-lg bg-[var(--color-graphite-25)] p-2"
         >
           <h2 className="flex h-7 items-center gap-2 px-1 text-[13px] font-semibold text-[var(--color-graphite-700)]">
             <span className="truncate">{column.name}</span>
@@ -67,7 +79,7 @@ export function TaskBoard({
           </h2>
           <TaskRows
             tasks={column.rows}
-            context={context}
+            context={columnContext}
             actions={actions}
             onAsk={onAsk}
           />
