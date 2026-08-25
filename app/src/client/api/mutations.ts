@@ -24,6 +24,7 @@ ones section 7 names.
 */
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
+import { z } from 'zod'
 
 import {
   deleteFolderResponse,
@@ -74,6 +75,8 @@ import type {
   TaskTransitionResponse,
 } from '../../shared/tasks.js'
 import { deleteTaskMyDayResponse, postTaskMyDayResponse } from '../../shared/tasks.js'
+
+import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
 import { mutateApi, requestTimezone } from './http.js'
 
@@ -486,5 +489,34 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(folder, { method: 'POST', path: `/folders/${id}/restore` }),
+  })
+}
+
+/*
+7.16's workflow import, which 9.13's starter offer is the only caller of so
+far and a person's own exported file will be the second.
+
+**The response schema is declared here rather than in `src/shared/`**, and
+that is a boundary rather than a preference. The v2 packages published write
+bodies and no readable response shapes, which S9 recorded when it added four
+read schemas outside its own paths and flagged them; `src/shared/workflows.ts`
+belongs to the API role, so this session declares what it needs to parse and
+leaves the move to the Steward. It is not a duplicate of anything: no shared
+schema for this body exists to duplicate.
+*/
+const importWorkflowResponse = z.object({
+  folders: z.array(z.object({ id: z.uuid(), name: z.string() })),
+})
+
+export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
+
+export function useImportWorkflow(): UseMutationResult<
+  ImportWorkflowResponse,
+  Error,
+  ImportWorkflowBody
+> {
+  return useMutation({
+    mutationFn: (body: ImportWorkflowBody) =>
+      mutateApi(importWorkflowResponse, { method: 'POST', path: '/workflows/import', body }),
   })
 }
