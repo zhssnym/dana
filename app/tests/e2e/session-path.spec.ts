@@ -253,8 +253,31 @@ test.describe('The signed-in path', () => {
       taskRow(page, title).getByRole('checkbox'),
       'spec 9.4: a row carries a complete checkbox',
     )
+    /*
+    The row, and deliberately not the title anywhere on the page.
+
+    This assertion read `page.getByText(title)` until 2026-08-25 and failed as
+    a race on the runner while passing here, which is what opened the
+    investigation. The cause is not the refetch: 9.1 gives a completion an undo
+    bar naming the task it acted on, `Completed "<title>"`, and that bar stands
+    for the UNDO_WINDOW_MS that AC-225 fixes at five seconds. A page-wide text
+    match therefore matches that bar long after the row itself has gone, and it
+    cannot reach zero until the bar retires, five seconds after the click that
+    this assertion's own budget starts a few milliseconds later. Measured that
+    day: the moment `check()` returned, the row's count was already 0 and the
+    only node carrying the title was the bar's span, which cleared at 4477 ms
+    against Playwright's unconfigured 5000 ms. The case turned on a 523 ms
+    margin, read by a poll whose interval had already backed off to 500 ms,
+    which is why it is green on a quiet machine and red on a loaded one.
+
+    So the locator is narrowed to what this message has always claimed, the row
+    leaving Anytime, and nothing is weakened by it: a row that stayed still
+    matches, and 8.3's refetch is still the only thing that can take it. What
+    the old locator asserted on top of that was that the undo bar of 9.1 must
+    not name the task, which is the opposite of what AC-225 requires of it.
+    */
     await expect(
-      page.getByText(title),
+      taskRow(page, title),
       'spec 5.1: a completed task leaves Q2, so the row goes from Anytime. 8.3\'s refetch is ' +
         'what takes it, which is the whole invalidation strategy this client has',
     ).toHaveCount(0)
