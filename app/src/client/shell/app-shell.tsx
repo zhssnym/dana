@@ -156,12 +156,8 @@ function floatingDefaults(pathname: string): TaskFormDefaults | null {
   return null
 }
 
-/** Whether a keystroke landed somewhere a person is typing. */
-function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName.toLowerCase()
-  return tag === 'input' || tag === 'textarea' || target.isContentEditable
-}
+/* `isTyping` left with the search shortcut it guarded (see `overlays.ts`);
+   the undo shortcut below has its own guard in `undo.ts`. */
 
 /** The glyph the page strip shows, which is the designer's and not 9.1's. */
 const pageIcons: Record<string, LucideIcon> = {
@@ -255,23 +251,10 @@ export function AppShell(): React.JSX.Element {
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(readSidebarWidth)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
 
-  // 9.1's shortcut for the search control. On the document rather than on the
-  // button, because a shortcut that only fires while its control has focus is
-  // not one. "/" is ignored while the person is typing, or every quick-add row
-  // on the page would swallow its own slashes.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      const ctrlK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k'
-      const slash = event.key === '/' && !isTyping(event.target)
-      if (!ctrlK && !slash) return
-      event.preventDefault()
-      openSearch()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [])
+  /* 9.1's search shortcut moved to `overlays.ts` and is installed from
+     `main.tsx` at module scope, so the window listens from the moment the
+     bundle runs rather than from whenever this tree finishes mounting; the
+     reason and the latch that goes with it are written there. */
 
   /*
   9.1's undo shortcut, Ctrl+Z or Cmd+Z, and no redo.

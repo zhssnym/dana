@@ -32,6 +32,7 @@ import { queryKeys } from './api/keys.js'
 import { createQueryClient, setQueryClient } from './api/queryClient.js'
 import { TooltipProvider } from './components/ui/tooltip.js'
 import { Router } from './Router.js'
+import { installSearchShortcut } from './shell/overlays.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getInvitesPendingResponse } from '../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../shared/me.js'
@@ -104,6 +105,19 @@ tooltip that appears only if the pointer rests, which is the difference between
 9.5's star confirming importance and a control that says nothing. AC-099 reads
 the star's tooltip on hover and is what measured the omission.
 */
+/*
+9.1's search shortcut, attached before the first render.
+
+It sat in the shell's own effect until S12, which meant the window began
+listening only once the whole page tree below the chrome had mounted. That is
+long enough to lose a keypress on a cold load, and the heavier the page the
+longer the gap; `overlays.ts` carries the latch that makes a request arriving
+before the overlay exists survive until it does. Installed here for the same
+reason the three chrome reads are: this module runs before the document's
+load event, and nothing about a window-level shortcut should wait on routing.
+*/
+installSearchShortcut(document)
+
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

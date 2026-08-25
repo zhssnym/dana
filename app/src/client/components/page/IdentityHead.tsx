@@ -28,7 +28,7 @@ The rename commits on blur or Enter; empty and Escape both revert, and
 icon, colour, description — yes for both roles; the event log says who").
 Placeholder rather than fixed copy, his words.
 */
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 
 import { IDENTITY_COLOR_FALLBACK } from '../../parts/identity-colors.js'
 import { InlineInput, InlineTextarea } from '../ui/inline-field.js'
@@ -78,6 +78,7 @@ export function IdentityHead({
   readonly onDescription: (next: string | null) => void
   readonly onCover: (file: File | null) => void
 }): React.JSX.Element {
+  const [describing, setDescribing] = useState(false)
   const Mark = markIcon(identity.icon)
   const color = identity.color ?? IDENTITY_COLOR_FALLBACK
   const coverInput = useRef<HTMLInputElement>(null)
@@ -192,21 +193,42 @@ export function IdentityHead({
         </h1>
       )}
 
-      <InlineTextarea
-        key={identity.description ?? ''}
-        defaultValue={identity.description ?? ''}
-        placeholder={
-          kind === 'folder' ? 'What this folder is for' : 'What this shelf is for'
-        }
-        aria-label="Description"
-        rows={1}
-        onBlur={(event) => {
-          const next = event.target.value.trim()
-          if (next === (identity.description ?? '')) return
-          onDescription(next === '' ? null : next)
-        }}
-        className="mt-1 text-[12px] leading-5 text-muted-foreground"
-      />
+      {/* Prose until it is being written, for the reason the title carries:
+          a page whose every sentence is a form field announces a wall of
+          textboxes to a reader and to anything addressing the page by role.
+          A click opens the field; blur closes it. */}
+      {describing ? (
+        <InlineTextarea
+          key={identity.description ?? ''}
+          defaultValue={identity.description ?? ''}
+          placeholder={
+            kind === 'folder' ? 'What this folder is for' : 'What this shelf is for'
+          }
+          aria-label="Description"
+          rows={1}
+          autoFocus
+          onBlur={(event) => {
+            const next = event.target.value.trim()
+            setDescribing(false)
+            if (next === (identity.description ?? '')) return
+            onDescription(next === '' ? null : next)
+          }}
+          className="mt-1 text-[12px] leading-5 text-muted-foreground"
+        />
+      ) : (
+        <p
+          onClick={() => {
+            setDescribing(true)
+          }}
+          className="mt-1 cursor-text text-[12px] leading-5 text-muted-foreground"
+        >
+          {identity.description ?? (
+            <span className="opacity-60">
+              {kind === 'folder' ? 'What this folder is for' : 'What this shelf is for'}
+            </span>
+          )}
+        </p>
+      )}
     </div>
   )
 }
