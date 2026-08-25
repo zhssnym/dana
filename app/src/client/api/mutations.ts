@@ -40,8 +40,13 @@ import type {
   PatchFolderMyMembershipBody,
   PostFoldersBody,
 } from '../../shared/folders.js'
-import { getSettingsResponse } from '../../shared/bundle.js'
-import type { GetSettingsResponse, PatchSettingsBody } from '../../shared/bundle.js'
+import { getSettingsResponse, savedView } from '../../shared/bundle.js'
+import type {
+  GetSettingsResponse,
+  PatchSettingsBody,
+  PostViewBody,
+  SavedView,
+} from '../../shared/bundle.js'
 import {
   acceptInviteResponse,
   cancelInviteResponse,
@@ -486,5 +491,23 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(folder, { method: 'POST', path: `/folders/${id}/restore` }),
+  })
+}
+
+/**
+ * POST /views, the saved view of 4.19, which 9.1's "Save as view" writes.
+ *
+ * The definition is the filter model of `views/filter.ts`, which holds ids
+ * and enums and never a display name; that is the client half of AC-209's
+ * "a saved view survives a rename because it stored ids".
+ */
+export function useCreateSavedView(): UseMutationResult<
+  SavedView,
+  Error,
+  PostViewBody
+> {
+  return useMutation({
+    mutationFn: (body: PostViewBody) =>
+      mutateApi(savedView, { method: 'POST', path: '/views', body }),
   })
 }

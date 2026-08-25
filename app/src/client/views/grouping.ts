@@ -1,0 +1,149 @@
+/*
+Grouping, which DES-156 rules replaces a page's arrangement and never nests
+inside it.
+
+"Asking a page to group by something is asking it to arrange itself that way
+instead. Today grouped by folder is today's work in folders. The page keeps
+its head, its cover, its bar and its filters, because those belong to the
+place; the one thing you changed is the one thing that changes, and returning
+Group by to Nothing gives the page back untouched, because nothing about it
+was ever edited."
+
+So this file answers one question: given rows and an axis, what are the
+groups? The list view draws them as sections and the board draws them as
+columns, and neither is a second grouping.
+
+**A column's name is the folder's own name, never a member's label for it.**
+DES-225 splits the two: the name is the folder's and the label is arrangement,
+personal and never anybody else's business. A board grouped by folder is
+showing the folder, so it says what the folder is called; the label belongs to
+the sidebar, where a person arranges their own library. AC-221 reads the
+column by the folder's name for that reason.
+
+**Ordering inside a group is the server's, untouched.** Rows are walked once
+and appended, so section 6's order survives inside every column, which is that
+section's own rule about clients never re-sorting.
+*/
+import type { TaskCard } from '../../shared/tasks.js'
+import { DELETED_USER } from '../parts/presenters.js'
+import { UNASSIGNED } from './filter.js'
+import type { GroupBy } from './filter.js'
+import { rungFor } from './ladder.js'
+import type { ColumnValue } from './place-pages.js'
+
+export interface TaskGroup {
+  readonly key: string
+  /** The heading and the region's name (9.1's regions rule). */
+  readonly name: string
+  /**
+   * What a capture in this group writes, or null where the group is a
+   * relation rather than a value and there is nothing to make (DES-182).
+   */
+  readonly capture: ColumnValue | null
+  readonly rows: readonly TaskCard[]
+}
+
+interface Slot {
+  readonly key: string
+  readonly name: string
+  readonly capture: ColumnValue | null
+}
+
+function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string | null): Slot {
+  switch (axis) {
+    case 'folder':
+      return {
+        key: task.folder.id,
+        name: task.folder.name,
+        capture: { folder_id: task.folder.id },
+      }
+    case 'person': {
+      if (task.assignee === null) {
+        return { key: UNASSIGNED, name: 'Unassigned', capture: { assignee_id: null } }
+      }
+      const mine = task.assignee.id === viewerId
+      return {
+        key: task.assignee.id,
+        name: mine ? 'You' : (task.assignee.display_name ?? DELETED_USER),
+        capture: { assignee_id: task.assignee.id },
+      }
+    }
+    case 'date': {
+      const rung = rungFor(task.due_date, today)
+      return {
+        key: rung.key,
+        name: rung.name,
+        capture: rung.date === null ? null : { due_date: rung.date },
+      }
+    }
+    case 'none':
+      return { key: 'all', name: 'All', capture: null }
+  }
+}
+
+/**
+ * The groups an axis makes of a page's rows.
+ *
+ * `extra` is a slot a page wants present whether or not it holds a row, which
+ * is what keeps a folder board offering somewhere to capture on a page whose
+ * rows happen to be in one folder. Nothing else is invented: a board of every
+ * folder a person has would be a wall of empty columns, and DES-144's rule
+ * about dead affordances applies to a column as much as to a menu item.
+ */
+export function groupRows(
+  rows: readonly TaskCard[],
+  axis: GroupBy,
+  today: string,
+  viewerId: string | null,
+  extra: readonly TaskGroup[] = [],
+): readonly TaskGroup[] {
+  const order: string[] = []
+  const groups = new Map<string, { slot: Slot; rows: TaskCard[] }>()
+  for (const seed of extra) {
+    order.push(seed.key)
+    groups.set(seed.key, {
+      slot: { key: seed.key, name: seed.name, capture: seed.capture },
+      rows: [],
+    })
+  }
+  for (const task of rows) {
+    const slot = slotFor(task, axis, today, viewerId)
+    const existing = groups.get(slot.key)
+    if (existing === undefined) {
+      order.push(slot.key)
+      groups.set(slot.key, { slot, rows: [task] })
+      continue
+    }
+    existing.rows.push(task)
+  }
+  const built = order.map((key) => {
+    const held = groups.get(key)
+    return {
+      key,
+      name: held?.slot.name ?? key,
+      capture: held?.slot.capture ?? null,
+      rows: held?.rows ?? ([] as readonly TaskCard[]),
+    }
+  })
+  return axis === 'person' ? byPerson(built, viewerId) : built
+}
+
+/**
+ * 9.5's own ordering for the person axis: "the viewer's own group first,
+ * 'Unassigned' last".
+ *
+ * A reordering of groups rather than of rows, which section 6's no-re-sort
+ * rule does not reach: the query returns no grouping at all here, Assignments
+ * being a client-side composition rather than a query (section 6's preamble).
+ */
+function byPerson(
+  groups: readonly TaskGroup[],
+  viewerId: string | null,
+): readonly TaskGroup[] {
+  const mine = groups.filter((group) => group.key === viewerId)
+  const unassigned = groups.filter((group) => group.key === UNASSIGNED)
+  const others = groups
+    .filter((group) => group.key !== viewerId && group.key !== UNASSIGNED)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return [...mine, ...others, ...unassigned]
+}
