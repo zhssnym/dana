@@ -1160,7 +1160,40 @@ fold, the way P7's mid-package change control ratified the pass callable:
     The SESSION-LOG row that says "S11 owes AC-226" stays as written, the
     record being what happened; this item is the correction it points to.
 
+13. **Four v1 browser cases address a folder's overflow menu where 9.1 no
+    longer puts it, and one of them asserts a dialog 9.6 retires (S12,
+    2026-08-25; raised, not decided here).** The same shape as item 8 and
+    found the same way, by running the whole leg rather than the four
+    criteria this package owns. 9.1's replacement puts "the object's
+    overflow menu" at the window bar's right end, and the v2 folder page
+    renders it there; `regionOf(page, 'Folder header')` therefore finds no
+    menu, and four cases fail against a surface that satisfies the section
+    they cite. None is a defect in S12's code and none was edited to get
+    green, protocol section 8 putting acceptance tests with persona 11.
 
+    Three want a locator and no new sentence: AC-162's folder-counts and
+    leave-confirm cases, and AC-183's leave-confirm case. Recommended
+    correction, the S9 precedent of a locator fixed inside a criterion whose
+    text is untouched: reach the menu by its name, "More actions", without
+    scoping it to the folder header, since 9.1 gives the string to the
+    active tab's object menu wherever the bar draws it.
+
+    The fourth is a criterion text that v2 makes false. AC-181's second case
+    asserts 9.6's "Label and color" dialog, and 9.6 now reads "The 'Label
+    and color' dialog is retired: the folder's icon and colour are the
+    shared identity above, set from the mark". Recommended Replace, keeping
+    the first half of the criterion, which 9.1's "New folder" action still
+    earns, and retiring the second with the dialog it names:
+
+    ```markdown
+    - AC-181 Given the "New folder" action of 9.1, then it opens a dialog taking a name and creating the folder.
+    ```
+
+    A fifth case is adjacent and needs nothing: AC-162's folder-delete
+    confirm fails because 9.6 replaced that confirm with the undo bar, which
+    is the removal AC-162's own file already anticipates in terms, under
+    that criterion's own quantifier. It goes when persona 11 next opens the
+    file, and AC-225 is what reads what replaced it.
 
 ## Implementation plan
 
