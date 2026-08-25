@@ -29,15 +29,24 @@ sentence is about navigations to paths the cache has never seen, which is
 the whole reason the installed application always opens; reloading the page
 that populated the cache proves nothing about the fallback.
 
-Spec: 9.1 (the route table and its closing sentence), 10.6 (precache,
-navigation fallback, network-only API), 9.2.
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** The criterion is
+about a scope rather than a page, and the scope did not move: 9.1's v2 route
+table closes with the same sentence, /app falling back to the cached shell
+and / not. What moved is which paths the table holds and what the sidebar
+reads, so the shell is now recognised by its Desk entry rather than by My
+Day's. Desk is the right one to recognise it by for a reason beyond the
+rename: it is the one page 9.7 will not let a person unpin, so a shell that
+rendered would carry it whatever the viewer's pin list says.
+
+Spec: 9.1 (the v2 route table and its closing sentence), 10.6 (precache,
+navigation fallback, network-only API), 9.2, 9.7 (Desk locked pinned).
 */
 import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
   expectServiceWorkerControl,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -59,15 +68,15 @@ test.describe('AC-160: what the cached shell answers for', () => {
     context,
   }) => {
     await signIn(page, seedSubs.hassan)
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expectServiceWorkerControl(page)
 
     await context.setOffline(true)
 
     // A path this session has not loaded, which is what the fallback is for.
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await expect(
-      page.getByRole('link', { name: 'My Day', exact: true }),
+      page.getByRole('link', { name: 'Desk', exact: true }),
       'spec 10.6: navigations fall back to the cached shell so the installed app always ' +
         'opens, and 9.1 says every /app path. A fallback that serves only the paths already ' +
         'visited is a cache, not a fallback',
@@ -79,12 +88,12 @@ test.describe('AC-160: what the cached shell answers for', () => {
     // the shell is the one outcome 9.1 rules out, so that is what is
     // asserted, as one thing rather than as a branch.
     const reached = await page
-      .goto(routes.landing)
+      .goto(routesV2.landing)
       .then(() => true)
       .catch(() => false)
     const shellHere =
       reached &&
-      (await page.getByRole('link', { name: 'My Day', exact: true }).count()) > 0
+      (await page.getByRole('link', { name: 'Desk', exact: true }).count()) > 0
     expect(
       shellHere,
       'spec 9.1: "/ does not" fall back to the cached shell. A navigation fallback registered ' +
@@ -98,18 +107,18 @@ test.describe('AC-160: what the cached shell answers for', () => {
     context,
   }) => {
     await signIn(page, seedSubs.hassan)
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expectServiceWorkerControl(page)
 
     await context.setOffline(true)
-    await page.goto(routes.important)
+    await page.goto(routesV2.important)
 
     // 10.6 precaches the versioned application shell, which is HTML, JS, CSS,
     // fonts and icons: chrome without data. So the sidebar is there and the
     // rows are not, and a fallback serving the last HTML response for every
     // route would show the wrong page's rows instead.
     await expect(
-      page.getByRole('link', { name: 'Tasks', exact: true }),
+      page.getByRole('link', { name: 'Desk', exact: true }),
       'spec 10.6: the shell is precached, so the global chrome of 9.1 renders',
     ).toBeVisible()
     await expect(

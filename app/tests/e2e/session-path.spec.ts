@@ -44,9 +44,28 @@ text box directly, which AC-166 now forbids, and what it owes is one
 activation. Nothing about the three properties above moves, none of them being
 about that control at all.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** The three
+properties are unchanged and so is every assertion; the walk is a different
+walk because 9.1's page block is. It now starts at Desk, which is the folder
+page of the account's default folder and so reaches a folder-tasks endpoint
+rather than a view one, and it takes Today, Scheduled, Important, All, Done
+and Anytime through the six view endpoints section 6 still defines. The
+sidebar reaches all of them because the pin list is written first, which is
+what 9.7's Views section is for; that also retires the special case the old
+walk carried for Done, so every stop is now a link click and the property
+"one session rather than seven page loads" holds over the whole of it.
+
+Assignments is deliberately not a stop. 9.1 puts it in the page block and
+section 6's new preamble paragraph says why it is not here: "Assignments is
+not a query of its own: it is a client-side composition over the open tasks
+the viewer can already read." Its page is S10's, and it joins this walk when
+there is a page to walk to.
+
 Spec: 11.10 (the development login as this leg's session source), 7.0 (the
 tz rule and the envelope), 11.6 (CSRF), 10.2 (the chokepoint), 9.1 (the
-sidebar, the route table and the quick-add's two states), 8.3.
+sidebar, the v2 route table and the quick-add's two states), 9.7 (the pin
+list), 6 (the five renamed query headings and the Assignments paragraph),
+8.3.
 */
 import { expect, test } from '@playwright/test'
 
@@ -56,7 +75,8 @@ import {
   clickControl,
   fillControl,
   openQuickAdd,
-  routes,
+  patchBundle,
+  routesV2,
   seedIds,
   seedSubs,
   sidebarLink,
@@ -72,14 +92,41 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-/** Each surface, and one seeded row that proves it rendered. */
+/**
+ * The pin list this walk needs, so that every stop is reachable from the
+ * sidebar. 9.7 ships Done and Anytime unpinned and this account pins them,
+ * which is exactly what a person does from that section's Views list.
+ */
+const WALK_PINS = [
+  'desk',
+  'today',
+  'scheduled',
+  'assignments',
+  'important',
+  'all',
+  'done',
+  'anytime',
+]
+
+/**
+ * Each surface, and one seeded row that proves it rendered.
+ *
+ * Desk answers from a folder-tasks endpoint rather than a view one, being
+ * 9.1's "the account's default folder" rather than a query over tasks that
+ * live elsewhere. Its seeded row is the undated task the seed files there.
+ */
 const WALK = [
-  { link: 'My Day', row: 'Buy milk', viewPath: '/api/v1/views/my-day' },
-  { link: 'Tasks', row: 'Sort inbox', viewPath: '/api/v1/views/tasks' },
-  { link: 'Planned', row: 'Call plumber', viewPath: '/api/v1/views/planned' },
+  {
+    link: 'Desk',
+    row: 'Sort inbox',
+    viewPath: `/api/v1/folders/${seedIds.hassanInbox}/tasks`,
+  },
+  { link: 'Today', row: 'Buy milk', viewPath: '/api/v1/views/my-day' },
+  { link: 'Scheduled', row: 'Call plumber', viewPath: '/api/v1/views/planned' },
   { link: 'Important', row: 'Buy milk', viewPath: '/api/v1/views/important' },
   { link: 'All', row: 'Water plants', viewPath: '/api/v1/views/all' },
   { link: 'Done', row: 'Pay rent', viewPath: '/api/v1/views/done' },
+  { link: 'Anytime', row: 'Sort inbox', viewPath: '/api/v1/views/tasks' },
 ] as const
 
 test.describe('The signed-in path', () => {
@@ -89,20 +136,18 @@ test.describe('The signed-in path', () => {
     const wire = watchWire(page)
     await signIn(page, seedSubs.hassan)
 
-    // Done ships hidden (4.10), so it is reached by its URL; the other five
-    // are reached through the sidebar, which is what makes them one session
-    // rather than six page loads.
-    await page.goto(routes.myDay)
+    // Every stop is pinned, so every stop is a link, which is what makes the
+    // walk one session rather than seven page loads. The pins are written
+    // through 9.7's own surface rather than assumed, Done and Anytime
+    // shipping unpinned.
+    await patchBundle(page, { pinned_views: WALK_PINS })
+    await page.goto(routesV2.desk)
     for (const stop of WALK) {
-      if (stop.link === 'Done') {
-        await page.goto(routes.done)
-      } else {
-        await clickControl(
-          sidebarLink(page, stop.link),
-          `spec 9.1: the sidebar lists ${stop.link} in its fixed order, and walking it is what ` +
-            'makes these six pages one session rather than six loads',
-        )
-      }
+      await clickControl(
+        sidebarLink(page, stop.link),
+        `spec 9.1: the sidebar page block lists ${stop.link}, and walking it is what makes ` +
+          'these seven pages one session rather than seven loads',
+      )
       await expect(
         page.getByText(stop.row),
         `spec 9.1 route table: ${stop.link} rendered, which the seeded row ${stop.row} is the ` +
@@ -121,7 +166,7 @@ test.describe('The signed-in path', () => {
         .toContain(stop.viewPath)
     }
 
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await expect(
       page.getByText('Buy milk'),
       'spec 9.1 route table: the folder page rendered, which 6 Q7 puts this seeded row on',
@@ -164,7 +209,7 @@ test.describe('The signed-in path', () => {
     ]
     expect(
       [...new Set(views.map((call) => new URL(call.url).pathname))],
-      'spec 7.10: walking six pages, a folder and the search overlay reaches the view ' +
+      'spec 7.10: walking seven pages, a folder and the search overlay reaches the view ' +
         'endpoints; checking their paths makes the assertion non-vacuous without depending ' +
         'on timing or on incidental extra requests',
     ).toEqual(expect.arrayContaining(expectedViewPaths))
@@ -186,7 +231,7 @@ test.describe('The signed-in path', () => {
 
     // This file's own row, so nothing seeded transitions.
     const title = 'session path completes this one'
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     const quickAdd = await openQuickAdd(
       page,
       'spec 9.1: this case needs a create and a complete, and the inline quick-add is the ' +
@@ -210,7 +255,7 @@ test.describe('The signed-in path', () => {
     )
     await expect(
       page.getByText(title),
-      'spec 5.1: a completed task leaves Q2, so the row goes from Tasks. 8.3\'s refetch is ' +
+      'spec 5.1: a completed task leaves Q2, so the row goes from Anytime. 8.3\'s refetch is ' +
         'what takes it, which is the whole invalidation strategy this client has',
     ).toHaveCount(0)
 
@@ -235,10 +280,10 @@ test.describe('The signed-in path', () => {
     // Imran's Inbox exists and Hassan is not a member of it. 10.2 answers
     // 404 rather than 403 so that existence does not leak, and the client's
     // half is showing the person that rather than a blank page.
-    await page.goto(routes.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranInbox))
 
     await expect(
-      sidebarLink(page, 'My Day'),
+      sidebarLink(page, 'Desk'),
       'spec 10.6 and 9.1: the shell survives a 404 under it, so the person can navigate away ' +
         'from a page they cannot see',
     ).toBeVisible()
