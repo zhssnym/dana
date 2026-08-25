@@ -6,6 +6,71 @@ follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-25
+
+Dana v2, the whole of RFC 0005's specification delta, built by sessions S0 to
+S14 on `v2-build`. The frozen core contract of sections 4 and 7 did not move:
+every wire change is additive, and a v1 account opens v2 with nothing
+migrated by hand. The major version is for the product rather than the API:
+the surfaces were redrawn around DES-152's places, and bookmarks to the
+retired paths redirect rather than 404.
+
+**Every page is now a place, and every place is the same object (S9, S10).**
+Desk is `/app` and is where undated, unfiled capture lands; Today, Scheduled,
+Assignments, Important, All, Done, Anytime and Abandoned are each one view
+with a spine it locks, defaults for its other axes, and a mode. Pages open as
+tabs in a strip you can reorder by pointer, the window bar carries the active
+object's menu and the filter whose readout is chips, and a board mode stands
+beside the list where the page's question makes columns sensible. A filter
+arrangement worth keeping can be saved as a view of its own; it opens at its
+page's address carrying its id, and appears pinned in the sidebar's page
+block at once.
+
+**The task form is becoming the task card (S11).** The card carries 9.3's
+header strip: due date, folder, assignee, reminder and repeat as chips, each
+opening a picker in place, each committing as it is answered. The due picker
+offers days and no clock; the reminder picker offers the time on the day. One
+drag engine serves the sidebar's folder groups, the tab strip and the board's
+columns, so a card dropped in a column writes the column's value through the
+same mutation a quick-add there would use. The v1 fields still sit under the
+strip while seven green criteria pin them there; their retirement is
+scheduled as its own package (RFC 0005 change control item 15).
+
+**Things that happened are now things Dana can say (S3, S6).** Mutations
+record activity events, a folder and any object can answer "what happened
+here", and the bell's rows are fanned out in the same transaction as the act
+they report. Comments arrived as one-level threads on a task with likes and
+up to ten attachments each; deleting is the author's, and the thread lives
+with the folder's visibility, never wider. Trash holds deleted folders and
+tasks for 30 days with restore, and the purge is the scheduler's duty rather
+than anybody's chore.
+
+**Files arrived, and they are as private as their folder (S4).** Uploads to
+25 MB per file and 1 GB per account: images for pages and comments, covers,
+avatars, voice notes. Images are re-encoded and downscaled on the way in, so
+a file that claims to be a picture either is one or is refused; serving is
+authenticated, per-folder, and carries nosniff with kind file confined to an
+attachment. There are no public URLs.
+
+**A folder can carry writing, and workflows can be imported (S5, S7).** Page
+blocks, sections and paragraphs, on folders and shelves; a workflow file
+carries structure and titles only, never ids, people, dates or states, capped
+at 50 folders, 500 blocks and 1000 tasks per file.
+
+**The release was gated by a security review, and the review is a record
+(S14, 2026-08-25).** `docs/security/2026-08-25-s14-uploads-import-links.md`
+records what was examined and found clean, uploads, import, links, the
+chokepoint, the logging boundary, and its seven findings were each ruled in
+RFC 0005 change control item 18, the release-gating ones fixed in this
+release and pinned by AC-230 to AC-239: account deletion now destroys the
+account's uploads and its avatar with the rows (8.10 step 6a); the Trash
+purge removes the stored objects its cascades orphan; every response carries
+section 10.8's security headers; the import caps became reachable when the
+JSON body ceiling rose to 3 MB, and the task array gained its cap; the boot
+guard requires the Google trio in production, where the development login
+does not exist; and a signed-out visit to any `/app` route lands on the
+landing rather than a shell full of refusals.
+
 **A folder is a page now, and so is a shelf (S12, 2026-08-25).** The folder
 screen was a list with a header; it is now a page in the full sense. It can
 wear a cover and a mark, its icon and colour belong to the folder rather than
