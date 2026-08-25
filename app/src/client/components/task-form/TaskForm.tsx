@@ -107,6 +107,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+import { TaskChips } from '../task-card/chips.js'
 import { useCreateInvite } from '../../api/mutations.js'
 import { useConnections, useFolder, useFolders, useMe } from '../../api/queries.js'
 import { presenterToday } from '../../parts/presenters.js'
@@ -300,6 +301,14 @@ export interface TaskFormProps {
    */
   readonly onToggleComplete: (event: 'complete' | 'uncomplete') => void
   readonly onClose: () => void
+  /**
+   * 9.3's v2 rule that a chip writes where it is answered: "Every edit
+   * commits as it is made." The strip calls this instead of `onSave` so the
+   * write lands and the surface stays open, `onSave` being the control that
+   * also closes. Absent on the creation path, where there is no row to write
+   * to and the values ride the create body instead.
+   */
+  readonly onCommit?: (patch: PatchTaskBody, reminder: ReminderInput | null) => void
   readonly onAppendStep: (title: string) => void
   readonly onToggleStep: (step: EditorStep) => void
   readonly onDeleteStep: (step: EditorStep) => void
@@ -364,6 +373,7 @@ export function TaskForm({
   onDelete,
   onToggleComplete,
   onClose,
+  onCommit,
   onAppendStep,
   onToggleStep,
   onDeleteStep,
@@ -375,9 +385,25 @@ export function TaskForm({
   const [expanded, setExpanded] = useState(false)
   const [errors, setErrors] = useState<readonly string[]>([])
   const [clearing, setClearing] = useState(false)
+  /* Whether the clear now being confirmed was asked for by a chip, which is
+     what decides when its cascade is written: the strip commits as it is
+     answered and the field below it commits at the Save it always did. */
+  const [clearCommits, setClearCommits] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmUncomplete, setConfirmUncomplete] = useState(false)
   const [inviting, setInviting] = useState(false)
+  /*
+  Whether the person chose 9.3's v2 "Unassigned" from the chip menu, which is
+  the one case an assignee of null must survive the reconciliation below.
+
+  A separate flag rather than a third state of `assigneeId`, because null
+  already means two things on this form: nobody was chosen, and the chosen
+  person is not a member of the folder now selected. The v1 dropdown offered
+  no way out at all, so both collapsed onto the viewer and neither was wrong;
+  the v2 menu adds a third meaning and this is what tells it from the other
+  two.
+  */
+  const [unassigned, setUnassigned] = useState(false)
 
   const me = useMe()
   const folders = useFolders()
@@ -456,20 +482,25 @@ export function TaskForm({
    * the database refuses: 4.5's CHECK forbids a rule beside a null date.
    */
   function runClearDate(): void {
-    setValues((was) => ({
-      ...was,
+    const cleared: FormValues = {
+      ...values,
       dueDate: '',
       dueTime: '',
       reminderTime: '',
       reminderOffset: null,
       repeat: NO_REPEAT,
-    }))
+    }
+    if (clearCommits) chipChange(cleared)
+    else setValues(cleared)
     setClearing(false)
+    setClearCommits(false)
   }
 
-  function onDueDateChange(next: string): void {
+  function onDueDateChange(next: string, commit = false): void {
     if (next !== '') {
-      set('dueDate', next)
+      const withDate = { ...values, dueDate: next }
+      if (commit) chipChange(withDate)
+      else setValues(withDate)
       return
     }
     // 8.4: "The client shows a warning first when a rule or reminder exists."
@@ -479,17 +510,22 @@ export function TaskForm({
       values.reminderOffset !== null ||
       values.dueTime !== ''
     if (!cascades) {
-      set('dueDate', '')
+      const cleared = { ...values, dueDate: '' }
+      if (commit) chipChange(cleared)
+      else setValues(cleared)
       return
     }
     // Nothing is written here, which is the whole of the "gate, not notice"
     // rule: the state still holds the date, so React restores the input to it
     // and a declined warning has cleared nothing.
+    setClearCommits(commit)
     setClearing(true)
   }
 
-  function onFolderChange(next: string): void {
-    setValues((was) => ({ ...was, folderId: next }))
+  function onFolderChange(next: string, commit = false): void {
+    const moved = { ...values, folderId: next }
+    if (commit) chipChange(moved)
+    else setValues(moved)
     setInviting(false)
   }
 
@@ -512,9 +548,11 @@ export function TaskForm({
     values.assigneeId !== null &&
     members.some((member) => member.user.id === values.assigneeId)
   const viewerIsMember = members.some((member) => member.user.id === viewerId)
-  const selectedAssignee = assigneeInFolder
-    ? values.assigneeId
-    : ((viewerIsMember ? viewerId : members[0]?.user.id) ?? null)
+  const selectedAssignee = unassigned
+    ? null
+    : assigneeInFolder
+      ? values.assigneeId
+      : ((viewerIsMember ? viewerId : members[0]?.user.id) ?? null)
 
   const moveNotice =
     editing &&
@@ -562,14 +600,37 @@ export function TaskForm({
     return found
   }
 
-  function save(): void {
-    const found = validate()
-    setErrors(found)
-    if (found.length > 0) return
+  /*
+  The three bodies one write carries, computed from an explicit values object
+  rather than from the state this render closed over.
 
-    const rule = toRuleString(values.repeat)
-    const dueDate = dated ? values.dueDate : null
-    const dueTime = dated && values.dueTime !== '' ? values.dueTime : null
+  The argument is what makes 9.3's v2 chips possible: a chip answers and the
+  write goes out in the same turn, before React has re-rendered with the new
+  state, so the values it writes have to be handed in. `save` passes the state
+  it is looking at and nothing changes for it.
+  */
+  function bodiesFor(
+    source: FormValues,
+    unassignedNow: boolean,
+  ): {
+    create: PostTasksBody | null
+    patch: PatchTaskBody | null
+    reminder: ReminderInput | null
+  } {
+    const rule = toRuleString(source.repeat)
+    const sourceDated = source.dueDate !== ''
+    const dueDate = sourceDated ? source.dueDate : null
+    const dueTime = sourceDated && source.dueTime !== '' ? source.dueTime : null
+
+    // The same reconciliation the render does, over the values handed in.
+    const inFolder =
+      source.assigneeId !== null &&
+      members.some((member) => member.user.id === source.assigneeId)
+    const assignee = unassignedNow
+      ? null
+      : inFolder
+        ? source.assigneeId
+        : ((viewerIsMember ? viewerId : members[0]?.user.id) ?? null)
 
     /*
     What the form is asking for the reminder to become, in 4.8's shape.
@@ -578,7 +639,10 @@ export function TaskForm({
     which is 9.3's own rule ("reminder control switches mode with due time")
     and is what frozen 7.9 answers 422 on getting wrong. So a task that gained
     a time sends the offset arm and one that lost it sends the time-of-day
-    arm, whatever the other arm still holds from before the switch.
+    arm, whatever the other arm still holds from before the switch. The v2
+    strip only ever writes the second, because its due picker offers no time
+    of day and a v2 task therefore never has one; a task carrying a due time
+    from v1 keeps the v1 mode and is answered by the field below the strip.
 
     Null means the form is carrying no reminder, which is a removal on the
     edit path and simply an absent key on the create path. A date is required
@@ -590,19 +654,19 @@ export function TaskForm({
       dueDate === null
         ? null
         : dueTime !== null
-          ? values.reminderOffset === null
+          ? source.reminderOffset === null
             ? null
-            : { offset_minutes: values.reminderOffset, time_of_day: null }
-          : values.reminderTime === ''
+            : { offset_minutes: source.reminderOffset, time_of_day: null }
+          : source.reminderTime === ''
             ? null
-            : { offset_minutes: null, time_of_day: values.reminderTime }
+            : { offset_minutes: null, time_of_day: source.reminderTime }
 
     if (editing) {
       const patch: PatchTaskBody = {
-        title: values.title.trim(),
-        notes: values.notes === '' ? null : values.notes,
-        important: values.important,
-        folder_id: values.folderId,
+        title: source.title.trim(),
+        notes: source.notes === '' ? null : source.notes,
+        important: source.important,
+        folder_id: source.folderId,
         due_date: dueDate,
         due_time: dueTime,
         recurrence_rule: dueDate === null ? null : rule,
@@ -610,26 +674,62 @@ export function TaskForm({
       // INV-5: a null assignee is 7.6's 409 in a single-member folder, and the
       // field is not on the form there at all, so the key is left out rather
       // than sent as a value the server would have to repair.
-      const body = assigneeVisible ? { ...patch, assignee_id: selectedAssignee } : patch
-      onSave(null, body, reminder)
-      return
+      return {
+        create: null,
+        patch: assigneeVisible ? { ...patch, assignee_id: assignee } : patch,
+        reminder,
+      }
     }
 
     const create: PostTasksBody = {
-      title: values.title.trim(),
-      folder_id: values.folderId,
-      notes: values.notes === '' ? null : values.notes,
-      important: values.important,
+      title: source.title.trim(),
+      folder_id: source.folderId,
+      notes: source.notes === '' ? null : source.notes,
+      important: source.important,
       due_date: dueDate,
       due_time: dueTime,
       recurrence_rule: dueDate === null ? null : rule,
-      steps: values.steps.map((step) => step.title),
+      steps: source.steps.map((step) => step.title),
       // Frozen 7.6's own arm. Absent rather than null when the form carries
       // none, because a create that names no reminder is not a create that
       // clears one.
       ...(reminder === null ? {} : { reminder }),
     }
-    onSave(assigneeVisible ? { ...create, assignee_id: selectedAssignee } : create, null, reminder)
+    return {
+      create: assigneeVisible ? { ...create, assignee_id: assignee } : create,
+      patch: null,
+      reminder,
+    }
+  }
+
+  function save(): void {
+    const found = validate()
+    setErrors(found)
+    if (found.length > 0) return
+    const { create, patch, reminder } = bodiesFor(values, unassigned)
+    onSave(create, patch, reminder)
+  }
+
+  /*
+  9.3's v2 rule applied: "Every edit commits as it is made."
+
+  A chip sets the same state the field below it sets, so the two halves of
+  this surface never disagree about what it holds, and on an existing task it
+  also writes. A creation has no row to write to, so its chips fill the create
+  body and the Save control is still what sends it, which is the one place the
+  v2 rule cannot yet reach and is recorded with the rest of the interim in
+  `task-card/chips.tsx`.
+
+  A commit that would send something the server refuses is not sent. The only
+  such value is an emptied title, which 7.6 answers 422 on: the value stays in
+  the form for the next save, where `validate` shows 9.3's own copy for it.
+  */
+  function chipChange(next: FormValues, nextUnassigned: boolean = unassigned): void {
+    setValues(next)
+    setUnassigned(nextUnassigned)
+    if (!editing || validate().length > 0) return
+    const { patch, reminder } = bodiesFor(next, nextUnassigned)
+    if (patch !== null) onCommit?.(patch, reminder)
   }
 
   const today = presenterToday()
@@ -752,6 +852,44 @@ export function TaskForm({
             </p>
           ))}
         </SheetHeader>
+
+        {/* 9.3's v2 header strip: the five chips, each opening its picker in
+            place. It sits above the fields of 9.3's v1 table rather than
+            replacing them, which is the interim `task-card/chips.tsx`
+            records: seven acceptance criteria still address those fields and
+            protocol section 8 does not let this role move them. */}
+        <div className="shrink-0 px-6">
+          <TaskChips
+            dueDate={values.dueDate}
+            onDueDateChange={(next) => {
+              onDueDateChange(next, true)
+            }}
+            folderId={values.folderId}
+            folders={folders.data ?? []}
+            onFolderChange={(next) => {
+              onFolderChange(next, true)
+            }}
+            assigneeVisible={assigneeVisible}
+            assigneeId={selectedAssignee}
+            members={members}
+            onAssigneeChange={(next) => {
+              chipChange({ ...values, assigneeId: next }, next === null)
+            }}
+            onInvite={() => {
+              setExpanded(true)
+              setInviting(true)
+            }}
+            reminderTime={values.reminderTime}
+            onReminderTimeChange={(next) => {
+              chipChange({ ...values, reminderTime: next })
+            }}
+            repeat={values.repeat}
+            onRepeatChange={(preset) => {
+              chipChange({ ...values, repeat: { ...values.repeat, preset } })
+            }}
+            today={today}
+          />
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
           <PropertyRow icon={CalendarDays} label={FIELD_DUE_DATE} htmlFor={`${ids}-due-date`}>

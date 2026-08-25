@@ -47,7 +47,7 @@ import {
   MORE_ACTIONS,
   OPEN_FULL_FORM,
   READ_FAILED,
-  REMOVE_FROM_MY_DAY,
+  REMOVE_FROM_TODAY,
   RESTORE,
   STAR_OFF,
   STAR_ON,
@@ -122,7 +122,7 @@ describe('the confirmations and row copy of 9.3 to 9.5', () => {
   })
 
   test("9.4's un-pull control", () => {
-    expect(REMOVE_FROM_MY_DAY).toBe('Remove from My Day')
+    expect(REMOVE_FROM_TODAY).toBe('Remove from Today')
   })
 
   test("9.5's star names its own state off Important", () => {

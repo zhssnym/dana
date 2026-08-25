@@ -105,7 +105,7 @@ import {
   COMPLETE_TASK,
   MARK_AS_NOT_DONE,
   MORE_ACTIONS,
-  REMOVE_FROM_MY_DAY,
+  REMOVE_FROM_TODAY,
   RESTORE,
   STAR_OFF,
   STAR_ON,
@@ -484,7 +484,7 @@ export function TaskRow({
             )}
             onClick={onRemoveFromMyDay}
           >
-            {REMOVE_FROM_MY_DAY}
+            {REMOVE_FROM_TODAY}
           </Button>
         ) : null}
 
