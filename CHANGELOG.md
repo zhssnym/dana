@@ -6,7 +6,68 @@ follow Semantic Versioning.
 
 ## [Unreleased]
 
-Nothing yet.
+**A folder is a page now, and so is a shelf (S12, 2026-08-25).** The folder
+screen was a list with a header; it is now a page in the full sense. It can
+wear a cover and a mark, its icon and colour belong to the folder rather than
+to each member, so everybody sees the same thing, and it carries a
+description and a body of writing: sections, paragraphs and pictures, added
+from a quiet line that appears between blocks when you reach for it. The
+conversation lives either at the foot of the page or in a side panel, and you
+switch between the two from the surface itself.
+
+**A shelf gained a page of its own.** A shelf used to be a label on a group of
+folders in the sidebar. It is now the folder page one level up: the same
+cover, mark, name, description and blocks, with the folders themselves sitting
+among the writing as rows you can put where you like. Which folders are on a
+shelf is still the membership's fact, so one moved away disappears from the
+page whatever the layout says. Pressing a folder row opens it as its own tab
+beside the shelf's, because a shelf is where a piece of work is laid out and
+you generally want both.
+
+**The bell arrived.** The sidebar header carries a notifications bell beside
+Search, with an unread count that a screen reader announces rather than only
+draws. Each row is one sentence saying who did what to which thing, and
+pressing it marks that row read and takes you to the thing. Nothing is deleted
+by hand; rows age out on their own. "Mark all read" is the only other control.
+
+**What each role may do is now what each role is offered.** A folder's menu
+shows a member Leave and an owner Rename and Delete, and a member is no longer
+shown a title they cannot edit. Deleting a folder no longer asks: it moves to
+Trash for everyone with the undo bar as the way back. An owner who wants to
+leave a shared folder is offered the ownership transfer that 5.3 requires
+first, defaulting to the longest-standing member.
+
+**The landing page is the Codex lane's, and section 9.2 stopped carrying its
+copy (S13, 2026-08-24).** The public page at `/` is now the ten-section design
+the owner directed, replacing the two-column composition that shipped at P8.
+The specification changed with it, on his ruling: 9.2 used to fix seven
+marketing strings in a table, and now fixes the rules that copy is written
+under while the design record holds the sentences. One rule is new rather than
+moved, and it is the point of the exercise: **the landing may claim no
+capability Dana does not ship.** The standing no-AI-claim rule is that rule's
+instance for the one capability anybody was tempted to claim, and AC-159
+asserts it unchanged.
+
+Two things the design draws are deliberately not shipped. The second "Continue
+with Google" in the closing block is gone, 9.2 admitting one and AC-159
+counting the page; the header is sticky in exchange, so the single path stays
+reachable from the foot of a long page. The copyright year is computed rather
+than typed.
+
+**New accounts are offered a worked example (S13, 2026-08-24).** A person whose
+account holds no folder but Desk and no task is offered three starter
+workflows on Desk: a trip, a small team, and something to learn. Choosing one
+posts an ordinary 7.16 workflow file, so it creates nothing a person could not
+have created themselves and costs no new backend. Each arrives with a folder
+page that says, in its first paragraph, that the example is theirs to change or
+delete.
+
+No starter carries a comment or a reminder. The owner ruled both out, and the
+workflow file format already had no key for either: a fabricated comment would
+attribute words to somebody who never said them, and a reminder would mail a
+person about a plan they did not make, most likely long after they forgot the
+example was there. New section 9.13 records the reasoning, and AC-226 asserts
+the behaviour.
 
 ## [1.0.0] - 2026-08-16
 

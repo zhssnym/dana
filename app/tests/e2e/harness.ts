@@ -769,8 +769,12 @@ export function sidebar(page: Page): Locator {
  * for and which the state does not affect. So this is exact for the reason
  * `floatingAddButton` is exact.
  */
-export function quickAddControl(page: Page): Locator {
-  return page.getByRole('button', { name: 'Add a task', exact: true })
+export function quickAddControl(scope: Page | Locator): Locator {
+  /* A page or a region, since S10 gave All two named halves: 9.1's sections
+     rule says a control inside a page section is addressed as that control
+     within that region, and a helper that only took a page could not say it.
+     Every existing call site passes a page and is unaffected. */
+  return scope.getByRole('button', { name: 'Add a task', exact: true })
 }
 
 /**

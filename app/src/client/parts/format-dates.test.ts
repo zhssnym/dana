@@ -7,11 +7,16 @@ are the two things here that can be wrong in a way a reviewer's eye misses.
 import { describe, expect, test } from 'vitest'
 
 import {
+  addDays,
   dayBefore,
+  daysBetween,
   formatCompactDate,
   formatDayHeading,
   formatLongDayDate,
   formatRelativeDay,
+  monthLabelOf,
+  weekStart,
+  weekdayNameOf,
 } from './format-dates.js'
 
 describe('dayBefore', () => {
@@ -61,5 +66,32 @@ describe('compact and relative metadata dates', () => {
     expect(formatRelativeDay('2026-08-13T03:00:00Z', today)).toBe('today')
     expect(formatRelativeDay('2026-08-12T23:59:59Z', today)).toBe('yesterday')
     expect(formatRelativeDay('2026-08-04T10:00:00Z', today)).toBe('4 Aug 2026')
+  })
+})
+
+describe('the civil arithmetic S10 added', () => {
+  test('addDays crosses a month, a year and a leap day', () => {
+    expect(addDays('2026-08-31', 1)).toBe('2026-09-01')
+    expect(addDays('2026-01-01', -1)).toBe('2025-12-31')
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29')
+    expect(addDays('2026-02-28', 1)).toBe('2026-03-01')
+    expect(addDays('2026-08-25', 0)).toBe('2026-08-25')
+  })
+
+  test('daysBetween is signed and agrees with addDays', () => {
+    expect(daysBetween('2026-08-25', '2026-09-01')).toBe(7)
+    expect(daysBetween('2026-09-01', '2026-08-25')).toBe(-7)
+  })
+
+  test('the week starts on Monday, which 9.5 fixes', () => {
+    // 2026-08-25 is a Tuesday; 2026-08-23 is the Sunday before it.
+    expect(weekStart('2026-08-25')).toBe('2026-08-24')
+    expect(weekStart('2026-08-24')).toBe('2026-08-24')
+    expect(weekStart('2026-08-23')).toBe('2026-08-17')
+  })
+
+  test('the weekday and the month rung read as their headings do', () => {
+    expect(weekdayNameOf('2026-08-25')).toBe('Tuesday')
+    expect(monthLabelOf('2026-09-07')).toBe('September 2026')
   })
 })

@@ -51,7 +51,7 @@ not this file's.
 */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from '../lib/icons.js'
 
 import { ApiError } from '../api/http.js'
 import { InlineError, SkeletonList } from '../components/state-patterns.js'
@@ -64,9 +64,15 @@ import {
 } from '../components/ui/empty.js'
 
 /**
- * A Lucide icon, taken by type rather than as an element so a caller passes
+ * An icon, taken by type rather than as an element so a caller passes
  * `CalendarCheck2` and never a size, a stroke or a colour. All three are this
  * file's, which is what keeps one empty state from looking like another's.
+ *
+ * The type is the DES-125 icon module's rather than lucide's own, corrected at
+ * S10: every icon Dana draws is an export of `lib/icons.tsx` and its wrapper
+ * is not lucide's `ForwardRefExoticComponent`, so a page passing the module's
+ * export where this asked for lucide's failed the typecheck. Pointing at the
+ * module is the fix in the direction DES-125 already runs.
  */
 export type StateIcon = LucideIcon
 

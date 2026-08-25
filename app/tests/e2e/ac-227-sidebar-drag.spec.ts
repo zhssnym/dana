@@ -15,7 +15,7 @@ rearranges by dragging.
 **The number is 227 and not 226.** The S9 close wrote that S11 owed AC-226;
 `s13-public`, unmerged and invisible to that session, had already spent it on
 the starter workflows. Imran ruled at S12's opening that S13 keeps the number
-(RFC 0005 change control item 10) because S13's criterion was written and
+(RFC 0005 change control item 13, renumbered from 10 when the S12 merge let the trunk's published numbers keep theirs) because S13's criterion was written and
 asserted while this one was a debt with no text.
 
 **Membership is asserted through 7.4, not off the page, and across a reload.**

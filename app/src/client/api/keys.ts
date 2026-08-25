@@ -31,4 +31,14 @@ export const queryKeys = {
   trash: () => ['trash'] as const,
   /** 4.13's `kind:id` reference, so two subjects never share a key. */
   events: (subject: string) => ['events', subject] as const,
+
+  /* The S12 surfaces: one shelf, the two page reads, the viewer's
+     notifications, and a thread. A thread's key carries the task id or
+     'folder' so the folder's own thread and a task's never collide. */
+  shelf: (id: string) => ['shelves', id] as const,
+  folderPage: (id: string) => ['folders', id, 'page'] as const,
+  shelfPage: (id: string) => ['shelves', id, 'page'] as const,
+  notifications: () => ['notifications'] as const,
+  thread: (folderId: string, taskId: string | null) =>
+    ['folders', folderId, 'thread', taskId ?? 'folder'] as const,
 } as const

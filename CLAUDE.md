@@ -139,6 +139,28 @@ protocol points here rather than repeating them.
   leg needs a quiet machine, and the counts recorded for it, were this fault
   rather than load; `C:\Users\hassan\gate.ps1` still carries the superseded
   explanation and a stale count of 94.
+- **Two browser legs cannot share this machine, and the collision does not
+  announce itself as one.** Measured at S10 on 2026-08-25. `playwright.config.ts`
+  hardcodes port 3100 and sets `reuseExistingServer: false`, so every run starts
+  an `e2e:app` of its own; a run that has printed its tally has *not* released
+  the port, because the `npx` process outlives the report. That session's own
+  finished full leg held 3100 for over an hour while a concurrent S12
+  verification and a re-run each started a third and second server, all three
+  seeding and truncating one another's database underneath the browser. What it
+  looks like from the report is code: `Page crashed`, tests failing at 0 ms,
+  assertions timing out at 2.2 minutes that pass in 3 seconds alone, and one
+  criterion red twice in a row for what looks like a reproducible reason. The
+  whole leg read 141 of 158; the eight affected files re-run alone on a quiet
+  machine read 17 of 19 in 1.5 minutes against 32.8 for the contended whole, and
+  the two remaining reds were the genuine ones. So: **before a browser leg,
+  check that nothing else is on 3100 and that no stale `npx playwright` survives
+  a previous run**, and where two sessions must overlap, give each its own port
+  through an untracked config copy (`sed 's/3100/3110/' playwright.config.ts >
+  s10-verify.config.ts`, never committed) rather than taking turns. This is not
+  the vitest fork-flake and must not be treated as it: that one is not caused by
+  load, corrected above, and `run-suite.mjs` fails a run that loses files.
+  Separate worktrees make vitest legs genuinely independent, having no port and
+  no shared database; only the browser leg has a single hardcoded one.
 - The cluster's own locale is French_France.1252 under libc, which is not what the
   suite runs on and must never become it. The `dana_test` database is created with
   the builtin C.UTF-8 locale so that it orders text exactly as PGlite does; spec
