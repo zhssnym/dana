@@ -3,8 +3,8 @@ AC-183: given each of section 9's normative strings that the designer's
 prototype omitted, split or reworded, then the built client renders each as
 one text run, character for character as its section writes it: 9.1's
 failed-read line and 404 line, 9.3's steps cap notice, 9.4's abandon confirm,
-9.6's leave, remove-member and delete-folder confirms, and 9.8's
-already-connected refusal and remove-connection confirm.
+9.6's leave and remove-member confirms, and 9.8's already-connected refusal
+and remove-connection confirm.
 
 Appended to section 12 by RFC 0002, Accepted 2026-08-13. The sentence above
 is that RFC's Append unit transcribed unchanged, and it becomes section 12's
@@ -68,6 +68,17 @@ strings remain and the criterion is otherwise verbatim.
 9.4's abandon confirm needed no unit: v2 rewords the sentence from "My Day"
 to "Today", the criterion points at the confirm rather than quoting it, and
 the string moves when S10 redraws the page that renders it.
+
+**The leave case's locator was corrected at RFC 0005 change control item 14,
+2026-08-25, and the sentence it asserts did not move.** It reached the
+folder's overflow menu inside the "Folder header" region, and 9.1's
+replacement puts the object's overflow menu at the window bar's right end,
+where the v2 folder page draws it; the menu is now reached the way AC-217
+reaches it, by role and name inside the main landmark, ahead of the task
+rows' menus that share the name. The transcription at the top of this file
+was brought in step with section 12 in the same act: the owner's item 8
+ruling had amended the criterion's text and this header still carried the
+delete-folder clause it dropped.
 
 Spec: 9.1 (the inline state copy, the conflict rule, "Continue" and
 "Cancel", and the v2 routes table), 9.3 (the steps cap notice), 9.4 (the
@@ -218,17 +229,19 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     const page = await context.newPage()
     await signIn(page, seedSubs.imran)
     await page.goto(routesV2.folder(seedIds.groceries))
+    // The window bar's menu, not the folder header's: 9.1's replacement puts
+    // the object's overflow menu at the bar's right end, so it is reached the
+    // way AC-217 reaches it, by role and name inside the main landmark, ahead
+    // of the task rows' menus that share the name. Corrected at RFC 0005
+    // change control item 14; this criterion's sentence did not move.
     await clickControl(
-      regionOf(page, 'Folder header').getByRole('button', {
-        name: 'More actions',
-        exact: true,
-      }),
-      'spec 9.6 and 9.1: the folder header is a named region, and its overflow menu carries ' +
-        'Leave for a member who is not the owner',
+      page.getByRole('main').getByRole('button', { name: 'More actions', exact: true }).first(),
+      "spec 9.1: the active tab's controls include the object's overflow menu, named " +
+        '"More actions", and for a member who is not the owner it carries Leave (9.6)',
     )
     await clickControl(
       page.getByRole('menuitem', { name: /leave/i }),
-      'spec 9.6: the header overflow carries Leave, non-owner only per the 5.4 matrix',
+      'spec 9.6: the object menu carries Leave, non-owner only per the 5.4 matrix',
     )
 
     await expectOneTextRun(

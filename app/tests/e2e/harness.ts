@@ -639,18 +639,10 @@ export const copy = {
   removeMember: (member: string, folder: string) =>
     `Remove ${member} from ${folder}? They lose access, and anything in this folder assigned ` +
     'to them becomes unassigned.',
-  /**
-   * 9.6's delete confirm, whose folder name and three counts come from the
-   * folder it acts on, exactly as the two above take theirs from a row.
-   *
-   * Written down here at the RFC 0002 change control because AC-183 asserts
-   * it as one of nine strings and AC-162 already spells it inline; a string
-   * this suite asserts from two files is one string or it is two things to
-   * keep in step with one specification.
-   */
-  deleteFolder: (folder: string, open: number, completed: number, abandoned: number) =>
-    `Delete ${folder}? This permanently deletes ${open} open, ${completed} completed, ` +
-    `and ${abandoned} abandoned tasks for every member.`,
+  // 9.6's counts-carrying delete confirm stood here until RFC 0005 change
+  // control item 14. The v2 9.6 deletes to Trash with the undo bar and no
+  // confirmation, its last asserting case went with it in AC-162's file, and
+  // AC-225 reads the undo bar that replaced it.
   /** 9.3, the 8.4 warning shown before a date is cleared. */
   clearDateWarning: 'Clearing the date also ends the repeat and removes the reminder.',
   /** 9.3, the helper text on each of the three date-dependent fields. */
