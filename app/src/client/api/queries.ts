@@ -251,16 +251,22 @@ export function mergeCompletedDays(
  * dropping them back to the first, which is what keeps a completion made in
  * another tab from moving the ground under them.
  */
-export function useDoneView(): UseInfiniteQueryResult<
-  { readonly pages: readonly CompletedPage[] },
-  Error
-> {
+export function useDoneView(
+  /**
+   * False while All's collapsed "Completed" section is closed (9.5). The Done
+   * page itself always wants this and passes nothing; a section that fetched
+   * while collapsed would make the collapse cosmetic, which is the same rule
+   * `useFolderCompletedTasks` follows for Q7's third section.
+   */
+  enabled = true,
+): UseInfiniteQueryResult<{ readonly pages: readonly CompletedPage[] }, Error> {
   return useInfiniteQuery({
     queryKey: queryKeys.view('done'),
     queryFn: ({ pageParam }) =>
       getView(getDoneResponse, '/views/done', { cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
+    enabled,
   })
 }
 

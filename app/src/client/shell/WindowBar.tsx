@@ -11,17 +11,19 @@ two centimetres away already said.
 
 **The page's title is not repeated here** (9.1, in terms). The tab says it.
 
-**The left end is reserved and empty, and that is the honest state.** 9.1
-gives it the active filter's removable chips, and the filter is S10's; DES-139
-adds the reason the slot is empty rather than gone: a breadcrumb of one item
-is not a breadcrumb, and inventing a hierarchy Dana does not have would be
-worse than a gap. So the element is here with nothing in it.
+**The left end holds the active filter's removable chips**, which arrived
+with S10 and fill the slot S9 reserved. DES-139 recorded why it was reserved
+rather than absent: a breadcrumb of one item is not a breadcrumb, and
+inventing a hierarchy Dana does not have would be worse than a gap. It is a
+portal target now, on the same store as the right end, so a place-page's chips
+and that page's filter control are one screen's subtree rendered at two ends
+of the bar.
 
 **The right end is a portal target**, which is `window-bar.ts`. Screens render
 their own controls into it through `WindowBarActions` and keep their own
-state; the shell never learns what a screen's controls are. The view strip,
-the filter control and the object's overflow menu all arrive that way with
-the packages that own them.
+state; the shell never learns what a screen's controls are. The view strip and
+the filter control arrive that way with S10; the object's overflow menu with
+the packages that own it.
 
 **Activity is this file's own**, because it belongs to the window rather than
 to any screen: it reads the recent events of the thing the tab is showing
@@ -39,6 +41,7 @@ import { Button } from '../components/ui/button.js'
 import { RefreshCw } from '../lib/icons.js'
 
 import { setWindowBarSlot, useWindowBarSlot } from './window-bar.js'
+import type { WindowBarSlot } from './window-bar.js'
 
 /**
  * A screen's controls, rendered into the window bar.
@@ -50,12 +53,15 @@ import { setWindowBarSlot, useWindowBarSlot } from './window-bar.js'
  */
 export function WindowBarActions({
   children,
+  slot = 'controls',
 }: {
   readonly children: React.ReactNode
+  /** 9.1's two ends: the chips at the left, the tab's controls at the right. */
+  readonly slot?: WindowBarSlot
 }): React.JSX.Element | null {
-  const slot = useWindowBarSlot()
-  if (slot === null) return null
-  return createPortal(children, slot)
+  const target = useWindowBarSlot(slot)
+  if (target === null) return null
+  return createPortal(children, target)
 }
 
 /**
@@ -123,10 +129,15 @@ export function WindowBar({
   readonly showUpdate?: boolean
   readonly onUpdate?: () => void
 }): React.JSX.Element {
-  const slot = useRef<HTMLDivElement>(null)
+  const chips = useRef<HTMLDivElement>(null)
+  const controls = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    setWindowBarSlot(slot.current)
-    return () => setWindowBarSlot(null)
+    setWindowBarSlot('chips', chips.current)
+    setWindowBarSlot('controls', controls.current)
+    return () => {
+      setWindowBarSlot('chips', null)
+      setWindowBarSlot('controls', null)
+    }
   }, [])
 
   const subject = subjectOf(pathname)
@@ -140,9 +151,9 @@ export function WindowBar({
       // a plain element says what it is with less to get wrong.
       className="flex min-h-[var(--shell-windowbar-height)] shrink-0 items-center gap-3 px-4"
     >
-      {/* 9.1's left end: the active filter's removable chips, which arrive
-          with the filter at S10. Reserved, not forgotten. */}
-      <div className="flex min-w-0 flex-1 items-center gap-1.5" />
+      {/* 9.1's left end: the active filter's removable chips, portalled in by
+          whichever place-page is showing. */}
+      <div ref={chips} className="flex min-w-0 flex-1 items-center gap-1.5" />
       {subject === null ? null : <ActivityLine subject={subject} />}
       {showUpdate ? (
         <Button
@@ -157,7 +168,7 @@ export function WindowBar({
           {UPDATE_AVAILABLE}
         </Button>
       ) : null}
-      <div ref={slot} className="flex shrink-0 items-center gap-1" />
+      <div ref={controls} className="flex shrink-0 items-center gap-1" />
     </div>
   )
 }

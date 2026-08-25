@@ -119,6 +119,7 @@ import {
   Pencil,
   Search,
   Settings as SettingsGlyph,
+  Bookmark,
   Star,
   SunMedium,
   Trash2,
@@ -165,6 +166,8 @@ import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
 import { paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from './NotificationsBell.js'
+import { savedViewPath } from '../views/saved-views.js'
+import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
@@ -671,6 +674,8 @@ export function AppSidebar({
   displayName,
   activeFolderId,
   currentPath,
+  currentSearch,
+  savedViews,
   sidebarWidth,
   onSidebarWidthChange,
   onSidebarWidthCommit,
@@ -695,6 +700,10 @@ export function AppSidebar({
   readonly displayName: string | null
   readonly activeFolderId: string | null
   readonly currentPath: string
+  /** The active location's query string, so a pinned saved view can be active. */
+  readonly currentSearch: string
+  /** The viewer's saved views (4.19); the pinned ones join the page block. */
+  readonly savedViews: readonly SavedView[]
   /** The width this viewer chose, or null while the design's is in force. */
   readonly sidebarWidth: number | null
   readonly onSidebarWidthChange: (width: number) => void
@@ -708,6 +717,7 @@ export function AppSidebar({
   const [foldersOpen, setFoldersOpen] = useState(true)
   const { inbox, groups, unlabeled } = groupFolders(folders ?? [])
   const visiblePages = pinnedNavPages(pinnedViews)
+  const pinnedSaved = savedViews.filter((view) => view.pinned)
 
   return (
     <Sidebar
@@ -745,6 +755,32 @@ export function AppSidebar({
                   to={page.path}
                   icon={pageIcons[page.path] ?? Layers3}
                   active={currentPath === page.path}
+                />
+              ))}
+              {/*
+              9.1's page block ends with "any unpinned view the pin list of
+              9.7 has pinned ... and the viewer's saved views", so a pinned
+              saved view is an entry here like any other. It is last because
+              the six native pages are a fixed order this section states and a
+              person's own views are not in it.
+
+              **Where a saved view leads is this package's ruling, and it is
+              recorded because 9.1's routes table has no row for one.** A
+              saved view is a name over a filter on a place-page (DES-153), so
+              it opens that page carrying its own definition: `?view=<id>`,
+              which `usePlace` reads and seeds the page's filter from. The
+              alternative, a path of its own, would have made a view a
+              seventeenth kind of surface rather than the page it is a view
+              of, and would have needed a route for something the table
+              deliberately leaves out.
+              */}
+              {pinnedSaved.map((view) => (
+                <NavigationRow
+                  key={view.id}
+                  name={view.name}
+                  to={savedViewPath(view)}
+                  icon={Bookmark}
+                  active={currentPath + currentSearch === savedViewPath(view)}
                 />
               ))}
             </SidebarMenu>
