@@ -76,6 +76,22 @@ exist before the UI packages start are named here per the template:
 `v2-refs/` export set (owed, post-Codex-landing), and the notifications
 drawing (owed, before S12).
 
+**One package per chat, and the chat ends when the package does.** Added
+2026-08-24 at S9, from measurement rather than preference: that session
+carried S8, the browser-leg criteria and four parts of S9, and spent 72% of
+a session window and about 280 million cached tokens doing it. A session
+that runs out of window mid-package is the expensive failure, because the
+next one pays to rediscover what the last one knew and the artifacts do not
+record reasoning that never got written down.
+
+So: a session takes one row of the table below, finishes it through the
+gate, merges it, writes its SESSION-LOG row, and then **tells Imran to open
+a new chat rather than starting the next row**. The handoff is the log row
+plus the branch, which is what protocol section 2 already says state comes
+from; a session that ends cleanly needs no summary of itself, because the
+next one reads the repository. Where a row is genuinely large, splitting it
+is a judgement the session makes out loud and records, as S9 did in four
+commits.
 **Every session in this plan runs the app before it writes anything, and
 scopes the suite while iterating but runs it whole before reporting** — both
 lessons are in the acceptance column because that is where sessions read.

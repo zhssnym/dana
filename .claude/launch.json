@@ -103,7 +103,7 @@
         "/c",
         "set TEST_DATABASE_URL=&& set DANA_DEV_LOGIN=1&& set PORT=3000&& npm run dev"
       ],
-      "cwd": "C:UsersimranOneDriveDocumentsChatGPTDana App.workhassan-repo-auditapp",
+      "cwd": "C:\\Users\\imran\\OneDrive\\Documents\\ChatGPT\\Dana App\\.work\\hassan-repo-audit/app",
       "port": 5173
     }
   ]

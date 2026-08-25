@@ -409,6 +409,8 @@ RFC 0004 is the plan; RFC 0005 is the contract. One row per package session.
 | 7 | **S6, System D.** The 7.14 conversation: threads on folders and tasks, one reply level enforced where only the API can (4.15), likes as one idempotent bit with no event (a glance, not an act), author-or-owner deletion with the DES-225 403 for the member who can see and may not, and fan-out to the thread's participants rather than the roster (4.14). AC-204 to AC-207 green on the first run; lint and typecheck clean; CI's run on the merge is the certification, the expected reds being AC-208 and AC-209 alone | 03 | Attended | Done pending CI |
 | 8 | **S7, System F.** The person's bundle at its own address: GET and PATCH /settings beside frozen 7.2's /me/settings, migration 0004 adding pinned_views as one nullable column, and the pin fold ruled a derivation (null derives pins from the v1 flags, written pins become the record; no data migration, no drop, AC-119 to AC-123 untouched, recorded as change control item 6). Saved views at /views under the 50 cap, definitions stored as ids. AC-208, AC-209, AC-001 and the whole v1 settings range green in scoped runs; lint, typecheck clean. Certified: 1659 of 1659 tests green across the whole suite plus the one flake-hit file green alone, build clean, the first fully green run since S1 planted its reds | 05, with 01 for the migration | Attended | Done |
 | 9 | **S8, the client foundation.** The v2 tokens.css carried in whole from the approved prototype, values his to the character (verified line for line by the new guard), the accent at 85% saturation, the lifted swatches with folder cobalt at 242, the tonal sidebar plane, motion, the dark colourway and reduced motion; the min-width floor out per section 13 item 32, the [data-measure] block left for S9, and --sharing-panel-width fenced in a v1 interim block that dies with S12. All 26 primitives ported with the v2 refinements (commit variant, nativeButton derivation, bare input, the sidebar cookie fix), six of them new; the 9.1 rail names kept over the prototype string, R3's own precedent. The DES-125 icon module at lib/icons.tsx with the time-format store; select and sheet rerouted through it with ChevronUp and three aliases added, completing the module's rule; FOLDER_ICON_KEYS exports the 42-key set change control item 5 promised. @animateicons/react added under protocol section 3. foundation.test.ts holds the three acceptance lines with exact both-ways exemption lists that shrink as S9 to S13 land. Gate: lint, typecheck, 1665 of 1665 on the PGlite leg, build clean, dist grep for the floor empty; the v1 client verified live on the v2 foundation in the browser | 08 | Attended | Done |
+| 10 | **S1's browser half, the criteria package.** AC-214 to AC-225 authored as twelve Playwright specs under `tests/e2e`, each header carrying RFC 0005's Append sentence transcribed unchanged, controls addressed by 9.1's roles and names, fixtures made through section 7 and no seed row mutated. The harness gained the v2 routes table, the bundle patch, folder, shelf and delete fixtures, and the strip helpers. Spec section 12 gained the whole Append unit, AC-184 to AC-225, verbatim. Verified red-first from a dotless worktree (this checkout's `.work` cannot serve the SPA fallback): eleven red naming the missing v2 surface, AC-217 green on arrival because v1's folder page already implements 9.6's role split. Written under persona 11 on Imran's instruction relayed by an audit session, and flagged as a role boundary for him rather than crossed silently | 11 | Attended | Done |
+| 11 | **S9, the shell port.** Four parts on one branch. The DES-152 route table and nav model: Desk at /app drawn by the 9.6 folder page pointed at the default folder, the two retired paths redirecting because bookmarks exist, and the sidebar's page block read from the 4.19 pin list instead of the three v1 flags, which is S7's fold collecting itself. The Library heading as a heading wrapping its disclosure, which 9.1's regions paragraph asks for and a bare button does not give. Trash (9.11), S9's one page, with the two kinds interleaved newest first and Restore on every row because Trash is scoped by access. The capture rule inverted to 9.1's v2 form. The undo bar: five seconds, Ctrl+Z, no redo, inverses registered in the page layer every page already spreads, and the forward write never held back. The tab strip: retarget on ordinary navigation, append beside on Open in a new tab, the neighbour on close and Desk on the last, pointer drag over a threshold. The window bar of DES-139 replacing the v1 page strip, its right end a portal target so S10 and S12 render into chrome without handing the shell their state, and 10.6's update affordance carried across. AC-214, AC-215, AC-216, AC-217, AC-224 and AC-225 green, 14 of 14 in the browser leg. Two faults found by running rather than reading: the events endpoint answers an envelope where the first schema guessed an array, and the Activity line needed elapsed time where `formatRelativeDay` reads a UTC date. Two locator corrections in criteria this same session had authored, both recorded in their files, neither changing a criterion's sentence. Four read schemas added in `src/shared` outside this persona's paths, flagged for the Steward: the v2 packages published write bodies and no readable response shapes | 07, with 11 for the two locator corrections | Attended | Built; **not merged**, pending the ruling below |
 
 **One commit does not say what it carries, and it is not being rewritten.**
 `5763f70`, the tip of `s4-files`, is titled and bodied for the uploads-harness
@@ -423,3 +425,30 @@ honest split is about 1,318 to S4 and 1,813 to S5. The aggregate across the v2
 range is untouched. The correction is attached to the commit as a git note
 rather than rebased in, because six branches descend from it and one of them is
 the live S8 branch; the row stays because it is what happened.
+
+**Twenty v1 browser criteria assert a section 9.1 that RFC 0005 replaced, and
+nobody reworked them.** Found at S9 by running the whole browser leg against
+the v2 shell: 91 passed, 59 failed, and every one of the twenty failing v1
+spec files addresses something that RFC deliberately changed. Fifteen navigate
+to `/app/tasks` or `/app/planned`, which AC-215 now requires to redirect;
+twelve assume `/app` is My Day, where Desk now is; five reach for the floating
+add button on a page whose own quick-add 9.1 now says makes it absent; eight
+address v1 page names in the sidebar. None is a defect in S9's code.
+
+The cause is a gap in change control rather than in any package. RFC 0005
+replaced 9.1 wholesale but listed only six criteria as Replace units (AC-014,
+AC-042, AC-093, AC-094, AC-005/AC-025, AC-066), and S1 recorded the browser
+range as its open half and left the v1 browser criteria untouched.
+
+Protocol section 8 puts acceptance tests with the Adversarial Test Engineer
+and forbids editing one so an implementation passes, so S9 changed none of
+them and stopped short of merging: S1 planted reds that were *new criteria
+awaiting their package*, which is a different thing from criteria that were
+green going red because the contract moved under them. Merging with the
+second kind standing would leave CI's browser step knowingly red across
+several packages, which is the shape of a false green rather than a planned
+one.
+
+Ruled by Imran on 2026-08-24: rework the twenty under persona 11 as its own
+package, then merge. The list is reproducible by running the leg from a
+checkout whose path carries no dot directory.
