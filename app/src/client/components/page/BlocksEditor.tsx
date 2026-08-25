@@ -29,7 +29,7 @@ S11, and the sidebar drag moved there at the S9 close for exactly the
 one-engine reason; blocks arrange today by where they are inserted, and the
 grip arrives when the engine does. Recorded in SESSION-LOG's S12 row.
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import type { PageBlock, PageBlockWrite } from '../../../shared/pages.js'
@@ -132,6 +132,8 @@ export function BlocksEditor({
   readonly writeOf?: (block: PageBlock) => PageBlockWrite
 }): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  /** The one block being written, if any; everything else reads as prose. */
+  const [editing, setEditing] = useState<string | null>(null)
 
   const all = (): PageBlockWrite[] =>
     blocks.map((block, index) => ({ ...(writeOf ?? carry)(block), position: index }))
@@ -168,12 +170,36 @@ export function BlocksEditor({
     })
   }
 
+  /* A block just inserted has nothing in it yet, so it opens as a field
+     rather than as empty prose somebody has to find and click. The id is
+     known only after the write lands, so the intent is recorded and the
+     effect below claims it once the block appears. */
+  const [claimNewest, setClaimNewest] = useState<'section' | 'paragraph' | null>(
+    null,
+  )
+  useEffect(() => {
+    if (claimNewest === null) return
+    const fresh = blocks.find(
+      (block) =>
+        block.kind === claimNewest &&
+        (claimNewest === 'paragraph'
+          ? block.text === null || block.text === ''
+          : block.text === 'New section'),
+    )
+    if (fresh !== undefined) {
+      setEditing(fresh.id)
+      setClaimNewest(null)
+    }
+  }, [blocks, claimNewest])
+
   const inserters = (index: number): React.JSX.Element => (
     <InsertLine
       onSection={() => {
+        setClaimNewest('section')
         insertAt(index, { kind: 'section', position: index, text: 'New section' })
       }}
       onParagraph={() => {
+        setClaimNewest('paragraph')
         insertAt(index, { kind: 'paragraph', position: index, text: '' })
       }}
       onImage={
@@ -237,18 +263,38 @@ export function BlocksEditor({
                     aria-hidden="true"
                   />
                 </button>
-                <InlineInput
-                  key={`${block.id}-${block.text ?? ''}`}
-                  defaultValue={block.text ?? ''}
-                  aria-label="Section name"
-                  maxLength={120}
-                  onBlur={(event) => {
-                    const next = event.target.value.trim()
-                    if (next !== '' && next !== block.text) editText(block.id, next)
-                    else event.target.value = block.text ?? ''
-                  }}
-                  className="text-[16px] leading-6 font-semibold text-foreground"
-                />
+                {editing === block.id ? (
+                  <InlineInput
+                    key={`${block.id}-${block.text ?? ''}`}
+                    defaultValue={block.text ?? ''}
+                    aria-label="Section name"
+                    maxLength={120}
+                    autoFocus
+                    onBlur={(event) => {
+                      const next = event.target.value.trim()
+                      setEditing(null)
+                      if (next !== '' && next !== block.text) editText(block.id, next)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === 'Escape') {
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    className="text-[16px] leading-6 font-semibold text-foreground"
+                  />
+                ) : (
+                  /* A section is a heading: 9.1's regions table names a
+                     folder page's regions by their sections, and a name that
+                     lives only in a form field names nothing. */
+                  <h2
+                    onClick={() => {
+                      setEditing(block.id)
+                    }}
+                    className="cursor-text text-[16px] leading-6 font-semibold text-foreground"
+                  >
+                    {block.text}
+                  </h2>
+                )}
                 <button
                   type="button"
                   aria-label={`Delete section ${block.text ?? ''}`}
@@ -296,21 +342,42 @@ export function BlocksEditor({
                 </figcaption>
               </figure>
             ) : (
-              /* A paragraph; committing an empty one removes it, his rule. */
-              <InlineTextarea
-                key={`${block.id}-${block.text ?? ''}`}
-                defaultValue={block.text ?? ''}
-                placeholder="Write something…"
-                aria-label="Paragraph"
-                rows={1}
-                onBlur={(event) => {
-                  const next = event.target.value.trim()
-                  if (next === (block.text ?? '')) return
-                  if (next === '') remove(block.id)
-                  else editText(block.id, next)
-                }}
-                className="text-[13px] leading-5 text-muted-foreground"
-              />
+              /* Prose until it is being written; committing an empty one
+                 removes it, his rule. Rendering every paragraph as a live
+                 textarea made a page of writing a page of form fields, which
+                 is what a reader and a role-addressed locator both meet
+                 first. */
+              editing === block.id ? (
+                <InlineTextarea
+                  key={`${block.id}-${block.text ?? ''}`}
+                  defaultValue={block.text ?? ''}
+                  placeholder="Write something…"
+                  aria-label="Paragraph"
+                  rows={1}
+                  autoFocus
+                  onBlur={(event) => {
+                    const next = event.target.value.trim()
+                    setEditing(null)
+                    if (next === (block.text ?? '')) return
+                    if (next === '') remove(block.id)
+                    else editText(block.id, next)
+                  }}
+                  className="text-[13px] leading-5 text-muted-foreground"
+                />
+              ) : (
+                <p
+                  onClick={() => {
+                    setEditing(block.id)
+                  }}
+                  className="cursor-text text-[13px] leading-5 whitespace-pre-wrap text-muted-foreground"
+                >
+                  {block.text === null || block.text === '' ? (
+                    <span className="opacity-60">Write something…</span>
+                  ) : (
+                    block.text
+                  )}
+                </p>
+              )
             )}
             {block.kind === 'section' && !collapsed.has(block.id)
               ? sectionExtras?.(block.id)

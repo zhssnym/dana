@@ -42,13 +42,73 @@ export function onOpenTaskForm(listener: TaskFormListener): () => void {
   }
 }
 
+/*
+An open asked for before the overlay existed is remembered, not dropped.
+
+9.1 gives the search control a shortcut, and a shortcut is pressed against
+the window rather than against a React tree: on a cold load the key can
+arrive before the overlay has mounted and subscribed, and an event delivered
+to an empty listener set is gone for good. The person then presses a
+documented shortcut and nothing happens, which is indistinguishable from the
+shortcut not existing. So a request with nobody listening latches, and the
+first subscriber drains it.
+
+One request is latched rather than a queue: opening a surface twice is
+opening it once, and a stale request from minutes ago is not something a
+person is still waiting for once the surface is finally there.
+*/
+let searchPending = false
+
 export function openSearch(): void {
+  if (searchListeners.size === 0) {
+    searchPending = true
+    return
+  }
   for (const listener of searchListeners) listener()
 }
 
 export function onOpenSearch(listener: SearchListener): () => void {
   searchListeners.add(listener)
+  if (searchPending) {
+    searchPending = false
+    listener()
+  }
   return () => {
     searchListeners.delete(listener)
+  }
+}
+
+/**
+ * 9.1's two shortcuts for the search control, attached to the document.
+ *
+ * Installed from `main.tsx` at module scope rather than from a component
+ * effect, so the window is listening from the moment the bundle runs instead
+ * of from whenever the page tree finishes mounting. That ordering is the
+ * whole point: the heavier the page under the chrome, the longer a
+ * component-effect listener leaves the shortcut dead, and a shortcut that
+ * works only after the app settles is a shortcut a fast typist will find
+ * broken.
+ *
+ * Scoped to the application's own paths: the landing page of 9.2 carries no
+ * overlay, and latching there would open search on a later navigation that
+ * nobody asked for.
+ */
+export function installSearchShortcut(target: Document): () => void {
+  function isTyping(node: EventTarget | null): boolean {
+    if (!(node instanceof HTMLElement)) return false
+    const tag = node.tagName.toLowerCase()
+    return tag === 'input' || tag === 'textarea' || node.isContentEditable
+  }
+  function onKeyDown(event: KeyboardEvent): void {
+    if (!globalThis.location.pathname.startsWith('/app')) return
+    const ctrlK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k'
+    const slash = event.key === '/' && !isTyping(event.target)
+    if (!ctrlK && !slash) return
+    event.preventDefault()
+    openSearch()
+  }
+  target.addEventListener('keydown', onKeyDown)
+  return () => {
+    target.removeEventListener('keydown', onKeyDown)
   }
 }
