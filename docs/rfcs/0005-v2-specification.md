@@ -1539,6 +1539,72 @@ fold, the way P7's mid-package change control ratified the pass callable:
     the same footing as F-1 and F-4: it is the first screen a lapsed session
     sees. It rides the fix package item 18 already names.
 
+19. **Imran's rulings on S11's two open items and on what 2.0.0 must be
+    (2026-08-25, at S11's close).** Four answers, transcribed as given and
+    each with what it settles.
+
+    **2.0.0 ships only when the client matches the v2 prototype we designed
+    and built.** This settles item 15 and settles more than item 15. The card
+    reunion is no longer a question of whether but of when: 9.3's v2 opening,
+    "There is no task form", is a release gate rather than a preference, so
+    the chip strip standing above a surviving v1 form is a defect to close
+    before release and not an interim to ship. Section 13 item 40, which
+    recorded that interim and its cost, is now a defect record with a
+    deadline rather than an accepted trade. The recommendation item 15
+    carries stands and is unaffected by the ruling: persona 11 reworks the
+    seven criteria and the four harness helpers onto the v2 card, red, in
+    their own commits, and the implementing session then retires the fields,
+    the expander and the Save control together. What the ruling adds is that
+    this package is not optional and blocks S14's release clause.
+
+    One thing this must not be read as overturning, because the two sit
+    close: 11.13's rule that section 9 always wins over any design artifact
+    on structure and copy is unchanged. RFC 0002 already makes the prototype
+    the source the client is built from rather than a reference it is
+    compared against, "so a difference between it and `app/src/client` is a
+    defect in the port unless a numbered section says otherwise", and that
+    exception clause is the whole of the reconciliation. Parity with the
+    prototype is the release gate; a numbered section still wins where the
+    two disagree, and such a disagreement is an escalation as it has always
+    been.
+
+    **"My Day" is replaced with "Today".** Item 16 accepted as recommended.
+    9.4's abandon confirm reads "Abandon this task? It stops appearing in
+    Today but stays everywhere else", `ABANDON_CONFIRM` in
+    `components/ui/copy.ts` follows it, and AC-162's and AC-183's abandon
+    cases take the new string with the harness constant beside them. The
+    criteria move under persona 11 and neither one's structure changes; only
+    the quoted sentence does, which is item 8's shape exactly. Whoever takes
+    it should sweep for the same word elsewhere rather than fixing the one
+    string this item found: the constant's own name and 7.8's endpoint path
+    both still say my-day, and the endpoint is frozen section 7 and stays.
+
+    **The frozen section 7 surface may be widened, and tasks are to be drawn
+    into a folder's sections.** This answers the two widenings the S10
+    session escalated and item 18 left with the owner. `section_block_id` on
+    the folder read is approved, which is what unblocks the placement S12
+    could not build: Q7 answers 7.0 TaskCards, those carry no section, so
+    nothing could draw a task under the section it belongs to and AC-093's
+    section-capture arm has been owed since. `created_by` on TaskCard is
+    approved on the same ruling. Neither is done by this ruling. Section 7 is
+    frozen, so each needs a Replace unit written and accepted before any code
+    moves, and the criteria that assert the current shapes need reading first
+    for the same reason item 8 and item 14 existed: a widening that
+    invalidates a green criterion is a criteria change as much as an API
+    change. Routed to the Integration Steward to author the units, with
+    `04-api-and-contract.md` implementing and persona 11 taking the criteria.
+
+    **The visual review is Imran's and he will do it before release.** S14's
+    acceptance clause and section 13 item 33's revisit trigger are both
+    answered: the review happens rather than being waived, so the recorded
+    line will name him, the date, the pages and the verdict.
+
+    **The `GOOGLE_CLIENT_SECRET` rotation stays open and stays his.**
+    Deferred deliberately at this close rather than forgotten: `bf90c0a`
+    carries the secret in published history and untracking the file did not
+    remove it, so the rotation is a new secret in Google Cloud and nothing
+    less. It gates nothing in the build and should not wait for the release.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
