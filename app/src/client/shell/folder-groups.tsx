@@ -63,6 +63,16 @@ export interface FolderGroupActions {
   readonly labels: readonly string[]
   /** "New folder group", from the folder whose label the new group will be. */
   readonly onNewGroup: (folder: Folder) => void
+  /**
+   * The same dialog, opened by DES-171's hold with a pair already ticked.
+   *
+   * "The naming panel is the one that already existed": the hold hands its
+   * pair to this dialog rather than inventing a surface, so everything about
+   * making a group, the name, the validation, adding a third folder before
+   * committing, stays one surface reached through a second door (DES-154).
+   * `onNewGroup` is the same act with one folder, and both land here.
+   */
+  readonly onGroupFolders: (folders: readonly Folder[]) => void
   /** "Move to group", null being the ungrouped list rather than a group. */
   readonly onMoveToGroup: (folder: Folder, label: string | null) => void
   readonly onRenameGroup: (label: string) => void
@@ -71,7 +81,7 @@ export interface FolderGroupActions {
 
 /** Which dialog the sidebar has asked for, and about what. */
 type GroupDialog =
-  | { readonly mode: 'create'; readonly folder: Folder }
+  | { readonly mode: 'create'; readonly folders: readonly Folder[] }
   | { readonly mode: 'rename'; readonly label: string }
 
 /**
@@ -104,7 +114,10 @@ export function useFolderGroupActions(folders: readonly Folder[]): {
   const actions: FolderGroupActions = {
     labels,
     onNewGroup: (folder) => {
-      setDialog({ mode: 'create', folder })
+      setDialog({ mode: 'create', folders: [folder] })
+    },
+    onGroupFolders: (pair) => {
+      setDialog({ mode: 'create', folders: pair })
     },
     onMoveToGroup: (folder, label) => {
       writeLabel([folder.id], label)
@@ -142,12 +155,13 @@ export function useFolderGroupActions(folders: readonly Folder[]): {
       : folders.filter((folder) => folder.my_label === dialog.label)
   }, [dialog, folders])
   const options = useMemo(() => folderGroupOptions(subject), [subject])
-  // The folder whose menu opened the dialog is the group's first member, which
-  // is 9.1's "creating one is naming it on a folder" read literally: the
-  // action was taken on that folder and it is what the label is written to.
-  // Others may be added in the same dialog.
+  // The folders the act was taken on arrive ticked, which is 9.1's "creating
+  // one is naming it on a folder" read literally: the label is written to
+  // what the action was taken on. That is one folder from a row's menu and
+  // two from DES-171's hold, and others may be added in the same dialog.
   const preselected = useMemo(
-    () => (dialog?.mode === 'create' ? [dialog.folder.name] : undefined),
+    () =>
+      dialog?.mode === 'create' ? dialog.folders.map((folder) => folder.name) : undefined,
     [dialog],
   )
 
