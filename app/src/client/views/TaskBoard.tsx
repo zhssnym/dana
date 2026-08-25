@@ -141,6 +141,17 @@ function BoardColumn({
 
   const drag = useSortableList({
     count: rows.length,
+    /*
+    A board is the one surface whose containers are laid out across the axis
+    its lists run on, so the engine follows the pointer on both. Without it
+    the edge-follow scrolls the column the card is already in and never the
+    board, and any column past the right edge is a destination the gesture
+    cannot reach: measured in the whole browser leg, where the folders of a
+    hundred and fifty specs made the board wider than the window and AC-228
+    went red having passed focused. Three columns fit a 1120px page, so this
+    bites a real person at four folders rather than at a hundred and fifty.
+    */
+    crossAxis: true,
     onLift: swallowNextClick,
     describe: (index) => rows[index]?.title ?? 'Task',
     /* What a release would do, asked while the drag is still in the air, so a
