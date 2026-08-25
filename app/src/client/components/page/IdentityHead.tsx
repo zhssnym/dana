@@ -11,12 +11,18 @@ shelf's own row. Which is why this component takes callbacks and holds no
 mutation: the page owns its writes, per the client's one-hook-per-surface
 rule.
 
-**The name is rendered by role.** 9.6: inline rename for the owner, a
-heading for a member, and DES-225's reading is that a surface never offers
-what the server would 403, so the member arm has no textbox at all (AC-217
-asserts exactly that absence). A shelf is private, so its name is always a
-field. The rename commits on blur or Enter, empty reverts, Escape reverts:
-`InlineInput` is uncontrolled, so reverting is the browser's own.
+**The name is a heading until it is being renamed**, and that is a
+correction rather than a preference: an always-on field has no heading for a
+reader to land on, which AC-226 caught when it asked the imported starter's
+page for one and found a textbox. So the title renders as `h1` for everyone,
+and for whoever may rename it becomes an inline field on a click or on the
+menu's Rename and returns to a heading when it commits. 9.6's two halves both
+hold: the owner renames in place, a member reads a heading and is offered no
+textbox at all (AC-217 asserts exactly that absence, because a surface never
+offers what the server would 403).
+
+The rename commits on blur or Enter; empty and Escape both revert, and
+`InlineInput` being uncontrolled makes reverting the browser's own.
 
 **The description is any member's** (9.6's table: "the page: blocks, cover,
 icon, colour, description — yes for both roles; the event log says who").
@@ -47,6 +53,9 @@ export function IdentityHead({
   identity,
   canRename,
   canCover,
+  renaming,
+  onStartRename,
+  onEndRename,
   onIdentity,
   onRename,
   onDescription,
@@ -56,6 +65,11 @@ export function IdentityHead({
   readonly kind: 'folder' | 'shelf'
   readonly identity: IdentityValues
   readonly canRename: boolean
+  /** Whether the name is a field right now. The page owns it, because the
+      overflow menu's Rename is one of the two things that starts it. */
+  readonly renaming: boolean
+  readonly onStartRename: () => void
+  readonly onEndRename: () => void
   /** Whether this page can take a cover upload (a shelf page cannot yet:
       7.15 scopes an upload to a folder, and a shelf has none). */
   readonly canCover: boolean
@@ -142,16 +156,17 @@ export function IdentityHead({
         </div>
       ) : null}
 
-      {canRename ? (
+      {canRename && renaming ? (
         <InlineInput
           key={identity.name}
           defaultValue={identity.name}
           aria-label={`${kind === 'folder' ? 'Folder' : 'Shelf'} name`}
           maxLength={kind === 'folder' ? 100 : 40}
+          autoFocus
           onBlur={(event) => {
             const next = event.target.value.trim()
+            onEndRename()
             if (next !== '' && next !== identity.name) onRename(next)
-            else event.target.value = identity.name
           }}
           onKeyDown={(event) => {
             if (event.key === 'Enter') event.currentTarget.blur()
@@ -163,7 +178,16 @@ export function IdentityHead({
           className="mt-1 text-[24px] leading-8 font-semibold text-foreground"
         />
       ) : (
-        <h1 className="mt-1 truncate text-[24px] leading-8 font-semibold text-foreground">
+        /* A heading, always: it is what a reader lands on and what AC-226
+           asks the imported starter's page for. For whoever may rename, a
+           click on it is the inline rename 9.6 specifies; for a member it is
+           an ordinary heading and no textbox is reachable at all. */
+        <h1
+          onClick={canRename ? onStartRename : undefined}
+          className={`mt-1 truncate text-[24px] leading-8 font-semibold text-foreground${
+            canRename ? ' cursor-text' : ''
+          }`}
+        >
           {identity.name}
         </h1>
       )}

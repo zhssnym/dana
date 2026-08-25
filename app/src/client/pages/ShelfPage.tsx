@@ -35,7 +35,7 @@ and keeps every folder (AC-203's server half), and 9 puts no confirm on it.
 folders on this shelf by name, which is exactly what the import's schema
 would keep of a richer file.
 */
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import {
@@ -102,8 +102,9 @@ export function ShelfPage(): React.JSX.Element {
   const putNewPage = usePutShelfPage()
   const move = useUpdateMyMembership()
   const [historyOpen, setHistoryOpen] = useState(false)
+  // 9.10's inline rename: the name is a heading until this is true.
+  const [renaming, setRenaming] = useState(false)
   const events = useSubjectEvents(historyOpen ? `shelf:${id}` : null)
-  const nameField = useRef<HTMLElement | null>(null)
 
   const detail = shelf.data
   const name = detail?.name ?? ''
@@ -243,9 +244,7 @@ export function ShelfPage(): React.JSX.Element {
   })
 
   return (
-    <div className="space-y-4" ref={(node) => {
-      nameField.current = node
-    }}>
+    <div className="space-y-4">
       <PageBody query={shelf} isEmpty={false} emptyCopy="">
         <WindowBarActions>
           <DropdownMenu>
@@ -271,9 +270,7 @@ export function ShelfPage(): React.JSX.Element {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
-                  nameField.current
-                    ?.querySelector<HTMLInputElement>('input[aria-label="Shelf name"]')
-                    ?.focus()
+                  setRenaming(true)
                 }}
               >
                 Rename
@@ -364,6 +361,13 @@ export function ShelfPage(): React.JSX.Element {
           }}
           canRename
           canCover={false}
+          renaming={renaming}
+          onStartRename={() => {
+            setRenaming(true)
+          }}
+          onEndRename={() => {
+            setRenaming(false)
+          }}
           onIdentity={(next) => {
             patch.mutate({ id, body: next })
           }}

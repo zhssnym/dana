@@ -69,9 +69,13 @@ export function InsertLine({
   readonly onImage?: (() => void) | undefined
 }): React.JSX.Element {
   return (
-    <div className="group/insert relative flex h-3 items-center" role="presentation">
+    /* The strip is its own height and its controls are centred inside it
+       rather than laid out in flow: a 20px button row inside a 12px strip
+       overhung the prose above it, which put controls on top of a
+       sentence. */
+    <div className="group/insert relative h-5" role="presentation">
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100" />
-      <div className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100">
+      <div className="absolute top-1/2 left-0 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100">
         <button
           type="button"
           onClick={onSection}

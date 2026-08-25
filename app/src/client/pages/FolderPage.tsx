@@ -12,10 +12,13 @@ mark opens the icon-and-colour picker and PATCHes icon and color; the cover
 uploads through 7.15 (kind 'cover') and PATCHes cover_file_id; the
 description PATCHes description. Any member writes all four, the event log
 says who (9.6's matrix, AC-193's client half). The name alone is the
-owner's: an inline field for them, a heading for a member, and no control a
-403 would answer (DES-225). The "Label and color" dialog is retired with
-its section sentence; 4.4's per-member color column is written by no v2
-surface.
+owner's: it renders as a heading for everybody and becomes an inline field
+for the owner on a click or on the menu's Rename, so a member is offered no
+control a 403 would answer (DES-225) and every reader still has a heading to
+land on. That last half is a correction AC-226 caught: an always-on field
+left the imported starter's page with no heading at all. The "Label and
+color" dialog is retired with its section sentence; 4.4's per-member color
+column is written by no v2 surface.
 
 **Tasks render loose, and the reason is recorded rather than hidden.** 9.6
 assigns tasks to sections, but Q7's rows are frozen 7.0 TaskCards and carry
@@ -228,6 +231,8 @@ export function FolderPage({
   const [sharing, setSharing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  // 9.6's inline rename: the title is a heading until this is true.
+  const [renaming, setRenaming] = useState(false)
   const [filter, setFilter] = useState<OpenFilter>('all')
   const [conversationHome, setConversationHome] =
     useState<ConversationHome>(readConversationHome)
@@ -239,7 +244,7 @@ export function FolderPage({
   const threadOpen =
     conversationHome === 'foot' ? footThreadOpen : panelOpen
   const thread = useThread(id, null, threadOpen)
-  const nameHost = useRef<HTMLDivElement | null>(null)
+
   const imageInput = useRef<HTMLInputElement>(null)
   const imageAt = useRef<number>(0)
 
@@ -412,7 +417,7 @@ export function FolderPage({
   )
 
   return (
-    <div className="space-y-7" ref={nameHost}>
+    <div className="space-y-7">
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
@@ -484,11 +489,7 @@ export function FolderPage({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => {
-                      nameHost.current
-                        ?.querySelector<HTMLInputElement>(
-                          'input[aria-label="Folder name"]',
-                        )
-                        ?.focus()
+                      setRenaming(true)
                     }}
                   >
                     <Pencil className="size-4" aria-hidden="true" />
@@ -537,6 +538,13 @@ export function FolderPage({
                 }}
                 canRename={isOwner}
                 canCover
+                renaming={renaming}
+                onStartRename={() => {
+                  setRenaming(true)
+                }}
+                onEndRename={() => {
+                  setRenaming(false)
+                }}
                 onIdentity={(next) => {
                   patch.mutate({ id, body: next })
                 }}

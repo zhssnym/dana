@@ -6,6 +6,37 @@ follow Semantic Versioning.
 
 ## [Unreleased]
 
+**A folder is a page now, and so is a shelf (S12, 2026-08-25).** The folder
+screen was a list with a header; it is now a page in the full sense. It can
+wear a cover and a mark, its icon and colour belong to the folder rather than
+to each member, so everybody sees the same thing, and it carries a
+description and a body of writing: sections, paragraphs and pictures, added
+from a quiet line that appears between blocks when you reach for it. The
+conversation lives either at the foot of the page or in a side panel, and you
+switch between the two from the surface itself.
+
+**A shelf gained a page of its own.** A shelf used to be a label on a group of
+folders in the sidebar. It is now the folder page one level up: the same
+cover, mark, name, description and blocks, with the folders themselves sitting
+among the writing as rows you can put where you like. Which folders are on a
+shelf is still the membership's fact, so one moved away disappears from the
+page whatever the layout says. Pressing a folder row opens it as its own tab
+beside the shelf's, because a shelf is where a piece of work is laid out and
+you generally want both.
+
+**The bell arrived.** The sidebar header carries a notifications bell beside
+Search, with an unread count that a screen reader announces rather than only
+draws. Each row is one sentence saying who did what to which thing, and
+pressing it marks that row read and takes you to the thing. Nothing is deleted
+by hand; rows age out on their own. "Mark all read" is the only other control.
+
+**What each role may do is now what each role is offered.** A folder's menu
+shows a member Leave and an owner Rename and Delete, and a member is no longer
+shown a title they cannot edit. Deleting a folder no longer asks: it moves to
+Trash for everyone with the undo bar as the way back. An owner who wants to
+leave a shared folder is offered the ownership transfer that 5.3 requires
+first, defaulting to the longest-standing member.
+
 **The landing page is the Codex lane's, and section 9.2 stopped carrying its
 copy (S13, 2026-08-24).** The public page at `/` is now the ten-section design
 the owner directed, replacing the two-column composition that shipped at P8.
