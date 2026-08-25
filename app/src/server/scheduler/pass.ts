@@ -333,38 +333,43 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     notification fan-out, moved to the 10.2 chokepoint at S3's change
     control; the tick carries four.
 
-    The folder purge collects its files rows before deleting (11.7, RFC
-    0005 change control item 18): the cascade drops them, they are the only
-    index to the bytes in the store, and read afterwards there is nothing
-    left that knows the objects exist. The objects leave the store only
-    after the delete commits, 7.15's order, so a rolled-back purge cannot
-    have already destroyed bytes whose rows survived. The claim and the
-    per-folder deletes share one transaction, which is what lets the DELETE
-    address claimed ids alone rather than re-running the age predicate into
-    rows another tick holds. Tasks carry no files rows (4.16 scopes files to
-    folders), so the task purge stays one statement.
+    The folder purge collects its files rows in the same statement that
+    deletes (11.7, RFC 0005 change control item 18): the cascade drops
+    them, they are the only index to the bytes in the store, and read
+    afterwards there is nothing left that knows the objects exist. The
+    claim, the collection and the delete are three CTEs of one statement
+    over one snapshot, so the collection cannot race the age predicate and
+    the purge stays the single wrapperless statement this module's own
+    interval test pins. The objects leave the store only after the
+    statement commits, 7.15's order, so a refused purge cannot have already
+    destroyed bytes whose rows survived. Tasks carry no files rows (4.16
+    scopes files to folders), so the task purge needs no collection.
     */
-    const folderPurge = await inTransaction(db, async (tx) => {
-      const claimed = await rowsOf(
-        tx,
-        sql`SELECT id FROM folders
+    const folderPurge = await rowsOf(
+      db,
+      sql`WITH doomed AS (
+            SELECT id FROM folders
              WHERE deleted_at < now() - interval '30 days'
-             FOR UPDATE SKIP LOCKED`,
-      )
-      const orphaned: string[] = []
-      for (const row of claimed) {
-        const folderId = String(row.id)
-        const files = await rowsOf(
-          tx,
-          sql`SELECT id FROM files WHERE folder_id = ${folderId}`,
-        )
-        for (const file of files) orphaned.push(String(file.id))
-        await tx.execute(sql`DELETE FROM folders WHERE id = ${folderId}`)
+             FOR UPDATE SKIP LOCKED),
+          victims AS (
+            SELECT f.id AS file_id, f.folder_id
+              FROM files f JOIN doomed d ON d.id = f.folder_id),
+          removed AS (
+            DELETE FROM folders WHERE id IN (SELECT id FROM doomed)
+            RETURNING id)
+          SELECT r.id AS folder_id, v.file_id
+            FROM removed r LEFT JOIN victims v ON v.folder_id = r.id`,
+    )
+    const purgedFolderIds = new Set<string>()
+    const orphanedObjects: string[] = []
+    for (const row of folderPurge) {
+      purgedFolderIds.add(String(row.folder_id))
+      if (row.file_id !== null && row.file_id !== undefined) {
+        orphanedObjects.push(String(row.file_id))
       }
-      return { folders: claimed.length, orphaned }
-    })
+    }
     if (deps.fileStore !== undefined) {
-      for (const id of folderPurge.orphaned) {
+      for (const id of orphanedObjects) {
         try {
           await deps.fileStore.remove(id)
         } catch {
@@ -381,7 +386,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
              FOR UPDATE SKIP LOCKED)
           RETURNING id`,
     )
-    const purgedTrash = folderPurge.folders + purgedTasks.length
+    const purgedTrash = purgedFolderIds.size + purgedTasks.length
     const purgedEvents = (
       await rowsOf(
         db,

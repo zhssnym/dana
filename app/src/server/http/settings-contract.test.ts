@@ -285,7 +285,10 @@ describe('the 7.0 taxonomy on the 7.2 surface', () => {
       ['42', 'a number'],
       ['true', 'a boolean'],
       ['null', 'null'],
-      [`{"show_done": true, "pad": "${'x'.repeat(200_000)}"}`, 'a body over the parse limit'],
+      // Over 10.3's 3 MB JSON body row (RFC 0005 change control item 18),
+      // which replaced the parser's undocumented 100 kB default so the
+      // largest legal workflow file could reach its own caps.
+      [`{"show_done": true, "pad": "${'x'.repeat(3 * 1024 * 1024 + 1024)}"}`, 'a body over the parse limit'],
     ]
     for (const [body, what] of bodies) {
       const response = await api(who, '/me/settings', jsonInit('PATCH', body))
