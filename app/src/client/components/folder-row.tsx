@@ -186,6 +186,11 @@ export function FolderRow({
               : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
           zIndex: dragState.isActive ? 30 : undefined,
           position: dragState.isActive ? 'relative' : undefined,
+          /* The carried row must not catch the point it is following: the
+             Library's containerAt asks the document what is under the
+             pointer, and the answer must be the place the row is over, never
+             the row itself. */
+          pointerEvents: dragState.isActive ? 'none' : undefined,
         }
 
   return (

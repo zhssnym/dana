@@ -786,14 +786,46 @@ export function useSortableList({
         */
         finish()
       }
+      /*
+      A cancel is the browser withdrawing the pointer, and it can land in the
+      same one-render gap the two handlers above exist for. Left unhandled
+      there, a cancelled lift kept its drag state forever: the carried row
+      stayed carried with no pointer attached to it. Measured at the AC-227
+      probe of 2026-08-25 rather than deduced. The engine's own listener
+      answers a cancel with `finish`, so this does too, and a cancel before
+      the lift is a press that came to nothing: no tap, no commit.
+      */
+      function cancelled(): void {
+        stop()
+        if (lifted) finish()
+      }
+      /*
+      The browser's own drag-and-drop must not answer this press, and for two
+      of this product's surfaces it otherwise would: a folder row is an anchor
+      (9.1 makes it a link) and anchors are natively draggable, as images are.
+      A few pixels of travel starts the native drag, the browser fires
+      `pointercancel`, and the gesture this engine was tracking dies before
+      `onOver` has said anything. That is not a corner case, it is every
+      pointer drag of every sidebar row; AC-227 measured it red on 2026-08-25
+      while the tab strip, whose tabs are plain divs, stayed green beside it.
+      Cancelling `dragstart` for the gesture's duration is the whole fix, and
+      it lives here rather than as a `draggable={false}` on each surface
+      because the next surface built on this engine would forget the attribute
+      exactly once.
+      */
+      function suppressNativeDrag(event: Event): void {
+        event.preventDefault()
+      }
       function stop(): void {
         window.removeEventListener('pointermove', watch)
         window.removeEventListener('pointerup', ended)
-        window.removeEventListener('pointercancel', stop)
+        window.removeEventListener('pointercancel', cancelled)
+        window.removeEventListener('dragstart', suppressNativeDrag, true)
       }
       window.addEventListener('pointermove', watch)
       window.addEventListener('pointerup', ended)
-      window.addEventListener('pointercancel', stop)
+      window.addEventListener('pointercancel', cancelled)
+      window.addEventListener('dragstart', suppressNativeDrag, true)
     },
     [begin, finish, onPointerMove],
   )
