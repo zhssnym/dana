@@ -719,6 +719,41 @@ nothing here is deleted by hand, rows aging out with 4.13's retention. An
 actor is never notified of their own act (4.14's rule, restated where a
 reader will look). Empty state: "Nothing new. When someone assigns you a
 task or answers you, it lands here."
+### Insert new section 9.13 after 9.12
+
+Added at S13 on 2026-08-24, from the owner's ruling of that date; ADD-1 in
+`v2-pricing.md` named the feature and no section described it, which is the
+gap this unit closes.
+
+```markdown
+### 9.13 First run and the starter workflows
+
+A person signing in for the first time arrives at Desk (9.1) holding nothing. That empty Desk is the one screen every account sees and no account keeps, and it is where the product either teaches itself or does not.
+
+Beneath Desk's own empty state, a fresh account is offered the starter workflows: bundled workflow files (7.16) that import with one press, each a worked example of a real piece of work rather than a tour of the interface. The purpose is navigation. A person who imports one has a folder in their Library, a page with sections, and tasks reaching the views of 9.4 and 9.5, which teaches where things live by putting something in each place rather than by describing it.
+
+**Fresh** means the account holds no folder but Desk and no task anywhere. Both facts are already in what the client read to draw the page, so the offer needs no endpoint of its own. It stops being drawn the moment either is false, which includes the moment an import lands, and it does not return: a person who imports one or dismisses it has left first run, and asking again would be the product failing to notice it had already been answered.
+
+**Each starter is an ordinary import.** POST /api/v1/workflows/import (7.16) takes the file, through the same endpoint and the same validation a person's own exported workflow goes through. Nothing is seeded, nothing is special-cased in the server, and no row is created that a person could not have created themselves. This is why the feature costs no backend, and it is also why it cannot drift from the import: a starter that stopped importing would fail the same way any workflow file would.
+
+**What a starter may contain is what a workflow file may contain**: a folder name, task titles, and page blocks. It follows that a starter carries no comment and no reminder, and this section does not enforce that, because 7.16's schema has no key for either and a constraint the format makes impossible needs no rule. What is recorded here is why it is right that the format forbids them, so that a later widening of the format does not take these two with it by accident.
+
+A comment would have to be attributed to somebody. Every comment in Dana is a thing a person said (4.15), and a fabricated one on a fresh account would be the product inventing a colleague, which is a lie about the one subject a collaboration tool cannot afford to lie about. A reminder would send email about a plan the person did not make, at an hour they did not choose, most probably after they had forgotten the starter was there; the person likeliest to receive it is the one who never came back, and a starter that mails a person who has left is the worst version of this feature.
+
+**Every starter says in its own page that it can be deleted**, as the first paragraph block of its folder, because the offer's own copy is gone the moment it is answered and the page is what the person still has.
+
+Copy, normative:
+
+| Element | Copy |
+| - | - |
+| The offer's heading | "Start with an example" |
+| The offer's body | "Import a worked example to see how Dana holds a real piece of work. Nothing here is fixed: change anything, or delete it all." |
+| Dismiss | "No thanks" |
+| The first paragraph block of every starter folder | "This is an example, and it is yours now. Change anything you like, or delete the whole folder from its menu when you are done with it." |
+
+The starter files themselves are the design record's, on the 9.2 ruling of the same date: this section fixes that they exist, what they may hold, and what they must say, and does not transcribe them. What they must be is worked examples of problems a person actually has, each one solved the way Dana solves it, because a starter that demonstrates the interface rather than the work teaches a person how to click and not why to return.
+```
+
 ```
 
 ### Insert new section 7.18 after 7.17
@@ -1063,7 +1098,43 @@ fold, the way P7's mid-package change control ratified the pass callable:
    browser test, which stays on the v1 form until S11 lands the v2 assignee
    menu; that split is S1's and is recorded in AC-220's file.
 
-9. **S12's owner cell read against the persona files it repeats (Imran,
+9. **Section 9.2 stops carrying the landing's copy (S13, 2026-08-24, the
+   owner's ruling).** This RFC replaced 9.1 and 9.3 to 9.9 and left 9.2
+   alone, so the landing section still fixed seven marketing strings in a
+   table, named My Day as where a first run lands, and fixed a preview panel
+   beside the copy. All three are false against the landing the Codex lane
+   built and the owner directed. The owner ruled that the specification is a
+   rulebook and not a transcript: 9.2 now states the rules copy is written
+   under, the design record holds the sentences, and one string stays
+   normative there because it discloses what Dana takes rather than claiming
+   what Dana does. The amendment is written into `docs/spec/09-ui.md`
+   directly rather than as a unit here, this RFC never having owned that
+   section, and section 13 item 14 closes a third time against it.
+
+   **One rule is new rather than moved**, and it is the reason the ruling
+   was worth making: the page may claim no capability Dana does not ship.
+   The standing text carried a no-AI-claim rule, which is that rule's
+   instance for the one capability anybody was tempted to claim in 2026;
+   stating the general form means the next temptation is covered before it
+   has a name. AC-159 asserts the instance and is untouched, so nothing
+   about the protection depends on this paragraph being read.
+
+10. **ADD-1 gains a section, and its two exclusions gain reasons (S13,
+    2026-08-24, the owner's ruling).** `v2-pricing.md` named onboarding
+    starter workflows and nothing described them, so the package had no
+    contract to be done against; the unit above inserts 9.13. The owner
+    ruled the feature's purpose is teaching a new person where things live,
+    that the examples must solve real problems rather than tour the
+    interface, and that a person must be told they can delete them.
+
+    He also ruled out comments and reminders in starters, and the finding
+    worth recording is that **7.16's schema already makes both impossible**:
+    a workflow file carries folder names, task titles and page blocks, and
+    has no key for either. So no rule was added and no validation was
+    written. 9.13 records the product reasons instead, because a constraint
+    that holds only by accident of a format is a constraint a later widening
+    of that format removes without anyone deciding to.
+11. **S12's owner cell read against the persona files it repeats (Imran,
    2026-08-24, ruled at S12's opening).** RFC 0004's table assigns S12 and
    S11 to `09-complex-interaction.md`, whose Owns section holds exactly the
    calendar, task-form and search directories; every surface S12 builds (the
@@ -1078,7 +1149,7 @@ fold, the way P7's mid-package change control ratified the pass callable:
    09's Owns (rewrites two permanent files for one release) and splitting
    the package (cuts the folder page from its own conversation).
 
-10. **AC-226 was claimed twice, and S13's claim keeps the number (Imran,
+12. **AC-226 was claimed twice, and S13's claim keeps the number (Imran,
     2026-08-24, ruled at S12's opening).** The S9 close moved the sidebar
     drag to S11 and wrote that S11 owes AC-226; `s13-public`, unmerged and
     invisible to that session, had already spent AC-226 on the starter
@@ -1088,6 +1159,8 @@ fold, the way P7's mid-package change control ratified the pass callable:
     yet, so S13 keeps AC-226 and S11's sidebar-drag criterion is AC-227.
     The SESSION-LOG row that says "S11 owes AC-226" stays as written, the
     record being what happened; this item is the correction it points to.
+
+
 
 ## Implementation plan
 

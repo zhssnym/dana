@@ -134,6 +134,27 @@ it from `11-adversarial-test.md` rather than from its own hand. Nothing else
 waits on it: S10 never touches the Library block, and S12's shelves read the
 same membership label the drag would write.
 
+The criterion it owes is **AC-227 and not AC-226**, corrected at S12's
+opening: `s13-public` had already spent AC-226 on the starter workflows and
+was unmerged where this close could not see it. RFC 0005 change control item
+10 carries the ruling.
+
+**S13 ran ahead of S10 to S12 and closes with S12 (Imran, 2026-08-24).** It
+depends on S9 alone, so it was built as soon as that merged rather than waiting
+for its row's turn, and the whole of it is written: the 9.2 amendment, the
+landing, section 9.13 and AC-226. Three things were left open and the owner
+ruled they close with S12 rather than in a fix round of their own. The Postgres
+leg and CI's verdict, because the machine's test credentials are not readable
+without elevation and no session should escalate to pass its own gate. The
+merge, which follows that verdict. And 9.13's deletion paragraph, which is
+stored on every starter's page and asserted by AC-226 over section 7 but drawn
+by nothing, because 9.6's block rendering is S12's. The grouping is the natural
+one: S12 lands the surface that paragraph is waiting for, so both packages
+become visible in the same act and one gate run covers them together.
+S13's acceptance cell above is also superseded in one clause, its S5 headline
+pick having been overtaken by the Codex lane's redesign; change control item 9
+records that.
+
 **Critical path**: S0 → S1 → S2 → S3 → S5 → S12 → S14, with S4 beside S3,
 S6/S7 beside S5, and the client arm S8 → S9 → (S10 ∥ S11) → S12 overlapping
 the backend arm once S0 lands. S-inf runs from day one against its own
