@@ -487,6 +487,12 @@ export interface RowContext {
   readonly showFolder?: boolean
   /** 9.4's pulled marker and un-pull control are My Day's alone. */
   readonly showPullMarker?: boolean
+  /**
+   * 9.5's v2 Done bullet: rows there "drop the spent due-date echo under
+   * headings that already group by completion". Every other page shows one,
+   * so the default is true, and Done is the only caller that passes false.
+   */
+  readonly showDue?: boolean
 }
 
 /**
@@ -571,6 +577,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     starTooltip = 'inward',
     showFolder = true,
     showPullMarker = false,
+    showDue = true,
   } = context
 
   /*
@@ -591,7 +598,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
   return {
     title: task.title,
     folder: showFolder ? folderDisplay(task.folder, folders) : undefined,
-    due: dueDisplay(task, today),
+    due: showDue ? dueDisplay(task, today) : undefined,
     status: task.status,
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip),

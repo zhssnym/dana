@@ -54,6 +54,7 @@ import {
 } from '../api/mutations.js'
 import { openTask } from '../components/task-form/index.js'
 import { paths } from '../routes.js'
+import type { ColumnValue } from '../views/place-pages.js'
 import type { StarTooltipMode } from './presenters.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
@@ -68,6 +69,13 @@ export interface RowActions {
   readonly onOpenTask: (task: TaskCard) => void
   /** 9.4's overflow delete, behind 9.3's confirmation. */
   readonly onDelete: (task: TaskCard) => void
+  /**
+   * 9.1: "dropping a card in a column writes that value". The board is the
+   * one caller today and the value is the column's own `ColumnValue`, which
+   * is also what that column captures with, so a drop and a quick-add in one
+   * column can never come to mean different things.
+   */
+  readonly onMoveToColumn: (task: TaskCard, value: ColumnValue) => void
   /** Q4: outward on Important, inward on every other page. */
   readonly starTooltipMode: StarTooltipMode
 }
@@ -162,6 +170,26 @@ export function useRowActions(): RowActions {
       remove.mutate(task.id)
       pushUndo(undoLabel('Deleted', task.title), () => {
         transition.mutate({ id: task.id, event: 'restore' })
+      })
+    },
+    /*
+    A move registers its inverse like every other act (9.1: "acts register
+    their own inverse"), and the inverse is the task's own value before the
+    drop, read off the row the board was drawing. Only the keys the column
+    writes are inverted: a folder column's drop says nothing about who the
+    task is assigned to, and putting the row back should not either.
+    */
+    onMoveToColumn: (task, value) => {
+      const before: ColumnValue = {
+        ...(value.folder_id === undefined ? {} : { folder_id: task.folder.id }),
+        ...(value.assignee_id === undefined
+          ? {}
+          : { assignee_id: task.assignee?.id ?? null }),
+        ...(value.due_date === undefined ? {} : { due_date: task.due_date }),
+      }
+      update.mutate({ id: task.id, body: value })
+      pushUndo(undoLabel('Moved', task.title), () => {
+        update.mutate({ id: task.id, body: before })
       })
     },
     starTooltipMode: location.pathname === paths.important ? 'outward' : 'inward',
