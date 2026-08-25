@@ -89,6 +89,7 @@ import {
   SidebarMenuItem,
 } from './ui/sidebar.js'
 import { cn } from './ui/utils.js'
+import type { SortableItemState } from '../lib/use-sortable-list.js'
 
 export interface FolderRowProps {
   name: string
@@ -107,6 +108,22 @@ export interface FolderRowProps {
   treeLast?: boolean
   groupLabels?: readonly string[]
   currentLabel?: string | null
+  /*
+  The four props the S11 drag adds. Each is optional and absent by default, so
+  a row nobody is dragging renders exactly as it did: DES-171's "a sidebar
+  nobody has touched still reads exactly as it did" is a property of this
+  component as much as of the order above it.
+
+  `itemRef` is the engine's measurement ref, `rowProps` is the grip plus
+  whatever the surface hit-tests against, `dragState` is how this row is drawn
+  while a drag is in the air, and `proposal` is the sentence the carried row
+  says about where it would land.
+  */
+  itemRef?: (element: HTMLLIElement | null) => void
+  rowProps?: React.ComponentProps<'li'>
+  dragState?: SortableItemState
+  /** What a release would do, said on the carried row only. */
+  proposal?: string | null
   onSelect?: () => void
   onAddTask?: () => void
   /** 9.1's "New folder group", which is an action on this folder's label. */
@@ -129,6 +146,10 @@ export function FolderRow({
   treeLast = false,
   groupLabels = [],
   currentLabel = null,
+  itemRef,
+  rowProps,
+  dragState,
+  proposal = null,
   onSelect,
   onAddTask,
   onNewGroup,
@@ -141,14 +162,46 @@ export function FolderRow({
     onRename || onEditAppearance || onNewGroup || onMoveToLabel || onDelete,
   )
   const hasActions = Boolean(onAddTask || hasFolderMenu)
+  /*
+  Geometry inline rather than in a class, because the offset is a measured
+  number of pixels and a class cannot carry one. The tokens file stays the
+  only place a colour, a type size, a spacing step or a radius is written; a
+  transform is none of those.
+
+  The carried row does not transition and the rows it passes do: the carried
+  one is following a pointer, where any easing reads as lag, and the others
+  are making space, where the movement is the whole message. `isSettling` is
+  the one frame band where the carried row transitions too, travelling to the
+  slot the list held open before the array underneath it changes.
+  */
+  const offset = dragState?.offset ?? 0
+  const dragStyle: React.CSSProperties | undefined =
+    dragState === undefined || (offset === 0 && !dragState.isActive)
+      ? undefined
+      : {
+          transform: `translateY(${String(offset)}px)`,
+          transition:
+            dragState.isActive && !dragState.isSettling
+              ? 'none'
+              : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
+          zIndex: dragState.isActive ? 30 : undefined,
+          position: dragState.isActive ? 'relative' : undefined,
+        }
 
   return (
     <SidebarMenuItem
+      ref={itemRef}
+      {...rowProps}
+      style={{ ...dragStyle, ...rowProps?.style }}
+      data-dragging={dragState?.isActive ? 'true' : undefined}
       className={cn(
         'group/folder-row',
         tree &&
           "before:absolute before:-top-0.5 before:left-6 before:z-0 before:h-[calc(50%+2px)] before:w-1.5 before:rounded-bl-[6px] before:border-b before:border-l before:border-[var(--color-graphite-300)] before:content-[''] after:absolute after:top-1/2 after:-bottom-0.5 after:left-6 after:z-0 after:border-l after:border-[var(--color-graphite-300)] after:content-['']",
         tree && treeLast && 'after:hidden',
+        dragState?.isActive && 'shadow-lg',
+        dragState?.isDwelling && 'ring-2 ring-ring/40',
+        rowProps?.className,
       )}
     >
       <SidebarMenuButton
@@ -193,7 +246,13 @@ export function FolderRow({
         // records at length: a control with an empty bounding box is not
         // visible to anything that addresses it by role and name, which is
         // what 9.1's addressing sentence requires of every control.
-        <div className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100">
+        <div
+          // The whole row is the drag's grip where a list is sorting it
+          // (`shell/library-drag.ts`), and a press on a control belongs to
+          // that control, so the row's own actions say they are not the grip.
+          data-no-drag
+          className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100"
+        >
           {onAddTask ? (
             <Button
               type="button"
@@ -287,6 +346,23 @@ export function FolderRow({
           ) : null}
         </div>
       ) : null}
+
+      {/*
+      What a release would do, said in words on the row being carried.
+
+      9.1 fixes the sentence for the container case, "the drop reads 'Into
+      {shelf}'", and DES-171 gives the reason it is words at all: a closed
+      group is never sprung open by a drag hovering it, because opening it
+      would move every row below it after the engine had measured where they
+      sit. So the closed group takes the drop and says so instead. The same
+      line carries the hold's two states and the way out of a group, each of
+      which is equally a promise about the release.
+      */}
+      {proposal === null ? null : (
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+          {proposal}
+        </span>
+      )}
     </SidebarMenuItem>
   )
 }

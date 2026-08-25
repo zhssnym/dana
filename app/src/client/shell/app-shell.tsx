@@ -74,7 +74,7 @@ import {
 } from '../lib/icons.js'
 
 import { mutateApi } from '../api/http.js'
-import { useCreateFolder } from '../api/mutations.js'
+import { useCreateFolder, usePatchBundle } from '../api/mutations.js'
 import { useBundle, useFolders, useMe, usePendingInvites } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
@@ -236,6 +236,29 @@ export function AppShell(): React.JSX.Element {
   const [railOpen, setRailOpen] = useState(() => !readSidebarCollapsed())
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(readSidebarWidth)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
+
+  /*
+  The viewer's arrangement of the Library (DES-171, built at S11).
+
+  Held here as well as in the bundle, and the reason is what a drag is: the
+  column has to be in its new order on the frame the row is released, and a
+  write that had to land and be refetched first would show the row springing
+  back to where it came from and then moving. So this state is the sidebar's
+  answer and the write is the record of it. Seeded from the bundle the first
+  time that read settles and never again, a later refetch being this session's
+  own writes coming back.
+
+  Null until the bundle arrives, which is what tells the seeding effect it has
+  not run yet: an empty array is a real value here, meaning a viewer who has
+  dragged nothing, and DES-171 makes that the ordinary case rather than an
+  absence.
+  */
+  const patchBundle = usePatchBundle()
+  const [sidebarOrder, setSidebarOrder] = useState<readonly string[] | null>(null)
+  const storedOrder = bundle.data?.sidebar_order
+  useEffect(() => {
+    if (storedOrder !== undefined) setSidebarOrder((held) => held ?? storedOrder)
+  }, [storedOrder])
 
   // 9.1's shortcut for the search control. On the document rather than on the
   // button, because a shortcut that only fires while its control has focus is
@@ -404,6 +427,11 @@ export function AppShell(): React.JSX.Element {
           <AppSidebar
             pinnedViews={bundle.data?.pinned_views}
             folders={folders.data}
+            sidebarOrder={sidebarOrder ?? []}
+            onSidebarOrderChange={(ids) => {
+              setSidebarOrder(ids)
+              patchBundle.mutate({ sidebar_order: [...ids] })
+            }}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
             activeFolderId={activeFolderId}

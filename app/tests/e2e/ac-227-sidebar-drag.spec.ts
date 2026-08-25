@@ -183,6 +183,13 @@ async function carryOnto(page: Page, from: Locator, onto: Locator): Promise<void
       fromY + ((toY - fromY) * step) / 10,
     )
   }
+  // Then a small wander at the destination, which is what a hand does and
+  // which is also what makes this case measure the product rather than a
+  // race: the lift happens partway through the travel above, and the moves
+  // after it are the ones the engine is listening to.
+  for (const nudge of [1, -1, 0]) {
+    await page.mouse.move(toX + nudge, toY + nudge)
+  }
 }
 
 test.beforeEach(async ({ page }) => {
