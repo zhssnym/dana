@@ -1508,6 +1508,37 @@ fold, the way P7's mid-package change control ratified the pass callable:
     escalated, `created_by` on TaskCard and `section_block_id` on the
     folder read.
 
+    **F-8, found by running rather than reading, and not part of the review's
+    clause.** A signed-out visit to `/app` renders the whole shell and then
+    fails every read, showing "Couldn't load this. Nothing was changed." over
+    an empty Library with an unnamed avatar, plus a "Something went wrong"
+    toast. Verified at this session against the running dev server: the API
+    is healthy and answers `401 unauthenticated` to each read, exactly as
+    frozen 7.0 says it should, so the fault is entirely on the client side.
+    `AppShell` calls `useMe()` ([app-shell.tsx:245](app/src/client/shell/app-shell.tsx:245))
+    and never branches on its failure, and no redirect to `/` exists anywhere
+    in `Router.tsx` or the shell. Nothing in section 9 states what the client
+    does when it holds no session, which is why no persona deviated: this is a
+    silence, not a defect against a written rule, and it reaches the Steward
+    under protocol section 6 the same way F-4 did.
+
+    It matters because 10.1 gives sessions 30 days, so **every account meets
+    this screen eventually**, and what it says to the person is that Dana
+    broke rather than that their session ended. A bookmark, a shared link or
+    a second browser reaches it on the first click. AC-174 asserts that the
+    avatar menu offers Sign out and nothing asserts what happens afterwards,
+    so the suite is silent here too.
+
+    **Ruling: an unauthenticated read at any `/app` route sends the person to
+    `/` rather than rendering the shell, and section 9.1 gains the sentence
+    saying so** when the fold writes it; the landing already refuses to
+    redirect signed-in visitors away, so the two rules meet without
+    contradiction. Routed to `07-frontend-architect.md`, whose S9 built the
+    shell and the router, with one criterion owed by
+    `11-adversarial-test.md` beside AC-230 to AC-237. **Release-gating**, on
+    the same footing as F-1 and F-4: it is the first screen a lapsed session
+    sees. It rides the fix package item 18 already names.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
