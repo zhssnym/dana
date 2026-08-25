@@ -541,6 +541,10 @@ function FolderGroupBlock({
                   : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
               position: drag.state.isActive ? 'relative' : undefined,
               zIndex: drag.state.isActive ? 30 : undefined,
+              /* A carried section must not catch the point it follows, for
+                 the reason folder-row.tsx records: containerAt asks the
+                 document what is under the pointer. */
+              pointerEvents: drag.state.isActive ? 'none' : undefined,
             }
       }
     >

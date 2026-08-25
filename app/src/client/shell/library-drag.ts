@@ -45,12 +45,18 @@ export interface LibraryZones {
 }
 
 /**
- * The registry of drop containers, hit-tested by rectangle.
+ * The registry of drop containers, hit-tested through the document.
  *
- * Rectangles rather than `document.elementFromPoint`, and the reason is the
- * gesture itself: the carried row follows the pointer, so it is the element
- * under the pointer for the whole drag and the document would answer with it
- * every time.
+ * `document.elementFromPoint` and DOM containment rather than rectangle
+ * arithmetic, and the reason is a bug the rectangles version shipped and the
+ * AC-227 probe of 2026-08-25 caught: the carried row follows the pointer by
+ * a transform, a transformed child expands its ancestor's bounding rect, and
+ * the carried row is a DOM child of the group it is leaving. So the group's
+ * measured rect followed the row out of the group, the pointer never read as
+ * outside it, and the way out never opened. The document's own hit test is
+ * immune, because the group's painted box is its laid-out one; what it needs
+ * in exchange is that the carried row stop catching the point, which is the
+ * `pointer-events: none` its active style now carries.
  */
 export function useLibraryZones(): LibraryZones {
   const zones = useRef(new Map<string, HTMLElement>())
@@ -65,33 +71,27 @@ export function useLibraryZones(): LibraryZones {
   )
 
   const containerAt = useCallback((point: Point, self: string | null): string | null => {
-    let directory: string | null = null
-    let group: string | null = null
-    let inSelf = false
-    for (const [key, element] of zones.current) {
-      const rect = element.getBoundingClientRect()
-      const inside =
-        point.x >= rect.left &&
-        point.x <= rect.right &&
-        point.y >= rect.top &&
-        point.y <= rect.bottom
-      if (!inside) continue
-      if (key === self) inSelf = true
-      else if (key === DIRECTORY) directory = key
-      else group = key
-    }
+    const under = document.elementFromPoint(point.x, point.y)
+    if (under === null) return null
 
     /*
     Still inside the container that is asking is not an answer, it is the
-    absence of one: the proposal is an ordinary slot in this list.
-
-    This is the whole reason the pass runs to the end rather than returning
-    the first hit. The directory contains every group, so a pointer inside a
-    group is also inside the directory, and answering "the directory" there
-    would read as "out of this group" and take a folder out of its own group
-    every time somebody reordered inside one.
+    absence of one: the proposal is an ordinary slot in this list. Checked
+    before the others, because the directory contains every group and a
+    pointer inside a group is also inside the directory; answering "the
+    directory" there would read as "out of this group" and take a folder out
+    of its own group every time somebody reordered inside one.
     */
-    if (inSelf) return null
+    let group: string | null = null
+    let directory: string | null = null
+    for (const [key, element] of zones.current) {
+      if (!element.contains(under)) continue
+      if (key === self) return null
+      if (key === DIRECTORY) directory = key
+      else group = key
+    }
+    /* A group beats the directory for the same containment reason: the
+       innermost container the pointer is inside is the one it is in. */
     return group ?? directory
   }, [])
 
