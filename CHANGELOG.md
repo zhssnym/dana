@@ -6,14 +6,28 @@ follow Semantic Versioning.
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-08-25
+Everything below is built and gated on `v2-build` and is **not released**.
+The version stays 1.0.0 until it is.
 
-Dana v2, the whole of RFC 0005's specification delta, built by sessions S0 to
-S14 on `v2-build`. The frozen core contract of sections 4 and 7 did not move:
-every wire change is additive, and a v1 account opens v2 with nothing
-migrated by hand. The major version is for the product rather than the API:
-the surfaces were redrawn around DES-152's places, and bookmarks to the
-retired paths redirect rather than 404.
+**What 2.0.0 is waiting for.** Imran ruled at S11's close, on 2026-08-25,
+that 2.0.0 ships only when the client matches the v2 prototype that was
+designed and built (RFC 0005 change control item 19). One surface does not:
+9.3's v2 opening is "There is no task form", and the task card carries the
+v2 chip strip above a surviving v1 form, so five fields have two controls
+and a Save control the section retired is still there. That is now a defect
+with a deadline rather than the accepted interim section 13 item 40 recorded.
+Closing it is its own package, sequenced criteria first (item 15): persona 11
+reworks the seven criteria and four harness helpers that address the v1 form
+onto the v2 card, red, and the implementing session then retires the fields,
+the expander and the Save control together. When that lands, this section
+becomes 2.0.0 with its date.
+
+Dana v2 is the whole of RFC 0005's specification delta, built by sessions S0
+to S14. The frozen core contract of sections 4 and 7 did not move: every wire
+change is additive, and a v1 account opens v2 with nothing migrated by hand.
+The major version is for the product rather than the API: the surfaces were
+redrawn around DES-152's places, and bookmarks to the retired paths redirect
+rather than 404.
 
 **Every page is now a place, and every place is the same object (S9, S10).**
 Desk is `/app` and is where undated, unfiled capture lands; Today, Scheduled,
