@@ -67,9 +67,13 @@ import { MorePages, PageBody } from '../states/PageStates.js'
 import { PageSection } from '../states/PageSection.js'
 import { DONE_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
+import { PLACES } from '../views/place-pages.js'
+import { PlaceChrome, usePlace } from '../views/usePlace.js'
 import { useRowBasis } from './task-rows.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
+
+const SPINE = PLACES.done
 
 /**
  * 9.5's confirm before an un-complete that takes the G-SERIES successor
@@ -203,7 +207,24 @@ export function DonePage(): React.JSX.Element {
   const actions = useRowActions()
   const transition = useTransitionTask()
   const basis = useRowBasis()
-  const days = mergeCompletedDays(view.data?.pages)
+  const fetched = mergeCompletedDays(view.data?.pages)
+
+  /*
+  The shared filter of 9.1, on this page as on every other place-page: one
+  control with the same meaning everywhere. What it narrows here is the day
+  groups, group by group, so a day whose rows are all filtered out drops away
+  rather than leaving a heading over nothing.
+
+  Grouping and board are not offered on this page; `place-pages.ts` records
+  why, and it is the DoneRow duplication rather than a reading of DES-177.
+  */
+  const place = usePlace(
+    SPINE,
+    fetched.flatMap((day) => day.rows),
+  )
+  const days = fetched
+    .map((day) => ({ date: day.date, rows: place.narrow(day.rows) }))
+    .filter((day) => day.rows.length > 0)
 
   /*
   Which un-completes confirm, and why the row cannot answer it.
@@ -248,7 +269,8 @@ export function DonePage(): React.JSX.Element {
 
   return (
     <div className="space-y-7">
-      <PageHeading icon={CircleCheck} title="Done" subtitle="Completion history" />
+      <PlaceChrome place={place} />
+      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
       <PageBody
         query={view}
         isEmpty={days.length === 0}

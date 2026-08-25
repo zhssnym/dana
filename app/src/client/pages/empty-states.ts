@@ -33,3 +33,26 @@ export const FOLDER_EMPTY = 'No tasks yet. Add one below.'
 
 /** Q8. */
 export const SEARCH_EMPTY = 'No matches for that search.'
+
+/*
+The two strings below are not section 6's, and the difference is stated rather
+than blurred.
+
+Every string above is a query's own empty state, transcribed. Assignments and
+Abandoned have none, because neither is a query: section 6's v2 preamble says
+so of Assignments in terms, and Abandoned is a client-side narrowing of Q5 by
+status. Section 9 writes no copy for either, and a page that arrives empty
+with nothing to say is the state the other eight all have words for.
+
+So these are this package's, written in the register of the eight above (what
+the page holds, then how something gets here), and recorded as change control
+in RFC 0005 rather than slipped in. They are the only copy S10 authored.
+*/
+
+/** 9.5's Assignments, which is a composition rather than a query. */
+export const ASSIGNMENTS_EMPTY =
+  'Nothing assigned yet. Open tasks appear here under whoever is carrying them.'
+
+/** 9.5's Abandoned, likewise. */
+export const ABANDONED_EMPTY =
+  'Nothing abandoned. Tasks you decide not to do wait here in case you change your mind.'
