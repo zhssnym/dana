@@ -95,7 +95,7 @@ import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
 import { TabStrip } from './TabStrip.js'
 import { WindowBar } from './WindowBar.js'
-import { retarget } from './tabs.js'
+import { retarget, useTabs } from './tabs.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -239,7 +239,13 @@ export function AppShell(): React.JSX.Element {
   const bundle = useBundle()
   const folders = useFolders()
   // The shelves read (7.16), which a shelf tab's face resolves through.
-  const shelves = useShelves()
+  const { tabs } = useTabs()
+  /* Only a shelf tab needs shelf names, so the read waits until one is open
+     rather than costing every page a request at mount. */
+  const shelvesWanted =
+    location.pathname.startsWith(SHELF_PREFIX) ||
+    tabs.some((tab) => tab.path.startsWith(SHELF_PREFIX))
+  const shelves = useShelves(shelvesWanted)
   const invites = usePendingInvites()
   const createFolder = useCreateFolder()
   const update = useUpdateAffordance()

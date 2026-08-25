@@ -378,11 +378,18 @@ export function useSavedViews(): UseQueryResult<GetViewsResponse> {
   })
 }
 
-/** The viewer's shelves (7.16), the Library block's groups. */
-export function useShelves(): UseQueryResult<GetShelvesResponse> {
+/**
+ * The viewer's shelves (7.16), the Library block's groups.
+ *
+ * `enabled` exists because the chrome reads this only to put a name on a
+ * shelf's tab, and a request every page pays for so that one kind of tab can
+ * be labelled is a request most pages do not need.
+ */
+export function useShelves(enabled = true): UseQueryResult<GetShelvesResponse> {
   return useQuery({
     queryKey: queryKeys.shelves(),
     queryFn: () => getPlain(getShelvesResponse, '/shelves'),
+    enabled,
   })
 }
 
