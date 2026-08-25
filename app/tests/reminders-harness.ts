@@ -739,6 +739,15 @@ const SCHEDULER_MODULE = ['../src/server/schedu', 'ler/index.js'].join('')
 interface PassDeps {
   dbClient: DbClient
   notifications: { send(message: unknown): void | Promise<void> }
+  /** The object store, threaded when the app was built over an injected one
+   * (AC-235): the purge duty removes objects, and only the same store the
+   * application wrote into can show it happened. Optional because 11.7 fixes
+   * the required deps at two and this rides beside them like the logger. */
+  fileStore?: {
+    put(id: string, bytes: Buffer): Promise<void>
+    get(id: string): Promise<Buffer | null>
+    remove(id: string): Promise<void>
+  }
 }
 
 type Pass = () => Promise<unknown>
@@ -771,6 +780,7 @@ async function loadPass(app: AuthTestApp): Promise<Pass> {
   const deps: PassDeps = {
     dbClient: app.dbClient,
     notifications: app.emailSink as PassDeps['notifications'],
+    ...(app.fileStore === undefined ? {} : { fileStore: app.fileStore }),
   }
 
   expect(
