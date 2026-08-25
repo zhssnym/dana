@@ -172,8 +172,21 @@ function leaveFolderConfirm(name: string): string {
   )
 }
 
-export function FolderPage(): React.JSX.Element {
-  const { id = '' } = useParams<{ id: string }>()
+/**
+ * The folder page of 9.6.
+ *
+ * `folderId` overrides the route parameter and exists for exactly one
+ * caller: Desk renders this page at /app, where 10.6 fixes the installed
+ * app's start_url and so the folder's identity cannot be in the path. The
+ * default is the parameter, which is every other caller.
+ */
+export function FolderPage({
+  folderId,
+}: {
+  readonly folderId?: string
+} = {}): React.JSX.Element {
+  const { id: routeId = '' } = useParams<{ id: string }>()
+  const id = folderId ?? routeId
   const navigate = useNavigate()
   const folder = useFolder(id)
   const open = useFolderOpenTasks(id)
@@ -256,7 +269,7 @@ export function FolderPage(): React.JSX.Element {
         // the action rather than something the person does next: staying would
         // render 10.2's answer for a folder they can no longer see, which
         // reads as an error.
-        remove.mutate(id, { onSuccess: () => navigate(paths.myDay) })
+        remove.mutate(id, { onSuccess: () => navigate(paths.desk) })
       },
     )
   }
@@ -267,7 +280,7 @@ export function FolderPage(): React.JSX.Element {
       if (viewerId === null) return
       leave.mutate(
         { folderId: id, userId: viewerId },
-        { onSuccess: () => navigate(paths.myDay) },
+        { onSuccess: () => navigate(paths.desk) },
       )
     })
   }

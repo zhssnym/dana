@@ -22,7 +22,8 @@ paraphrased, which is the same discipline the normative strings get, because a
 port that reworded them would be a difference from the prototype and RFC 0002
 makes that a defect.
 */
-import type { LucideIcon } from 'lucide-react'
+/* The icon module of DES-125, since S8. */
+import type { LucideIcon } from '../lib/icons.js'
 import type { ReactNode } from 'react'
 
 export function PageHeading({

@@ -101,25 +101,30 @@ for another. AC-155 reads all four clauses.
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router'
-import type { LucideIcon } from 'lucide-react'
+/* The icon module of DES-125, since S8: one file owns the family and
+   nothing imports `lucide-react` directly. */
+import type { LucideIcon } from '../lib/icons.js'
 import {
+  Ban,
   CalendarDays,
+  CalendarX,
   CheckCircle2,
   ChevronDown,
   FolderPlus,
   Folders,
+  LampDesk,
   Layers3,
-  ListTodo,
   LogOut,
   MoreHorizontal,
   Pencil,
   Search,
-  Settings2,
+  Settings as SettingsGlyph,
   Star,
   SunMedium,
   Trash2,
+  UserRoundCheck,
   UsersRound,
-} from 'lucide-react'
+} from '../lib/icons.js'
 
 import { FolderRow } from '../components/folder-row.js'
 import {
@@ -158,11 +163,10 @@ import {
 } from '../components/ui/tooltip.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
-import { paths, sidebarPages } from '../routes.js'
+import { paths, pinnedNavPages } from '../routes.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
-import type { Settings } from '../../shared/me.js'
 
 /**
  * 9.1's names table, for the two controls this file names rather than a
@@ -177,12 +181,21 @@ const ACCOUNT = 'Account'
  * 9.1's page set is one edit in `routes.ts` and not two.
  */
 const pageIcons: Record<string, LucideIcon> = {
-  [paths.myDay]: SunMedium,
-  [paths.tasks]: ListTodo,
-  [paths.planned]: CalendarDays,
+  /* Desk wears a desk lamp (DES-181), resolved here beside its siblings
+     rather than inside a folder resolver, because in this list it is a page
+     entry like the eight below it. */
+  [paths.desk]: LampDesk,
+  [paths.today]: SunMedium,
+  [paths.scheduled]: CalendarDays,
+  [paths.assignments]: UserRoundCheck,
   [paths.important]: Star,
   [paths.all]: Layers3,
   [paths.done]: CheckCircle2,
+  [paths.abandoned]: Ban,
+  /* A calendar with an X: the filter's own "No due date", and the other
+     value of the axis Scheduled's calendar carries. It wore All's glyph for
+     one revision and read as a repeated row (DES-152's own note). */
+  [paths.anytime]: CalendarX,
 }
 
 /**
@@ -544,7 +557,7 @@ function SidebarBrandHeader({
     <SidebarHeader className="p-2 pb-1">
       <div className="flex min-h-[var(--shell-sidebar-item-height)] items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
         <Link
-          to={paths.myDay}
+          to={paths.desk}
           className="flex min-w-0 items-center gap-3 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         >
           <img
@@ -630,7 +643,7 @@ function AccountMenu({
           className="min-h-[var(--control-height)] text-sm"
           onClick={onOpenSettings}
         >
-          <Settings2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          <SettingsGlyph className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -647,7 +660,7 @@ function AccountMenu({
 }
 
 export function AppSidebar({
-  settings,
+  pinnedViews,
   folders,
   groups: groupActions,
   displayName,
@@ -662,8 +675,15 @@ export function AppSidebar({
   onNewFolder,
   onSignOut,
 }: {
-  /** Absent while the read is in flight or has failed. */
-  readonly settings: Settings | undefined
+  /**
+   * The pin list of 4.19, which decides which page entries exist.
+   *
+   * Absent while the bundle read is in flight or has failed, and the model
+   * falls back to 9.1's defaults rather than to an empty list: a sidebar that
+   * empties on a failed read strands a person wherever they are standing,
+   * which is AC-095's third case generalised to the pin list.
+   */
+  readonly pinnedViews: readonly string[] | undefined
   readonly folders: readonly Folder[] | undefined
   /** 9.1's four folder-group operations, held by the shell that mounts them. */
   readonly groups: FolderGroupActions
@@ -682,9 +702,7 @@ export function AppSidebar({
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
   const { inbox, groups, unlabeled } = groupFolders(folders ?? [])
-  const visiblePages = sidebarPages.filter(
-    (page) => page.setting === null || settings?.[page.setting] === true,
-  )
+  const visiblePages = pinnedNavPages(pinnedViews)
 
   return (
     <Sidebar
@@ -720,12 +738,8 @@ export function AppSidebar({
                   key={page.path}
                   name={page.name}
                   to={page.path}
-                  icon={pageIcons[page.path] ?? ListTodo}
-                  active={
-                    page.path === paths.myDay
-                      ? currentPath === paths.myDay
-                      : currentPath === page.path
-                  }
+                  icon={pageIcons[page.path] ?? Layers3}
+                  active={currentPath === page.path}
                 />
               ))}
             </SidebarMenu>
@@ -750,19 +764,32 @@ export function AppSidebar({
             {/* The heading is hidden in the rail and the rows below it are
                 not, which is 9.1's "changes nothing about what the sidebar
                 holds" applied to the half of the list a person can reach. */}
-            <div className="group/folder-directory flex h-8 items-center px-1 group-data-[collapsible=icon]:hidden">
+            {/*
+            The Library block of 9.1, and it is a heading wrapping the
+            control rather than a control alone. That section's regions
+            paragraph asks for both: "a named region plus a control
+            carrying that name, whose expanded state is what open and
+            collapsed mean". A bare button satisfies the control half and
+            leaves the block unnamed in the document outline, which is
+            what AC-214 reads when it asks for the heading.
+
+            The heading is hidden in the rail and the rows below it are
+            not, which is 9.1's "changes nothing about what the sidebar
+            holds" applied to the half of the list a person can reach.
+            */}
+            <h2 className="group/folder-directory flex h-8 items-center px-1 group-data-[collapsible=icon]:hidden">
               <CollapsibleTrigger
                 data-sidebar-tier="section"
                 className="group/folder-directory-trigger flex h-6 min-w-0 flex-1 items-center rounded-md px-2 text-left text-[11px] font-semibold text-[var(--color-graphite-600)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-ring/30"
               >
-                <span className="truncate">Folders</span>
+                <span className="truncate">Library</span>
                 <ChevronDown
                   className={`ml-1 size-3.5 shrink-0 text-[var(--color-graphite-500)] opacity-0 transition-[opacity,transform] group-hover/folder-directory-trigger:opacity-100 group-focus-visible/folder-directory-trigger:opacity-100 ${foldersOpen ? '' : '-rotate-90'}`}
                   strokeWidth={1.75}
                   aria-hidden="true"
                 />
               </CollapsibleTrigger>
-            </div>
+            </h2>
             <CollapsibleContent>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -815,6 +842,20 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
+          {/*
+          Trash is a destination and not an action (9.1), which is why it
+          sits here beside People and Settings rather than in the row
+          above them where New folder lives: a destination is somewhere
+          you go, look around, and come back from. The other two acts
+          that row owes, "New shelf" and "Import", arrive with the
+          surfaces they make.
+          */}
+          <NavigationRow
+            name="Trash"
+            to={paths.trash}
+            icon={Trash2}
+            active={currentPath === paths.trash}
+          />
           <NavigationRow
             name="People"
             to={paths.people}
@@ -824,7 +865,7 @@ export function AppSidebar({
           <NavigationRow
             name="Settings"
             to={paths.settings}
-            icon={Settings2}
+            icon={SettingsGlyph}
             active={currentPath === paths.settings}
           />
         </SidebarMenu>

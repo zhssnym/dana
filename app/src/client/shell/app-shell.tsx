@@ -54,12 +54,28 @@ answer to a question 11.6's double-submit expects one answer to.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import type { LucideIcon } from 'lucide-react'
-import { CalendarDays, CheckCircle2, Folder as FolderIcon, Layers3, ListTodo, Settings2, Star, SunMedium, UsersRound } from 'lucide-react'
+/* The icon module of DES-125, since S8: every icon Dana uses is an export
+   of one file and nothing imports `lucide-react` directly. */
+import type { LucideIcon } from '../lib/icons.js'
+import {
+  Ban,
+  CalendarDays,
+  CalendarX,
+  CheckCircle2,
+  Folder as FolderIcon,
+  LampDesk,
+  Layers3,
+  Settings,
+  Star,
+  SunMedium,
+  Trash2,
+  UserRoundCheck,
+  UsersRound,
+} from '../lib/icons.js'
 
 import { mutateApi } from '../api/http.js'
 import { useCreateFolder } from '../api/mutations.js'
-import { useFolders, useMe, usePendingInvites, useSettings } from '../api/queries.js'
+import { useBundle, useFolders, useMe, usePendingInvites } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog, PageBar } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
@@ -68,7 +84,7 @@ import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
-import { paths, sidebarPages } from '../routes.js'
+import { navPages, paths } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
@@ -99,30 +115,37 @@ const FOLDER_PREFIX = '/app/folders/'
 const NO_FOLDERS: readonly Folder[] = []
 
 /**
- * The entry-point defaults of 9.3, keyed by the page the button sits on.
+ * Where the floating button appears, and what it makes there.
  *
- * The folder page's cell was closed at the P8 change control and restated by
- * RFC 0002 when 9.6 lost its two sections: the value is an empty due date
- * whether the form was opened from the page's quick-add or from this button,
- * because a folder is not a dated page.
+ * **The rule inverted at RFC 0005 and this is the inversion.** v1 put the
+ * button on every page except Done. 9.1 now puts it only on "the pages with
+ * no capture affordance of their own, Today, Important, and Assignments",
+ * and never on Done or Abandoned; in board view every column captures and
+ * the button is absent there too (DES-182, S10 owns that half). Every other
+ * page has a quick-add row where its own list begins, so a second control
+ * floating over it is two ways to do one thing, forty pixels apart.
+ *
+ * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
+ * page." A deleted-things page that offers to make a new thing is offering
+ * an act its own subject cannot receive.
+ *
+ * The defaults themselves are 9.3's entry table, whose v2 rows land with
+ * S10 and the board columns. What is here is the three pages this rule
+ * leaves the button on, each carrying the value its own spine locks.
  */
 function floatingDefaults(pathname: string): TaskFormDefaults | null {
-  if (pathname === paths.done) return null // 9.1: every page except Done.
-  if (pathname === paths.myDay) return { due_date: todayInBrowserZone(), important: false }
-  if (pathname === paths.planned) {
+  /* Today locks the day, so a task made here is due today; the Today
+     membership its spine actually wants is S10's, with the page. */
+  if (pathname === paths.today) {
     return { due_date: todayInBrowserZone(), important: false }
   }
+  /* Important locks the flag. */
   if (pathname === paths.important) return { due_date: null, important: true }
-  if (pathname.startsWith(FOLDER_PREFIX)) {
-    return {
-      due_date: null,
-      important: false,
-      folder_id: pathname.slice(FOLDER_PREFIX.length),
-    }
-  }
-  // Tasks, All, and the bare button: empty date, important off, Inbox, which
-  // the server supplies by defaulting folder_id to the viewer's Inbox (7.6).
-  return { due_date: null, important: false }
+  /* Assignments locks the assignee, and the value it locks is the viewer;
+     the assignee field arrives with S10's page, so the button opens the
+     form with the folder and date empty and the person chooses. */
+  if (pathname === paths.assignments) return { due_date: null, important: false }
+  return null
 }
 
 /** Whether a keystroke landed somewhere a person is typing. */
@@ -134,13 +157,17 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** The glyph the page strip shows, which is the designer's and not 9.1's. */
 const pageIcons: Record<string, LucideIcon> = {
-  [paths.myDay]: SunMedium,
-  [paths.tasks]: ListTodo,
-  [paths.planned]: CalendarDays,
+  [paths.desk]: LampDesk,
+  [paths.today]: SunMedium,
+  [paths.scheduled]: CalendarDays,
+  [paths.assignments]: UserRoundCheck,
+  [paths.abandoned]: Ban,
+  [paths.anytime]: CalendarX,
+  [paths.trash]: Trash2,
   [paths.important]: Star,
   [paths.all]: Layers3,
   [paths.done]: CheckCircle2,
-  [paths.settings]: Settings2,
+  [paths.settings]: Settings,
   [paths.people]: UsersRound,
 }
 
@@ -157,9 +184,7 @@ function currentPage(
   pathname: string,
   folders: readonly Folder[] | undefined,
 ): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
-  const page = sidebarPages.find((candidate) =>
-    candidate.path === paths.myDay ? pathname === paths.myDay : pathname === candidate.path,
-  )
+  const page = navPages.find((candidate) => pathname === candidate.path)
   if (page !== undefined) {
     return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }
   }
@@ -185,7 +210,16 @@ export function AppShell(): React.JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
   const me = useMe()
-  const settings = useSettings()
+  /*
+  The bundle of 4.19 rather than frozen 7.2's settings, since S9.
+
+  The three v1 page flags still exist and still decide the same entries: with
+  no pins written, the server derives the pin list from them (RFC 0005's
+  change control item 6), so a v1 account's show_done arrives as Done pinned
+  and nothing about 7.2 moved. What changed is that the sidebar now reads one
+  record of that fact instead of two, which is what the fold was for.
+  */
+  const bundle = useBundle()
   const folders = useFolders()
   const invites = usePendingInvites()
   const createFolder = useCreateFolder()
@@ -327,7 +361,7 @@ export function AppShell(): React.JSX.Element {
           }
         >
           <AppSidebar
-            settings={settings.data}
+            pinnedViews={bundle.data?.pinned_views}
             folders={folders.data}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
