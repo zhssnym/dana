@@ -1321,6 +1321,19 @@ fold, the way P7's mid-package change control ratified the pass callable:
     is the removal AC-162's own file already anticipates in terms, under
     that criterion's own quantifier. It goes when persona 11 next opens the
     file, and AC-225 is what reads what replaced it.
+
+    **Accepted as recommended, by Imran on 2026-08-25**, and section 12 now
+    carries the amended AC-181, its "Label and color" case deleted with the
+    dialog it asserted and its "New folder" case untouched. The rework found
+    this item's own enumeration one case wide, corrected here the way item 8
+    corrects its list of twenty: the "folder-counts" case and the
+    folder-delete confirm are one test, the case whose confirm carries the
+    three counts, so there was no fifth case. The locator corrections were
+    therefore two rather than three, the two leave-confirm cases, each
+    reaching the menu the way AC-217 already does, by role and name inside
+    the main landmark, with neither criterion's sentence moving; and the one
+    counts-and-delete case was removed under AC-162's quantifier as its file
+    had anticipated, a locator fixed inside a deleted case being nothing.
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
