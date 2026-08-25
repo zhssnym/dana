@@ -77,7 +77,7 @@ import { mutateApi } from '../api/http.js'
 import { useCreateFolder } from '../api/mutations.js'
 import { useBundle, useFolders, useMe, usePendingInvites } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
-import { NewFolderDialog, PageBar } from '../components/index.js'
+import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskFormOverlay } from '../components/task-form/index.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
@@ -94,6 +94,7 @@ import { undoLast, undoShortcutApplies } from './undo.js'
 import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
 import { TabStrip } from './TabStrip.js'
+import { WindowBar } from './WindowBar.js'
 import { retarget } from './tabs.js'
 import {
   clampSidebarWidth,
@@ -305,7 +306,6 @@ export function AppShell(): React.JSX.Element {
   }, [railOpen])
 
   const defaults = floatingDefaults(location.pathname)
-  const page = currentPage(location.pathname, folders.data)
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
@@ -445,10 +445,16 @@ export function AppShell(): React.JSX.Element {
                 void navigate(path)
               }}
             />
-            <PageBar
-              title={page.title}
-              icon={page.icon}
-              iconColor={page.iconColor}
+            {/*
+            The window bar of 9.1 and DES-139, replacing the v1 page strip.
+
+            The strip it replaces repeated the page's title, which 9.1 now
+            forbids in as many words because the tab above says it. The one
+            thing on it that was not the title, 10.6's update affordance,
+            came across with the bar.
+            */}
+            <WindowBar
+              pathname={location.pathname}
               showUpdate={update.showUpdate}
               onUpdate={update.applyUpdate}
             />
