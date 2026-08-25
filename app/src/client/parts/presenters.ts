@@ -496,8 +496,11 @@ export interface RowContext {
 }
 
 /**
- * The display half of his task row: everything but the callbacks and the
- * visual-state props his state lab drives.
+ * The display half of his task row: everything but the callbacks.
+ *
+ * It used to read "everything but the callbacks and the visual-state props his
+ * state lab drives", and the second half went with those props at S11: nothing
+ * in this client ever drove them, which is DES-184 one axis over.
  *
  * Written as a `Pick` of his own interface rather than as a fresh shape, so a
  * prop that changes name or type in `task-row.tsx` fails the typecheck here
