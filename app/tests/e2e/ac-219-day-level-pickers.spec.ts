@@ -13,6 +13,18 @@ creates, because the pair is the point: the same surface that refuses a time
 on the due chip must offer one on the reminder chip, and a client that
 strips time everywhere or offers it everywhere each fail exactly one half.
 
+**The day grid is asserted as one element, whichever shape the picker takes.**
+The first spelling of this bound its `.first()` to one side of the `.or()`,
+so a picker carrying a `grid` *and* `gridcell` children matched twice and the
+assertion died of strict mode rather than of anything it was about. Every
+conformant day grid carries both, that being what the two roles are for, so
+the locator could only ever have passed against a picker missing one of them.
+Corrected on 2026-08-25 under persona 11 with the criterion's sentence
+unmoved, on the S9 precedent for a locator that names the wrong thing and the
+same reading RFC 0005's change control item 14 took: the assertion is still
+that a day grid is visible in the open picker, and only how it is addressed
+moved.
+
 **"No time-of-day control" is asserted as no time input inside the open due
 picker.** 9.3's v2 table says the pickers offer no time of day; what a
 criterion can hold is that the opened picker contains no control a person
@@ -76,7 +88,7 @@ test.describe('AC-219: day-level due, clocked reminder', () => {
     )
     const picker = page.getByRole('dialog').last()
     await expect(
-      picker.getByRole('grid').or(picker.getByRole('gridcell').first()),
+      picker.getByRole('grid').or(picker.getByRole('gridcell')).first(),
       'spec 9.3: the due picker opens on a day grid, a due date being a day (DES-178)',
     ).toBeVisible()
     await expect(
