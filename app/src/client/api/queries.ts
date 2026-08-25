@@ -19,6 +19,8 @@ import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-que
 import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
 import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
+import { getEventsResponse } from '../../shared/events.js'
+import type { GetEventsResponse } from '../../shared/events.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -390,5 +392,21 @@ export function useTrash(): UseQueryResult<GetTrashResponse> {
   return useQuery({
     queryKey: queryKeys.trash(),
     queryFn: () => getPlain(getTrashResponse, '/trash'),
+  })
+}
+
+/**
+ * The recent events of one thing (7.12), which the window bar's Activity line
+ * reads and which the history surfaces of S12 will read too.
+ *
+ * `subject` is 4.13's `kind:id` reference. Disabled for a null subject rather
+ * than called with a placeholder, because a place page has no history of its
+ * own and asking for one would be a 404 the bar then has to ignore.
+ */
+export function useSubjectEvents(subject: string | null): UseQueryResult<GetEventsResponse> {
+  return useQuery({
+    queryKey: queryKeys.events(subject ?? ''),
+    queryFn: () => getPlain(getEventsResponse, '/events', { subject: subject ?? '' }),
+    enabled: subject !== null,
   })
 }
