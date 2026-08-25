@@ -90,7 +90,11 @@ import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
+import { undoLast, undoShortcutApplies } from './undo.js'
+import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
+import { TabStrip } from './TabStrip.js'
+import { retarget } from './tabs.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -251,6 +255,43 @@ export function AppShell(): React.JSX.Element {
   }, [])
 
   /*
+  9.1's undo shortcut, Ctrl+Z or Cmd+Z, and no redo.
+
+  On the document for the same reason the search shortcut is: undo has to
+  reach the act from wherever the person ended up, which is usually not the
+  bar. It is refused while somebody is typing, and that refusal is the most
+  important line in this block: a text input's own undo is older, better
+  understood, and scoped to the words in front of them, so stealing Ctrl+Z
+  from a half-written task title to un-delete something three screens away
+  would be the most alarming thing this feature could do.
+  */
+  /*
+  Ordinary navigation retargets the active tab, as an address bar does
+  (9.1). One effect on the router's own location covers every way this
+  client can move: a sidebar link, a folder row, a redirect, the back
+  button and a programmatic navigate all land here, so no link in the
+  application has to know that tabs exist. `retarget` is a no-op when the
+  path already matches, which is what stops it looping with the navigations
+  the strip itself asks for.
+  */
+  useEffect(() => {
+    retarget(location.pathname)
+  }, [location.pathname])
+
+  useEffect(() => {
+    function onUndo(event: KeyboardEvent): void {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+      if (!undoShortcutApplies(event.target)) return
+      event.preventDefault()
+      undoLast()
+    }
+    document.addEventListener('keydown', onUndo)
+    return () => {
+      document.removeEventListener('keydown', onUndo)
+    }
+  }, [])
+
+  /*
   The one line that fights the distribution, and the reason is in
   `preferences.ts`. shadcn's `SidebarProvider` mirrors the collapsed state
   into a `sidebar_state` cookie because it is built for a host that reads it
@@ -389,6 +430,21 @@ export function AppShell(): React.JSX.Element {
               page strip below it a page's header rather than the
               application's banner (AC-174). */}
           <SidebarInset className="min-w-0 overflow-hidden bg-card">
+            {/*
+            The tab strip of 9.1, above the window bar and inside `main`.
+
+            Inside rather than above the inset for AC-174's reason: a
+            `header` outside `main` is the banner landmark that criterion
+            asserts the absence of, and the strip is chrome belonging to the
+            window rather than to the application.
+            */}
+            <TabStrip
+              face={(path) => currentPage(path, folders.data)}
+              folders={folders.data ?? NO_FOLDERS}
+              onNavigate={(path) => {
+                void navigate(path)
+              }}
+            />
             <PageBar
               title={page.title}
               icon={page.icon}
@@ -426,6 +482,10 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
+      {/* 9.1's undo bar: one for the whole window, bottom-left, outside the
+          sidebar provider so it is not clipped by the shell's own layout and
+          so there is exactly one of it however many pages mount. */}
+      <UndoBar />
       <ToastRegion />
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
