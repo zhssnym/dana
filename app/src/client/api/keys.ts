@@ -21,4 +21,12 @@ export const queryKeys = {
   view: (name: string) => ['views', name] as const,
   /** One task in full (7.6's GET), which the 9.3 form reads in edit mode. */
   task: (id: string) => ['tasks', id] as const,
+
+  /* The v2 surfaces (RFC 0005). `bundle` is the 4.19 person's bundle at
+     /settings, which is beside frozen 7.2's /me/settings and never instead of
+     it, so it carries a key of its own rather than shadowing `settings`. */
+  bundle: () => ['settings', 'bundle'] as const,
+  savedViews: () => ['settings', 'views'] as const,
+  shelves: () => ['shelves'] as const,
+  trash: () => ['trash'] as const,
 } as const

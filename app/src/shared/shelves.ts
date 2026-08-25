@@ -38,3 +38,28 @@ export interface Shelf {
   description: string | null
   created_at: string
 }
+
+/*
+The read half, added by the S9 client arm on 2026-08-24.
+
+**A boundary note, because this file is not the client arm's.** S5 built the
+7.16 routes and published the write bodies and the `Shelf` interface, but no
+zod schema for what a read answers, and `api/http.ts` parses every response
+through one: a client cannot call GET /shelves without this. The same gap sits
+in `bundle.ts` and over the 7.13 trash view, and all three are recorded
+together in RFC 0005's change control rather than worked around with a private
+schema in `src/client`, which would put the contract in two places and let
+them drift. Nothing existing is touched; this only adds what a reader needs.
+*/
+export const shelf = z.object({
+  id: z.uuid(),
+  name: shelfName,
+  icon: z.string().nullable(),
+  color: z.string().nullable(),
+  cover_file_id: z.uuid().nullable(),
+  description: z.string().nullable(),
+  created_at: z.string(),
+})
+
+export const getShelvesResponse = z.array(shelf)
+export type GetShelvesResponse = z.infer<typeof getShelvesResponse>

@@ -75,3 +75,43 @@ export interface SavedView {
   pinned: boolean
   created_at: string
 }
+
+/*
+The read half, added by the S9 client arm on 2026-08-24, for the reason
+`shelves.ts` records at its own addition: S7 published the patch body and the
+`SettingsBundle` interface, and `api/http.ts` parses every response through a
+zod schema, so the sidebar cannot read its own pin list without this. The
+interface above stays the type the server writes against; this is the same
+shape as a parser, and the two are asserted equal by construction below.
+*/
+export const settingsBundle = z.object({
+  theme: z.enum(['system', 'light', 'dark']),
+  row_density: z.enum(['comfortable', 'compact']),
+  clock: z.enum(['12h', '24h']),
+  task_open: z.enum(['dialog', 'panel', 'tab']),
+  pinned_views: z.array(z.string()),
+  sidebar_order: z.array(z.string()),
+  arrangements: z.record(z.string(), z.string()),
+})
+export const getSettingsResponse = settingsBundle
+export type GetSettingsResponse = z.infer<typeof settingsBundle>
+
+/* A compile-time equality: the parser and the interface the server writes
+   against are one shape, so a field added to one and not the other is a
+   typecheck failure rather than a runtime surprise in the sidebar. */
+const _bundleShapesAgree: GetSettingsResponse extends SettingsBundle
+  ? SettingsBundle extends GetSettingsResponse
+    ? true
+    : never
+  : never = true
+void _bundleShapesAgree
+
+export const savedView = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  definition: z.record(z.string(), z.unknown()),
+  pinned: z.boolean(),
+  created_at: z.string(),
+})
+export const getViewsResponse = z.array(savedView)
+export type GetViewsResponse = z.infer<typeof getViewsResponse>

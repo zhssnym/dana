@@ -16,6 +16,8 @@ tz, the roster and the folder list and settings do not and carry none.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
+import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
+import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
@@ -24,7 +26,11 @@ import { getInvitesPendingResponse, getInvitesSentResponse } from '../../shared/
 import type { GetInvitesPendingResponse, GetInvitesSentResponse } from '../../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
 import type { MeResponse, Settings } from '../../shared/me.js'
+import { getShelvesResponse } from '../../shared/shelves.js'
+import type { GetShelvesResponse } from '../../shared/shelves.js'
 import { getTaskResponse } from '../../shared/tasks.js'
+import { getTrashResponse } from '../../shared/trash.js'
+import type { GetTrashResponse } from '../../shared/trash.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import {
   getAllResponse,
@@ -335,5 +341,54 @@ export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearch
     queryKey: [...queryKeys.view('search'), q],
     queryFn: () => getView(getSearchResponse, '/search', { q }),
     enabled,
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The v2 surfaces (RFC 0005)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The person's bundle of 4.19, at the v2 address.
+ *
+ * Beside frozen 7.2's `useSettings` and never instead of it: 7.2 still owns
+ * the three v1 page flags, and this owns the pin list those flags derive into
+ * when nobody has written pins yet (RFC 0005's change control item 6). The
+ * sidebar reads this one, because the pin list is what decides which entries
+ * exist.
+ */
+export function useBundle(): UseQueryResult<GetSettingsResponse> {
+  return useQuery({
+    queryKey: queryKeys.bundle(),
+    queryFn: () => getPlain(getSettingsResponse, '/settings'),
+  })
+}
+
+/** The viewer's saved views (4.19), which the sidebar pins alongside natives. */
+export function useSavedViews(): UseQueryResult<GetViewsResponse> {
+  return useQuery({
+    queryKey: queryKeys.savedViews(),
+    queryFn: () => getPlain(getViewsResponse, '/views'),
+  })
+}
+
+/** The viewer's shelves (7.16), the Library block's groups. */
+export function useShelves(): UseQueryResult<GetShelvesResponse> {
+  return useQuery({
+    queryKey: queryKeys.shelves(),
+    queryFn: () => getPlain(getShelvesResponse, '/shelves'),
+  })
+}
+
+/**
+ * The 7.13 Trash listing, which 9.11 draws as one page.
+ *
+ * No tz: the endpoint evaluates no calendar date, it reports instants, and
+ * 7.0's split is what decides that rather than habit.
+ */
+export function useTrash(): UseQueryResult<GetTrashResponse> {
+  return useQuery({
+    queryKey: queryKeys.trash(),
+    queryFn: () => getPlain(getTrashResponse, '/trash'),
   })
 }
