@@ -54,22 +54,20 @@ redirects, the steps editor is reached from the same page, and the abandon
 confirm is opened on Today, which draws Q1 at /app/today now that Desk holds
 /app. Nothing about the nine strings moves with them.
 
-The clause escalated is the criterion's seventh string. It names "9.6's
-leave, remove-member and delete-folder confirms", and 9.6 no longer has a
-delete-folder confirm: "deleting moves the folder to Trash for every member
-at once, with the undo bar and no confirmation: two ways back is why the
-question left." A criterion that enumerates a string its own section has
-since removed is a criterion whose text is false in that clause, and
-protocol section 8 does not let this role edit that text: it is a Replace
-unit for RFC 0005's change control and a question for the owner, whose two
-honest answers are to drop the clause or to point it at 9.11's Trash copy
-instead. Until he rules, the case stays and stays green, the client still
-having the confirm; what would be dishonest is deleting a criterion's case
-because the criterion is inconvenient rather than because the owner said so.
-9.4's abandon confirm is a different matter and needs no unit: v2 rewords the
-sentence from "My Day" to "Today", the criterion points at the confirm rather
-than quoting it, and the string moves when S10 redraws the page that renders
-it.
+**The delete-folder clause was dropped by the owner's ruling of 2026-08-24.**
+The criterion named "9.6's leave, remove-member and delete-folder confirms",
+and 9.6 no longer has a delete-folder confirm: "deleting moves the folder to
+Trash for every member at once, with the undo bar and no confirmation: two
+ways back is why the question left." A criterion enumerating a string its own
+section has since removed is a criterion whose text is false in that clause,
+so it was raised as a Replace unit in RFC 0005's change control item 8 and
+accepted as recommended. The case that asserted it is gone with the clause,
+and what replaced the confirmation is the undo bar, which AC-225 reads. Eight
+strings remain and the criterion is otherwise verbatim.
+
+9.4's abandon confirm needed no unit: v2 rewords the sentence from "My Day"
+to "Today", the criterion points at the confirm rather than quoting it, and
+the string moves when S10 redraws the page that renders it.
 
 Spec: 9.1 (the inline state copy, the conflict rule, "Continue" and
 "Cancel", and the v2 routes table), 9.3 (the steps cap notice), 9.4 (the
@@ -78,7 +76,6 @@ abandon confirm), 9.6 (the leave, remove-member and delete-folder confirms),
 10.3, 7.5.
 */
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
@@ -96,7 +93,6 @@ import {
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  transition,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -106,29 +102,6 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** 10.3's cap, which 9.3's notice reports. */
 const STEP_CAP = 50
-const DOOMED = 'ac-183 folder with counted tasks'
-/** Three different numbers, none of them one, per AC-162's reasoning. */
-const OPEN = 3
-const COMPLETED = 2
-const ABANDONED = 4
-
-async function ensureFolder(page: Page, name: string): Promise<string> {
-  const token = await csrfToken(page.context())
-  const list = await page.request.get('/api/v1/folders')
-  const existing = ((await list.json()) as { id: string; name: string }[]).find(
-    (folder) => folder.name === name,
-  )
-  if (existing !== undefined) return existing.id
-  const created = await page.request.post('/api/v1/folders', {
-    data: { name },
-    headers: { 'X-CSRF-Token': token },
-  })
-  expect(
-    created.status(),
-    `POST /folders answered ${created.status()}: ${await created.text()}`,
-  ).toBe(201)
-  return ((await created.json()) as { id: string }).id
-}
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
@@ -302,58 +275,6 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     await clickControl(
       page.getByRole('button', { name: 'Cancel', exact: true }),
       'spec 9.1: every confirmation offers Continue and Cancel, and this case removes nobody',
-    )
-  })
-
-  test("AC-183: 9.6's delete-folder confirm", async ({ page }) => {
-    const folderId = await ensureFolder(page, DOOMED)
-    const existing = await page.request.get(`/api/v1/folders/${folderId}`)
-    const counts = ((await existing.json()) as { counts: { pending: number } }).counts
-    if (counts.pending === 0) {
-      for (let i = 0; i < OPEN; i += 1) {
-        await createTask(page, { title: `ac-183 open ${i}`, folder_id: folderId })
-      }
-      for (let i = 0; i < COMPLETED; i += 1) {
-        const task = await createTask(page, {
-          title: `ac-183 completed ${i}`,
-          folder_id: folderId,
-        })
-        await transition(page, task.id, 'complete', 'UTC')
-      }
-      for (let i = 0; i < ABANDONED; i += 1) {
-        const task = await createTask(page, {
-          title: `ac-183 abandoned ${i}`,
-          folder_id: folderId,
-        })
-        await transition(page, task.id, 'abandon', 'UTC')
-      }
-    }
-
-    await page.goto(routesV2.folder(folderId))
-    await clickControl(
-      regionOf(page, 'Folder header').getByRole('button', {
-        name: 'More actions',
-        exact: true,
-      }),
-      'spec 9.6 and 9.1: the folder header is a named region carrying an overflow menu',
-    )
-    await clickControl(
-      page.getByRole('menuitem', { name: /delete/i }),
-      'spec 9.6: the header overflow carries Delete, owner only',
-    )
-
-    await expectOneTextRun(
-      page,
-      copy.deleteFolder(DOOMED, OPEN, COMPLETED, ABANDONED),
-      'spec 9.6: the delete confirm carries the folder name and three counts, and the ' +
-        "prototype renders its first clause as the dialog's title. It is the only place a " +
-        'person is told the deletion reaches every member rather than only their own view. The ' +
-        'three counts differ here and none is one, so a client rendering the same number three ' +
-        'times cannot pass by looking numeric',
-    )
-    await clickControl(
-      page.getByRole('button', { name: 'Cancel', exact: true }),
-      'spec 9.1: every confirmation offers Continue and Cancel, and this case deletes nothing',
     )
   })
 
