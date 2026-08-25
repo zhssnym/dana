@@ -82,6 +82,14 @@ export interface AppOptions {
   dbClient?: DbClient
   auth?: AuthConfig
   notifications?: { send(message: unknown): void | Promise<void> }
+  /** The S4 object store seam, restated structurally for AC-235: a purge
+   * must be observable removing objects, and only an injected store can be
+   * read afterwards. */
+  fileStore?: {
+    put(id: string, bytes: Buffer): Promise<void>
+    get(id: string): Promise<Buffer | null>
+    remove(id: string): Promise<void>
+  }
 }
 
 type AppFactory = (
@@ -132,6 +140,21 @@ export interface AuthTestApp {
    * defaulting it away.
    */
   emailSink?: { send(message: unknown): void | Promise<void> }
+  /**
+   * The injected object store, when startAuthTestApp was handed one, so the
+   * reminders harness can compose the 11.7 pass with the same store the
+   * application holds (AC-235): a purge that removes objects from a store
+   * nothing reads would be unobservable.
+   */
+  fileStore?: AppOptions['fileStore']
+  /**
+   * The constructed application object itself, for AC-236's structural
+   * sweep: enumerating the mounted router is the only way "every mutating
+   * route" can be asserted rather than sampled, and the object cannot be
+   * reached over HTTP. Optional for the same boundary reason as emailSink;
+   * startAuthTestApp always sets it.
+   */
+  application?: unknown
   browser(): TestBrowser
   close(): Promise<void>
 }
@@ -196,7 +219,9 @@ opposite of this suite's job.
 */
 const AUTH_BASE = '/api/v1'
 
-export async function startAuthTestApp(): Promise<AuthTestApp> {
+export async function startAuthTestApp(
+  options: { fileStore?: AppOptions['fileStore'] } = {},
+): Promise<AuthTestApp> {
   const dbClient = await createTestDb()
   const stub = await startOidcStub()
 
@@ -229,7 +254,12 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
   process.env.OIDC_ALLOW_INSECURE = '1'
 
   const emails = createEmailRecorder()
-  const app = await startApp({ dbClient, auth, notifications: emails.sink })
+  const app = await startApp({
+    dbClient,
+    auth,
+    notifications: emails.sink,
+    ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
+  })
   server.on('request', app)
 
   const testApp: AuthTestApp = {
@@ -239,6 +269,8 @@ export async function startAuthTestApp(): Promise<AuthTestApp> {
     stub,
     emails,
     emailSink: emails.sink,
+    application: app,
+    ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
 
     browser() {
       return new TestBrowser(origin)

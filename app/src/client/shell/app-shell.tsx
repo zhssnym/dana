@@ -73,7 +73,7 @@ import {
   UsersRound,
 } from '../lib/icons.js'
 
-import { mutateApi } from '../api/http.js'
+import { ApiError, mutateApi } from '../api/http.js'
 import { useCreateFolder, usePatchBundle } from '../api/mutations.js'
 import {
   useBundle,
@@ -358,6 +358,22 @@ export function AppShell(): React.JSX.Element {
     document.cookie = 'sidebar_state=; path=/; max-age=0'
   }, [railOpen])
 
+  /*
+  F-8 (RFC 0005 change control item 18, ed33d2f): an unauthenticated read at
+  any /app route sends the person to / rather than rendering the shell over a
+  wall of refusals. The branch is the refusal alone, an ApiError carrying
+  10.1's 401: a /me that is slow, offline, or failed any other way keeps the
+  shell, because 10.6 opens every /app path from the cached worker with no
+  network at all, and a redirect firing on anything but a refusal would
+  bounce every real session on a bad connection. A full document load rather
+  than a client navigation, for signOut's reason below: whatever the caches
+  hold belongs to nobody the browser can still name.
+  */
+  const signedOut = me.error instanceof ApiError && me.error.status === 401
+  useEffect(() => {
+    if (signedOut) window.location.replace(paths.landing)
+  }, [signedOut])
+
   const defaults = floatingDefaults(location.pathname, remembered)
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
@@ -395,6 +411,12 @@ export function AppShell(): React.JSX.Element {
   The returned tree carries no chrome except the two global states; see
   `pages/InviteGate.tsx` for why those two and not the rest.
   */
+  // F-8's other half: while the document load above is in flight, the shell
+  // must not mount its pages, whose reads would each earn the same 401.
+  if (signedOut) {
+    return <></>
+  }
+
   if ((invites.data?.length ?? 0) > 0) {
     return (
       <>
