@@ -14,22 +14,29 @@ the browser; this file addresses the arithmetic underneath it, at the level
 where an off-by-one is legible rather than showing up as a row landing one
 place from where somebody dropped it.
 
-The fixture is five rows of 40 pixels with no gap, so a stride is 40 and a
-midpoint is legible by eye: tops 0, 40, 80, 120, 160 and centres 20, 60, 100,
-140, 180.
+The fixture is five items of 40 pixels with no gap, so a stride is 40 and a
+midpoint is legible by eye: starts 0, 40, 80, 120, 160 and centres 20, 60,
+100, 140, 180.
+
+The measurements are `start` and `end` along the list's own axis rather than
+top and bottom, because the engine sorts a column or a strip on the same
+arithmetic (the tab strip of 9.1, and a board's columns after it). Most cases
+below read as a column because that is the ordinary list; the last describe
+block reads the same fixture as a row of tabs, to hold the claim that the
+axis costs the geometry nothing.
 */
 import { describe, expect, it } from 'vitest'
 
 import { moved, offsetFor, slotFor, type Metrics } from './use-sortable-list.js'
 
 function rows(count: number, height = 40): Metrics {
-  const tops: number[] = []
-  const bottoms: number[] = []
+  const starts: number[] = []
+  const ends: number[] = []
   for (let index = 0; index < count; index += 1) {
-    tops.push(index * height)
-    bottoms.push(index * height + height)
+    starts.push(index * height)
+    ends.push(index * height + height)
   }
-  return { tops, bottoms, stride: height }
+  return { starts, ends, stride: height }
 }
 
 describe('slotFor: which slot a carried row is proposing', () => {
@@ -67,8 +74,8 @@ describe('slotFor: which slot a carried row is proposing', () => {
     // The carried row itself has no measurement: there is no centre to compare
     // anything against, so the honest answer is the slot it is already in.
     const measured = rows(5)
-    measured.tops.length = 2
-    measured.bottoms.length = 2
+    measured.starts.length = 2
+    measured.ends.length = 2
     expect(slotFor(measured, 500, 4, 5)).toBe(4)
   })
 
@@ -81,8 +88,8 @@ describe('slotFor: which slot a carried row is proposing', () => {
     // 100 pixels of travel has a centre of 120, past row 1 (mid 60) and row 2
     // (mid 100), so it proposes slot 2.
     const measured = rows(5)
-    measured.tops.length = 3
-    measured.bottoms.length = 3
+    measured.starts.length = 3
+    measured.ends.length = 3
     expect(slotFor(measured, 100, 0, 5)).toBe(2)
   })
 })
@@ -118,6 +125,40 @@ describe('offsetFor: how far the rows it passes shift', () => {
     // release will do.
     expect(offsetFor(1, 0, 4, 40)).toBe(-40)
     expect(offsetFor(4, 0, 4, 40)).toBe(-40)
+  })
+})
+
+describe('the same arithmetic, read as a horizontal strip', () => {
+  /*
+  The tab strip of 9.1 is the one list in this product that runs sideways, and
+  it arrived at S9 with a hand-rolled pointer drag of its own: the second
+  engine RFC 0004's "one drag engine total" exists to refuse. What let it come
+  onto this one is that `slotFor` never knew which axis it was on.
+
+  So this block is the same five items and the same numbers as the column
+  cases above, measured left-to-right: starts 0, 40, 80, 120, 160 are now the
+  tabs' left edges and the centres are horizontal. Nothing about the expected
+  answers changes, which is the claim.
+  */
+  const strip = rows(5)
+
+  it('proposes the neighbour once the carried tab passes its midpoint', () => {
+    expect(slotFor(strip, 39, 0, 5)).toBe(0)
+    expect(slotFor(strip, 41, 0, 5)).toBe(1)
+  })
+
+  it('is AC-216 as arithmetic: the second tab dragged onto the first lands first', () => {
+    // That case presses the second tab and releases four pixels inside the
+    // first. Tab 1's centre is 60 and tab 0's midpoint is 20, so the travel is
+    // 4 - 60, and a centre of 4 is left of 20: slot 0.
+    expect(slotFor(strip, 4 - 60, 1, 5)).toBe(0)
+  })
+
+  it('shifts the tabs it passes by one stride sideways', () => {
+    // Read as a translateX by the caller. The engine returns a scalar because
+    // a list runs one way and only the caller knows which.
+    expect(offsetFor(0, 1, 0, 40)).toBe(40)
+    expect(offsetFor(2, 1, 0, 40)).toBe(0)
   })
 })
 

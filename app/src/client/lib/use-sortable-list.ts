@@ -26,7 +26,7 @@ Keyboard sorting is here too, since a gesture only available to a mouse is not
 finished: the handle is a real button, arrows move the item, and focus follows
 it so the next press keeps working.
 
-**Four differences from his file, and nothing else moves.**
+**Five differences from his file, and nothing else moves.**
 
 1. Protocol section 7's prose rules, which are this repository's and not his:
    no em dashes in a Dana comment, and this repository's quoting and semicolon
@@ -45,6 +45,15 @@ it so the next press keeps working.
    shrinking list's, are one `release` here. His file repeated four lines in
    both places, which is how the two come to disagree about what abandoning a
    drag clears.
+5. **An axis.** His lab sorts columns and nothing else, so his file reads
+   `clientY`, `top` and `bottom` throughout. 9.1 has a horizontal list, the tab
+   strip, and a board's columns are the next one; the strip arrived at S9 with
+   a hand-rolled pointer drag of its own, which is precisely the second engine
+   RFC 0004's "one drag engine total" refuses. So the measurement pair is
+   `start` and `end` along whichever axis the list runs on, `offset` is a
+   scalar the caller applies as a `translateX` or a `translateY`, and every
+   piece of arithmetic between them is written once. The default is `y`, so
+   nothing that was a column had to say anything.
 
 The seams `onDropAt` and `onOver` are his, and DES-171 names both: a directory
 holds one list per container, so a row on its way into another one has to stop
@@ -85,7 +94,13 @@ export interface SortableItemState {
   isDwelling: boolean
   /** The bar filled. Releasing now makes a container rather than reordering. */
   isArmed: boolean
-  /** Pixels to shift by, to make or fill space. */
+  /**
+   * Pixels to shift by, to make or fill space, along the list's own axis.
+   *
+   * A scalar and not a pair, because a list runs one way: the caller knows
+   * whether that is a `translateX` or a `translateY` and there is nothing for
+   * this module to decide.
+   */
   offset: number
   /**
    * True for the one frame band after release, while the row travels to its
@@ -103,13 +118,25 @@ const RESTING: SortableItemState = {
   isSettling: false,
 }
 
-/** Where every row was when the drag began, in viewport coordinates. */
+/** Which way the list runs. A column sorts on y, a strip of tabs on x. */
+export type SortAxis = 'x' | 'y'
+
+/**
+ * Where every item was when the drag began, in viewport coordinates, measured
+ * along the list's own axis.
+ *
+ * `start` and `end` rather than top and bottom, because the axis is a
+ * parameter: for a column they are the row's top and bottom edges, and for a
+ * strip they are its left and right ones. Every piece of arithmetic below is
+ * the same either way, which is the point of naming them this way rather than
+ * writing the module twice.
+ */
 export interface Metrics {
-  tops: number[]
-  bottoms: number[]
+  starts: number[]
+  ends: number[]
   /**
-   * The picked-up row's height plus the gap below it: exactly how far every
-   * row it passes has to move.
+   * The picked-up item's own extent along the axis plus the gap after it:
+   * exactly how far every item it passes has to move.
    */
   stride: number
 }
@@ -140,13 +167,17 @@ const NO_DRAG: DragSnapshot = {
 /* ------------------------------------------------------------ geometry -- */
 
 /**
- * Which slot the picked-up row is currently proposing.
+ * Which slot the picked-up item is currently proposing.
  *
- * Its own centre against the midpoint of every other row, using the geometry
- * from drag start, because that is the order being rearranged. A row whose
+ * Its own centre against the midpoint of every other item, using the geometry
+ * from drag start, because that is the order being rearranged. An item whose
  * measurement is missing is skipped rather than read as sitting at zero: an
- * unmeasured row reads as being at the top of the viewport, where it would
- * capture every proposal the list makes.
+ * unmeasured item reads as being at the very start of the viewport, where it
+ * would capture every proposal the list makes.
+ *
+ * Axis-free: the caller measures along whichever axis its list runs on, and
+ * the comparison of centres against midpoints is the same arithmetic either
+ * way.
  */
 export function slotFor(
   metrics: Metrics,
@@ -154,17 +185,17 @@ export function slotFor(
   from: number,
   count: number,
 ): number {
-  const top = metrics.tops[from]
-  const bottom = metrics.bottoms[from]
-  if (top === undefined || bottom === undefined) return from
-  const centre = (top + bottom) / 2 + delta
+  const start = metrics.starts[from]
+  const end = metrics.ends[from]
+  if (start === undefined || end === undefined) return from
+  const centre = (start + end) / 2 + delta
   let slot = from
   for (let index = 0; index < count; index += 1) {
     if (index === from) continue
-    const otherTop = metrics.tops[index]
-    const otherBottom = metrics.bottoms[index]
-    if (otherTop === undefined || otherBottom === undefined) continue
-    const mid = (otherTop + otherBottom) / 2
+    const otherStart = metrics.starts[index]
+    const otherEnd = metrics.ends[index]
+    if (otherStart === undefined || otherEnd === undefined) continue
+    const mid = (otherStart + otherEnd) / 2
     if (index < from && centre < mid) return index
     if (index > from && centre > mid) slot = index
   }
@@ -207,11 +238,53 @@ export function moved<T>(list: readonly T[], from: number, to: number): T[] {
   return next
 }
 
+/**
+ * A drag that ends over an item would otherwise also be a click.
+ *
+ * The engine listens on the window rather than capturing the pointer, so the
+ * browser still delivers a click on release, onto whichever element is under
+ * the cursor: in a sidebar that means navigating to a folder somebody was only
+ * moving, and in the tab strip it means selecting a tab they were only
+ * reordering. One capture-phase listener, armed at the lift and gone by the
+ * next frame, is the whole fix.
+ *
+ * Here rather than beside either surface because it is a consequence of this
+ * module's own choice not to capture, and because two surfaces needing it was
+ * how it nearly got written twice. Pass it as `onLift`.
+ */
+export function swallowNextClick(): void {
+  const swallow = (event: MouseEvent): void => {
+    event.stopPropagation()
+    event.preventDefault()
+  }
+  window.addEventListener('click', swallow, true)
+  window.addEventListener(
+    'pointerup',
+    () => {
+      window.setTimeout(() => {
+        window.removeEventListener('click', swallow, true)
+      }, 0)
+    },
+    { once: true },
+  )
+}
+
 /* ---------------------------------------------------------------- hook -- */
 
 export interface UseSortableListOptions {
   count: number
   onReorder: (from: number, to: number) => void
+  /**
+   * Which way this list runs. Defaults to a column.
+   *
+   * Added at S11 for the tab strip, which is 9.1's one horizontal list and
+   * which had a hand-rolled drag of its own until this parameter existed. The
+   * choice was between an engine that knows about two axes and two engines
+   * that each know about one, and RFC 0004's "one drag engine total" settles
+   * it: the second engine is the thing this module exists to prevent, and a
+   * board's columns are the next list to ask the same question.
+   */
+  axis?: SortAxis
   /**
    * Omit and the dwell never arms, which is what a card's blocks want: they
    * only ever change places.
@@ -290,6 +363,7 @@ export interface SortableList {
 export function useSortableList({
   count,
   onReorder,
+  axis = 'y',
   onDwell,
   dwellMs = DWELL_MS,
   disabled = false,
@@ -298,6 +372,20 @@ export function useSortableList({
   onDropAt,
   onOver,
 }: UseSortableListOptions): SortableList {
+  /* The one place the axis is read as a coordinate. Everything downstream
+     works in "along the list" and "across it", so the arithmetic below is
+     written once rather than branched at every step. */
+  const along = useCallback(
+    (point: { x: number; y: number }): number => (axis === 'x' ? point.x : point.y),
+    [axis],
+  )
+  const edgesOf = useCallback(
+    (rect: DOMRect): { start: number; end: number } =>
+      axis === 'x'
+        ? { start: rect.left, end: rect.right }
+        : { start: rect.top, end: rect.bottom },
+    [axis],
+  )
   const [drag, setDrag] = useState<DragSnapshot>(NO_DRAG)
   const [settlingFrom, setSettlingFrom] = useState<number | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -312,9 +400,11 @@ export function useSortableList({
   const scroller = useRef<HTMLElement | null>(null)
   const pointerY = useRef(0)
   const pointerX = useRef(0)
-  const originY = useRef(0)
+  /* Where the drag began and where it last stood still, both measured along
+     the list's axis, which is the only coordinate the arithmetic needs. */
+  const origin = useRef(0)
   const stillAt = useRef(0)
-  const stillY = useRef(0)
+  const stillAlong = useRef(0)
   const frame = useRef<number | null>(null)
   const settleTimer = useRef<number | null>(null)
   const focusWanted = useRef<number | null>(null)
@@ -351,19 +441,22 @@ export function useSortableList({
     document.body.style.removeProperty('user-select')
   }, [apply, stopFrame])
 
-  /* Where a row sits right now, transform included, which is what the pointer
-     is actually over. Hit-testing the rects measured at drag start would be
-     testing against a layout the person can no longer see. */
-  const rowUnderPointer = useCallback((y: number, exclude: number): number => {
-    for (let index = 0; index < items.current.length; index += 1) {
-      if (index === exclude) continue
-      const element = items.current[index]
-      if (!element) continue
-      const rect = element.getBoundingClientRect()
-      if (y >= rect.top && y <= rect.bottom) return index
-    }
-    return -1
-  }, [])
+  /* Where an item sits right now, transform included, which is what the
+     pointer is actually over. Hit-testing the rects measured at drag start
+     would be testing against a layout the person can no longer see. */
+  const itemUnderPointer = useCallback(
+    (position: number, exclude: number): number => {
+      for (let index = 0; index < items.current.length; index += 1) {
+        if (index === exclude) continue
+        const element = items.current[index]
+        if (!element) continue
+        const { start, end } = edgesOf(element.getBoundingClientRect())
+        if (position >= start && position <= end) return index
+      }
+      return -1
+    },
+    [edgesOf],
+  )
 
   const proposedSlot = useCallback((delta: number, from: number): number => {
     const measured = metrics.current
@@ -412,33 +505,37 @@ export function useSortableList({
     if (live.current.from < 0) return
 
     const box = scroller.current
-    const top = box ? box.getBoundingClientRect().top : 0
-    const bottom = box ? box.getBoundingClientRect().bottom : window.innerHeight
-    const y = pointerY.current
+    const viewport = axis === 'x' ? window.innerWidth : window.innerHeight
+    const bounds = box ? edgesOf(box.getBoundingClientRect()) : { start: 0, end: viewport }
+    const position = along({ x: pointerX.current, y: pointerY.current })
 
     let speed = 0
-    if (y < top + EDGE_PX) speed = -((top + EDGE_PX - y) / EDGE_PX) * MAX_SPEED_PX
-    else if (y > bottom - EDGE_PX) {
-      speed = ((y - (bottom - EDGE_PX)) / EDGE_PX) * MAX_SPEED_PX
+    if (position < bounds.start + EDGE_PX) {
+      speed = -((bounds.start + EDGE_PX - position) / EDGE_PX) * MAX_SPEED_PX
+    } else if (position > bounds.end - EDGE_PX) {
+      speed = ((position - (bounds.end - EDGE_PX)) / EDGE_PX) * MAX_SPEED_PX
     }
     if (speed === 0) return
 
     const clamped = Math.max(-MAX_SPEED_PX, Math.min(MAX_SPEED_PX, speed))
-    if (box) box.scrollTop += clamped
+    if (box) {
+      if (axis === 'x') box.scrollLeft += clamped
+      else box.scrollTop += clamped
+    } else if (axis === 'x') window.scrollBy(clamped, 0)
     else window.scrollBy(0, clamped)
 
-    /* The rows moved under a pointer that did not, so the proposal changes
+    /* The items moved under a pointer that did not, so the proposal changes
        even though nothing was dragged. Recompute against the new scroll. */
     const measured = metrics.current
     if (measured === null) return
-    for (let i = 0; i < measured.tops.length; i += 1) {
-      const topAt = measured.tops[i]
-      const bottomAt = measured.bottoms[i]
-      if (topAt !== undefined) measured.tops[i] = topAt - clamped
-      if (bottomAt !== undefined) measured.bottoms[i] = bottomAt - clamped
+    for (let i = 0; i < measured.starts.length; i += 1) {
+      const startAt = measured.starts[i]
+      const endAt = measured.ends[i]
+      if (startAt !== undefined) measured.starts[i] = startAt - clamped
+      if (endAt !== undefined) measured.ends[i] = endAt - clamped
     }
-    originY.current -= clamped
-    const delta = pointerY.current - originY.current
+    origin.current -= clamped
+    const delta = position - origin.current
     const over = proposedSlot(delta, live.current.from)
     /* The containers moved too, so which one the pointer is in can change
        without the pointer having gone anywhere. */
@@ -452,7 +549,7 @@ export function useSortableList({
     ) {
       apply({ ...live.current, delta, over, into })
     }
-  }, [apply, onOver, proposedSlot])
+  }, [along, apply, edgesOf, onOver, proposedSlot])
 
   const onPointerMove = useCallback(
     (event: PointerEvent): void => {
@@ -460,13 +557,14 @@ export function useSortableList({
       pointerY.current = event.clientY
       pointerX.current = event.clientX
       const from = live.current.from
-      const delta = event.clientY - originY.current
+      const position = along({ x: event.clientX, y: event.clientY })
+      const delta = position - origin.current
       const over = proposedSlot(delta, from)
       const into = onOver ? onOver(from, { x: event.clientX, y: event.clientY }) : null
 
       /* Travelling cancels any dwell and restores the reorder proposal. */
-      if (Math.abs(event.clientY - stillY.current) > STILL_PX) {
-        stillY.current = event.clientY
+      if (Math.abs(position - stillAlong.current) > STILL_PX) {
+        stillAlong.current = position
         stillAt.current = event.timeStamp
         apply({ ...live.current, delta, over, into, dwellAt: null, armed: false })
         return
@@ -486,7 +584,7 @@ export function useSortableList({
       }
 
       const resting = event.timeStamp - stillAt.current
-      const target = rowUnderPointer(event.clientY, from)
+      const target = itemUnderPointer(position, from)
       const armed = resting >= dwellMs && target >= 0
       const dwellAt = target >= 0 && resting > 90 ? target : null
 
@@ -500,7 +598,7 @@ export function useSortableList({
         apply({ ...live.current, delta, over, into, dwellAt, armed })
       }
     },
-    [apply, dwellMs, onDwell, onOver, proposedSlot, rowUnderPointer],
+    [along, apply, dwellMs, itemUnderPointer, onDwell, onOver, proposedSlot],
   )
 
   /* The dwell has to arm on a pointer that has stopped moving, and a pointer
@@ -512,7 +610,10 @@ export function useSortableList({
       if (live.current.from < 0 || live.current.armed) return
       if (live.current.into !== null) return
       const resting = performance.now() - stillAt.current
-      const target = rowUnderPointer(pointerY.current, live.current.from)
+      const target = itemUnderPointer(
+        along({ x: pointerX.current, y: pointerY.current }),
+        live.current.from,
+      )
       if (target < 0) {
         if (live.current.dwellAt !== null) apply({ ...live.current, dwellAt: null })
         return
@@ -525,7 +626,7 @@ export function useSortableList({
     return () => {
       window.clearInterval(id)
     }
-  }, [apply, drag.armed, drag.from, dwellMs, onDwell, rowUnderPointer])
+  }, [along, apply, drag.armed, drag.from, dwellMs, itemUnderPointer, onDwell])
 
   useEffect(() => {
     if (drag.from < 0) return
@@ -565,28 +666,32 @@ export function useSortableList({
 
   const begin = useCallback(
     (index: number, startY: number, startX: number): void => {
-      const tops: number[] = []
-      const bottoms: number[] = []
+      const starts: number[] = []
+      const ends: number[] = []
       for (let i = 0; i < countRef.current; i += 1) {
-        const rect = items.current[i]?.getBoundingClientRect()
-        tops.push(rect ? rect.top : 0)
-        bottoms.push(rect ? rect.bottom : 0)
+        const element = items.current[i]
+        const edges = element ? edgesOf(element.getBoundingClientRect()) : null
+        starts.push(edges ? edges.start : 0)
+        ends.push(edges ? edges.end : 0)
       }
-      const own = (bottoms[index] ?? 0) - (tops[index] ?? 0)
-      const below = index + 1 < countRef.current ? tops[index + 1] : undefined
-      const gap = below === undefined ? 0 : Math.max(0, below - (bottoms[index] ?? 0))
-      metrics.current = { tops, bottoms, stride: own + gap }
+      const own = (ends[index] ?? 0) - (starts[index] ?? 0)
+      const after = index + 1 < countRef.current ? starts[index + 1] : undefined
+      const gap = after === undefined ? 0 : Math.max(0, after - (ends[index] ?? 0))
+      metrics.current = { starts, ends, stride: own + gap }
 
-      /* The nearest ancestor that actually scrolls, so a list inside a card
-         follows its own box rather than the page behind it. */
+      /* The nearest ancestor that actually scrolls along this list's axis, so
+         a list inside a card follows its own box rather than the page behind
+         it, and a strip follows the box that clips it sideways. */
       let node = items.current[index]?.parentElement ?? null
       scroller.current = null
       while (node) {
-        const overflow = getComputedStyle(node).overflowY
-        if (
-          (overflow === 'auto' || overflow === 'scroll') &&
-          node.scrollHeight > node.clientHeight
-        ) {
+        const style = getComputedStyle(node)
+        const overflow = axis === 'x' ? style.overflowX : style.overflowY
+        const overflows =
+          axis === 'x'
+            ? node.scrollWidth > node.clientWidth
+            : node.scrollHeight > node.clientHeight
+        if ((overflow === 'auto' || overflow === 'scroll') && overflows) {
           scroller.current = node
           break
         }
@@ -594,10 +699,10 @@ export function useSortableList({
       }
 
       onLift?.()
-      originY.current = startY
+      origin.current = along({ x: startX, y: startY })
       pointerY.current = startY
       pointerX.current = startX
-      stillY.current = startY
+      stillAlong.current = origin.current
       stillAt.current = performance.now()
       document.body.style.setProperty('cursor', 'grabbing')
       document.body.style.setProperty('user-select', 'none')
@@ -612,7 +717,7 @@ export function useSortableList({
       stopFrame()
       frame.current = requestAnimationFrame(followEdges)
     },
-    [apply, followEdges, onLift, stopFrame],
+    [along, apply, axis, edgesOf, followEdges, onLift, stopFrame],
   )
 
   /*
@@ -638,6 +743,23 @@ export function useSortableList({
     (index: number, startX: number, startY: number, onTap?: () => void): void => {
       let lifted = false
       function watch(move: PointerEvent): void {
+        if (lifted) {
+          /*
+          Keep feeding the engine after the lift, until the pointer is let go.
+
+          The engine's own window listener is attached by an effect keyed on
+          the drag having started, so it arrives one render after `begin`.
+          That is invisible to a hand and decisive for anything faster: a drag
+          driven in a handful of programmatic moves can be over before the
+          effect has run, and the release would then read a delta of zero and
+          reorder nothing. Forwarding here closes the gap, and the overlap
+          once the effect does attach costs nothing, because `onPointerMove`
+          computes from the pointer's absolute position and refuses to apply a
+          snapshot equal to the one it already holds.
+          */
+          onPointerMove(move)
+          return
+        }
         if (
           Math.abs(move.clientY - startY) < LIFT_PX &&
           Math.abs(move.clientX - startX) < LIFT_PX
@@ -645,12 +767,24 @@ export function useSortableList({
           return
         }
         lifted = true
-        stop()
         begin(index, move.clientY, move.clientX)
       }
       function ended(): void {
         stop()
-        if (!lifted) onTap?.()
+        if (!lifted) {
+          onTap?.()
+          return
+        }
+        /*
+        And the release, for the same reason and with the same safety.
+
+        A drag that outran the effect would otherwise have nothing listening
+        for its `pointerup` either, so it would never commit. Calling `finish`
+        here is safe when the engine's own listener did attach: this one is
+        registered first and so runs first, and `finish` clears the drag as
+        its first act, which makes the second call a no-op.
+        */
+        finish()
       }
       function stop(): void {
         window.removeEventListener('pointermove', watch)
@@ -661,19 +795,22 @@ export function useSortableList({
       window.addEventListener('pointerup', ended)
       window.addEventListener('pointercancel', stop)
     },
-    [begin],
+    [begin, finish, onPointerMove],
   )
+
+  /* The two arrows that mean "along this list". A column answers Up and Down
+     and a strip answers Left and Right, because an arrow key names a
+     direction on the screen and a list that took Down to mean rightwards
+     would be asking a person to hold a mental model of the code. */
+  const [back, forward] =
+    axis === 'x' ? (['ArrowLeft', 'ArrowRight'] as const) : (['ArrowUp', 'ArrowDown'] as const)
 
   const arrowKeys = useCallback(
     (index: number) =>
       (event: ReactKeyboardEvent): void => {
         if (disabled) return
         const to =
-          event.key === 'ArrowUp'
-            ? index - 1
-            : event.key === 'ArrowDown'
-              ? index + 1
-              : null
+          event.key === back ? index - 1 : event.key === forward ? index + 1 : null
         if (to === null || to < 0 || to >= countRef.current) return
         event.preventDefault()
         event.stopPropagation()
@@ -685,7 +822,7 @@ export function useSortableList({
             : '',
         )
       },
-    [describe, disabled, onReorder],
+    [back, describe, disabled, forward, onReorder],
   )
 
   /* An explicit grip. Everything on it is the drag, so there is nothing to
@@ -731,15 +868,24 @@ export function useSortableList({
     [disabled, watchForLift],
   )
 
-  /* Focus travels with the row. Without this the handle is left behind on
+  /* Focus travels with the item. Without this the handle is left behind on
      whatever item slid into the old index, and the second arrow press moves
-     the wrong thing. */
+     the wrong thing.
+
+     The item itself is tried before a handle inside it, because the two
+     shapes are both real: a sidebar row carries a grip within it, and a tab
+     is the focusable thing, so a `querySelector` alone would find nothing in
+     the strip and drop focus on the first arrow press. */
   useEffect(() => {
     const wanted = focusWanted.current
     if (wanted === null) return
     focusWanted.current = null
-    const handle = items.current[wanted]?.querySelector<HTMLElement>('[data-sort-handle]')
-    handle?.focus()
+    const element = items.current[wanted]
+    if (element === null || element === undefined) return
+    const target = element.matches('[data-sort-handle]')
+      ? element
+      : element.querySelector<HTMLElement>('[data-sort-handle]')
+    target?.focus()
   })
 
   const itemState = useCallback(
