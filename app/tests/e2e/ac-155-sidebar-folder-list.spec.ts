@@ -132,6 +132,41 @@ test.describe('AC-155: the sidebar folder list', () => {
     ).toBe(200)
 
     await page.goto(routes.myDay)
+    /*
+    The folder list is waited for before the order is read off it.
+
+    `allTextContents()` waits for nothing: it reports whichever frame it caught.
+    The page block above the folders is rendered from 9.1's route table and is
+    there on the first paint, but the folder list is the `GET /folders` read of
+    7.4 and the shell falls back to an empty one while that is in flight
+    (`folders ?? []` in `shell/app-sidebar.tsx`), so a read taken straight after
+    a navigation can hold the pages and none of the folders. Measured
+    2026-08-25 against a `GET /folders` delayed by 1500 ms: the read returned
+    the ten page and footer links, with Inbox at index -1, and every ordering
+    assertion below then failed for a reason that has nothing to do with order.
+    Green on a quiet machine and red on a loaded one, which is what made it a
+    race rather than a defect.
+
+    This waits for the arrival and then asserts the order on one snapshot.
+    Nothing is weakened: `positionOf` asserted presence and still does, this
+    poll fails the case with the names it read if a folder never arrives, and
+    the four ordering assertions are unchanged. What it removes is the frame
+    that was never the subject of the criterion.
+    */
+    await expect
+      .poll(() => sidebarNames(page), {
+        message:
+          'spec 9.1: the sidebar lists every accessible folder, and 7.4 is the read it ' +
+          'draws them from, so the order is asserted once that read has landed rather ' +
+          'than on whichever frame the navigation happened to leave behind',
+      })
+      .toEqual(
+        expect.arrayContaining(
+          [LABELED, 'Groceries', UNLABELED_EARLY, UNLABELED_LATE, 'Inbox'].map((name) =>
+            expect.stringContaining(name),
+          ),
+        ),
+      )
     const names = await sidebarNames(page)
 
     const inbox = positionOf(names, 'Inbox')

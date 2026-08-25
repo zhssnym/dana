@@ -99,6 +99,27 @@ export const TEST_TIMEOUT_MS = 120_000
  */
 export const ACTION_TIMEOUT_MS = 15_000
 
+/*
+The third budget is the one neither constant above names, and it is the one
+that bites: `expect` has its own timeout, `playwright.config.ts` does not set
+it, and Playwright's default is five seconds.
+
+That number is worth knowing because the application has a five second window
+of its own. 9.1's undo bar stands for the `UNDO_WINDOW_MS` that AC-225 fixes,
+and while it stands it names the task it acted on, `Completed "<title>"`. So a
+case that completes a row and then asserts the title is gone from the page at
+large is asserting against two clocks of equal length, started milliseconds
+apart, and it is decided by whichever machine it runs on. session-path's
+completion case was written that way and read as a client race for weeks:
+measured 2026-08-25, the row was gone 137 ms after the click while the
+page-wide match cleared at 4477 ms of a 5000 ms budget.
+
+The rule this leaves, for anything asserting that an act removed something:
+address the thing the sentence names, a row through `taskRow` or a control by
+its role, and never the bare title. The undo bar naming the task is the
+specification being met, not noise to wait out.
+*/
+
 /**
  * Asserts a control is on the page, in the words of the section that puts it
  * there, and then acts on it.
