@@ -202,10 +202,19 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
           onChange={place.setFilter}
           people={place.people}
           onSaveView={(name) => {
+            /*
+            Pinned on arrival, and it is DES-189 rather than a shortcut: "a
+            setting with no way in is a setting nobody has". DES-153 makes
+            pinning a separate choice from saving, and the surface that choice
+            belongs to is 9.7's pin list, which is still the v1 page of three
+            booleans; until it is rewritten, a view saved unpinned is a view
+            with no address a person can reach. So it lands in the sidebar,
+            where the pin list can take it out again the day that page lands.
+            */
             saveView.mutate({
               name,
               definition: viewDefinition(place.filter, place.spine.key),
-              pinned: false,
+              pinned: true,
             })
           }}
         />
