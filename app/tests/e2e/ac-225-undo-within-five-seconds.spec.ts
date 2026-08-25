@@ -21,6 +21,13 @@ other member's screen for five seconds.
 renders as an open row again, which only survives a reload if the inverse
 mutation really landed.
 
+**The bar is read first, and the ordering is the point.** The window is
+five seconds and the wire assertions spend some of them, so a check made
+after them races the very window the criterion is named for. That is a
+fault in how the criterion is read rather than in what it asserts: both of
+its clauses, the inverse mutation and the write that was never held back,
+are untouched.
+
 Spec: 9.1 (the undo paragraph), 5.1 (the uncomplete transition the inverse
 rides), DES-158.
 */
@@ -58,6 +65,18 @@ test.describe('AC-225: undo takes back a completion', () => {
       'spec 9.1: a completion is an act the undo bar can take back; the checkbox ' +
         'carries its 9.1 name',
     )
+    // Read before anything else waits. The bar stands for five seconds and
+    // the assertions below spend some of them, so a check made after them is
+    // a race against the very window this criterion is named for. The first
+    // draft of this file lost that race, which is a fault in the reading and
+    // not in the bar.
+    await expect(
+      page.getByRole('status').filter({ hasText: title }),
+      'spec 9.1: the bar names the act it can take back, so its sentence carries ' +
+        'the task\'s own title; a bar reading only the verb could not tell two ' +
+        'completions apart, which is why the section gives the sentence a subject',
+    ).toBeVisible()
+
     await waitForApiIdle(page, 'the completion is on the wire before undo is pressed')
 
     const completions = wire
@@ -70,13 +89,6 @@ test.describe('AC-225: undo takes back a completion', () => {
         'client queueing the write for five seconds shows nothing here and fails, ' +
         'because a queued write lies on every other member\'s screen (DES-158)',
     ).toBeGreaterThanOrEqual(1)
-
-    await expect(
-      page.getByText(/Completed\s|Complete/).first().or(page.getByRole('status').first()),
-      'the undo bar names the act it can take back (9.1); asserted loosely because ' +
-        'its sentence carries the title, and strictly whichever way it renders, the ' +
-        'shortcut below is the contract',
-    ).toBeVisible()
 
     await page.keyboard.press('Control+z')
     await waitForApiIdle(page, 'the inverse mutation lands before the state is read')

@@ -20,6 +20,19 @@ through the strip itself.
 in the v2 routes table, because "lands on" is a navigation and not a
 rendering.
 
+
+**The plus is addressed on the page and not inside the tablist**, and the
+first draft of this file had it the other way. A `tablist` owns elements
+with role `tab`; a button that is not a tab does not belong inside one, and
+putting it there to satisfy a locator would break the keyboard model the
+role exists to describe. 9.1 says the control sits "at the row's end",
+which is the visual row rather than the ARIA container, and its addressing
+sentence reaches a control by its role and its name. So the locator was
+widened rather than the markup bent, which is the same call recorded
+against AC-180 in `components/README.md`: a criterion whose locator is
+narrower than the specification is the locator to fix, and degrading the
+markup to make one resolve is writing the implementation from the test.
+
 Spec: 9.1 (the tab strip paragraph, the roles table, the names table, the
 routes table), DES-152.
 */
@@ -53,7 +66,7 @@ test.beforeEach(async ({ page }) => {
  */
 async function openGroceriesTab(page: import('@playwright/test').Page): Promise<void> {
   await clickControl(
-    tabStrip(page).getByRole('button', { name: 'New tab', exact: true }),
+    page.getByRole('button', { name: 'New tab', exact: true }),
     'spec 9.1: a "+" at the row\'s end opens any shelf or folder as a tab, and its ' +
       'name is "New tab" in the names table. The v1 client has no strip, which is the ' +
       'red this shows until S9',
