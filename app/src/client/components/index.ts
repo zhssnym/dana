@@ -45,4 +45,4 @@ export {
 } from './state-patterns.js'
 export type { SystemToastKind } from './state-patterns.js'
 export { TaskRow } from './task-row.js'
-export type { TaskRowProps, TaskRowVisualState, TaskStatus } from './task-row.js'
+export type { TaskRowProps, TaskStatus } from './task-row.js'

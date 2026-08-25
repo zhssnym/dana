@@ -119,24 +119,47 @@ export function useConfirm(): {
   }
 }
 
+/**
+ * What a surface that drags its rows attaches to each of them, by index.
+ *
+ * Optional and absent on every list that does not drag, which is all of them
+ * but the board today. It is one prop rather than three so that a caller
+ * either drags or does not: three optional callbacks are three ways to attach
+ * two of them and wonder why the row will not move.
+ */
+export interface RowDrag {
+  readonly rowRef: (index: number) => (element: HTMLElement | null) => void
+  readonly dragProps: (index: number) => {
+    onPointerDown: (event: React.PointerEvent) => void
+  }
+  readonly dragStyle: (index: number) => React.CSSProperties | undefined
+  readonly proposal: (index: number) => string | undefined
+}
+
 export function TaskRows({
   tasks,
   context,
   actions,
   onAsk,
+  drag,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
   readonly actions: RowActions
   /** Raised for the two overflow entries section 9 puts a confirmation on. */
   readonly onAsk: (message: string, run: () => void) => void
+  readonly drag?: RowDrag
 }): React.JSX.Element {
   return (
     <div role="list" className="space-y-0.5">
-      {tasks.map((task) => (
+      {tasks.map((task, index) => (
         <TaskRow
           key={task.id}
           {...taskRowDisplay(task, context)}
+          rowRef={drag?.rowRef(index)}
+          dragProps={drag?.dragProps(index)}
+          dragStyle={drag?.dragStyle(index)}
+          proposal={drag?.proposal(index)}
           onOpen={() => {
             actions.onOpenTask(task)
           }}

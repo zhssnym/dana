@@ -16,12 +16,18 @@ own form for this screen, "Today", "Yesterday", then "August 6, 2026", from
 `parts/format-dates.ts`; the region's name is that rendered text, exactly as
 the rule says.
 
-**The row is this file's own rather than `components/task-row.tsx`, and the
-affordance 9.5 names is that row's completion checkbox.** Every other page hands
-its rows to that component, whose control for a completed row is the checkbox
-9.1's names table calls "Mark as not done". This page draws its own row because
-Q6 gives it a different set of elements, and it composes that row from the same
-primitives his is composed from, in his class strings.
+**The row is `components/task-row.tsx`, as of the S11 reunion, and the
+affordance 9.5 names is that row's completion checkbox.** This page used to
+draw its own, on the ground that Q6 gives it a different set of elements; the
+difference turned out to be two things, a due badge 9.5's v2 bullet drops and
+a completion control that runs the probe below, and both are now passed as
+data. 11.15 named the duplicate as a hazard in as many words, "production
+carries two task rows, DoneRow in DonePage.tsx duplicates task-row.tsx line
+for line", and RFC 0004 makes one task-row implementation total S11's
+acceptance. What that buys is not tidiness: every fix the row has taken since
+P8R, the star named by its content, the tooltip that is also a title, the box
+that shows what was asked for until the answer differs, existed on one of the
+two copies and had to be noticed to reach the other.
 
 That control was a named button until 2026-08-13, on the reading that a checkbox
 cannot confirm before it acts and that hiding a dialog inside the one control
@@ -49,29 +55,22 @@ for byte (7.10), and `mergeCompletedDays` puts a day split across two pages
 back into one region, because two regions cannot carry one name.
 */
 import { useEffect, useState } from 'react'
-import { CircleCheck, Folder as FolderIcon, Star } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 
 import { mergeCompletedDays, useDoneView, useTask } from '../api/queries.js'
 import { useTransitionTask } from '../api/mutations.js'
-import { Button } from '../components/ui/button.js'
-import { Checkbox } from '../components/ui/checkbox.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { MARK_AS_NOT_DONE, STAR_OFF, STAR_ON } from '../components/ui/copy.js'
-import { Item, ItemContent, ItemMedia, ItemTitle } from '../components/ui/item.js'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
-import { cn } from '../components/ui/utils.js'
 import { formatDayHeading } from '../parts/format-dates.js'
-import { dueDisplay, folderDisplay } from '../parts/presenters.js'
+import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
+import type { RowActions } from '../parts/useRowActions.js'
 import { MorePages, PageBody } from '../states/PageStates.js'
 import { PageSection } from '../states/PageSection.js'
 import { DONE_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceChrome, usePlace } from '../views/usePlace.js'
-import { useRowBasis } from './task-rows.js'
-import type { Folder } from '../../shared/folders.js'
-import type { TaskCard } from '../../shared/tasks.js'
+import { ConfirmDialog as RowConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 
 const SPINE = PLACES.done
 
@@ -83,130 +82,12 @@ const SPINE = PLACES.done
 const UNCOMPLETE_SERIES_CONFIRM =
   'This removes the next scheduled occurrence (including any edits to it). Continue?'
 
-/** His resting treatment for a row's action controls, transparent until hover. */
-const REVEAL_ON_ROW_HOVER =
-  'opacity-0 group-hover/task:opacity-100 group-focus-within/task:opacity-100 focus-visible:opacity-100'
-
-function DoneRow({
-  task,
-  today,
-  folders,
-  onOpen,
-  onToggleImportant,
-  onMarkNotDone,
-}: {
-  readonly task: TaskCard
-  readonly today: string
-  readonly folders: readonly Folder[]
-  readonly onOpen: () => void
-  readonly onToggleImportant: () => void
-  readonly onMarkNotDone: () => void
-}): React.JSX.Element {
-  const folder = folderDisplay(task.folder, folders)
-  const due = dueDisplay(task, today)
-  const starName = task.important ? STAR_ON : STAR_OFF
-
-  return (
-    <Item
-      // 9.1's roles table: a task row is a list item or a row, and 9.4
-      // enumerates what one holds. The list around it is this page's.
-      role="listitem"
-      tabIndex={0}
-      aria-label={`Open task: ${task.title}`}
-      onClick={(event) => {
-        const target = event.target as HTMLElement
-        if (target.closest('button, [role=button], [role=checkbox], [role=menuitem], input')) return
-        onOpen()
-      }}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onOpen()
-        }
-      }}
-      data-task-status="completed"
-      className="group/task grid h-[var(--task-row-height)] w-full cursor-pointer grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-0 overflow-hidden rounded-md border-0 bg-card p-0 transition-[background-color] hover:bg-[var(--color-graphite-100)] focus-within:bg-[var(--color-graphite-100)] focus-within:ring-2 focus-within:ring-ring/30"
-    >
-      <ItemMedia
-        className="size-[var(--control-height)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {/* Checked from the row and never from the click, which is what leaves
-            a declined confirm exactly where it found it: every row this page
-            draws is completed, and only the transition below moves that. His
-            own control holds the same shape, and his box was measured still
-            checked with the dialog open. */}
-        <Checkbox
-          checked
-          aria-label={MARK_AS_NOT_DONE}
-          onCheckedChange={(next) => {
-            if (next) return
-            onMarkNotDone()
-          }}
-          className="size-[var(--control-height)] !border-transparent !bg-transparent after:inset-auto after:size-[var(--checkbox-size)] after:rounded-[4px] after:border after:border-input after:bg-background after:content-[''] focus-visible:ring-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/30 data-checked:!border-transparent data-checked:!bg-transparent data-checked:after:border-[var(--color-graphite-700)] data-checked:after:bg-[var(--color-graphite-700)] [&_[data-slot=checkbox-indicator]]:z-10"
-        />
-      </ItemMedia>
-
-      <ItemContent className="min-w-0 flex-row items-center gap-0 pr-2">
-        <ItemTitle
-          className="min-w-0 shrink truncate text-sm leading-5 font-normal text-[var(--color-graphite-600)]"
-          title={task.title}
-        >
-          {task.title}
-        </ItemTitle>
-      </ItemContent>
-
-      <div
-        data-task-metadata
-        className="flex min-w-0 shrink-0 items-center justify-end gap-3 whitespace-nowrap pr-2 pl-4 text-xs text-[var(--color-graphite-400)]"
-      >
-        <span className="inline-flex min-w-0 shrink-0 items-center gap-2">
-          <FolderIcon
-            className="size-4 shrink-0"
-            style={{ color: folder.color }}
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <span className="truncate">{folder.name}</span>
-        </span>
-        {due === undefined ? null : (
-          <span className="inline-flex shrink-0 items-center gap-1.5">{due.label}</span>
-        )}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                className={cn(
-                  'h-[var(--control-height)] w-[var(--control-height)] shrink-0 overflow-hidden border-0 p-0 transition-[opacity,color] hover:!bg-transparent',
-                  task.important
-                    ? 'text-[var(--color-graphite-800)] opacity-100'
-                    : REVEAL_ON_ROW_HOVER,
-                )}
-                aria-label={starName}
-                onClick={onToggleImportant}
-              >
-                <Star
-                  className={cn('size-5', task.important && 'fill-current')}
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-              </Button>
-            }
-          />
-          <TooltipContent>{starName}</TooltipContent>
-        </Tooltip>
-      </div>
-    </Item>
-  )
-}
-
 export function DonePage(): React.JSX.Element {
   const view = useDoneView()
   const actions = useRowActions()
   const transition = useTransitionTask()
   const basis = useRowBasis()
+  const confirm = useConfirm()
   const fetched = mergeCompletedDays(view.data?.pages)
 
   /*
@@ -216,7 +97,9 @@ export function DonePage(): React.JSX.Element {
   rather than leaving a heading over nothing.
 
   Grouping and board are not offered on this page; `place-pages.ts` records
-  why, and it is the DoneRow duplication rather than a reading of DES-177.
+  why, and the reason it recorded, the DoneRow duplication, is gone as of the
+  reunion below, so what stands there now is a question for that file rather
+  than a fact about this one.
   */
   const place = usePlace(
     SPINE,
@@ -267,6 +150,27 @@ export function DonePage(): React.JSX.Element {
     // makes it run once, by clearing the probe before it acts.
   }, [probe, detail.data, transition])
 
+  /*
+  This page's two departures from the row every other page draws, passed as
+  data rather than as a second row (11.15: "production carries two task rows";
+  the v2 port reunifies them).
+
+  9.5's v2 Done bullet drops the due badge, "the spent due-date echo under
+  headings that already group by completion", which is a context flag; and the
+  completion control has to run the probe below rather than the transition
+  directly, which is a callback. Everything else about a Done row was already
+  what `task-row.tsx` draws for a completed task, and the copy that made the
+  duplicate look necessary, "Mark as not done", is the name that row already
+  gives its box when the task is complete.
+  */
+  const context: RowContext = { ...basis, showDue: false }
+  const rowActions: RowActions = {
+    ...actions,
+    onToggleComplete: (task) => {
+      setProbe(task.id)
+    },
+  }
+
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
@@ -285,25 +189,12 @@ export function DonePage(): React.JSX.Element {
               heading={formatDayHeading(day.date, basis.today)}
               tone="day"
             >
-              <div role="list" className="space-y-0.5">
-                {day.rows.map((task) => (
-                  <DoneRow
-                    key={task.id}
-                    task={task}
-                    today={basis.today}
-                    folders={basis.folders}
-                    onOpen={() => {
-                      actions.onOpenTask(task)
-                    }}
-                    onToggleImportant={() => {
-                      actions.onToggleImportant(task)
-                    }}
-                    onMarkNotDone={() => {
-                      setProbe(task.id)
-                    }}
-                  />
-                ))}
-              </div>
+              <TaskRows
+                tasks={day.rows}
+                context={context}
+                actions={rowActions}
+                onAsk={confirm.ask}
+              />
             </PageSection>
           ))}
           {/* Outside every region, because it belongs to the list rather than
@@ -312,6 +203,8 @@ export function DonePage(): React.JSX.Element {
           <MorePages query={view} />
         </div>
       </PageBody>
+
+      <RowConfirmDialog pending={confirm.pending} onClose={confirm.close} />
 
       {confirming === null ? null : (
         <ConfirmDialog

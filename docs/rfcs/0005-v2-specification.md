@@ -1334,6 +1334,90 @@ fold, the way P7's mid-package change control ratified the pass callable:
     the main landmark, with neither criterion's sentence moving; and the one
     counts-and-delete case was removed under AC-162's quantifier as its file
     had anticipated, a locator fixed inside a deleted case being nothing.
+
+15. **9.3's v2 reunion is larger than its pickers, and seven criteria stand
+    between the two (S11, 2026-08-25; raised, not decided here).** 9.3 opens
+    "There is no task form. A task is its row, its card, and its page: the
+    row expands in place into the card", and adds that "every edit commits
+    as it is made, there is no Save control and no draft state". S11 has
+    built the half that can be built without touching a criterion: the card
+    now carries 9.3's header strip of chips with a picker behind each, the
+    chips commit as they are answered on an existing task, and AC-219 and
+    AC-220 are green on them.
+
+    What it has not done is retire the v1 form beneath the strip, and the
+    reason is not schedule. Seven criteria address that form by 9.3's v1
+    apparatus, its "More options" expander and its ten labelled field names:
+    AC-092, AC-093, AC-094, AC-161, AC-169, AC-170 and AC-179. All seven
+    pass today. Three harness helpers address it the same way and would move
+    with them: `formField`, which resolves a field by its label;
+    `setOfferedReminder` and `clearOfferedReminder`, which dispatch on
+    whether that control is an input or a select; and `waitForSaveToSettle`,
+    which sequences a read behind the form *closing*, an event a surface
+    with no Save control never has. Protocol section 8 does not let the
+    implementing role edit any of them so its code passes, and a session
+    that rewrote the surface anyway would turn seven green criteria red with
+    no authority to make them green again, which is the false green point 4
+    of the definition of done exists to forbid.
+
+    So the strip sits above the fields rather than in place of them, and the
+    interim is recorded in `components/task-card/chips.tsx` and in section
+    13 rather than left to be found. Its one visible cost is that five
+    fields have two controls on one surface; they share one state and one
+    write path, so they cannot disagree about what the surface holds, and
+    the chips are deliberately named so that they are not the ten names 9.3
+    makes normative and `formField` still resolves one control per field.
+
+    **Recommendation: the reunion is its own package, sequenced criteria
+    first.** Persona 11 reworks the seven criteria and the four helpers onto
+    the v2 card, red, in their own commits; the implementing session then
+    retires the fields, the expander and the Save control together. Splitting
+    it the other way round is what this session declined to do.
+
+16. **9.4's abandon confirm was rewritten by v2 and two criteria still
+    assert the v1 string (S11, 2026-08-25; raised, not decided here).**
+    Exactly item 8's shape, found the same way and missed by that item's
+    enumeration. v1's 9.4 wrote "Abandon this task? It stops appearing in My
+    Day but stays everywhere else"; the v2 replacement carries the sentence
+    with the page's new name, "It stops appearing in Today". AC-162's
+    abandon case and AC-183's abandon case both assert the v1 spelling
+    through the harness's `copy.abandonConfirm`, and both pass, so the code,
+    the harness and the two criteria agree with each other and all four
+    disagree with the section. That is the one arrangement item 8's own
+    closing sentence names as the worst available.
+
+    S11 renamed the un-pull control in the same file at the same time,
+    because item 8 had already amended AC-165 to quote the new string and
+    the criterion was red waiting for it. It did not touch this one, because
+    nothing has amended these two and an implementation that changes a
+    string two green criteria assert is an implementation grading its own
+    homework.
+
+    **Recommended Replace, neither criterion's structure moving and only the
+    quoted string changing**, with the harness constant following it:
+
+    ```markdown
+    - AC-162 ... "Abandon this task? It stops appearing in Today but stays everywhere else." ... (otherwise verbatim)
+    - AC-183 ... the same sentence, as 9.4 now writes it ... (otherwise verbatim)
+    ```
+
+17. **Two acceptance files moved at S11 under persona 11, and both are
+    recorded rather than assumed (S11, 2026-08-25).** AC-228 is new: 9.1's
+    view strip sentence has two halves and AC-221 asserted one, so the
+    board's drop was buildable and unmeasured, which the S10 session
+    recorded in its own header. It is authored red on the tree before the
+    implementation that greens it, numbered from the next free number, and
+    section 12 carries its text and its reasoning.
+
+    AC-219's day-grid locator is corrected with the criterion's sentence
+    unmoved, on the S9 precedent and on item 14's reading. It read
+    `picker.getByRole('grid').or(picker.getByRole('gridcell').first())`,
+    which binds `.first()` to one side of the `or`, so a picker carrying a
+    grid *and* gridcell children matches twice and the assertion dies of
+    strict mode. Every conformant day grid carries both, that being what the
+    two roles are for, so the locator could only ever have passed against a
+    picker missing one of them. The `.first()` moves outside the `or`.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

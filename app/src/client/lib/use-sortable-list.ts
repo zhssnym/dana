@@ -286,6 +286,22 @@ export interface UseSortableListOptions {
    */
   axis?: SortAxis
   /**
+   * Follow the pointer on the *other* axis too, for a surface whose
+   * containers are laid out across the one its lists run on.
+   *
+   * Added at S11 for the board and default false, so the sidebar and the tab
+   * strip are untouched. A board column is a list of rows running on `y`
+   * inside a strip of columns running on `x`, and a drag that can leave its
+   * list (`onDropAt`) can therefore need a destination the window is not
+   * showing. Without this the edge-follow scrolls the column the card is
+   * already in and never the board, so a release into anything off the right
+   * edge is unreachable: measured at S11 in the whole browser leg, where a
+   * hundred and fifty specs' folders made the board wider than the window and
+   * AC-228 went red having passed focused. The one-axis assumption was right
+   * about a list and wrong about a surface.
+   */
+  crossAxis?: boolean
+  /**
    * Omit and the dwell never arms, which is what a card's blocks want: they
    * only ever change places.
    */
@@ -364,6 +380,7 @@ export function useSortableList({
   count,
   onReorder,
   axis = 'y',
+  crossAxis = false,
   onDwell,
   dwellMs = DWELL_MS,
   disabled = false,
@@ -386,6 +403,20 @@ export function useSortableList({
         : { start: rect.top, end: rect.bottom },
     [axis],
   )
+  /* The same two readings across the list rather than along it, which is the
+     whole of what `crossAxis` needs: the arithmetic below is written once and
+     runs twice. */
+  const across = useCallback(
+    (point: { x: number; y: number }): number => (axis === 'x' ? point.y : point.x),
+    [axis],
+  )
+  const crossEdgesOf = useCallback(
+    (rect: DOMRect): { start: number; end: number } =>
+      axis === 'x'
+        ? { start: rect.top, end: rect.bottom }
+        : { start: rect.left, end: rect.right },
+    [axis],
+  )
   const [drag, setDrag] = useState<DragSnapshot>(NO_DRAG)
   const [settlingFrom, setSettlingFrom] = useState<number | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -398,6 +429,8 @@ export function useSortableList({
   const metrics = useRef<Metrics | null>(null)
   const items = useRef<(HTMLElement | null)[]>([])
   const scroller = useRef<HTMLElement | null>(null)
+  /* The scroller across the list's axis, found only when `crossAxis` asks. */
+  const crossScroller = useRef<HTMLElement | null>(null)
   const pointerY = useRef(0)
   const pointerX = useRef(0)
   /* Where the drag began and where it last stood still, both measured along
@@ -509,6 +542,26 @@ export function useSortableList({
     const bounds = box ? edgesOf(box.getBoundingClientRect()) : { start: 0, end: viewport }
     const position = along({ x: pointerX.current, y: pointerY.current })
 
+    /* The cross axis first, and it returns nothing: it moves a surface the
+       list does not live on, so it changes no slot and the recompute below is
+       none of its business. Only a surface that asked has one. */
+    const sideways = crossScroller.current
+    if (sideways !== null) {
+      const crossBounds = crossEdgesOf(sideways.getBoundingClientRect())
+      const crossAt = across({ x: pointerX.current, y: pointerY.current })
+      let crossSpeed = 0
+      if (crossAt < crossBounds.start + EDGE_PX) {
+        crossSpeed = -((crossBounds.start + EDGE_PX - crossAt) / EDGE_PX) * MAX_SPEED_PX
+      } else if (crossAt > crossBounds.end - EDGE_PX) {
+        crossSpeed = ((crossAt - (crossBounds.end - EDGE_PX)) / EDGE_PX) * MAX_SPEED_PX
+      }
+      if (crossSpeed !== 0) {
+        const clampedCross = Math.max(-MAX_SPEED_PX, Math.min(MAX_SPEED_PX, crossSpeed))
+        if (axis === 'x') sideways.scrollTop += clampedCross
+        else sideways.scrollLeft += clampedCross
+      }
+    }
+
     let speed = 0
     if (position < bounds.start + EDGE_PX) {
       speed = -((bounds.start + EDGE_PX - position) / EDGE_PX) * MAX_SPEED_PX
@@ -549,7 +602,7 @@ export function useSortableList({
     ) {
       apply({ ...live.current, delta, over, into })
     }
-  }, [along, apply, edgesOf, onOver, proposedSlot])
+  }, [across, along, apply, axis, crossEdgesOf, edgesOf, onOver, proposedSlot])
 
   const onPointerMove = useCallback(
     (event: PointerEvent): void => {
@@ -696,6 +749,28 @@ export function useSortableList({
           break
         }
         node = node.parentElement
+      }
+
+      /* The same walk across the axis, for a surface that asked. Separate
+         rather than one loop finding both, because the nearest scroller on
+         each axis is a different ancestor and the first match on one says
+         nothing about the other. */
+      crossScroller.current = null
+      if (crossAxis) {
+        let sideways = items.current[index]?.parentElement ?? null
+        while (sideways) {
+          const style = getComputedStyle(sideways)
+          const overflow = axis === 'x' ? style.overflowY : style.overflowX
+          const overflows =
+            axis === 'x'
+              ? sideways.scrollHeight > sideways.clientHeight
+              : sideways.scrollWidth > sideways.clientWidth
+          if ((overflow === 'auto' || overflow === 'scroll') && overflows) {
+            crossScroller.current = sideways
+            break
+          }
+          sideways = sideways.parentElement
+        }
       }
 
       onLift?.()
