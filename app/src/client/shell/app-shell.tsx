@@ -75,7 +75,13 @@ import {
 
 import { mutateApi } from '../api/http.js'
 import { useCreateFolder } from '../api/mutations.js'
-import { useBundle, useFolders, useMe, usePendingInvites } from '../api/queries.js'
+import {
+  useBundle,
+  useFolders,
+  useMe,
+  usePendingInvites,
+  useSavedViews,
+} from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
@@ -85,6 +91,9 @@ import { InviteGate } from '../pages/InviteGate.js'
 import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { navPages, paths } from '../routes.js'
+import { placeAt, surfaceDefaults } from '../views/place-pages.js'
+import { effectiveMode, useViewMode } from '../views/view-mode.js'
+import type { ViewMode } from '../views/view-mode.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
@@ -106,6 +115,7 @@ import {
 } from './preferences.js'
 import type { TaskFormDefaults } from './overlays.js'
 import type { Folder } from '../../shared/folders.js'
+import type { SavedView } from '../../shared/bundle.js'
 
 /** The prefix 9.1's routes table gives a folder page. */
 const FOLDER_PREFIX = '/app/folders/'
@@ -119,38 +129,43 @@ const FOLDER_PREFIX = '/app/folders/'
  */
 const NO_FOLDERS: readonly Folder[] = []
 
+/** The same stable-identity trick for the saved views the page block ends on. */
+const NO_SAVED_VIEWS: readonly SavedView[] = []
+
+/** Every view there is, so the shell reads the store rather than a page. */
+const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
+
 /**
  * Where the floating button appears, and what it makes there.
  *
  * **The rule inverted at RFC 0005 and this is the inversion.** v1 put the
  * button on every page except Done. 9.1 now puts it only on "the pages with
  * no capture affordance of their own, Today, Important, and Assignments",
- * and never on Done or Abandoned; in board view every column captures and
- * the button is absent there too (DES-182, S10 owns that half). Every other
- * page has a quick-add row where its own list begins, so a second control
- * floating over it is two ways to do one thing, forty pixels apart.
+ * and never on Done or Abandoned. Every other page has a quick-add row where
+ * its own list begins, so a second control floating over it is two ways to do
+ * one thing, forty pixels apart.
+ *
+ * **And it is absent in board view, which S10 added and DES-182 argued.** "In
+ * board view every column captures and the floating button is absent": the
+ * button is the capture point that leaves wherever a capture row already
+ * exists, and a column says where the task lands better than any row. The
+ * mode is read from the same store the strip writes, so the shell and the
+ * page cannot disagree about which view is showing.
  *
  * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
  * page." A deleted-things page that offers to make a new thing is offering
  * an act its own subject cannot receive.
  *
- * The defaults themselves are 9.3's entry table, whose v2 rows land with
- * S10 and the board columns. What is here is the three pages this rule
- * leaves the button on, each carrying the value its own spine locks.
+ * The defaults are 9.3's entry table, and they are `place-pages.ts`'s rather
+ * than this file's, because DES-182's fault was three surfaces each deciding
+ * them: the button, the quick-add and the board column now read one table.
  */
-function floatingDefaults(pathname: string): TaskFormDefaults | null {
-  /* Today locks the day, so a task made here is due today; the Today
-     membership its spine actually wants is S10's, with the page. */
-  if (pathname === paths.today) {
-    return { due_date: todayInBrowserZone(), important: false }
-  }
-  /* Important locks the flag. */
-  if (pathname === paths.important) return { due_date: null, important: true }
-  /* Assignments locks the assignee, and the value it locks is the viewer;
-     the assignee field arrives with S10's page, so the button opens the
-     form with the folder and date empty and the person chooses. */
-  if (pathname === paths.assignments) return { due_date: null, important: false }
-  return null
+function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | null {
+  const spine = placeAt(pathname)
+  if (spine === null || spine.capture !== 'floating') return null
+  if (effectiveMode(mode, spine.views) === 'board') return null
+  const defaults = surfaceDefaults(spine.key, todayInBrowserZone())
+  return { due_date: defaults.due_date, important: defaults.important }
 }
 
 /** Whether a keystroke landed somewhere a person is typing. */
@@ -227,8 +242,15 @@ export function AppShell(): React.JSX.Element {
   const bundle = useBundle()
   const folders = useFolders()
   const invites = usePendingInvites()
+  /* 9.1 ends the page block with the viewer's pinned saved views, so the
+     chrome reads them here beside the pin list rather than in a page. */
+  const savedViews = useSavedViews()
   const createFolder = useCreateFolder()
   const update = useUpdateAffordance()
+  /* The remembered view, unresolved: every mode is passed as offered so this
+     reads the store rather than a page's answer to it, and floatingDefaults
+     resolves it against the page it is actually on. */
+  const [remembered] = useViewMode(ALL_VIEWS)
   const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS)
 
   // 9.1's two view preferences, read once at the first render so the sidebar
@@ -305,7 +327,7 @@ export function AppShell(): React.JSX.Element {
     document.cookie = 'sidebar_state=; path=/; max-age=0'
   }, [railOpen])
 
-  const defaults = floatingDefaults(location.pathname)
+  const defaults = floatingDefaults(location.pathname, remembered)
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
@@ -408,6 +430,8 @@ export function AppShell(): React.JSX.Element {
             displayName={me.data?.user.display_name ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
+            currentSearch={location.search}
+            savedViews={savedViews.data ?? NO_SAVED_VIEWS}
             sidebarWidth={sidebarWidth}
             onSidebarWidthChange={(width) => setSidebarWidth(clampSidebarWidth(width))}
             onSidebarWidthCommit={(width) => {

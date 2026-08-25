@@ -1,12 +1,12 @@
 /*
-9.5's Important page: a single list per Q4, one region, no quick-add.
+9.5's Important, at /app/important: "single list per Q4; un-star removes
+immediately; the star's two names are 9.1's."
 
-The designer's `src/screens/important-screen.tsx`, ported at P8R session R6.
-9.1 puts the inline quick-add at the bottom of Tasks groups, the Planned list
-and the folder page's open list, and this page is none of them; 9.1's region
-table says Important carries one section and needs no name. So this page is the
-plain case, and it is here to be the plain case: whatever a page needs beyond
-rows and a state, it declares itself.
+9.1 puts the inline quick-add where a page has a natural landing place, and
+this page is a single list of rows that live elsewhere, so the floating button
+is its capture point instead: it is one of the three that section names, and
+what it makes is starred and undated, which is 9.3's Important row and this
+page's own spine.
 
 **The star points outward here and nowhere else.** Q4 gives this page the
 outward tooltip, "Also in Planned, due ..." and "Also in Tasks, in Work", and
@@ -14,15 +14,27 @@ outward tooltip, "Also in Planned, due ..." and "Also in Tasks, in Work", and
 which is what AC-055 and AC-099 address it by. The mode is a page-level fact
 passed down, because a component that read the route would behave differently
 depending on where it was mounted.
+
+**"On this one page the star rests unfilled"** is 9.5's v2 sentence and it is
+the row's to keep, not this page's: a filled star on every row of the starred
+page distinguishes nothing. It travels with S11's row work, and this page
+passes nothing new for it.
 */
-import { Star } from 'lucide-react'
+import { Star } from '../lib/icons.js'
 
 import { useImportantView } from '../api/queries.js'
+import { groupRows } from '../views/grouping.js'
+import { PLACES } from '../views/place-pages.js'
+import { TaskBoard } from '../views/TaskBoard.js'
+import { PlaceChrome, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
+import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import { IMPORTANT_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+
+const SPINE = PLACES.important
 
 export function ImportantPage(): React.JSX.Element {
   const view = useImportantView()
@@ -30,22 +42,47 @@ export function ImportantPage(): React.JSX.Element {
   const confirm = useConfirm()
   const basis = useRowBasis()
 
+  const rows = view.data?.rows ?? []
+  const place = usePlace(SPINE, rows)
+  const context = { ...basis, starTooltip: actions.starTooltipMode }
+  const narrowed = place.narrow(rows)
+  const columns = groupRows(narrowed, place.groupBy, place.today, place.viewerId)
+
   return (
     <div className="space-y-7">
-      <PageHeading icon={Star} title="Important" subtitle="Starred tasks" />
+      <PlaceChrome place={place} />
+      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
       <PageBody
         query={view}
-        isEmpty={(view.data?.rows.length ?? 0) === 0}
+        isEmpty={rows.length === 0}
         emptyCopy={IMPORTANT_EMPTY}
         emptyIcon={Star}
         truncated={view.data?.truncated ?? false}
       >
-        <TaskRows
-          tasks={view.data?.rows ?? []}
-          context={{ ...basis, starTooltip: actions.starTooltipMode }}
-          actions={actions}
-          onAsk={confirm.ask}
-        />
+        {place.mode === 'board' ? (
+          <TaskBoard
+            place={place}
+            columns={columns}
+            context={context}
+            actions={actions}
+            onAsk={confirm.ask}
+          />
+        ) : place.groupBy !== 'none' ? (
+          <div className="space-y-6">
+            {columns.map((column) => (
+              <PageSection key={column.key} name={column.name} heading={column.name}>
+                <TaskRows
+                  tasks={column.rows}
+                  context={context}
+                  actions={actions}
+                  onAsk={confirm.ask}
+                />
+              </PageSection>
+            ))}
+          </div>
+        ) : (
+          <TaskRows tasks={narrowed} context={context} actions={actions} onAsk={confirm.ask} />
+        )}
       </PageBody>
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>
