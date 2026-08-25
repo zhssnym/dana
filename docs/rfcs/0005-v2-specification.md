@@ -719,6 +719,41 @@ nothing here is deleted by hand, rows aging out with 4.13's retention. An
 actor is never notified of their own act (4.14's rule, restated where a
 reader will look). Empty state: "Nothing new. When someone assigns you a
 task or answers you, it lands here."
+### Insert new section 9.13 after 9.12
+
+Added at S13 on 2026-08-24, from the owner's ruling of that date; ADD-1 in
+`v2-pricing.md` named the feature and no section described it, which is the
+gap this unit closes.
+
+```markdown
+### 9.13 First run and the starter workflows
+
+A person signing in for the first time arrives at Desk (9.1) holding nothing. That empty Desk is the one screen every account sees and no account keeps, and it is where the product either teaches itself or does not.
+
+Beneath Desk's own empty state, a fresh account is offered the starter workflows: bundled workflow files (7.16) that import with one press, each a worked example of a real piece of work rather than a tour of the interface. The purpose is navigation. A person who imports one has a folder in their Library, a page with sections, and tasks reaching the views of 9.4 and 9.5, which teaches where things live by putting something in each place rather than by describing it.
+
+**Fresh** means the account holds no folder but Desk and no task anywhere. Both facts are already in what the client read to draw the page, so the offer needs no endpoint of its own. It stops being drawn the moment either is false, which includes the moment an import lands, and it does not return: a person who imports one or dismisses it has left first run, and asking again would be the product failing to notice it had already been answered.
+
+**Each starter is an ordinary import.** POST /api/v1/workflows/import (7.16) takes the file, through the same endpoint and the same validation a person's own exported workflow goes through. Nothing is seeded, nothing is special-cased in the server, and no row is created that a person could not have created themselves. This is why the feature costs no backend, and it is also why it cannot drift from the import: a starter that stopped importing would fail the same way any workflow file would.
+
+**What a starter may contain is what a workflow file may contain**: a folder name, task titles, and page blocks. It follows that a starter carries no comment and no reminder, and this section does not enforce that, because 7.16's schema has no key for either and a constraint the format makes impossible needs no rule. What is recorded here is why it is right that the format forbids them, so that a later widening of the format does not take these two with it by accident.
+
+A comment would have to be attributed to somebody. Every comment in Dana is a thing a person said (4.15), and a fabricated one on a fresh account would be the product inventing a colleague, which is a lie about the one subject a collaboration tool cannot afford to lie about. A reminder would send email about a plan the person did not make, at an hour they did not choose, most probably after they had forgotten the starter was there; the person likeliest to receive it is the one who never came back, and a starter that mails a person who has left is the worst version of this feature.
+
+**Every starter says in its own page that it can be deleted**, as the first paragraph block of its folder, because the offer's own copy is gone the moment it is answered and the page is what the person still has.
+
+Copy, normative:
+
+| Element | Copy |
+| - | - |
+| The offer's heading | "Start with an example" |
+| The offer's body | "Import a worked example to see how Dana holds a real piece of work. Nothing here is fixed: change anything, or delete it all." |
+| Dismiss | "No thanks" |
+| The first paragraph block of every starter folder | "This is an example, and it is yours now. Change anything you like, or delete the whole folder from its menu when you are done with it." |
+
+The starter files themselves are the design record's, on the 9.2 ruling of the same date: this section fixes that they exist, what they may hold, and what they must say, and does not transcribe them. What they must be is worked examples of problems a person actually has, each one solved the way Dana solves it, because a starter that demonstrates the interface rather than the work teaches a person how to click and not why to return.
+```
+
 ```
 
 ### Insert new section 7.18 after 7.17
@@ -1063,6 +1098,229 @@ fold, the way P7's mid-package change control ratified the pass callable:
    browser test, which stays on the v1 form until S11 lands the v2 assignee
    menu; that split is S1's and is recorded in AC-220's file.
 
+9. **S10, the place pages, 2026-08-25: nine rulings, two of them silences in
+   this RFC's own text and one an escalation against frozen section 7.**
+
+   **The filter carries eight of its nine axes, and created-by is an
+   escalation.** 9.1 lists "created-by" among the filter's variables and 9.5
+   gives an Assignments row a "from" half naming the creator. Neither can be
+   drawn: a filter and a row both run over frozen 7.0's `TaskCard`, which has
+   no `created_by`, the field being TaskDetail's. The two ways to have it are
+   both refused here rather than taken quietly. Widening TaskCard is a change
+   to a frozen interface, which protocol section 3 makes the owner's decision
+   and not a package's. Reading a detail per row is a request per row on a
+   page that fetched one, at every scroll. So the axis is absent and the
+   "from" half is absent, and this is the record of it. Recommended, if it is
+   wanted: add `created_by` to TaskCard as an additive field, the way this RFC
+   already adds columns and endpoints additively, at which point both surfaces
+   are a few lines each. Nothing asserts either today.
+
+   **A saved view opens at its place-page carrying its id, not at a path of
+   its own.** 9.1's routes table has sixteen rows and none of them is a saved
+   view, while the same section's page block ends with "any unpinned view the
+   pin list of 9.7 has pinned ... and the viewer's saved views, each present
+   only when pinned and each a link". A link needs an address. DES-153 decides
+   which one: "a view is one object with four parts, a name; a spine, the one
+   axis it locks; defaults for every other axis; and a mode", and "every
+   native page of DES-152 is an instance of it, and so is a view somebody
+   saves for themselves. Nothing is special-cased." A saved view made on
+   Scheduled is therefore Scheduled with a filter, and its address is
+   Scheduled's carrying the filter: `/app/scheduled?view=<id>`. The rejected
+   alternative is a route of its own, which would have made a view a
+   seventeenth kind of surface rather than a view of a page, and would have
+   put a row in a table this RFC wrote deliberately closed. The query
+   parameter joins `?mode=` and `?state=important`, which that section already
+   uses for exactly this: a link that seeds a page's client state.
+
+   **A saved view is pinned when it is saved, until 9.7's pin list exists.**
+   DES-153 makes saving and pinning two choices, and the surface the second
+   belongs to is the v2 Settings pin list, "every view Dana has, native and
+   saved alike, each with a pin switch". That page is still v1's three
+   booleans: RFC 0004 gives the Settings rewrite to no package, and S10's row
+   is the place pages. A view saved unpinned would therefore have no address a
+   person could reach, which is DES-189 exactly, "a setting with no way in is a
+   setting nobody has". So "Save as view" writes `pinned: true` and the view
+   appears in the page block at once; the pin list takes it out again the day
+   that page is written, and no data moves when it does.
+
+   **Assignments and Abandoned gained an empty state each, and they are the
+   only copy S10 wrote.** Section 6 gives every query an empty state and
+   section 9 writes none for these two, because neither is a query: this RFC's
+   own preamble insert says so of Assignments in terms, and Abandoned is a
+   client-side narrowing of Q5 by status. A page that arrives empty with
+   nothing to say is the one state the other eight all have words for, so two
+   strings were written in the register of those eight, what the page holds
+   and then how something gets here:
+
+   ```
+   Assignments: Nothing assigned yet. Open tasks appear here under whoever is carrying them.
+   Abandoned:   Nothing abandoned. Tasks you decide not to do wait here in case you change your mind.
+   ```
+
+   They live in `app/src/client/pages/empty-states.ts` beside the eight
+   transcribed ones and are marked there as not being section 6's. They fold
+   into section 9 with the rest of this delta.
+
+   **The board's drop is S11's, and Done offers no board until S11.** 9.1
+   gives a board column a drop that writes the column's value. RFC 0004
+   assigns every drag engine to S11 with the sentence that decided the sidebar
+   drag on 2026-08-24: one drag engine total. Building a second one here is
+   the shape that move exists to prevent, so the board captures and does not
+   yet receive a drop; nothing asserts the drop, AC-221 reading the capture.
+   Done is list-only for the neighbouring reason: it draws `DoneRow` where
+   every other page draws `TaskRow`, which 11.15 records as the duplication to
+   reunify and RFC 0004 assigns to S11 as "one task-row implementation total".
+   A board here would have to pick one of the two now, on a package that owns
+   neither, and whichever it picked is the copy S11 then unpicks.
+
+   **A place-page has no cover and no editable description, and both are
+   storage rather than drawing.** DES-141 makes a cover native to every place
+   and DES-149 puts it in the head every page shares; 9.4 writes Today's head
+   as "the page's mark, title, editable description, and the fact 'N of M
+   done'". Nothing stores either for a native view: 4.3's identity columns
+   belong to a folder, 4.17's blocks belong to a folder or a shelf, and a
+   query has no row of its own to hang a cover or a description on. The head
+   therefore draws the mark, the title, the fact where a page has one, and the
+   page's DES-152 question as its prose line. What is missing is a table, not
+   a component, and it is named here so the session that adds one knows the
+   head is waiting for it rather than that the head forgot.
+
+   **All keeps Q2's grouping and Anytime does not, and the two sentences are
+   about two surfaces.** 9.5 writes Anytime as "Q2's rows, ungrouped"; section
+   6's Q5, which this RFC does not touch, writes All's second half as "'Tasks'
+   rendered exactly as Q2 groups it. No third scheme exists." Each is followed
+   where it is the authority: the Anytime page is one list, All's undated half
+   keeps the default-folder block over folder-headed groups. A person who
+   wants Anytime in folders asks the filter for it, which is DES-156's whole
+   argument. The two halves are renamed with their home pages, "Scheduled" and
+   "Anytime", which is what 9.1's regions table asks for ("its two halves'
+   regions as their home pages define them") and what AC-093's All arm was
+   waiting on.
+
+   **All has one capture point and it is the undated one.** v1's All carried a
+   quick-add in each half. 9.1 gives a page "one always-visible capture point"
+   and 9.3's entry table gives All one row, "Desk, All, or the bare strip
+   control: folder Desk, undated". The dated half's quick-add is therefore
+   gone rather than kept for symmetry; AC-096 still reads the floating
+   button's absence on All, which the surviving capture is what earns.
+
+   **The filter panel commits and closes on every axis but the assignee.**
+   Section 9 fixes the control's name, its axes and its readout and says
+   nothing about whether its surface stays open. Choosing a due range, a
+   grouping, a sort, or one of the three switches is one answer to one
+   question, so it is written and the panel closes the way a select does, and
+   the chips in the window bar are what say it happened, which is DES-156's
+   readout argument. The assignee axis stays open because it is the one that
+   takes several values, "Sara *and* Hassan", and closing after each would
+   make a multi-value axis single-value in practice.
+
+   **AC-093's All arm was written by S10 and the boundary is flagged.**
+   Protocol section 8 gives the acceptance tests to persona 11. Imran's
+   instruction of 2026-08-25 was to close All's owed row with the surface that
+   makes it assertable, and the case is in `ac-093-entry-point-defaults.spec.ts`
+   with a paragraph naming its author, on the precedent of the browser half of
+   S1, which was written under persona 11 on his instruction and flagged
+   rather than crossed silently. AC-165 and AC-219 were left alone on the
+   other side of the same line: both are S11's by RFC 0004's row, the first
+   naming a string that lives in the row's copy module and the second the v2
+   pickers, and this package renamed neither.
+
+10. **Section 9.2 stops carrying the landing's copy (S13, 2026-08-24, the
+    owner's ruling).** This RFC replaced 9.1 and 9.3 to 9.9 and left 9.2
+    alone, so the landing section still fixed seven marketing strings in a
+    table, named My Day as where a first run lands, and fixed a preview panel
+    beside the copy. All three are false against the landing the Codex lane
+    built and the owner directed. The owner ruled that the specification is a
+    rulebook and not a transcript: 9.2 now states the rules copy is written
+    under, the design record holds the sentences, and one string stays
+    normative there because it discloses what Dana takes rather than claiming
+    what Dana does. The amendment is written into `docs/spec/09-ui.md`
+    directly rather than as a unit here, this RFC never having owned that
+    section, and section 13 item 14 closes a third time against it.
+
+    **One rule is new rather than moved**, and it is the reason the ruling
+    was worth making: the page may claim no capability Dana does not ship.
+    The standing text carried a no-AI-claim rule, which is that rule's
+    instance for the one capability anybody was tempted to claim in 2026;
+    stating the general form means the next temptation is covered before it
+    has a name. AC-159 asserts the instance and is untouched, so nothing
+    about the protection depends on this paragraph being read.
+
+11. **ADD-1 gains a section, and its two exclusions gain reasons (S13,
+    2026-08-24, the owner's ruling).** `v2-pricing.md` named onboarding
+    starter workflows and nothing described them, so the package had no
+    contract to be done against; the unit above inserts 9.13. The owner
+    ruled the feature's purpose is teaching a new person where things live,
+    that the examples must solve real problems rather than tour the
+    interface, and that a person must be told they can delete them.
+
+    He also ruled out comments and reminders in starters, and the finding
+    worth recording is that **7.16's schema already makes both impossible**:
+    a workflow file carries folder names, task titles and page blocks, and
+    has no key for either. So no rule was added and no validation was
+    written. 9.13 records the product reasons instead, because a constraint
+    that holds only by accident of a format is a constraint a later widening
+    of that format removes without anyone deciding to.
+12. **S12's owner cell read against the persona files it repeats (Imran,
+   2026-08-24, ruled at S12's opening).** RFC 0004's table assigns S12 and
+   S11 to `09-complex-interaction.md`, whose Owns section holds exactly the
+   calendar, task-form and search directories; every surface S12 builds (the
+   9.6 folder page, 9.10's shelves, the conversation, 9.12's bell) sits in
+   `07-frontend-architect.md`'s claim, which names the page assembly of 9.4
+   to 9.8 and the residue of `app/src/client/**`. RFC 0004's own sentence
+   decides it: the persona files are the authority on ownership and the
+   table repeats their claims. So the repeat is corrected rather than the
+   source: S12 runs under persona 07, no persona file is edited, and S11,
+   which carries the same mismatch for the task components, takes the same
+   answer when it opens. Options weighed and rejected: widening persona
+   09's Owns (rewrites two permanent files for one release) and splitting
+   the package (cuts the folder page from its own conversation).
+
+13. **AC-226 was claimed twice, and S13's claim keeps the number (Imran,
+    2026-08-24, ruled at S12's opening).** The S9 close moved the sidebar
+    drag to S11 and wrote that S11 owes AC-226; `s13-public`, unmerged and
+    invisible to that session, had already spent AC-226 on the starter
+    workflows, in section 12's text and in a built test. Two sessions
+    reached for the next free number in parallel and drew the same one.
+    S13's criterion is written and asserted, S11's is a debt with no text
+    yet, so S13 keeps AC-226 and S11's sidebar-drag criterion is AC-227.
+    The SESSION-LOG row that says "S11 owes AC-226" stays as written, the
+    record being what happened; this item is the correction it points to.
+
+14. **Four v1 browser cases address a folder's overflow menu where 9.1 no
+    longer puts it, and one of them asserts a dialog 9.6 retires (S12,
+    2026-08-25; raised, not decided here).** The same shape as item 8 and
+    found the same way, by running the whole leg rather than the four
+    criteria this package owns. 9.1's replacement puts "the object's
+    overflow menu" at the window bar's right end, and the v2 folder page
+    renders it there; `regionOf(page, 'Folder header')` therefore finds no
+    menu, and four cases fail against a surface that satisfies the section
+    they cite. None is a defect in S12's code and none was edited to get
+    green, protocol section 8 putting acceptance tests with persona 11.
+
+    Three want a locator and no new sentence: AC-162's folder-counts and
+    leave-confirm cases, and AC-183's leave-confirm case. Recommended
+    correction, the S9 precedent of a locator fixed inside a criterion whose
+    text is untouched: reach the menu by its name, "More actions", without
+    scoping it to the folder header, since 9.1 gives the string to the
+    active tab's object menu wherever the bar draws it.
+
+    The fourth is a criterion text that v2 makes false. AC-181's second case
+    asserts 9.6's "Label and color" dialog, and 9.6 now reads "The 'Label
+    and color' dialog is retired: the folder's icon and colour are the
+    shared identity above, set from the mark". Recommended Replace, keeping
+    the first half of the criterion, which 9.1's "New folder" action still
+    earns, and retiring the second with the dialog it names:
+
+    ```markdown
+    - AC-181 Given the "New folder" action of 9.1, then it opens a dialog taking a name and creating the folder.
+    ```
+
+    A fifth case is adjacent and needs nothing: AC-162's folder-delete
+    confirm fails because 9.6 replaced that confirm with the undo bar, which
+    is the removal AC-162's own file already anticipates in terms, under
+    that criterion's own quantifier. It goes when persona 11 next opens the
+    file, and AC-225 is what reads what replaced it.
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

@@ -110,7 +110,7 @@ lessons are in the acceptance column because that is where sessions read.
 | S9 | The shell port: DES-152 navigation, the tab strip, the window bar, Library, the undo bar, Trash page (the sidebar drag moved to S11, see below) | S8; S3 for trash reads | S10–S13 | `07-frontend-architect.md` | The prototype's sweep assertions re-expressed as tests pass against the real API |
 | S10 | The place pages: Today, Scheduled (+calendar), Assignments, Important, All, Done; the shared filter, saved views, grouping, boards | S9, S7 | S14 | `07-frontend-architect.md` | Page spines match section 6's queries; entry defaults per spine (DES-182) |
 | S11 | The row, card, pickers, drag engines, the sidebar drag of DES-171, states page; day-level dates and time-of-day reminders in the UI | S8, S9 | S14 | `09-complex-interaction.md` | One task-row implementation total (the DoneRow reunion, 11.15); one drag engine total, the sidebar's arrangement running on the same one as the rows and the boards; reminder picker writes time-of-day mode only; AC-226 authored by `11-adversarial-test.md` alongside |
-| S12 | The folder page with blocks and identity, shelves, the conversation surfaces, notifications UI from its drawing | S5, S6, S9; the notifications drawing | S14 | `09-complex-interaction.md` | LWW/409 handled visibly; the DES-225 client half supplies acts by role; poll liveness per D3 |
+| S12 | The folder page with blocks and identity, shelves, the conversation surfaces, notifications UI from its drawing | S5, S6, S9; the notifications drawing | S14 | `07-frontend-architect.md` (corrected from 09 at S12's opening; RFC 0005 change control item 12, the persona files being this table's own authority) | LWW/409 handled visibly; the DES-225 client half supplies acts by role; poll liveness per D3 |
 | S13 | The public faces from the Codex lane's approved output, emails, PWA, onboarding starter workflows (ADD-1) | S9 | S14 | `07-frontend-architect.md` | S5's import serves the starter files; landing carries Imran's S5 pick |
 | S14 | Security review of uploads/import/links; the full gate in CI's order on both database legs plus the browser leg; release 2.0.0; the release verdict lines | S10–S13 | none | `06-security-and-privacy.md`, then `12-integration-steward.md`, then Imran | All legs green; the visual review recorded; CHANGELOG and version |
 | S-inf | The September move: paid Postgres before **2026-09-12**, always-on service, object-store provisioning, verified-restorable backups, domain cutover | none (parallel; hard-dated) | S14's release | `10-platform.md` with Imran (purchases are his) | The new database restored-from-backup once before cutover; dana.so serves the release |
@@ -133,6 +133,27 @@ order and the Library heading and stopping there, so S11 owes AC-226 and owes
 it from `11-adversarial-test.md` rather than from its own hand. Nothing else
 waits on it: S10 never touches the Library block, and S12's shelves read the
 same membership label the drag would write.
+
+The criterion it owes is **AC-227 and not AC-226**, corrected at S12's
+opening: `s13-public` had already spent AC-226 on the starter workflows and
+was unmerged where this close could not see it. RFC 0005 change control item
+13 carries the ruling.
+
+**S13 ran ahead of S10 to S12 and closes with S12 (Imran, 2026-08-24).** It
+depends on S9 alone, so it was built as soon as that merged rather than waiting
+for its row's turn, and the whole of it is written: the 9.2 amendment, the
+landing, section 9.13 and AC-226. Three things were left open and the owner
+ruled they close with S12 rather than in a fix round of their own. The Postgres
+leg and CI's verdict, because the machine's test credentials are not readable
+without elevation and no session should escalate to pass its own gate. The
+merge, which follows that verdict. And 9.13's deletion paragraph, which is
+stored on every starter's page and asserted by AC-226 over section 7 but drawn
+by nothing, because 9.6's block rendering is S12's. The grouping is the natural
+one: S12 lands the surface that paragraph is waiting for, so both packages
+become visible in the same act and one gate run covers them together.
+S13's acceptance cell above is also superseded in one clause, its S5 headline
+pick having been overtaken by the Codex lane's redesign; change control item 10
+records that.
 
 **Critical path**: S0 → S1 → S2 → S3 → S5 → S12 → S14, with S4 beside S3,
 S6/S7 beside S5, and the client arm S8 → S9 → (S10 ∥ S11) → S12 overlapping

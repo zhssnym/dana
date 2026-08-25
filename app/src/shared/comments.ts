@@ -42,3 +42,34 @@ export interface CommentLine {
 export interface ThreadView {
   comments: CommentLine[]
 }
+
+/*
+The read half, added by the S12 client arm on 2026-08-25: S6 published
+`CommentLine` and `ThreadView` as interfaces and no zod schema for what the
+thread read answers, and `api/http.ts` parses every response through one.
+Written from `domain/comments.ts`, the discipline `shelves.ts` and
+`events.ts` record at their own read halves; recorded with those additions
+as one change control item. Nothing existing is touched.
+*/
+export const commentLine = z.object({
+  id: z.uuid(),
+  folder_id: z.uuid(),
+  task_id: z.uuid().nullable(),
+  parent_id: z.uuid().nullable(),
+  author_id: z.uuid(),
+  body: z.string().nullable(),
+  likes: z.number().int(),
+  liked: z.boolean(),
+  file_ids: z.array(z.uuid()),
+  created_at: z.string(),
+  edited_at: z.string().nullable(),
+})
+
+export const getThreadResponse = z.object({
+  comments: z.array(commentLine),
+})
+export type GetThreadResponse = z.infer<typeof getThreadResponse>
+
+/** PATCH /comments/:id answers { edited: true } (`routes/conversation.ts`);
+ * the deletes and the like pair answer 204 and carry no body to parse. */
+export const patchCommentResponse = z.object({ edited: z.literal(true) })
