@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm'
 import type { Request, Response } from 'express'
 
 import type { Db } from '../../../db/client.js'
+import type { ObjectStore } from '../files/store.js'
 import { patchMeBody } from '../../shared/me.js'
 import type { MeResponse } from '../../shared/me.js'
 import { deleteAccountData } from '../domain/accountDeletion.js'
@@ -184,6 +185,7 @@ export async function handleDeleteMe(
   db: Db,
   userId: string,
   res: Response,
+  fileStore?: ObjectStore,
 ): Promise<AccountDeletionCounts & { sessions: number }> {
   const deleted = await inTransaction(db, async (tx) => {
     const counts = await deleteAccountData(tx, userId)
@@ -203,6 +205,21 @@ export async function handleDeleteMe(
     await tx.execute(sql`DELETE FROM sessions WHERE user_id = ${userId}`)
     return { ...counts, sessions: Number(sessions[0]?.n ?? 0) }
   })
+  // 8.10 step 6a's second half: the objects leave the store only after the
+  // rows committed, the order 7.15's delete uses. Best effort per id: the
+  // deletion is committed and the sessions are gone, so a failed removal
+  // must not turn an account that no longer exists into a 500 nobody can
+  // retry; an object that survives a failed rm is unreachable, every row
+  // that named it being gone.
+  if (fileStore !== undefined) {
+    for (const id of deleted.fileIds) {
+      try {
+        await fileStore.remove(id)
+      } catch {
+        // Unreachable bytes; the disk store's rm is force and rarely throws.
+      }
+    }
+  }
   clearSessionCookies(res)
   res.status(204).end()
   return deleted

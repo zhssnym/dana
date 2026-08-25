@@ -44,6 +44,7 @@ import { sql } from 'drizzle-orm'
 import { pino } from 'pino'
 
 import type { DbClient } from '../../../db/client.js'
+import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -98,6 +99,15 @@ export interface ReminderPassDeps {
    * environment.
    */
   heartbeatUrl?: string
+  /**
+   * The S4 object store. The Trash purge collects the files rows its folder
+   * deletes will cascade away and removes their objects after the delete
+   * commits, those rows being the only index to the bytes (11.7, RFC 0005
+   * change control item 18). Optional beside the two ratified deps for the
+   * logger's reason; the boot file always passes the application's own
+   * store, and a pass without one still purges rows exactly as before.
+   */
+  fileStore?: ObjectStore
 }
 
 export interface ReminderPassOutcome {
@@ -314,24 +324,60 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     /*
     The third and fourth duties (RFC 0005, 11.7): the 30 day Trash purge and
     the 90 day event purge. Each claims its rows the way the reminder duty
-    always has, SKIP LOCKED, and each is one DELETE whose subselect and
-    removal are a single statement and therefore one transaction of their
-    own: no wrapper, like the session prune above and for its reason, so a
-    purge that fails can never roll back a delivery that already happened.
-    A repeat finds nothing, so the missed-tick and overlap properties hold
-    unchanged. Folders go before tasks so a task inside a purged folder
-    goes by its folder's cascade rather than being counted twice. The fifth
-    duty the RFC text named, notification fan-out, moved to the 10.2
-    chokepoint at S3's change control; the tick carries four.
+    always has, SKIP LOCKED, in a transaction of its own, separate from the
+    delivery's for the session prune's reason: a purge that fails can never
+    roll back a delivery that already happened. A repeat finds nothing, so
+    the missed-tick and overlap properties hold unchanged. Folders go before
+    tasks so a task inside a purged folder goes by its folder's cascade
+    rather than being counted twice. The fifth duty the RFC text named,
+    notification fan-out, moved to the 10.2 chokepoint at S3's change
+    control; the tick carries four.
+
+    The folder purge collects its files rows in the same statement that
+    deletes (11.7, RFC 0005 change control item 18): the cascade drops
+    them, they are the only index to the bytes in the store, and read
+    afterwards there is nothing left that knows the objects exist. The
+    claim, the collection and the delete are three CTEs of one statement
+    over one snapshot, so the collection cannot race the age predicate and
+    the purge stays the single wrapperless statement this module's own
+    interval test pins. The objects leave the store only after the
+    statement commits, 7.15's order, so a refused purge cannot have already
+    destroyed bytes whose rows survived. Tasks carry no files rows (4.16
+    scopes files to folders), so the task purge needs no collection.
     */
-    const purgedFolders = await rowsOf(
+    const folderPurge = await rowsOf(
       db,
-      sql`DELETE FROM folders WHERE id IN (
+      sql`WITH doomed AS (
             SELECT id FROM folders
              WHERE deleted_at < now() - interval '30 days'
-             FOR UPDATE SKIP LOCKED)
-          RETURNING id`,
+             FOR UPDATE SKIP LOCKED),
+          victims AS (
+            SELECT f.id AS file_id, f.folder_id
+              FROM files f JOIN doomed d ON d.id = f.folder_id),
+          removed AS (
+            DELETE FROM folders WHERE id IN (SELECT id FROM doomed)
+            RETURNING id)
+          SELECT r.id AS folder_id, v.file_id
+            FROM removed r LEFT JOIN victims v ON v.folder_id = r.id`,
     )
+    const purgedFolderIds = new Set<string>()
+    const orphanedObjects: string[] = []
+    for (const row of folderPurge) {
+      purgedFolderIds.add(String(row.folder_id))
+      if (row.file_id !== null && row.file_id !== undefined) {
+        orphanedObjects.push(String(row.file_id))
+      }
+    }
+    if (deps.fileStore !== undefined) {
+      for (const id of orphanedObjects) {
+        try {
+          await deps.fileStore.remove(id)
+        } catch {
+          // Unreachable bytes: every row that named the object is gone, and
+          // a purge must not fail the pass over one refused rm.
+        }
+      }
+    }
     const purgedTasks = await rowsOf(
       db,
       sql`DELETE FROM tasks WHERE id IN (
@@ -340,7 +386,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
              FOR UPDATE SKIP LOCKED)
           RETURNING id`,
     )
-    const purgedTrash = purgedFolders.length + purgedTasks.length
+    const purgedTrash = purgedFolderIds.size + purgedTasks.length
     const purgedEvents = (
       await rowsOf(
         db,

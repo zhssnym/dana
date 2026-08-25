@@ -150,11 +150,12 @@ describe('AC-118: the 7.0 status taxonomy holds on the wire', () => {
   test('AC-118: an over-limit body answers 400, not 413, and changes nothing', async () => {
     // The second ruled edge: a body over the parse limit is a body that
     // did not parse. The invalid zone inside keeps a missing limit from
-    // passing this by accident.
+    // passing this by accident. The limit is 10.3's 3 MB row since RFC
+    // 0005 change control item 18; the padding sits above it.
     const signedIn = await holder()
     const oversized = JSON.stringify({
       timezone: 'not/a/zone',
-      padding: 'p'.repeat(2_000_000),
+      padding: 'p'.repeat(3 * 1024 * 1024 + 1024),
     })
     const response = await rawPatchMe(signedIn, oversized)
     expectEnvelopedStatus(response, 400, 'an over-limit body')

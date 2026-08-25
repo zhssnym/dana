@@ -75,7 +75,14 @@ function mimeMatchesKind(kind: FileKind, mime: string): boolean {
 }
 
 /** sharp is imported lazily so constructing the app never loads a native
- * module it might not use; the import cost is paid by the first upload. */
+ * module it might not use; the import cost is paid by the first upload.
+ *
+ * The decompression-bomb guard here is sharp's default limitInputPixels,
+ * about 0.268 gigapixels: a pixel-flood image throws inside this call, the
+ * catch answers null, and the route refuses 422. That protection is a
+ * library default rather than anything written below, so passing
+ * limitInputPixels: false to this constructor would remove it with nothing
+ * to notice (S14 security review F-7, RFC 0005 change control item 18). */
 async function downscaled(bytes: Buffer): Promise<Buffer | null> {
   try {
     const { default: sharp } = await import('sharp')
