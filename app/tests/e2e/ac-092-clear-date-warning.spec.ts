@@ -35,8 +35,22 @@ confirming would clear a seed row's rule and every later spec would see it.
 The reminder is set in the form and never saved, so nothing here calls
 frozen 7.9. The rule is saved, through the 7.6 write arm P6 landed.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), with the twenty
+that rework named.** Nothing this criterion asserts moves; where the form is
+opened from does. 9.1's v2 capture rule leaves the floating add button on
+Today, Important and Assignments alone, and of those three only Important
+leaves the form undated: Today's entry defaults date it, which the third case
+here is expressly about not having happened. So the form opens from
+Important, and the calendar case reads Scheduled at /app/scheduled now that
+/app/planned redirects.
+
+This file was not on the list of twenty Imran ruled on: S9 enumerated the
+failures it had diagnosed and the enumeration was short. Reworked here with
+them, the cause being the same cause.
+
 Spec: 9.3 (the dependency graph, the moment of enablement, the warning copy,
-edit mode), 8.4 (the clear-date cascade the warning describes), 7.6, 10.3.
+edit mode), 9.1 (the v2 capture rule and the v2 routes table), 8.4 (the
+clear-date cascade the warning describes), 7.6, 10.3.
 */
 import { expect, test } from '@playwright/test'
 
@@ -51,7 +65,7 @@ import {
   fillControl,
   floatingAddButton,
   formField,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -74,11 +88,13 @@ test.describe('AC-092: clearing the date in the task form', () => {
   test('AC-092: the warning shows and confirming disables and empties the three dependents', async ({
     page,
   }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.important)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+        + 'of 9.3, and Important is one of the three pages that section leaves it on. It is '
+        + 'the one of the three whose entry defaults leave the form undated, which is the '
+        + 'state the third case below is about',
     )
 
     // 9.3 puts seven of the ten fields behind one expander, and names it.
@@ -165,11 +181,13 @@ test.describe('AC-092: clearing the date in the task form', () => {
   })
 
   test('AC-092: declining the warning changes nothing', async ({ page }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.important)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+        + 'of 9.3, and Important is one of the three pages that section leaves it on. It is '
+        + 'the one of the three whose entry defaults leave the form undated, which is the '
+        + 'state the third case below is about',
     )
     await clickControl(
       page.getByRole('button', { name: 'More options' }),
@@ -219,11 +237,13 @@ test.describe('AC-092: clearing the date in the task form', () => {
   test('AC-092: the three dependents enable in the render the date is set', async ({
     page,
   }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.important)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults '
-        + 'of 9.3, and it is on every page except Done',
+        + 'of 9.3, and Important is one of the three pages that section leaves it on. It is '
+        + 'the one of the three whose entry defaults leave the form undated, which is the '
+        + 'state the third case below is about',
     )
     await clickControl(
       page.getByRole('button', { name: 'More options' }),
@@ -275,7 +295,7 @@ test.describe('AC-092: clearing the date in the task form', () => {
       recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
     })
 
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
     await clickControl(
       page.getByText(title),
       'spec 9.5: a click on any row opens the task, which is how edit mode is reached; the row ' +

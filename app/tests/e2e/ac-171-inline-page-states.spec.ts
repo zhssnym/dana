@@ -42,9 +42,18 @@ asserted by nothing and section 12 records why: producing it takes a thousand
 and one rows through section 7, and section 13 item 6 records that the cap is
 unreachable at v1 scale. It is not this file's silence.
 
-Spec: 9.1 (the inline state copy and the "Try again" control), 9.4 (the error
-state as global toast plus inline retry), 10.2 (an inaccessible resource
-answers as a missing one), 7.10.
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; which page is made to fail does. The failing read
+was Q2's, at /app/tasks, and that path now redirects: Anytime draws Q2's rows
+at /app/anytime and reaches the same view endpoint, so the injected 500 is
+the same 500. The shell case reads the sidebar's Desk entry rather than My
+Day's, Desk being the one page 9.7 will not let a person unpin and so the
+surest evidence that chrome rendered at all.
+
+Spec: 9.1 (the inline state copy, the "Try again" control, and the v2 routes
+table), 9.4 (the error state as global toast plus inline retry), 10.2 (an
+inaccessible resource answers as a missing one), 7.10, 9.7 (Desk locked
+pinned).
 */
 import { expect, test } from '@playwright/test'
 
@@ -52,7 +61,7 @@ import {
   ACTION_TIMEOUT_MS,
   clickControl,
   copy,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -87,7 +96,7 @@ test.describe('AC-171: the two inline page states', () => {
       })
     })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
 
     await expect(
       page.getByText(copy.readFailed),
@@ -132,7 +141,7 @@ test.describe('AC-171: the two inline page states', () => {
     // The other seeded user's Inbox exists and this viewer is not a member,
     // so 10.2 answers 404 without anything being broken and without this case
     // faking a response.
-    await page.goto(routes.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranInbox))
 
     await expect(
       page.getByText(copy.notFound),
@@ -167,25 +176,25 @@ test.describe('AC-171: the two inline page states', () => {
         body: JSON.stringify({ error: { code: 'internal', message: 'Something broke.' } }),
       })
     })
-    await page.goto(routes.important)
+    await page.goto(routesV2.important)
     await expect(
       page.getByText(copy.readFailed),
       'spec 9.1: the failed read renders its copy',
     ).toBeVisible()
     await expect(
-      page.getByRole('link', { name: 'My Day', exact: true }),
+      page.getByRole('link', { name: 'Desk', exact: true }),
       'spec 9.1: the sidebar is global chrome, so a page whose read failed is still a page a ' +
         'person can leave',
     ).toBeVisible()
 
     await page.unroute('**/api/v1/views/important**')
-    await page.goto(routes.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranInbox))
     await expect(
       page.getByText(copy.notFound),
       'spec 9.1: the 404 renders its copy',
     ).toBeVisible()
     await expect(
-      page.getByRole('link', { name: 'My Day', exact: true }),
+      page.getByRole('link', { name: 'Desk', exact: true }),
       'spec 9.1: and the person can leave this one too',
     ).toBeVisible()
   })

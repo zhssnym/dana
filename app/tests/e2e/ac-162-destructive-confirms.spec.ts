@@ -69,11 +69,40 @@ role here is corrected rather than the client's; what this case asserts, that
 the G-SERIES confirm carries 9.5's copy and that declining runs nothing, does
 not move.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Two cases stood
+on pages that moved: the abandon confirm opens on Today, which draws Q1 at
+/app/today now that Desk holds /app, and the task delete on Anytime, which
+draws Q2 at /app/anytime now that /app/tasks redirects. Nothing about the
+confirmations moves with them.
+
+**Two of the six confirmations this file exercises are ones RFC 0005
+removes, and they stay here until the surfaces that render them do.** This
+criterion's text quantifies rather than enumerates, "each destructive action
+section 9 puts a confirm on", so what it asserts is whatever that section
+puts one on at the time it is read, and the answer changed twice. 9.3 now
+deletes a task to Trash "with the undo bar, and no confirmation: two ways
+back is why the question left", and 9.6 does the same for a folder,
+"deleting moves the folder to Trash for every member at once, with the undo
+bar and no confirmation". AC-225 is the criterion that reads what replaced
+them.
+
+The two cases are not removed now, and the reason is not caution. They pass
+against the v1 surfaces the client still carries, so removing them would buy
+this package nothing and would cost the coverage of every day between now
+and S11 and S12. They go when those packages land, under this criterion's
+own quantifier and without anyone's permission being needed, because a
+confirm section 9 no longer puts anywhere is not a confirm this criterion
+asks for. Written down here so that the session which removes them can read
+why rather than decide it again. AC-183's delete-folder clause is the other
+shape and its own file says so: that criterion names its strings one by one,
+so its list is its text and its text is the owner's to change.
+
 Spec: 9.3 (the delete confirm), 9.4 (the abandon confirm), 9.5 (the
 G-SERIES un-complete confirm), 9.6 (the folder delete confirm and its
 counts, and the leave and remove confirms), 9.1 (the regions the folder
-page's header and sharing panel are), 5.1, 5.3's R-CLEAN, 5.4, 8.5, 8.8,
-7.4.
+page's header and sharing panel are, and the v2 routes table), 5.1, 5.3's
+R-CLEAN, 5.4, 8.5, 8.8, 7.4, AC-225 (the undo bar the two removed confirms
+become).
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -85,7 +114,7 @@ import {
   createTask,
   csrfToken,
   regionOf,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -136,10 +165,10 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-162: the four confirms of section 9', () => {
-  test('AC-162: abandoning from My Day carries 9.4\'s copy and declining does nothing', async ({
+  test('AC-162: abandoning from Today carries 9.4\'s copy and declining does nothing', async ({
     page,
   }) => {
-    const title = 'ac-162 abandon me from my day'
+    const title = 'ac-162 abandon me from today'
     const task = await createTask(page, {
       title,
       folder_id: seedIds.groceries,
@@ -147,7 +176,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
       assignee_id: seedIds.hassan,
     })
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await clickControl(
       taskRow(page, title).getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.4: a row carries an overflow menu',
@@ -182,7 +211,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     const title = 'ac-162 delete me from the form'
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText(title),
       "spec 9.5: a click on any row opens the task, and 9.3 puts delete in that form's " +
@@ -252,7 +281,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
       await transition(page, task.id, 'abandon', 'UTC')
     }
 
-    await page.goto(routes.folder(folder.id))
+    await page.goto(routesV2.folder(folder.id))
     // Inside the region rather than first on the page. 9.6's menu is a third
     // control answering to "More actions" after the task form's and a task
     // row's, and reaching it by position is what the last tester return
@@ -314,7 +343,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     // transaction, which is the occurrence the confirm is about.
     await transition(page, task.id, 'complete', 'UTC')
 
-    await page.goto(routes.done)
+    await page.goto(routesV2.done)
     await clickControl(
       taskRow(page, title).getByRole('checkbox', { name: 'Mark as not done', exact: true }),
       'spec 9.5: each Done row has "Mark as not done", which runs uncomplete and, on the ' +
@@ -352,7 +381,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     const page = await context.newPage()
     await signIn(page, seedSubs.imran)
 
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await clickControl(
       regionOf(page, 'Folder header').getByRole('button', {
         name: 'More actions',
@@ -397,7 +426,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     page,
   }) => {
     // The owner removes the other member, which 5.4 gives to the owner alone.
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await clickControl(
       page.getByRole('button', { name: 'Share' }),
       'spec 9.6: the folder header carries a Share button, which opens the sharing panel',

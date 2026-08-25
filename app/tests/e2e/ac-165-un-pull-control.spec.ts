@@ -31,6 +31,23 @@ putting it on the page.
 own mutation, so the row goes without a reload; and a reload afterwards is
 what separates a row hidden locally from an entry actually deleted.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and one clause
+escalated.** 9.1's route table moves the page this criterion is about off
+/app, where Desk now is, to /app/today; section 6's Q1 heading is unchanged
+and keeps the v1 name in parentheses because acceptance criteria cite it, so
+every assertion below is the one it always was and only the address moved.
+
+The clause escalated is the criterion's own string. It quotes "Remove from
+My Day", and 9.4 now writes the control as reading "Remove from Today". A
+criterion quoting a string the specification has since rewritten is a
+criterion whose text is false, and protocol section 8 does not let this role
+edit that text so an implementation passes: it is a Replace unit for RFC
+0005's change control and a question for the owner. Until he rules, this file
+asserts the string its own criterion quotes, which is also the string the
+client still renders, so the two are wrong together rather than silently
+apart. The page is S10's to redraw and the control's own name arrives with
+it.
+
 Spec: 9.4 (the row elements and the un-pull control's name and condition),
 6 Q1 (the two disjuncts), 7.8 (what DELETE my-day removes and what it does
 not), 8.3, INV-12.
@@ -44,7 +61,7 @@ import {
   copy,
   createTask,
   csrfToken,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -69,7 +86,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-165: the un-pull control', () => {
-  test('AC-165: a row on My Day only by its entry carries the control', async ({ page }) => {
+  test('AC-165: a row on Today only by its entry carries the control', async ({ page }) => {
     const PULLED_ONLY = caseTitle(PULLED_ONLY_BASE)
     const task = await createTask(page, {
       title: PULLED_ONLY,
@@ -85,7 +102,7 @@ test.describe('AC-165: the un-pull control', () => {
       `POST /tasks/:id/my-day answered ${pulled.status()}: ${await pulled.text()}`,
     ).toBe(200)
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expect(
       taskRow(page, PULLED_ONLY).getByRole('button', { name: copy.removeFromMyDay }),
       'spec 9.4: a row whose inclusion came from an entry carries the un-pull control, named ' +
@@ -97,7 +114,7 @@ test.describe('AC-165: the un-pull control', () => {
   test('AC-165: a row that also qualifies automatically carries no control', async ({
     page,
   }) => {
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
 
     // The seeded pulled task is assigned to the viewer and due today, so both
     // of Q1's disjuncts hold at once. This is the row 9.4's parenthesis is
@@ -128,7 +145,7 @@ test.describe('AC-165: the un-pull control', () => {
       headers: { 'X-CSRF-Token': token },
     })
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await clickControl(
       taskRow(page, PULLED_ONLY).getByRole('button', { name: copy.removeFromMyDay }),
       'spec 9.4: the un-pull control is on a row whose inclusion came from an entry, which is ' +
