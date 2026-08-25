@@ -47,6 +47,7 @@ Everything runs from `app/`, never from the repository root, where there is no
 ```bash
 npm ci
 npm run lint && npm run typecheck && npm test && npm run build   # the gate, in CI's order
+npm test -- --maxWorkers=2                 # vitest flags go after the --
 npm run dev                                # API server plus client dev server
 npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
 npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # one package's range
@@ -64,13 +65,32 @@ protocol points here rather than repeating them.
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
   naming files imports only those, while `-t` imports every file and skips
   execution in the rest. The Playwright leg is separate and is 135 cases.
-- Under load, parallel PGlite workers can die mid-run: the report shows
-  "[vitest-pool]: Worker forks emitted error" or whole files failed with
-  their tests skipped, and both read as broken code and are not. Observed
-  three times on 2026-08-24 with a dev server and a second agent running.
-  Cap the workers (`--maxWorkers=2`, or 1 for certainty) and rerun the
-  affected files alone before believing any of those failures; CI's serial
-  clean-checkout run is the authority.
+- PGlite workers can die mid-run: the report shows "[vitest-pool]: Worker
+  forks emitted error" or whole files failed with their tests skipped, and
+  both read as broken code and are not. Rerun the affected files alone before
+  believing any of those failures.
+- **Capping the workers is not certainty, corrected 2026-08-24 against
+  measurement.** This bullet used to say "cap the workers (`--maxWorkers=2`,
+  or 1 for certainty)" and named load as the cause, a dev server or a second
+  agent running. Both halves are now known to be too confident. That day a
+  `--maxWorkers=1` run on a machine with no CI job and no second agent on it
+  lost five files, and a parallel CI run half an hour earlier lost two; three
+  other runs of the same commit were clean. Capping lowers the odds and buys
+  nothing certain, and it is expensive: measured that day at about 25 minutes
+  serially against roughly 4 in parallel, at 228 files and 1665 tests. Prefer
+  the parallel default and read the file count, which is what actually tells
+  you whether a run measured the suite.
+- **`npm test` runs through `app/scripts/run-suite.mjs`, which fails a run
+  that exited 0 without accounting for every file it collected.** Written
+  2026-08-24 after a serial run reported `Test Files 223 passed (228)` and
+  `Tests 1636 passed (1665)`, emitted five worker-fork errors, warned that
+  this "might cause false positive tests", and returned exit code 0, which is
+  all CI's test steps read. The guard compares the categories vitest resolved
+  against the total it collected and refuses the difference; a non-zero exit
+  passes straight through, and a summary it cannot parse is passed through
+  rather than invented into a failure. It is proven both ways against the two
+  real runs of that day. Pass vitest flags after `--`, as in
+  `npm test -- --maxWorkers=2 tests/some-file.test.ts`.
 - Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
   arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
