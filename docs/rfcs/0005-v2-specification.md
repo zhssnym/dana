@@ -2300,12 +2300,15 @@ fold, the way P7's mid-package change control ratified the pass callable:
     between the act and the send; it stops being the default sentence and
     becomes the edge case it should always have been.
 
-    **The register half of this closure is the owner's own commit and is not
-    made here.** `design-contract.md`'s DES-034 row and `v2-decisions.md`'s
-    open-owner-rulings paragraph both still read OPEN, and `docs/design/` is
-    human-committed material that no session writes, which is the discipline
-    row 29 held for DES-032's contradictory status. This item is where the
-    build reads the ruling from until he lands those two lines.
+    **The register carries the closure too, written on his direct
+    instruction.** `design-contract.md`'s DES-034 row reads APPROVED and
+    `v2-decisions.md`'s open-owner-rulings paragraph carries the closed
+    marker, both pointing here for the copy. `docs/design/` is human-committed
+    material that no session writes on its own judgement, which is the
+    discipline row 29 held for DES-032's contradictory status; the exception
+    is the owner directing the edit himself, which is what happened here and
+    is recorded so the next session reads a rule with a named exception
+    rather than a rule that was broken.
 
 ## Implementation plan
 
