@@ -218,20 +218,52 @@ describe('dueDisplay: 8.10\'s three cases and Q3C\'s restriction', () => {
   })
 
   /*
-  Q4: dated rows "show due date and time like a Planned row". 24-hour
-  notation, and the seconds Postgres renders on a TIME column are dropped
-  rather than assumed absent.
+  Q4: dated rows "show due date and time like a Planned row", and the seconds
+  Postgres renders on a TIME column are dropped rather than assumed absent.
+
+  **The notation is the viewer's since S17b, where this test pinned 24-hour.**
+  9.7 gives a person the clock and 4.19 stores it, so `dueDisplay` takes it and
+  a row's `RowContext` carries it. The corpus-wide 24-hour convention this test
+  used to cite is this repository's rule for its own documents and was never a
+  rule about somebody's rows; the default is 12-hour, which is
+  `lib/time-format.ts`'s and Imran's ruling of 2026-08-18.
+
+  Both clocks are asserted rather than only the new default. This function
+  gained an input, and a test reading only the value it happens to pass would
+  not notice the other stopping working, which is exactly how the fixed
+  24-hour formatter survived unnoticed beside a 12-hour picker until S17b.
   */
-  test('a due time rides the label in 24-hour notation, seconds dropped', () => {
+  test("a due time rides the label on the viewer's clock, seconds dropped", () => {
     expect(dueDisplay(card({ due_date: TODAY, due_time: '09:00:00' }), TODAY)).toEqual({
+      label: 'Due today 9:00 AM',
+    })
+    expect(dueDisplay(card({ due_date: TODAY, due_time: '09:00:00' }), TODAY, '24')).toEqual({
       label: 'Due today 09:00',
     })
-    expect(dueDisplay(card({ due_date: '2026-08-18', due_time: '18:30' }), TODAY)).toEqual({
+    expect(dueDisplay(card({ due_date: '2026-08-18', due_time: '18:30' }), TODAY, '24')).toEqual({
       label: 'Due 18 Aug 18:30',
     })
-    expect(dueDisplay(card({ due_date: '2026-08-06', due_time: '23:45:00' }), TODAY)).toEqual({
+    expect(dueDisplay(card({ due_date: '2026-08-18', due_time: '18:30' }), TODAY, '12')).toEqual({
+      label: 'Due 18 Aug 6:30 PM',
+    })
+    expect(dueDisplay(card({ due_date: '2026-08-06', due_time: '23:45:00' }), TODAY, '24')).toEqual({
       label: 'Overdue · 6 Aug 23:45',
       overdue: true,
+    })
+  })
+
+  /*
+  Midnight and noon, the two a 12-hour clock gets wrong when anybody
+  reimplements it: 0 and 12 both read as 12 there, which `to12Hour` handles and
+  a bare remainder does not. Asserted through the label because that is the
+  path a row actually takes to the screen.
+  */
+  test('midnight and noon read correctly on a 12-hour label', () => {
+    expect(dueDisplay(card({ due_date: TODAY, due_time: '00:00:00' }), TODAY, '12')).toEqual({
+      label: 'Due today 12:00 AM',
+    })
+    expect(dueDisplay(card({ due_date: TODAY, due_time: '12:00:00' }), TODAY, '12')).toEqual({
+      label: 'Due today 12:00 PM',
     })
   })
 
