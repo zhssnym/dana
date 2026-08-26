@@ -140,7 +140,7 @@ export function TaskFormOverlay(): React.JSX.Element | null {
   }
 
   /*
-  One save, and on the edit path two requests, because the contract puts the
+  One commit, and on the edit path two requests, because the contract puts the
   reminder on two endpoints rather than one.
 
   The create path is one request: frozen 7.6 gives the create body a reminder
@@ -172,25 +172,46 @@ export function TaskFormOverlay(): React.JSX.Element | null {
   The overlay closes once both have settled, so nobody watches the form close
   over a reminder that has not been written.
   */
-  function onSave(
+  /*
+  9.3's v2 commit: "every edit commits as it is made, there is no Save control
+  and no draft state".
+
+  **The create is the first commit that carries a title, and nothing about
+  that is a draft.** 9.1's capture rule creates a task where it is captured
+  and frozen 7.6 requires a title of 1 to 300 characters, so a task nobody has
+  named yet cannot exist on the server; what the surface holds until then is
+  the entry defaults of 9.3 and no row. The moment a valid title is committed
+  the row is made with every value the surface is carrying, and the surface
+  re-keys onto it, so every commit after that is an edit. A person never sees
+  the seam: they type a name, and from then on the strip writes as it is
+  answered.
+
+  The write goes out and the surface stays, because the person is still on it.
+  Nothing closes this surface but the person.
+  */
+  function onCommit(
     body: PostTasksBody | null,
     patch: PatchTaskBody | null,
     reminder: ReminderInput | null,
   ): void {
     if (body !== null) {
-      create.mutate(body, { onSuccess: close })
+      create.mutate(body, {
+        onSuccess: (made) => {
+          // Re-key onto the row that now exists. `TaskForm`'s key carries the
+          // id, so it remounts on the stored task and `initialForEdit` fills
+          // it from what the server actually wrote rather than from what was
+          // sent.
+          setOpen((was) => (was === null ? was : { ...was, taskId: made.id }))
+        },
+      })
       return
     }
     if (patch === null) return
-    writeEdit(patch, reminder, close)
+    writeEdit(patch, reminder, null)
   }
 
   /*
-  9.3's v2 commit, which is the same pair of writes with no close after it.
-
-  A chip answers and the write goes out; the surface stays, because the person
-  is still on it. `onSave` is the control that also closes, so the two differ
-  in exactly one argument and nothing about the ordering above is duplicated.
+  The edit path's pair of writes.
   */
   function writeEdit(
     patch: PatchTaskBody,
@@ -289,16 +310,7 @@ export function TaskFormOverlay(): React.JSX.Element | null {
             key={`${String(open.seq)}-${open.taskId ?? 'new'}`}
             initial={initial}
             task={detail}
-            saving={
-              create.isPending ||
-              update.isPending ||
-              putReminder.isPending ||
-              dropReminder.isPending
-            }
-            onSave={onSave}
-            onCommit={(patch, reminder) => {
-              writeEdit(patch, reminder, null)
-            }}
+            onCommit={onCommit}
             onClose={close}
             onDelete={() => {
               if (detail === null) return

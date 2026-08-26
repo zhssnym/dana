@@ -1855,6 +1855,105 @@ fold, the way P7's mid-package change control ratified the pass callable:
     casualty. Persona 11 reads it and every criterion asserting a TaskCard
     key set before `04-api-and-contract.md` writes a line.
 
+25. **The 9.3 reunion's real surface is thirteen acceptance files, not the
+    seven item 15 named, and two criteria are falsified in substance rather
+    than in wording (S15, 2026-08-25; four sentences taken under item 19,
+    two recommended and left with the owner).**
+
+    **The enumeration first, because it is the third time in this build that
+    a short list has been the finding.** Item 8's list of twenty was three
+    short and item 14's list of four was one wide; both were found by running
+    the leg rather than by reading the list. Item 15 named seven criteria
+    (AC-092, AC-093, AC-094, AC-161, AC-169, AC-170, AC-179). Measured on the
+    tree by grepping the browser suite rather than trusting that list:
+
+    - Nine files reference the v1 "More options" expander, the seven above
+      plus **AC-098** and **AC-183**.
+    - Eight use the four harness helpers, and it is not the same eight:
+      AC-092, AC-093, AC-094, **AC-098**, **AC-156**, AC-161, AC-169,
+      AC-170. AC-179 names the expander in an assertion message and uses no
+      helper.
+    - Union of those two: ten.
+
+    **Three more address the v1 form by apparatus neither grep looks for**,
+    and they are the ones a reader of item 15 would not expect. **AC-178**
+    opens the form by clicking a row, scopes to `getByRole('dialog')` and
+    dismisses it by a Cancel-or-Close control; it uses no helper and never
+    writes "More options", so it is invisible to both sweeps and is squarely a
+    9.3 criterion, its whole subject being the history block that section puts
+    on the card. **AC-182**'s fourth case opens the form from the floating
+    button and drags its resize handle. **AC-162**'s delete case opens the
+    form and reaches the overflow menu inside it for 9.3's delete confirm.
+    So the surface is **thirteen**: AC-092, AC-093, AC-094, AC-098, AC-156,
+    AC-161, AC-162, AC-169, AC-170, AC-178, AC-179, AC-182, AC-183.
+
+    **What creation is on the v2 surface, settled against the prototype
+    rather than reasoned.** 9.3's v2 says "every edit commits as it is made,
+    there is no Save control and no draft state" and still carries an entry
+    defaults table, which reads two ways until something decides it. 9.1's
+    capture rule decides it in terms, "every capture creates the task with the
+    entry defaults of 9.3 for where it stands", and `prototype-v2`'s shell
+    does exactly that: its full-form affordance is `createTaskAndOpen`, which
+    creates the row with the page's defaults and then opens it. There is no
+    draft anywhere in the parity target. So capture creates, and the card is
+    only ever opened on a task that already exists.
+
+    **That is what falsifies AC-169, and it is recommended rather than
+    taken.** AC-169 and AC-170 are a pair, and item 15 lists both because
+    "create and edit are two paths to two different endpoints": the reminder
+    arm of frozen 7.6's create body, and frozen 7.9's PUT. On the v2 surface
+    the client reaches only the second, every reminder being set on a row that
+    exists, so AC-169's premise "a reminder set in the task form while a task
+    is being created" has no client path and its distinction from AC-170 has
+    closed. Both endpoints stay frozen and stay asserted server-side by
+    AC-149, AC-146 and AC-148, so nothing about the contract is unmeasured;
+    what is gone is the client-side half of the split. **Recommended
+    Replace**, the criterion kept and re-aimed at the path v2 does have,
+    rather than retired, on the ground that a client which offers a reminder
+    on a freshly captured task and drops it is still the defect this number
+    was written for:
+
+    ```markdown
+    - AC-169 Given a task captured from any of 9.1's capture points and its surface opened on the created row, when a reminder is set there, then the stored task carries it in 4.8's time_of_day mode and a fresh read reports it; and given a capture that offers none, then the task stores none.
+    ```
+
+    **AC-182's fourth case has lost the sentence it was written against.**
+    Its text reads "given the task form resized, then each state survives a
+    reload", and v1's 9.3 carried "The form's width is the viewer's,
+    persisted client-side, on the sidebar's rule in 9.1". The v2 replacement
+    drops that sentence: it says only that "the side panel makes the page
+    narrower rather than covering it" and fixes one width for the pickers.
+    The behaviour survives in the parity target, `task-surface.tsx`
+    remembering a panel width under DES-138, so this is a section that went
+    quiet rather than a design that changed, which is the silence trigger of
+    protocol section 6 and the shape F-4 reached the Steward as. **Two
+    options, and no recommendation between them is offered because they turn
+    on what the owner wants asserted rather than on evidence**: either 9.3
+    regains a width sentence and AC-182's case stands unchanged, or the case
+    goes the way item 14's counts-carrying folder-delete case went and
+    AC-182 keeps its three sidebar arms. Left standing and passing in the
+    meantime, which is the state that assumes least.
+
+    **Four sentences were taken, and they are the ones item 19 authorised.**
+    AC-161, AC-170, AC-178 and AC-179 each addressed "the task form" and
+    assert nothing that moved; "the form" becomes "the task surface", 9.1's
+    own name for it, and every other clause is verbatim. Section 12 records
+    them together with why the two above are not among them.
+
+    **One harness helper could not be ported and is replaced rather than
+    moved**, which item 15 predicted and is worth writing down because the
+    replacement is not the obvious one. `waitForSaveToSettle` sequenced a read
+    behind the form *closing*, an event a surface with no Save control never
+    has. Waiting on API quiet alone is not the substitute it looks like: quiet
+    is also true in the window between a press and the request that press
+    causes, so a barrier built on it returns before the commit leaves the
+    browser and the read after it reports a stale row, which is the exact
+    shape of the defect AC-169 and AC-170 exist to catch. The replacement is
+    positive rather than negative: `watchCommit` takes the count of requests
+    the page has started, before the interaction, and waits for it to move
+    before it waits for quiet. A commit that never happens then fails as an
+    assertion about 9.3's commit rule rather than as a timeout.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
