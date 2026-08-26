@@ -44,6 +44,11 @@ function card(over: {
     steps_total: 0,
     pulled: false,
     pending_invite_email: null,
+    // RFC 0005 unit 12a's two additions to 7.0's TaskCard; nothing here
+    // reads either, so both take the value a task under no section and a
+    // scrubbed creator would.
+    section_block_id: null,
+    created_by: null,
     created_at: '2026-08-13T00:00:00.000Z',
     updated_at: '2026-08-13T00:00:00.000Z',
   }
