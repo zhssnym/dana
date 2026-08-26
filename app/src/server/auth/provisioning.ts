@@ -88,7 +88,7 @@ export async function provisionUser(
     const folders = await rowsOf(
       tx,
       sql`INSERT INTO folders (owner_id, name, is_default)
-          VALUES (${userId}, 'Inbox', true)
+          VALUES (${userId}, 'Desk', true)
           RETURNING id`,
     )
     const folderId = String(folders[0]?.id)

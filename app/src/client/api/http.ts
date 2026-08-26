@@ -29,7 +29,9 @@ and everything else (the 9.1 error toast). Which toast a failure earns is
 decided once, in `queryClient.ts`, off these three types.
 */
 import { errorEnvelope } from '../../shared/error-envelope.js'
-import type { z } from 'zod'
+// A value import since S12: `uploadFile` parses its answer with an inline
+// schema, the one response shape 7.15 owns and no shared module carries.
+import { z } from 'zod'
 
 import { isOnline, reportReachable, reportUnreachable } from '../state/connectivity.js'
 
@@ -230,4 +232,56 @@ export async function mutateApi<T>(
 /** The tz a date-evaluating mutation carries (7.6's transitions, 7.8's pull). */
 export function requestTimezone(): string {
   return browserTimezone()
+}
+
+/**
+ * The one non-JSON write: 7.15's multipart upload.
+ *
+ * `send` above stringifies a JSON body and says so in its Content-Type; a
+ * multipart body must let the browser write the boundary itself, so this is
+ * a sibling rather than a flag on `send`. Everything else is the same
+ * contract: fail fast offline, CSRF on the mutation, the error envelope
+ * carried through verbatim, the answer parsed through a schema.
+ */
+export async function uploadFile(
+  kind: 'image' | 'file' | 'voice' | 'cover',
+  folderId: string,
+  file: File,
+): Promise<{ id: string; bytes: number }> {
+  if (!isOnline()) throw new OfflineError()
+  const form = new FormData()
+  form.set('kind', kind)
+  form.set('folder_id', folderId)
+  form.set('file', file)
+  const headers: Record<string, string> = {}
+  const token = csrfToken()
+  if (token !== null) headers['X-CSRF-Token'] = token
+
+  let response: Response
+  try {
+    response = await fetch(`${BASE}/files`, {
+      method: 'POST',
+      headers,
+      credentials: 'same-origin',
+      body: form,
+    })
+  } catch {
+    reportUnreachable()
+    throw new OfflineError()
+  }
+  reportReachable()
+
+  const text = await response.text()
+  const payload: unknown = text === '' ? undefined : safeJson(text)
+  if (!response.ok) {
+    const envelope = errorEnvelope.safeParse(payload)
+    const code = envelope.success ? envelope.data.error.code : 'error'
+    const message = envelope.success ? envelope.data.error.message : 'Request failed.'
+    throw new ApiError(response.status, code, message)
+  }
+  return parsed(
+    z.object({ id: z.uuid(), bytes: z.number().int() }),
+    '/files',
+    payload,
+  )
 }

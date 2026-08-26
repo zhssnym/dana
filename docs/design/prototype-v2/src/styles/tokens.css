@@ -1,0 +1,522 @@
+/* Dana v1 — approved light-theme tokens, including the Session 4 desktop
+ * compact-control refinement.
+ * Hex values are authoritative. Dark mode is intentionally out of scope.
+ */
+
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --font-heading: var(--font-family-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+  --radius-full: 9999px;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Typography. `Inter Variable` leads the stack because that is the family
+     @fontsource-variable/inter registers; v1's stack opened with `Inter` and
+     never reached the face it loaded (review A4; production fixed the same
+     way at P8R session R2). */
+  --font-family-sans: "Inter Variable", Inter, ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --text-title-size: 24px;
+  --text-title-line: 32px;
+  --text-heading-size: 16px;
+  --text-heading-line: 24px;
+  --text-body-size: 14px;
+  --text-body-line: 20px;
+  --text-meta-size: 12px;
+  --text-meta-line: 16px;
+
+  /* Graphite neutral ramp */
+  --color-graphite-0: #ffffff;
+  --color-graphite-25: #fafafb;
+  --color-graphite-50: #f4f5f6;
+  --color-graphite-100: #ebecee;
+  --color-graphite-200: #dddee2;
+  --color-graphite-300: #c6c8cd;
+  --color-graphite-400: #999ca3;
+  --color-graphite-500: #6e7076;
+  --color-graphite-600: #585a60;
+  --color-graphite-700: #44464c;
+  --color-graphite-800: #2f3136;
+  --color-graphite-900: #1b1c20;
+  --color-graphite-950: #0a0a0a;
+
+  /*
+  Dana cobalt: interaction only, never task status or folder identity.
+
+  **Raised from 52% to 85% saturation** (DES-214, dialled up by Imran). Imran, 2026-08-23: "the
+  vividness is very less in the current brand accents… make it a bit more vivid
+  according to shadcn UI". He is right and it is measurable — the shipped accent
+  was `hsl(226 52% 49%)` where the blue shadcn ships against, Tailwind's
+  `blue-600`, is `hsl(221 83% 53%)`. Beside that, Dana's read as a greyed blue
+  rather than a brand.
+
+  **The hue does not move.** 226 is Dana's cobalt and Tailwind's is 221; taking
+  their hue as well as their saturation would be adopting their blue rather than
+  making ours brighter. Only the chroma changed.
+
+  **And the contrast was budgeted, not spent.** The obvious way to get vivid is
+  to raise saturation and lightness together until white-on-it just clears
+  4.5:1 — which lands around 4.55 and leaves nothing in hand for a focus ring on
+  a tinted row, or for anyone whose screen is dimmer than mine. Tailwind's own
+  600 keeps **5.17**, so this is tuned to **5.20**: the same headroom they keep,
+  spent on saturation instead of lightness.
+
+  The tints below it are re-derived from the new 600 rather than kept, or the
+  hover wash would be a paler version of a colour that no longer exists.
+  */
+  --color-dana-accent-50: #f3f4fa;
+  --color-dana-accent-100: #e3e7f5;
+  --color-dana-accent-200: #c3cdee;
+  --color-dana-accent-600: #335fee;
+  --color-dana-accent-700: #1346ea;
+  --color-dana-accent-800: #113cc9;
+
+  /* W1, the vision's standing constraint, written where the port will meet
+     it first: Dana has ONE accent, and this ramp is it. When AI arrives it
+     renders native — its work drawn with the same ink as a person's, marked
+     by provenance (who did this), never by a second hue. A colour that means
+     "the machine did this" is a decision this file refuses on purpose; do
+     not add a ramp for it. */
+
+  /* Semantic colors */
+  --color-success-100: #ddf2e2;
+  --color-success-200: #bfe5ca;
+  --color-success-600: #1f7a3f;
+  --color-success-700: #1a6635;
+  --color-warning-100: #faeeda;
+  --color-warning-200: #f2dcb4;
+  --color-warning-500: #b97514;
+  --color-warning-700: #8f5300;
+  --color-danger-100: #fbe5e2;
+  --color-danger-200: #f3ccc7;
+  --color-danger-600: #be372f;
+  --color-danger-700: #a32c25;
+  --color-info-100: #dff0f6;
+  --color-info-200: #c2e2ee;
+  --color-info-700: #0f6e8c;
+
+  /*
+  Folder identity swatches; always pair with a visible folder name.
+
+  **Raised about 30 points of saturation each** (DES-215). Imran, 2026-08-23:
+  "it's not only about accent, the swatches also lack the vividness". The same
+  complaint as the accent and the same answer, applied ten times.
+
+  **Every one holds its own hue and its own contrast.** The lightness is
+  re-solved per swatch so that each lands within 0.02 of the ratio it had on
+  white before — clay was 3.61 and is 3.61, teal was 3.42 and is 3.41. Nothing
+  became more or less legible; they became more coloured. That is the only way
+  to compare a palette honestly, because raising chroma and lightness together
+  makes every swatch "look better" on the screen it was picked on.
+
+  DES-018's requirement is unchanged and is why these ratios are allowed to sit
+  near 3.5: a swatch never carries meaning alone, it travels with a folder name.
+
+  **One adjacency is now a question rather than a coincidence** — see the note
+  on cobalt below.
+  */
+  --color-folder-clay: #e55939;
+  --color-folder-ochre: #bd7a10;
+  --color-folder-olive: #8b8b18;
+  --color-folder-fern: #289d3a;
+  --color-folder-teal: #189c8a;
+  --color-folder-sky: #1a92d1;
+  /*
+  Cobalt sits at hue 242 — moved off the accent's 226, ruled 2026-08-24.
+
+  It sat at 224, two degrees from the brand accent, a collision as old as
+  DES-018 that was survivable while both were dull enough for lightness to
+  tell them apart (49% against 62%). DES-215's vividness lift made them one
+  colour wearing two names, and a folder whose mark is the interaction colour
+  is exactly what DES-018's "identity, never interaction" line exists to
+  stop. Imran ruled for vividness and delegated the hue; 242 keeps the
+  saturation and the contrast of the lifted palette, clears the accent at
+  226, and stays clear of violet at 259. The comparison that decided it was
+  drawn at `?view=swatches`.
+  */
+  --color-folder-cobalt: #7b77f6;
+  --color-folder-violet: #9168ee;
+  --color-folder-plum: #d73bc0;
+  --color-folder-rose: #e5446d;
+
+  /* shadcn/ui semantic role mapping */
+  --background: var(--color-graphite-25);
+  --foreground: var(--color-graphite-800);
+  --card: var(--color-graphite-0);
+  --card-foreground: var(--color-graphite-800);
+  --popover: var(--color-graphite-0);
+  --popover-foreground: var(--color-graphite-800);
+  --primary: var(--color-dana-accent-600);
+  --primary-foreground: var(--color-graphite-0);
+  --secondary: var(--color-graphite-50);
+  --secondary-foreground: var(--color-graphite-800);
+  --muted: var(--color-graphite-50);
+  --muted-foreground: var(--color-graphite-600);
+  --accent: var(--color-graphite-50);
+  --accent-foreground: var(--color-graphite-800);
+  --destructive: var(--color-danger-600);
+  --destructive-foreground: var(--color-graphite-0);
+  --border: var(--color-graphite-200);
+  --input: var(--color-graphite-300);
+  --ring: var(--color-dana-accent-600);
+  /* The shell has two planes and they are told apart by tone, never by a rule
+     (Imran, 2026-08-22): the recessed plane the furniture sits on, and the
+     white sheet the work sits on. The step used to be graphite-25 against
+     white — one percent of lightness — so the hairline was carrying the whole
+     separation and every panel needed one. At graphite-50 the step does the
+     job by itself and the lines can go. */
+  --sidebar: var(--color-graphite-50);
+  --sidebar-foreground: var(--color-graphite-800);
+  --sidebar-primary: var(--color-dana-accent-600);
+  --sidebar-primary-foreground: var(--color-graphite-0);
+  --sidebar-accent: var(--color-graphite-50);
+  --sidebar-accent-foreground: var(--color-graphite-800);
+  --sidebar-border: var(--color-graphite-200);
+  --sidebar-ring: var(--color-dana-accent-600);
+
+  /* Spacing: 4px base, no half-steps */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shape */
+  --radius: 6px;
+  --radius-full: 9999px;
+
+  /* Elevation: borders structure pages; shadows are for floating layers */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgb(10 10 10 / 6%),
+    0 4px 16px rgb(10 10 10 / 10%);
+  --elevation-2: 0 2px 6px rgb(10 10 10 / 8%),
+    0 16px 40px rgb(10 10 10 / 16%);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Motion. Opened at session V3, because the row concepts needed durations
+   * and there were none, and six components each inventing 200ms is how a
+   * product ends up feeling almost consistent.
+   *
+   * Three durations, and the rule is what moves rather than how far. A colour
+   * or an opacity is -fast; a thing that changes size or position is -base;
+   * -slow is for a surface arriving from nowhere, and if you reach for it on
+   * a hover you have chosen wrong.
+   *
+   * Two easings. -exit is symmetric because a thing leaving should not
+   * perform; -enter overshoots very slightly so that an expanding panel
+   * settles rather than stops, which is the difference people read as
+   * "polished" without being able to name it. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 0.6, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Repeated control sizes: primary desktop controls are 40px; dense
+   * navigation and property rows use their own application-specific rhythm. */
+  --control-height: 40px;
+  --shell-sidebar-row-height: 32px;
+  --task-form-property-row-height: 36px;
+  --task-row-height: 44px;
+  --checkbox-size: 20px;
+  --switch-width: 40px;
+  --switch-height: 22px;
+  --avatar-size: 28px;
+  /* Three icon sizes, and the third is scoped. DES-021 set two: compact for
+   * metadata and chips, default for controls, navigation and actions. The
+   * dense step was added at V3 (DES-116) for icons inside dense card
+   * metadata only — never in a row, and never away from 12px type. The test:
+   * it sits beside 12px text inside a card, and more than three of its kind
+   * are in view at once. */
+  --icon-size-dense: 14px;
+  --icon-size-compact: 16px;
+  --icon-size-default: 20px;
+  --icon-stroke-width: 1.75;
+
+  /* Session 4 approved desktop shell */
+  --shell-sidebar-width: 256px;
+  --shell-sidebar-item-height: var(--control-height);
+  --shell-sidebar-section-font-size: 11px;
+  --shell-sidebar-row-font-size: 13px;
+  --shell-pagebar-height: 24px;
+  /* The window bar under the tabs (DES-139). A token because surfaces that
+   * sit below it — the conversation panel, the task sidebars — have to know
+   * where the chrome ends. */
+  --shell-windowbar-height: 36px;
+  /* The reading measure, adopted provisionally 2026-08-18 (DES-135): Imran
+   * expressed no preference when asked, so the studio recommendation stands
+   * until his eye rules at F2d — flip back with ?measure=wide. Supersedes
+   * DES-023's 1120px content area in part once confirmed. */
+  --shell-content-max: var(--content-list);
+
+  /* V1's measure tokens (review L6). Candidate A reads lists at ~800px —
+   * a task title is a sentence, and 1120px of sentence is a stretch no
+   * typographer would set — while candidate B keeps DES-023's 1120px with
+   * the two-line row already pulling metadata under the title. Until Imran
+   * picks, `?measure=narrow` shows A over every list screen through the
+   * data-measure hook in app-shell; the winner becomes the default and the
+   * losing variant leaves with the decision. --content-form is L6's second
+   * token, reserved here for V4 and V6 (the form sheet and Settings). */
+  /* Narrowed 800 -> 720 at Imran's direction, 2026-08-18: the header felt
+   * wide once the window bar took its controls away. DES-135 stays
+   * provisional either way — his eye rules at F2d. */
+  /*
+  The list measure, made responsive — Imran, 2026-08-22: "All folder pages
+  leave a bit too much empty space at both sides… we need a proper and
+  standard approach."
+
+  720px was a fixed reading measure, chosen when the question was whether a
+  task *title* is legible at 1120 (DES-135, and it was right about that). But
+  a task row is not a paragraph: it carries a title, an information line and a
+  trailing column of controls, so it reads more like a table than like prose,
+  and a fixed measure that suits the sentence strands the row in margin.
+
+  So the column scales with the window between two honest bounds: never
+  narrower than the measure that made titles readable, never wider than the
+  point where the eye loses the line returning to the left edge. Prose inside
+  it keeps its own cap, which is what `--content-form` is for — the paragraph
+  and the description stay at a sentence's width whatever the column does.
+  */
+  --content-list: clamp(720px, 66vw, 1040px);
+  --content-form: 640px;
+
+  /* Installed light shell */
+  --pwa-theme-color: #ffffff;
+  --pwa-background-color: #ffffff;
+
+  /* The Dana mark's two colours. Previously hardcoded inside
+   * `components/dana-mark.tsx`, where they were copied from
+   * `public/dana-mark.svg`; they are here now because there are two colourways
+   * rather than one and a component picking its own hexes is how the second
+   * one drifts from the first. Hex values still match the source file. */
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
+}
+
+/* The reversed mark, for the dark panels. A logo whose plate is graphite-950
+ * disappears on a surface that is also graphite-950, which is exactly what the
+ * three dark panels on the public screens were showing: a bare white D with no
+ * tile under it, on every one of them, since the day the panels were drawn.
+ *
+ * `surface` names what the mark is sitting on rather than what colour it is,
+ * because at a call site "this is on a dark panel" is a fact one can check and
+ * "this one is the light version" is a thing one has to remember.
+ *
+ * The `.dark` rule is the prototype's only dark-mode-aware line, and it is
+ * here rather than waiting because it is what makes this a colourway for dark
+ * mode rather than a second asset somebody has to remember to reach for. It
+ * changes nothing today: no code adds that class, and this file's header still
+ * stands — a dark *theme* is out of scope, and one component being ready for
+ * one is not the same undertaking. */
+:root:is(.dark, .dark *),
+[data-dana-mark-surface="dark"] {
+  --dana-mark-plate: var(--color-graphite-0);
+  --dana-mark-glyph: var(--color-graphite-950);
+}
+
+/* Pinned back to the default for a mark on a light surface inside a dark
+ * document — the case the cascade would otherwise get wrong. */
+[data-dana-mark-surface="light"] {
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
+}
+
+/* Accessibility guardrails approved with the palette:
+ * - Small text inside a tint uses graphite-600 or the relevant semantic-700.
+ * - Warning is inline/badge treatment only, never an amber button with white text.
+ * - Status and folder colors always travel with a text or icon cue.
+ */
+
+
+/* ------------------------------------------------------------- dark mode --
+ *
+ * DES-205. Imran's brief of 2026-08-23, item 6, asked for a dark-mode toggle
+ * and scoped it to *placement*. This is the colourway behind it, offered as a
+ * first pass for his ruling rather than as a settled palette — because a
+ * control that switches to nothing is a control that lies, and the toggle is
+ * more useful to rule on with something behind it.
+ *
+ * **One ramp, not a hundred edits.** Every surface in this prototype draws
+ * from --color-graphite-N and --color-dana-accent-N, and the shadcn mapping is
+ * built on those rather than on values of its own. So a dark theme is this
+ * block: re-author the two ramps, and the whole product follows. That was the
+ * bet the token file made and this is it being collected.
+ *
+ * **The ramp is not the light one reversed.** Roles are preserved and values
+ * re-authored, because dark surfaces need different spacing between steps —
+ * the eye separates light greys far better than dark ones, so the low end is
+ * pushed further apart than a mirror would put it.
+ *
+ * **Elevation inverts.** In light, a raised surface is whiter and casts a
+ * shadow. In dark, a shadow on near-black is invisible, and raising something
+ * means making it *lighter*. This is why --color-graphite-0, the sheet the
+ * work sits on, is lighter than --color-graphite-25, the recessed plane the
+ * furniture sits on — the relationship the light theme states is kept and the
+ * physics is turned over. The shadows stay, dropped to a trace, because they
+ * still do the job at the popover's edge where two dark planes meet.
+ *
+ * **The accent is lifted a full step.** Cobalt 600 at #3c5bbf carries text on
+ * white and disappears on a dark plate; the dark theme's 600 is the step that
+ * clears the same contrast bar against #17181b. The tints below it stop being
+ * pale blues and become dark blues, since in dark a tint is a *deeper* wash
+ * rather than a lighter one.
+ *
+ * **What is still Imran's**, and the reason this is a proposal: the ten folder
+ * swatches (DES-018) are unchanged here. They are mid-tone by construction and
+ * they survive the move, but DES-018 requires each to travel with a legible
+ * folder name and that is a judgement per swatch against a new ground, not one
+ * ruling. The same goes for whether the recessed/raised step reads at all on
+ * an OLED panel, which is a thing to look at rather than to calculate.
+ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* The ramp. 0 is still the sheet and 25 still the ground; in dark that means
+     0 is the lighter of the two. */
+  --color-graphite-0: #17181b;
+  --color-graphite-25: #0f1013;
+  --color-graphite-50: #1f2126;
+  --color-graphite-100: #272a30;
+  --color-graphite-200: #32363d;
+  --color-graphite-300: #434850;
+  --color-graphite-400: #7b7f88;
+  --color-graphite-500: #9aa0a8;
+  --color-graphite-600: #b5bac1;
+  --color-graphite-700: #cbcfd5;
+  --color-graphite-800: #e3e6ea;
+  --color-graphite-900: #f2f3f5;
+  --color-graphite-950: #ffffff;
+
+  /*
+  Cobalt, lifted — and lifted at the *new* saturation (DES-214).
+
+  The dark ramp was derived from the old, greyer 600; leaving it would have made
+  the accent vivid in light and washed in dark, which is the two-themes-drifting
+  fault in its purest form. Same hue, same chroma, raised until it clears 4.5:1
+  against the dark card.
+
+  The tints are washes of the ground rather than of white: in dark a tint is a
+  *deeper* colour, not a paler one.
+  */
+  /* Stepped to match the neutral hover in dark, which moves 1.10 from the card
+     (graphite-50 against graphite-0). The first pass sat at 1.06 — a wash you
+     cannot see is a hover state that does not exist. */
+  --color-dana-accent-50: #121f49;
+  --color-dana-accent-100: #17285e;
+  --color-dana-accent-200: #1f347a;
+  --color-dana-accent-600: #567af1;
+  --color-dana-accent-700: #7b98f4;
+  --color-dana-accent-800: #a1b5f7;
+
+  /* The semantic four. Their 600/700 steps carry text, so they lift the same
+     way the accent does; their 100/200 steps are fills and go dark. */
+  --color-success-100: #14251a;
+  --color-success-200: #1b3524;
+  --color-success-600: #6cc98a;
+  --color-success-700: #86d6a0;
+  --color-warning-100: #2a2113;
+  --color-warning-200: #3b2e18;
+  --color-warning-500: #dfae5c;
+  --color-warning-700: #e8c27f;
+  --color-danger-100: #2b1817;
+  --color-danger-200: #3d201e;
+  --color-danger-600: #f08d84;
+  --color-danger-700: #f5a9a1;
+  --color-info-100: #12242b;
+  --color-info-200: #17333d;
+  --color-info-700: #74c4dd;
+
+  /* Dropped to a trace: on near-black a shadow does nothing but dirty the
+     edge, and the lighter plate is what says "raised" now. */
+  --elevation-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --elevation-2: 0 2px 8px rgb(0 0 0 / 50%);
+}
+
+/*
+ * The mark, inverted for dark — and the first version of this was inverted
+ * twice, which is the same as not at all.
+ *
+ * Imran, 2026-08-23: "the dark mode still uses the current version of the
+ * logo while it should use the logo which is inverted". It did. The rule said
+ * plate: graphite-0, glyph: graphite-950 — the reversal, written against the
+ * *light* ramp's meaning. But the ramp itself had already reversed above, so
+ * graphite-0 is now the near-black sheet and graphite-950 is white: the rule
+ * resolved to a near-black tile carrying a white D, on a near-black page. The
+ * mark disappeared into its own background, which is precisely the fault the
+ * note beside `.dark` was written about.
+ *
+ * The lesson is worth more than the fix: **a rule written in terms of a ramp
+ * cannot also be the thing that flips the ramp.** Stated by role instead —
+ * the plate is the opposite of the page, always — it cannot double-negate.
+ */
+[data-theme="dark"] {
+  --dana-mark-plate: var(--color-graphite-950);
+  --dana-mark-glyph: var(--color-graphite-0);
+}
+
+/* Reduced motion. The tokens are collapsed at the source rather than each
+ * component being asked to remember, so a transition written against
+ * --duration-base simply stops moving when the operating system says so and
+ * no animation can be forgotten. State still changes; only the travel is
+ * removed. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-slow: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

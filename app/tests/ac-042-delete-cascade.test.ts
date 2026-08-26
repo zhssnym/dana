@@ -1,29 +1,27 @@
 /*
-AC-042: given a task deletion, then its steps, My Day entries, and reminder
-are gone and any invite task_id pointing at it is null.
+AC-042 (as replaced by RFC 0005): given a task deletion, then the task
+leaves the readable world and waits in Trash with its steps, My Day entries,
+and reminder held for restore, the invite keeping its task_id; when the 30
+day window lapses and the pass runs, then the row and those dependents are
+gone and the invite survives with task_id null.
 
-Four dependents, three of which cascade away and one of which must survive
-with a hole in it. That asymmetry is the criterion: 4.9 gives invites.task_id
-ON DELETE SET NULL rather than CASCADE, because the invite is a message to a
-person and outlives the task it happened to carry, while 4.6, 4.7 and 4.8
-all cascade because they are parts of the task itself. An implementation
-that deletes children by hand and forgets one, or that leans on a cascade
-the migration did not declare, fails on whichever it got wrong, so all four
-are asserted separately.
-
-The invite row is seeded directly, P5's surface: the P3 kickoff recorded
-that this cascade is the whole of this package's reach into invites, and it
-is a database behavior named in 5.1's delete row and present in migration
-0000 since P0.
+The v1 criterion asserted the dependents gone at delete time, because v1's
+delete was the purge. RFC 0005 splits the act in two: DELETE marks
+(deleted_at, spec 7.13) so any member can restore inside 30 days with the
+task's parts intact, and the 11.7 pass is the only thing that ever removes
+the rows. The four dependents still carry the asymmetry the v1 text was
+built on, it just fires at purge: 4.6, 4.7 and 4.8 cascade away with the
+row while 4.9's invite outlives it with a hole, because the invite is a
+message to a person.
 
 Attacked beside the criterion: deleting the same task twice, where 8.3 says
 operations on deleted rows answer 404; the read after the delete, likewise;
 a delete by somebody who cannot see the task, which must be 404 under the
-leak rule and must leave the task alone; and the folder and its other
-tasks, which a delete has no business touching.
+leak rule and must change nothing; and the folder and its other tasks,
+which neither the delete nor the purge has any business touching.
 
-Spec: 5.1 (the delete row and its cascades), 7.6 (DELETE /tasks/:id, 204),
-8.3 (deleted rows answer 404), 10.2, 4.6, 4.7, 4.8, 4.9.
+Spec: 5.1, 7.6 (DELETE /tasks/:id, 204), 7.13, 8.3, 10.2, 11.7 (RFC 0005),
+4.6, 4.7, 4.8, 4.9.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -40,6 +38,7 @@ import {
   seedInvite,
 } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
+import { runPass } from './reminders-harness.js'
 import {
   addStepOk,
   createTaskOk,
@@ -134,6 +133,15 @@ async function loadedTask(label: string): Promise<Fixture> {
   return { taskId: created.id, inviteId }
 }
 
+/** Backdates the trashed row past the 30 day window so the next pass owes
+ * it a purge (spec 11.7). */
+async function lapseWindow(taskId: string): Promise<void> {
+  await app.db.execute(
+    sql`UPDATE tasks SET deleted_at = now() - interval '31 days'
+        WHERE id = ${taskId}`,
+  )
+}
+
 beforeAll(async () => {
   app = await startAuthTestApp()
 }, 60_000)
@@ -144,7 +152,7 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-042: deleting a task takes its parts and spares the invite', () => {
+describe('AC-042: a delete marks, and only the pass removes', () => {
   test('AC-042: the fixture really carries all four dependents', async () => {
     const { taskId, inviteId } = await loadedTask('premise')
     expect((await stepRows(app.db, taskId)).length, 'two steps').toBe(2)
@@ -160,9 +168,9 @@ describe('AC-042: deleting a task takes its parts and spares the invite', () => 
     ).toBe(1)
   })
 
-  test('AC-042: the delete answers 204 and the task is gone', async () => {
+  test('AC-042: the delete answers 204 and the row is marked, not gone', async () => {
     const { owner } = await stage()
-    const { taskId } = await loadedTask('gone')
+    const { taskId } = await loadedTask('marked')
     const response = await deleteTask(owner, taskId)
     expectStatus(
       response,
@@ -170,41 +178,63 @@ describe('AC-042: deleting a task takes its parts and spares the invite', () => 
       'any member may delete a task, and 7.6 answers 204',
     )
     expect(
-      await taskRow(app.db, taskId),
-      'the row is gone, not marked',
-    ).toBeUndefined()
+      await countRows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM tasks
+             WHERE id = ${taskId} AND deleted_at IS NOT NULL`,
+      ),
+      'the row waits in Trash with deleted_at set (spec 7.13), because a restore needs it',
+    ).toBe(1)
   })
 
-  test('AC-042: steps, My Day entries, and the reminder are gone', async () => {
+  test('AC-042: steps, My Day entries, and the reminder are held for restore', async () => {
     const { owner } = await stage()
-    const { taskId } = await loadedTask('cascade')
+    const { taskId, inviteId } = await loadedTask('held')
     await deleteTask(owner, taskId)
     expect(
+      (await stepRows(app.db, taskId)).length,
+      'the steps wait with the row: a restore that came back bare would not be a restore',
+    ).toBe(2)
+    expect(
+      (await myDayRows(app.db, taskId)).length,
+      'both members\' pulls wait with the row',
+    ).toBe(2)
+    expect(
+      await reminderRow(app.db, taskId),
+      'the reminder waits with the row',
+    ).toBeDefined()
+    expect(
+      await countRows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM invites
+             WHERE id = ${inviteId} AND task_id = ${taskId}`,
+      ),
+      'the invite keeps its task_id while the task can still return',
+    ).toBe(1)
+  })
+
+  test('AC-042: the lapsed window purges the parts and hollows the invite', async () => {
+    const { owner, folderId } = await stage()
+    const { taskId, inviteId } = await loadedTask('purged')
+    await deleteTask(owner, taskId)
+    await lapseWindow(taskId)
+    await runPass(app)
+    expect(
+      await taskRow(app.db, taskId),
+      'the pass removes the row at 30 days (spec 11.7)',
+    ).toBeUndefined()
+    expect(
       await stepRows(app.db, taskId),
-      '5.1: the delete cascades steps (4.6 ON DELETE CASCADE)',
+      'the purge cascades steps (4.6 ON DELETE CASCADE)',
     ).toEqual([])
     expect(
       await myDayRows(app.db, taskId),
-      '5.1: the delete cascades my_day_entries (4.7 ON DELETE CASCADE), both members\'',
+      'the purge cascades my_day_entries (4.7 ON DELETE CASCADE)',
     ).toEqual([])
     expect(
       await reminderRow(app.db, taskId),
-      '5.1: the delete cascades the reminder (4.8 ON DELETE CASCADE)',
+      'the purge cascades the reminder (4.8 ON DELETE CASCADE)',
     ).toBeUndefined()
-  })
-
-  test('AC-042: the invite survives with task_id null', async () => {
-    const { owner, folderId } = await stage()
-    const { taskId, inviteId } = await loadedTask('invite')
-    await deleteTask(owner, taskId)
-    const found = await countRows(
-      app.db,
-      sql`SELECT count(*)::int AS n FROM invites WHERE id = ${inviteId}`,
-    )
-    expect(
-      found,
-      '4.9 gives task_id ON DELETE SET NULL, not CASCADE: the invite is a message to a person and outlives the task',
-    ).toBe(1)
     expect(
       await countRows(
         app.db,
@@ -212,7 +242,7 @@ describe('AC-042: deleting a task takes its parts and spares the invite', () => 
              WHERE id = ${inviteId} AND task_id IS NULL AND folder_id = ${folderId}
                AND status = 'pending'`,
       ),
-      'and it keeps its folder and its pending status, losing only the task it carried',
+      '4.9 gives task_id ON DELETE SET NULL, not CASCADE: the invite is a message to a person and outlives the task, keeping its folder and its pending status',
     ).toBe(1)
   })
 
@@ -228,7 +258,7 @@ describe('AC-042: deleting a task takes its parts and spares the invite', () => 
     expectStatus(
       await getTask(owner, taskId),
       404,
-      'a deleted task is a nonexistent task (spec 7.6, 8.3)',
+      'a trashed task is out of the readable world; only 7.13\'s surface sees it',
     )
   })
 
@@ -242,12 +272,16 @@ describe('AC-042: deleting a task takes its parts and spares the invite', () => 
       'an inaccessible task is indistinguishable from a nonexistent one, never 403 (spec 10.2)',
     )
     expect(
-      await taskRow(app.db, taskId),
-      'and the refused delete deleted nothing',
-    ).toBeDefined()
+      await countRows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM tasks
+             WHERE id = ${taskId} AND deleted_at IS NULL`,
+      ),
+      'and the refused delete marked nothing',
+    ).toBe(1)
     expect(
       (await stepRows(app.db, taskId)).length,
-      'nor any of its parts',
+      'nor touched any of its parts',
     ).toBe(2)
   })
 
@@ -255,9 +289,11 @@ describe('AC-042: deleting a task takes its parts and spares the invite', () => 
     const { owner, folderId, survivorId } = await stage()
     const { taskId } = await loadedTask('neighbour')
     await deleteTask(owner, taskId)
+    await lapseWindow(taskId)
+    await runPass(app)
     expect(
       await taskRow(app.db, survivorId),
-      'a task delete is one row deep: the neighbour stands',
+      'a task delete is one row deep, at the mark and at the purge alike: the neighbour stands',
     ).toBeDefined()
     expect(
       await countRows(

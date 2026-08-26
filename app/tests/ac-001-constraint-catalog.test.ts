@@ -30,15 +30,24 @@ import { cleanupUsers, createTestDb, expectRejectedBy, rows } from './helpers.js
 // catalog edit that drops or renames a table cannot narrow this suite's
 // coverage without going red here.
 const SECTION_4_TABLES = [
+  'comment_files',
+  'comment_likes',
+  'comments',
   'connections',
+  'events',
+  'files',
   'folder_members',
   'folders',
   'invites',
   'my_day_entries',
+  'notifications',
+  'page_blocks',
   'reminders',
+  'shelves',
   'steps',
   'tasks',
   'user_settings',
+  'user_views',
   'users',
 ]
 

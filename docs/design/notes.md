@@ -173,3 +173,55 @@ implementation work.
 
 Production API, auth, reminder delivery, PWA installation and email-client behavior
 must still be verified in Hassan's implementation environment.
+
+---
+
+# Dana v2 refresh addendum (2026-08-24)
+
+Everything above describes the **shipped v1** and remains true of production.
+The v2 refresh lives in `docs/design/prototype-v2/` and supersedes the notes
+below for the port; its register is `v2-decisions.md`, its index is the v2
+part of `design-contract.md`, and its state authority is
+`v2-refresh-plan.md`. Where this addendum and the v1 notes disagree, the
+addendum wins for v2 work.
+
+## Running and gating prototype-v2
+
+- Run from `prototype-v2/` with `npm install` and `npm run dev` on port 5240.
+- Two gates precede any claim: `node tools/audit.mjs` (12 static rules) and
+  `node tools/sweep.mjs` against 5240 (31 routes plus driven drags, boards,
+  tabs, rename and a stress block). Every rule carries a probe it must catch
+  or it fails as BLIND (DES-157).
+
+## Implementation notes v2 changes
+
+- **Tokens.** The accent is `#335fee` (85% vividness, contrast 5.2); all ten
+  folder swatches are lifted at held contrast, and folder cobalt sits at hue
+  242 (`#7b77f6`) so identity never wears the interaction hue. Colour is
+  named **by role** (`bg-card`, `text-muted-foreground`), not by ramp step —
+  a standing rule; deliberate two-tone surfaces say so at the call site.
+- **Icons** come only from `src/lib/icons.tsx` — the animated Lucide module.
+  No direct `lucide-react` imports; an icon has a default size; an icon must
+  animate as itself (DES-125, DES-162, DES-187).
+- **The measure** is a tokenized 800px reading column (`--content-list`),
+  superseding the 1120px area (DES-135).
+- **The shell** carries a real tab strip (every tab equal, closable,
+  reorderable — DES-217) over a window bar that owns the page's controls
+  (DES-139). The v1 "static page strip" note no longer applies.
+- **There is no TaskForm.** A task is its row, its card and its page
+  (DES-093, DES-136); every surface writes through one shell path (DES-185);
+  a task has an address, `?task=<id>` (DES-201).
+- **Motion** durations are tokens, and a global `prefers-reduced-motion`
+  block zeroes them all — no component opts in.
+- **The navigation** is Desk · Today · Scheduled · Assignments · Important ·
+  All with Done unpinned (DES-152). Its spec RFC, the day-level due date
+  (DES-178) and the 9.4 sentence (B3) are owed **before the port**, and
+  DES-224 (reminders under day-level dates) must be answered inside that RFC.
+- **Lane 2 is excluded from the port by its PROPOSED marks**, exactly as
+  DES-054/055/071/073/076 were for v1 — the v2 register's NEEDS BACKEND
+  entries (identity, blocks, images, comments, conversation, trash, event
+  log, workflows, shelves' storage, notifications, preferences) reach `app/`
+  only through the pricing session's RFCs.
+- **Production carries two task rows** (`DoneRow` in `DonePage.tsx`
+  duplicates `task-row.tsx`'s class string); the port should reunify them or
+  record why not.

@@ -16,7 +16,15 @@ tz, the roster and the folder list and settings do not and carry none.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
+import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
+import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
+import { getEventsResponse, getNotificationsResponse } from '../../shared/events.js'
+import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
+import { getThreadResponse } from '../../shared/comments.js'
+import type { GetThreadResponse } from '../../shared/comments.js'
+import { getPageResponse } from '../../shared/pages.js'
+import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -24,7 +32,11 @@ import { getInvitesPendingResponse, getInvitesSentResponse } from '../../shared/
 import type { GetInvitesPendingResponse, GetInvitesSentResponse } from '../../shared/invites.js'
 import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
 import type { MeResponse, Settings } from '../../shared/me.js'
+import { getShelvesResponse, shelf } from '../../shared/shelves.js'
+import type { GetShelvesResponse, Shelf } from '../../shared/shelves.js'
 import { getTaskResponse } from '../../shared/tasks.js'
+import { getTrashResponse } from '../../shared/trash.js'
+import type { GetTrashResponse } from '../../shared/trash.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import {
   getAllResponse,
@@ -239,16 +251,22 @@ export function mergeCompletedDays(
  * dropping them back to the first, which is what keeps a completion made in
  * another tab from moving the ground under them.
  */
-export function useDoneView(): UseInfiniteQueryResult<
-  { readonly pages: readonly CompletedPage[] },
-  Error
-> {
+export function useDoneView(
+  /**
+   * False while All's collapsed "Completed" section is closed (9.5). The Done
+   * page itself always wants this and passes nothing; a section that fetched
+   * while collapsed would make the collapse cosmetic, which is the same rule
+   * `useFolderCompletedTasks` follows for Q7's third section.
+   */
+  enabled = true,
+): UseInfiniteQueryResult<{ readonly pages: readonly CompletedPage[] }, Error> {
   return useInfiniteQuery({
     queryKey: queryKeys.view('done'),
     queryFn: ({ pageParam }) =>
       getView(getDoneResponse, '/views/done', { cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
+    enabled,
   })
 }
 
@@ -335,5 +353,148 @@ export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearch
     queryKey: [...queryKeys.view('search'), q],
     queryFn: () => getView(getSearchResponse, '/search', { q }),
     enabled,
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The v2 surfaces (RFC 0005)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The person's bundle of 4.19, at the v2 address.
+ *
+ * Beside frozen 7.2's `useSettings` and never instead of it: 7.2 still owns
+ * the three v1 page flags, and this owns the pin list those flags derive into
+ * when nobody has written pins yet (RFC 0005's change control item 6). The
+ * sidebar reads this one, because the pin list is what decides which entries
+ * exist.
+ */
+export function useBundle(): UseQueryResult<GetSettingsResponse> {
+  return useQuery({
+    queryKey: queryKeys.bundle(),
+    queryFn: () => getPlain(getSettingsResponse, '/settings'),
+  })
+}
+
+/** The viewer's saved views (4.19), which the sidebar pins alongside natives. */
+export function useSavedViews(): UseQueryResult<GetViewsResponse> {
+  return useQuery({
+    queryKey: queryKeys.savedViews(),
+    queryFn: () => getPlain(getViewsResponse, '/views'),
+  })
+}
+
+/**
+ * The viewer's shelves (7.16), the Library block's groups.
+ *
+ * `enabled` exists because the chrome reads this only to put a name on a
+ * shelf's tab, and a request every page pays for so that one kind of tab can
+ * be labelled is a request most pages do not need.
+ */
+export function useShelves(enabled = true): UseQueryResult<GetShelvesResponse> {
+  return useQuery({
+    queryKey: queryKeys.shelves(),
+    queryFn: () => getPlain(getShelvesResponse, '/shelves'),
+    enabled,
+  })
+}
+
+/**
+ * The 7.13 Trash listing, which 9.11 draws as one page.
+ *
+ * No tz: the endpoint evaluates no calendar date, it reports instants, and
+ * 7.0's split is what decides that rather than habit.
+ */
+export function useTrash(): UseQueryResult<GetTrashResponse> {
+  return useQuery({
+    queryKey: queryKeys.trash(),
+    queryFn: () => getPlain(getTrashResponse, '/trash'),
+  })
+}
+
+/**
+ * The recent events of one thing (7.12), which the window bar's Activity line
+ * reads and which the history surfaces of S12 will read too.
+ *
+ * `subject` is 4.13's `kind:id` reference. Disabled for a null subject rather
+ * than called with a placeholder, because a place page has no history of its
+ * own and asking for one would be a 404 the bar then has to ignore.
+ */
+export function useSubjectEvents(subject: string | null): UseQueryResult<GetEventsResponse> {
+  return useQuery({
+    queryKey: queryKeys.events(subject ?? ''),
+    queryFn: () => getPlain(getEventsResponse, '/events', { subject: subject ?? '' }),
+    enabled: subject !== null,
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The S12 surfaces (RFC 0005): pages, shelves, notifications, threads
+ * ------------------------------------------------------------------ */
+
+/** One shelf's identity (7.16), which its page's head renders. */
+export function useShelf(id: string): UseQueryResult<Shelf> {
+  return useQuery({
+    queryKey: queryKeys.shelf(id),
+    queryFn: () => getPlain(shelf, `/shelves/${id}`),
+  })
+}
+
+/** A folder page's block list (7.16, 4.17), which 9.6 draws. */
+export function useFolderPage(id: string): UseQueryResult<GetPageResponse> {
+  return useQuery({
+    queryKey: queryKeys.folderPage(id),
+    queryFn: () => getPlain(getPageResponse, `/folders/${id}/page`),
+  })
+}
+
+/** A shelf page's block list (7.16), which 9.10 draws. */
+export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
+  return useQuery({
+    queryKey: queryKeys.shelfPage(id),
+    queryFn: () => getPlain(getPageResponse, `/shelves/${id}/page`),
+  })
+}
+
+/**
+ * The viewer's notifications (7.12), which the 9.12 bell renders.
+ *
+ * `poll` is D3's ruling applied to this surface: refetch-on-focus is the
+ * client's one global liveness rule, and a polite poll runs only while the
+ * surface is open, so an idle Dana in a background tab costs the server
+ * nothing. Thirty seconds is polite for a feed whose producer is another
+ * person's hand.
+ */
+export function useNotifications(poll: boolean): UseQueryResult<GetNotificationsResponse> {
+  return useQuery({
+    queryKey: queryKeys.notifications(),
+    queryFn: () => getPlain(getNotificationsResponse, '/notifications'),
+    refetchInterval: poll ? 30_000 : false,
+  })
+}
+
+/**
+ * One conversation (7.14): the folder's own thread, or a task's.
+ *
+ * `open` gates the fetch the way the Completed section's does, because both
+ * homes of 9.6's conversation start closed; while the surface is open the
+ * same flag runs D3's polite poll, which is the whole of the liveness the
+ * pricing session bought (no sockets, no SSE).
+ */
+export function useThread(
+  folderId: string,
+  taskId: string | null,
+  open: boolean,
+): UseQueryResult<GetThreadResponse> {
+  return useQuery({
+    queryKey: queryKeys.thread(folderId, taskId),
+    queryFn: () =>
+      getPlain(
+        getThreadResponse,
+        `/folders/${folderId}/comments`,
+        taskId === null ? undefined : { task: taskId },
+      ),
+    enabled: open,
+    refetchInterval: open ? 30_000 : false,
   })
 }

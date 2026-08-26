@@ -60,6 +60,7 @@ import {
 import type { ReminderTrigger } from '../time/index.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
+import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
 
 /* ------------------------------------------------------------------ *
@@ -97,6 +98,8 @@ const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 export interface TaskAccess {
   id: string
   folderId: string
+  /** The name at act time, which 4.13 makes part of every event line. */
+  title: string
   status: TaskStatus
   assigneeId: string | null
   dueDate: string | null
@@ -109,14 +112,15 @@ export interface TaskAccess {
   recurrenceRule: string | null
 }
 
-const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.status, t.assignee_id,
-       ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
+const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
+       t.assignee_id, ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
        t.recurrence_rule`
 
 function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
   return {
     id: String(row.id),
     folderId: String(row.folder_id),
+    title: String(row.title),
     status: String(row.status) as TaskStatus,
     assigneeId: nullableString(row.assignee_id),
     dueDate: nullableString(row.due_date),
@@ -139,7 +143,8 @@ export async function accessibleTask(
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        WHERE t.id = ${taskId}`,
+        JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
+        WHERE t.id = ${taskId} AND t.deleted_at IS NULL`,
   )
   const row = found[0]
   return row === undefined ? null : taskAccessFromRow(row)
@@ -172,7 +177,8 @@ async function lockedTask(
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        WHERE t.id = ${taskId}
+        JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
+        WHERE t.id = ${taskId} AND t.deleted_at IS NULL
         FOR UPDATE OF t`,
   )
   const row = found[0]
@@ -187,6 +193,19 @@ members the folder has (INV-5, the forcing and the unassign guard). One query
 for both, because two queries are two answers that can disagree under a
 concurrent membership change.
 */
+/** The name an assignment's event line and detail carry (4.13). */
+async function displayNameOf(
+  executor: Executor,
+  userId: string,
+): Promise<string> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT display_name FROM users WHERE id = ${userId}`,
+  )
+  const name = found[0]?.display_name
+  return name === null || name === undefined ? 'a member' : String(name)
+}
+
 async function folderMemberIds(
   executor: Executor,
   folderId: string,
@@ -262,14 +281,15 @@ export async function taskView(
                  ORDER BY i.created_at DESC, i.id DESC LIMIT 1)
                  AS pending_invite_email,
                r.task_id AS reminder_task_id, r.offset_minutes,
-               to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day
+               to_char(r.time_of_day, 'HH24:MI') AS reminder_time_of_day,
+               t.section_block_id
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
-        JOIN folders f ON f.id = t.folder_id
+        JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
         LEFT JOIN users a ON a.id = t.assignee_id
         LEFT JOIN reminders r ON r.task_id = t.id
-        WHERE t.id = ${taskId}`,
+        WHERE t.id = ${taskId} AND t.deleted_at IS NULL`,
   )
   const row = found[0]
   if (row === undefined) return null
@@ -304,6 +324,7 @@ export async function taskView(
     notes: nullableString(row.notes),
     recurrence_rule: nullableString(row.recurrence_rule),
     series_id: nullableString(row.series_id),
+    section_block_id: nullableString(row.section_block_id),
     reminder:
       row.reminder_task_id === null || row.reminder_task_id === undefined
         ? null
@@ -335,6 +356,7 @@ function cardOf(detail: TaskDetail): TaskCard {
     notes: _notes,
     recurrence_rule: _rule,
     series_id: _seriesId,
+    section_block_id: _sectionBlockId,
     reminder: _reminder,
     steps: _steps,
     completed_at: _completedAt,
@@ -535,6 +557,22 @@ export type CreateTaskResult =
   | { kind: 'created'; task: TaskDetail }
   | { kind: 'folder_not_found' }
   | { kind: 'assignee_not_member' }
+  | { kind: 'section_not_here' }
+
+/** 4.17: the block exists, it is a section, and its page is this folder's. */
+async function sectionInFolder(
+  executor: Executor,
+  blockId: string,
+  folderId: string,
+): Promise<boolean> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT 1 AS present FROM page_blocks
+        WHERE id = ${blockId} AND folder_id = ${folderId}
+          AND kind = 'section'`,
+  )
+  return found.length > 0
+}
 
 /*
 7.6's create, one transaction so a body whose steps are refused leaves no
@@ -584,17 +622,24 @@ export async function createTask(
       }
     }
 
+    // 4.5 (RFC 0005): a section assignment names a section block of this
+    // folder's own page, or it names nothing.
+    const sectionId = body.section_block_id ?? null
+    if (sectionId !== null && !(await sectionInFolder(tx, sectionId, folderId))) {
+      return { kind: 'section_not_here' }
+    }
+
     const rule = body.recurrence_rule ?? null
     const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
                              due_time, recurrence_rule, series_id,
-                             assignee_id, created_by)
+                             assignee_id, created_by, section_block_id)
           VALUES (${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false}, ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
-                  ${assigneeId}::uuid, ${viewerId}::uuid)
+                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId})
           RETURNING id`,
     )
     const taskId = String(inserted[0]?.id)
@@ -628,6 +673,24 @@ export async function createTask(
       )
     }
 
+    // One mutation, one event (4.13). An assignment created into being
+    // reaches its assignee (4.14); INV-5's forcing counts, a body's explicit
+    // choice counts, and the creator defaulting to themselves fans out to
+    // nobody because recordEvent drops the actor either way.
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'created',
+      subjectKind: 'task',
+      subjectId: taskId,
+      subjectName: body.title,
+      folderId,
+      detail:
+        assigneeId !== null && assigneeId !== viewerId
+          ? `assigned to ${await displayNameOf(tx, assigneeId)}`
+          : undefined,
+      recipients: assigneeId === null ? undefined : [assigneeId],
+    })
+
     return { kind: 'created', task: await viewOrFail(tx, viewerId, taskId) }
   })
 }
@@ -644,6 +707,7 @@ export type PatchTaskResult =
   | { kind: 'unassign_single_member' }
   | { kind: 'time_without_date' }
   | { kind: 'rule_without_date' }
+  | { kind: 'section_not_here' }
   | { kind: 'reminder_refused'; refusal: ReminderRefusal }
 
 /*
@@ -757,6 +821,22 @@ export async function patchTask(
       assigneeId = onlyMember ?? (survives ? current.assigneeId : null)
     }
 
+    // 4.5 (RFC 0005): a section names a block of the folder the task ends
+    // in; a move that brings no fresh section clears it, because the old
+    // page's furniture stays home.
+    let sectionId: string | null | undefined
+    if (patch.section_block_id !== undefined) {
+      if (
+        patch.section_block_id !== null &&
+        !(await sectionInFolder(tx, patch.section_block_id, folderId))
+      ) {
+        return { kind: 'section_not_here' }
+      }
+      sectionId = patch.section_block_id
+    } else if (moving) {
+      sectionId = null
+    }
+
     const clearing = patch.due_date === null
     const finalDueDate =
       patch.due_date !== undefined ? patch.due_date : current.dueDate
@@ -811,6 +891,9 @@ export async function patchTask(
     if (moving) sets.push(sql`folder_id = ${folderId}::uuid`)
     if (assigneeId !== undefined) {
       sets.push(sql`assignee_id = ${assigneeId}::uuid`)
+    }
+    if (sectionId !== undefined) {
+      sets.push(sql`section_block_id = ${sectionId}`)
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)
@@ -872,6 +955,39 @@ export async function patchTask(
           assigneeId === undefined ? current.assigneeId : assigneeId,
       })
       if (trigger !== null) await recomputeReminders(tx, trigger)
+    }
+
+    // One mutation, one event (4.13). The verb is the act's largest word:
+    // a move outranks a rename outranks the everything-else 'edited'. A
+    // reassignment reaches the person it now concerns (4.14), and only a
+    // real change of hands fans out, because an assignee rewritten with the
+    // value it already held concerns nobody newly.
+    if (sets.length > 0 || reminder !== null) {
+      const newAssignee =
+        assigneeId !== undefined &&
+        assigneeId !== null &&
+        assigneeId !== current.assigneeId
+          ? assigneeId
+          : null
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: moving
+          ? 'moved'
+          : patch.title !== undefined && patch.title !== current.title
+            ? 'renamed'
+            : 'edited',
+        subjectKind: 'task',
+        subjectId: taskId,
+        subjectName: patch.title ?? current.title,
+        folderId,
+        detail:
+          newAssignee !== null
+            ? `assigned to ${await displayNameOf(tx, newAssignee)}`
+            : reminder !== null && sets.length === 0
+              ? 'set a reminder'
+              : undefined,
+        recipients: newAssignee === null ? undefined : [newAssignee],
+      })
     }
 
     return { kind: 'patched', task: await viewOrFail(tx, viewerId, taskId) }
@@ -941,16 +1057,33 @@ function movedTrigger(
  * second delete finds nothing accessible and answers 404, the mid-P3 ruling:
  * 204 for a row that existed beside 404 for one that never did is an
  * existence oracle. */
+/** RFC 0005 (7.13): the delete marks rather than removes, so the row and its
+ * parts wait 30 days for any member's restore; the 11.7 pass is the only
+ * thing that ever deletes it. The resolution above already refuses a row
+ * that is trashed, which is what makes the second delete 8.3's 404. */
 export async function deleteTask(
   db: Db,
   viewerId: string,
   taskId: string,
 ): Promise<'deleted' | 'not_found'> {
   return inTransaction(db, async (tx) => {
-    if ((await accessibleTask(tx, viewerId, taskId)) === null) {
+    const current = await accessibleTask(tx, viewerId, taskId)
+    if (current === null) {
       return 'not_found'
     }
-    await tx.execute(sql`DELETE FROM tasks WHERE id = ${taskId}::uuid`)
+    await tx.execute(
+      sql`UPDATE tasks SET deleted_at = now(), updated_at = now()
+          WHERE id = ${taskId}::uuid`,
+    )
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'deleted',
+      subjectKind: 'task',
+      subjectId: taskId,
+      subjectName: current.title,
+      folderId: current.folderId,
+      detail: 'moved to Trash for 30 days',
+    })
     return 'deleted'
   })
 }
@@ -1041,6 +1174,18 @@ const TRANSITIONS: Record<TransitionEvent, TransitionRule> = {
     guarded: true,
     set: () => sql`status = 'pending', updated_at = now()`,
   },
+}
+
+/** 5.1's four transitions under 4.13's verbs: the past participle of what
+ * the person did, 'uncomplete' being the one whose act has its own word. */
+const TRANSITION_VERBS: Record<
+  TransitionEvent,
+  'completed' | 'reopened' | 'abandoned' | 'restored'
+> = {
+  complete: 'completed',
+  uncomplete: 'reopened',
+  abandon: 'abandoned',
+  restore: 'restored',
 }
 
 /*
@@ -1136,6 +1281,17 @@ export async function transitionTask(
           )
         }
       }
+      // One event in the winning branch only (4.13): a no-op writes nothing
+      // and records nothing, which is what "without side effects" means for
+      // the history too.
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: TRANSITION_VERBS[event],
+        subjectKind: 'task',
+        subjectId: taskId,
+        subjectName: current.title,
+        folderId: current.folderId,
+      })
       return {
         kind: 'transitioned',
         task: await viewOrFail(tx, viewerId, taskId),
@@ -1184,7 +1340,8 @@ export async function addStep(
   body: PostTaskStepsBody,
 ): Promise<AddStepResult> {
   return inTransaction(db, async (tx) => {
-    if ((await lockedTask(tx, viewerId, taskId)) === null) {
+    const current = await lockedTask(tx, viewerId, taskId)
+    if (current === null) {
       return { kind: 'not_found' }
     }
     const counted = await rowsOf(
@@ -1202,6 +1359,15 @@ export async function addStep(
       sql`INSERT INTO steps (task_id, title, position)
           VALUES (${taskId}::uuid, ${body.title}, ${position})`,
     )
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'edited',
+      subjectKind: 'task',
+      subjectId: taskId,
+      subjectName: current.title,
+      folderId: current.folderId,
+      detail: 'added a step',
+    })
     return { kind: 'added', task: await viewOrFail(tx, viewerId, taskId) }
   })
 }
@@ -1217,20 +1383,31 @@ async function accessibleStep(
   executor: Executor,
   viewerId: string,
   stepId: string,
-): Promise<{ stepId: string; taskId: string } | null> {
+): Promise<{
+  stepId: string
+  taskId: string
+  taskTitle: string
+  folderId: string
+} | null> {
   const found = await rowsOf(
     executor,
-    sql`SELECT s.id, s.task_id
+    sql`SELECT s.id, s.task_id, t.title, t.folder_id
         FROM steps s
-        JOIN tasks t ON t.id = s.task_id
+        JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+        JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
         WHERE s.id = ${stepId}`,
   )
   const row = found[0]
   return row === undefined
     ? null
-    : { stepId: String(row.id), taskId: String(row.task_id) }
+    : {
+        stepId: String(row.id),
+        taskId: String(row.task_id),
+        taskTitle: String(row.title),
+        folderId: String(row.folder_id),
+      }
 }
 
 /** 7.7's PATCH: any subset, and never any effect on the task's status. */
@@ -1255,6 +1432,15 @@ export async function patchStep(
         sql`UPDATE steps SET ${sql.join(sets, sql`, `)}
             WHERE id = ${stepId}::uuid`,
       )
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'edited',
+        subjectKind: 'task',
+        subjectId: step.taskId,
+        subjectName: step.taskTitle,
+        folderId: step.folderId,
+        detail: 'edited a step',
+      })
     }
     return { kind: 'ok', task: await viewOrFail(tx, viewerId, step.taskId) }
   })
@@ -1269,6 +1455,15 @@ export async function deleteStep(
     const step = await accessibleStep(tx, viewerId, stepId)
     if (step === null) return 'not_found'
     await tx.execute(sql`DELETE FROM steps WHERE id = ${stepId}::uuid`)
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'edited',
+      subjectKind: 'task',
+      subjectId: step.taskId,
+      subjectName: step.taskTitle,
+      folderId: step.folderId,
+      detail: 'removed a step',
+    })
     return 'deleted'
   })
 }
@@ -1378,6 +1573,15 @@ export async function putTaskReminder(
     if (refusal !== null) return { kind: 'refused', refusal }
 
     await upsertReminder(tx, taskId, mode, viewerId)
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'edited',
+      subjectKind: 'task',
+      subjectId: taskId,
+      subjectName: current.title,
+      folderId: current.folderId,
+      detail: 'set a reminder',
+    })
     return { kind: 'written', task: await viewOrFail(tx, viewerId, taskId) }
   })
 }
@@ -1403,10 +1607,29 @@ export async function deleteTaskReminder(
   taskId: string,
 ): Promise<'deleted' | 'not_found'> {
   return inTransaction(db, async (tx) => {
-    if ((await accessibleTask(tx, viewerId, taskId)) === null) {
+    const current = await accessibleTask(tx, viewerId, taskId)
+    if (current === null) {
       return 'not_found'
     }
-    await tx.execute(sql`DELETE FROM reminders WHERE task_id = ${taskId}::uuid`)
+    const removed = await rowsOf(
+      tx,
+      sql`DELETE FROM reminders WHERE task_id = ${taskId}::uuid
+          RETURNING task_id`,
+    )
+    // The idempotent repeat removed nothing and so did nothing worth a line
+    // in anyone's history (4.13's one-event rule is about mutations, and a
+    // no-op is not one).
+    if (removed.length > 0) {
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'edited',
+        subjectKind: 'task',
+        subjectId: taskId,
+        subjectName: current.title,
+        folderId: current.folderId,
+        detail: 'removed the reminder',
+      })
+    }
     return 'deleted'
   })
 }

@@ -53,8 +53,17 @@ stored reminder being null after a save that offered one; a red anywhere
 earlier, on the control or on the save, would be a different sentence
 failing and is worth reporting rather than repairing.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where the form is opened from does. 9.1's v2 capture
+rule leaves the floating add button on Today, Important and Assignments
+alone, so all three cases open it from Today. Today's entry default dates the
+task, and every case here sets the due date itself before touching the
+reminder, so the mode the control is offered in is still this file's to
+choose rather than the page's.
+
 Spec: 9.3 (the reminder control, its two modes, and the ruling that it is
-saved like every other field), frozen 7.6 (the create body's reminder arm),
+saved like every other field), 9.1 (the v2 capture rule and the v2 routes
+table), frozen 7.6 (the create body's reminder arm),
 frozen 7.0 (TaskDetail's reminder, both columns with exactly one non-null),
 4.8, 8.6, 10.3.
 */
@@ -68,7 +77,7 @@ import {
   findTaskId,
   floatingAddButton,
   formField,
-  routes,
+  routesV2,
   seedDate,
   seedSubs,
   setOfferedReminder,
@@ -93,7 +102,7 @@ test.describe('AC-169: a reminder set while creating is saved', () => {
   test('AC-169: a time-of-day reminder survives the create', async ({ page }) => {
     const title = caseTitle(BASE)
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
@@ -151,7 +160,7 @@ test.describe('AC-169: a reminder set while creating is saved', () => {
   test('AC-169: an offset reminder survives the create in its own mode', async ({ page }) => {
     const title = caseTitle(BASE)
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form',
@@ -216,7 +225,7 @@ test.describe('AC-169: a reminder set while creating is saved', () => {
     // creates.
     const title = caseTitle(BASE)
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
       'spec 9.1: the floating add button opens the task form',

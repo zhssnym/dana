@@ -729,8 +729,10 @@ export async function search(
     actor,
     '/search',
     { tz, q, cursor },
-    ['next_cursor', 'rows'],
-    `GET /search must answer Q8's matches in Q8's order for ${JSON.stringify(q)} (spec 7.10, 6 Q8)`,
+    // 7.18 (RFC 0005) adds the three kinds beside Q8's tasks; the task
+    // half of the response is unchanged and is all this helper reads.
+    ['folders', 'next_cursor', 'pages', 'rows', 'shelves'],
+    `GET /search must answer Q8's matches in Q8's order for ${JSON.stringify(q)} (spec 7.10, 6 Q8, 7.18)`,
   )
   return {
     rows: expectCards(body.rows, 'search rows'),

@@ -1,0 +1,179 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 1180px;
+  background: var(--background);
+  font-family: var(--font-family-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 1180px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-family-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Controls inherit the page's font rather than the browser's.
+ *
+ * This lives in @layer base deliberately, and the reason is worth keeping.
+ * Unlayered CSS beats layered CSS regardless of specificity, and Tailwind 4
+ * puts every utility in @layer utilities. While these four lines were
+ * unlayered they silently beat every text-size utility applied to a button,
+ * input, textarea or select in the whole prototype: the class was in the
+ * markup, the rule was in the stylesheet, and the rendered size was whatever
+ * the parent happened to be. Nothing warned, because the code read as though
+ * it worked.
+ *
+ * Found 2026-08-17 when an expanded task title carrying text-[16px] kept
+ * rendering at 14px. Fixed the same day under DES-108, after measuring the
+ * real blast radius: six controls across the shell and the states page were
+ * rendering at a size their own code did not ask for, some too big and some
+ * too small depending on what they sat inside.
+ *
+ * In @layer base the reset still does its job and a utility can now override
+ * it, which is what everyone writing one intended.
+ */
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
+}
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--color-dana-accent-100);
+  color: var(--color-graphite-900);
+}
+
+/* Thin tokenized scrollbars (review P1). The standard pair rather than the
+ * ::-webkit- pseudo-elements: both engines honour it now, and a scrollbar
+ * drawn from the ramp follows the dark colourway without a second rule.
+ * The track stays transparent so the bar reads as content furniture, not
+ * chrome — a scrollbar is an indicator first and a control second. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-graphite-300) transparent;
+}
+
+/* The desktop TaskForm is deliberately wider than the shadcn Sheet default so
+ * its compact field rows do not collapse into a mobile-density layout. */
+[data-slot="sheet-content"].task-form-sheet {
+  width: var(--task-form-width, 540px) !important;
+  max-width: var(--task-form-width, 540px) !important;
+}
+
+/* Semantic sidebar type tiers intentionally override shadcn's generic
+ * text-xs/text-sm menu defaults. Hierarchy comes from role, weight and color
+ * without introducing unrelated font sizes between sibling rows. */
+[data-sidebar-tier="section"] {
+  font-size: var(--shell-sidebar-section-font-size);
+  font-weight: 600;
+}
+
+[data-sidebar-tier="primary"],
+[data-sidebar-tier="group"],
+[data-sidebar-tier="action"] {
+  font-size: var(--shell-sidebar-row-font-size);
+  font-weight: 600;
+}
+
+[data-sidebar-tier="folder"] {
+  font-size: var(--shell-sidebar-row-font-size);
+  font-weight: 500;
+}
+
+[data-sidebar-tier="folder"][data-active] {
+  font-weight: 600;
+}
+
+/* Rows touch structurally; their 1px top and bottom inset creates the exact
+ * 2px visual separation between neighboring hover/selected surfaces. */
+[data-sidebar="menu"] {
+  gap: 0;
+}
+
+/* The collapsed rail has a fractional inner width after its divider is
+ * resolved. Center the complete 32px cell in that available column so every
+ * glyph shares the Dana Mark's optical axis. */
+[data-collapsible="icon"][data-state="collapsed"]
+  [data-sidebar="menu-button"] {
+  justify-content: center;
+  margin-inline: auto;
+}
+
+[data-task-form-title] {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+[data-task-form-tier="disclosure"] {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+/* V1 measure comparison, temporary until Imran picks (v2-refresh-plan session
+   V1). Candidate A narrows the reading measure; candidate B keeps the width
+   and packs metadata beside the title, actions staying at the far edge. The
+   losing rules and the ?measure= param leave with the decision, and the
+   winner is formalised as a token. */
+/* The reading measure is the default now (DES-135, provisional). `wide`
+   restores DES-023's 1120px for the side-by-side at F2d; `narrow` is kept as
+   a harmless alias so links from the comparison round still work. */
+[data-measure="wide"] {
+  --shell-content-max: 1120px;
+}
+
+[data-measure="narrow"] {
+  --shell-content-max: var(--content-list);
+}
+
+[data-measure="pulled"] [data-task-status] {
+  grid-template-columns: var(--control-height) minmax(0, auto) minmax(0, 1fr);
+}
+
+[data-measure="pulled"] [data-task-metadata] {
+  justify-content: flex-start;
+}
+
+[data-measure="pulled"] [data-task-actions] {
+  margin-left: auto;
+}

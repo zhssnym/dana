@@ -137,7 +137,10 @@ async function expectProvisioned(user: UserRow): Promise<void> {
   expect(inbox.is_default, 'the provisioned folder is the default folder').toBe(
     true,
   )
-  expect(inbox.name, 'section 7.1 names it Inbox').toBe('Inbox')
+  expect(
+    inbox.name,
+    'RFC 0005 renames the default folder: provisioning says Desk',
+  ).toBe('Desk')
 
   // INV-3 and INV-10: the default folder carries exactly one membership row,
   // its owner's. A provisioning routine that creates the folder and forgets

@@ -47,6 +47,7 @@ import {
 import type { Db, DbClient } from '../../../db/client.js'
 import { deleteMeBody } from '../../shared/me.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
+import type { ObjectStore } from '../files/store.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -81,6 +82,11 @@ export interface AuthRouterOptions {
   auth?: AuthConfig
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
+  /** The S4 object store: DELETE /me removes the deleted account's objects
+   * after the 8.10 transaction commits (step 6a, RFC 0005 change control
+   * item 18). Optional for the same reason as dbClient: a route-presence
+   * probe constructs the application bare. */
+  fileStore?: ObjectStore
 }
 
 /*
@@ -381,7 +387,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         return
       }
       const userId = sessionOf(req)?.userId ?? ''
-      const deleted = await handleDeleteMe(db, userId, res)
+      const deleted = await handleDeleteMe(db, userId, res, options.fileStore)
       securityLog.deletionEvent('account_deleted', {
         actorId: userId,
         invites: deleted.invites,
