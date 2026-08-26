@@ -54,7 +54,7 @@ rather than taken from the seed, because confirming would clear a seed row's
 rule and every later spec would see it.
 
 **Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and onto 9.3's v2
-card at S15 (items 15, 19 and 20).** The 2026-08-24 rework moved where the
+card at S15 (items 15, 19 and 25).** The 2026-08-24 rework moved where the
 form was opened from; this one removes the form. The capture point is still
 Important, and still for its own reason: of the three pages 9.1 leaves the
 floating button on, Important is the one whose entry defaults leave the task

@@ -44,7 +44,7 @@ is most likely to get wrong, because a freshly created row is the one whose
 identity the surface has only just learned.
 
 **The Replace this asks for is recommended and not taken.** RFC 0005 change
-control item 20 carries it, and the owner rules it on the item 14 precedent.
+control item 25 carries it, and the owner rules it on the item 14 precedent.
 Until then this file asserts what the v2 surface can be held to and names,
 here, exactly what the criterion's own words no longer discriminate.
 

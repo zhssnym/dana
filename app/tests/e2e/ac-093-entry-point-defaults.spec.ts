@@ -23,7 +23,7 @@ add button leaving every page with a capture affordance of its own, and it is
 reworked here because leaving it would carry a knowingly red criterion
 through a merge.
 
-**Reworked again onto 9.3's v2 card at S15 (items 15, 19 and 20), and this
+**Reworked again onto 9.3's v2 card at S15 (items 15, 19 and 25), and this
 one changes what is read rather than only where.** The v1 file opened the
 form, expanded it, and read three of its fields, because on that surface the
 defaults were a draft's and no row existed yet. 9.3's v2 opening removes the

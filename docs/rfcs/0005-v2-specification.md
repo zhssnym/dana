@@ -74,6 +74,7 @@ section 9 baseline before acceptance (see the Draft note).*
 11. Replace sections 4.3 and 4.5 — `deleted_at` plus the folder identity columns and the task's section assignment (expand-only) — **verbatim below**
 12. Insert new sections 7.12–7.17 — the six systems' endpoint families, **verbatim below**
 13. Replace section 10.3: the limits table gains the v2 rows — **verbatim below**
+12a. Replace the TaskCard line of section 7.0: `section_block_id` and `created_by`, both additive — **verbatim below**, added 2026-08-25 by change control item 24 on Imran's item 19 approval. **This is the only unit in this RFC that touches frozen section 7**
 13a. Insert new section 10.8, response security headers — **verbatim below**, added 2026-08-25 by change control item 18
 14. Replace section 11.7: the pass gains two duties — **verbatim below** (11.5's rules need no change; the Inbox→Desk migration is Compatibility's, executed by RFC 0004's S2)
 15. Append rows to the table in section 11.13 for `prototype-v2/` and `v2-refs/` — **verbatim below**
@@ -483,6 +484,48 @@ DES-198 copy rules server-side. POST /api/v1/workflows/import — zod-validated
 structure file, caps per section 10, creates folders/sections/titles only;
 never ids, people, dates or states. POST /api/v1/folders/:id/transfer-ownership
 { to: user_id } — owner-only, member target, the DES-225/8.9 flow.
+
+### 7.17b Replace the TaskCard line of section 7.0
+
+The two widenings Imran approved at change control item 19, written as one
+unit because they land on one line. **Frozen section 7 moves only here**, and
+the line below replaces the `TaskCard` bullet of 7.0 entire:
+
+```markdown
+- TaskCard: { id, title, status, important, due_date, due_time, folder: {id, name, is_default}, assignee: {id, display_name, avatar_url} or null, is_recurring: bool, steps_done: int, steps_total: int, pulled: bool (viewer has a My Day entry), pending_invite_email: string or null (from invites.task_id), section_block_id: string or null, created_by: {id, display_name, avatar_url} or null, created_at, updated_at }.
+```
+
+Three readings, so no implementing session has to guess.
+
+**`section_block_id` rides TaskCard rather than the folder read alone**, which
+is a deliberate departure from item 19's phrasing ("on the folder read") and
+is flagged here rather than made quietly. The reason is the contract's own,
+already ruled on this exact question: 7.0's P4 note settles a group's folder
+stub as one shape across two keys because "the two keys spell one thing, so
+they answer one shape". `GET /folders/:id/tasks` answers `{ scheduled:
+[TaskCard], unscheduled: [TaskCard], truncated }`, so section on the folder
+read *is* section on TaskCard; giving the folder read a private element shape
+would put two task shapes on the wire, which is the drift 11.13 and this
+role's own mandate exist to refuse. It is null for every task not placed
+under a section, which is every task on every view that is not a folder page,
+so no other surface changes meaning.
+
+**`created_by` is the person stub, not an id.** It is the same
+`{id, display_name, avatar_url}` object `assignee` already carries, for the
+reason 7.4's note gives about the members element: a heading that names a
+person needs exactly what a card's person label needs. It is null only where
+the creator's account was scrubbed by 8.10, which is what "renders as Deleted
+user" in that section means on the wire. TaskDetail already carries a
+`created_by` and its value becomes this same stub, so the two shapes agree
+rather than one being an id and the other an object.
+
+**What this invalidates, which is a criteria change as much as an API one**,
+exactly as item 19 warned. `app/src/shared/tasks.test.ts` asserts that
+TaskCard carries exactly the keys 7.0 enumerates, so it goes red on this unit
+by design and is the unit's own proof. Persona 11 reads that test and every
+criterion asserting a TaskCard key set **before** `04-api-and-contract.md`
+writes a line, and the widening is additive so no existing key moves, changes
+type or changes meaning.
 
 ### 7.17 View routes
 
@@ -1605,7 +1648,214 @@ fold, the way P7's mid-package change control ratified the pass callable:
     remove it, so the rotation is a new secret in Google Cloud and nothing
     less. It gates nothing in the build and should not wait for the release.
 
-20. **The 9.3 reunion's real surface is thirteen acceptance files, not the
+20. **No artifact ever named `prototype-v2/`, which is why the v2 row was
+    never ported (Integration Steward, 2026-08-25, on the S14 session's
+    escalation).** Item 19 makes parity with the v2 prototype the release
+    gate. It binds no build session's source, because the artifact table
+    that does bind them, 11.13, still named `docs/design/prototype/`, the v1
+    prototype of thirteen screens, as "the source the client is built from",
+    and no numbered section anywhere named `docs/design/prototype-v2/` at
+    all. Every session that read the rulebook correctly was pointed at v1.
+
+    **Verified rather than accepted, this role's own rule.** All four claims
+    were reproduced against the tree at `3bb6500` before any amendment:
+    `docs/design/prototype-v2/src/screens/` holds 23 screens; `grep -rl
+    prototype-v2 docs/spec/` returns nothing; 11.13's `prototype/` row reads
+    as quoted; `docs/spec/09-ui.md` still says "My Day" thirteen times,
+    RFC 0005's section 9 units never having been folded.
+
+    **The measured consequence is the task row.**
+    `app/src/client/components/task-row.tsx` is 609 lines and its own header
+    says it is "the designer's `src/components/task-row.tsx`, ported at P8R
+    session R3", which is the v1 file.
+    `docs/design/prototype-v2/src/components/task-row.tsx` is 2867 lines and
+    its header says it "replaced the v1 row on 2026-08-18". It was never
+    ported by anybody. Three checks say so independently rather than by
+    reading headers: `density` appears nowhere in `app/src/client`, so
+    DES-113's two densities do not exist; the app's `components/task-card/`
+    holds only `chips.tsx` and `copy.ts`, S11's 9.3 chip strip, so DES-093's
+    expand-in-place card does not exist; and `components/task-form` still
+    exists, which the v2 prototype deliberately has none of. S11 built the
+    v2 chip strip and pickers onto the v1 row, correctly by the rulebook it
+    was given, which is precisely the defect: the rulebook was wrong.
+
+    **Three amendments, all inside this role's authority, none touching a
+    frozen section.** First, 11.13's table gains a `prototype-v2/` row
+    naming it the v2 client's source and carrying RFC 0002's sentence
+    forward, and the `prototype/` row is marked superseded for appearance
+    while staying the record of v1; item 19's gate is now a gate on a named
+    directory. Second, `screen-registry.csv`'s `implementation_status`
+    column is declared non-authoritative and must not be read as state: all
+    31 rows still say NOT VERIFIED or NOT WIRED, including surfaces built,
+    routed and green, because the column was written in the design phase and
+    no build session owns it. Third, **the section 9 fold is owed as its own
+    documentation package**: sessions are reading a section 9 that is wholly
+    v1 text while RFC 0005's replacements sit unfolded in this file, which is
+    the same class of defect as the one above and the next one to bite.
+
+    What this item does not do is decide scope. The parity audit the S14
+    session is running will produce the defect list, and that list plus its
+    sequencing against item 19's gate is Imran's, not this role's: it is a
+    build-order resequencing and the persona sends those to the owner.
+
+21. **`app/.env` is tracked on `origin/main` and the deferral that allowed
+    it has now expired by its own terms (Integration Steward, 2026-08-25).**
+    The S14 remainder merged origin's `v2-build` as it stood, on the owner's
+    instruction of 2026-08-25 that the secret "stays as it is until the app
+    goes live", and routed the resulting contract disagreement here rather
+    than resolving it. Recorded now, with the state verified rather than
+    reported.
+
+    What is true at `e5bf809` and `50a4298`: `app/.env` is tracked on
+    `origin/main`, on `origin/v2-build` and on the local branch, and no
+    `.gitignore` on any of the three carries an env rule at all. `b9b2cfa`
+    had untracked the file and restored those rules on `v2-build`;
+    `c399147` reversed both halves, re-adding 44 lines of `app/.env` and
+    removing 2 lines from `.gitignore`, and the production merge carried
+    that state to `main`. One correction to row 16a's phrasing while the
+    facts are being written down: PR #9 does not fix this on `main`.
+    `51c3ff6` is the tip of its own branch and is **not** an ancestor of
+    `origin/main`, which has never received it; the only commit that ever
+    touched `app/.env` on `main` is `bf90c0a`, which added it.
+
+    This contradicts 11.11, whose secrets rule reads "a gitignored .env
+    locally, and an `.env.example` naming every variable". The contradiction
+    is recorded rather than corrected, because the owner ruled and a ruling
+    is not this role's to overturn.
+
+    **What is new, and why this item exists rather than a note:** the
+    deferral was conditional, and the condition is now met. The app went
+    live at `e5bf809`. So the sentence that authorised leaving the file
+    tracked no longer authorises anything, and the three acts it was holding
+    off are due: rotate `GOOGLE_CLIENT_SECRET` in the Google Cloud console
+    under OAuth client "Dana web", untrack `app/.env` on both branches with
+    `git rm --cached` so the working copy the dev server reads survives, and
+    restore the `.env*` and `!.env.example` rules. **Rotation is the only
+    one of the three that changes the exposure**, because the value is in
+    published history at `bf90c0a` and untracking has never removed it from
+    there; the other two stop it spreading further. All three are the
+    owner's to authorise and the first is his alone to perform. Not
+    attempted here: `main` is production and outward-facing, and acting on
+    this role's own reading of when "goes live" was satisfied is exactly the
+    interpretation a Steward does not make unilaterally.
+
+22. **The plan extends past S14 with six rows, on Imran's parity ruling
+    (2026-08-25).** Relayed by the S14 session in his words: prototype-v2 is
+    his source of truth and every feature and frontend interaction designed
+    in it must be the same in Dana v2. **Recorded as relayed rather than as
+    read from an artifact**, which is this role's standard for a ruling it
+    did not receive directly. It is consistent with item 19 and extends it
+    from "the client matches the v2 prototype" to the whole gap rather than
+    a subset; if the relay is wrong the rows below are wrong with it, and
+    Imran should say so.
+
+    RFC 0004 gains S15 to S19 and S-fold, drafted by the S14 session and
+    landed here with this role's own additions. They are numbered after S14
+    because they were unforeseen, not because they follow the release:
+    **2.0.0 ships after them.** All take their source from
+    `docs/design/prototype-v2/` per 11.13 as item 20 amended it, and mobile
+    stays out under section 13 item 32.
+
+    Two things this role checked rather than transcribed. **The S16 legal
+    routes are a live production defect and the brief described them
+    imprecisely.** They were relayed as "live-404"; verified against dana.so
+    on 2026-08-25, `/privacy` and `/terms` both answer **200**, because the
+    SPA fallback serves `index.html` and the client, which defines neither
+    route, then renders its not-found page. The distinction is not pedantry:
+    a monitor or a criterion written against a 404 will call these healthy
+    forever. The footer linking to them is `LandingPage.tsx:951` and `:957`,
+    on the landing page dana.so serves today, and Google's OAuth consent
+    configuration and 8.10's deletion policy text both need those
+    destinations to exist. Second, every prototype-v2 source the rows name
+    was confirmed present, screens and components alike, so no row points at
+    a file that is not there.
+
+    S19 is entered **blocked rather than scheduled**, DES-034 being open in
+    the design contract: its bodies and destinations need Imran or the
+    designer first. S-fold is entered unsequenced because it gates nothing,
+    but it is the item most likely to cause the next item 20, sessions still
+    reading a section 9 that is wholly v1 text.
+
+23. **The parity audit is ratified, S17 is scoped from it, and two of its
+    findings are not a session's to close (Integration Steward,
+    2026-08-25).** The audit written by the S14 session is placed at
+    `docs/parity/2026-08-25-prototype-v2-parity-audit.md`, on the
+    `docs/security/` precedent: dated so a second audit appends rather than
+    overwrites, and pointed at from RFC 0004's S15-to-S17b block, because
+    that table is a protocol section 2 state source and the audit file is
+    not. This is the same reasoning as item 18's, applied a second time, and
+    it is now the pattern for any record of this kind.
+
+    **Spot-checked before ratifying, this role not ratifying a record it has
+    not tested.** The search finding was re-derived from the source rather
+    than read: `views/search.ts:146` returns `rows`, `folders`, `shelves`
+    and `pages`, and `SearchOverlay.tsx:159` consumes `results.data?.rows`
+    alone. The trap is real and is now noted in the file: the overlay's
+    `useFolders()` on the next line is the sidebar's folder list, not the
+    search response's folders, so a careless reader will conclude the
+    finding is wrong. It is not. The measurement stands: 31 surfaces, 14
+    PORTED, 12 PARTIAL, 5 V1-ERA or MISSING.
+
+    S17 splits into **S17a**, the shared surfaces every page shows, and
+    **S17b**, the per-screen remainder, as the audit recommends and for its
+    reason: the head, the marks, the faces and the sections repeat on every
+    page, so closing them once closes many rows at once.
+
+    **`components/page-bar.tsx` is not an unowned tidy-up, and the ruling is
+    against deleting it on its own.** Checked rather than assumed: it is
+    still exported from the barrel at `components/index.ts:37` and named
+    **twice** in `components/ui/foundation.test.ts`, at lines 75 and 107,
+    which are S8's both-ways exemption lists. A bare deletion therefore
+    edits a test file to make the tree pass, which protocol section 8 does
+    not allow the deleting session to do casually. It goes to S17a, whose
+    tab-menu and page-head work removes the last live reason to keep it, and
+    the exemption lines go with it in the same commit.
+
+    **Two things are routed rather than scheduled.** The transactional email
+    row is a **conflict, not a port**: 10.7 fixes "plain, short, one action
+    link each" and the prototype designs three HTML cards, so a session
+    cannot resolve it by building either one. It goes to Imran, compounded
+    by DES-034 being open, and S19 stays blocked until he rules; the
+    Steward's recommendation is that 10.7 wins unless he says otherwise,
+    because a numbered section beats a design artifact under 11.13's own
+    first paragraph and that is exactly the exception clause item 19
+    preserved. And the two frozen section 7 widenings he approved still need
+    **this role's Replace units before S18 can start**; until they exist the
+    folder page cannot draw tasks under their sections and Assignments
+    cannot carry its "from" half, so they are the cheapest unblocking act
+    left on the board and are owed by the Steward, not by any session.
+
+24. **The two section 7 widenings are written, as unit 12a, and S18 is
+    unblocked (Integration Steward, 2026-08-25).** Owed by this role at item
+    23 and discharged in the same session rather than carried: they were the
+    cheapest unblocking act on the board and nothing else could start
+    without them. Unit 12a replaces 7.0's TaskCard line and is **the only
+    unit in this RFC that touches frozen section 7**, which is why it is
+    numbered into the inventory rather than left in prose.
+
+    One departure from item 19's wording, made openly. Imran approved
+    `section_block_id` "on the folder read"; the unit puts it on **TaskCard**
+    instead, because `GET /folders/:id/tasks` answers arrays of TaskCards, so
+    section on the folder read is section on TaskCard, and a private element
+    shape for one endpoint is two task shapes on the wire. The contract has
+    already ruled this exact question the same way at the P4 change control,
+    where a group's folder stub is one shape across two keys because "the two
+    keys spell one thing, so they answer one shape". If he meant a second
+    shape, this is the sentence to correct and the unit changes with it.
+
+    `created_by` is the `{id, display_name, avatar_url}` person stub rather
+    than an id, matching `assignee` and making TaskDetail's existing
+    `created_by` agree with it instead of one being an id and the other an
+    object. Both fields are additive; no existing key moves, changes type or
+    changes meaning.
+
+    **The unit names what it invalidates, which item 19 required.**
+    `shared/tasks.test.ts` asserts TaskCard's exact key set and goes red on
+    this unit by design, which is the unit's own proof rather than a
+    casualty. Persona 11 reads it and every criterion asserting a TaskCard
+    key set before `04-api-and-contract.md` writes a line.
+
+25. **The 9.3 reunion's real surface is thirteen acceptance files, not the
     seven item 15 named, and two criteria are falsified in substance rather
     than in wording (S15, 2026-08-25; four sentences taken under item 19,
     two recommended and left with the owner).**
