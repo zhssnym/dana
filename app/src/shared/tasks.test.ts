@@ -16,7 +16,10 @@ import {
 } from './tasks.js'
 
 /* The 7.0 key lists, transcribed from the frozen text rather than derived
- * from the schemas they check. */
+ * from the schemas they check. RFC 0005 unit 12a replaces 7.0's TaskCard
+ * line, so the two keys it adds are transcribed from that unit; this list is
+ * the one the unit named as its own casualty, and it is transcribed rather
+ * than repaired by reading the schema back. */
 const TASK_CARD_KEYS = [
   'id',
   'title',
@@ -31,19 +34,19 @@ const TASK_CARD_KEYS = [
   'steps_total',
   'pulled',
   'pending_invite_email',
+  'section_block_id',
+  'created_by',
   'created_at',
   'updated_at',
 ]
 const TASK_DETAIL_EXTRA_KEYS = [
   'notes',
   'recurrence_rule',
-  'section_block_id',
   'series_id',
   'reminder',
   'steps',
   'completed_at',
   'completed_by',
-  'created_by',
 ]
 
 const someUuid = '123e4567-e89b-42d3-a456-426614174000'
@@ -956,6 +959,8 @@ describe('the 7.0 response shapes', () => {
     steps_total: 0,
     pulled: false,
     pending_invite_email: null,
+    section_block_id: null,
+    created_by: { id: someUuid, display_name: 'Sara', avatar_url: null },
     created_at: '2026-08-01T10:00:00.000Z',
     updated_at: '2026-08-01T10:00:00.000Z',
   }
@@ -964,19 +969,17 @@ describe('the 7.0 response shapes', () => {
     notes: null,
     recurrence_rule: null,
     series_id: null,
-    section_block_id: null,
     reminder: null,
     steps: [],
     completed_at: null,
     completed_by: null,
-    created_by: someUuid,
   }
 
   test('TaskCard carries exactly the keys 7.0 enumerates', () => {
     expect(Object.keys(taskCard.shape).sort()).toEqual([...TASK_CARD_KEYS].sort())
   })
 
-  test('TaskDetail is TaskCard plus 7.0\'s eight, and nothing else', () => {
+  test('TaskDetail is TaskCard plus 7.0\'s seven, and nothing else', () => {
     expect(Object.keys(taskDetail.shape).sort()).toEqual(
       [...TASK_CARD_KEYS, ...TASK_DETAIL_EXTRA_KEYS].sort(),
     )

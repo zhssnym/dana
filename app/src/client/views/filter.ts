@@ -15,12 +15,12 @@ because section 6 offers no parameter for any of them. So every function here
 takes rows and returns rows.
 
 **Created-by is the one axis of that sentence this file does not carry, and
-it is an escalation rather than an omission.** A filter runs over `TaskCard`,
-and frozen 7.0's TaskCard has no `created_by`: the field is TaskDetail's.
-Adding it to the card is a change to frozen section 7, which protocol section
-3 makes a human decision, and reading a detail per row to answer a filter
-would be a request per row on a page that fetched one. Recorded as change
-control in RFC 0005 rather than built around.
+the reason it was missing is closed.** It was an escalation rather than an
+omission: a filter runs over `TaskCard`, TaskCard had no `created_by`, and
+adding it to a frozen section 7 was a human decision rather than this file's.
+Imran approved it at RFC 0005 change control item 19 and unit 12a wrote it, so
+the card now carries the creator and the axis needs no request per row. Adding
+it here is the parity audit's row rather than this comment's.
 
 **"Manual" is the resting sort and manual means do not touch it** (DES-156).
 Section 6's preamble already says clients never re-sort, and every page
