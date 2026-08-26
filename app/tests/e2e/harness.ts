@@ -1055,7 +1055,7 @@ export async function chipValue(chip: Locator, name: string): Promise<string> {
 }
 
 /**
- * The picker a chip has opened.
+ * The picker a chip has opened, meaning the one a person is looking at.
  *
  * 9.3: "each opening its picker in place... one shape at one width", and it
  * says nothing about what a picker is built from, which is deliberate:
@@ -1067,15 +1067,35 @@ export async function chipValue(chip: Locator, name: string): Promise<string> {
  * The task surface itself carries the dialog role too (9.1's roles table) and
  * is excluded by the title it holds, which is the same test `taskSurface`
  * makes and the same reason.
+ *
+ * **Filtered to what is on screen, which is not fastidiousness and was
+ * measured.** A popover that has been opened once stays in the document after
+ * it closes, keeping its role and its name, so a case that opened the repeat
+ * picker and then opened the reminder picker had two dialogs answering to
+ * "the picker" and died of strict mode against a client doing exactly what
+ * the section asks. Visibility is the right discriminator rather than a
+ * closed-state attribute: 9.3's sentence is about a picker being open in
+ * front of the person, and an element nobody can see is not one. This is the
+ * S11 class of fault, found by driving a live server and invisible to
+ * reading.
  */
 export function chipPicker(page: Page): Locator {
   return page
     .getByRole('dialog')
     .filter({ hasNot: page.getByLabel(/^\s*title\s*$/i) })
     .or(page.getByRole('menu'))
+    .filter({ visible: true })
 }
 
-/** Opens one chip's picker and waits for it to be there to act on. */
+/**
+ * Opens one chip's picker and waits for it to be there to act on.
+ *
+ * The picker is then addressed by the field's own name where it has one,
+ * which is the two-signals-rather-than-one habit the rest of this file keeps:
+ * 9.3 gives each chip a picker of its own, so "the picker that is open" and
+ * "the picker for this field" should be the same element, and a client that
+ * opened the wrong one fails here saying which it opened.
+ */
 export async function openChipPicker(page: Page, name: string, why: string): Promise<Locator> {
   await clickControl(taskChip(page, name), why)
   const picker = chipPicker(page)
@@ -1108,9 +1128,18 @@ export function reminderTimeControl(page: Page): Locator {
   return chipPicker(page).getByLabel(/^\s*reminder time\s*$/i)
 }
 
-/** Whatever a chip's picker offers as its choices, whichever role it built them from. */
+/**
+ * Whatever a chip's picker offers as its choices, whichever role it built
+ * them from, and only while a person can see them.
+ *
+ * Visibility-filtered for the reason `chipPicker` is and it is the same
+ * measured fault: a popover that has been opened once stays in the document
+ * after it closes, and its choices stay with it, so a case that opened the
+ * folder picker and then the assignee picker would count both lists as one.
+ * A choice nobody can see is not being offered.
+ */
 export function chipChoices(page: Page): Locator {
-  return page.getByRole('menuitem').or(page.getByRole('option'))
+  return page.getByRole('menuitem').or(page.getByRole('option')).filter({ visible: true })
 }
 
 /**

@@ -147,11 +147,18 @@ interface Expected {
   readonly folderId: string
 }
 
-/** The fields of frozen 7.2 the entry table decides. */
+/**
+ * The fields of frozen 7.2 the entry table decides.
+ *
+ * The folder is nested rather than flat, which is TaskCard's own shape: 7.0
+ * answers a folder as its id, name and mark together, because every surface
+ * that draws a row draws the folder beside it and a bare id would send each
+ * of them to the folder list to find out what it was called.
+ */
 interface StoredDefaults {
   due_date: string | null
   important: boolean
-  folder_id: string
+  folder: { id: string }
 }
 
 async function expectDefaults(
@@ -179,7 +186,7 @@ async function expectDefaults(
     `spec 9.3 entry-point defaults, captured from ${where}: important`,
   ).toBe(expected.important)
   expect(
-    stored.folder_id,
+    stored.folder.id,
     `spec 9.3 entry-point defaults, captured from ${where}: folder`,
   ).toBe(expected.folderId)
 }
