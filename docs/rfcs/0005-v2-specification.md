@@ -2866,6 +2866,59 @@ fold, the way P7's mid-package change control ratified the pass callable:
     mechanism at unit level and the section's own prose never caught up. S29
     of the lift plan owns that fold and names this contradiction first.
 
+39. **Every element's overflow list and every element's view types are the
+    prototype's exactly, on Imran's ruling of 2026-08-26 at S20's opening.**
+    Item 37 ruled the whole: Dana 2.0 is the exact `prototype-v2`. This
+    item records the two things he named by name when opening the first
+    package of that plan, and it is worth its own number rather than a line
+    in a brief because both are **contracts in the prototype and were
+    treated as component-local detail in the client**, which is precisely
+    the class of decision 11.13's mechanism loses. His words: the overflow
+    lists for every element and the view types for every element must be
+    the same as prototype v2.
+
+    **Both name a file, so both are checkable rather than a matter of
+    taste.** The overflow lists are `lib/object-acts.ts`, whose own header
+    states the rule the client has to inherit with it: the acts are
+    declared once per object kind, ordered by group — reach it, change it,
+    copy it, stop it, destroy it — a surface supplies handlers and an act
+    with no handler does not appear. The view types are
+    `components/view-strip.tsx` plus each surface's option set: the task's
+    open modes, the folder's list and board, Scheduled's calendar, the
+    conversation's four homes, and Assignments' whose-assignments spine.
+
+    **Measured against `app/src/client` on the day of the ruling, not
+    asserted.** The client already carries both files and both already
+    disagree, in four ways found in one reading:
+
+    - `make-folder`, the prototype's "Make this a folder…", is absent from
+      the client's task acts. Section 13 item 42 predicted exactly this and
+      named it as owed to another package.
+    - Five labels lost their ellipsis: "Move to folder…", "Delete task…",
+      "Delete folder…", "Leave folder…", "Delete shelf…". An ellipsis is a
+      promise that a further step follows, so dropping it is a behavioural
+      claim and not a typographic one.
+    - The task's `open` act carries `Fullscreen` in the prototype and
+      `OpenInNewTab` in the client, which is the glyph for a different act.
+    - `views/ViewStrip.tsx` is plain buttons carrying their names as text,
+      where the prototype's is a collapsing radiogroup of icon buttons with
+      the label in a tooltip and only the current view visible at rest
+      (DES-137). **This one is a recorded, reasoned departure, not a
+      slip** — the file's header argues it from AC-093 addressing the
+      calendar by the name "Calendar" — which makes it the exact shape this
+      item decides: the ruling stands, the strip becomes the prototype's,
+      and AC-093 is rework rather than a reason.
+
+    **What follows for S20 and for the lift.** The ledger carries two
+    mandated axes rather than discovering them: for every element that has
+    an overflow menu, the acts it offers in the prototype, in order, with
+    their labels and glyphs; for every element that offers views, the views
+    it offers and their resting behaviour. A departure from either is a
+    rulings-sheet row, and the standing direction of item 37's section
+    applies to both — sections amend toward the prototype, frozen 4 and 7
+    excepted. Criteria that assert a departure are the triage's rework
+    pile, AC-093 being the first one known by number.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
