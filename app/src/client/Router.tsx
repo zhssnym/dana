@@ -61,12 +61,14 @@ export function Router(): React.JSX.Element {
         {/*
         The two public pages of DES-032, added at S16.
 
-        They sit here, beside the landing and outside the /app layout,
-        because that is what they are: the landing's footer has linked them
-        since S13 and a visitor reads them before there is anything to sign
-        into. Outside the shell means outside the signed-out redirect AC-239
-        asserts, which fires on /app routes alone, and it is why these two
-        render for a person with no session at all.
+        They sit here, beside the landing and outside the /app layout, and
+        that placement is load-bearing rather than tidy. AC-239 sends any
+        unauthenticated visit to an /app route to /, and these are pages read
+        overwhelmingly with no session; Google's OAuth consent configuration
+        fetches the privacy one with none at all. Under the shell they would
+        redirect the audience they exist for, so a row in 9.1's route table
+        would be a defect and not an improvement (change control items 29
+        and 30).
 
         Until now neither path existed, so both fell through the catch-all
         below and answered with the not-found page: "That page does not
