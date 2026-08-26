@@ -2048,6 +2048,245 @@ fold, the way P7's mid-package change control ratified the pass callable:
     and 7.8's `my-day` endpoint path, and the path is frozen section 7 and
     stays.
 
+29. **S16's six readings, the three unowned surfaces built (2026-08-25).**
+    Each is recorded because a session that decided it silently would have
+    left the next reader with no way to tell a decision from an accident.
+
+    **`/privacy` and `/terms` are not rows of 9.1's route table, and are not
+    meant to become them.** That table is the application's: every row of it
+    is under `/app` except the landing. These two are the landing's
+    neighbours, they are outside `/app` precisely so AC-239's signed-out
+    redirect does not reach them, and a person reads them before there is
+    anything to sign into. The precedent is `views/saved-views.ts`, where S10
+    put a `?view=` address outside that table and recorded the reason here
+    rather than adding a row. RFC 0004's S16 row and item 22 already name
+    both paths, and item 22 verified them against production; this is the
+    reading that keeps the table honest, not a request to widen it.
+
+    **Item 30 upholds this and supplies the argument this paragraph did not
+    have.** Raised to the Integration Steward while it was being made rather
+    than after, and answered the same evening: the precedent above is sound
+    but is only precedent, and the operative reason is F-8's own. AC-239
+    sends *any* unauthenticated read of an `/app` route to `/`; a privacy
+    policy is read overwhelmingly by people with no session, and Google's
+    OAuth consent configuration fetches it with none at all. A row in that
+    table would bounce the exact audience these pages exist for, breaking the
+    obligation S16 was opened to satisfy in the act of satisfying it. So a
+    row would be a **defect** rather than a tidier arrangement, which is
+    stronger than "unnecessary" and is what `routes.ts` and `Router.tsx` now
+    say at the point a future reader meets the question.
+
+    **DES-032's status is settled from the register rather than picked.** The
+    design contract's table still reads "DES-032 | Privacy and terms
+    destinations | OPEN | Before Session 7", which is the v1 row, while
+    `docs/design/v2-decisions.md` records in the same register's own words
+    that DES-032 is "closed in v2: pages drafted and approved 2026-08-17,
+    still to be routed in production", and `public-legal-screen.tsx` carries
+    Imran's approval of the copy with its date and his sentence. So the copy
+    is approved and what stood open was the routing, which is this package.
+    The stale row is left as it is: `docs/design/` is a directory every role
+    reads and no agent writes.
+
+    **One word of that approved copy moved, and the source file is what
+    required it.** Terms read "you get an account, an Inbox, and these
+    terms"; the default folder is Desk since this RFC renamed it and S2
+    migrated the data. The prototype header's own instruction is the
+    authority: its facts "were taken from the shipping product ... and must
+    be re-verified at the port if any of that moves". The other five were
+    re-verified and none has moved: Google sign-in only (11.6), folder
+    sharing (5.3), Resend email (11.8), sanitized Sentry errors and 30 day
+    Axiom logs (11.12, 10.5), and hard deletion behind a typed DELETE (8.10).
+
+    **The help sheet lists six shortcuts and every one was read off its
+    handler, which is what its own header demands and what AC-242 measures.**
+    Ctrl+K and "/" in `shell/overlays.ts`, Ctrl+Z in `shell/app-shell.tsx`,
+    Enter in `components/task-row.tsx` and `components/quick-add.tsx`, Escape
+    in the dialog primitive and `lib/use-sortable-list.ts`, and the arrows in
+    `components/search/SearchOverlay.tsx`. Nothing was dropped, because
+    nothing on the prototype's list turned out to be untrue here; a shortcut
+    this client did not bind would have been reported rather than shipped.
+    **One sentence could not be ported**, the sheet's description reading
+    "This is a design prototype of Dana. What you change here is kept in this
+    browser and nowhere else", which is true there and false here. A Help
+    sheet is the last surface in the product that may carry a false sentence,
+    so it states what the sheet is and nothing more. The gap the sheet leaves
+    stays named in the source file rather than papered over with a link to a
+    page nobody has written, which is DES-144's judgement applied to a
+    sentence.
+
+    **Item 9's open question is answered by the prototype and the answer is
+    "no choice at the save".** That item asked whether "Save as view" keeps
+    forcing `pinned: true` or starts offering the choice once the pin list
+    exists, and referred the answer to what the prototype's save flow does.
+    It names the view and saves it, with no pin control anywhere in the flow
+    (`components/task-filters.tsx`), so the save is unchanged. What changes
+    is the half the interim was waiting on: a view that lands pinned can now
+    be unpinned from 9.7's list, which is the surface item 9 said did not
+    exist, and a view saved unpinned by any other route is reachable there
+    too. AC-241's saved-view case uses an unpinned fixture for exactly that
+    reason.
+
+    **Two things 9.7 names were unbuilt and belonged to no row, and item 30
+    has since assigned both to S17b.** The **Appearance** section (theme, row
+    density, the clock, where a task opens) has its stored fields in the 4.19
+    bundle since S7 and no control anywhere, so the client persists four
+    preferences a person has no way to set; the **storage used against
+    10.3's quota** line waits on a read that reports it. This package flagged
+    them rather than absorbing them, because its scope is the row it was
+    given and a session that widened that quietly would be item 20's failure
+    running in the other direction. Item 30 records the shape behind all
+    three outings of it, items 9, 20 and this one: **scoping a package by
+    naming what it includes silently orphans the remainder**, and the guard
+    is to name what a row is *not* taking whenever it takes part of a
+    numbered section.
+30. **S16's route-table reading is upheld with a stronger reason, and 9.7's
+    Appearance section is assigned (Integration Steward, 2026-08-25).** Two
+    answers to the S16 session. Numbered 30 because that session holds 29 on
+    an unpushed branch; if these land out of order, that is why.
+
+    **`/privacy` and `/terms` correctly have no row in 9.1's route table, and
+    adding one would be a defect rather than a tidy-up.** S16 kept them out
+    on the S10 saved-views precedent and asked to be corrected if that was
+    wrong. It was right, and the reason is stronger than the precedent it
+    used: F-8's ruling, now AC-239, sends **any** unauthenticated read of an
+    `/app` route to `/`. A privacy policy is read overwhelmingly by people
+    who are not signed in, and Google's OAuth consent configuration fetches
+    it with no session at all. Putting those two paths in the application's
+    table would make that redirect bounce precisely the audience they exist
+    for, breaking the obligation S16 was built to satisfy in the act of
+    satisfying it. They are the landing's neighbours, 9.2 names them, and
+    they stay outside `/app`. Verified rather than assumed: section 9
+    mentions them only in 9.2 and never in 9.1's table.
+
+    **9.7's Appearance section, and the Account storage line, are assigned to
+    S17b.** The S16 session found them owned by nobody and was right to stop
+    rather than absorb them: 9.7 names five sections, that package's scope
+    was the Views pin list, and neither S17a nor S17b named the rest.
+    Verified here: the 4.19 bundle carries `theme`, `density`, `clock` and
+    `task_open`, all four stored since S7, while `SettingsPage.tsx` renders
+    Pages, Account and Danger zone with **no Appearance section and no
+    control for any of the four**. The client therefore persists four
+    preferences a person has no way to set.
+
+    This is item 9's and item 20's shape a third time, one level down: a
+    thing section 9 names, that a package's scope excluded, that no later row
+    picked up. Recorded as a pattern rather than an incident, because three
+    occurrences is where it stops being bad luck: **scoping a package by
+    naming what it includes silently orphans the remainder.** The cheap guard
+    for whoever writes the next plan row is to name what a row is *not*
+    taking whenever it takes part of a numbered section.
+
+31. **The visual review is deferred until S17 closes, on Imran's ruling of
+    2026-08-25, and this changes when it happens rather than whether.** He
+    opened both surfaces side by side, the prototype at its own server and
+    the built client at the dev server, and ruled that the application is
+    "way way different" from prototype-v2 and that reviewing now is not
+    worth doing. Item 19's sentence stands unaltered: the review is his, it
+    happens rather than being waived, and it precedes release. What is new
+    is its position, which is now **after S17b** rather than anywhere in
+    S14's clause.
+
+    **The reasoning is the parity audit's own numbers, and the deferral is
+    the correct reading of them.** That file measures 5 surfaces V1-ERA or
+    MISSING and 12 PARTIAL against 14 PORTED, and its "five gaps that most
+    change what a person sees on first open" are all still open: the task
+    row and card, the six place-page heads, folder identity not travelling,
+    search finding only tasks, and the folder page's missing board. A review
+    against that state would spend the owner's judgement re-finding defects
+    already written down, which is the one thing a list of known defects
+    exists to prevent. The review's value is what the audit could not see,
+    because the audit was produced by reading files rather than by looking,
+    and that value is only available once the known gaps are shut.
+
+    Recorded so no session asks him for it early: **S14's release clause
+    cannot close on the visual review until S17b is done**, and any package
+    that finds itself blocked on that line should read this item rather than
+    escalating. The practical arrangement is also recorded because it cost
+    an hour to rediscover: the review is done locally against both servers,
+    never against dana.so, which serves `main` and was seventeen commits
+    behind `v2-build` on the day this was written, lacking S15's card
+    entirely.
+
+33. **Unit 12a is enacted, and its implementation surface is wider than the
+    unit's own list by seven client files (S18, 2026-08-25).** Numbered 33
+    with 32 left vacant, which is deliberate and is the only place in this
+    list where a number is reserved rather than spent. `des-034-email-copy`
+    carries a written, unmerged **item 32**, Imran's DES-034 ruling on the
+    transactional emails, authored eight minutes before this one and already
+    cross-referenced three times from RFC 0004's S19 row. This package merged
+    first only because its gate finished first, which is no claim on the
+    number, and item 13's precedent turns on which claim is written and
+    asserted rather than on merge order. So the gap holds that item's place
+    and neither session edits the other's references. A reader who finds 32
+    still missing after S19 lands should treat it as free.
+
+    The two widenings Imran approved at item 19 and this role wrote at item
+    24 are on the wire. `TaskCard` carries `section_block_id` and the `created_by`
+    person stub, `TaskDetail`'s bare uuid `created_by` became that same
+    stub, no migration was owed, and the read shape moved in the two
+    producers the RFC 0001 P4 row named on the record and nowhere else.
+    Four readings, each recorded because a session that decided it quietly
+    leaves the next reader unable to tell a decision from an accident.
+
+    **The unit named one casualty and there were two.** Item 24 named
+    `shared/tasks.test.ts`, which asserts TaskCard's exact key set and went
+    red by design. The second was **AC-138's wire arm**, which asserted that
+    a scrubbed creator still reads as a bare id on the TaskDetail; the unit
+    makes that value null, so a green criterion went red on a contract
+    change exactly as items 8 and 14 warned. Its text did not move and did
+    not need to: what AC-138 promises is that `tasks.created_by` keeps
+    pointing at the scrubbed row, which is the column, and that assertion is
+    untouched and now sits beside the wire in the same test. This is the
+    third time in this build that a short list has been the finding, after
+    item 8's list of twenty that was three short and item 14's list of four
+    that was one wide, and it was found the same way both of those were, by
+    running the leg rather than by reading the list.
+
+    **"Null on every surface that is not a folder page" is about which tasks
+    are placed, not about which endpoint is answering.** The unit's own
+    sentence reads that way at a glance, and taken literally it would mean
+    nulling the field off every body but Q7, which is the private element
+    shape in disguise and is the exact thing the unit spends a paragraph
+    refusing: "a private element shape for one endpoint is two task shapes
+    on the wire". So the field is read straight off 4.5's column in one
+    projection, a placed task names its section wherever it is read, and a
+    task under no section is null everywhere. AC-248's second case asserts
+    it, and the criterion is written so that a session which ever disagrees
+    disputes that case rather than working around it.
+
+    **Seven client files moved and none by choice.** The package's own
+    prompt named two, the comments in `AssignmentsPage.tsx` and
+    `views/filter.ts` that asserted the old shape in prose. What it could
+    not have known is that the widened type is imported by client code:
+    `TaskHistory` took `created_by` as a `string` and now takes the stub's
+    id or null, which renders identically because "Deleted user" arrives
+    through the same `nameOf` either way, and five client unit-test fixtures
+    build a whole `TaskCard` and stop compiling without the two keys. Every
+    one is a mechanical consequence of a type, not a behaviour change, and
+    they are named here rather than escalated because the alternative was to
+    block a contract change on a null literal and leave the tree red. The
+    real client work this unblocks is untouched and stays where it is: the
+    stub's `display_name` is what a ported history block should read, and
+    that belongs to the session that ports the block.
+
+    **What this unblocks rather than closes.** The parity audit's 31
+    surfaces gain nothing finished here and three gain their missing field.
+    The folder page can draw tasks under their sections, which is S17b's row
+    and `task-section.tsx` as a component is S17a's; Assignments can carry
+    its "from {creator}" half; and the filter's created-by axis, recorded in
+    `views/filter.ts` since S11 as an escalation rather than an omission,
+    now has the field it was waiting for. AC-093's section-capture arm, owed
+    since S12, is client work and rides the package that draws the capture.
+
+    **The fold of unit 12a into `docs/spec/07-api.md` is not taken and is
+    not owed by this package.** Section 7 is frozen and its file still
+    carries the v1 TaskCard line, exactly as sections 4.3 and 4.5 still
+    carry theirs for unit 11; S-fold at item 28 folded section 9 and only
+    section 9. The unit is the contract and is cited as 7.17b throughout
+    this package's code and criteria. Whether the fold is owed, and to whom,
+    is left with the Steward as change control rather than decided by a
+    session editing a frozen section on its own authority.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

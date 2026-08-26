@@ -18,16 +18,22 @@ list, board and calendar modes are a client-side choice named by `?mode=`
 rather than separate pages, and the unverified-email page of 9.2 is the
 server's response to one request.
 
-**Two paths below are not rows of 9.1's table, and that is deliberate (S16).**
-`/privacy` and `/terms` are the public pages of DES-032, linked from the
-landing footer since S13 and defined by no route until this package, so both
-answered 200 carrying the client's own not-found page. That table is the
-application's, every row of it under `/app` but the landing; these two are the
-landing's neighbours rather than the application's pages, and they sit outside
-`/app` precisely so the signed-out redirect of AC-239 does not reach them.
-Recorded as change control in RFC 0005, on the `saved-views.ts` precedent,
-because a route not in that table is a deviation whoever reads the table next
-is owed an explanation of.
+**Two paths below are not rows of 9.1's table, and a row there would be a
+defect rather than a tidier arrangement (S16; RFC 0005 change control items
+29 and 30).** `/privacy` and `/terms` are the public pages of DES-032, linked
+from the landing footer since S13 and defined by no route until this package,
+so both answered 200 carrying the client's own not-found page.
+
+The reason they stay out is AC-239. That criterion sends **any**
+unauthenticated visit to an `/app` route to `/`, and a privacy policy is read
+overwhelmingly by people with no session: Google's OAuth consent
+configuration fetches it with none at all. Putting these two under `/app`
+would bounce the exact audience they exist for, and would break the
+obligation they were built to satisfy in the act of satisfying it. So the
+table stays the application's, every row of it under `/app` but the landing,
+and these two are the landing's neighbours. Recorded rather than done
+quietly, on the `saved-views.ts` precedent, because a route not in that table
+is a deviation whoever reads the table next is owed an explanation of.
 */
 import {
   Ban,

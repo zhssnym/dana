@@ -23,10 +23,10 @@ not need to: 7.6 defaults `assignee_id` to the caller, and Desk is
 single-member so the forcing lands on them either way.
 
 **"From" names the creator and Dana records no assigner**, which 9.5 states
-and which nothing here can draw: `created_by` is TaskDetail's field and not
-TaskCard's, so a row on this page cannot say who made it without a request per
-row. Recorded as change control in RFC 0005 beside the filter's created-by
-axis, which is the same missing field.
+and which this page does not draw yet. The field it needed exists now:
+`created_by` rides TaskCard from RFC 0005 unit 12a and carries the person
+stub a label needs, so the half is buildable without a request per row.
+Drawing it is the parity audit's Assignments row rather than this comment's.
 */
 import { UserRoundCheck } from '../lib/icons.js'
 

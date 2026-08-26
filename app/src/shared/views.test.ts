@@ -61,6 +61,8 @@ function card(overrides: Partial<TaskCard> = {}): TaskCard {
     steps_total: 0,
     pulled: false,
     pending_invite_email: null,
+    section_block_id: null,
+    created_by: { id: UUID, display_name: 'a person', avatar_url: null },
     created_at: '2026-08-07T10:00:00.000Z',
     updated_at: '2026-08-07T10:00:00.000Z',
     ...overrides,
