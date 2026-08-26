@@ -2632,7 +2632,7 @@ fold, the way P7's mid-package change control ratified the pass callable:
     4.19's column is `comfortable | compact`; the column is the record and
     DES-113's two row *shapes* need the v2 task row that S15's own log row
     reports as not ported, so S17b's control writes the preference and drives
-    the list's spacing, and AC-255 asserts exactly that and not the row shape.
+    the list's spacing, and AC-261 asserts exactly that and not the row shape.
     And `lib/time-format.ts` keeps the clock in `localStorage`, its header
     saying an account-level version "needs a column, an endpoint and therefore
     an RFC"; 4.19 and `/settings` are that column and that endpoint, live since
