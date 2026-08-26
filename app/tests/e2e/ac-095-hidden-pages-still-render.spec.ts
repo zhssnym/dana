@@ -104,11 +104,12 @@ test.describe('AC-095: hidden pages are a navigation preference', () => {
     // red names one of them.
     await page.goto(routesV2.settings)
     await clickControl(
-      page.getByRole('switch', { name: 'Important' }),
-      'spec 9.7: the Settings page carries one switch per hideable view. The v2 section calls ' +
-        'it a pin switch in the Views list and the client still renders the v1 page toggle; ' +
-        "S7's fold is what makes the two one record, and the switch this case presses is the " +
-        'one a person can press today',
+      page.getByRole('switch', { name: 'Pin Important to the sidebar', exact: true }),
+      'spec 9.7: the Settings page carries one pin switch per view in its Views list, and a ' +
+        'pin switch is named for what it does to the view it names. This case pressed a ' +
+        'switch called "Important" on the v1 page of three booleans until S16 built the list ' +
+        'the section has always described; AC-241 owns the list itself, and this owns what ' +
+        'pressing one row of it does to the sidebar',
     )
     await page.goto(routesV2.desk)
     await expect(
