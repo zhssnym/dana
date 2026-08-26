@@ -145,7 +145,7 @@ Statuses: `OPEN`, `PROPOSED`, `APPROVED`, `LOCKED`, `SUPERSEDED`.
 | DES-031 | People is reached from the sidebar footer immediately above Settings | APPROVED | Imran; Session 4 approval, 2026-08-11 |
 | DES-032 | Privacy and terms destinations | OPEN | Before Session 7 |
 | DES-033 | Location of sent bare and historical invites | OPEN | Before Session 7 |
-| DES-034 | Subjects, bodies and action destinations for transactional emails | OPEN | Before Session 7 |
+| DES-034 | Subjects, bodies and action destinations for transactional emails | APPROVED | Imran, 2026-08-25; four templates, `invite` split into folder and connection; the ruled copy is RFC 0005 change control item 32 |
 | DES-035 | List-truncation notice copy and placement | OPEN | Before Session 6 core task-list screens |
 | DES-036 | Failed writes use one compact elevated Graphite 900 toast with a restrained Lucide cue, exact specification copy and dismiss control; rate limits use the same treatment and display the server-provided Retry-After duration. Page-load errors pair the exact generic message with an inline Retry control | APPROVED | Imran accepted the Session 7 system/PWA group on 2026-08-11; exact-copy and dismiss behavior passed |
 | DES-037 | Current UI delivery and Hassan handoff are desktop-only at 1440px; mobile UI is deferred, not removed from Dana v1 | APPROVED | Imran, 2026-08-10 |
