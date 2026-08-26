@@ -138,13 +138,20 @@ test.describe('AC-265: Dana\'s mark is drawn rather than fetched', () => {
     /* Read off the mask's own stroke rather than off a screenshot: the
        property that matters is the dash offset, and a rendered comparison
        would be asserting the geometry this criterion deliberately does not. */
-    const offsets = await marks(page).evaluateAll((nodes) =>
-      nodes.map((node) => {
+    const offsets = await marks(page).evaluateAll((nodes) => {
+      /* Through `globalThis` rather than the ambient `window`, which is this
+         suite's own idiom where a DOM global is reached from a file the
+         tests tsconfig compiles without the DOM lib. `harness.ts`'s
+         `computedStyle` does the same and for the same reason. */
+      const view = globalThis as unknown as {
+        getComputedStyle: (el: unknown) => Record<string, string>
+      }
+      return nodes.map((node) => {
         const stroke = node.querySelector('mask path')
         if (stroke === null) return null
-        return window.getComputedStyle(stroke).strokeDashoffset
-      }),
-    )
+        return String(view.getComputedStyle(stroke).strokeDashoffset ?? '')
+      })
+    })
 
     expect(
       offsets,
