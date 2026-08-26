@@ -17,10 +17,36 @@ one: the 9.9 search overlay opens over whatever page is beneath it, a page's
 list, board and calendar modes are a client-side choice named by `?mode=`
 rather than separate pages, and the unverified-email page of 9.2 is the
 server's response to one request.
+
+**Two paths below are not rows of 9.1's table, and that is deliberate (S16).**
+`/privacy` and `/terms` are the public pages of DES-032, linked from the
+landing footer since S13 and defined by no route until this package, so both
+answered 200 carrying the client's own not-found page. That table is the
+application's, every row of it under `/app` but the landing; these two are the
+landing's neighbours rather than the application's pages, and they sit outside
+`/app` precisely so the signed-out redirect of AC-239 does not reach them.
+Recorded as change control in RFC 0005, on the `saved-views.ts` precedent,
+because a route not in that table is a deviation whoever reads the table next
+is owed an explanation of.
 */
+import {
+  Ban,
+  CalendarDays,
+  CalendarX,
+  CheckCircle2,
+  LampDesk,
+  Layers3,
+  Star,
+  SunMedium,
+  UserRoundCheck,
+} from './lib/icons.js'
+import type { LucideIcon } from './lib/icons.js'
 
 export const paths = {
   landing: '/',
+  /** DES-032's two public pages; the header says why they are not 9.1's. */
+  privacy: '/privacy',
+  terms: '/terms',
   /** Desk, the default folder, and the installed app's start_url (10.6). */
   desk: '/app',
   today: '/app/today',
@@ -96,6 +122,19 @@ export interface NavPage {
   readonly path: string
   /** What the page answers, from DES-152; the description under its title. */
   readonly question: string
+  /**
+   * The page's own mark, which belongs to no numbered section and is the
+   * designer's.
+   *
+   * It lived in `shell/app-sidebar.tsx` as a map keyed by path until S16,
+   * whose own comment wished it were here: "keyed by path rather than by name
+   * so that a rename in 9.1's page set is one edit in `routes.ts` and not
+   * two". The pin list of 9.7 is the second reader, and 9.7 requires it to
+   * draw "the page's own mark" so that the list and the sidebar show one
+   * page rather than two descriptions of it. That is only guaranteed by there
+   * being one mark, so the mark moved to the page.
+   */
+  readonly icon: LucideIcon
   readonly pinnable: boolean
 }
 
@@ -105,6 +144,8 @@ export const navPages: readonly NavPage[] = [
     name: 'Desk',
     path: paths.desk,
     question: 'Nothing decided about it yet',
+    /* Desk wears a desk lamp (DES-181). */
+    icon: LampDesk,
     pinnable: false,
   },
   {
@@ -112,6 +153,7 @@ export const navPages: readonly NavPage[] = [
     name: 'Today',
     path: paths.today,
     question: 'What I am doing today',
+    icon: SunMedium,
     pinnable: true,
   },
   {
@@ -119,6 +161,7 @@ export const navPages: readonly NavPage[] = [
     name: 'Scheduled',
     path: paths.scheduled,
     question: 'Everything with a date',
+    icon: CalendarDays,
     pinnable: true,
   },
   {
@@ -126,6 +169,7 @@ export const navPages: readonly NavPage[] = [
     name: 'Assignments',
     path: paths.assignments,
     question: "Who's carrying what",
+    icon: UserRoundCheck,
     pinnable: true,
   },
   {
@@ -133,6 +177,7 @@ export const navPages: readonly NavPage[] = [
     name: 'Important',
     path: paths.important,
     question: 'Starred tasks',
+    icon: Star,
     pinnable: true,
   },
   {
@@ -140,6 +185,7 @@ export const navPages: readonly NavPage[] = [
     name: 'All',
     path: paths.all,
     question: 'Every task, finished ones included',
+    icon: Layers3,
     pinnable: true,
   },
   {
@@ -147,6 +193,7 @@ export const navPages: readonly NavPage[] = [
     name: 'Done',
     path: paths.done,
     question: 'Everything you have finished',
+    icon: CheckCircle2,
     pinnable: true,
   },
   {
@@ -154,6 +201,7 @@ export const navPages: readonly NavPage[] = [
     name: 'Abandoned',
     path: paths.abandoned,
     question: 'Things you decided not to do',
+    icon: Ban,
     pinnable: true,
   },
   {
@@ -161,6 +209,10 @@ export const navPages: readonly NavPage[] = [
     name: 'Anytime',
     path: paths.anytime,
     question: 'No date on it, whenever you get to it',
+    /* A calendar with an X: the filter's own "No due date", and the other
+       value of the axis Scheduled's calendar carries. It wore All's glyph for
+       one revision and read as a repeated row (DES-152's own note). */
+    icon: CalendarX,
     pinnable: true,
   },
 ] as const

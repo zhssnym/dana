@@ -47,6 +47,7 @@ import { getSettingsResponse, savedView } from '../../shared/bundle.js'
 import type {
   GetSettingsResponse,
   PatchSettingsBody,
+  PatchViewBody,
   PostViewBody,
   SavedView,
 } from '../../shared/bundle.js'
@@ -760,5 +761,27 @@ export function useCreateSavedView(): UseMutationResult<
   return useMutation({
     mutationFn: (body: PostViewBody) =>
       mutateApi(savedView, { method: 'POST', path: '/views', body }),
+  })
+}
+
+/**
+ * PATCH /views/:id, which 9.7's pin list writes when a saved view's switch
+ * moves (S16).
+ *
+ * A saved view's pin lives on its own row rather than in `pinned_views`,
+ * which 4.19 caps at the nine native keys, so the pin list writes two
+ * different addresses for two kinds of row and the page is where they meet.
+ * The whole body is `PatchViewBody`, not a pin flag, because the endpoint
+ * already takes name and definition and a narrower hook here would be a
+ * second, smaller idea of what a saved view is.
+ */
+export function usePatchSavedView(): UseMutationResult<
+  SavedView,
+  Error,
+  { readonly id: string; readonly body: PatchViewBody }
+> {
+  return useMutation({
+    mutationFn: ({ id, body }) =>
+      mutateApi(savedView, { method: 'PATCH', path: `/views/${id}`, body }),
   })
 }

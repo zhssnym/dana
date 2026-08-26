@@ -41,6 +41,7 @@ import { DonePage } from './pages/DonePage.js'
 import { FolderPage } from './pages/FolderPage.js'
 import { ImportantPage } from './pages/ImportantPage.js'
 import { LandingPage } from './pages/LandingPage.js'
+import { LegalPage } from './pages/LegalPage.js'
 import { NotFoundPage } from './pages/NotFoundPage.js'
 import { PeoplePage } from './pages/PeoplePage.js'
 import { ScheduledPage } from './pages/ScheduledPage.js'
@@ -57,6 +58,23 @@ export function Router(): React.JSX.Element {
     <BrowserRouter>
       <Routes>
         <Route path={paths.landing} element={<LandingPage />} />
+        {/*
+        The two public pages of DES-032, added at S16.
+
+        They sit here, beside the landing and outside the /app layout,
+        because that is what they are: the landing's footer has linked them
+        since S13 and a visitor reads them before there is anything to sign
+        into. Outside the shell means outside the signed-out redirect AC-239
+        asserts, which fires on /app routes alone, and it is why these two
+        render for a person with no session at all.
+
+        Until now neither path existed, so both fell through the catch-all
+        below and answered with the not-found page: "That page does not
+        exist. Everything Dana has is in the sidebar", shown to somebody
+        looking for a privacy policy.
+        */}
+        <Route path={paths.privacy} element={<LegalPage page="privacy" />} />
+        <Route path={paths.terms} element={<LegalPage page="terms" />} />
         <Route path="/app" element={<AppShell />}>
           {/* Desk, the default folder and the installed app's start_url. */}
           <Route index element={<DeskPage />} />
