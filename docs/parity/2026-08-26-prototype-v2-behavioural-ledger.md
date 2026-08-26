@@ -83,7 +83,6 @@ where the decision is not section 9's.
    (L-021) or a package (L-101). The count at the foot is a measure of
    coverage, not of effort.
 
----
 
 # A. The two axes item 39 makes mandatory
 
@@ -174,7 +173,6 @@ full, against `app/src/client/views/ViewStrip.tsx`.
 | L-048 | One remembered view across pages, falling back to list where a page cannot draw it **without forgetting it** | yes, `views/view-mode.ts` effectiveMode | 9.1, in terms | AC-182 | closed |
 | L-049 | Done offers list and board like every other page | **partial**: the client offers **list alone**, a dated omission its own comment ties to the two row implementations | 9.1's rule would offer board | *none* | S23 |
 
----
 
 # B. `src/lib/`: the thirty-three modules where the decisions live
 
@@ -268,7 +266,6 @@ header in this directory was read. `object-acts.ts` and
 | L-118 | `icons.tsx` A folder's forty-two glyphs are none of them an icon Dana's own chrome uses, so a folder's mark can never be mistaken for a control | yes: `components/page/icon-manifest.ts` carries the forty-two by key | 4.3 | AC-193, AC-243 | closed |
 | L-119 | `utils.ts` `cn` is the one class composer, which 11.4 fixes as clsx plus tailwind-merge | yes, `components/ui/utils.ts` | 11.4 | *none* | closed |
 
----
 
 # C. `src/components/`: the thirty-eight, by name
 
@@ -400,7 +397,6 @@ decision of their own.
 | L-215 | `message.tsx` One comment's composition, drawn once for the card and the page | yes | 9.6 | AC-204 | S21 |
 | L-216 | `calendar.tsx` One calendar, shared by the due picker, the reminder picker and the filter's custom range | yes | 9.3, 9.5 | AC-177, AC-219 | closed |
 
----
 
 # D. `src/screens/`: all twenty-three by name
 
@@ -447,7 +443,6 @@ absence is what the last instrument did.
 | L-243 | `states-page.tsx` | **Ships nothing, and section 13 item 41 already records why** | Section 9 names no states page, `screen-registry.csv` carries none, and building one would be inventing product. What the app owes the design record instead is that its shared page states draw the shipping row's own shape, which `components/state-patterns.tsx` does (L-209) |
 | L-244 | `swatch-options.tsx` | **Ships nothing; it is a question, and the question is answered** | It exists to let Imran rule between three treatments of the ten folder swatches on a dark ground, having measured that the palette reads **better** on dark (4.47 to 5.19) than on light (3.42 to 3.97). The measurement is worth keeping; the page is not a surface. **Whether a ruling was recorded is not visible from the repository**, so S21 must read the design contract's DES-205 and DES-214 before it touches the dark colourway, and this entry is the pointer |
 
----
 
 # E. The owner's named list, answered item by item
 
@@ -469,7 +464,6 @@ means each is answered by name here rather than absorbed into a table above.
 | L-255 | **The created-by filter axis** (row 33's residue) | Unbuilt, blocker removed, and `views/filter.ts:17-23` says so in the same terms. 9.1 already names the axis in the filter's list, so this is a gap against a numbered section as well as against the prototype | **S25** |
 | L-256 | **The conversation's attachments** (row 33's residue) | Unbuilt. 4.15 and 4.16 carry comments and files, change control item 1 added `comment_files` for exactly this binding, and no client surface offers a file on a comment. Voice notes have no kind at all and are a scope question rather than a port | **S26**, with a ruling for voice |
 
----
 
 # F. Section 13 item 42, reconciled rather than repeated
 
@@ -487,7 +481,6 @@ Items 40 and 41 are closed and were read rather than re-raised: item 40's
 two-controls-for-one-field interim went with S15, and item 41 records why
 Dana ships no states page, which is L-243's verdict.
 
----
 
 # G. What the ledger counts to
 

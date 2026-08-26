@@ -43,7 +43,6 @@ happen in the middle of S23, when eight sessions are in flight.
 | **Rework** | The case addresses a control whose role or name the lift changes. Persona 11 rewrites it red first in the package that lifts the surface, and no text is weakened in the move |
 | **Retire** | The case asserts a surface or an absence the lift removes. It goes with the thing it asserts, in the amendment's own commit |
 
----
 
 ## The four measured facts that decide the sort
 
@@ -122,7 +121,6 @@ name in a tooltip, and a target with no width to click.
 **These are the rework pile's core**, and AC-093 is the first of them by
 number, which is what item 39 already predicted.
 
----
 
 ## The sort, file by file
 
@@ -227,7 +225,6 @@ persona 11's.
 | `rendered-halves.spec.ts` | 4 | **S** F1 |
 | `session-path.spec.ts` | 3 | **S** F1 |
 
----
 
 ## The count
 
@@ -238,7 +235,7 @@ persona 11's.
 | **Retire** | **1** | 1, split |
 | Total | **223** | 72 |
 
-**Of the 203 that survive, 89 carry a seam** — 50 through the task surface
+**Of the 203 that survive, 89 carry a seam**: 50 through the task surface
 (F2), 49 through the task row (F1), with ten cases in both files
 (`ac-179`, `ac-183`). Those 89 are the number S22 and S23 should be told
 before they estimate anything: they are green today, they assert nothing
@@ -252,7 +249,6 @@ S15 address v2 surfaces by role and name. What is left is not "criteria
 written against the old client" but "criteria written against a control this
 ruling changes the role of", which is nineteen cases and one ruling.
 
----
 
 ## Three things this triage found that are not a sort
 
@@ -301,7 +297,6 @@ session know the tooltip is required. **S29 should add it** when it folds,
 and this file records it so the sentence is not invented from the criterion
 alone.
 
----
 
 ## What this triage does not do
 

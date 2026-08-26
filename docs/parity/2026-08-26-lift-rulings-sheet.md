@@ -27,18 +27,22 @@ session is not left to remember it. Those are **Part D, one block, one
 answer**.
 
 The questions that change what a session builds are **Parts A, B and C, and
-there are fifteen of them.** Each is a yes or a no, or a choice of two.
-Part D is a sixteenth question asked once over a block of fifty-two.
+there are sixteen of them.** Each is a yes or a no, or a choice of two.
+Part D is a seventeenth question asked once over a block of fifty-two.
 
 **S21 cannot close on any surface whose rulings are unanswered**, and which
 those are is at the foot of this file.
 
----
 
-## Part A. The live conflict
+## Part A. The live conflicts
 
-One row. A numbered section and the prototype disagree, a criterion asserts
-the section's side, and 11.13 makes the section win until it is amended.
+Two rows. A numbered section and the prototype disagree, criteria assert the
+section's side, and 11.13 makes the section win until it is amended.
+
+**A2 was added by the Integration Steward at ratification**, on the criteria
+triage's escalation of the same date; it is not the ledger's own row, and the
+sheet says so rather than absorbing it, because a question's provenance is
+part of the answer's evidence.
 
 ### A1. The five ellipsis labels (ledger L-009)
 
@@ -65,19 +69,44 @@ prototype's exactly, which reaches the labels.
 
 **Recommendation: take the prototype's ellipses**, and take them for the
 four labels that genuinely lead somewhere ("Move to folder…", "Delete
-task…", "Delete folder…", "Leave folder…", "Delete shelf…" — the deletes
+task…", "Delete folder…", "Leave folder…", "Delete shelf…", the deletes
 confirm through Trash's own dialog or the leave confirm). It is your own
 ruling of 2026-08-26 read literally, the cost is one criterion moving and
 one gaining a case, and the alternative leaves the first exemption in a plan
 whose whole point is that there are none.
 
----
+### A2. Seven accessible names, against 9.1's names table (triage F3)
+
+**The question.** Outside the two axes item 39 makes mandatory, the
+prototype's controls announce themselves differently from 9.1's names table
+in seven measured places: "Search Dana" against **"Search"**; "More task
+actions", "More folder actions", "More actions for {folder}" and "Manage
+{shelf} shelf" against **"More actions"**; "Remove from Important" and "Mark
+as Important" against **"Important"** and **"Mark as important"**; "Resize
+task panel" against **"Resize panel"**; "Toggle Sidebar" against **"Collapse
+sidebar"** and **"Expand sidebar"**; "Open Imran Wafa's account menu" against
+**"Account"**; and "Task title", "Task name" and "New task name" against
+9.3's **"title"**.
+
+**Why it is worth your minute.** That table is the addressing contract the
+whole browser leg is built on: 9.1 says every control it names "is reachable
+by its accessible role and by its normative name; the copy above is what a
+screen reader announces and what a test addresses". So this is not a matter
+of wording. It decides whether about thirty criteria move.
+
+**Recommendation: 9.1's names stand, and the lift transcribes them at the
+seam.** None of the seven is visible on screen, none changes what a control
+does, and the prototype's variants are longer strings rather than different
+behaviour. The cost is one line per control in the lifted files, declared as
+a named seam under the lift discipline. The alternative costs about thirty
+criteria moving for no gain a person can see.
+
 
 ## Part B. Decisions no section carries, where the answer changes the build
 
 Eleven questions. Each names the entry, the choice, and what it costs.
 
-### B1. Does a place page get a cover? (L-181, L-184) — **reaches frozen section 4**
+### B1. Does a place page get a cover? (L-181, L-184), and it reaches frozen section 4
 
 The prototype makes a cover native to **every page except a task's**: Today,
 Scheduled, Important, All, Done and every folder can carry one, because a
@@ -123,7 +152,7 @@ section 7, it buys a richer template at the cost of a schema decision inside
 a lift, and the starters of 9.13 are the only consumer today. Recorded as a
 want rather than built.
 
-### B4. Should a task's list order be draggable? (L-092, L-154, L-249) — **the owner's own list item**
+### B4. Should a task's list order be draggable? (L-092, L-154, L-249), the owner's own list item
 
 Your list names "task drag and sidebar drag as the prototype does them". The
 sidebar half is done. **The task half is a question rather than a port**,
@@ -222,7 +251,6 @@ safety (AC-231) and caps by size (10.3) and does not downscale for weight.
 change at one seam, it protects the 1 GB quota that 9.7 reports, and the
 re-encode the security work already does is the natural place for it.
 
----
 
 ## Part C. Questions the prototype itself left open
 
@@ -257,17 +285,16 @@ where the answer should be, and S21 reads them there.
 
 RFC 0004's S27 row says "the shelf page including whatever S20's rulings
 decide a shelf's page is". **The answer is: nothing further is owed.** 9.10
-and the prototype agree line for line — cover, mark, name, description,
+and the prototype agree line for line: cover, mark, name, description,
 blocks, folder rows as blocks whose presence is derived and whose position
 is arranged, "Add folder", the object contract's overflow, no views, no
-filter, private by construction with a copyable address — and the client is
+filter, private by construction with a copyable address, and the client is
 built to both and asserted by AC-203, AC-223 and AC-257.
 
 **Recommendation: no question. This row can be struck from S27's scope**,
 which is a correction the Steward owes RFC 0004's table rather than a
 decision of yours.
 
----
 
 ## Part D. The batched block: fifty-two decisions, one answer
 
@@ -302,7 +329,7 @@ section 9 is what makes them real rather than remembered:
 
 - **L-029 to L-033**, the view strip's collapsing radiogroup. Item 39
   already decides that the strip becomes the prototype's; what is
-  unspecified is the *behaviour* — icons with words on hover, only the
+  unspecified is the *behaviour*: icons with words on hover, only the
   current view visible at rest, every option in the DOM at zero width so the
   keyboard sees the whole group. That last clause is an accessibility
   property and belongs in 9.1's roles table rather than in a component.
@@ -317,7 +344,6 @@ section 9 is what makes them real rather than remembered:
   `section_block_id` has ridden the card since S18 and no row draws it; 9.3's
   field table does not mention it.
 
----
 
 ## What is blocked until this sitting happens
 
@@ -326,7 +352,7 @@ animated mark, which is unblocked (item 39 and the ledger settle it) but
 which S21 should not start before the mark's section sentence exists (**D**);
 the view strip, which item 39 decides and whose behaviour needs **D**.
 
-**S23 (the task surface) cannot close** on: the row's menu labels, until
+**S23 (the task surface) cannot close** on: the row and card addresses, until **A2**; the row's menu labels, until
 **A1**; the surface's modes, which **C1** answers without you if you accept
 the recommendation; the list drag, until **B4**.
 
