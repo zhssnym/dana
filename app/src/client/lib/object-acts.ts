@@ -44,10 +44,16 @@ section behind it.** 9.1's names table fixes the member exit as "Leave folder"
 exactly, where his reads "Leave folder…", and AC-217 asserts that string
 exact; the ellipsis goes from "Delete folder" with it, two destructive acts
 differing only in punctuation being a difference with no meaning. And the
-folder's move is "Move to group" rather than his "Move to shelf", because that
-is what AC-180 asserts on the surface that has it today and because shelves
-reaching the Library is S17b's row, not this one. When that row lands, the
-word changes here and in one place.
+folder's move was "Move to group" rather than his "Move to shelf" until S17b,
+because that was what AC-180 asserted on the surface that had it and because
+shelves reaching the Library was that row rather than S17a's. **That row has
+landed and this is the one place the word changed**, which is what the sentence
+this replaces promised. 9.6 fixes the string, "a member's personal shelf
+placement is 'Move to shelf' on the row"; the Library's groups are the viewer's
+shelves now rather than the bare `folder_members.label` strings they were, so
+the act and the thing it moves a folder onto carry one name. AC-180 and AC-246
+moved with it, in S17b's criteria commit and red, which is item 15's
+sequencing.
 
 His "Label and colour" is absent, and its removal is his own, recorded so it
 is not reintroduced: the name collided with a shelf, and what remained of it
@@ -140,7 +146,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'open', label: 'Open in a new tab', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
-    { key: 'move', label: 'Move to group', icon: FolderInput, group: 2 },
+    { key: 'move', label: 'Move to shelf', icon: FolderInput, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },

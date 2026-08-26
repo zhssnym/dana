@@ -72,11 +72,15 @@ function control(page: Page, name: string) {
 }
 
 /**
- * Narrows the rail through the handle 9.1 gives it, which is the gesture
- * DES-216's label dropping responds to. AC-182 already drives this handle and
- * asserts the width persists; this reads what the width does to the labels.
+ * Drags the rail to one end of its range through the handle 9.1 gives it,
+ * which is the gesture DES-216's label dropping responds to.
+ *
+ * The travel is far past either end on purpose: the clamp of `preferences.ts`
+ * holds the sidebar between 224 and 360, so an overshoot lands exactly at the
+ * end rather than wherever the drag happened to stop, and the case is reading
+ * the two ends rather than a width it guessed.
  */
-async function narrow(page: Page): Promise<void> {
+async function drag(page: Page, to: 'wide' | 'narrow'): Promise<void> {
   const handle = page.getByRole('separator', { name: /sidebar/i }).first()
   await expect(
     handle,
@@ -85,11 +89,10 @@ async function narrow(page: Page): Promise<void> {
   const box = await handle.boundingBox()
   expect(box, 'the handle is on the page and has a box to drag').not.toBeNull()
   if (box === null) return
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  const y = box.y + box.height / 2
+  await page.mouse.move(box.x + box.width / 2, y)
   await page.mouse.down()
-  /* Well inside the minimum the clamp allows, so the result is the narrow
-     end of the range rather than whatever the drag happened to land on. */
-  await page.mouse.move(box.x - 400, box.y + box.height / 2, { steps: 12 })
+  await page.mouse.move(box.x + (to === 'wide' ? 400 : -400), y, { steps: 12 })
   await page.mouse.up()
 }
 
@@ -151,21 +154,50 @@ test.describe('AC-258: the sidebar footer is 9.1\'s composition', () => {
   })
 
   test('AC-258: narrowing keeps New shelf\'s label and drops the other two', async ({ page }) => {
-    await narrow(page)
+    /*
+    Widened first, and that is the assertion rather than the setup. DES-216
+    is a *transition*, so a case that only read the narrow end could pass
+    against a footer whose labels were never there. The prototype's own note
+    is why the wide end has to be reached by dragging rather than taken as
+    the default: "the three words need 256px and the default row has 240, so
+    at the default width something has to give" (Imran, 2026-08-24). So all
+    three labels exist at the wide end of the range, two of them go as the
+    row narrows, and that pair of readings is what DES-216 promises.
+    */
+    await drag(page, 'wide')
+    for (const name of ROW_OF_THREE) {
+      await expect(
+        control(page, name),
+        `spec 9.1: the footer's row of three carries labels where there is room for them, ` +
+          `and ${name} is one of them. Without this the assertions below could be satisfied ` +
+          'by a footer that never drew a label at all',
+      ).toContainText(name, { useInnerText: true })
+    }
 
+    await drag(page, 'narrow')
+
+    /*
+    `useInnerText` on all three, and it is the difference between measuring
+    this and measuring nothing. `toContainText` reads `textContent` by
+    default, which includes a node CSS has hidden, and DES-216's whole
+    mechanism is a container query that hides a span. Read that way, a label
+    that has correctly dropped still reads as present and the negative
+    assertions below can never fail. `innerText` is what the browser renders,
+    which is what a person sees and what this criterion is about.
+    */
     await expect(
       control(page, 'New shelf'),
       'spec 9.1 and DES-216: "when the sidebar narrows, New shelf keeps its label and the ' +
         'other two drop to icons". This is the half an implementation that dropped all three ' +
         'together would fail',
-    ).toContainText('New shelf')
+    ).toContainText('New shelf', { useInnerText: true })
 
     for (const name of ['Import', 'Trash']) {
       await expect(
         control(page, name),
         `spec 9.1: ${name} drops to its icon when the rail narrows, which is the asymmetry ` +
           'DES-216 rules and the reason this is not one rule applied three times',
-      ).not.toContainText(name)
+      ).not.toContainText(name, { useInnerText: true })
     }
 
     for (const name of ROW_OF_THREE) {

@@ -73,7 +73,8 @@ import {
 } from '../lib/icons.js'
 
 import { ApiError, mutateApi } from '../api/http.js'
-import { useCreateFolder, usePatchBundle } from '../api/mutations.js'
+import { useCreateFolder, useImportWorkflow, usePatchBundle } from '../api/mutations.js'
+import type { ImportWorkflowBody } from '../../shared/workflows.js'
 import {
   useBundle,
   useFolders,
@@ -95,6 +96,7 @@ import { placeAt, surfaceDefaults } from '../views/place-pages.js'
 import { effectiveMode, useViewMode } from '../views/view-mode.js'
 import type { ViewMode } from '../views/view-mode.js'
 import { ToastRegion } from '../state/ToastRegion.js'
+import { showToast } from '../state/toasts.js'
 import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
 import { useFolderGroupActions } from './folder-groups.js'
@@ -104,7 +106,7 @@ import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
 import { TabStrip } from './TabStrip.js'
 import { WindowBar } from './WindowBar.js'
-import { retarget, useTabs } from './tabs.js'
+import { retarget } from './tabs.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -134,6 +136,14 @@ const NO_FOLDERS: readonly Folder[] = []
 
 /** The same stable-identity trick for the saved views the page block ends on. */
 const NO_SAVED_VIEWS: readonly SavedView[] = []
+
+/** And for the shelves the Library and the strip's menu both read (S17b). */
+const NO_SHELVES: readonly Shelf[] = []
+
+/* What 9.1's Import says when the file is not a workflow at all. Section 9
+   names no string for this, so it is this file's, written in the register the
+   other client-side refusals use: what happened, and nothing about JSON. */
+const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
 
 /** Every view there is, so the shell reads the store rather than a page. */
 const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
@@ -225,8 +235,8 @@ function currentPage(
     const mark = folderMark(folder)
     return { title: folder?.name ?? '', icon: mark.icon, iconColor: mark.color }
   }
-  /* A shelf tab wears the shelf's name (9.1: every tab is the same tab),
-     from the shelves read the sidebar's Library will share. */
+  /* A shelf tab wears the shelf's name and its own mark (9.1: every tab is
+     the same tab), from the shelves read the Library shares since S17b. */
   if (pathname.startsWith(SHELF_PREFIX)) {
     const id = pathname.slice(SHELF_PREFIX.length)
     const shelf = shelves?.find((candidate) => candidate.id === id)
@@ -255,14 +265,30 @@ export function AppShell(): React.JSX.Element {
   */
   const bundle = useBundle()
   const folders = useFolders()
-  // The shelves read (7.16), which a shelf tab's face resolves through.
-  const { tabs } = useTabs()
-  /* Only a shelf tab needs shelf names, so the read waits until one is open
-     rather than costing every page a request at mount. */
-  const shelvesWanted =
-    location.pathname.startsWith(SHELF_PREFIX) ||
-    tabs.some((tab) => tab.path.startsWith(SHELF_PREFIX))
-  const shelves = useShelves(shelvesWanted)
+  /*
+  The shelves read (7.16), which the Library draws, the strip's New tab menu
+  offers, and a shelf tab's face resolves through.
+
+  **It was gated and is not, and the gate was the audit addendum's finding.**
+  This waited on a `shelvesWanted` that was true only when a shelf route or
+  tab was already open, on the reasoning that "only a shelf tab needs shelf
+  names, so the read waits until one is open rather than costing every page a
+  request at mount". That was sound while the Library drew
+  `folder_members.label` strings and nothing else wanted shelves. 9.1 has
+  always wanted them, "the Library holds the viewer's shelves and folders as
+  one ordered list", and the sidebar is on every page: so the condition the
+  gate tested is now true everywhere, and a gate that is always true is a gate
+  that lies. The comment below the `AppSidebar` call used to say the Library
+  "will share" this read, in a future tense it held for three packages, and
+  the measured consequence was that a shelf created through 7.16 renders its
+  own page and vanishes from the Library on reload.
+
+  The cost is one request per session rather than per page: the query layer
+  caches it under its own key and 8.3's refetch policy governs it exactly as
+  it governs `/folders`, which this shell has always read unconditionally two
+  lines above.
+  */
+  const shelves = useShelves()
   const invites = usePendingInvites()
   /* 9.1 ends the page block with the viewer's pinned saved views, so the
      chrome reads them here beside the pin list rather than in a page. */
@@ -273,7 +299,37 @@ export function AppShell(): React.JSX.Element {
      reads the store rather than a page's answer to it, and floatingDefaults
      resolves it against the page it is actually on. */
   const [remembered] = useViewMode(ALL_VIEWS)
-  const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS)
+  const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS, shelves.data ?? NO_SHELVES)
+
+  /*
+  9.1's "Import (a workflow file)", the footer's third act, wired here because
+  the mutation belongs to the shell and the control belongs to the sidebar.
+
+  **The parse is the client's and every cap is the server's.** 10.3 bounds a
+  workflow file's folders, blocks and tasks and the request body itself, and
+  7.16 refuses what breaks any of them; nothing here re-implements one of
+  those, which would be a rule the server also enforces written twice. What is
+  refused locally is a file that is not JSON at all, because a syntax error is
+  something this page can say plainly and a 400 from the parser is not.
+  */
+  const importWorkflow = useImportWorkflow()
+  const importFile = (file: File): void => {
+    void file.text().then(
+      (text) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          showToast(WORKFLOW_UNREADABLE)
+          return
+        }
+        importWorkflow.mutate(parsed as ImportWorkflowBody)
+      },
+      () => {
+        showToast(WORKFLOW_UNREADABLE)
+      },
+    )
+  }
 
   // 9.1's two view preferences, read once at the first render so the sidebar
   // paints at the width the viewer left it at rather than jumping to it.
@@ -480,6 +536,11 @@ export function AppShell(): React.JSX.Element {
           <AppSidebar
             pinnedViews={bundle.data?.pinned_views}
             folders={folders.data}
+            /* 9.1's Library, both halves. This is the line that did not exist,
+               and the audit addendum's own sentence for it: "the cause is one
+               line that does not exist, app-shell.tsx never passes a shelves
+               prop to AppSidebar". */
+            shelves={shelves.data}
             sidebarOrder={sidebarOrder ?? []}
             onSidebarOrderChange={(ids) => {
               setSidebarOrder(ids)
@@ -507,6 +568,13 @@ export function AppShell(): React.JSX.Element {
               void navigate(paths.settings)
             }}
             onNewFolder={() => setNewFolderOpen(true)}
+            /* 9.1's second act of making. A shelf is made by naming it, 4.18
+               giving it a stable id the name can then move over, so the dialog
+               the group flow already owns is the one surface for it: this
+               hands the same dialog the shelf half rather than opening a
+               second one that would write the same two things. */
+            onNewShelf={() => { groups.actions.onNewShelf() }}
+            onImportWorkflow={importFile}
             onSignOut={signOut}
           />
           {/* `SidebarInset` is the `main` landmark, which is what keeps the
@@ -524,6 +592,7 @@ export function AppShell(): React.JSX.Element {
             <TabStrip
               face={(path) => currentPage(path, folders.data, shelves.data)}
               folders={folders.data ?? NO_FOLDERS}
+              shelves={shelves.data ?? NO_SHELVES}
               onNavigate={(path) => {
                 void navigate(path)
               }}

@@ -250,6 +250,23 @@ export function caseTitle(base: string): string {
   return `${base} ${test.info().testId}`
 }
 
+/**
+ * A unique name that fits 10.3's 40-character cap, for the things that have
+ * one: a shelf name, a folder name, a personal label.
+ *
+ * `caseTitle` is built for task titles, which 10.3 allows 300 characters, and
+ * its test id alone can run past 40. A fixture using it for a shelf gets a 422
+ * from the server before the criterion has read anything, which is a red about
+ * the harness wearing the costume of a red about the client. The tail of the
+ * id is kept rather than the head because that is where it varies between the
+ * cases of one file.
+ */
+export function shortName(base: string): string {
+  const id = test.info().testId
+  const room = 40 - base.length - 1
+  return `${base} ${id.slice(Math.max(0, id.length - room))}`
+}
+
 interface NewTask {
   title: string
   folder_id?: string
