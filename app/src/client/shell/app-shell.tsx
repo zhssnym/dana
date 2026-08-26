@@ -104,6 +104,7 @@ import { OfflineBanner } from './OfflineBanner.js'
 import { undoLast, undoShortcutApplies } from './undo.js'
 import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
+import { useRightEdge } from './right-edge.js'
 import { TabStrip } from './TabStrip.js'
 import { WindowBar } from './WindowBar.js'
 import { retarget } from './tabs.js'
@@ -295,6 +296,9 @@ export function AppShell(): React.JSX.Element {
   const savedViews = useSavedViews()
   const createFolder = useCreateFolder()
   const update = useUpdateAffordance()
+  /* What an open right-edge panel has reserved (DES-154, DES-186). Zero when
+     nothing is open, which is almost always. */
+  const rightEdge = useRightEdge()
   /* The remembered view, unresolved: every mode is passed as offered so this
      reads the store rather than a page's answer to it, and floatingDefaults
      resolves it against the page it is actually on. */
@@ -577,10 +581,31 @@ export function AppShell(): React.JSX.Element {
             onImportWorkflow={importFile}
             onSignOut={signOut}
           />
-          {/* `SidebarInset` is the `main` landmark, which is what keeps the
-              page strip below it a page's header rather than the
-              application's banner (AC-174). */}
-          <SidebarInset className="min-w-0 overflow-hidden bg-card">
+          {/*
+          `SidebarInset` is the `main` landmark, which is what keeps the page
+          strip below it a page's header rather than the application's banner
+          (AC-174).
+
+          **The right edge is a margin on this element** (DES-154, DES-186,
+          S17b). A panel on the right publishes its width to
+          `shell/right-edge.ts` and this reads it back as plain pixels, so the
+          page narrows rather than being covered and the number that lays it
+          out is one a person can print.
+
+          **A margin and not padding, which the first attempt used.** Padding
+          moves the content in and leaves the box where it was, so the `main`
+          landmark still measured the full window with a panel open: the page
+          looked narrower and was not, which is the difference between a
+          layout and an indent. A margin takes the room off the element
+          itself, which is what "the page gets narrower" means and what
+          AC-254 reads. The transition is on the margin alone, because a
+          panel that appears instantly beside a page that jumps reads as two
+          events rather than one.
+          */}
+          <SidebarInset
+            className="min-w-0 overflow-hidden bg-card transition-[margin] duration-200 ease-out"
+            style={{ marginRight: `${String(rightEdge)}px` }}
+          >
             {/*
             The tab strip of 9.1, above the window bar and inside `main`.
 

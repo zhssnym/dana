@@ -14,13 +14,13 @@ of columns cannot tell those two apart: both draw three. What tells them
 apart is where the third one is, and that is a pair of numbers the browser
 will hand over.
 
-**The third column is asserted below the first and not merely below
-something.** A board that wrapped at some width the viewport happened to
-force would put the third column below the second as easily as below the
-first, and a two-per-row board cannot: with two to a row, columns one and two
-share a row and column three opens the next one directly under column one. So
-both halves are asserted, the vertical drop and the shared left edge, and
-together they refuse every wrap that is not this one.
+**It is asserted as two counts rather than as three positions**, and
+`expectTwoPerRow` carries the reason: a place page's board draws a column per
+folder its work is in, so this file's fixtures are not the board's first three
+and any claim about which column is beside which is a claim about the runner's
+seed. Two distinct left edges and more than one distinct top say "two columns
+per row" without naming a column, and they refuse both the board this replaces
+and the three-per-row a wider viewport might otherwise produce.
 
 **One shared component, so the criterion reads it twice.** `TaskBoard` is what
 every place page draws and what the folder page is about to draw, and a fix
@@ -37,11 +37,14 @@ window-bar filter, one click from pages that have all three. The strip is
 asserted by 9.1's own name for the control it offers, "Board", which AC-093
 already addresses "Calendar" by.
 
-**Three folders and one task apiece, because the columns are the folders.**
+**The two pages need two fixtures, because their boards group differently.**
 `grouping.ts` derives a column where its rows are, so a board grouped by
-folder draws the folders its work is in and an empty folder is no column.
-Anytime is Q2's undated open rows, so an undated task is on it and the
-fixtures need no dates.
+folder draws the folders its work is in: three folders with one undated task
+apiece give Anytime three columns of its own, Q2 being the undated open rows.
+A folder page cannot group by the folder it has pinned (DES-177: "arranging by
+an axis the page has pinned gives one group, which is a list wearing a
+different control"), so its board is the date axis and its fixture is three
+tasks in one folder on three dates no bucket can merge.
 
 Spec: 9.1 (the view strip, "one control per place-page offering the views the
 page can honestly draw", and the filter that carries group-by), 9.6 (the
@@ -61,6 +64,7 @@ import {
   deleteFolder,
   regionOf,
   routesV2,
+  seedDate,
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
@@ -87,13 +91,19 @@ async function build(page: Page): Promise<Fixture> {
   }
   const host = folders[0]
   if (host === undefined) throw new Error('unreachable: three folders built above')
-  /* The folder page's own board groups by the axis its filter offers; three
-     tasks in the host folder give it rows to draw whichever axis it lands on,
-     and the assertion below reads columns rather than names. */
-  for (const label of ['one', 'two', 'three']) {
+  /*
+  Three tasks in the host folder on three different dates, because the folder
+  page's board groups by the date rather than by the folder: DES-177 says a
+  page that has pinned an axis cannot arrange by it, "which is a list wearing
+  a different control", and a folder page has pinned the folder. Overdue,
+  today and a month out are three buckets `grouping.ts` cannot merge, which is
+  what gives the board its third column.
+  */
+  for (const days of [-3, 0, 40]) {
     await createTask(page, {
-      title: caseTitle(`ac-253 host ${label}`),
+      title: caseTitle(`ac-253 host ${days}`),
       folder_id: host.id,
+      due_date: seedDate(days),
     })
   }
   return {
@@ -154,7 +164,25 @@ async function columnBoxes(
   return boxes
 }
 
-/** The two-per-row assertion, made the same way on both pages. */
+/**
+ * The two-per-row assertion, made the same way on both pages.
+ *
+ * **Stated over every column rather than over three named ones, and the first
+ * run of this file is why.** A place page's board draws a column per folder
+ * its work is in, the runner's seeded folders included, so this file's three
+ * fixtures are not the board's first three and "the second is right of the
+ * first" is a claim about which columns happened to be adjacent. Two counts
+ * are the honest form of "two columns per row" and neither depends on knowing
+ * which column is which: with three or more columns a two-per-row grid has
+ * **exactly two** distinct left edges and **more than one** distinct top,
+ * where one scrolling row has as many left edges as columns and exactly one
+ * top. Together they refuse the built board and every wrap that is not this
+ * one, including the three-per-row a wider viewport might otherwise produce.
+ *
+ * Positions are rounded and bucketed to the nearest 4 pixels, because a
+ * subpixel layout answers 386 and 386.5 for one edge and this is a question
+ * about columns rather than about floating point.
+ */
 function expectTwoPerRow(
   boxes: readonly { name: string; x: number; y: number }[],
   where: string,
@@ -164,32 +192,24 @@ function expectTwoPerRow(
     `${where}: three columns are needed to tell a wrapping board from a scrolling one, ` +
       'because the first two sit side by side in both',
   ).toBeGreaterThanOrEqual(3)
-  const [first, second, third] = boxes
-  if (first === undefined || second === undefined || third === undefined) return
+
+  const bucket = (value: number): number => Math.round(value / 4)
+  const lefts = new Set(boxes.map((box) => bucket(box.x)))
+  const tops = new Set(boxes.map((box) => bucket(box.y)))
 
   expect(
-    second.x,
-    `${where}: the first two columns share a row, which both the built board and the ` +
-      'prototype\'s do. This is the half that must not change',
-  ).toBeGreaterThan(first.x)
-  expect(
-    Math.abs(second.y - first.y),
-    `${where}: and they share it, their tops being level`,
-  ).toBeLessThanOrEqual(4)
+    [...lefts].length,
+    `${where}: DES-132 and the owner's ruling that the one-row board is too short. The ` +
+      'built board is "flex items-start gap-4 overflow-x-auto", one horizontally scrolling ' +
+      `row, so its ${String(boxes.length)} columns stand at ${String(boxes.length)} distinct ` +
+      'left edges and this reads that count rather than 2',
+  ).toBe(2)
 
   expect(
-    third.y,
-    `${where}: DES-132 and the owner's ruling that the one-row board is too short. ` +
-      'views/TaskBoard.tsx:103 is "flex items-start gap-4 overflow-x-auto", one ' +
-      'horizontally scrolling row, so the third column stands to the right of the second ' +
-      'and this reads equal rather than greater',
-  ).toBeGreaterThan(first.y)
-  expect(
-    Math.abs(third.x - first.x),
-    `${where}: two to a row means the third opens the next row directly under the first. ` +
-      'A board that merely wrapped at whatever width the viewport forced could put it ' +
-      'under the second instead, which this refuses',
-  ).toBeLessThanOrEqual(4)
+    [...tops].length,
+    `${where}: and the rows are rows. A single row has one top for every column, so this is ` +
+      'the half that says the board wrapped at all rather than merely repeating a left edge',
+  ).toBeGreaterThan(1)
 }
 
 test.describe('AC-253: the board is two columns per row', () => {
@@ -239,9 +259,18 @@ test.describe('AC-253: the board is two columns per row', () => {
 
   test('AC-253: the folder page\'s board is the same board', async ({ page }) => {
     await page.goto(routesV2.folder(fixture.hostId))
-    await board(page, /Status|Folder|Section/i)
+    await board(page, /^Date$/)
 
-    const columns = page.getByRole('region').filter({ has: page.getByRole('listitem') })
+    /*
+    Scoped inside the page's own open-tasks region, which is what the columns
+    are drawn in. Read off the document instead, the first "region carrying
+    list items" is that region rather than a column, and the geometry read is
+    a page section against a board column, which is a comparison of two
+    different things that happens to produce numbers.
+    */
+    const columns = regionOf(page, 'All open tasks')
+      .getByRole('region')
+      .filter({ has: page.getByRole('listitem') })
     await expect(
       columns.first(),
       'spec 9.6 and DES-132: choosing Board on the folder page draws that folder\'s tasks as ' +

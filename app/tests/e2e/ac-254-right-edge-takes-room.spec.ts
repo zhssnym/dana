@@ -90,17 +90,21 @@ async function widthOf(locator: Locator, why: string): Promise<number> {
  * describes.
  */
 async function openConversationPanel(page: Page): Promise<Locator> {
+  /* 9.6's own path, and the reason the case takes it rather than a shortcut:
+     "the folder's conversation has two homes, a closed section at the page's
+     foot or the side panel, switched from the surface itself". So the foot
+     section is opened and the switch inside it is pressed, which is what a
+     person does and the only way the control is reachable. */
   await clickControl(
-    page
-      .getByRole('button', { name: /Conversation/i })
-      .or(page.getByRole('button', { name: /Open in side panel/i }))
-      .first(),
-    'spec 9.6: the folder\'s conversation has two homes and the switch is on the surface',
+    page.getByRole('button', { name: /^Conversation/ }).first(),
+    'spec 9.6: the conversation\'s foot home is a collapsed section carrying its own name',
   )
-  const panel = page
-    .getByRole('complementary')
-    .or(page.getByRole('dialog', { name: /Conversation/i }))
-    .first()
+  await clickControl(
+    page.getByRole('button', { name: 'Move to side panel', exact: true }),
+    'spec 9.6: the home is switched from the surface itself',
+  )
+
+  const panel = page.getByRole('dialog').filter({ hasText: 'Conversation' }).first()
   await expect(
     panel,
     'spec 9.6: the side panel is the conversation\'s second home',

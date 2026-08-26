@@ -20,22 +20,42 @@ left the imported starter's page with no heading at all. The "Label and
 color" dialog is retired with its section sentence; 4.4's per-member color
 column is written by no v2 surface.
 
-**Tasks render loose, and the reason is recorded rather than hidden.** 9.6
-assigns tasks to sections, but Q7's rows are frozen 7.0 TaskCards and carry
-no section_block_id; only the single-task read does. Rendering placement
-would need an additive field on the folder read, which is a frozen-shape
-widening and a human decision (protocol section 1), escalated at this
-session with a recommendation. Until it is ruled, every open task renders
-in the one loose list, which is factually correct today because no shipped
-surface writes an assignment; the per-section capture waits with it, and
-AC-093's file records that arm as owed.
+**Tasks sit under their sections since S17b, and the paragraph this replaces
+argued for the shape the code no longer has.** It said tasks render loose
+because Q7's rows are frozen 7.0 TaskCards carrying no `section_block_id`,
+that rendering placement would need a widening, and that the widening had
+been escalated with a recommendation. All three sentences were true when
+they were written and the last of them is why they are not now: the
+widening is RFC 0005 unit 12a, it landed at S18, and `server/views/cards.ts`
+selects and projects the column on the folder read. So placement is drawn,
+`BlocksEditor`'s `sectionExtras` hook is passed at last, each section
+carries its own rows and its own quick-add, and the loose list holds
+exactly the tasks under no section. A header that argues for a shape the
+code has moved past is worse than no header.
 
-**The open list keeps its v1 region, filter and order.** AC-176 still
-asserts "All open tasks", the three filter options and Q7's order, and its
-text was not among the twenty reworked; the v2 filter it will hand over to
-is the window bar's, which is S10's package. The select survives here as
-the same interim S9's pages used, and S10 retires it with AC-176's own
-Replace unit when the window-bar filter lands.
+**This page is a place-page now** (`views/place-pages.ts`), which is the
+audit's "the board view entirely: no view strip, no window-bar filter,
+DES-132's two-column board" closed in one move rather than three. 9.6 asks
+for the filter in terms, "the filter of 9.1 narrows the page without
+touching its arrangement", and the strip and the board come with it because
+`usePlace` and `PlaceChrome` are where every other page gets all three.
+
+**The interim select is retired, and S10's own note is what scheduled it.**
+That note read: "the v2 filter it will hand over to is the window bar's,
+which is S10's package. The select survives here as the same interim S9's
+pages used, and S10 retires it with AC-176's own Replace unit when the
+window-bar filter lands." The filter has landed here rather than there, so
+the retirement is here too. AC-176's sentence needed no Replace unit after
+all: it promises "a filter offers all open tasks, only those with a due date
+and only those without", which is exactly 9.1's due-presence axis, so only
+the three labels the criterion addresses moved. Two filters on one page,
+forty pixels apart, is the fault this row exists to remove and would have
+been the fault this page shipped.
+
+**The board's axis is the date rather than the folder**, which every place
+page in `PLACES` uses, and DES-177 is the reason: a folder page has pinned
+the folder, so grouping by it gives one column, "which is a list wearing a
+different control".
 
 **Delete asks nothing and the undo bar answers** (9.6: "with the undo bar
 and no confirmation: two ways back is why the question left"). The inverse
@@ -99,7 +119,7 @@ import { IdentityHead } from '../components/page/IdentityHead.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { PersonFace } from '../components/person-face.js'
 import { QuickAdd } from '../components/quick-add.js'
-import { NativeSelect } from '../components/ui/native-select.js'
+
 import { AvatarGroup } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
@@ -140,33 +160,51 @@ import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
+import { useReserveRightEdge } from '../shell/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { WindowBarActions } from '../shell/WindowBar.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
+import { groupRows } from '../views/grouping.js'
+import { PLACES } from '../views/place-pages.js'
+import { TaskBoard } from '../views/TaskBoard.js'
+import { PlaceChrome, usePlace } from '../views/usePlace.js'
 import { MorePages, PageBody } from '../states/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import type { PageBlockWrite } from '../../shared/pages.js'
+import type { TaskCard } from '../../shared/tasks.js'
 
 /**
- * 9.1's names table for this page's interim filter: the control, then its
- * three options in the order that table writes them. See the header note on
- * AC-176 and the S10 handover.
+ * What the list says when the folder holds open tasks and the filter has
+ * removed all of them.
+ *
+ * One sentence where the interim select had three, and that is the filter's
+ * own doing rather than a simplification: a select of three options could name
+ * which of the three had emptied the list, and 9.1's filter is nine axes that
+ * combine, so the honest sentence says the narrowing did it and lets the chips
+ * in the window bar say which narrowing. The empty *folder* is a different
+ * state and keeps its own copy through `PageBody`.
  */
-const FILTER_OPEN_TASKS = 'Filter open tasks'
-type OpenFilter = 'all' | 'scheduled' | 'unscheduled'
-const FILTER_OPTIONS: readonly { value: OpenFilter; label: string }[] = [
-  { value: 'all', label: 'All open tasks' },
-  { value: 'scheduled', label: 'With a due date' },
-  { value: 'unscheduled', label: 'Without a due date' },
-]
+const FILTER_NARROWED_EMPTY = 'No open tasks match this filter.'
 
-const FILTER_EMPTY: Record<OpenFilter, string> = {
-  all: 'No open tasks.',
-  scheduled: 'No tasks with a due date.',
-  unscheduled: 'No tasks without a due date.',
-}
+/*
+What each right-edge panel reserves, in pixels (DES-154, DES-186).
+
+**These are the widths each panel is already drawn at, restated rather than
+introduced**, which is what keeps 11.4's single-tokens-file rule intact: the
+conversation sheet is `w-[380px]` in this file and the sharing panel is
+`w-[var(--sharing-panel-width)]`, 440px in `tokens.css`. A layout value has to
+reach JavaScript to be padding the shell can compute, and the alternative,
+reading the panel's own box after it renders, is a measurement that has to
+happen after the paint it is supposed to decide.
+
+The sharing panel's number is the one that can drift, its width being a token
+another session may retune. It is named here so a reader looking for the
+duplicate finds it named as one.
+*/
+const CONVERSATION_PANEL_WIDTH = 380
+const SHARING_PANEL_WIDTH = 440
 
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
@@ -246,7 +284,6 @@ export function FolderPage({
   const [transferOpen, setTransferOpen] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
-  const [filter, setFilter] = useState<OpenFilter>('all')
   const [conversationHome, setConversationHome] =
     useState<ConversationHome>(readConversationHome)
   const [footThreadOpen, setFootThreadOpen] = useState(false)
@@ -256,6 +293,22 @@ export function FolderPage({
   const events = useSubjectEvents(historyOpen ? `folder:${id}` : null)
   const threadOpen =
     conversationHome === 'foot' ? footThreadOpen : panelOpen
+
+  /*
+  9.6's two right-edge panels take room rather than covering (DES-154,
+  DES-186). Each publishes its own width while it is open and the shell pads
+  the page body by whatever is reserved; `shell/right-edge.ts` carries one
+  number for both, because they share one edge and two open at once would
+  overlap each other long before the page noticed.
+
+  History is deliberately not among them. It is a sheet you open, read and
+  close, with nothing on the page underneath that you are reading it against,
+  which is the case DES-186 says a dialog answers better; the conversation and
+  the sharing panel are the two you work beside.
+  */
+  const conversationPanelOpen = conversationHome === 'panel' && panelOpen
+  useReserveRightEdge(CONVERSATION_PANEL_WIDTH, conversationPanelOpen)
+  useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
   const thread = useThread(id, null, threadOpen)
 
   const imageInput = useRef<HTMLInputElement>(null)
@@ -267,16 +320,117 @@ export function FolderPage({
   const bothEmpty = scheduled.length === 0 && unscheduled.length === 0
   /*
   Q7's order, kept rather than made: Scheduled first with Q3's order, then
-  Unscheduled with Q2's; the filter chooses between the two arrays and
-  changes neither (AC-176).
+  Unscheduled with Q2's, concatenated and never re-sorted (AC-176).
   */
-  const visible =
-    filter === 'scheduled'
-      ? scheduled
-      : filter === 'unscheduled'
-        ? unscheduled
-        : [...scheduled, ...unscheduled]
+  const openRows = useMemo(() => [...scheduled, ...unscheduled], [scheduled, unscheduled])
+
+  /*
+  The folder page is a place-page since S17b (9.6, and the parity audit's
+  folder-page row).
+
+  What that buys is one filter, one view strip and one board, the same three
+  every other page draws, rather than three more written here. Three things
+  are this page's own and arrive as options, each because it needs the
+  folder's id: the filter is remembered per folder, since 9.1 keeps a filter
+  "on return to that page, never carried to another" and two folders are two
+  pages; and both capture points write this folder, which is 9.3's sixth
+  entry-point row.
+  */
+  const place = usePlace(PLACES.folder, openRows, {
+    filterKey: `folder:${id}`,
+    capture: (title, column) => {
+      create.mutate({
+        title,
+        folder_id: id,
+        ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
+        ...(column?.assignee_id === undefined ? {} : { assignee_id: column.assignee_id }),
+      })
+    },
+    openFull: (column) => {
+      openTaskForm({
+        folder_id: id,
+        ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
+      })
+    },
+  })
+  const visible = place.narrow(openRows)
+  const boardColumns = groupRows(visible, place.groupBy, place.today, place.viewerId)
   const completedDays = mergeCompletedDays(completed.data?.pages)
+
+  /*
+  9.6's "tasks assigned to sections", buildable since S18 and drawn here.
+
+  **The paragraph this replaces argued for the shape the code no longer has.**
+  It said tasks render loose because Q7's rows are frozen 7.0 TaskCards
+  carrying no `section_block_id`, and that rendering placement would need a
+  widening that had been escalated. That widening is RFC 0005 unit 12a, it
+  landed at S18, and `server/views/cards.ts` selects and projects the column on
+  the folder read. A header that argues for a shape the code has moved past is
+  worse than no header, so the argument is gone and this is what stands in its
+  place.
+
+  **Placement is a partition and never a copy.** A task appears exactly once:
+  under the section it names, or in the loose list, and never in both. The
+  loose list keeps 9.6's own name for it, so a task with no section is where it
+  always was, and a section block nobody has assigned anything to draws its
+  capture and no rows.
+
+  **The narrowing runs before the partition**, which is 9.6's "the filter of
+  9.1 narrows the page without touching its arrangement" read literally: the
+  filter decides which tasks are on the page and the sections decide where each
+  of them sits, so a narrowed-away task leaves its section rather than moving
+  to the loose list.
+  */
+  const bySection = useMemo(() => {
+    const map = new Map<string, TaskCard[]>()
+    for (const task of visible) {
+      const at = task.section_block_id
+      if (at === null) continue
+      const bucket = map.get(at)
+      if (bucket === undefined) map.set(at, [task])
+      else bucket.push(task)
+    }
+    return map
+  }, [visible])
+  const sectionIds = useMemo(
+    () =>
+      new Set(
+        (page.data?.blocks ?? [])
+          .filter((block) => block.kind === 'section')
+          .map((block) => block.id),
+      ),
+    [page.data?.blocks],
+  )
+  /* A task naming a section this page no longer has falls back to the loose
+     list rather than disappearing. 4.17 deletes a block without touching the
+     tasks that named it, so this is an ordinary state and not a repair. */
+  const loose = visible.filter(
+    (task) => task.section_block_id === null || !sectionIds.has(task.section_block_id),
+  )
+
+  /** A section's own rows and its own capture, by block id (9.6). */
+  const sectionExtras = (blockId: string): React.JSX.Element => (
+    <>
+      <TaskRows
+        tasks={bySection.get(blockId) ?? []}
+        context={context}
+        actions={actions}
+        onAsk={confirm.ask}
+      />
+      {/* 9.6: "a capture per section". 9.3's entry table gives it this
+          folder and this section, the section being what the surface it
+          stands in adds to the page's own defaults. */}
+      <QuickAdd
+        folderName={detail?.name ?? 'this folder'}
+        onAdd={(title) => {
+          create.mutate({ title, folder_id: id, section_block_id: blockId })
+        }}
+        onOpenFullForm={() => {
+          openTaskForm({ folder_id: id })
+        }}
+      />
+    </>
+  )
   const context: RowContext = {
     ...basis,
     showFolder: false,
@@ -475,6 +629,12 @@ export function FolderPage({
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
+        {/* 9.6's "the filter of 9.1 narrows the page without touching its
+            arrangement", and DES-150's arrangement of it: the chips at the
+            bar's left end, the view strip and the filter at its right. Drawn
+            by the same component every place page uses, which is what makes
+            this one filter rather than a ninth. */}
+        <PlaceChrome place={place} />
         <WindowBarActions>
           {/* The conversation's opener when its home is the panel; the foot
               section is its own opener otherwise. */}
@@ -631,21 +791,6 @@ export function FolderPage({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              {/* The interim filter; see the header note (AC-176, S10). */}
-              <NativeSelect
-                aria-label={FILTER_OPEN_TASKS}
-                value={filter}
-                onChange={(event) => {
-                  setFilter(event.target.value as OpenFilter)
-                }}
-              >
-                {FILTER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </NativeSelect>
-
               {/* 9.6's member avatar stack. */}
               <AvatarGroup>
                 {members.map((member) => (
@@ -685,13 +830,28 @@ export function FolderPage({
               emptyIcon={FolderIcon}
               truncated={open.data?.truncated ?? false}
             >
-              {visible.length === 0 ? (
+              {place.mode === 'board' ? (
+                /* DES-132's board, on the folder page at last. It is the
+                   shared `views/TaskBoard.tsx` and not a second one, which is
+                   what makes S17b's two-columns-per-row change reach here and
+                   every place page together (AC-253). */
+                <TaskBoard
+                  place={place}
+                  columns={boardColumns}
+                  context={context}
+                  actions={actions}
+                  onAsk={confirm.ask}
+                />
+              ) : loose.length === 0 && visible.length === 0 ? (
                 <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
-                  {FILTER_EMPTY[filter]}
+                  {FILTER_NARROWED_EMPTY}
                 </p>
               ) : (
+                /* 9.6: "the loose open tasks", which since S18 means the ones
+                   under no section. The rest are drawn under the section
+                   block they name, below. */
                 <TaskRows
-                  tasks={visible}
+                  tasks={loose}
                   context={context}
                   actions={actions}
                   onAsk={confirm.ask}
@@ -699,16 +859,20 @@ export function FolderPage({
               )}
             </PageBody>
             {/* 9.6: the quick-add at the loose list's foot; 9.3's sixth
-                entry-point row states its value: this folder, no due date. */}
-            <QuickAdd
-              folderName={detail?.name ?? 'this folder'}
-              onAdd={(title) => {
-                create.mutate({ title, folder_id: id })
-              }}
-              onOpenFullForm={() => {
-                openTaskForm({ folder_id: id })
-              }}
-            />
+                entry-point row states its value: this folder, no due date.
+                Absent in board view, where every column captures with its own
+                value and a row above them would capture with none (9.1). */}
+            {place.mode === 'board' ? null : (
+              <QuickAdd
+                folderName={detail?.name ?? 'this folder'}
+                onAdd={(title) => {
+                  create.mutate({ title, folder_id: id })
+                }}
+                onOpenFullForm={() => {
+                  openTaskForm({ folder_id: id })
+                }}
+              />
+            )}
           </PageSection>
 
           {/* The page's blocks (4.17): sections, paragraphs, images, with
@@ -717,6 +881,7 @@ export function FolderPage({
             <BlocksEditor
               blocks={page.data?.blocks ?? []}
               onPut={putBlocks}
+              sectionExtras={sectionExtras}
               onInsertImage={(index) => {
                 imageAt.current = index
                 imageInput.current?.click()
@@ -806,9 +971,34 @@ export function FolderPage({
         />
       ) : null}
 
-      {/* The conversation's panel home. */}
-      <Sheet open={conversationHome === 'panel' && panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent side="right" className="w-[380px]">
+      {/*
+      The conversation's panel home, which takes room from the page rather
+      than covering it since S17b (DES-154, DES-186).
+
+      It publishes its width to `shell/right-edge.ts` and the shell pads the
+      page body by it, which is the whole mechanism. What Imran reported on
+      2026-08-23 was this panel exactly: "the page is not adjusting when chat
+      is appear as a right sidebar." The sheet is still a sheet, so the escape
+      key, the focus trap and the close control are the primitive's; what
+      changed is that the page underneath it is narrower and readable rather
+      than hidden, which is the one thing a side-by-side view exists for.
+      */}
+      <Sheet
+        open={conversationPanelOpen}
+        onOpenChange={setPanelOpen}
+        /*
+        Non-modal, and this is DES-186's argument reaching the markup rather
+        than a preference. A modal sheet makes the document beneath it inert
+        and hides it behind a backdrop, which is precisely "a panel sitting
+        over the page hides the row the task came from": reserving room on the
+        right would then be decoration, since the page it uncovered could be
+        neither read nor touched. So the backdrop goes and the page stays
+        live. What is kept is everything else the primitive gives a sheet, the
+        escape key, the focus handling and the close control.
+        */
+        modal={false}
+      >
+        <SheetContent side="right" className="w-[380px]" overlayClassName="hidden">
           <SheetHeader>
             <SheetTitle>Conversation</SheetTitle>
             <SheetDescription>{detail?.name}</SheetDescription>
