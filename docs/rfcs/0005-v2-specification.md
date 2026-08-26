@@ -1605,6 +1605,56 @@ fold, the way P7's mid-package change control ratified the pass callable:
     remove it, so the rotation is a new secret in Google Cloud and nothing
     less. It gates nothing in the build and should not wait for the release.
 
+20. **No artifact ever named `prototype-v2/`, which is why the v2 row was
+    never ported (Integration Steward, 2026-08-25, on the S14 session's
+    escalation).** Item 19 makes parity with the v2 prototype the release
+    gate. It binds no build session's source, because the artifact table
+    that does bind them, 11.13, still named `docs/design/prototype/`, the v1
+    prototype of thirteen screens, as "the source the client is built from",
+    and no numbered section anywhere named `docs/design/prototype-v2/` at
+    all. Every session that read the rulebook correctly was pointed at v1.
+
+    **Verified rather than accepted, this role's own rule.** All four claims
+    were reproduced against the tree at `3bb6500` before any amendment:
+    `docs/design/prototype-v2/src/screens/` holds 23 screens; `grep -rl
+    prototype-v2 docs/spec/` returns nothing; 11.13's `prototype/` row reads
+    as quoted; `docs/spec/09-ui.md` still says "My Day" thirteen times,
+    RFC 0005's section 9 units never having been folded.
+
+    **The measured consequence is the task row.**
+    `app/src/client/components/task-row.tsx` is 609 lines and its own header
+    says it is "the designer's `src/components/task-row.tsx`, ported at P8R
+    session R3", which is the v1 file.
+    `docs/design/prototype-v2/src/components/task-row.tsx` is 2867 lines and
+    its header says it "replaced the v1 row on 2026-08-18". It was never
+    ported by anybody. Three checks say so independently rather than by
+    reading headers: `density` appears nowhere in `app/src/client`, so
+    DES-113's two densities do not exist; the app's `components/task-card/`
+    holds only `chips.tsx` and `copy.ts`, S11's 9.3 chip strip, so DES-093's
+    expand-in-place card does not exist; and `components/task-form` still
+    exists, which the v2 prototype deliberately has none of. S11 built the
+    v2 chip strip and pickers onto the v1 row, correctly by the rulebook it
+    was given, which is precisely the defect: the rulebook was wrong.
+
+    **Three amendments, all inside this role's authority, none touching a
+    frozen section.** First, 11.13's table gains a `prototype-v2/` row
+    naming it the v2 client's source and carrying RFC 0002's sentence
+    forward, and the `prototype/` row is marked superseded for appearance
+    while staying the record of v1; item 19's gate is now a gate on a named
+    directory. Second, `screen-registry.csv`'s `implementation_status`
+    column is declared non-authoritative and must not be read as state: all
+    31 rows still say NOT VERIFIED or NOT WIRED, including surfaces built,
+    routed and green, because the column was written in the design phase and
+    no build session owns it. Third, **the section 9 fold is owed as its own
+    documentation package**: sessions are reading a section 9 that is wholly
+    v1 text while RFC 0005's replacements sit unfolded in this file, which is
+    the same class of defect as the one above and the next one to bite.
+
+    What this item does not do is decide scope. The parity audit the S14
+    session is running will produce the defect list, and that list plus its
+    sequencing against item 19's gate is Imran's, not this role's: it is a
+    build-order resequencing and the persona sends those to the owner.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
