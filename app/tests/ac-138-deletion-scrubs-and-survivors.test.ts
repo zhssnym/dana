@@ -223,12 +223,29 @@ describe('AC-138: the account dissolves, its history does not', () => {
     ).toBe(keeper.id)
   })
 
+  /*
+  The wire arm of this criterion moved at S18 and the row arm did not.
+
+  RFC 0005 unit 12a widens frozen 7.0's created_by from a bare id to the
+  person stub assignee carries, null where 8.10 scrubbed the account. So a
+  scrubbed author reads null here where it read the id, and that is the same
+  sentence rather than a weaker one: 8.10's promise is that the row keeps
+  pointing at the scrubbed user, and this test now re-asserts the column
+  beside the wire so the two are read in one breath. An implementation that
+  nulled tasks.created_by to make deletion easy still fails here, on the
+  column, exactly as it did before; what moved is only how the contract
+  renders a creator it may no longer name.
+  */
   test('AC-138: the remaining member reads the survivors', async () => {
     const { departing, keeper, createdTaskId } = await stage()
     const detail = await readTask(keeper, createdTaskId)
     expect(
       detail.created_by,
-      'the TaskDetail still carries the author\'s id: rendering it is the client\'s "Deleted user", derived from the scrubbed row (spec 7.0, 4.1)',
+      'a scrubbed creator is null on the wire, which is 8.10\'s "renders as Deleted user" as unit 12a puts it on TaskCard (spec 7.0, 4.1)',
+    ).toBeNull()
+    expect(
+      String((await requireTaskRow(app.db, createdTaskId)).created_by),
+      'while the column underneath still names the scrubbed row, which is the surviving-references sentence itself (spec 8.10, 4.5 RESTRICT)',
     ).toBe(departing.id)
     expect(
       detail.assignee,
