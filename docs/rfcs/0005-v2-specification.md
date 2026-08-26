@@ -2207,6 +2207,106 @@ fold, the way P7's mid-package change control ratified the pass callable:
     behind `v2-build` on the day this was written, lacking S15's card
     entirely.
 
+32. **DES-034 is closed on Imran's ruling of 2026-08-25: the transactional
+    emails have their subjects, bodies and action destinations, `invite`
+    splits into two templates, and S19 is scheduled rather than blocked.**
+    That decision had been open since before Session 7 and was the only
+    thing standing between RFC 0004's S19 row and a session, item 26 having
+    already removed the other one by permitting HTML with a text
+    alternative.
+
+    **What shipped in the meantime was worse than a placeholder and the
+    reason is structural, not editorial.** `notify/templates.ts` renders the
+    invite as "Someone has invited you to share a list on Dana" and the
+    share grant as "Someone has shared a folder with you on Dana", and
+    neither can name a person or a folder because `OutboundMessage` is
+    `{template, to, reminder?}` and the two call sites, `invites.ts:238`
+    and `folders.ts:370`, pass nothing but a recipient. The template file
+    says so in its own header and says what would change it. So the copy
+    below is not a re-skin of those sentences; it is what becomes sayable
+    once S19 widens the payload, and the widening is the larger half of
+    that row.
+
+    **The `invite` template splits into `invite_folder` and
+    `invite_connection`.** 7.5 makes `folder_id` optional, so one template
+    serves two genuinely different events, and a single conditional
+    sentence would not have been enough: the subject, the heading, the
+    context card and the icon each differ, which is two templates wearing
+    one name. The testability half is the stronger argument. 11.8's
+    template name is what the acceptance suite counts sends through, the
+    11.10 sink reading a message's template and recipient and nothing else,
+    so under one name no criterion can tell a folder invitation from a
+    connection invitation. Under two, it can.
+
+    **The four templates, as ruled.** Placeholders are the inviter's
+    `display_name`, the folder `name`, the task `title` and the stored due.
+
+    | Template | Subject | Heading | Body |
+    | - | - | - | - |
+    | `invite_folder` | `{inviter} invited you to {folder} on Dana` | You're invited to {folder} | {inviter} invited you to join this folder in Dana. Accepting adds it to your sidebar, with everything already in it. |
+    | `invite_connection` | `{inviter} wants to connect on Dana` | Connect with {inviter} | {inviter} invited you to connect on Dana. Once you're connected, either of you can share a folder in a single step. |
+    | `share_grant` | `{inviter} shared {folder} with you on Dana` | {folder} was shared with you | {inviter} shared this folder with you. It's in your sidebar now, ready to open. |
+    | `reminder` | `Reminder: {task}` | {task} | You set a reminder for this task. |
+
+    Context card and action, in the same order: `{folder}` with "Shared
+    folder · From {inviter}", **Review invitation** to the invites view;
+    `{inviter}` with "Connection invitation", **Review invitation** to the
+    invites view; `{folder}` with "Shared folder · Shared by {inviter}",
+    **Open {folder}** to that folder; the due with "In {folder}", **Open
+    task** to that task. Four destinations replacing the one
+    `${appOrigin}/app` every template lands on today, which is the half of
+    this ruling most easily lost, `actionLink()` being a single function
+    that takes no argument.
+
+    **`share_grant` stays one template across both its call sites**, the
+    direct member add of 7.4 and the instant-share conversion of 7.5, the
+    ruled sentence being true of both.
+
+    **The reminder body deliberately names neither the folder nor the due**,
+    both of which the context card carries. The prototype's "A reminder from
+    your Travel folder" said the card's own line twice and reads oddly when
+    the task is in Desk.
+
+    **An orientation footer goes on the two invitations and on neither of
+    the others**, replacing "Sent by Dana" there: "Dana keeps a project's
+    tasks, notes and people on one page. You'll sign in with Google —
+    there's no password to create." The discriminator is whether the
+    recipient knows what Dana is. An invitation is sent to a bare email
+    address that may have no account, so the line is orientation the reader
+    needs before deciding to click, and its second clause is the single most
+    useful thing to tell them, Google being the only sign-in method. A share
+    grant reaches an existing connection and a reminder reaches the person
+    who set it; the same line there is filler that makes a functional
+    message look like a marketing one.
+
+    **That boundary is a deliverability rule and not a matter of taste.**
+    The transactional exemptions in CAN-SPAM and PECR, and a mailbox
+    provider's own promotional classification, turn on whether a message is
+    functional; genuinely promotional content can pull in an unsubscribe
+    requirement, and an unsubscribe link would be a **second** link, which
+    10.7's unchanged "one action link each" forbids. A descriptive line to
+    somebody who is not yet a user stays on the functional side of that
+    line. For the same reason the product is named in a subject only as the
+    place an event happened, never described there.
+
+    **Two implementation readings are recorded here so S19 does not
+    re-decide them.** The due renders as the stored floating date and its
+    wall time, never as "Today": 4.4 stores it floating and 8.1 has it read
+    as the reader's own local time, so a server composing "Today" would have
+    to decide whose today that is, which is exactly the fault that reading
+    is written to avoid; the prototype's "Today, 2:00 PM" is a fixture and
+    not a specification. And "Someone" survives as the fallback when a
+    `display_name` cannot be resolved, 8.10 being able to scrub an account
+    between the act and the send; it stops being the default sentence and
+    becomes the edge case it should always have been.
+
+    **The register half of this closure is the owner's own commit and is not
+    made here.** `design-contract.md`'s DES-034 row and `v2-decisions.md`'s
+    open-owner-rulings paragraph both still read OPEN, and `docs/design/` is
+    human-committed material that no session writes, which is the discipline
+    row 29 held for DES-032's contradictory status. This item is where the
+    build reads the ruling from until he lands those two lines.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
