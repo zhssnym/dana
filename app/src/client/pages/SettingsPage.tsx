@@ -80,7 +80,6 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
 } from '../components/ui/alert-dialog.js'
-import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
 import { Switch } from '../components/ui/switch.js'
@@ -93,6 +92,7 @@ import type { PlaceKey } from '../views/place-pages.js'
 import { PageHeading } from './page-heading.js'
 import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
+import { PersonFace } from '../components/person-face.js'
 
 /** 9.7, verbatim: the note that stands where the one locked row is. */
 const DESK_LOCKED =
@@ -339,11 +339,13 @@ export function SettingsPage(): React.JSX.Element {
           <SettingsSection name="Account">
             <div className="space-y-0.5">
               <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
-                <Avatar className="size-10">
-                  <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
-                    {initialsOf(displayName === '' ? (me.data?.user.email ?? '') : displayName)}
-                  </AvatarFallback>
-                </Avatar>
+                <PersonFace
+                  name={displayName === '' ? (me.data?.user.email ?? '') : displayName}
+                  initials={initialsOf(
+                    displayName === '' ? (me.data?.user.email ?? '') : displayName,
+                  )}
+                  className="size-10"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
                   <p className="truncate text-xs text-muted-foreground">

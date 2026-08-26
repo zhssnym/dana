@@ -46,11 +46,11 @@ import { FolderOpen, UserRoundPlus } from 'lucide-react'
 
 import type { PendingInvite } from '../../shared/invites.js'
 import { useAcceptInvite, useDeclineInvite } from '../api/mutations.js'
-import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Badge } from '../components/ui/badge.js'
 import { Button } from '../components/ui/button.js'
 import { inviteRowDisplay } from '../parts/presenters.js'
 import { paths } from '../routes.js'
+import { PersonFace } from '../components/person-face.js'
 
 /** His eyebrow above the heading, which names no control and states the rule. */
 const EYEBROW = 'Before you continue'
@@ -124,11 +124,7 @@ export function InviteGate({
                   key={row.id}
                   className="grid min-h-[116px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 py-5"
                 >
-                  <Avatar>
-                    <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-semibold text-[var(--color-graphite-700)]">
-                      {row.initials}
-                    </AvatarFallback>
-                  </Avatar>
+                  <PersonFace name={row.inviter} initials={row.initials} className="size-8" />
 
                   <div className="min-w-0">
                     {/* 9.8's sentence, one text run, which is what tells a

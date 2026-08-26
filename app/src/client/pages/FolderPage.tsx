@@ -63,8 +63,8 @@ a closed section at the page's foot, or the side panel, the choice a
 client-side preference. The thread fetches only while its surface is open
 and polls politely while it stays open, which is the whole of D3.
 */
-import { useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
   useCreateTask,
@@ -72,6 +72,7 @@ import {
   useLeaveFolder,
   useDeleteComment,
   useDuplicateFolder,
+  useUpdateMyMembership,
   usePatchComment,
   usePostComment,
   usePutFolderPage,
@@ -84,6 +85,7 @@ import {
   mergeCompletedDays,
   useConnections,
   useFolder,
+  useFolders,
   useFolderCompletedTasks,
   useFolderOpenTasks,
   useFolderPage,
@@ -94,13 +96,11 @@ import { uploadFile } from '../api/http.js'
 import { BlocksEditor } from '../components/page/BlocksEditor.js'
 import { ConversationThread } from '../components/page/ConversationThread.js'
 import { IdentityHead } from '../components/page/IdentityHead.js'
+import { ObjectMenu } from '../components/object-menu.js'
+import { PersonFace } from '../components/person-face.js'
 import { QuickAdd } from '../components/quick-add.js'
 import { NativeSelect } from '../components/ui/native-select.js'
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarGroup,
-} from '../components/ui/avatar.js'
+import { AvatarGroup } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import {
@@ -111,11 +111,10 @@ import {
   DialogTitle,
 } from '../components/ui/dialog.js'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import {
   Sheet,
@@ -129,19 +128,17 @@ import {
 import { Folder as FolderIcon } from 'lucide-react'
 
 import {
-  LogOut,
   MessageSquare,
-  MoreHorizontal,
   PanelRight,
-  Pencil,
   Share2,
-  Trash2,
+  UserRoundCheck,
 } from '../lib/icons.js'
 import { formatAgo, formatDayHeading } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
+import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { WindowBarActions } from '../shell/WindowBar.js'
@@ -209,7 +206,12 @@ export function FolderPage({
   const { id: routeId = '' } = useParams<{ id: string }>()
   const id = folderId ?? routeId
   const navigate = useNavigate()
+  const [search, setSearch] = useSearchParams()
   const folder = useFolder(id)
+  /* The Library's own list, for the two things this page reads off it: the
+     labels the move submenu offers, and nothing else. 8.3 answers it from the
+     same cache entry the sidebar filled, so it costs no request. */
+  const library = useFolders()
   const open = useFolderOpenTasks(id)
   const page = useFolderPage(id)
   const basis = useRowBasis()
@@ -222,6 +224,17 @@ export function FolderPage({
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
   const duplicate = useDuplicateFolder()
+  const membership = useUpdateMyMembership()
+  /* Every label in use, which is what the move submenu offers, deduplicated
+     and in the order the library holds them. 9.1 makes a group "the label of
+     7.4's my-membership and nothing else", so this is the whole of a group. */
+  const groupLabels = [
+    ...new Set(
+      (library.data ?? [])
+        .map((entry) => entry.my_label)
+        .filter((label): label is string => label !== null && label !== ''),
+    ),
+  ]
   const putPage = usePutFolderPage()
   const postComment = usePostComment()
   const patchComment = usePatchComment()
@@ -353,6 +366,47 @@ export function FolderPage({
     URL.revokeObjectURL(url)
   }
 
+  /*
+  An act the Library asked for, run once the folder has arrived.
+
+  DES-201 puts every act on the object's contract, and five of a folder's need
+  a surface only this page has: an inline field, a history sheet, a
+  serialiser, a confirmation and the undo bar. Rebuilding those in the sidebar
+  would be two implementations of each and would be exactly the divergence the
+  contract exists to end, so the Library row navigates here carrying
+  `?folder-action=`, which is the designer's own idiom for an instrument
+  reached by link ("the URL that did it survives as ?folder-action=appearance,
+  like every other instrument this plan reaches by link").
+
+  **It waits for the read and then runs once.** Leave, Delete and Save as
+  workflow all name the folder, so running before `detail` arrives would
+  confirm about "" and export a file called folder.dana-workflow.json. The
+  query is dropped from the address as the act starts, with `replace`, so a
+  reload or a Back does not run it a second time: an act is a thing that
+  happened, not a property of the page.
+  */
+  const ranAction = useRef(false)
+  useEffect(() => {
+    if (ranAction.current) return
+    const action = search.get(FOLDER_ACTION_PARAM)
+    if (action === null) return
+    if (detail === undefined) return
+    ranAction.current = true
+    setSearch(
+      (current) => {
+        const next = new URLSearchParams(current)
+        next.delete(FOLDER_ACTION_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+    if (action === 'rename' && isOwner) setRenaming(true)
+    else if (action === 'history') setHistoryOpen(true)
+    else if (action === 'workflow') saveAsWorkflow()
+    else if (action === 'leave' && !isOwner) askLeave()
+    else if (action === 'delete' && isOwner && !isDefault) doDelete()
+  })
+
   /* 8.9's default successor: the longest-standing other member. */
   const successors = members
     .filter((member) => member.user.id !== basis.viewerId)
@@ -437,91 +491,96 @@ export function FolderPage({
               <MessageSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </Button>
           ) : null}
-          {/* 9.1: the bar's right end holds the object's overflow menu. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={MORE_ACTIONS}
-                  className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
-                />
-              }
-            >
-              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem
-                onClick={() => {
-                  setHistoryOpen(true)
-                }}
-              >
-                History
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    `${globalThis.location.origin}${paths.folder(id)}`,
-                  )
-                }}
-              >
-                Copy link
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  /* DES-198 server-side; the copy is the duplicator's own
-                     private folder, and the page goes to it. */
-                  duplicate.mutate(id, {
-                    onSuccess: (made) => {
-                      navigate(paths.folder(made.id))
-                    },
-                  })
-                }}
-              >
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={saveAsWorkflow}>
-                Save as workflow
-              </DropdownMenuItem>
-              {isOwner ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setRenaming(true)
+          {/*
+          9.1: the bar's right end holds the object's overflow menu, and since
+          S17a it is the object's contract rather than this page's list.
+
+          It was seven hand-written items here and five in the Library, so
+          where a person stood decided what they could do to the same folder,
+          which is DES-201's own worked example. `lib/object-acts.ts` owns the
+          words, the glyphs and the order now; what stays the page's own is
+          "Transfer ownership", 9.6's act for an owner with somewhere to hand
+          the folder to and one no other surface can offer.
+          */}
+          <ObjectMenu
+            kind="folder"
+            name={detail?.name ?? ''}
+            align="end"
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={MORE_ACTIONS}
+                className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
+              />
+            }
+            extra={
+              isOwner && successors.length > 0 && !isDefault ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setTransferOpen(true)
+                  }}
+                >
+                  <UserRoundCheck className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  Transfer ownership
+                </DropdownMenuItem>
+              ) : undefined
+            }
+            handlers={{
+              history: () => {
+                setHistoryOpen(true)
+              },
+              rename: isOwner
+                ? () => {
+                    setRenaming(true)
+                  }
+                : undefined,
+              /* The personal label, which the Library row has offered since
+                 P8R and this page never did. It is arrangement rather than
+                 identity (9.6's matrix: "personal, always"), so it is the
+                 same write from either surface. */
+              move: {
+                choose: (
+                  <DropdownMenuRadioGroup
+                    value={detail?.my_label ?? '__none'}
+                    onValueChange={(value) => {
+                      membership.mutate({
+                        id,
+                        body: { label: value === '__none' ? null : value },
+                      })
                     }}
                   >
-                    <Pencil className="size-4" aria-hidden="true" />
-                    Rename folder
-                  </DropdownMenuItem>
-                  {successors.length > 0 && !isDefault ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setTransferOpen(true)
-                      }}
-                    >
-                      Transfer ownership
-                    </DropdownMenuItem>
-                  ) : null}
-                  {isDefault ? null : (
-                    <DropdownMenuItem variant="destructive" onClick={doDelete}>
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      Delete folder
-                    </DropdownMenuItem>
-                  )}
-                </>
-              ) : (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onClick={askLeave}>
-                    <LogOut className="size-4" aria-hidden="true" />
-                    Leave folder
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                    {groupLabels.map((label) => (
+                      <DropdownMenuRadioItem key={label} value={label} closeOnClick>
+                        {label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioItem value="__none" closeOnClick>
+                      No group
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                ),
+              },
+              'copy-link': () => {
+                void navigator.clipboard.writeText(
+                  `${globalThis.location.origin}${paths.folder(id)}`,
+                )
+              },
+              duplicate: () => {
+                /* DES-198 server-side; the copy is the duplicator's own
+                   private folder, and the page goes to it. */
+                duplicate.mutate(id, {
+                  onSuccess: (made) => {
+                    navigate(paths.folder(made.id))
+                  },
+                })
+              },
+              workflow: saveAsWorkflow,
+              leave: isOwner ? undefined : askLeave,
+              delete: isOwner && !isDefault ? doDelete : undefined,
+            }}
+          />
         </WindowBarActions>
 
         <PageSection name="Folder header">
@@ -590,11 +649,11 @@ export function FolderPage({
               {/* 9.6's member avatar stack. */}
               <AvatarGroup>
                 {members.map((member) => (
-                  <Avatar key={member.user.id} size="sm">
-                    <AvatarFallback>
-                      {initialsOf(member.user.display_name ?? 'Someone')}
-                    </AvatarFallback>
-                  </Avatar>
+                  <PersonFace
+                    key={member.user.id}
+                    name={member.user.display_name ?? 'Someone'}
+                    initials={initialsOf(member.user.display_name ?? 'Someone')}
+                  />
                 ))}
               </AvatarGroup>
 

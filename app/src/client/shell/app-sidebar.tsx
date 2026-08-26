@@ -100,7 +100,7 @@ for another. AC-155 reads all four clauses.
 */
 import { useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 /* The icon module of DES-125, since S8: one file owns the family and
    nothing imports `lucide-react` directly. */
 import type { LucideIcon } from '../lib/icons.js'
@@ -122,10 +122,6 @@ import {
 
 import { FolderRow } from '../components/folder-row.js'
 import { useHelpSheet } from '../components/help-sheet.js'
-import {
-  Avatar,
-  AvatarFallback,
-} from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import {
   Collapsible,
@@ -157,9 +153,11 @@ import {
   TooltipTrigger,
 } from '../components/ui/tooltip.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
+import { useDuplicateFolder } from '../api/mutations.js'
 import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
 import { paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from './NotificationsBell.js'
+import { openInNewTab } from './tabs.js'
 import { savedViewPath } from '../views/saved-views.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
@@ -180,6 +178,7 @@ import {
 import type { DirectoryEntry } from './library-order.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
+import { PersonFace } from '../components/person-face.js'
 
 /**
  * 9.1's names table, for the two controls this file names rather than a
@@ -336,22 +335,45 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
 
+/*
+The acts a Library row can perform on its folder, since S17a.
+
+**Five of the contract's nine are reached by URL rather than rebuilt here**,
+and that is the prototype's own idiom rather than a shortcut. Rename, History,
+Save as workflow, Leave and Delete each need a surface the folder page already
+has, an inline field, a sheet, a serialiser, a confirmation and an undo bar,
+and `lib/object-acts.ts`'s note on the retired "Label and colour" records the
+mechanism the designer used for exactly this case: "The URL that did it
+survives as ?folder-action=appearance, like every other instrument this plan
+reaches by link." So the row opens the folder and asks its page to run the
+act, which is one implementation of each rather than two, and is what DES-201
+is about in the first place.
+
+The other four are performed in place because they need no surface: opening a
+tab, copying an address, and the duplicate, whose whole behaviour is a server
+call (DES-198).
+
+**An act with no handler is not drawn**, so the role split of 9.6 needs no
+branch in `folder-row.tsx`: the owner's row is given `delete` and the
+member's `leave`, from `folder.is_owner`, which 7.4 puts on the object.
+Desk is the standing exception, INV-2 making the default folder undeletable
+and 9.1 giving it a clause of its own above the label groups.
+*/
+export type FolderAction = 'rename' | 'history' | 'workflow' | 'leave' | 'delete'
+
+/** The query the folder page reads to run an act the Library asked for. */
+export const FOLDER_ACTION_PARAM = 'folder-action'
+
+function folderActionPath(id: string, action: FolderAction): string {
+  return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
+}
+
 /**
  * A folder row on our data.
  *
  * `folderRowDisplay` is R4's mapping and the only thing that knows how a 7.4
- * Folder becomes his four display props; the route and the active mark are
- * this file's, being the router's.
- *
- * **Two of the five entries his row menu carries are wired here and three are
- * not**, added at P8R session R10. 9.1 gives this menu the move ("a folder is
- * moved between groups from its own menu") and the P8R change control gave it
- * "New folder group", creating a group being naming it on a folder. Rename,
- * "Label and color" and delete belong to 9.6's folder header, which builds
- * them, and offering a second route to the same three writes from here would
- * be markup no section asks for. `folder-row.tsx` renders only the entries
- * whose callback it is given, so this is a prop that is absent rather than a
- * control that was removed.
+ * Folder becomes his display props; the route and the active mark are this
+ * file's, being the router's.
  */
 function SidebarFolderRow({
   folder,
@@ -381,6 +403,8 @@ function SidebarFolderRow({
   }
 }): React.JSX.Element {
   const display = folderRowDisplay(folder)
+  const navigate = useNavigate()
+  const duplicate = useDuplicateFolder()
   return (
     <FolderRow
       itemRef={drag?.itemRef}
@@ -389,6 +413,7 @@ function SidebarFolderRow({
       proposal={drag?.proposal ?? null}
       name={display.name}
       color={display.color}
+      icon={display.icon}
       href={display.href}
       // Zero here and the real number inside the link; see `FolderRowLink`.
       pending={0}
@@ -399,11 +424,9 @@ function SidebarFolderRow({
       treeLast={treeLast}
       groupLabels={groups.labels}
       currentLabel={folder.my_label}
-      // Inbox carries neither, so it carries no menu. 9.1 pins it first and
-      // gives it a clause of its own, above the label groups and never inside
-      // one, so a group action on this row would write a label the sidebar
-      // then cannot render. The three entries 9.6 owns are absent here for
-      // every row alike; see this function's header.
+      // Desk is pinned first by 9.1 with a clause of its own, above the label
+      // groups and never inside one, so a group act on this row would write a
+      // label the sidebar then cannot render.
       onNewGroup={
         folder.is_default
           ? undefined
@@ -417,6 +440,50 @@ function SidebarFolderRow({
           : (label) => {
               groups.onMoveToGroup(folder, label)
             }
+      }
+      onOpenInNewTab={() => {
+        navigate(openInNewTab(paths.folder(folder.id)))
+      }}
+      onHistory={() => {
+        navigate(folderActionPath(folder.id, 'history'))
+      }}
+      onRename={
+        folder.is_owner
+          ? () => {
+              navigate(folderActionPath(folder.id, 'rename'))
+            }
+          : undefined
+      }
+      onCopyLink={() => {
+        void navigator.clipboard.writeText(
+          `${globalThis.location.origin}${paths.folder(folder.id)}`,
+        )
+      }}
+      onDuplicate={() => {
+        /* DES-198 server-side, and the copy is the duplicator's own private
+           folder, so the Library goes to it exactly as the page does. */
+        duplicate.mutate(folder.id, {
+          onSuccess: (made) => {
+            navigate(paths.folder(made.id))
+          },
+        })
+      }}
+      onSaveAsWorkflow={() => {
+        navigate(folderActionPath(folder.id, 'workflow'))
+      }}
+      onLeave={
+        folder.is_owner
+          ? undefined
+          : () => {
+              navigate(folderActionPath(folder.id, 'leave'))
+            }
+      }
+      onDelete={
+        folder.is_owner && !folder.is_default
+          ? () => {
+              navigate(folderActionPath(folder.id, 'delete'))
+            }
+          : undefined
       }
     />
   )
@@ -920,11 +987,11 @@ function AccountMenu({
             className="h-[var(--shell-sidebar-item-height)] gap-2 px-2 text-[13px] font-semibold text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]"
             aria-label={ACCOUNT}
           >
-            <Avatar className="size-7 group-data-[collapsible=icon]:size-5">
-              <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
-                {initialsOf(displayName ?? '')}
-              </AvatarFallback>
-            </Avatar>
+            <PersonFace
+              name={displayName ?? ''}
+              initials={initialsOf(displayName ?? '')}
+              className="size-7 group-data-[collapsible=icon]:size-5"
+            />
             <span className="min-w-0 truncate text-[13px] font-semibold group-data-[collapsible=icon]:hidden">
               {displayName ?? ''}
             </span>
