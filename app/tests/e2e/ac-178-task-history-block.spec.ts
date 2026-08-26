@@ -57,7 +57,7 @@ the dialog, and dismiss it by a control named Cancel or Close. All three of
 those are the v1 form's apparatus, and the whole subject of the criterion is
 a block 9.3 puts on the card, so it belongs to this package as squarely as
 any of the seven. The correction is recorded in RFC 0005 change control item
-20 with the other two the enumeration missed.
+25 with the other two the enumeration missed.
 
 **What moved and what did not.** The block stays: 9.3's v2 carries it in
 terms, "the completion control and the history read stay: the footer renders

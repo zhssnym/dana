@@ -204,7 +204,7 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
 
   /*
   **This case has outlived the sentence it was written against, and that is
-  recorded rather than resolved (S15, RFC 0005 change control item 20).**
+  recorded rather than resolved (S15, RFC 0005 change control item 25).**
 
   v1's 9.3 carried "The form's width is the viewer's, persisted client-side,
   on the sidebar's rule in 9.1", which is the sentence the criterion's own
@@ -216,7 +216,7 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
   design that changed its mind: the parity target still persists a width,
   `prototype-v2`'s task-surface remembering a panel width under DES-138.
 
-  Two dispositions are open and item 20 carries both without recommending
+  Two dispositions are open and item 25 carries both without recommending
   between them, because they turn on what the owner wants asserted: either 9.3
   regains a width sentence and this case stands as written, or the case goes
   the way item 14's counts-carrying folder-delete case went and AC-182 keeps
