@@ -1733,6 +1733,55 @@ fold, the way P7's mid-package change control ratified the pass callable:
     but it is the item most likely to cause the next item 20, sessions still
     reading a section 9 that is wholly v1 text.
 
+23. **The parity audit is ratified, S17 is scoped from it, and two of its
+    findings are not a session's to close (Integration Steward,
+    2026-08-25).** The audit written by the S14 session is placed at
+    `docs/parity/2026-08-25-prototype-v2-parity-audit.md`, on the
+    `docs/security/` precedent: dated so a second audit appends rather than
+    overwrites, and pointed at from RFC 0004's S15-to-S17b block, because
+    that table is a protocol section 2 state source and the audit file is
+    not. This is the same reasoning as item 18's, applied a second time, and
+    it is now the pattern for any record of this kind.
+
+    **Spot-checked before ratifying, this role not ratifying a record it has
+    not tested.** The search finding was re-derived from the source rather
+    than read: `views/search.ts:146` returns `rows`, `folders`, `shelves`
+    and `pages`, and `SearchOverlay.tsx:159` consumes `results.data?.rows`
+    alone. The trap is real and is now noted in the file: the overlay's
+    `useFolders()` on the next line is the sidebar's folder list, not the
+    search response's folders, so a careless reader will conclude the
+    finding is wrong. It is not. The measurement stands: 31 surfaces, 14
+    PORTED, 12 PARTIAL, 5 V1-ERA or MISSING.
+
+    S17 splits into **S17a**, the shared surfaces every page shows, and
+    **S17b**, the per-screen remainder, as the audit recommends and for its
+    reason: the head, the marks, the faces and the sections repeat on every
+    page, so closing them once closes many rows at once.
+
+    **`components/page-bar.tsx` is not an unowned tidy-up, and the ruling is
+    against deleting it on its own.** Checked rather than assumed: it is
+    still exported from the barrel at `components/index.ts:37` and named
+    **twice** in `components/ui/foundation.test.ts`, at lines 75 and 107,
+    which are S8's both-ways exemption lists. A bare deletion therefore
+    edits a test file to make the tree pass, which protocol section 8 does
+    not allow the deleting session to do casually. It goes to S17a, whose
+    tab-menu and page-head work removes the last live reason to keep it, and
+    the exemption lines go with it in the same commit.
+
+    **Two things are routed rather than scheduled.** The transactional email
+    row is a **conflict, not a port**: 10.7 fixes "plain, short, one action
+    link each" and the prototype designs three HTML cards, so a session
+    cannot resolve it by building either one. It goes to Imran, compounded
+    by DES-034 being open, and S19 stays blocked until he rules; the
+    Steward's recommendation is that 10.7 wins unless he says otherwise,
+    because a numbered section beats a design artifact under 11.13's own
+    first paragraph and that is exactly the exception clause item 19
+    preserved. And the two frozen section 7 widenings he approved still need
+    **this role's Replace units before S18 can start**; until they exist the
+    folder page cannot draw tasks under their sections and Assignments
+    cannot carry its "from" half, so they are the cheapest unblocking act
+    left on the board and are owed by the Steward, not by any session.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
