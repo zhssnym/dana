@@ -2798,6 +2798,74 @@ fold, the way P7's mid-package change control ratified the pass callable:
     Each session in the new table reads them again at its own opening and
     merge, items 13 and 25's check.
 
+
+38. **The folder-deletion rules, and item 36's open question answered, on
+    Imran's ruling of 2026-08-26.** Recorded from his direct instruction in
+    the S19 session's chat, item 32's shape, because these words reached a
+    session in conversation and nowhere else. Item 36 named the shared-folder
+    permission question as owed and told the building package to obtain the
+    answer rather than choose one; he gave it unprompted, with the whole
+    deletion model around it, and this item is that answer.
+
+    **His rules, as he stated them.**
+
+    - **An owner deleting a shared folder is asked one question**: leave it
+      to the other members, or delete it for them too.
+    - **If the owner leaves it to the members**, the folder is deleted at the
+      owner's end alone, the owner may then permanently delete their own
+      copy, and the folder stays in the other members' sidebars.
+    - **If the owner does not leave it to the members**, the folder is
+      deleted for everyone and may still be permanently deleted, because the
+      owner holds full rights over it.
+    - **A non-owner deleting a folder is told what it means**: that they will
+      no longer be a member and will lose access. It does not sit in Trash
+      for thirty days; it disappears from their sidebar permanently.
+
+    **Which answers item 36's open question.** Permanent deletion of a shared
+    folder is the owner's, on his sentence that the owner should have full
+    rights. A non-owner never deletes the folder at all, so 5.4 gains no row
+    for a member permanently destroying a co-member's attachments, which was
+    the specific hazard item 36 declined to decide.
+
+    **Most of this is already built, and the building package should be told
+    so before it estimates anything.** Checked against the sections at the
+    time of the ruling:
+
+    - **A non-owner's delete is 5.3's leave**, already implemented at
+      `DELETE /folders/:id/my-membership`, with 9.6's door and AC-202 over
+      it. It writes no Trash row, so "it disappears permanently rather than
+      waiting thirty days" is exactly today's behaviour and needs no work.
+    - **The owner leaving it to the members is 5.3's owner-leave row**:
+      ownership transfers first under 8.9, then R-CLEAN. 8.9 already decides
+      who inherits without anyone choosing, the remaining member with the
+      earliest `folder_members.created_at`, ties broken by lower user id. So
+      the prompt never asks the owner to name a successor.
+    - **The owner deleting for everyone is 8.8's folder deletion**, which
+      since 7.13 is a soft delete whose cascades fire at the thirty-day
+      purge, with item 36's permanent control on top of it.
+
+    So what is genuinely new is smaller than the rules read: **one dialog
+    routing to two acts that already exist**, plus the permanent option item
+    36 already ruled. Today those two acts are two separate menu items rather
+    than one question.
+
+    **One recommendation against the rules as worded, raised with him and not
+    ruled on.** A non-owner's control is labelled "Leave folder" today, not
+    "Delete", and AC-246 asserts exactly that, green since S17a. Relabelling
+    it "Delete" would let somebody believe they had destroyed a folder
+    holding other people's work when they had only removed themselves, and
+    the label is what most people read instead of the dialog. The
+    recommendation is to keep "Leave folder" and let the confirming copy
+    carry his sentence about losing access. If he prefers "Delete", AC-246
+    moves in the amendment's own commit.
+
+    **Also recorded: 8.8 still contradicts 7.13 and must be fixed before
+    this is built.** Its text reads "Nothing is recoverable; the dialog said
+    so with counts", which is the v1 hard delete that 7.13 retired in favour
+    of the soft delete and the thirty-day purge. RFC 0005 handled the
+    mechanism at unit level and the section's own prose never caught up. S29
+    of the lift plan owns that fold and names this contradiction first.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
