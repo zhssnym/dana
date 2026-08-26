@@ -2207,10 +2207,21 @@ fold, the way P7's mid-package change control ratified the pass callable:
     behind `v2-build` on the day this was written, lacking S15's card
     entirely.
 
-32. **Unit 12a is enacted, and its implementation surface is wider than the
-    unit's own list by seven client files (S18, 2026-08-25).** The two
-    widenings Imran approved at item 19 and this role wrote at item 24 are
-    on the wire. `TaskCard` carries `section_block_id` and the `created_by`
+33. **Unit 12a is enacted, and its implementation surface is wider than the
+    unit's own list by seven client files (S18, 2026-08-25).** Numbered 33
+    with 32 left vacant, which is deliberate and is the only place in this
+    list where a number is reserved rather than spent. `des-034-email-copy`
+    carries a written, unmerged **item 32**, Imran's DES-034 ruling on the
+    transactional emails, authored eight minutes before this one and already
+    cross-referenced three times from RFC 0004's S19 row. This package merged
+    first only because its gate finished first, which is no claim on the
+    number, and item 13's precedent turns on which claim is written and
+    asserted rather than on merge order. So the gap holds that item's place
+    and neither session edits the other's references. A reader who finds 32
+    still missing after S19 lands should treat it as free.
+
+    The two widenings Imran approved at item 19 and this role wrote at item
+    24 are on the wire. `TaskCard` carries `section_block_id` and the `created_by`
     person stub, `TaskDetail`'s bare uuid `created_by` became that same
     stub, no migration was owed, and the read shape moved in the two
     producers the RFC 0001 P4 row named on the record and nowhere else.
