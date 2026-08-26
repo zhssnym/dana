@@ -782,6 +782,8 @@ nothing here is deleted by hand, rows aging out with 4.13's retention. An
 actor is never notified of their own act (4.14's rule, restated where a
 reader will look). Empty state: "Nothing new. When someone assigns you a
 task or answers you, it lands here."
+```
+
 ### Insert new section 9.13 after 9.12
 
 Added at S13 on 2026-08-24, from the owner's ruling of that date; ADD-1 in
@@ -2008,6 +2010,43 @@ fold, the way P7's mid-package change control ratified the pass callable:
     (**frozen section 7**), and a ruling on whether possession of a link
     grants access, which is a security decision rather than a schema one and
     is the part to decide first. Scoped by this role on his word, not before.
+
+28. **Section 9 is folded, and one unit of this RFC was malformed (S-fold,
+    Integration Steward, 2026-08-25).** The eleven section 9 units are
+    written into `docs/spec/09-ui.md`: 9.1, 9.3, 9.4, 9.5, 9.6, 9.7 and 9.9
+    replaced, and 9.10 Shelves, 9.11 Trash, 9.12 Notifications and 9.13
+    First run inserted. That file was 267 lines of wholly v1 text and is now
+    276 lines of v2, 177 inserted against 169 deleted. This closes the debt
+    item 20 recorded and RFC 0004's S-fold row.
+
+    **Done mechanically rather than by hand, deliberately.** Each unit's
+    verbatim block was extracted from this file by its fence and spliced by
+    heading, and the assembly refuses to write unless every block's first
+    line is the `### 9.N` heading it claims to be. Nothing was retyped, so
+    no unit can have been silently paraphrased in transit, which is the
+    failure a hand fold of eleven units invites.
+
+    **The extraction found a defect in this RFC: 9.12's fenced block was
+    never closed.** It ran straight into "### Insert new section 9.13 after
+    9.12", so anyone taking 9.12 verbatim would have carried the next unit's
+    heading into the specification, which is precisely what the first
+    assembly did before the check caught it. The closing fence is added.
+    Recorded rather than quietly fixed, because these units have sat
+    accepted since S0 and nobody read 9.12 to its end in the five weeks
+    since, which is the same "written but never read" shape as item 20.
+
+    **9.2 and 9.8 are carried unchanged and that is correct.** 9.2 was
+    amended directly at S13 under item 10 and already read v2 (Desk at
+    `/app`, rules rather than copy); 9.8 was never replaced by this RFC.
+
+    **Item 16's sweep needed nothing further in section 9**, checked rather
+    than assumed. Two "My Day" strings survive and both are right: 9.4 names
+    the v1 `"Remove from My Day"` control as the thing carried forward and
+    states its new reading `"Remove from Today"` in the same sentence, and
+    9.8 records a superseded ruling of 2026-08-11 in its own historical
+    terms. That sweep's live targets were always the client copy constant
+    and 7.8's `my-day` endpoint path, and the path is frozen section 7 and
+    stays.
 
 ## Implementation plan
 
