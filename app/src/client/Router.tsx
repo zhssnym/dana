@@ -41,6 +41,7 @@ import { DonePage } from './pages/DonePage.js'
 import { FolderPage } from './pages/FolderPage.js'
 import { ImportantPage } from './pages/ImportantPage.js'
 import { LandingPage } from './pages/LandingPage.js'
+import { LegalPage } from './pages/LegalPage.js'
 import { NotFoundPage } from './pages/NotFoundPage.js'
 import { PeoplePage } from './pages/PeoplePage.js'
 import { ScheduledPage } from './pages/ScheduledPage.js'
@@ -57,6 +58,25 @@ export function Router(): React.JSX.Element {
     <BrowserRouter>
       <Routes>
         <Route path={paths.landing} element={<LandingPage />} />
+        {/*
+        The two public pages of DES-032, added at S16.
+
+        They sit here, beside the landing and outside the /app layout, and
+        that placement is load-bearing rather than tidy. AC-239 sends any
+        unauthenticated visit to an /app route to /, and these are pages read
+        overwhelmingly with no session; Google's OAuth consent configuration
+        fetches the privacy one with none at all. Under the shell they would
+        redirect the audience they exist for, so a row in 9.1's route table
+        would be a defect and not an improvement (change control items 29
+        and 30).
+
+        Until now neither path existed, so both fell through the catch-all
+        below and answered with the not-found page: "That page does not
+        exist. Everything Dana has is in the sidebar", shown to somebody
+        looking for a privacy policy.
+        */}
+        <Route path={paths.privacy} element={<LegalPage page="privacy" />} />
+        <Route path={paths.terms} element={<LegalPage page="terms" />} />
         <Route path="/app" element={<AppShell />}>
           {/* Desk, the default folder and the installed app's start_url. */}
           <Route index element={<DeskPage />} />

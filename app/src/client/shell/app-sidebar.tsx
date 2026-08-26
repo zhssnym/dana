@@ -105,29 +105,23 @@ import { Link } from 'react-router'
    nothing imports `lucide-react` directly. */
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  Ban,
-  CalendarDays,
-  CalendarX,
-  CheckCircle2,
   ChevronDown,
+  /* Help's glyph, which S8 exported for this menu and named DES-200 for. */
+  CircleQuestionMark,
   FolderPlus,
   Folders,
-  LampDesk,
-  Layers3,
   LogOut,
   MoreHorizontal,
   Pencil,
   Search,
   Settings as SettingsGlyph,
   Bookmark,
-  Star,
-  SunMedium,
   Trash2,
-  UserRoundCheck,
   UsersRound,
 } from '../lib/icons.js'
 
 import { FolderRow } from '../components/folder-row.js'
+import { useHelpSheet } from '../components/help-sheet.js'
 import {
   Avatar,
   AvatarFallback,
@@ -194,28 +188,15 @@ import type { Folder } from '../../shared/folders.js'
 const SEARCH = 'Search'
 const ACCOUNT = 'Account'
 
-/**
- * The glyph beside each entry, which is the designer's and belongs to no
- * numbered section. Keyed by path rather than by name so that a rename in
- * 9.1's page set is one edit in `routes.ts` and not two.
- */
-const pageIcons: Record<string, LucideIcon> = {
-  /* Desk wears a desk lamp (DES-181), resolved here beside its siblings
-     rather than inside a folder resolver, because in this list it is a page
-     entry like the eight below it. */
-  [paths.desk]: LampDesk,
-  [paths.today]: SunMedium,
-  [paths.scheduled]: CalendarDays,
-  [paths.assignments]: UserRoundCheck,
-  [paths.important]: Star,
-  [paths.all]: Layers3,
-  [paths.done]: CheckCircle2,
-  [paths.abandoned]: Ban,
-  /* A calendar with an X: the filter's own "No due date", and the other
-     value of the axis Scheduled's calendar carries. It wore All's glyph for
-     one revision and read as a repeated row (DES-152's own note). */
-  [paths.anytime]: CalendarX,
-}
+/*
+The map that stood here moved to `routes.ts` at S16, onto the page it draws.
+
+Its own comment asked for it: "keyed by path rather than by name so that a
+rename in 9.1's page set is one edit in `routes.ts` and not two". The second
+reader arrived with 9.7's pin list, which that section requires to carry "the
+page's own mark", and one mark on the page is the only arrangement in which
+the sidebar and the pin list cannot disagree about what a page looks like.
+*/
 
 /**
  * React Router's `Link` as base-ui's `render` prop takes it.
@@ -902,7 +883,7 @@ function SidebarBrandHeader({
 }
 
 /**
- * 9.1's footer control: the avatar menu, carrying Settings and Sign out.
+ * 9.1's footer control: the avatar menu, ("Account": Settings, Help, Sign out).
  *
  * Named "Account" by 9.1's names table, which took this control at the P8R
  * mid-package change control on 2026-08-13 and gave its reason: what the
@@ -911,14 +892,24 @@ function SidebarBrandHeader({
  * cannot know before it reads the fixture. The person's name is still
  * rendered inside the control and still read by anyone looking at it; what
  * changed is what the control answers to.
+ *
+ * **Help arrived at S16 and is the third item that section has always named.**
+ * The menu shipped with two, and the sheet behind the third existed in the
+ * prototype and in no package's row, so nobody built it. It goes between the
+ * two rather than under them, because 9.1 spells the contents as a sequence
+ * and because what the menu holds is the things that are about the
+ * application rather than about your work; Sign out is the door, and a door
+ * belongs last.
  */
 function AccountMenu({
   displayName,
   onOpenSettings,
+  onOpenHelp,
   onSignOut,
 }: {
   readonly displayName: string | null
   readonly onOpenSettings: () => void
+  readonly onOpenHelp: () => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
   return (
@@ -951,6 +942,13 @@ function AccountMenu({
         >
           <SettingsGlyph className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onOpenHelp}
+        >
+          <CircleQuestionMark className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Help
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -1026,6 +1024,7 @@ export function AppSidebar({
   readonly onSignOut: () => void
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
+  const { setOpen: setHelpOpen, sheet: helpSheet } = useHelpSheet()
   const inbox = inboxOf(folders ?? [])
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
@@ -1064,7 +1063,7 @@ export function AppSidebar({
                   key={page.path}
                   name={page.name}
                   to={page.path}
-                  icon={pageIcons[page.path] ?? Layers3}
+                  icon={page.icon}
                   active={currentPath === page.path}
                 />
               ))}
@@ -1219,10 +1218,18 @@ export function AppSidebar({
             <AccountMenu
               displayName={displayName}
               onOpenSettings={onOpenSettings}
+              onOpenHelp={() => {
+                setHelpOpen(true)
+              }}
               onSignOut={onSignOut}
             />
           </SidebarMenuItem>
         </SidebarMenu>
+        {/* The sheet the menu item above opens, mounted beside its trigger
+            rather than threaded down from the shell, which is the source
+            file's own arrangement and its reason: nothing else opens it yet.
+            It portals, so where it is mounted is not where it is drawn. */}
+        {helpSheet}
       </SidebarFooter>
 
       <SidebarResizeHandle

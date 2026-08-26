@@ -2048,6 +2048,97 @@ fold, the way P7's mid-package change control ratified the pass callable:
     and 7.8's `my-day` endpoint path, and the path is frozen section 7 and
     stays.
 
+29. **S16's six readings, the three unowned surfaces built (2026-08-25).**
+    Each is recorded because a session that decided it silently would have
+    left the next reader with no way to tell a decision from an accident.
+
+    **`/privacy` and `/terms` are not rows of 9.1's route table, and are not
+    meant to become them.** That table is the application's: every row of it
+    is under `/app` except the landing. These two are the landing's
+    neighbours, they are outside `/app` precisely so AC-239's signed-out
+    redirect does not reach them, and a person reads them before there is
+    anything to sign into. The precedent is `views/saved-views.ts`, where S10
+    put a `?view=` address outside that table and recorded the reason here
+    rather than adding a row. RFC 0004's S16 row and item 22 already name
+    both paths, and item 22 verified them against production; this is the
+    reading that keeps the table honest, not a request to widen it.
+
+    **Item 30 upholds this and supplies the argument this paragraph did not
+    have.** Raised to the Integration Steward while it was being made rather
+    than after, and answered the same evening: the precedent above is sound
+    but is only precedent, and the operative reason is F-8's own. AC-239
+    sends *any* unauthenticated read of an `/app` route to `/`; a privacy
+    policy is read overwhelmingly by people with no session, and Google's
+    OAuth consent configuration fetches it with none at all. A row in that
+    table would bounce the exact audience these pages exist for, breaking the
+    obligation S16 was opened to satisfy in the act of satisfying it. So a
+    row would be a **defect** rather than a tidier arrangement, which is
+    stronger than "unnecessary" and is what `routes.ts` and `Router.tsx` now
+    say at the point a future reader meets the question.
+
+    **DES-032's status is settled from the register rather than picked.** The
+    design contract's table still reads "DES-032 | Privacy and terms
+    destinations | OPEN | Before Session 7", which is the v1 row, while
+    `docs/design/v2-decisions.md` records in the same register's own words
+    that DES-032 is "closed in v2: pages drafted and approved 2026-08-17,
+    still to be routed in production", and `public-legal-screen.tsx` carries
+    Imran's approval of the copy with its date and his sentence. So the copy
+    is approved and what stood open was the routing, which is this package.
+    The stale row is left as it is: `docs/design/` is a directory every role
+    reads and no agent writes.
+
+    **One word of that approved copy moved, and the source file is what
+    required it.** Terms read "you get an account, an Inbox, and these
+    terms"; the default folder is Desk since this RFC renamed it and S2
+    migrated the data. The prototype header's own instruction is the
+    authority: its facts "were taken from the shipping product ... and must
+    be re-verified at the port if any of that moves". The other five were
+    re-verified and none has moved: Google sign-in only (11.6), folder
+    sharing (5.3), Resend email (11.8), sanitized Sentry errors and 30 day
+    Axiom logs (11.12, 10.5), and hard deletion behind a typed DELETE (8.10).
+
+    **The help sheet lists six shortcuts and every one was read off its
+    handler, which is what its own header demands and what AC-242 measures.**
+    Ctrl+K and "/" in `shell/overlays.ts`, Ctrl+Z in `shell/app-shell.tsx`,
+    Enter in `components/task-row.tsx` and `components/quick-add.tsx`, Escape
+    in the dialog primitive and `lib/use-sortable-list.ts`, and the arrows in
+    `components/search/SearchOverlay.tsx`. Nothing was dropped, because
+    nothing on the prototype's list turned out to be untrue here; a shortcut
+    this client did not bind would have been reported rather than shipped.
+    **One sentence could not be ported**, the sheet's description reading
+    "This is a design prototype of Dana. What you change here is kept in this
+    browser and nowhere else", which is true there and false here. A Help
+    sheet is the last surface in the product that may carry a false sentence,
+    so it states what the sheet is and nothing more. The gap the sheet leaves
+    stays named in the source file rather than papered over with a link to a
+    page nobody has written, which is DES-144's judgement applied to a
+    sentence.
+
+    **Item 9's open question is answered by the prototype and the answer is
+    "no choice at the save".** That item asked whether "Save as view" keeps
+    forcing `pinned: true` or starts offering the choice once the pin list
+    exists, and referred the answer to what the prototype's save flow does.
+    It names the view and saves it, with no pin control anywhere in the flow
+    (`components/task-filters.tsx`), so the save is unchanged. What changes
+    is the half the interim was waiting on: a view that lands pinned can now
+    be unpinned from 9.7's list, which is the surface item 9 said did not
+    exist, and a view saved unpinned by any other route is reachable there
+    too. AC-241's saved-view case uses an unpinned fixture for exactly that
+    reason.
+
+    **Two things 9.7 names were unbuilt and belonged to no row, and item 30
+    has since assigned both to S17b.** The **Appearance** section (theme, row
+    density, the clock, where a task opens) has its stored fields in the 4.19
+    bundle since S7 and no control anywhere, so the client persists four
+    preferences a person has no way to set; the **storage used against
+    10.3's quota** line waits on a read that reports it. This package flagged
+    them rather than absorbing them, because its scope is the row it was
+    given and a session that widened that quietly would be item 20's failure
+    running in the other direction. Item 30 records the shape behind all
+    three outings of it, items 9, 20 and this one: **scoping a package by
+    naming what it includes silently orphans the remainder**, and the guard
+    is to name what a row is *not* taking whenever it takes part of a
+    numbered section.
 30. **S16's route-table reading is upheld with a stronger reason, and 9.7's
     Appearance section is assigned (Integration Steward, 2026-08-25).** Two
     answers to the S16 session. Numbered 30 because that session holds 29 on
