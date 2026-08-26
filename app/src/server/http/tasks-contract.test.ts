@@ -135,9 +135,12 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
  * The 7.0 key lists, transcribed from the frozen text
  * ------------------------------------------------------------------ */
 
+/* RFC 0005 unit 12a replaces 7.0's TaskCard line, so section_block_id and
+ * created_by are transcribed from that unit and left the detail's extras. */
 const TASK_CARD_KEYS = [
   'assignee',
   'created_at',
+  'created_by',
   'due_date',
   'due_time',
   'folder',
@@ -146,6 +149,7 @@ const TASK_CARD_KEYS = [
   'is_recurring',
   'pending_invite_email',
   'pulled',
+  'section_block_id',
   'status',
   'steps_done',
   'steps_total',
@@ -156,11 +160,9 @@ const TASK_DETAIL_KEYS = [
   ...TASK_CARD_KEYS,
   'completed_at',
   'completed_by',
-  'created_by',
   'notes',
   'recurrence_rule',
   'reminder',
-  'section_block_id',
   'series_id',
   'steps',
 ].sort()
@@ -189,7 +191,7 @@ function expectTaskDetailExact(body: unknown, where: string): Record<string, unk
   const record = body as Record<string, unknown>
   expect(
     Object.keys(record).sort(),
-    `${where} must carry exactly the 23 keys 7.0 gives TaskDetail`,
+    `${where} must carry exactly the 24 keys 7.0 gives TaskDetail, as unit 12a leaves them`,
   ).toEqual(TASK_DETAIL_KEYS)
   expect(
     Object.keys(record.folder as Record<string, unknown>).sort(),

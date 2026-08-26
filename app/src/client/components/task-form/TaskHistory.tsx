@@ -17,9 +17,13 @@ and checkbox inside the block and requires none, and the two ways a port loses
 this are rendering either name as a link and rendering the completion line as
 the completion control, which is a different control that AC-179 asserts.
 
-**The two people are bare ids and the contract offers no way to expand them.**
-Frozen 7.0 spells the assignee's person shape out and leaves `created_by` and
-`completed_by` plain, so the name comes from what this client can already read:
+**The two people reach this block as ids and the index below is how they are
+named.** `completed_by` is a bare id in frozen 7.0, and `created_by` is now
+the person stub RFC 0005 unit 12a put on TaskCard, which this file takes the
+id of rather than its name: reading the stub's own `display_name` is a change
+to what this block renders and belongs to the session that ports the surface,
+not to the one that widened the contract underneath it. So the name still
+comes from what this client can already read:
 the viewer (7.1), the task's own folder members (7.4) and the roster (7.3). An
 id none of the three carries renders "Deleted user", which is exactly right for
 the case the section names, because 8.10 step 4 removes the deleted account's
@@ -69,7 +73,9 @@ export function historyMoment(instant: string): string {
   return `${formatDueDate(civil, '')} at ${clock}`
 }
 
-/** 4.1's rendering of an id no readable surface carries a name for. */
+/** 4.1's rendering of an id no readable surface carries a name for, and of
+ * the null unit 12a answers where 8.10 scrubbed the account, which resolves
+ * to the same sentence by the same route. */
 function nameOf(id: string | null, people: PeopleIndex): string {
   if (id === null) return personDisplay({ display_name: null }).name
   return personDisplay({ display_name: people.get(id) ?? null }).name
@@ -83,7 +89,7 @@ export function TaskHistory({
   people,
 }: {
   readonly createdAt: string
-  readonly createdBy: string
+  readonly createdBy: string | null
   readonly completedAt: string | null
   readonly completedBy: string | null
   readonly people: PeopleIndex
