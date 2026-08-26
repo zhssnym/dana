@@ -121,6 +121,7 @@ import {
   UsersRound,
 } from '../lib/icons.js'
 
+import { DanaMark } from '../components/dana-mark.js'
 import { FolderRow } from '../components/folder-row.js'
 import { useHelpSheet } from '../components/help-sheet.js'
 import { Button } from '../components/ui/button.js'
@@ -1019,11 +1020,12 @@ function SidebarBrandHeader({
           to={paths.desk}
           className="flex min-w-0 items-center gap-3 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         >
-          <img
-            src="/dana-mark.svg"
-            alt=""
-            className="size-7 shrink-0 group-data-[collapsible=icon]:size-6"
-          />
+          {/* Drawn rather than fetched at S21 (ledger L-141, AC-265), and the
+              same call `app-sidebar.tsx:157` makes in the prototype. This is
+              the one of the five a person sees all day, and it plays on the
+              hover of the link it sits in rather than of itself, which is why
+              the wordmark beside it triggers the same sweep. */}
+          <DanaMark className="size-7 group-data-[collapsible=icon]:size-6" />
           <span className="truncate text-base font-semibold text-[var(--color-graphite-900)] group-data-[collapsible=icon]:hidden">
             Dana
           </span>
