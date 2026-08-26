@@ -380,6 +380,26 @@ export function SearchOverlay(): React.JSX.Element {
   )
 
   function close(): void {
+    /*
+    The input gives up focus before the dialog starts closing, and that is a
+    correctness fix rather than tidiness.
+
+    `shell/overlays.ts` refuses the "/" shortcut while the event's target is an
+    input, which is right: a person typing a path into a field is not asking
+    for the search overlay. But the dialog unmounts on a 200 ms exit
+    transition, so between `setOpen(false)` and the popup leaving the document
+    the input is still there and still focused, and a "/" pressed in that
+    window is swallowed by a control that is on its way out. The overlay then
+    does not reopen, which is exactly what a person pressing escape and then
+    "/" quickly would meet.
+
+    Found by CI rather than locally: run 32952559525's Playwright step failed
+    AC-156's second shortcut while the same case passed on this machine, and
+    the window widened at S17b because the overlay now renders content in its
+    pre-typed state where it used to render an empty box. The race was always
+    there; this package made it likely enough for a slower machine to lose.
+    */
+    input.current?.blur()
     setOpen(false)
     setTyped('')
     setDebounced('')
