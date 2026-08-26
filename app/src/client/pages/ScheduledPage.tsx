@@ -38,6 +38,7 @@ import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
+import { CompletedFoot } from '../states/CompletedFoot.js'
 import { PageBody } from '../states/PageStates.js'
 import { PLANNED_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
@@ -140,6 +141,19 @@ export function ScheduledPage(): React.JSX.Element {
               }}
             />
           )}
+
+          {/* The owner's ruling of 2026-08-22, and `prototype-v2`'s
+              planned-screen answering the objection to it in its own words:
+              "Spec Q3 keeps completed rows out of the *list*, and this is a
+              section under it rather than rows in it, so the ordering rule is
+              untouched." The predicate is Q3's spine, having a date, so a
+              finished undated task belongs to another page's foot. */}
+          <CompletedFoot
+            keep={(task) => task.due_date !== null}
+            context={context}
+            actions={actions}
+            onAsk={confirm.ask}
+          />
         </div>
       )}
 

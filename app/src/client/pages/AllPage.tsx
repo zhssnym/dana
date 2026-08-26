@@ -30,13 +30,12 @@ page as Q2's rows *ungrouped*. Each is followed where it is the authority.
 sections each in folders. Returning Group by to Nothing gives the two halves
 back untouched.
 */
-import { useState } from 'react'
 
 import { CalendarDays, Layers3, ListTodo } from '../lib/icons.js'
 
 import type { GetTasksViewResponse } from '../../shared/views.js'
-import { useAllView, useDoneView, useMultiMemberFolderIds } from '../api/queries.js'
-import { mergeCompletedDays } from '../api/queries.js'
+import { useAllView, useMultiMemberFolderIds } from '../api/queries.js'
+
 import { QuickAdd } from '../components/quick-add.js'
 import { folderMark } from '../parts/presenters.js'
 import type { Folder } from '../../shared/folders.js'
@@ -48,7 +47,8 @@ import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, usePlace } from '../views/usePlace.js'
 import type { Place } from '../views/usePlace.js'
-import { CollapsibleSection, PageSection } from '../states/PageSection.js'
+import { CompletedFoot } from '../states/CompletedFoot.js'
+import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import type { PageQueryState } from '../states/PageStates.js'
 import { ALL_EMPTY } from './empty-states.js'
@@ -180,8 +180,6 @@ export function AllPage(): React.JSX.Element {
   const confirm = useConfirm()
   const basis = useRowBasis()
   const multiMemberFolderIds = useMultiMemberFolderIds()
-  const [completedOpen, setCompletedOpen] = useState(false)
-  const completed = useDoneView(completedOpen)
   const data = view.data
 
   const planned = data?.planned ?? []
@@ -212,7 +210,6 @@ export function AllPage(): React.JSX.Element {
           truncated: data.truncated,
         }
 
-  const completedDays = mergeCompletedDays(completed.data?.pages)
 
   return (
     <div className="space-y-7">
@@ -306,25 +303,19 @@ export function AllPage(): React.JSX.Element {
           )}
 
           {/* 9.5: "with completed work carried in a collapsed section at the
-              foot". Q6's rows, not fetched until the section is opened. */}
-          <CollapsibleSection
-            name="Completed"
-            defaultOpen={false}
-            onOpenChange={setCompletedOpen}
-          >
-            <div className="space-y-6">
-              {completedDays.map((day) => (
-                <PageSection key={day.date} name={day.date}>
-                  <TaskRows
-                    tasks={day.rows}
-                    context={{ ...basis, multiMemberFolderIds }}
-                    actions={actions}
-                    onAsk={confirm.ask}
-                  />
-                </PageSection>
-              ))}
-            </div>
-          </CollapsibleSection>
+              foot". Q6's rows, not fetched until the section is opened.
+
+              Written inline here until S17b, when Important and Scheduled were
+              about to acquire a fourth and a fifth copy of it and the shared
+              one was extracted instead. This page passes no predicate, which
+              is the case `CompletedFoot` records as the reason the predicate
+              is optional at all: Q5's union is the whole account, so All's
+              foot is Q6 unnarrowed and a filter here would remove nothing. */}
+          <CompletedFoot
+            context={{ ...basis, multiMemberFolderIds }}
+            actions={actions}
+            onAsk={confirm.ask}
+          />
         </div>
       </PageBody>
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />

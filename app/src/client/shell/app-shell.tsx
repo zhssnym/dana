@@ -55,6 +55,7 @@ import type { CSSProperties } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 /* The icon module of DES-125, since S8: every icon Dana uses is an export
    of one file and nothing imports `lucide-react` directly. */
+import { adoptClock } from '../lib/time-format.js'
 import type { LucideIcon } from '../lib/icons.js'
 import {
   Ban,
@@ -103,6 +104,7 @@ import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { undoLast, undoShortcutApplies } from './undo.js'
 import { UndoBar } from './UndoBar.js'
+import { useAppearance } from './appearance.js'
 import { openSearch } from './overlays.js'
 import { useRightEdge } from './right-edge.js'
 import { TabStrip } from './TabStrip.js'
@@ -299,6 +301,23 @@ export function AppShell(): React.JSX.Element {
   /* What an open right-edge panel has reserved (DES-154, DES-186). Zero when
      nothing is open, which is almost always. */
   const rightEdge = useRightEdge()
+  /*
+  9.7's Appearance, applied to the document (RFC 0005 change control item 30).
+  4.19's own defaults stand in while the bundle read is in flight, so the first
+  paint is the light comfortable one a fresh account has rather than an
+  unstyled one that corrects itself a moment later.
+  */
+  useAppearance(bundle.data?.theme ?? 'system', bundle.data?.row_density ?? 'comfortable')
+  /*
+  And the clock, which is read at its call sites rather than off the document:
+  `lib/time-format.ts` is the one place a time becomes words, so the account's
+  value is written into that store when the bundle settles and every surface
+  that draws a time follows without being threaded anything.
+  */
+  const clockPreference = bundle.data?.clock
+  useEffect(() => {
+    if (clockPreference !== undefined) adoptClock(clockPreference)
+  }, [clockPreference])
   /* The remembered view, unresolved: every mode is passed as offered so this
      reads the store rather than a page's answer to it, and floatingDefaults
      resolves it against the page it is actually on. */
