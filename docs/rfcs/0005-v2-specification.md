@@ -1696,6 +1696,43 @@ fold, the way P7's mid-package change control ratified the pass callable:
     this role's own reading of when "goes live" was satisfied is exactly the
     interpretation a Steward does not make unilaterally.
 
+22. **The plan extends past S14 with six rows, on Imran's parity ruling
+    (2026-08-25).** Relayed by the S14 session in his words: prototype-v2 is
+    his source of truth and every feature and frontend interaction designed
+    in it must be the same in Dana v2. **Recorded as relayed rather than as
+    read from an artifact**, which is this role's standard for a ruling it
+    did not receive directly. It is consistent with item 19 and extends it
+    from "the client matches the v2 prototype" to the whole gap rather than
+    a subset; if the relay is wrong the rows below are wrong with it, and
+    Imran should say so.
+
+    RFC 0004 gains S15 to S19 and S-fold, drafted by the S14 session and
+    landed here with this role's own additions. They are numbered after S14
+    because they were unforeseen, not because they follow the release:
+    **2.0.0 ships after them.** All take their source from
+    `docs/design/prototype-v2/` per 11.13 as item 20 amended it, and mobile
+    stays out under section 13 item 32.
+
+    Two things this role checked rather than transcribed. **The S16 legal
+    routes are a live production defect and the brief described them
+    imprecisely.** They were relayed as "live-404"; verified against dana.so
+    on 2026-08-25, `/privacy` and `/terms` both answer **200**, because the
+    SPA fallback serves `index.html` and the client, which defines neither
+    route, then renders its not-found page. The distinction is not pedantry:
+    a monitor or a criterion written against a 404 will call these healthy
+    forever. The footer linking to them is `LandingPage.tsx:951` and `:957`,
+    on the landing page dana.so serves today, and Google's OAuth consent
+    configuration and 8.10's deletion policy text both need those
+    destinations to exist. Second, every prototype-v2 source the rows name
+    was confirmed present, screens and components alike, so no row points at
+    a file that is not there.
+
+    S19 is entered **blocked rather than scheduled**, DES-034 being open in
+    the design contract: its bodies and destinations need Imran or the
+    designer first. S-fold is entered unsequenced because it gates nothing,
+    but it is the item most likely to cause the next item 20, sessions still
+    reading a section 9 that is wholly v1 text.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
