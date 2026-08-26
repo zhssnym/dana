@@ -167,8 +167,8 @@ protocol points here rather than repeating them.
   11.10 carries the CREATE DATABASE statement, the reasoning, and the two checks
   that prove the two legs agree. Never point `TEST_DATABASE_URL` at a database that
   inherited the cluster default. The string authenticates as `dana_ci`, never the
-  superuser, and lives in the runner installation's `.env` and in a gitignored
-  `app/.env`; it is never committed and never stored as a GitHub secret (11.11).
+  superuser, and lives in the runner installation's `.env` and in `app/.env`, which
+  is committed (see the last bullet) and is never stored as a GitHub secret (11.11).
 - CI runs on a self-hosted GitHub Actions runner on this machine (spec 11.11), so
   there is no CI while the machine is off or the runner service is stopped: a pushed
   branch simply has no verdict until then, rather than failing. Hosted runs stopped
@@ -186,7 +186,16 @@ protocol points here rather than repeating them.
 - `DANA_DEV_LOGIN=1` enables `POST /api/v1/auth/dev-login` for sessions without
   Google credentials. It is absent from production builds regardless of environment
   variables.
-- Never commit `.data/` (the local PGlite directory) or any `.env` file.
+- Never commit `.data/`, the local PGlite directory. **`app/.env` is committed, and
+  deliberately so**, on the owner's ruling of 2026-08-25: this repository is private
+  with two collaborators, and one shared working config is worth more to them than
+  each machine rebuilding one from `app/.env.example`. Two consequences follow and
+  neither is optional. The repository's privacy is now the only thing standing
+  between live credentials and the world, so it stays private, and a credential that
+  leaves it is rotated rather than argued about. And the file is an ordinary tracked
+  file, so a branch that drops it deletes it from the working tree of every machine
+  that checks that branch out; this was measured on the day the ruling landed, when
+  switching from `main` to a branch without it removed the operator's own copy.
 
 ## Architecture in brief
 
