@@ -5,8 +5,21 @@ tester, not by a builder: send it as the invite email, or put it behind a link
 in one. It deliberately contains no tour of the interface — see
 `beta-coverage.md` for why.*
 
-*One value needs filling before this goes out: the feedback address, marked
-`<FEEDBACK ADDRESS>` below.*
+*Two things are unresolved before this goes out.*
+
+*One, the feedback address, marked `<FEEDBACK ADDRESS>` below, needs a real
+value.*
+
+*Two, the line "Dana needs a connection. It does not work offline" is wrong as
+written and needs Imran to choose its replacement. Checked against AC-091 at
+the S19 close: "given one prior online load, when the installed app opens
+offline, then the shell renders with the offline banner and a write attempt
+shows the failure toast with nothing queued". So Dana does open offline and
+says so; what fails is writing. A tester told it does not work offline will
+either report the banner as a bug or, worse, not report a genuine offline
+defect because they were told the case was unsupported. The accurate shape is
+that it opens offline and tells you, and nothing can be added or changed until
+the connection is back.*
 
 ---
 
