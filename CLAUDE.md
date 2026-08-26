@@ -108,6 +108,27 @@ protocol points here rather than repeating them.
   rather than invented into a failure. It is proven both ways against the two
   real runs of that day. Pass vitest flags after `--`, as in
   `npm test -- --maxWorkers=2 tests/some-file.test.ts`.
+- **A piped `npm test` has no exit code worth reading, whatever the suite did.**
+  This shell runs with `pipefail` off, measured 2026-08-26: `(exit 7) | tail -1`
+  answers 0 while `(exit 7)` answers 7. So `npm test 2>&1 | tail -N`, which is
+  how a session usually runs it, yields tail's status and the run-suite guard's
+  non-zero can never reach the caller. This is a **second and independent
+  reason** for the instruction above to read the file count rather than the exit
+  code, and it bites earlier than the worker-fork one: piped, there is no
+  meaningful code to read at all, and no fork has to die for that to be true.
+  Run the leg unpiped when the code is what you intend to trust.
+- **`git fetch origin <branch>` does not update `refs/remotes/origin/<branch>`
+  here, and the stale ref reads as other people's work being unpushed.** It
+  caught two sessions independently on the evening of 2026-08-26. One fetched,
+  read `origin/v2-build` three merges behind its true head, and was composing a
+  message to the owner saying three packages had never been pushed; the other
+  told a peer a branch head that was already stale when it said it. The failure
+  is alarming in the direction that makes a session act, which is what makes it
+  worth a bullet. Two commands settle it: `git ls-remote --heads origin <branch>`
+  reads the remote itself and is the authority, and
+  `git fetch origin <branch>:refs/remotes/origin/<branch>` updates the local ref
+  so `git merge --ff-only origin/<branch>` is then safe. Read the remote before
+  believing anything about what is or is not published.
 - Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
   arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
