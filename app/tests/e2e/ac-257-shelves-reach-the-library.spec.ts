@@ -1,5 +1,5 @@
 /*
-AC-251: given a shelf created through 7.16, then the Library lists it after a
+AC-257: given a shelf created through 7.16, then the Library lists it after a
 full reload as a group headed by that shelf's name, that heading is a link to
 the shelf's own page, and the tab strip's "New tab" menu offers it beside the
 folders; and given a shelf no folder has yet been put on, then the Library
@@ -111,7 +111,7 @@ async function build(page: Page): Promise<Fixture> {
   }
 }
 
-test.describe('AC-251: a shelf reaches the Library', () => {
+test.describe('AC-257: a shelf reaches the Library', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -125,7 +125,7 @@ test.describe('AC-251: a shelf reaches the Library', () => {
     await deleteFolder(page, fixture.folderId)
   })
 
-  test('AC-251: a shelf is in the Library after a full reload', async ({ page }) => {
+  test('AC-257: a shelf is in the Library after a full reload', async ({ page }) => {
     /* Desk rather than the shelf's own page, and then a reload, which is the
        state `shelvesWanted` does not cover: no shelf route is open and no
        shelf tab is either, so a client that only has shelves in hand while it
@@ -149,7 +149,7 @@ test.describe('AC-251: a shelf reaches the Library', () => {
     ).toBeVisible()
   })
 
-  test('AC-251: the shelf heading is a link to the shelf\'s own page and still folds', async ({
+  test('AC-257: the shelf heading is a link to the shelf\'s own page and still folds', async ({
     page,
   }) => {
     await page.goto(routesV2.desk)
@@ -177,7 +177,7 @@ test.describe('AC-251: a shelf reaches the Library', () => {
     ).toBeVisible()
   })
 
-  test('AC-251: a shelf holding no folders is listed too', async ({ page }) => {
+  test('AC-257: a shelf holding no folders is listed too', async ({ page }) => {
     await page.goto(routesV2.desk)
     await page.reload()
 
@@ -191,7 +191,7 @@ test.describe('AC-251: a shelf reaches the Library', () => {
     ).toBeVisible()
   })
 
-  test('AC-251: the strip\'s New tab menu offers the shelf', async ({ page }) => {
+  test('AC-257: the strip\'s New tab menu offers the shelf', async ({ page }) => {
     await page.goto(routesV2.desk)
     await page.reload()
 

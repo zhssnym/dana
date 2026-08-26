@@ -113,7 +113,7 @@ export function TaskBoard({
     cards actually does.
 
     **This is the shared board and every place page draws it**, so the change
-    is deliberately not scoped to the folder page that prompted it; AC-253
+    is deliberately not scoped to the folder page that prompted it; AC-259
     reads the geometry on Anytime and on a folder page for that reason. What
     the drag engine sees is unchanged: `lib/drop-zones.ts` hit-tests the
     document rather than a layout, so a column that has wrapped onto the

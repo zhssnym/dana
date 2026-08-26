@@ -157,6 +157,7 @@ const claimDueReminders = sql`
          t.title,
          to_char(t.due_date, 'YYYY-MM-DD') AS due_date,
          to_char(t.due_time, 'HH24:MI') AS due_time,
+         fo.name AS folder_name,
          u.email AS assignee_email,
          now() - r.fire_at > ${STALE_WINDOW}::interval AS stale
     FROM reminders r
@@ -210,6 +211,10 @@ function reminderMessage(row: Record<string, unknown>): OutboundMessage {
       title: String(row.title),
       dueDate: String(row.due_date),
       dueTime: text(row.due_time),
+      // The claim already joins folders to enforce 8.6's deleted-folder
+      // skip, so the context line item 32 rules for this template costs no
+      // read of its own.
+      folderName: String(row.folder_name),
     },
   }
 }

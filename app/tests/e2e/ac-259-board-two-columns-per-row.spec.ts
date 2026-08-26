@@ -1,5 +1,5 @@
 /*
-AC-253: given the board on a place page and the board on a folder page, then
+AC-259: given the board on a place page and the board on a folder page, then
 the columns are laid two to a row, so with three columns the third stands
 below the first rather than to the right of the second; and given a folder
 page, then it carries the view strip of 9.1 and choosing Board there draws
@@ -212,7 +212,7 @@ function expectTwoPerRow(
   ).toBeGreaterThan(1)
 }
 
-test.describe('AC-253: the board is two columns per row', () => {
+test.describe('AC-259: the board is two columns per row', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -224,7 +224,7 @@ test.describe('AC-253: the board is two columns per row', () => {
     for (const folder of fixture.folders) await deleteFolder(page, folder.id)
   })
 
-  test('AC-253: a place page\'s board wraps at two', async ({ page }) => {
+  test('AC-259: a place page\'s board wraps at two', async ({ page }) => {
     await page.goto(routesV2.anytime)
     await board(page, /Folder/i)
 
@@ -234,7 +234,7 @@ test.describe('AC-253: the board is two columns per row', () => {
     )
   })
 
-  test('AC-253: the folder page carries the view strip', async ({ page }) => {
+  test('AC-259: the folder page carries the view strip', async ({ page }) => {
     await page.goto(routesV2.folder(fixture.hostId))
 
     await expect(
@@ -257,7 +257,7 @@ test.describe('AC-253: the board is two columns per row', () => {
     ).toBeVisible()
   })
 
-  test('AC-253: the folder page\'s board is the same board', async ({ page }) => {
+  test('AC-259: the folder page\'s board is the same board', async ({ page }) => {
     await page.goto(routesV2.folder(fixture.hostId))
     await board(page, /^Date$/)
 

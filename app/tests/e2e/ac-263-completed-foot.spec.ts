@@ -1,5 +1,5 @@
 /*
-AC-257: given Important and given Scheduled, then each closes with a collapsed
+AC-263: given Important and given Scheduled, then each closes with a collapsed
 Completed section in the grammar the folder page's already uses; and given a
 completed task the viewer has starred, then Important's section lists it while
 a completed task with no star is absent from it, the foot being the page's own
@@ -107,7 +107,7 @@ function completedControl(page: Page) {
   return page.getByRole('button', { name: /^Completed/ }).first()
 }
 
-test.describe('AC-257: a completed foot closes Important and Scheduled', () => {
+test.describe('AC-263: a completed foot closes Important and Scheduled', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -124,7 +124,7 @@ test.describe('AC-257: a completed foot closes Important and Scheduled', () => {
     ['Important', routesV2.important],
     ['Scheduled', routesV2.scheduled],
   ] as const) {
-    test(`AC-257: ${name} closes with a collapsed Completed section`, async ({ page }) => {
+    test(`AC-263: ${name} closes with a collapsed Completed section`, async ({ page }) => {
       await page.goto(path)
 
       const control = completedControl(page)
@@ -148,7 +148,7 @@ test.describe('AC-257: a completed foot closes Important and Scheduled', () => {
     })
   }
 
-  test('AC-257: Important\'s foot is its own work finished, not every finished thing', async ({
+  test('AC-263: Important\'s foot is its own work finished, not every finished thing', async ({
     page,
   }) => {
     await page.goto(routesV2.important)
@@ -168,7 +168,7 @@ test.describe('AC-257: a completed foot closes Important and Scheduled', () => {
     ).toHaveCount(0)
   })
 
-  test('AC-257: Scheduled\'s foot carries dated work and Q3\'s list is untouched', async ({
+  test('AC-263: Scheduled\'s foot carries dated work and Q3\'s list is untouched', async ({
     page,
   }) => {
     await page.goto(routesV2.scheduled)
