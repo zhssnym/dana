@@ -191,3 +191,125 @@ migration discipline all survive and are extended, never rewritten. The
 prototype ships nothing: no fixture, no name-keyed store, no pattern from
 `fixtures.ts` arrives in `app/` (11.15's new hazard rows exist because that
 sentence needed a place to bite).
+
+
+## The prototype lift: S20 to S30, added 2026-08-26 on the owner's ruling (RFC 0005 change control item 37)
+
+**The ruling.** Imran reviewed the deploy at dana.so serving `4dbe6fb`, the
+tree carrying every parity row S15 to S17b closed, and ruled on 2026-08-26:
+Dana 2.0 is the exact `prototype-v2`, the front end, the interactions, the
+rules, and almost everything, not a client that resembles it. His own words
+at the review: it is not one thing, it is the drag of tasks and sidebar
+items, the tab strip, the animated mark, the dark mode, the task row, a
+shelf's page, the thread inside a task, and decisions in the tens and
+hundreds that the prototype records and the client does not carry.
+
+**Why the patch strategy is superseded rather than extended.** It has now
+missed the same target twice with a recorded mechanism both times. Change
+control item 20 found the first: no artifact ever named `prototype-v2/`, so
+S8 to S13 built the client from the v1 prototype while reading the rulebook
+correctly, and S14's checkpoint showed the owner a client that was never
+being built from his design. The parity audit and S15 to S17b then closed
+what that audit measured, and the audit measured 31 surfaces for appearance
+and structure, so the second checkpoint showed him surfaces that match and
+behaviour that does not: a surface audit marks a task card ported without
+ever noticing that the prototype's card carries a comment thread. 11.13's
+own sentence is the deeper mechanism, a design decision reaches Dana only by
+being read into a numbered section, so every prototype decision that never
+reached a section was never handed to any session and was never going to be
+built. Patching fixes what the last instrument measured. The target is the
+prototype itself, so the instrument must be the prototype itself.
+
+**The strategy: lift, do not re-derive.** `app/src/client` is replaced by
+`prototype-v2`'s own code, surface by surface, bound to the existing API
+through an adapter seam. Measured before this was written rather than
+assumed: the prototype's coupling to its fixtures is concentrated, not
+spread. Its components import a small set of named lib modules,
+`task-writer`, `folder-library`, `people-library`, `task-acts`, and navigate
+by query parameters; the markup, classes, pickers, drags and animations
+touch no data directly. So the seam is those modules rewritten over the
+query layer, plus one navigation adapter mapping the prototype's parameter
+navigation onto 9.1's router paths, and the component files themselves cross
+verbatim. **The lift discipline, binding on every session in this table: a
+lifted file diffs empty against its prototype original except at named
+seams, and every seam carries a comment saying which adapter it crosses and
+why.** A session that finds itself rewriting a component's body has left the
+strategy and found an escalation.
+
+**What survives, because it was never the problem.** The server whole:
+sections 4 and 7 frozen and untouched, the 10.2 chokepoint, auth, the
+scheduler, the notify module, the migrations. And the client's plumbing
+ring: the API client and query layer under `api/`, the auth glue, the
+service worker and manifest, observability, and the route table's paths,
+which are 9.1's rather than the v1 client's. What retires is what was built
+from the wrong source: the shell, the pages, the task components, and every
+part whose shape came from the v1 prototype.
+
+**One sentence of this RFC is amended by this section.** The close below
+reads "The prototype ships nothing: no fixture, no name-keyed store, no
+pattern from `fixtures.ts` arrives in `app/`". Its fixture half stands
+unchanged and is restated here: no fixture data, no name-keyed store, and
+nothing of `fixtures.ts` crosses. Its code half is superseded by item 20's
+own ruling, made before this one: the directory it guarded against is the
+named source the client is built from, and from this section on it is built
+from it literally.
+
+**Conflicts between the prototype and a numbered section are batched, not
+scattered.** 11.13 stands: the section wins until amended, and amending it
+is the resolution, the shape item 26 gave 10.7 and item 32 gave the emails.
+S20's ledger collects every such conflict into one rulings sheet for one
+sitting with Imran, whose standing direction this section records: sections
+amend toward the prototype, except frozen sections 4 and 7, which are ruled
+one by one and never assumed. No session argues a conflict inline.
+
+**Criteria are the expensive half and are priced in, not discovered.** The
+browser leg holds about 223 cases asserting the current client. S20 triages
+every one into three piles: asserts the spec and survives the lift, asserts
+a v1-derived shape and is reworked red first by persona 11 in the package
+that lifts its surface, or asserts a retired surface and is retired with it.
+Nothing is weakened silently, item 8's discipline, and acceptance numbers
+are read from section 12 and `app/tests/` at each session's opening and
+merge, the check items 13 and 25 exist for. Next free at this writing:
+AC-265, SESSION-LOG row 34.
+
+**Continuous acceptance is the checkpoint fix.** Render deploys `v2-build`
+directly during this arm, so every merged package is reviewable at dana.so
+the same day, and the owner reviews surfaces as they land rather than
+meeting the whole at a third checkpoint. The release act at S30 points
+Render back at `main`.
+
+**The owner's own list from the 2026-08-26 review, carried here so no item
+of it is lost to a ledger.** S20 must account for each by name: the v2 task
+row and its two shapes (DES-113), the thread inside a task, a shelf's page,
+the tab strip's fidelity, task drag and sidebar drag as the prototype does
+them, the animated mark, dark mode quality, and pixel fidelity throughout.
+Row 33's residue joins them: Assignments' from half and the created-by
+filter axis, both unblocked by S18, and the conversation's attachments.
+
+| # | What | Depends on | Owner | Acceptance |
+| - | - | - | - | - |
+| S20 | The behavioural ledger and the criteria triage. Walk every `prototype-v2` screen and component and enumerate every capability, interaction and decision each implies; three verdict columns per entry: in the client, in a numbered section, asserted by a criterion. Absorb the owner's named list and row 33's residue. Produce the batched rulings sheet for the unspecified and the conflicting. Persona 11 triages the browser criteria into survives, rework, retire, per surface | none | `07-frontend-architect.md` for the ledger, `11-adversarial-test.md` for the triage, `12-integration-steward.md` ratifies into `docs/parity/` | Every prototype screen and component appears by name; every unspecified decision is on the rulings sheet; the owner's list is accounted for item by item; the triage covers every browser case |
+| S21 | The foundation lift: tokens and the dark theme reconciled against `prototype-v2`'s values in the 11.4 file, the animated `dana-mark`, the motion constants, the ui primitives diff, `row-density`, `folder-mark`, `person-face`, `icon-action` | S20 | `08-component-and-design-system.md`, criteria from `11-adversarial-test.md` where the triage moved any | Dark mode matches the prototype on every lifted surface; the mark animates; the token diff against the prototype is vocabulary only, the 11.13 standard |
+| S22 | The adapter seam: `task-writer` over the mutation layer, `folder-library`, `people-library`, `task-acts`, the navigation adapter from parameter navigation onto 9.1's paths, and the mapping between the prototype's task shape and the shared `TaskCard`. Proof: one prototype screen runs end to end on real data with its component file unmodified | S21 | `07-frontend-architect.md` | The proof screen's lifted files diff empty against the prototype except imports; every adapter carries the seam comment |
+| S23 | The task surface lift: `task-row`, `task-card`, `task-surface`, `task-pickers`, `task-board`, `task-section`, verbatim, task drag riding the code; the current row and card retire in the same act | S22 | `09-complex-interaction.md`, criteria first from `11-adversarial-test.md` | DES-113's two row shapes; the card carries its thread mount; the triage's rework pile for this surface is red first, then green |
+| S24 | The shell lift: `app-shell`, the sidebar with DES-171's drag, the tab strip, the window bar, the Library and groups, the undo bar, `right-edge` | S22 | `07-frontend-architect.md`, criteria from `11-adversarial-test.md` | The tab strip and drags behave as the prototype's do; the shell criteria rework pile closes |
+| S25 | The places lift: Desk, Today, Scheduled with the calendar, Assignments including its from half, Important, All, Done, Anytime, Abandoned; `page-head`, the filter, saved views, the boards | S23, S24 | `07-frontend-architect.md`, the calendar under `09-complex-interaction.md`, criteria from `11-adversarial-test.md` | Each page against its prototype screen; the created-by axis lands |
+| S26 | The folder page and the conversation lift: blocks and the page editor, covers and images, the sharing panel, the history sheet, comments including the thread inside a task and its attachments, the notifications bell | S23, S24 | `07-frontend-architect.md` and `09-complex-interaction.md` by surface, criteria from `11-adversarial-test.md` | The thread mounts on a task; the folder page against its prototype screen |
+| S27 | The remainder lift: the shelf page including whatever S20's rulings decide a shelf's page is, the search overlay, Settings including Appearance, the Trash page, onboarding touches | S24, S25 | `07-frontend-architect.md` and `09-complex-interaction.md` by surface, criteria from `11-adversarial-test.md` | Each against its prototype screen, or carried with a numbered exemption per 11.13 |
+| S28 | Change control item 36 enacted, with the owner's folder-deletion prompts of 2026-08-26: the frozen 7.13 address as a Replace unit by role 04 through the Steward before any code, the transaction by role 03, the purge's own object collection called by role 10, the Trash control and the owner's leave-or-delete dialog by role 07, criteria first from role 11; the shared-folder permission question item 36 leaves open is obtained from Imran before the criterion pinning it is written | S27; the rulings sitting | `11-adversarial-test.md`, then `04-api-and-contract.md`, `03-collaboration-and-permissions.md`, `10-platform.md`, `07-frontend-architect.md` in sequence | Item 36's requirement holds: the endpoint calls the purge's collection; AC-262's last arm moves in the amendment's own commit, red first |
+| S29 | The spec fold to v2: `01-scope.md` rewritten whole, the v1-name debt audited across all thirteen sections, 8.8's "nothing is recoverable" contradiction first, the glossary last | S20; runs parallel to S21 onward | `12-integration-steward.md` | No section states a v1 behaviour v2 retired; frozen 4 and 7 annotated rather than rewritten |
+| S30 | The close: a fresh walkthrough against S20's ledger, item 31's visual review by Imran against the running dana.so, release 2.0.0: version, CHANGELOG, merge to `main`, Render pointed back at `main`, the 11.11 smoke subset | everything above | `12-integration-steward.md`, then Imran | The ledger reads closed or exempted on every line; the review is his; dana.so serves the release from `main` |
+
+**Critical path**: S20, then S21, then S22, then S23 and S24 in either
+order, then S25 and S26, then S27, then S28, then S30. S29 runs beside
+anything after S20. S-inf is unchanged and hard-dated: the purchases on
+2026-09-10 or 2026-09-11, before the database expiry of 2026-09-12, and the
+always-on instance is worth buying early because the spin-down is visible to
+every reviewer of this arm's continuous deploys.
+
+**One package per chat, unchanged.** Each session opens with the protocol,
+its persona files, this table's row, and S20's ledger once it exists. The
+machine notes live in CLAUDE.md and bind every session here: worktrees at
+dot-free paths, one browser leg at a time on an owned port, numbers read at
+opening and merge, and no push to `v2-build` while another session's run is
+in flight, the clearance distinction row 33 records.
