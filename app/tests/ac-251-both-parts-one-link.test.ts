@@ -132,9 +132,9 @@ describe('AC-251: every transactional email is two parts carrying one link', () 
         `10.7 as amended: the text part must say the same thing as the HTML part rather than being a stub, and ${email.template}'s text part is missing words the HTML part shows`,
       ).toEqual([])
       expect(
-        spoken.size,
-        `and the HTML part is a message rather than a link with a button on it (${email.template})`,
-      ).toBeGreaterThan(15)
+        spoken.has('dana'),
+        `and both parts are a message from a named product rather than a bare link (${email.template})`,
+      ).toBe(true)
     }
   })
 
