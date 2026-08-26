@@ -2139,6 +2139,73 @@ fold, the way P7's mid-package change control ratified the pass callable:
     naming what it includes silently orphans the remainder**, and the guard
     is to name what a row is *not* taking whenever it takes part of a
     numbered section.
+30. **S16's route-table reading is upheld with a stronger reason, and 9.7's
+    Appearance section is assigned (Integration Steward, 2026-08-25).** Two
+    answers to the S16 session. Numbered 30 because that session holds 29 on
+    an unpushed branch; if these land out of order, that is why.
+
+    **`/privacy` and `/terms` correctly have no row in 9.1's route table, and
+    adding one would be a defect rather than a tidy-up.** S16 kept them out
+    on the S10 saved-views precedent and asked to be corrected if that was
+    wrong. It was right, and the reason is stronger than the precedent it
+    used: F-8's ruling, now AC-239, sends **any** unauthenticated read of an
+    `/app` route to `/`. A privacy policy is read overwhelmingly by people
+    who are not signed in, and Google's OAuth consent configuration fetches
+    it with no session at all. Putting those two paths in the application's
+    table would make that redirect bounce precisely the audience they exist
+    for, breaking the obligation S16 was built to satisfy in the act of
+    satisfying it. They are the landing's neighbours, 9.2 names them, and
+    they stay outside `/app`. Verified rather than assumed: section 9
+    mentions them only in 9.2 and never in 9.1's table.
+
+    **9.7's Appearance section, and the Account storage line, are assigned to
+    S17b.** The S16 session found them owned by nobody and was right to stop
+    rather than absorb them: 9.7 names five sections, that package's scope
+    was the Views pin list, and neither S17a nor S17b named the rest.
+    Verified here: the 4.19 bundle carries `theme`, `density`, `clock` and
+    `task_open`, all four stored since S7, while `SettingsPage.tsx` renders
+    Pages, Account and Danger zone with **no Appearance section and no
+    control for any of the four**. The client therefore persists four
+    preferences a person has no way to set.
+
+    This is item 9's and item 20's shape a third time, one level down: a
+    thing section 9 names, that a package's scope excluded, that no later row
+    picked up. Recorded as a pattern rather than an incident, because three
+    occurrences is where it stops being bad luck: **scoping a package by
+    naming what it includes silently orphans the remainder.** The cheap guard
+    for whoever writes the next plan row is to name what a row is *not*
+    taking whenever it takes part of a numbered section.
+
+31. **The visual review is deferred until S17 closes, on Imran's ruling of
+    2026-08-25, and this changes when it happens rather than whether.** He
+    opened both surfaces side by side, the prototype at its own server and
+    the built client at the dev server, and ruled that the application is
+    "way way different" from prototype-v2 and that reviewing now is not
+    worth doing. Item 19's sentence stands unaltered: the review is his, it
+    happens rather than being waived, and it precedes release. What is new
+    is its position, which is now **after S17b** rather than anywhere in
+    S14's clause.
+
+    **The reasoning is the parity audit's own numbers, and the deferral is
+    the correct reading of them.** That file measures 5 surfaces V1-ERA or
+    MISSING and 12 PARTIAL against 14 PORTED, and its "five gaps that most
+    change what a person sees on first open" are all still open: the task
+    row and card, the six place-page heads, folder identity not travelling,
+    search finding only tasks, and the folder page's missing board. A review
+    against that state would spend the owner's judgement re-finding defects
+    already written down, which is the one thing a list of known defects
+    exists to prevent. The review's value is what the audit could not see,
+    because the audit was produced by reading files rather than by looking,
+    and that value is only available once the known gaps are shut.
+
+    Recorded so no session asks him for it early: **S14's release clause
+    cannot close on the visual review until S17b is done**, and any package
+    that finds itself blocked on that line should read this item rather than
+    escalating. The practical arrangement is also recorded because it cost
+    an hour to rediscover: the review is done locally against both servers,
+    never against dana.so, which serves `main` and was seventeen commits
+    behind `v2-build` on the day this was written, lacking S15's card
+    entirely.
 
 ## Implementation plan
 
