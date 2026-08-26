@@ -2755,6 +2755,49 @@ fold, the way P7's mid-package change control ratified the pass callable:
     the answer rather than choose one**, and the criterion that pins it cannot
     be written until it has.
 
+37. **Dana 2.0 is the exact `prototype-v2`, and the client arm is replanned
+    as a lift rather than a patch, on Imran's ruling of 2026-08-26 (recorded
+    from his direct instruction in the S19 session's chat, item 32's shape,
+    because the ruling reached a session in conversation and nowhere
+    else).** He reviewed dana.so serving `4dbe6fb`, the tree carrying every
+    parity row S15 to S17b closed, and found the gap behavioural rather
+    than visual: the v1-era task row, no thread inside a task, no shelf
+    page, the tab strip, the drags, the static mark, the dark mode, and by
+    his own estimate decisions in the tens and hundreds that the prototype
+    records and the client does not carry. His words: the exact prototype
+    v2, front end, interactions, rules, and almost everything, as the final
+    Dana v2.0.
+
+    **The plan is RFC 0004's new section, "The prototype lift: S20 to
+    S30"**, added with this item, and that table is the authority on the
+    packages, their order and their owners, exactly as it is for every
+    earlier row. This item records what the plan supersedes and why, so the
+    strategy change has a reason a later reader can check rather than a
+    table that silently grew.
+
+    **What is superseded is the patch strategy, not the patches.** S15 to
+    S17b's work stands and their criteria stay green; what ends is the
+    approach of correcting the built client toward the prototype surface by
+    surface. It missed the same target at two checkpoints with a recorded
+    mechanism both times: item 20's wrong source for S8 to S13, and then a
+    parity instrument that measured 31 surfaces for appearance while the
+    gap was in behaviour, 11.13's own rule meaning every prototype decision
+    never read into a numbered section was never handed to any session at
+    all. The replacement instrument is the prototype itself, lifted
+    verbatim behind an adapter seam, with the seams named and the lift
+    discipline stated in the plan.
+
+    **One sentence of RFC 0004 is amended by that section and the amendment
+    is recorded here too**: "the prototype ships nothing" keeps its fixture
+    half, no fixture data and no name-keyed store cross, and loses its code
+    half, item 20 having made the directory the named source the client is
+    built from.
+
+    **Numbers, read at this writing on `v2-build` at `4dbe6fb`**: next free
+    acceptance number AC-265, next SESSION-LOG row 34, and this item 37.
+    Each session in the new table reads them again at its own opening and
+    merge, items 13 and 25's check.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
