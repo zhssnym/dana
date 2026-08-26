@@ -50,7 +50,6 @@ import type { Locator, Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
-  caseTitle,
   createSavedView,
   DEFAULT_PINS,
   deleteSavedView,
@@ -168,7 +167,15 @@ test.describe('AC-241: Settings is a pin list', () => {
   })
 
   test('AC-241: a view the viewer saved is in the list too', async ({ page }) => {
-    const name = caseTitle('ac-241 saved view')
+    /*
+    Unique per case, and **not** through `caseTitle`, which cannot be used
+    for a saved view at all: 4.19 caps a view's name at 40 characters and
+    that helper's uniqueness tag is a 41-character test id, so every name it
+    builds is refused with 422 before the case starts. The tail of the same
+    id carries the same two properties the helper documents, stable across
+    runs and distinct between any two cases, and leaves room for a name.
+    */
+    const name = `ac-241 view ${test.info().testId.slice(-12)}`
     // Unpinned, which is the state item 9 says nothing could reach: this list
     // is the surface that ends that interim, so the fixture is the interim.
     const view = await createSavedView(page, name, { page: 'scheduled' }, false)

@@ -1660,6 +1660,14 @@ export async function deleteFolder(page: Page, id: string): Promise<void> {
  * two different fixtures: a pinned view is one the sidebar already lists, and
  * an unpinned one is the state RFC 0005 item 9 says had no surface that could
  * reach it until 9.7's pin list landed. AC-241 needs the second.
+ *
+ * **`caseTitle` cannot name a saved view, and the failure reads as a server
+ * defect.** 4.19 caps a view's name at 40 characters and that helper's
+ * uniqueness tag is a 41-character test id, so every name it builds is
+ * refused with a 422 before the case starts, whatever the base. Found at S16
+ * by running it. Where a saved view needs a unique name, take the tail of
+ * `test.info().testId`, which carries the same two properties that helper
+ * documents and leaves room for a name.
  */
 export async function createSavedView(
   page: Page,
