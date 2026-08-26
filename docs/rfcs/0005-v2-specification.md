@@ -3307,6 +3307,208 @@ fold, the way P7's mid-package change control ratified the pass callable:
     observe the attribute on the document at first paint, so one is writable
     if that role wants it.
 
+44. **The lift rulings sheet is answered in full: fourteen rulings by Imran on
+    2026-08-26, and five of them reach frozen sections 4 or 7.** S20's sheet
+    was "one sitting with Imran that has not happened yet". It has happened.
+    With C2 and D answered at item 41 and C3 struck at item 40, this closes
+    the sheet: **nothing on it remains open**, and the surfaces it blocked
+    from closing, S23's, S26's and S27's, are unblocked.
+
+    Each ruling is recorded with what it costs, because several are wider
+    than the sheet's own recommendation and one is narrower.
+
+    **A1. Take the ellipses, and there are seven rather than five.** The sheet
+    named "Move to folder…", "Delete task…", "Delete folder…", "Leave
+    folder…" and "Delete shelf…". Measured in `lib/object-acts.ts` at
+    `8160315`, the prototype writes two more: **"Open in…"**, which the client
+    already matches, and **"Make this a folder…"**, an act the client does not
+    yet carry. So the change is five labels, not seven, and the seventh
+    arrives with its act. **9.1's names table changes for "Leave folder",
+    AC-217 moves and AC-183 gains a case**, red first under persona 11 in the
+    package that lifts each surface. The convention is the ordinary one: an
+    ellipsis promises a further step, and every one of these opens a confirm
+    or a picker.
+
+    **A2. 9.1's names stand, on all seven, and the account menu's reason is
+    now stronger than the sheet's.** The sheet argued cost, that flipping
+    moves about thirty criteria for a change nobody can see. Imran's ruling
+    adds the reason that matters more: *"I don't want any personal name on the
+    shell, if they exist on prototype v2, they might be just placeholders."*
+    The prototype announces the avatar menu as "Open Imran Wafa's account
+    menu"; 9.1 says **"Account"**, and a product that speaks its owner's name
+    out of its own furniture is a prototype artefact rather than a design. The
+    other six are not personal-name cases and are ruled on the sheet's own
+    ground, confirmed in the same exchange. The lift transcribes all seven at
+    a named seam.
+
+    **B1. Yes, and wider than the sheet asked: covers are native to every
+    page, with the prototype's whole treatment.** Ruled in Imran's own terms,
+    *"If prototype v2 gives them a cover, so it's a decided thing"*, with the
+    treatment named: reposition, removal, gradients, and a free stock library
+    a person can search. Two consequences he is deciding rather than
+    inheriting. **This reaches frozen section 4**: `folders.cover_file_id` and
+    `shelves.cover_file_id` exist, and a place page has **no row anywhere to
+    hang a cover on**, so Today, Scheduled, Important, All, Done and Anytime
+    need a table of their own, per viewer. And the default covers must be
+    **generic and non-personal**, his words, which rules out the photographic
+    tier as a default while keeping it as a choice. **This merges with B8**
+    and the two are one body of work.
+
+    **B2. The folder board's columns are the page's sections by default, and
+    the filter changes the grouping.** Better than either option the sheet
+    offered, which framed it as sections against date. Ruled: sections are the
+    first and unfiltered arrangement; the filter is fully involved in changing
+    it, and may group by date, by assignee, or by another axis. So the date
+    board is not a rival reading to be discarded but one of the filter's
+    group-by values. 9.6 gains the sentence and the filter's own contract
+    gains the axes.
+
+    **B3. The workflow file carries everything about a folder except due
+    dates, people and chats, and the folder page's written content is
+    included.** Confirmed in the same exchange for the second half. **This
+    widens frozen section 7**: 7.16's schema carries less than this, and what
+    is added is the folder's page blocks, its sections and paragraphs, beside
+    each task's title, notes, star, repeat, reminder and steps. The three
+    exclusions are principled rather than arbitrary and are recorded as such:
+    a due date is a moment in one run of the work and a template has no run,
+    a person is an account that may not exist wherever the file is opened, and
+    a conversation is a record of what was said rather than of what to do.
+
+    **B4. Task drag and reorder are taken, scoped to folders, and the scope
+    rule is Imran's own and is better than the sheet's framing.** Ruled with
+    the frozen-schema cost accepted in terms, *"even if it requires to edit a
+    frozen schema"*, and with the where-question answered by a distinction the
+    sheet did not draw: **the sidebar holds two kinds of destination, views
+    and folders.** Today, Scheduled, Assignments, Important and the rest are
+    **views**, which are saved sorts and filters; **Desk is the one native
+    folder** and the rest are the viewer's own. So:
+
+    - **In a folder, native or user's, with no filter or sort applied**, a
+      task may be arranged by hand, two or more tasks held together become a
+      folder, and every prototype v2 treatment applies.
+    - **In a view, or in a folder with a filter or sort applied**, the drag
+      does not persist. The gesture may show its feedback and the row returns
+      to where the sort puts it.
+
+    That rule is what makes the feature honest: a list that sorts itself by
+    date cannot also hold a hand-made order without one of the two lying. It
+    also keeps every one of section 6's eleven queries and their byte-identical
+    ordering guarantee untouched except the one that reads a folder's
+    unscheduled list.
+
+    **What it costs, measured rather than estimated from the sheet's
+    language.** Three parts, and only the first needs the backend:
+
+    - **The order itself needs a column on `tasks`**, which has seventeen and
+      none of them a position, and an endpoint to write it. A plain integer
+      renumbers every row below a drop; the shape to use is a fractional index,
+      which is what Notion, Linear and Figma do. **Frozen sections 4 and 7,
+      about two sessions.**
+    - **Holding two tasks together to make a folder needs no backend at all**,
+      which the design contract's DES-103 note "NEEDS BACKEND for persistence"
+      does not distinguish. `POST /folders { name }` exists and
+      `PATCH /tasks/:id { folder_id }` already specifies the move including
+      the INV-5 assignee rules, so the gesture is a client composition of two
+      existing endpoints. **About half a session**, its only real question
+      being what happens if the second call fails after the first succeeds.
+    - **Selection and the bulk bar are client state over per-task endpoints
+      that all exist.** **About one session.**
+
+    So roughly **three and a half sessions**, against the sheet's implied
+    larger figure, and the saving is entirely because the folder-making half
+    was assumed to need a backend and does not. **It cannot ride the lift
+    packages**, whose discipline is that a lifted file diffs empty, so it is
+    its own package after them. Concurrency was raised and agreed: two people
+    dragging one shared list must not corrupt each other's order.
+
+    **B5. Voice notes are deferred, not dropped, and the schema already
+    anticipated them.** Ruled a future thing, with frozen-schema editing
+    accepted when it comes. Worth recording because a later session will not
+    find it otherwise: **`files.kind` already permits `'voice'`**, at
+    `0003_v2_expand.sql:68`, so what is owed is a duration, a player and a
+    decision about transcription rather than a fight over storage. The files
+    half of the conversation proceeds at S26 as the sheet recommended.
+
+    **B6. No change, and the recommendation was checked rather than
+    repeated.** Asked *"what's the standard and most optimum way?"*, and the
+    answer given was that the client's existing shape is the standard one:
+    undo is a short-lived client affordance about the act just taken, an audit
+    log is a permanent server record about what happened to the data, and the
+    two answer different questions for different readers. The prototype's
+    coupling is the less common pattern and would make every future history
+    event answerable as undo copy. Dana's is also safer, the event being
+    written server-side inside the mutation's own transaction. 9.1 gains a
+    sentence saying the two are separately specified.
+
+    **B7. Images are resizable by the person, which overturns the sheet's
+    recommendation.** Ruled: *"I want the inserted images to be resized if user
+    wants."* So the prototype's width handle is taken, dragged rather than
+    chosen from sizes. **This reaches frozen section 4**, needing a width per
+    block, though `page_blocks` already carries a `position integer` so the
+    addition is routine. **The aspect-ratio reservation and paste are taken
+    too**, unchanged from the recommendation and for their own reason: a page
+    that jumps by the height of an image as it loads is the worst thing a page
+    of text does, and that is a correctness fix rather than a feature.
+
+    **B8. All four cover tiers, with a real provider, and offline degradation
+    accepted.** Ruled explicitly, *"if the user is offline it will not working
+    but it's okay"*, which answers the sheet's only objection. Of the three
+    named, **Unsplash is recommended**: the largest library, an official API,
+    and a free tier permitting commercial use, with Pexels as the fallback.
+    Both need an API key and carry attribution requirements, which is a new
+    third-party dependency and a new secret, and 10.6's precache contract
+    gains a sentence saying this tier is network-only by design. **One
+    S21-shaped caution attaches to the key**: `app/.env` is committed by the
+    owner's ruling of 2026-08-25, so a provider key added there is protected
+    only by the repository's privacy.
+
+    **B9. A step promotes to a task; a task never demotes to a step.** Ruled
+    with its own reasoning, which is the cleanest asymmetry on the sheet:
+    promotion has one obvious destination, the step's own folder, and the
+    promoted task is editable at once; demotion has none, because nothing
+    says which task should become its parent. So the prototype's two-way move
+    becomes one-way, and 9.3 gains the act in one direction.
+
+    **B10. Yes, a duplicate's tasks are assigned to whoever made the copy**,
+    the sheet's recommendation taken, with its check against what
+    `domain/` does today still owed at S26.
+
+    **B11. Yes, downscale on upload**, the sheet's recommendation taken, with
+    the numbers going into 10.3 and the change riding the re-encode AC-231
+    already performs.
+
+    **C1. Three ways to open, which is 9.3's, plus the inline expansion, which
+    is not a fourth.** Ruled: *"The task row is finalized, it can be expanded
+    as inline and it also has view types, such as dialog, tab, and right
+    sidebar."* That is exactly 9.3's dialog, tab and panel, and it resolves
+    the prototype's own contradiction in the direction its code already took:
+    the header naming five was prose running ahead of a `TaskSurfaceMode` that
+    resolves to two plus the tab. The **inline expansion is DES-093's
+    chevron**, the card opening inside the row, which is a different thing
+    from where a task opens and is why counting it as a mode produced the
+    contradiction. `task_open` already stores exactly the three. **No
+    amendment is needed.**
+
+    **The frozen-section consequences, gathered because they are the
+    expensive half and because protocol section 1 makes them the owner's
+    alone.** Section 4 is reached by **B1** (a per-viewer cover table for
+    place pages), **B4** (a position on `tasks`) and **B7** (a width on
+    `page_blocks`). Section 7 is reached by **B3** (the workflow file's
+    contents) and **B4** (the endpoint that writes an order). Each was ruled
+    with its cost stated, which is what item 37's *"frozen sections 4 and 7
+    are ruled one by one and never assumed"* requires. **None of the five may
+    ride a lift package**, whose discipline is that a lifted file diffs empty
+    against its original, so the Steward owes RFC 0004's table the rows that
+    carry them, which is sequencing rather than a further ruling.
+
+    **What the Steward owes from this item**, so it is a list rather than an
+    impression: the section 9 amendments for A1, A2, B2, B3, B6, B8 and B9;
+    the criteria moves for A1, red first under persona 11; the frozen section
+    4 and 7 amendments for B1, B3, B4 and B7, packaged for the record rather
+    than for a further decision; new RFC 0004 rows for the drag package and
+    the covers package; and the L-117 correction still outstanding from item
+    41(a).
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
