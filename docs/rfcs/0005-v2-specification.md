@@ -2527,7 +2527,11 @@ fold, the way P7's mid-package change control ratified the pass callable:
     **Numbers, read at this package's opening on `v2-build` at `9257eb4`
     and again at its merge**, which is the check items 13 and 25 exist
     because three sessions skipped it. AC-251 to AC-257, SESSION-LOG row
-    32, and this item 34.
+    32, and this item 34. **AC-257 was released rather than spent**, recorded
+    at the criteria commit: the refusal page owes nine values rather than a
+    behaviour, AC-008 already pins its 9.2 copy through the rework, and
+    values belong in the owning module's unit test under protocol section 8.
+    The spent range is AC-251 to AC-256 and 257 is free for the next session.
 
 ## Implementation plan
 
