@@ -101,20 +101,31 @@ test.describe('AC-242: Help is in the account menu, and the sheet behind it is t
         'menu item that opens nothing satisfies the case above this one',
     ).toBeVisible()
 
-    // The two keys as the sheet writes them, each in its own kbd.
     await expect(
-      sheet.getByText('Ctrl', { exact: true }),
+      sheet.getByText('Search everything', { exact: true }),
+      'DES-144: the sheet says what each shortcut does, in the words the designer approved',
+    ).toBeVisible()
+
+    /*
+    The keys are read off the row that names search, not off the sheet.
+
+    Scoped deliberately rather than for convenience: the sheet carries two
+    Ctrl chords, search and undo, so an assertion that merely found "Ctrl"
+    somewhere in the sheet would pass against a sheet that printed the undo
+    modifier beside the search sentence, which is the exact failure this
+    criterion exists to catch. The row is the parent of the sentence, the
+    two spans of a shortcut line being siblings under it.
+    */
+    const searchRow = sheet.getByText('Search everything', { exact: true }).locator('..')
+    await expect(
+      searchRow.getByText('Ctrl', { exact: true }),
       'spec 9.1 names the search shortcut "Ctrl+K or /", and the sheet spells the modifier ' +
         'for the platform it is read on. A sheet naming the wrong key teaches something ' +
         'false, which is worse than a sheet nobody wrote',
     ).toBeVisible()
     await expect(
-      sheet.getByText('K', { exact: true }),
-      'and the key beside it',
-    ).toBeVisible()
-    await expect(
-      sheet.getByText('Search everything', { exact: true }),
-      'and what it does, in the words the designer approved',
+      searchRow.getByText('K', { exact: true }),
+      'and the key beside it, on the same row',
     ).toBeVisible()
   })
 
