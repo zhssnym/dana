@@ -16,7 +16,24 @@ everything it needs; the colour values are `tokens.css`'s graphite ramp
 written out, which that file's rule permits nowhere in the client and cannot
 reach here, this being a server template with no stylesheet to import. The
 font stack is the token file's fallback run: the self-hosted Inter arrives
-with the client bundle this page deliberately does not load.
+with the client bundle this page deliberately does not load. That duplication
+is 11.4's rule read rather than broken, and the reading is recorded at RFC
+0005 change control item 34 with the `vite.config.ts` precedent it follows.
+
+**Which gate card, corrected at S19.** It was transcribed from the **v1**
+prototype at ef6f39a, and change control item 20 moved the standard to
+`docs/design/prototype-v2/`, whose counterpart is `public-auth-screen.tsx`'s
+`UnverifiedEmailScreen`. Measured against it rather than assumed: the two
+already agreed on the 940 by 520 frame, the 320 pixel dark panel, the 48 pixel
+icon tile at radius 12, the 44 pixel action at 20 pixels of side padding, and
+every colour. Nine values were v1's and are now v2's: the card's radius,
+border and shadow, the dark panel's padding and its closing hairline, the
+mark's size, the tile's border step and shadow, the heading's size, tracking
+and colour, the body's leading, and the action's weight. 9.2's copy did not
+move a character, which is what keeps this inside this role: 9.2 is the
+Frontend Architect's section, and only the presentation moved. `pages.test.ts`
+beside this file pins the nine so a third transcription cannot quietly undo
+them.
 */
 function escapeHtml(value: string): string {
   return value
@@ -53,36 +70,46 @@ function page(title: string, heading: string, body: string, action: string): str
     width: min(940px, 100%);
     min-height: 520px;
     overflow: hidden;
-    border-radius: 16px;
+    border-radius: 18px;
+    border: 1px solid #dddee2;
     background: #ffffff;
-    box-shadow: 0 2px 6px rgb(10 10 10 / 8%), 0 16px 40px rgb(10 10 10 / 16%);
+    box-shadow: 0 30px 90px rgb(24 24 27 / 12%);
   }
   .brand {
     display: none;
     position: relative;
-    flex: 0 0 34%;
+    flex: 0 0 320px;
     background: #0a0a0a;
-    padding: 28px;
+    padding: 36px;
     color: #ffffff;
     font-weight: 600;
   }
   @media (min-width: 720px) { .brand { display: block; } }
-  .brand-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-  .brand img { width: 28px; height: 28px; }
+  .brand-row { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  .brand img { width: 36px; height: 36px; }
   .brand .watermark {
     position: absolute;
-    right: -120px;
-    bottom: -80px;
-    width: 380px;
-    height: 380px;
-    opacity: 0.16;
+    top: 80px;
+    right: -160px;
+    width: 440px;
+    height: 440px;
+    opacity: 0.14;
+  }
+  /* The v2 panel closes on a hairline rather than on nothing. */
+  .brand .rule {
+    position: absolute;
+    right: 36px;
+    bottom: 36px;
+    left: 36px;
+    height: 1px;
+    background: rgb(255 255 255 / 15%);
   }
   .content {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: clamp(32px, 6vw, 64px);
+    padding: clamp(32px, 6vw, 64px) clamp(28px, 5vw, 56px);
   }
   .badge {
     display: flex;
@@ -91,24 +118,25 @@ function page(title: string, heading: string, body: string, action: string): str
     width: 48px;
     height: 48px;
     border-radius: 12px;
-    border: 1px solid #ebecee;
+    border: 1px solid #dddee2;
     background: #fafafb;
-    color: #585a60;
+    color: #44464c;
+    box-shadow: 0 6px 18px rgb(24 24 27 / 7%);
   }
   h1 {
     margin-top: 28px;
-    font-size: 32px;
-    line-height: 40px;
+    font-size: 36px;
+    line-height: 41px;
     font-weight: 600;
-    letter-spacing: -0.02em;
-    color: #1b1c20;
+    letter-spacing: -0.035em;
+    color: #0a0a0a;
   }
   p {
-    margin-top: 16px;
+    margin-top: 20px;
     max-width: 46ch;
     color: #585a60;
     font-size: 15px;
-    line-height: 24px;
+    line-height: 28px;
   }
   .action { margin-top: 32px; }
   .action a {
@@ -117,11 +145,11 @@ function page(title: string, heading: string, body: string, action: string): str
     gap: 10px;
     height: 44px;
     padding: 0 20px;
-    border-radius: 8px;
+    border-radius: 6px;
     background: #0a0a0a;
     color: #ffffff;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     text-decoration: none;
   }
   .action a:hover { background: #2f3136; }
@@ -136,10 +164,13 @@ function page(title: string, heading: string, body: string, action: string): str
 <aside class="brand" aria-hidden="true">
   <div class="brand-row"><img src="/dana-mark.svg" alt=""> Dana</div>
   <img class="watermark" src="/dana-mark.svg" alt="">
+  <div class="rule"></div>
 </aside>
 <section class="content">
 <div class="badge" aria-hidden="true">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+  <!-- lucide mail-warning, which is the glyph the v2 screen draws here; the
+       v1 card drew a plain envelope. -->
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h12.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="M20 14v4"/><path d="M20 21v.01"/></svg>
 </div>
 <h1>${escapeHtml(heading)}</h1>
 <p>${escapeHtml(body)}</p>

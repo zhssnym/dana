@@ -201,7 +201,7 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       ownerId,
       folderId,
       targetId,
-      { isOwner: true, isDefault: false },
+      { isOwner: true, isDefault: false, name: 'a folder' },
     )
     expect(result.kind, 'the add still succeeds: this changes when, not what').toBe(
       'added',
@@ -411,7 +411,7 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       ownerId,
       randomUUID(),
       ownerId,
-      { isOwner: true, isDefault: true },
+      { isOwner: true, isDefault: true, name: 'Desk' },
     )
     expect(result.kind).toBe('default_folder')
     expect(
