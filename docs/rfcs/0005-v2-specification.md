@@ -2085,6 +2085,37 @@ fold, the way P7's mid-package change control ratified the pass callable:
     for whoever writes the next plan row is to name what a row is *not*
     taking whenever it takes part of a numbered section.
 
+31. **The visual review is deferred until S17 closes, on Imran's ruling of
+    2026-08-25, and this changes when it happens rather than whether.** He
+    opened both surfaces side by side, the prototype at its own server and
+    the built client at the dev server, and ruled that the application is
+    "way way different" from prototype-v2 and that reviewing now is not
+    worth doing. Item 19's sentence stands unaltered: the review is his, it
+    happens rather than being waived, and it precedes release. What is new
+    is its position, which is now **after S17b** rather than anywhere in
+    S14's clause.
+
+    **The reasoning is the parity audit's own numbers, and the deferral is
+    the correct reading of them.** That file measures 5 surfaces V1-ERA or
+    MISSING and 12 PARTIAL against 14 PORTED, and its "five gaps that most
+    change what a person sees on first open" are all still open: the task
+    row and card, the six place-page heads, folder identity not travelling,
+    search finding only tasks, and the folder page's missing board. A review
+    against that state would spend the owner's judgement re-finding defects
+    already written down, which is the one thing a list of known defects
+    exists to prevent. The review's value is what the audit could not see,
+    because the audit was produced by reading files rather than by looking,
+    and that value is only available once the known gaps are shut.
+
+    Recorded so no session asks him for it early: **S14's release clause
+    cannot close on the visual review until S17b is done**, and any package
+    that finds itself blocked on that line should read this item rather than
+    escalating. The practical arrangement is also recorded because it cost
+    an hour to rediscover: the review is done locally against both servers,
+    never against dana.so, which serves `main` and was seventeen commits
+    behind `v2-build` on the day this was written, lacking S15's card
+    entirely.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
