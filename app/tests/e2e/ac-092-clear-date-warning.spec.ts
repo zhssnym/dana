@@ -74,6 +74,7 @@ import {
   chipPicker,
   chipValue,
   clickControl,
+  closeChipPicker,
   copy,
   createTask,
   fillControl,
@@ -88,6 +89,7 @@ import {
   signIn,
   taskChip,
   taskSurface,
+  watchCommit,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -121,9 +123,19 @@ for no reason of the specification's.
 */
 
 /**
- * Captures a task from Important and waits for its surface, which is 9.1's
- * capture rule and 9.3's entry table working together: the row exists before
- * the card is open, and Important's row of that table leaves it undated.
+ * Captures a task from Important, names it, and waits for the name to land.
+ *
+ * 9.1's capture rule and 9.3's entry table working together: the capture
+ * creates, and Important's row of that table leaves the task undated, which
+ * is the state the third case below is about.
+ *
+ * **The name is committed here rather than left for the first chip to carry,
+ * and the wait is what the cases after it depend on.** A surface where every
+ * edit commits as it is made reaches the server on whichever edit first makes
+ * the task nameable, and a case that answered a chip in the same breath would
+ * be driving a surface that is reconciling with a row it has just learned the
+ * identity of. Sequencing the name first is what a person does anyway, and it
+ * leaves each case below reading one thing at a time.
  */
 async function captureFromImportant(page: Page, title: string): Promise<void> {
   await page.goto(routesV2.important)
@@ -139,10 +151,16 @@ async function captureFromImportant(page: Page, title: string): Promise<void> {
     "spec 9.1's v2 roles table: the captured task opens on its surface, a dialog when opened " +
       'as one',
   ).toBeVisible()
+  const commit = watchCommit(page)
   await fillControl(
     formField(page, 'title'),
     title,
     'spec 9.3: the title is editable in place on the card and is what the task is called',
+  )
+  await formField(page, 'title').blur()
+  await commit.settled(
+    'spec 9.3: the name commits as it is made, so the task exists before any chip is answered ' +
+      'and each case below reads one thing at a time',
   )
 }
 
@@ -213,6 +231,9 @@ test.describe('AC-092: clearing the date on the task surface', () => {
       'spec 9.3: the repeat control is "preset-driven exactly as v1... never a raw RRULE box", ' +
         'and Daily is the first preset that row names',
     )
+    // The repeat picker stays open on purpose, its operands living behind the
+    // preset, so this case closes it before reaching for the next chip.
+    await closeChipPicker(page)
     await setReminderTime(page)
 
     await clearDue(page)
@@ -283,6 +304,7 @@ test.describe('AC-092: clearing the date on the task surface', () => {
       chipChoices(page).filter({ hasText: 'Daily' }).first(),
       'spec 9.3: the repeat control is preset-driven',
     )
+    await closeChipPicker(page)
 
     await clearDue(page)
     await expect(
