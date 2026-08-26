@@ -41,6 +41,7 @@ import {
   sendValidationError,
 } from '../http/errors.js'
 import { notifierOf } from '../notify/index.js'
+import type { OutboundMessage } from '../notify/index.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
@@ -56,7 +57,7 @@ import {
   sentInvites,
   settleInvite,
 } from '../domain/invites.js'
-import type { InviteActorFacts } from '../domain/invites.js'
+import type { InviteActorFacts, InviteElement } from '../domain/invites.js'
 
 export interface InvitesRouterOptions {
   dbClient?: DbClient
@@ -65,6 +66,49 @@ export interface InvitesRouterOptions {
 }
 
 const uuidParam = z.uuid()
+
+/*
+Which invitation this is, decided from the row rather than from the request.
+
+7.5 makes folder_id optional and item 32 splits the template on exactly that:
+`invite_connection` when it is null, `invite_folder` when it is not. The
+decision is made here, at the call site, from data already in hand, and it is
+made in one function because three sites send an invitation, the create, the
+resend and nothing else in between: two of them would otherwise repeat this
+conditional and could one day disagree about it.
+
+`folder_name` rides InviteElement because frozen 7.5's pending list carries
+it, so a folder invitation names its folder without a read of its own. A
+folder_id with no name would be a row whose folder vanished under it, which
+the invite's own foreign key does not permit; the throw says so rather than
+mailing somebody a blank.
+*/
+function inviteMessage(
+  invite: InviteElement,
+  inviterName: string | null,
+): OutboundMessage {
+  if (invite.folder_id === null) {
+    return {
+      template: 'invite_connection',
+      to: invite.email,
+      connectionInvite: { inviterName },
+    }
+  }
+  if (invite.folder_name === null) {
+    throw new Error(
+      `invite ${invite.id} names folder ${invite.folder_id} and no name came back with it`,
+    )
+  }
+  return {
+    template: 'invite_folder',
+    to: invite.email,
+    folderInvite: {
+      inviterName,
+      folderId: invite.folder_id,
+      folderName: invite.folder_name,
+    },
+  }
+}
 
 function parsedId(res: Response, raw: unknown): string | null {
   const parsed = uuidParam.safeParse(raw)
@@ -204,11 +248,18 @@ export function createInvitesRouter(
           return
         case 'converted': {
           // 8.7's instant share. The grant email is the share-grant
-          // template, never the invite one: there is nothing to accept.
+          // template, never the invite one: there is nothing to accept. Since
+          // S19 it also names the sharer and the folder (RFC 0005 change
+          // control item 32), both read by the transaction that granted.
           if (result.targetEmail !== null) {
             await notifierOf(req.app).send({
               template: 'share_grant',
               to: result.targetEmail,
+              shareGrant: {
+                inviterName: result.inviterName,
+                folderId: result.folderId,
+                folderName: result.folderName,
+              },
             })
           }
           const members = await membersOf(db, result.folderId)
@@ -234,10 +285,7 @@ export function createInvitesRouter(
             actorId: viewer(req),
             status: 'pending',
           })
-          await notifierOf(req.app).send({
-            template: 'invite',
-            to: result.invite.email,
-          })
+          await notifierOf(req.app).send(inviteMessage(result.invite, result.inviterName))
           res.status(201).json({ invite: result.invite })
           return
       }
@@ -471,13 +519,19 @@ export function createInvitesRouter(
         )
         return
       }
-      await notifierOf(req.app).send({ template: 'invite', to: result.email })
+      // Read before the send rather than after it, which is the whole of what
+      // this site owes the split: the invite element carries folder_id and
+      // folder_name, and 5.2 gives resend one actor, the inviter, so the
+      // caller's own display_name is the name the email says. Neither is a
+      // read this handler did not already make.
+      const invite = await inviteById(db, facts.id)
+      await notifierOf(req.app).send(inviteMessage(invite, facts.viewerName))
       securityLog.inviteEvent('invite_resent', {
         inviteId: facts.id,
         actorId: viewer(req),
         status: 'resent',
       })
-      res.status(200).json({ invite: await inviteById(db, facts.id) })
+      res.status(200).json({ invite })
     },
   )
 

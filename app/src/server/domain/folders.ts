@@ -41,6 +41,11 @@ function nullableString(value: unknown): string | null {
 export interface FolderAccess {
   isOwner: boolean
   isDefault: boolean
+  /** The folder's name, which the share-grant email renders and links a
+   * person to (RFC 0005 change control item 32). It rides this read rather
+   * than a second one because every share-grant call site resolves access
+   * before it grants, and the row is already open in front of it. */
+  name: string
 }
 
 /** Null means the folder does not exist or the viewer is not a member,
@@ -56,7 +61,7 @@ export async function accessOf(
 ): Promise<FolderAccess | null> {
   const found = await rowsOf(
     executor,
-    sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default
+    sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default, f.name
         FROM folders f
         JOIN folder_members m ON m.folder_id = f.id
         WHERE f.id = ${folderId} AND m.user_id = ${viewerId}
@@ -64,7 +69,11 @@ export async function accessOf(
   )
   const row = found[0]
   if (row === undefined) return null
-  return { isOwner: row.is_owner === true, isDefault: row.is_default === true }
+  return {
+    isOwner: row.is_owner === true,
+    isDefault: row.is_default === true,
+    name: String(row.name),
+  }
 }
 
 /* ------------------------------------------------------------------ *
