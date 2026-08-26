@@ -52,9 +52,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
-import { Folder as FolderIcon, Plus, X } from '../lib/icons.js'
+import { Plus, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
+import { folderMark } from '../parts/presenters.js'
 
 import { closeTab, openInNewTab, reorderTabs, selectTab, useTabs } from './tabs.js'
 import type { Folder } from '../../shared/folders.js'
@@ -208,20 +209,27 @@ export function TabStrip({
           <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {folders.map((folder) => (
-            <DropdownMenuItem
-              key={folder.id}
-              onClick={() => onNavigate(openInNewTab(`/app/folders/${folder.id}`))}
-            >
-              <FolderIcon
-                className="size-4"
-                strokeWidth={1.75}
-                style={{ color: folder.my_color ?? undefined }}
-                aria-hidden="true"
-              />
-              {folder.name}
-            </DropdownMenuItem>
-          ))}
+          {/* Each entry wears its folder's own mark since S17a (DES-130,
+              AC-243). It drew one literal folder in a personal colour for
+              every entry, so the one control whose job is choosing between
+              folders was the one place they all looked alike. */}
+          {folders.map((folder) => {
+            const mark = folderMark(folder)
+            return (
+              <DropdownMenuItem
+                key={folder.id}
+                onClick={() => onNavigate(openInNewTab(`/app/folders/${folder.id}`))}
+              >
+                <mark.icon
+                  className="size-4"
+                  strokeWidth={1.75}
+                  style={{ color: mark.color }}
+                  aria-hidden="true"
+                />
+                {folder.name}
+              </DropdownMenuItem>
+            )
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

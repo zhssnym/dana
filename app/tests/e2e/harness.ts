@@ -1728,3 +1728,83 @@ export function tabStrip(page: Page): Locator {
 export function tabNamed(page: Page, name: string | RegExp): Locator {
   return page.getByRole('tab', { name })
 }
+
+/**
+ * PATCH /folders/:id, the shared identity of 4.3 that the folder page's mark
+ * writes: the icon key and the colour every member of the folder reads.
+ *
+ * Distinct from `patchFolderMyMembership`'s personal pair, and the difference
+ * is the whole of what S17a's criteria measure. 9.6 retires 4.4's per-member
+ * colour from every v2 surface, so this is the column a v2 client draws from
+ * and the one AC-173 was reworked onto.
+ */
+export async function setFolderIdentity(
+  page: Page,
+  id: string,
+  identity: { icon?: string; color?: string },
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.patch(`/api/v1/folders/${id}`, {
+    data: identity,
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PATCH /folders/${id} with ${JSON.stringify(identity)} answered ` +
+      `${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/**
+ * The drawing inside one element, as the set of its SVG path geometries.
+ *
+ * A glyph is not text, has no role and carries no name a criterion can read:
+ * every mark in this client is `aria-hidden`, deliberately, because a glyph
+ * swap must never be a rename. So what a criterion can hold to is the
+ * drawing itself, and two elements showing the same Lucide icon draw the same
+ * `d` attributes whatever wrapper, size class or animation surrounds them.
+ *
+ * Sorted and de-duplicated so the comparison is of the drawing rather than of
+ * the order a renderer happened to emit it in. An element with no `path` is an
+ * empty set, which is what a surface drawing no mark at all returns, and is
+ * why every assertion using this also asserts the set is non-empty: two
+ * surfaces that both draw nothing are equal and prove nothing.
+ */
+export async function glyphGeometry(locator: Locator): Promise<string[]> {
+  return locator.evaluate((element) => {
+    const root = element as unknown as {
+      querySelectorAll: (s: string) => Iterable<{ getAttribute: (n: string) => string | null }>
+    }
+    const found = new Set<string>()
+    for (const node of root.querySelectorAll('svg path, svg circle, svg rect, svg line')) {
+      const d = node.getAttribute('d')
+      if (d !== null && d !== '') found.add(d)
+      const cx = node.getAttribute('cx')
+      if (cx !== null) found.add(`circle:${cx},${node.getAttribute('cy') ?? ''},${node.getAttribute('r') ?? ''}`)
+      const x = node.getAttribute('x')
+      if (x !== null) found.add(`rect:${x},${node.getAttribute('y') ?? ''}`)
+      const x1 = node.getAttribute('x1')
+      if (x1 !== null) found.add(`line:${x1},${node.getAttribute('y1') ?? ''},${node.getAttribute('x2') ?? ''},${node.getAttribute('y2') ?? ''}`)
+    }
+    return [...found].sort()
+  })
+}
+
+/**
+ * DELETE /tasks/:id, which 7.6 moves to Trash rather than purging and answers
+ * 204, measured rather than assumed: this expected 200 on its first run.
+ *
+ * For the reason `deleteSavedView` records: the runner seeds once and every
+ * spec in this leg reads the same pages, so a fixture task left on Assignments
+ * or All is a row somebody else's count has to survive.
+ */
+export async function deleteTask(page: Page, id: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.delete(`/api/v1/tasks/${id}`, {
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `DELETE /tasks/${id} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(204)
+}

@@ -116,7 +116,8 @@ import {
   Trash2,
 } from 'lucide-react'
 
-import { Avatar, AvatarFallback } from './ui/avatar.js'
+import type { LucideIcon } from '../lib/icons.js'
+import { PersonFace } from './person-face.js'
 import { Badge } from './ui/badge.js'
 import { Button } from './ui/button.js'
 import { Checkbox } from './ui/checkbox.js'
@@ -158,6 +159,10 @@ export interface TaskRowProps {
   folder?: {
     name: string
     color: string
+    /* The folder's chosen glyph (4.3), resolved by `parts/presenters.ts` so that
+       one folder wears one mark on every surface (DES-130, AC-243). Optional
+       for the window in which the folder list has not arrived. */
+    icon?: LucideIcon
   }
   due?: {
     label: string
@@ -293,10 +298,27 @@ function ImportanceControl({
   )
 }
 
-function FolderMeta({ name, color }: { name: string; color: string }) {
+/*
+The folder chip, which draws the folder's own mark since S17a.
+
+It drew a literal `Folder` glyph until then, so a person who chose a car for
+Travel met a filing cabinet on every row of it: the owner's recorded complaint
+of 2026-08-22 and the third of the parity audit's five first-open gaps. The
+glyph arrives as a prop for the reason every value here does, this component
+never fetching; `parts/presenters.ts` is the one resolver behind it.
+*/
+function FolderMeta({
+  name,
+  color,
+  icon: Mark = Folder,
+}: {
+  name: string
+  color: string
+  icon?: LucideIcon
+}) {
   return (
     <span className="inline-flex min-w-0 shrink-0 items-center gap-2">
-      <Folder
+      <Mark
         className="size-4 shrink-0"
         style={{ color }}
         strokeWidth={1.75}
@@ -307,14 +329,19 @@ function FolderMeta({ name, color }: { name: string; color: string }) {
   )
 }
 
+/*
+The assignee chip, drawing the one disc the product has since S17a.
+
+It built its own neutral avatar until then, one of seven files that did, and a
+neutral disc tells one carrier from another nowhere. `components/person-face.tsx`
+is that disc and `parts/person-tint.ts` is the colour, a function of the name so
+the same person is the same colour here, on the People screen and in a thread
+(AC-244).
+*/
 function AssigneeMeta({ initials, name }: { initials: string; name: string }) {
   return (
     <span className="inline-flex min-w-0 shrink-0 items-center gap-2">
-      <Avatar size="sm" className="size-5">
-        <AvatarFallback className="text-[0.625rem] font-medium">
-          {initials}
-        </AvatarFallback>
-      </Avatar>
+      <PersonFace name={name} initials={initials} className="size-5" />
       <span className="truncate">{name}</span>
     </span>
   )

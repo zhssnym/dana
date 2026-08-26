@@ -32,13 +32,14 @@ back untouched.
 */
 import { useState } from 'react'
 
-import { CalendarDays, Folder as FolderIcon, Layers3, ListTodo } from '../lib/icons.js'
+import { CalendarDays, Layers3, ListTodo } from '../lib/icons.js'
 
 import type { GetTasksViewResponse } from '../../shared/views.js'
 import { useAllView, useDoneView, useMultiMemberFolderIds } from '../api/queries.js'
 import { mergeCompletedDays } from '../api/queries.js'
 import { QuickAdd } from '../components/quick-add.js'
-import { folderDisplay } from '../parts/presenters.js'
+import { folderMark } from '../parts/presenters.js'
+import type { Folder } from '../../shared/folders.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -53,6 +54,7 @@ import type { PageQueryState } from '../states/PageStates.js'
 import { ALL_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.all
 
@@ -60,11 +62,21 @@ const SPINE = PLACES.all
  * The glyph a folder group heading carries, tinted with that folder's own
  * colour, which is data on the wire rather than a design value (11.4).
  */
-function FolderGlyph({ color }: { readonly color: string }): React.JSX.Element {
+/*
+The mark on a folder group's heading.
+
+It drew a literal folder in the folder's colour until S17a, which is the
+parity audit's "only the heading marks are missing" on a surface it otherwise
+scored PORTED. It draws that folder's own glyph now, through the one resolver
+every other surface asks (`parts/presenters.ts`), so a folder heading here and
+that folder's Library row and its task chips cannot disagree.
+*/
+function FolderGlyph({ folder }: { readonly folder: Folder | undefined }): React.JSX.Element {
+  const mark = folderMark(folder)
   return (
-    <FolderIcon
+    <mark.icon
       className="size-4 shrink-0"
-      style={{ color }}
+      style={{ color: mark.color }}
       strokeWidth={1.75}
       aria-hidden="true"
     />
@@ -141,7 +153,9 @@ function UndatedGroups({
           name={group.folder.name}
           heading={group.folder.name}
           headingMedia={
-            <FolderGlyph color={folderDisplay(group.folder, context.folders).color} />
+            <FolderGlyph
+              folder={context.folders.find((entry) => entry.id === group.folder.id)}
+            />
           }
         >
           <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={onAsk} />
@@ -226,7 +240,13 @@ export function AllPage(): React.JSX.Element {
             ) : (
               <div className="space-y-6">
                 {columns.map((column) => (
-                  <PageSection key={column.key} name={column.name} heading={column.name}>
+                  <PageSection
+                    key={column.key}
+                    name={column.name}
+                    heading={column.name}
+                    headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                    count={column.rows.length}
+                  >
                     <TaskRows
                       tasks={column.rows}
                       context={{ ...basis, multiMemberFolderIds }}

@@ -38,6 +38,8 @@ and `app-sidebar` are not mapped, because those components arrive at R5 to R9
 and a mapping written against props that do not exist yet is a guess.
 */
 import { todayInBrowserZone } from '../api/tz.js'
+import { markIcon } from '../components/page/icon-manifest.js'
+import type { LucideIcon } from '../lib/icons.js'
 import { paths } from '../routes.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -248,46 +250,91 @@ export function personDisplay(person: {
  * ------------------------------------------------------------------ */
 
 /**
- * The dot's colour for a folder whose viewer has set none.
+ * The mark's colour for a folder whose identity carries none.
  *
  * A token reference and not a raw value, so 11.4's rule that raw colours live
- * only in `tokens.css` is untouched: this names the swatch the designer's own
- * fixtures give every folder in his sidebar and every folder chip in his rows.
- * A folder's real colour is 7.4's `my_color`, per member and free-form under
- * 4.4, which 4.4 makes nullable, so this is the value for the null and never a
- * substitute for a value the person chose.
+ * only in `tokens.css` is untouched. It is the same colour
+ * `parts/identity-colors.ts` spells as a hex for the wire, and the two
+ * spellings are not a duplication: 4.3's CHECK stores a literal because the
+ * value is shared data read by every member in every colourway, and this side
+ * draws it, where a token is what follows the viewer's theme.
+ *
+ * **Rewritten at S17a**, where it read "the dot's colour ... a folder's real
+ * colour is 7.4's `my_color`". 9.6 retires that column from every v2 surface
+ * in terms, so this is the fallback for a null 4.3 identity colour and no
+ * longer for a null personal one.
  */
 export const DEFAULT_FOLDER_COLOR = 'var(--color-graphite-900)'
 
-/** What `TaskRowProps['folder']` is: a name and a colour, with no id. */
+/** What `TaskRowProps['folder']` is: a name, a colour and the folder's mark. */
 export type FolderDisplay = NonNullable<TaskRowProps['folder']>
 
+/*
+One resolver for a folder's mark, and every surface asks it.
+
+**This is the mechanism S17a exists to fix, and the designer's own header
+warns it will recur.** DES-130 put a folder's identity in 4.3's shared columns
+and only the surfaces written *after* that ruling ever read it, so the folder
+page and the shelf row drew the glyph a person picked while the sidebar drew a
+colour dot, the task row a literal folder and the tab menu a generic icon.
+Imran, 2026-08-22: "This thing needs consistency not only in Assignments page,
+in all task rows wherever they might be." An identity that only some surfaces
+honour is not an identity; it is a decoration on one screen.
+
+**A folder with no chosen glyph still answers the plain folder**, which is why
+this can replace the literal safely: the default is the thing it is replacing.
+`markIcon` is `components/page/icon-manifest.ts`'s, the manifest that already
+joins 4.3's forty-two keys to their drawings for the picker and for the folder
+page's own mark, so there is one glyph table as well as one resolver.
+
+**It is a value rather than a hook**, and the difference is at the call sites:
+a row's chip takes a component and a colour as props and the shell's tab face
+takes them somewhere else, so a component that could only be rendered whole
+would have forced each of them to be rewritten around it. That is the
+designer's own reason for exporting `useFolderMark` rather than a component.
+Here the store is the `/folders` read the chrome already made, so the lookup is
+by id against a list the caller is holding, and nothing in this module fetches.
+*/
+export interface FolderMark {
+  readonly icon: LucideIcon
+  readonly color: string
+}
+
+export function folderMark(folder: Folder | undefined): FolderMark {
+  return {
+    icon: markIcon(folder?.icon ?? null),
+    color: folder?.color ?? DEFAULT_FOLDER_COLOR,
+  }
+}
+
 /**
- * A folder's display pair, resolved by id.
+ * A folder's display trio, resolved by id.
  *
  * This is the mismatch this module exists for. 7.0's `TaskCard` carries a
- * folder stub of `{id, name, is_default}` and no colour, because the colour is
- * the viewer's own `my_color` on 7.4's membership and a card that carried it
- * would be answering a question the card never asks. His row takes a name and
- * a colour and no id. So the id is the key, `useFolders()` is the table, and
- * the stub's own name is the fallback for the window in which the folder list
- * has not arrived yet or a task names a folder that list does not hold.
+ * folder stub of `{id, name, is_default}` and neither colour nor icon, because
+ * the identity rides the Folder object and a card carrying it would be
+ * answering a question the card never asks. His row takes a name, a colour and
+ * a mark and no id. So the id is the key, `useFolders()` is the table, and the
+ * stub's own name is the fallback for the window in which the folder list has
+ * not arrived yet or a task names a folder that list does not hold.
  */
 export function folderDisplay(
   stub: { id: string; name: string },
   folders: readonly Folder[],
 ): FolderDisplay {
   const folder = folders.find((candidate) => candidate.id === stub.id)
+  const mark = folderMark(folder)
   return {
     name: folder?.name ?? stub.name,
-    color: folder?.my_color ?? DEFAULT_FOLDER_COLOR,
+    color: mark.color,
+    icon: mark.icon,
   }
 }
 
 /** The display half of a sidebar folder row; the rest is the shell's. */
 export type FolderRowDisplay = Pick<
   FolderRowProps,
-  'name' | 'color' | 'pending' | 'href'
+  'name' | 'color' | 'icon' | 'pending' | 'href'
 >
 
 /**
@@ -295,12 +342,15 @@ export type FolderRowDisplay = Pick<
  *
  * `pending` is 8.11's pending tally, which 7.4 already puts on the Folder
  * object, and `href` is 9.1's routes table read through `routes.ts` rather
- * than spelled again here. AC-175 asserts that the row is a link to this path.
+ * than spelled again here. AC-175 asserts that the row is a link to this path,
+ * and AC-243 that its mark is the one that folder's own page draws.
  */
 export function folderRowDisplay(folder: Folder): FolderRowDisplay {
+  const mark = folderMark(folder)
   return {
     name: folder.name,
-    color: folder.my_color ?? DEFAULT_FOLDER_COLOR,
+    color: mark.color,
+    icon: mark.icon,
     pending: folder.counts.pending,
     href: paths.folder(folder.id),
   }
@@ -333,7 +383,7 @@ export function folderGroupOptions(
 ): FolderGroupOption[] {
   return folders.map((folder) => ({
     name: folder.name,
-    color: folder.my_color ?? DEFAULT_FOLDER_COLOR,
+    color: folderMark(folder).color,
     label: folder.my_label,
   }))
 }
@@ -413,6 +463,9 @@ export interface InviteRowDisplay {
   readonly id: string
   /** 9.8's row sentence, which is also how a test tells two rows apart. */
   readonly sentence: string
+  /** The inviter's display name, which is what the disc's tint is a function
+      of (`parts/person-tint.ts`) and what the sentence already names. */
+  readonly inviter: string
   /** The inviter's initials, for the row's avatar. */
   readonly initials: string
   /** Whether this invite grants a folder, which 7.5's null discriminates. */
@@ -439,6 +492,7 @@ export function inviteRowDisplay(invite: {
   return {
     id: invite.id,
     sentence: `${who} invited you to ${invite.folder_name ?? 'connect'}`,
+    inviter: who,
     initials: initialsOf(who),
     isFolder: invite.folder_name !== null,
   }

@@ -77,9 +77,13 @@ const FOLDERS: Folder[] = [
     member_count: 1,
     counts: { pending: 1, completed: 0 },
     my_label: 'Home',
+    /* Both columns are set deliberately, and they differ. 9.6 retires 4.4's
+       per-member colour from every v2 surface, so a chip that painted this one
+       would be reading the column the contract moved off; the case below reads
+       the identity and would go green on either if the two agreed. */
     my_color: '#33AA55',
     icon: null,
-    color: null,
+    color: '#4477CC',
     cover_file_id: null,
     description: null,
   },
@@ -211,9 +215,18 @@ describe('cellsByDate', () => {
     expect(drawn(cells, '2026-09-11')).toEqual(['ghost:series:2026-09-11'])
   })
 
-  it("takes the folder colour from the viewer's own membership", () => {
+  /*
+  **Reworked at S17a**, where this read "takes the folder colour from the
+  viewer's own membership" and expected 4.4's `my_color`. That was the v1
+  reading and 9.6 retires it in terms: "4.4's per-member color column is no
+  longer written by any v2 surface (existing values are simply unused)". So a
+  chip wears the folder's own identity colour, the value its page's mark
+  writes and every member sees, which is the same move AC-173 made on the
+  sidebar row. Found by the whole vitest leg and by nothing smaller.
+  */
+  it("takes the folder colour from the folder's own identity (4.3)", () => {
     const cells = cellsByDate([card({ id: 'a' })], [], FOLDERS)
-    expect(cells.get(DATE)?.[0]?.folderColor).toBe('#33AA55')
+    expect(cells.get(DATE)?.[0]?.folderColor).toBe('#4477CC')
   })
 
   it('gives a ghost no folder colour, the repeat glyph standing in its place', () => {

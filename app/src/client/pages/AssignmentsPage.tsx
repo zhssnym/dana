@@ -41,6 +41,7 @@ import { PageBody } from '../states/PageStates.js'
 import { ASSIGNMENTS_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.assignments
 
@@ -85,7 +86,13 @@ export function AssignmentsPage(): React.JSX.Element {
         ) : (
           <div className="space-y-6">
             {groups.map((group) => (
-              <PageSection key={group.key} name={group.name} heading={group.name}>
+              <PageSection
+                key={group.key}
+                name={group.name}
+                heading={group.name}
+                headingMedia={groupHeadingMedia(group.mark, basis.folders)}
+                count={group.rows.length}
+              >
                 <TaskRows
                   tasks={group.rows}
                   context={context}

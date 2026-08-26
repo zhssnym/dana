@@ -13,7 +13,9 @@ first pass is one engineer's answer to something nothing has ruled on.
 
 | Path | What it is |
 | - | - |
-| the seven lower-case files in this directory | The designer's presentational components, copied from `docs/design/prototype/src/components/` at P8R session R3, relabelled to section 9's names and corrected to 9.1's roles table |
+| the lower-case files in this directory | The designer's presentational components. Six came from `docs/design/prototype/src/components/` at P8R session R3, relabelled to section 9's names and corrected to 9.1's roles table; `page-bar.tsx` was the seventh and was retired at S17a, dead since S9 moved 10.6's update offer to the window bar. `person-face.tsx` and `object-menu.tsx` came from `docs/design/prototype-v2/src/components/` at S17a |
+| `person-face.tsx` | One disc for the whole product, tinted from the person's name so one person is one colour everywhere (`../parts/person-tint.ts`, AC-244). It replaced seven independently written neutral avatars |
+| `object-menu.tsx`, `../lib/object-acts.ts` | DES-201's contract: the acts an object has, their words, their glyphs and their order declared once, and the menu that draws them. A folder's menu is the same menu in the Library and on its own page, differing only in what each surface hands over (AC-246). An act with no handler is not drawn, which is the safety property that also does the role split of 9.6 |
 | `index.ts` | The ported set's entry point, and the second import of `styles/tokens.css` |
 | `ui/`, the lower-case files | The shadcn primitives of 11.4: twenty copied from `docs/design/prototype/src/components/ui/` at P8R session R2, re-ported and joined by six more from `docs/design/prototype-v2/src/components/ui/` at S8. Behaviour under them is @base-ui/react |
 | `../lib/icons.tsx`, `../lib/time-format.ts` | The animated icon module of DES-125 and the time-format store it and the calendar read, ported at S8. Every icon Dana uses is an export of that module and nothing imports `lucide-react` directly; the v1 files still doing so are the named exemption lists in `ui/foundation.test.ts`, shrinking to empty as S9 to S13 land |
@@ -23,8 +25,8 @@ first pass is one engineer's answer to something nothing has ruled on.
 | `ui/LegacyButton.tsx` and the five P8 files beside it | The hand-rolled set, retiring as R5 to R10 replace what calls them |
 | the calendar, task form and search directories | Complex Interaction's, and not this role's |
 
-The seven ported files keep his file names, `task-row.tsx` and its six siblings,
-so that a reader can put each beside the prototype file it came from. That is
+The ported files keep his file names, `task-row.tsx` and its siblings, so that
+a reader can put each beside the prototype file it came from. That is
 11.13 as RFC 0002 amends it: his prototype is the source this client is built
 from rather than a reference it is compared against, so a difference between
 the two files is a defect in the port unless a numbered section says otherwise.
@@ -343,17 +345,15 @@ the role that owns the file.
   The tidier arrangement is one line in `main.tsx` beside the query client and
   the router; that file is the Frontend Architect's. If the line lands there,
   both imports here come out.
-- **`page-bar.tsx` must be rendered inside `main`, and R5 owns where it goes.**
-  A `header` element maps to the `banner` landmark unless it is inside
-  `article`, `aside`, `main`, `nav` or `section`, and AC-174 asserts the removal
-  of 9.1's top bar as the absence of a banner on every page. Measured against
-  the running prototype on 2026-08-13: his shell renders it inside `main` and
-  exposes zero banners. The component cannot hold this on its own, so it is a
-  request rather than a note.
-- **`page-bar.tsx` takes `onUpdate` and falls back to reloading the window.**
-  His prototype has no service worker to activate, so it reloads directly.
-  10.6's non-forcing update wants the waiting worker applied on the click, which
-  is the registration's own path and lives in the shell.
+- **`page-bar.tsx` is gone, retired at S17a with its two `foundation.test.ts`
+  exemption lines.** It was dead v1 markup: nothing rendered it after S9 moved
+  10.6's update offer into `shell/WindowBar.tsx`, and it survived only as a
+  barrel export. RFC 0005 change control item 23 ruled that deleting it on its
+  own would edit a test to make the tree pass, which protocol section 8
+  forbids, and routed the file and its two exemption lines to this package
+  together. Both notes that stood here, about rendering it inside `main` and
+  about its `onUpdate` fallback, went with it; the first is now the window
+  bar's and AC-174 still asserts the absence of a banner on every page.
 
 ## One escalation open against this directory
 

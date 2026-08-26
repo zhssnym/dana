@@ -21,6 +21,8 @@ import { describe, expect, test } from 'vitest'
 // suffix's string type comes from.
 import presentersSource from './presenters.ts?raw'
 
+import { markIcon } from '../components/page/icon-manifest.js'
+
 import {
   DEFAULT_FOLDER_COLOR,
   DELETED_USER,
@@ -298,35 +300,64 @@ describe('personDisplay: 4.1\'s "Deleted user"', () => {
 })
 
 describe('folderDisplay: the id-keyed to name-keyed bridge', () => {
+  /*
+  **The colour is 4.3's since S17a and no longer 4.4's.** 9.6 retires the
+  per-member column from every v2 surface in terms, so what a chip paints is
+  the folder's own identity, the value its page's mark writes and every member
+  reads. The second case below is the discriminating one and proves the
+  opposite of what the first used to: a folder carrying a personal colour and
+  no identity colour paints the neutral token, because nothing in v2 reads
+  that column.
+  */
   test('resolves the colour by id from the folders useFolders() returns', () => {
+    const resolved = folderDisplay({ id: WORK, name: 'Work' }, [folder({ color: '#3366ff' })])
+    expect(resolved.name).toBe('Work')
+    expect(resolved.color).toBe('#3366ff')
+  })
+
+  test('the personal colour of 4.4 is not read at all', () => {
     expect(
-      folderDisplay({ id: WORK, name: 'Work' }, [folder({ my_color: '#3366ff' })]),
-    ).toEqual({ name: 'Work', color: '#3366ff' })
+      folderDisplay({ id: WORK, name: 'Work' }, [folder({ my_color: '#3366ff' })]).color,
+    ).toBe(DEFAULT_FOLDER_COLOR)
   })
 
   /*
-  4.4 makes my_color nullable, so a folder whose viewer set none needs a
-  value. It is the token the designer's own fixtures give every folder, so no
-  raw colour is written outside tokens.css (11.4).
+  4.3 makes the identity colour nullable, so a folder nobody has dressed needs
+  a value. It is the token the designer's own fixtures give every folder, so
+  no raw colour is written outside tokens.css (11.4).
   */
-  test('a folder with no personal colour takes the design\'s neutral token', () => {
+  test('a folder with no identity colour takes the design\'s neutral token', () => {
     expect(folderDisplay({ id: WORK, name: 'Work' }, [folder()]).color).toBe(
       DEFAULT_FOLDER_COLOR,
     )
     expect(DEFAULT_FOLDER_COLOR.startsWith('var(--')).toBe(true)
   })
 
+  /*
+  The mark travels with the colour, which is the whole of AC-243: one folder
+  wears one glyph on its sidebar row, on a task's chip and in the tab menu
+  because one function answers all three. An unset icon answers the plain
+  folder, which is what makes replacing the literal safe.
+  */
+  test('the glyph is the folder\'s chosen one, and the plain folder where none is', () => {
+    const chosen = folderDisplay({ id: WORK, name: 'Work' }, [folder({ icon: 'car' })]).icon
+    const unset = folderDisplay({ id: WORK, name: 'Work' }, [folder()]).icon
+    expect(chosen).toBe(markIcon('car'))
+    expect(unset).toBe(markIcon(null))
+    expect(chosen).not.toBe(unset)
+  })
+
   test('the id decides, not the name: two folders may share one name', () => {
-    const mine = folder({ id: WORK, name: 'Home', my_color: '#111111' })
-    const shared = folder({ id: INBOX, name: 'Home', my_color: '#222222' })
+    const mine = folder({ id: WORK, name: 'Home', color: '#111111' })
+    const shared = folder({ id: INBOX, name: 'Home', color: '#222222' })
     expect(folderDisplay({ id: INBOX, name: 'Home' }, [mine, shared]).color).toBe('#222222')
   })
 
   test('the card\'s own stub is the fallback before the folder list arrives', () => {
-    expect(folderDisplay({ id: WORK, name: 'Work' }, [])).toEqual({
-      name: 'Work',
-      color: DEFAULT_FOLDER_COLOR,
-    })
+    const resolved = folderDisplay({ id: WORK, name: 'Work' }, [])
+    expect(resolved.name).toBe('Work')
+    expect(resolved.color).toBe(DEFAULT_FOLDER_COLOR)
+    expect(resolved.icon).toBe(markIcon(null))
   })
 
   test('a folder renamed since the card was fetched renders its current name', () => {
@@ -338,9 +369,10 @@ describe('folderDisplay: the id-keyed to name-keyed bridge', () => {
 
 describe('folderRowDisplay: the sidebar row', () => {
   test('carries 8.11\'s pending tally and 9.1\'s route', () => {
-    expect(folderRowDisplay(folder({ my_color: '#abcdef' }))).toEqual({
+    expect(folderRowDisplay(folder({ color: '#abcdef' }))).toEqual({
       name: 'Work',
       color: '#abcdef',
+      icon: markIcon(null),
       pending: 3,
       href: `/app/folders/${WORK}`,
     })
@@ -481,10 +513,14 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
   })
 
   test('the folder resolves by id and the page may suppress it (Q2)', () => {
-    const withFolders = context({ folders: [folder({ my_color: '#0f0f0f' })] })
+    /* The identity of 4.3 rather than 4.4's personal pair, since S17a: what a
+       chip draws is the folder's own mark and colour, so a car picked for
+       Travel is on every row of it (AC-243). */
+    const withFolders = context({ folders: [folder({ color: '#0f0f0f', icon: 'car' })] })
     expect(taskRowDisplay(card(), withFolders).folder).toEqual({
       name: 'Work',
       color: '#0f0f0f',
+      icon: markIcon('car'),
     })
     expect(
       taskRowDisplay(card(), { ...withFolders, showFolder: false }).folder,

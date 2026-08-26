@@ -16,10 +16,9 @@ control and the avatar menu; the designer's prototype has no bar at all and
 puts the first two in the sidebar header and the third in its footer. The
 ruling was on the merits, 9.1 changed, and `shell/TopBar.tsx` is retired with
 it. AC-174 asserts the removal as the absence of a banner landmark on every
-page, which is what an application header is; `page-bar.tsx`'s `header` sits
-inside `main` and is a page's own rather than the application's, so it is
-content and not chrome. That placement is a requirement of this file and
-`components/README.md` filed it as a request against this session.
+page, which is what an application header is; every `header` this shell
+renders sits inside `main` and is a page's own rather than the application's,
+so it is content and not chrome. That placement is a requirement of this file.
 
 **The floor his root carries is absent, and this is the third instance of
 it.** Section 13 item 32 forbids a viewport floor; two lived in his
@@ -89,7 +88,7 @@ import { SearchOverlay } from '../components/search/index.js'
 import { TaskFormOverlay } from '../components/task-form/index.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
-import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
+import { folderMark } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { navPages, paths } from '../routes.js'
 import { placeAt, surfaceDefaults } from '../views/place-pages.js'
@@ -218,11 +217,13 @@ function currentPage(
   if (pathname.startsWith(FOLDER_PREFIX)) {
     const id = pathname.slice(FOLDER_PREFIX.length)
     const folder = folders?.find((candidate) => candidate.id === id)
-    return {
-      title: folder?.name ?? '',
-      icon: FolderIcon,
-      iconColor: folder?.my_color ?? DEFAULT_FOLDER_COLOR,
-    }
+    /* The folder's own mark since S17a. A tab drew a literal folder in a
+       personal colour until then, which is 9.1's "every tab is the same tab,
+       one anatomy (mark, title, close control)" with the wrong mark: a tab is
+       a face for the thing it opens, so it wears the thing's face. One
+       resolver, `parts/presenters.ts`, answers here and in the Library. */
+    const mark = folderMark(folder)
+    return { title: folder?.name ?? '', icon: mark.icon, iconColor: mark.color }
   }
   /* A shelf tab wears the shelf's name (9.1: every tab is the same tab),
      from the shelves read the sidebar's Library will share. */
