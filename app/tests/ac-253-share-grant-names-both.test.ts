@@ -31,8 +31,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp, OutboundEmail } from './auth-harness.js'
 import { EmailCast, renderedOf } from './email-harness.js'
-import { Cast, connect } from './folders-harness.js'
-import { createInviteOk } from './sharing-harness.js'
+import { Cast, connect, expectStatus } from './folders-harness.js'
+import { postInvite } from './sharing-harness.js'
 
 let app: AuthTestApp
 const cast = new EmailCast('grant')
@@ -98,11 +98,22 @@ describe('AC-253: a share grant names the sharer and the folder, at both call si
     await connect(app.db, staged.inviter.id, target.id)
 
     const before = app.emails.sent().length
-    await createInviteOk(
-      staged.inviter,
-      { email: target.email, folder_id: staged.folderId },
+    // Not createInviteOk: 8.7's conversion answers 200 with
+    // { converted_to_share, membership } rather than 201 { invite }, there
+    // being no invite row to park.
+    const response = await postInvite(staged.inviter, {
+      email: target.email,
+      folder_id: staged.folderId,
+    })
+    expectStatus(
+      response,
+      200,
       "8.7's instant share: an invite to a connected person grants the membership instead of parking a row",
     )
+    expect(
+      (response.json() as { converted_to_share?: unknown }).converted_to_share,
+      'and says so, which is what distinguishes this call site from the create one',
+    ).toBe(true)
     const produced = app.emails.sent().slice(before)
     expect(
       produced.length,
