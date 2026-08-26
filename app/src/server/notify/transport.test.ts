@@ -2,10 +2,14 @@
 The 11.8 half of the notification module: which environment sends, what a
 template says, and what a send does with a provider that refuses.
 
+Reworked at S19, when the templates became four and each grew a second part.
+The copy asserted below is Imran's, at RFC 0005 change control item 32, and
+nothing in this file may invent a word of it.
+
 None of it is observable to the acceptance suite by construction. That suite
 injects the 11.10 sink precisely so no message is ever transported, and 11.8
 forbids real sending under test, so the transport, the gate in front of it and
-the three template bodies have this file and the code review as their only
+the four template bodies have this file and the code review as their only
 readers.
 
 No test here reaches the network: fetch is stubbed in every case that
@@ -22,11 +26,14 @@ import { renderMessage } from './templates.js'
 
 const APP_ORIGIN = 'https://dana.example'
 
+const FOLDER_ID = '22222222-2222-4222-8222-222222222222'
+
 const payload = {
   taskId: '11111111-1111-4111-8111-111111111111',
   title: 'renew the passport',
   dueDate: '2026-08-20',
   dueTime: '09:00' as string | null,
+  folderName: 'Travel',
 }
 
 const reminder: OutboundMessage = {
@@ -152,12 +159,17 @@ describe('the Resend transport', () => {
   })
 })
 
-describe('the three templates (spec 10.7, 11.8)', () => {
-  test('a reminder names its task, its due moment, and one link', () => {
+describe('the four templates (spec 10.7, 11.8)', () => {
+  test('a reminder names its task, its due moment, its folder, and one link', () => {
     const rendered = renderMessage(reminder, { appOrigin: APP_ORIGIN })
     expect(rendered.subject).toBe('Reminder: renew the passport')
-    expect(rendered.text).toContain('Due 2026-08-20 at 09:00')
-    expect(rendered.text).toContain(`${APP_ORIGIN}/app`)
+    expect(rendered.text).toContain('2026-08-20 at 09:00')
+    expect(rendered.text).toContain('In Travel')
+    expect(rendered.text).toContain(`${APP_ORIGIN}/app/tasks/${payload.taskId}`)
+    expect(
+      rendered.html,
+      '10.7 as amended: an HTML part beside the text one, and a whole document',
+    ).toMatch(/^<!doctype html>/)
   })
 
   test('a date-only task has no time to state and states none', () => {
@@ -165,7 +177,7 @@ describe('the three templates (spec 10.7, 11.8)', () => {
       { ...reminder, reminder: { ...payload, dueTime: null } },
       { appOrigin: APP_ORIGIN },
     )
-    expect(rendered.text).toContain('Due 2026-08-20')
+    expect(rendered.text).toContain('2026-08-20')
     expect(
       rendered.text,
       '8.6 date-only arm fires at the reminder own time_of_day, which is not the task due time and must not be printed as one',
@@ -173,23 +185,153 @@ describe('the three templates (spec 10.7, 11.8)', () => {
   })
 
   test('a reminder with no payload refuses to render rather than sending a blank', () => {
+    // The union of ./index.ts makes this unconstructable in TypeScript, which
+    // is the guard that matters and the one this package added. The cast is
+    // what a JavaScript caller could still do, and the answer must still be a
+    // throw rather than a body about nothing.
     expect(() =>
       renderMessage(
-        { template: 'reminder', to: 'nobody@reminder.test' },
+        { template: 'reminder', to: 'nobody@reminder.test' } as OutboundMessage,
         { appOrigin: APP_ORIGIN },
       ),
-    ).toThrow(/nothing to remind/)
+    ).toThrow()
   })
 
-  test('the other two render from a message that carries no payload yet', () => {
-    for (const template of ['invite', 'share_grant'] as const) {
-      const rendered = renderMessage(
-        { template, to: 'someone@invite.test' },
-        { appOrigin: APP_ORIGIN },
+  test('each of the four renders both parts, one link, and item 32 words', () => {
+    const cases: { message: OutboundMessage; subject: string; href: string }[] = [
+      {
+        message: {
+          template: 'invite_folder',
+          to: 'invitee@invite.test',
+          folderInvite: {
+            inviterName: 'Hassan',
+            folderId: FOLDER_ID,
+            folderName: 'Travel',
+          },
+        },
+        subject: 'Hassan invited you to Travel on Dana',
+        href: `${APP_ORIGIN}/app`,
+      },
+      {
+        message: {
+          template: 'invite_connection',
+          to: 'invitee@invite.test',
+          connectionInvite: { inviterName: 'Hassan' },
+        },
+        subject: 'Hassan wants to connect on Dana',
+        href: `${APP_ORIGIN}/app`,
+      },
+      {
+        message: {
+          template: 'share_grant',
+          to: 'member@share.test',
+          shareGrant: {
+            inviterName: 'Hassan',
+            folderId: FOLDER_ID,
+            folderName: 'Travel',
+          },
+        },
+        subject: 'Hassan shared Travel with you on Dana',
+        href: `${APP_ORIGIN}/app/folders/${FOLDER_ID}`,
+      },
+      {
+        message: reminder,
+        subject: 'Reminder: renew the passport',
+        href: `${APP_ORIGIN}/app/tasks/${payload.taskId}`,
+      },
+    ]
+
+    for (const one of cases) {
+      const rendered = renderMessage(one.message, { appOrigin: APP_ORIGIN })
+      expect(rendered.subject, 'item 32 rules every subject').toBe(one.subject)
+      expect(
+        rendered.html.match(/href="/g) ?? [],
+        '10.7: one action link each, in the HTML part',
+      ).toHaveLength(1)
+      expect(rendered.html, 'and it lands where item 32 sends it').toContain(
+        `href="${one.href}"`,
       )
-      expect(rendered.subject.length).toBeGreaterThan(0)
-      expect(rendered.text).toContain(`${APP_ORIGIN}/app`)
+      expect(
+        rendered.text,
+        '10.7 as amended: the text part carries the same one link',
+      ).toContain(one.href)
     }
+  })
+
+  test('the orientation footer rides the invitations alone', () => {
+    const orientation = 'no password to create'
+    const invitations: OutboundMessage[] = [
+      {
+        template: 'invite_folder',
+        to: 'invitee@invite.test',
+        folderInvite: {
+          inviterName: 'Hassan',
+          folderId: FOLDER_ID,
+          folderName: 'Travel',
+        },
+      },
+      {
+        template: 'invite_connection',
+        to: 'invitee@invite.test',
+        connectionInvite: { inviterName: 'Hassan' },
+      },
+    ]
+    for (const message of invitations) {
+      const rendered = renderMessage(message, { appOrigin: APP_ORIGIN })
+      expect(rendered.text).toContain(orientation)
+      expect(rendered.text).not.toContain('Sent by Dana')
+    }
+    const grant = renderMessage(
+      {
+        template: 'share_grant',
+        to: 'member@share.test',
+        shareGrant: {
+          inviterName: 'Hassan',
+          folderId: FOLDER_ID,
+          folderName: 'Travel',
+        },
+      },
+      { appOrigin: APP_ORIGIN },
+    )
+    expect(
+      grant.text,
+      'item 32: a share grant reaches an existing connection, where the orientation line is filler',
+    ).not.toContain(orientation)
+    expect(grant.text).toContain('Sent by Dana')
+  })
+
+  test('a scrubbed display_name falls back to "Someone", once, in one place', () => {
+    const rendered = renderMessage(
+      {
+        template: 'share_grant',
+        to: 'member@share.test',
+        shareGrant: {
+          inviterName: null,
+          folderId: FOLDER_ID,
+          folderName: 'Travel',
+        },
+      },
+      { appOrigin: APP_ORIGIN },
+    )
+    expect(
+      rendered.subject,
+      'item 32: "Someone" survives as the fallback, 8.10 being able to scrub an account between the act and the send',
+    ).toBe('Someone shared Travel with you on Dana')
+  })
+
+  test('a value a person typed cannot become markup', () => {
+    const rendered = renderMessage(
+      {
+        ...reminder,
+        reminder: { ...payload, title: '<script>alert(1)</script>' },
+      },
+      { appOrigin: APP_ORIGIN },
+    )
+    expect(rendered.html).not.toContain('<script>')
+    expect(rendered.html).toContain('&lt;script&gt;')
+    expect(rendered.text, 'the text part carries it raw, being text').toContain(
+      '<script>',
+    )
   })
 })
 

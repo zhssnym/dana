@@ -1,9 +1,10 @@
 /*
-The 11.8 provider transport: Resend, one provider for all three templates.
+The 11.8 provider transport: Resend, one provider for all four templates.
 
 **Why an HTTP call rather than the provider's SDK.** 11.8 names the provider
 and nothing about how it is reached, and this is the whole of the integration:
-one POST with four fields. A dependency here would buy nothing and cost the
+one POST with five fields, the fifth arriving when 10.7 asked for a second
+part. A dependency here would buy nothing and cost the
 hazard 11.15 exists for, which is that training-data recall of an installed
 library's current surface is wrong in specific ways a compiler cannot catch.
 The HTTP endpoint is the provider's own documented contract and is what its
@@ -59,6 +60,12 @@ export function createResendTransport(
           from: config.from,
           to: [message.to],
           subject: rendered.subject,
+          // Both parts, since 10.7's amendment of 2026-08-25 (RFC 0005
+          // change control item 26): the provider assembles the multipart
+          // alternative from the pair, and a send carrying html alone does
+          // not meet the section. The text part is no stub; it is the same
+          // composition rendered a second way.
+          html: rendered.html,
           text: rendered.text,
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
