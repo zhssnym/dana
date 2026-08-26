@@ -2560,9 +2560,29 @@ fold, the way P7's mid-package change control ratified the pass callable:
     control unbuilt: the retention window is the product's promise, and a
     control that shortens it for one person removes a row another member with
     access could still restore, which is the property 9.11's "Trash is scoped
-    by access, not by who deleted" rests on. **AC-256's last arm asserts the
+    by access, not by who deleted" rests on. **AC-262's last arm asserts the
     absence**, so if the ruling goes the prototype's way that arm moves with it
     rather than the defect going unrecorded.
+
+    **And if it does go that way, one sentence has to travel with the
+    ruling.** 11.7 as change control item 18 amended it says the Trash purge
+    "collects the files rows its folder deletes will cascade away and removes
+    their objects from the store after the delete commits, because those rows
+    are the only index to the bytes and a purge that drops them without the
+    objects grows the disk without bound"; `scheduler/pass.ts` implements it
+    and `domain/accountDeletion.ts` carries the same rule for 8.10. A manual
+    "Delete for ever" is that same act arriving from a request instead of from
+    the tick, so an endpoint that deleted the rows without the collection
+    would leak bytes with no index left to find them by, silently and for
+    ever, and would be the one path in Dana that grows the disk without
+    bound. The recommendation is therefore that such an endpoint call the
+    collection the purge already does rather than write a delete beside it.
+    Recorded now because it is far cheaper to say before a ruling than to
+    discover after one, and it is the half of this escalation a reviewer
+    reading only 7.13 and 9.11 would not see. Raised by the S19 session on
+    2026-08-26 and verified here against 11.7 and `pass.ts` before it was
+    written down; the three roles it would land on are 04's for the frozen
+    section 7 address, 03's for the transaction, and 10's for the store.
 
     **(b) 9.11 requires the deleter on every Trash row and the read does not
     carry one. Recommendation: widen the 7.13 read, which is not frozen.**
