@@ -70,6 +70,7 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  chipChoices,
   chipPicker,
   chipValue,
   clickControl,
@@ -101,6 +102,23 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
  * Two rather than v1's three, for the reason this file's header records.
  */
 const DEPENDENTS = ['reminder', 'repeat'] as const
+
+/*
+The repeat preset is chosen through `chipChoices` rather than by naming a role.
+
+9.1's addressing sentence fixes how a control is identified and says nothing
+about how it is built, which is deliberate: section 9 specifies structure,
+states and copy, not widgets. 9.3's repeat row is "preset-driven exactly as
+v1... never a raw RRULE box" and spells no widget, and the field carries real
+operands behind the preset, the chosen days, the interval and the "Ends on"
+date, which a menu is the wrong container for and a picker is not. So the
+choice is read across both roles a list of choices can carry, the way
+`chooseOption` has always dispatched, and this file states a preset's name
+rather than a widget. Corrected before the implementing half ran, on the item
+17 precedent: the locator moves, the criterion's sentence does not, and an
+acceptance test that names a widget is a test the next design decision breaks
+for no reason of the specification's.
+*/
 
 /**
  * Captures a task from Important and waits for its surface, which is 9.1's
@@ -191,7 +209,7 @@ test.describe('AC-092: clearing the date on the task surface', () => {
       'spec 9.3: repeat is a chip and is enabled once a due date is set',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Daily', exact: true }),
+      chipChoices(page).filter({ hasText: 'Daily' }).first(),
       'spec 9.3: the repeat control is "preset-driven exactly as v1... never a raw RRULE box", ' +
         'and Daily is the first preset that row names',
     )
@@ -262,7 +280,7 @@ test.describe('AC-092: clearing the date on the task surface', () => {
       'spec 9.3: repeat is a chip and is enabled once a due date is set',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Daily', exact: true }),
+      chipChoices(page).filter({ hasText: 'Daily' }).first(),
       'spec 9.3: the repeat control is preset-driven',
     )
 
