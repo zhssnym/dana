@@ -2207,6 +2207,75 @@ fold, the way P7's mid-package change control ratified the pass callable:
     behind `v2-build` on the day this was written, lacking S15's card
     entirely.
 
+32. **Unit 12a is enacted, and its implementation surface is wider than the
+    unit's own list by seven client files (S18, 2026-08-25).** The two
+    widenings Imran approved at item 19 and this role wrote at item 24 are
+    on the wire. `TaskCard` carries `section_block_id` and the `created_by`
+    person stub, `TaskDetail`'s bare uuid `created_by` became that same
+    stub, no migration was owed, and the read shape moved in the two
+    producers the RFC 0001 P4 row named on the record and nowhere else.
+    Four readings, each recorded because a session that decided it quietly
+    leaves the next reader unable to tell a decision from an accident.
+
+    **The unit named one casualty and there were two.** Item 24 named
+    `shared/tasks.test.ts`, which asserts TaskCard's exact key set and went
+    red by design. The second was **AC-138's wire arm**, which asserted that
+    a scrubbed creator still reads as a bare id on the TaskDetail; the unit
+    makes that value null, so a green criterion went red on a contract
+    change exactly as items 8 and 14 warned. Its text did not move and did
+    not need to: what AC-138 promises is that `tasks.created_by` keeps
+    pointing at the scrubbed row, which is the column, and that assertion is
+    untouched and now sits beside the wire in the same test. This is the
+    third time in this build that a short list has been the finding, after
+    item 8's list of twenty that was three short and item 14's list of four
+    that was one wide, and it was found the same way both of those were, by
+    running the leg rather than by reading the list.
+
+    **"Null on every surface that is not a folder page" is about which tasks
+    are placed, not about which endpoint is answering.** The unit's own
+    sentence reads that way at a glance, and taken literally it would mean
+    nulling the field off every body but Q7, which is the private element
+    shape in disguise and is the exact thing the unit spends a paragraph
+    refusing: "a private element shape for one endpoint is two task shapes
+    on the wire". So the field is read straight off 4.5's column in one
+    projection, a placed task names its section wherever it is read, and a
+    task under no section is null everywhere. AC-248's second case asserts
+    it, and the criterion is written so that a session which ever disagrees
+    disputes that case rather than working around it.
+
+    **Seven client files moved and none by choice.** The package's own
+    prompt named two, the comments in `AssignmentsPage.tsx` and
+    `views/filter.ts` that asserted the old shape in prose. What it could
+    not have known is that the widened type is imported by client code:
+    `TaskHistory` took `created_by` as a `string` and now takes the stub's
+    id or null, which renders identically because "Deleted user" arrives
+    through the same `nameOf` either way, and five client unit-test fixtures
+    build a whole `TaskCard` and stop compiling without the two keys. Every
+    one is a mechanical consequence of a type, not a behaviour change, and
+    they are named here rather than escalated because the alternative was to
+    block a contract change on a null literal and leave the tree red. The
+    real client work this unblocks is untouched and stays where it is: the
+    stub's `display_name` is what a ported history block should read, and
+    that belongs to the session that ports the block.
+
+    **What this unblocks rather than closes.** The parity audit's 31
+    surfaces gain nothing finished here and three gain their missing field.
+    The folder page can draw tasks under their sections, which is S17b's row
+    and `task-section.tsx` as a component is S17a's; Assignments can carry
+    its "from {creator}" half; and the filter's created-by axis, recorded in
+    `views/filter.ts` since S11 as an escalation rather than an omission,
+    now has the field it was waiting for. AC-093's section-capture arm, owed
+    since S12, is client work and rides the package that draws the capture.
+
+    **The fold of unit 12a into `docs/spec/07-api.md` is not taken and is
+    not owed by this package.** Section 7 is frozen and its file still
+    carries the v1 TaskCard line, exactly as sections 4.3 and 4.5 still
+    carry theirs for unit 11; S-fold at item 28 folded section 9 and only
+    section 9. The unit is the contract and is cited as 7.17b throughout
+    this package's code and criteria. Whether the fold is owed, and to whom,
+    is left with the Steward as change control rather than decided by a
+    session editing a frozen section on its own authority.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
