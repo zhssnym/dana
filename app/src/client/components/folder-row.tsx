@@ -19,12 +19,16 @@ default stays a plain anchor, which is also what makes the row work with
 scripting unavailable. Whichever arrives, it is an anchor with an `href`, and
 that is what the criterion reads.
 
-**The colour is data and not a token.** 11.4's own ruling of 2026-08-12: a
-folder's colour is a person's runtime choice on 7.4's `my_color`, free-form
-under 4.4's hex check, so it arrives as a prop and is written into `style`.
+**The mark is the folder's own since S17a, and the colour is 4.3's.** This
+row drew a literal folder glyph in the viewer's personal `my_color` until
+then, which was correct under v1 and is two faults under v2: 9.1 asks each
+row for "the folder's mark (its icon in its colour, 4.3)", and 9.6 retires
+4.4's per-member column from every v2 surface. Both values arrive as props,
+resolved once by `parts/presenters.ts`, so the row, a task's folder chip and
+the tab strip cannot answer the same question differently (DES-130, AC-243).
 The rule that raw values live only in `tokens.css` governs the values the
-design fixes, and the dot's size and shape are still there. AC-173 reads the
-paint inside the row and would fail a client that painted every dot from one
+design fixes; a folder's colour is data on the wire. AC-173 reads the paint
+inside the row and would fail a client that painted every folder from one
 swatch.
 
 **The menu is "More actions", corrected here.** This file shipped his
@@ -50,38 +54,33 @@ primitive; the Adversarial Test Engineer corrected the locator on 2026-08-13,
 9.1's roles table not reaching this control and sending it to "its role in the
 ordinary sense of the word", which all three are true of. Nothing here changed.
 
-**The menu's entries are wired at R10 and each is a prop that may be absent.**
-9.1 puts "New folder group" and "Move to group" on a folder's own menu and 9.6
-puts rename, "Label and color" and delete in the folder page's header, so the
-sidebar supplies the first two and leaves the rest to that page rather than
-offering two routes to one write. The row renders only the entries whose
-callback it was given.
+**The menu is the object contract's since S17a, and that is the change a
+reader will see.** It was a hand-written list of five items, and the folder
+page's was a hand-written list of seven, so where a person stood decided what
+they could do to the same folder: DES-201's own worked example, still true of
+this client on the day it was ported. `lib/object-acts.ts` now owns which acts
+exist, their words, their glyphs and their order, and `object-menu.tsx` draws
+them; what stays here is the one item that belongs to the *surface* rather
+than to the folder, "New folder group", and the contents of the group picker.
+"Label and color" is gone with the dialog 9.6 retired.
+
+Every handler is still a prop that may be absent, and the contract's own
+safety property does the rest: an act with no handler is not drawn, so a
+member's row is given `onLeave` and an owner's `onDelete` and neither needs a
+role branch in this file.
 */
 import type { ReactElement } from 'react'
-import {
-  Folder,
-  FolderInput,
-  Folders,
-  MoreHorizontal,
-  Palette,
-  Pencil,
-  Plus,
-  Trash2,
-} from 'lucide-react'
+import { Folder, Folders, Plus } from 'lucide-react'
 
+import type { LucideIcon } from '../lib/icons.js'
+import { ObjectMenu } from './object-menu.js'
 import { Button } from './ui/button.js'
 import { MORE_ACTIONS } from './ui/copy.js'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
 import {
   SidebarMenuBadge,
@@ -94,6 +93,10 @@ import type { SortableItemState } from '../lib/use-sortable-list.js'
 export interface FolderRowProps {
   name: string
   color: string
+  /** The folder's chosen glyph (4.3). Defaults to the plain folder, which is
+      what an unset identity means, so a row given none renders as it always
+      did. */
+  icon?: LucideIcon
   pending: number
   /** 9.1's routes table: `/app/folders/:id`. Asserted by AC-175. */
   href: string
@@ -126,17 +129,30 @@ export interface FolderRowProps {
   proposal?: string | null
   onSelect?: () => void
   onAddTask?: () => void
-  /** 9.1's "New folder group", which is an action on this folder's label. */
+  /** 9.1's "New folder group", which is an act on this folder's label and is
+      therefore the surface's own rather than the contract's. */
   onNewGroup?: () => void
+  /*
+  The contract's acts (`lib/object-acts.ts`). Each is optional and an act with
+  no handler is not drawn, which is how the role split of 9.6 reaches this row
+  without a branch in it: an owner's row is given `onDelete` and a member's
+  `onLeave`, and neither is given both.
+  */
+  onOpenInNewTab?: () => void
+  onHistory?: () => void
   onMoveToLabel?: (label: string | null) => void
   onRename?: () => void
-  onEditAppearance?: () => void
+  onCopyLink?: () => void
+  onDuplicate?: () => void
+  onSaveAsWorkflow?: () => void
+  onLeave?: () => void
   onDelete?: () => void
 }
 
 export function FolderRow({
   name,
   color,
+  icon: Mark = Folder,
   pending,
   href,
   render,
@@ -153,15 +169,29 @@ export function FolderRow({
   onSelect,
   onAddTask,
   onNewGroup,
+  onOpenInNewTab,
+  onHistory,
   onMoveToLabel,
   onRename,
-  onEditAppearance,
+  onCopyLink,
+  onDuplicate,
+  onSaveAsWorkflow,
+  onLeave,
   onDelete,
 }: FolderRowProps) {
   const hasFolderMenu = Boolean(
-    onRename || onEditAppearance || onNewGroup || onMoveToLabel || onDelete,
+    onNewGroup ??
+      onOpenInNewTab ??
+      onHistory ??
+      onMoveToLabel ??
+      onRename ??
+      onCopyLink ??
+      onDuplicate ??
+      onSaveAsWorkflow ??
+      onLeave ??
+      onDelete,
   )
-  const hasActions = Boolean(onAddTask || hasFolderMenu)
+  const hasActions = Boolean(onAddTask) || hasFolderMenu
   /*
   Geometry inline rather than in a class, because the offset is a measured
   number of pixels and a class cannot carry one. The tokens file stays the
@@ -225,7 +255,12 @@ export function FolderRow({
           (pending > 0 || hasActions) && 'pr-[4.75rem]',
         )}
       >
-        <Folder
+        {/* The folder's own mark since S17a, where this drew a literal folder
+            in the folder's colour. 9.1: "each folder row carries the folder's
+            mark (its icon in its colour, 4.3)". The glyph arrives as a prop,
+            resolved once by `parts/presenters.ts`, so the row, the task chip
+            and the tab strip cannot answer the question differently. */}
+        <Mark
           className="!size-4 shrink-0 opacity-90"
           style={{ color }}
           strokeWidth={1.75}
@@ -271,84 +306,79 @@ export function FolderRow({
             </Button>
           ) : null}
 
-          {hasFolderMenu ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)]"
-                    // 9.1's names table: a fixed string, the row that names
-                    // this folder being what separates it from the other
-                    // three controls answering to it.
-                    aria-label={MORE_ACTIONS}
-                  />
-                }
-              >
-                <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {onRename ? (
-                  <DropdownMenuItem onClick={onRename}>
-                    <Pencil className="size-4" aria-hidden="true" />Rename
-                  </DropdownMenuItem>
-                ) : null}
-                {onEditAppearance ? (
-                  <DropdownMenuItem onClick={onEditAppearance}>
-                    <Palette className="size-4" aria-hidden="true" />Label and color
-                  </DropdownMenuItem>
-                ) : null}
-                {/* 9.1's names table, added to this menu at P8R session R10:
-                    "creating one is naming it on a folder", so the action that
-                    makes a group is an action on the folder whose label it
-                    will be. His prototype puts it in a folder-directory menu
-                    the sidebar does not carry; see `shell/folder-groups.tsx`
-                    for why that menu is not here. */}
-                {onNewGroup ? (
-                  <DropdownMenuItem onClick={onNewGroup}>
-                    <Folders className="size-4" aria-hidden="true" />New folder group
-                  </DropdownMenuItem>
-                ) : null}
-                {onMoveToLabel ? (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <FolderInput className="size-4" aria-hidden="true" />Move to group
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-44">
-                      <DropdownMenuRadioGroup
-                        value={currentLabel || '__none'}
-                        onValueChange={(value) =>
-                          onMoveToLabel(value === '__none' ? null : value)
-                        }
-                      >
-                        {groupLabels.map((label) => (
-                          <DropdownMenuRadioItem
-                            key={label}
-                            value={label}
-                            closeOnClick
-                          >
-                            {label}
+          {/*
+          One menu, drawn from `lib/object-acts.ts` since S17a.
+
+          It was a hand-written list of five items until then, and the folder
+          page's was a hand-written list of seven, so where a person stood
+          decided what they could do to the same folder: DES-201's own worked
+          example, still true of this client on the day it was ported. What is
+          left here is the two items that belong to the *surface* rather than
+          to the folder, "New folder group" and the group picker's contents;
+          everything else is the contract's and is the same on both.
+          */}
+          <ObjectMenu
+            kind="folder"
+            name={name}
+            align="end"
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)]"
+                // 9.1's names table: a fixed string, the row that names this
+                // folder being what separates it from the other controls
+                // answering to it.
+                aria-label={MORE_ACTIONS}
+              />
+            }
+            extra={
+              /* 9.1's names table, added to this menu at P8R session R10:
+                 "creating one is naming it on a folder", so the act that makes
+                 a group is an act on the folder whose label it will be. It
+                 stays a surface item rather than joining the contract because
+                 it acts on the Library's arrangement and not on the folder. */
+              onNewGroup === undefined ? undefined : (
+                <DropdownMenuItem onClick={onNewGroup}>
+                  <Folders className="size-4" aria-hidden="true" />New folder group
+                </DropdownMenuItem>
+              )
+            }
+            handlers={{
+              open: onOpenInNewTab,
+              history: onHistory,
+              rename: onRename,
+              'copy-link': onCopyLink,
+              duplicate: onDuplicate,
+              workflow: onSaveAsWorkflow,
+              leave: onLeave,
+              delete: onDelete,
+              move:
+                onMoveToLabel === undefined
+                  ? undefined
+                  : {
+                      choose: (
+                        <DropdownMenuRadioGroup
+                          value={currentLabel ?? '__none'}
+                          onValueChange={(value) => {
+                            onMoveToLabel(value === '__none' ? null : value)
+                          }}
+                        >
+                          {groupLabels.map((label) => (
+                            <DropdownMenuRadioItem key={label} value={label} closeOnClick>
+                              {label}
+                            </DropdownMenuRadioItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuRadioItem value="__none" closeOnClick>
+                            No group
                           </DropdownMenuRadioItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioItem value="__none" closeOnClick>
-                          No group
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ) : null}
-                {onDelete ? <DropdownMenuSeparator /> : null}
-                {onDelete ? (
-                  <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                    <Trash2 className="size-4" aria-hidden="true" />Delete folder…
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+                        </DropdownMenuRadioGroup>
+                      ),
+                    },
+            }}
+          />
         </div>
       ) : null}
 

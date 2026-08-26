@@ -43,6 +43,7 @@ import { PageBody } from '../states/PageStates.js'
 import { MY_DAY_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.today
 
@@ -102,7 +103,13 @@ export function TodayPage(): React.JSX.Element {
             />
           ) : place.groupBy !== 'none' ? (
             columns.map((column) => (
-              <PageSection key={column.key} name={column.name} heading={column.name}>
+              <PageSection
+                key={column.key}
+                name={column.name}
+                heading={column.name}
+                headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                count={column.rows.length}
+              >
                 <TaskRows
                   tasks={column.rows}
                   context={context}
@@ -119,7 +126,11 @@ export function TodayPage(): React.JSX.Element {
                   headings; it does not ask for a heading over an empty list,
                   and AC-097 reads "Carried over" on a page that has one. */}
               {narrowedCarried.length === 0 ? null : (
-                <PageSection name="Carried over" heading="Carried over">
+                <PageSection
+                  name="Carried over"
+                  heading="Carried over"
+                  count={narrowedCarried.length}
+                >
                   <TaskRows
                     tasks={narrowedCarried}
                     context={context}
@@ -129,7 +140,7 @@ export function TodayPage(): React.JSX.Element {
                 </PageSection>
               )}
               {narrowedToday.length === 0 ? null : (
-                <PageSection name="Today" heading="Today">
+                <PageSection name="Today" heading="Today" count={narrowedToday.length}>
                   <TaskRows
                     tasks={narrowedToday}
                     context={context}

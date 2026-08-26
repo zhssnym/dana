@@ -101,7 +101,13 @@ describe('the date axis', () => {
 describe('a seeded column survives having no rows', () => {
   test('so a board always offers somewhere to capture', () => {
     const columns = groupRows([], 'folder', TODAY, VIEWER, [
-      { key: groceries.id, name: 'Groceries', capture: { folder_id: groceries.id }, rows: [] },
+      {
+        key: groceries.id,
+        name: 'Groceries',
+        capture: { folder_id: groceries.id },
+        mark: { kind: 'folder', folderId: groceries.id },
+        rows: [],
+      },
     ])
     expect(columns).toHaveLength(1)
     expect(columns[0]?.rows).toEqual([])
