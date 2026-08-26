@@ -221,7 +221,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
 
     await chooseFilter(
       page,
-      /due date/i,
+      /^With a due date$/,
       'spec 9.6: a filter above the list offers all open tasks, those with a due date, and ' +
         'those without',
     )
@@ -235,7 +235,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
 
     await chooseFilter(
       page,
-      /without|no due date/i,
+      /^No due date$/,
       'spec 9.6: the filter offers the tasks without a due date',
     )
     expect(
@@ -246,7 +246,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
 
     await chooseFilter(
       page,
-      /all open/i,
+      /^Any due date$/,
       'spec 9.6: the filter offers all open tasks, which is the state the list opens in',
     )
     expect(

@@ -43,7 +43,24 @@ import { paths } from '../routes.js'
 import type { GroupBy } from './filter.js'
 import type { ViewMode } from './view-mode.js'
 
-/** The place-pages this package draws. Desk and a folder are 9.6's, not here. */
+/**
+ * The place-pages this table draws.
+ *
+ * **`folder` joined them at S17b, and the sentence this replaces said it would
+ * not:** "Desk and a folder are 9.6's, not here." That held while the folder
+ * page had no view strip and no window-bar filter, which is what the parity
+ * audit records against it, "the board view entirely: no view strip, no
+ * window-bar filter, DES-132's two-column board". 9.6 asks for all three, "the
+ * filter of 9.1 narrows the page without touching its arrangement", so a
+ * folder page is a place-page in every sense this table means and keeping it
+ * out is what left it with none of the shared behaviour.
+ *
+ * What stays 9.6's is everything that needs the folder's own id: its capture
+ * writes that folder, its filter is remembered per folder rather than per
+ * kind, and its head is the identity head. `usePlace` takes those as options
+ * for that reason, and the spine below carries only what is true of every
+ * folder page.
+ */
 export type PlaceKey =
   | 'today'
   | 'scheduled'
@@ -53,6 +70,7 @@ export type PlaceKey =
   | 'done'
   | 'abandoned'
   | 'anytime'
+  | 'folder'
 
 /** Where a page's one always-visible capture point is, or that it has none. */
 export type CaptureKind = 'floating' | 'inline' | 'none'
@@ -167,6 +185,35 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     capture: 'inline',
     boardAxis: 'folder',
   },
+  /*
+  The folder page (9.6), added at S17b.
+
+  **Its board axis is the date and not the folder**, which every other row
+  here uses, and DES-177 is why rather than taste: "a page either pins a value
+  on an axis or spans it, and arranging by an axis the page has pinned gives
+  one group, which is a list wearing a different control". A folder page has
+  pinned the folder, so a board grouped by it is one column, which is the
+  degenerate case that rule exists to refuse. The date is the axis such a page
+  actually spans.
+
+  **Its name, question, path and capture are placeholders and are never
+  read.** The folder page draws 9.6's identity head rather than a place head,
+  its address carries an id this table cannot know, and its capture is the
+  quick-add that writes its own folder. `usePlace` takes the capture as an
+  option and the page supplies its own; these three fields are here because
+  the shape requires them, and a reader should not go looking for where they
+  are used.
+  */
+  folder: {
+    key: 'folder',
+    name: 'Folder',
+    path: '',
+    question: '',
+    icon: Layers3,
+    views: LIST_AND_BOARD,
+    capture: 'inline',
+    boardAxis: 'date',
+  },
 }
 
 /** The place a path is, or null where the path is not a place-page. */
@@ -253,6 +300,14 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
     case 'anytime':
     case 'done':
     case 'abandoned':
+      return { due_date: null, important: false, pullIntoToday: false }
+    /* A folder page's capture is the page's own, because the one thing it
+       writes is a folder id this table cannot know. `usePlace` takes it as an
+       option and the folder page supplies it, so this branch is reached only
+       by a board column's capture on that page, whose column value rides over
+       it. Undated and unstarred is 9.3's first row, which is the right floor
+       for it. */
+    case 'folder':
       return { due_date: null, important: false, pullIntoToday: false }
   }
 }
