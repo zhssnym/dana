@@ -2533,6 +2533,85 @@ fold, the way P7's mid-package change control ratified the pass callable:
     values belong in the owning module's unit test under protocol section 8.
     The spent range is AC-251 to AC-256 and 257 is free for the next session.
 
+36. **Trash gains a permanent delete control and it destroys the objects too,
+    on Imran's ruling of 2026-08-26. Recorded here because the ruling reached
+    a session in conversation and nowhere else, and protocol section 2 takes
+    state from artifacts.**
+
+    S17b's item 35 (a) escalated `prototype-v2`'s "Delete for ever" against
+    7.13, which says "DELETE of a task or folder sets deleted_at (soft); purge
+    is the tick's, at 30 days, permanent" and offers no address for anything
+    else, and against 9.11, which gives the Trash page Restore alone. He ruled
+    for the prototype: **the control exists.** The resolution is item 26's
+    shape rather than an override, and it is worth naming as such. 11.13 says
+    a numbered section wins over a design artifact **until it is amended**, so
+    amending the sections is a third option that is neither keeping the rule
+    nor ignoring it; that is how 10.7 gained its HTML part and it is how these
+    two gain this control.
+
+    **The second half was ruled after a misreading was put to him, and the
+    misreading is recorded because it is the more useful half of this item.**
+    His first statement was that permanent delete must not remove "the
+    uploaded files from users storage", the reason given being that a person's
+    own data on their own machine must not be leaked. Dana cannot reach anyone's
+    machine and never could: 4.16 puts every byte in the object store, makes
+    the `files` row "the authority on existence, ownership and quota", and
+    states that "there are no public object URLs", while 7.15 offers upload,
+    authenticated fetch by id, and delete by id. So the concern the ruling was
+    protecting against does not exist, and the ruling read literally would have
+    produced its opposite: the rows gone, the bytes left on Dana's own disk,
+    unreachable because 7.15 has no list endpoint to find them by again, and
+    still spending the owner's 1 GB quota for ever. Put that way, he ruled the
+    other way, which is the ruling above: **permanent delete destroys the
+    objects.**
+
+    **What it obliges, and to whom, because this is three roles and not one.**
+    None of it is assigned to a package here; that is the Steward's.
+
+    - **7.13 gains an address**, which is a widening of frozen section 7 and
+      therefore a Replace unit written by role 04, routed through the Steward
+      to Imran, in unit 12a's shape. Nothing may be built before that unit
+      exists.
+    - **9.11 gains the control and the copy for it.** That section is not
+      frozen and does not travel with 7.13 by default; if the two amendments
+      land in one commit it should be because somebody chose that.
+    - **The transaction is role 03's**, in `domain/**`, beside the 8.8 and 8.10
+      deletions it resembles.
+    - **The object collection is 11.7's own and role 10's**, and the
+      requirement is that the endpoint **call the collection the purge already
+      does rather than write a delete beside it.** 11.7 as amended by item 18
+      says the Trash purge "collects the files rows its folder deletes will
+      cascade away and removes their objects from the store after the delete
+      commits, because those rows are the only index to the bytes and a purge
+      that drops them without the objects grows the disk without bound". A
+      manual permanent delete is that same act arriving from a request instead
+      of from the tick, and 8.10 already carries the same rule in
+      `domain/accountDeletion.ts`, so the collection is an established shared
+      act rather than one function's private business. An endpoint that skips
+      it would be the only path in Dana that grows the disk without bound, and
+      it would do so silently, there being no row left to count the bytes by.
+
+    **AC-262 does not move on this item.** S17b asserted that the Trash page
+    offers no permanent-delete control, which is true of the contract as it
+    stands and was true when its gate ran; that package recorded the ruling as
+    reported and deliberately did not act on a relay, which is protocol section
+    2 applied correctly and is upheld here rather than corrected. The
+    criterion's last arm moves in the amendment's own commit, red before the
+    implementation, which is item 15's sequencing and items 8, 14 and 24's
+    discipline.
+
+    **One sub-question was raised with him and is not answered, and it is named
+    rather than decided so that no package invents it.** In a shared folder,
+    who may press this control? 5.4's permission matrix has no row for it, and
+    permanently destroying a co-member's attachments is not obviously the same
+    permission as deleting a task, which is reversible for thirty days and is
+    exactly what makes the soft delete safe to give everyone. Three answers are
+    available and none is this role's to pick: any member, the folder owner
+    alone, or the control is absent on shared folders and offered only where
+    the viewer is the only member. **The package that builds this must obtain
+    the answer rather than choose one**, and the criterion that pins it cannot
+    be written until it has.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
