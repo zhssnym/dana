@@ -1,5 +1,5 @@
 /*
-AC-179: given an open task opened for edit, then the form's completion control
+AC-179: given an open task opened for edit, then the surface's completion control
 completes it and a completed task's control un-completes it, each producing
 the same stored state as the equivalent control on a task row; and given the
 un-complete would take a G-SERIES successor, then it first confirms with
@@ -16,16 +16,16 @@ transition 9.4's row checkbox and 9.5's 'Mark as not done' make, and takes
 of that sentence is a way the port can go wrong quietly.
 
 **"The same stored state" is asserted against the row control, not against a
-constant.** A form that patched status directly would be refused by AC-034
-and would fail loudly; what would not fail loudly is a form that ran the
-transition and then, say, cleared the task from My Day or skipped the
+constant.** A surface that patched status directly would be refused by AC-034
+and would fail loudly; what would not fail loudly is a surface that ran the
+transition and then, say, cleared the task from Today or skipped the
 successor generation of 5.1, which is a different code path reaching the same
-`status` value. So each arm is run twice, once through the form and once
+`status` value. So each arm is run twice, once through the card and once
 through the row control 9.4 gives, and the two resulting TaskDetail rows are
 compared field for field.
 
 **The confirmation is the clause most likely to be dropped.** 9.5 puts it on
-"Mark as not done" and the prototype's form has no such branch at all, its
+"Mark as not done" and the prototype's card has no such branch at all, its
 fixtures carrying no series. An un-complete that takes the successor without
 warning destroys any edit already made to the next occurrence, which is the
 part of the sentence the person cannot see and the reason 9.5 spells it.
@@ -34,23 +34,32 @@ part of the sentence the person cannot see and the reason 9.5 spells it.
 confirm that acts anyway shows the right words, the person says no, and the
 row is gone.
 
-**The control has no name in any numbered section and is addressed by role
-inside the form.** That is the same move the existing specs make for 9.4's
-row checkbox, which section 9 also describes without naming; the form's
-expander is left closed so that the steps editor's per-row checks are not on
-the page, which makes the completion control the only one there. The naming
-gap is routed to the Integration Steward with the rest of this package's.
+**The control had no name in any numbered section and now has one, which is
+what lets this file stop counting checkboxes.** v1 addressed it by role inside
+the form and kept the "More options" expander closed so that the steps
+editor's per-row checks were off the page, leaving exactly one checkbox to
+find; that was a locator standing in for a name, and the naming gap was
+routed to the Integration Steward. 9.1's v2 names table closes it: "A task's
+completion control | 'Complete task' when open, 'Mark as not done' when
+complete". So the control is addressed by its own two names, the strictly
+better move, and it survives a surface that shows the steps block without an
+expander, which 9.3's v2 card does.
 
-**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
-criterion asserts moves; where the rows are read does. The undated rows are
-read on Anytime, which draws Q2 at /app/anytime now that /app/tasks
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and onto 9.3's v2
+card at S15 (items 15 and 19).** Nothing this criterion asserts moves in
+either rework; where the rows are read moved in the first, and what is opened
+moved in the second, "the form" becoming the task surface 9.1's roles table
+names. The criterion's own sentence was amended with it, which section 12
+records.
+
+The undated rows are read on Anytime, which draws Q2 at /app/anytime now that /app/tasks
 redirects, and the dated repeating row on Today, which draws Q1 at
 /app/today now that Desk holds /app. The comment on the last case still
 holds under both names: a dated row is deliberately not on the undated page.
 
-Spec: 9.3 (the completion control, in edit mode), 9.1 (the v2 routes table),
-9.4 (the row checkbox it is
-the same transition as), 9.5 ("Mark as not done" and the G-SERIES confirm),
+Spec: 9.3 (the completion control on the v2 card), 9.1 (the v2 routes table,
+the roles table and the two names of the completion control), 9.4 (the row
+checkbox it is the same transition as), 9.5 ("Mark as not done" and the G-SERIES confirm),
 5.1 (the transitions and the successor), frozen 7.6 and 7.2, AC-034, AC-079.
 */
 import { expect, test } from '@playwright/test'
@@ -67,6 +76,7 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  taskSurface,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
 } from './harness.js'
@@ -103,51 +113,59 @@ async function storedState(page: Page, id: string): Promise<Stored> {
 }
 
 /**
- * The form's completion control, addressed by role inside the dialog.
+ * The completion control of 9.3, addressed by the two names 9.1's v2 table
+ * gives it and scoped to the task surface.
  *
- * 9.3 describes it and names it nowhere, so this is the move the existing
- * specs already make for 9.4's row checkbox, which section 9 also describes
- * without naming. The expander is left closed by every case below, which
- * keeps the steps editor's per-row checks off the page and makes this the
- * only checkbox inside the form; the count is asserted so that a client
- * adding a second one fails here saying so rather than somewhere later.
+ * Two names rather than one because the control is a toggle and its name is
+ * its state, which is the same rule 9.5's star follows: "Complete task" when
+ * open, "Mark as not done" when complete. Either is accepted here because a
+ * case reaches for the control before it knows which state it is in, and the
+ * cases that turn on the state assert it separately.
+ *
+ * Scoped to the surface, so a row's own checkbox behind the card is not what
+ * gets pressed. That mattered less when the form was the only thing carrying
+ * a checkbox and matters more now: 9.3's card shows its steps block without
+ * an expander, so per-row checks are on the surface too and an unscoped
+ * checkbox match would be ambiguous.
  */
 function completionControl(page: Page): Locator {
-  return page.getByRole('dialog').getByRole('checkbox')
+  return taskSurface(page).getByRole('checkbox', {
+    name: /^\s*(Complete task|Mark as not done)\s*$/,
+  })
 }
 
-async function openForEdit(page: Page, title: string): Promise<void> {
+async function openTheCard(page: Page, title: string): Promise<void> {
   await clickControl(
     page.getByText(title),
-    'spec 9.5: a click on any row opens the task, and 9.3 makes create and edit one artifact',
+    'spec 9.4: a click on any row opens that task, and 9.3 makes create and edit one artifact',
   )
-  // 9.5's "click on any row opens the task", which this file needs on Done as
-  // well as on Tasks: a completed task's row is on Done, and a client whose
-  // Done rows do not open has no surface for the un-complete arm at all.
-  // Section 9 does not restate the rule in its Done bullet, which is a
-  // silence raised with the Integration Steward rather than resolved here.
+  // 9.4's "a task row opens that task, on every page that draws one and
+  // whatever the task's status", which this file needs on Done as well as on
+  // Anytime: a completed task's row is on Done, and a client whose Done rows
+  // do not open has no surface for the un-complete arm at all. That clause is
+  // the v2 section's own and no longer a silence, which is what its "whatever
+  // the task's status" was added for.
   await expect(
-    page.getByRole('dialog'),
-    "spec 9.1's roles table: the task form is a dialog, and 9.3 makes create and edit one " +
-      'artifact, so a row that was clicked has a form over it',
+    taskSurface(page),
+    "spec 9.1's v2 roles table: the task surface is a dialog when opened as one, and 9.3 makes " +
+      'create and edit one artifact, so a row that was clicked has that surface over it',
   ).toBeVisible()
   await expect(
     completionControl(page),
-    'spec 9.3: in edit mode the form carries a completion control. With the "More options" ' +
-      "expander closed, the steps editor's per-row checks are not on the page, so the form " +
-      'holds exactly one checkbox and it is this one',
+    "spec 9.3: the card's footer toolbar carries the completion control, and 9.1's names table " +
+      'gives it exactly two names, one per state, so exactly one control answers to them',
   ).toHaveCount(1)
-  // And it is the completion control rather than the important toggle, which
-  // 9.1's roles table makes a switch and not a checkbox. Without this the
-  // locator above resolves to the important field on any client that gave it
-  // the wrong role, and every assertion below then reports that the form
-  // completed the task wrongly when what happened is that it has no
-  // completion control at all. That is a red naming the wrong sentence, which
-  // is the failure mode this leg's whole message discipline exists against.
+  // And it is the completion control rather than the star, which 9.1's roles
+  // table makes a switch and not a checkbox. Without this the locator above
+  // would resolve to the star on any client that gave it the wrong role, and
+  // every assertion below would then report that the surface completed the
+  // task wrongly when what happened is that it has no completion control at
+  // all. That is a red naming the wrong sentence, which is the failure mode
+  // this leg's whole message discipline exists against.
   await expect(
     completionControl(page),
-    "spec 9.1's roles table: a toggle switch is a switch, so the form's important field is not " +
-      'a checkbox and the one checkbox here is 9.3\'s completion control',
+    "spec 9.1's roles table: a toggle switch is a switch, so the card's star is not a checkbox " +
+      "and the control answering to these two names is 9.3's completion control",
   ).not.toHaveAccessibleName(/important/i)
 }
 
@@ -155,12 +173,12 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-179: the task form completes and un-completes', () => {
-  test('AC-179: completing through the form stores what the row control stores', async ({
+test.describe('AC-179: the task surface completes and un-completes', () => {
+  test('AC-179: completing through the card stores what the row control stores', async ({
     page,
   }) => {
     const viaForm = await createTask(page, {
-      title: 'ac-179 completed through the form',
+      title: 'ac-179 completed through the card',
       folder_id: seedIds.groceries,
       assignee_id: seedIds.hassan,
     })
@@ -171,59 +189,59 @@ test.describe('AC-179: the task form completes and un-completes', () => {
     })
 
     await page.goto(routesV2.anytime)
-    await openForEdit(page, 'ac-179 completed through the form')
+    await openTheCard(page, 'ac-179 completed through the card')
     await clickControl(
       completionControl(page),
-      'spec 9.3: the completion control completes the open task',
+      'spec 9.3: the completion control completes the open task, and 9.1 names it "Complete task" while it is open',
     )
-    const formState = await storedState(page, viaForm.id)
+    const cardState = await storedState(page, viaForm.id)
 
     await page.goto(routesV2.anytime)
     await clickControl(
       taskRow(page, 'ac-179 completed through the row').getByRole('checkbox'),
-      'spec 9.4: a row carries a complete checkbox, which is the transition 9.3 says the form ' +
-        'control is the same as',
+      'spec 9.4: a row carries a complete checkbox, which is the transition 9.3 says the ' +
+        "card's control is the same as",
     )
     const rowState = await storedState(page, viaRow.id)
 
     expect(
-      formState,
-      'spec 9.3: the form control "is the same transition 9.4\'s row checkbox and 9.5\'s ' +
+      cardState,
+      'spec 9.3: the completion control "is the same transition 9.4\'s row checkbox and 9.5\'s ' +
         '\\"Mark as not done\\" make". Compared to the row control rather than to a constant, ' +
-        'because a form that ran a different code path to the same status value would satisfy ' +
+        'because a surface that ran a different code path to the same status value would satisfy ' +
         'any assertion naming one, and 5.1 hangs My Day cleanup and successor generation off ' +
         'this transition',
     ).toEqual(rowState)
     expect(
-      formState.status,
+      cardState.status,
       'spec 5.1: and the transition that ran is the completion',
     ).toBe('completed')
     expect(
-      formState.completed_by,
+      cardState.completed_by,
       'spec 5.1 and AC-036: completing stamps the actor, so the viewer is who the row records',
     ).toBe(seedIds.hassan)
   })
 
   test('AC-179: a completed task\'s control un-completes it', async ({ page }) => {
     const task = await createTask(page, {
-      title: 'ac-179 un-completed through the form',
+      title: 'ac-179 un-completed through the card',
       folder_id: seedIds.groceries,
       assignee_id: seedIds.hassan,
     })
     await page.goto(routesV2.anytime)
     await clickControl(
-      taskRow(page, 'ac-179 un-completed through the form').getByRole('checkbox'),
-      'spec 9.4: the row control completes it, which is the state the form control is asserted ' +
+      taskRow(page, 'ac-179 un-completed through the card').getByRole('checkbox'),
+      'spec 9.4: the row control completes it, which is the state the card control is asserted ' +
         'against',
     )
-    await waitForApiIdle(page, 'the completion settles before the form is opened on it')
+    await waitForApiIdle(page, 'the completion settles before the card is opened on it')
 
     await page.goto(routesV2.done)
-    await openForEdit(page, 'ac-179 un-completed through the form')
+    await openTheCard(page, 'ac-179 un-completed through the card')
     await clickControl(
       completionControl(page),
-      'spec 9.3: the same control un-completes a completed task, the form being one artifact ' +
-        'over both states rather than two',
+      'spec 9.3: the same control un-completes a completed task, the surface being one artifact ' +
+        'over both states rather than two, and 9.1 names it "Mark as not done" in this one',
     )
 
     const after = await storedState(page, task.id)
@@ -258,10 +276,10 @@ test.describe('AC-179: the task form completes and un-completes', () => {
       'spec 5.1: completing a rule-carrying row generates the successor in the same ' +
         'transaction, which is the occurrence the confirm is about',
     )
-    await waitForApiIdle(page, 'the completion and its successor settle before the form opens')
+    await waitForApiIdle(page, 'the completion and its successor settle before the card opens')
 
     await page.goto(routesV2.done)
-    await openForEdit(page, title)
+    await openTheCard(page, title)
     await clickControl(
       completionControl(page),
       'spec 9.3: the completion control un-completes a completed task',
@@ -269,7 +287,7 @@ test.describe('AC-179: the task form completes and un-completes', () => {
 
     await expect(
       page.getByText(copy.uncompleteSeriesConfirm),
-      'spec 9.3: the form control "takes 9.5\'s confirmation unchanged on the G-SERIES ' +
+      'spec 9.3: the card control "takes 9.5\'s confirmation unchanged on the G-SERIES ' +
         'successor branch". The parenthesis is the part the person cannot see: 5.1 deletes the ' +
         'successor in the same transaction and any edits already made to the next occurrence ' +
         'go with it',
