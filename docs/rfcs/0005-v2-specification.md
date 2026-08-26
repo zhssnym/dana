@@ -1954,6 +1954,61 @@ fold, the way P7's mid-package change control ratified the pass callable:
     before it waits for quiet. A commit that never happens then fails as an
     assertion about 9.3's commit rule rather than as a timeout.
 
+26. **10.7 is amended to permit HTML with a required text/plain alternative,
+    and this role's own recommendation is superseded (Imran, 2026-08-25).**
+    Item 23 recommended that 10.7 win over the prototype's three designed
+    emails, on 11.13's rule that a numbered section beats a design artifact.
+    He ruled the other way, and the resolution was available all along and
+    this role did not see it: 11.13 says the section wins **until it is
+    amended**, and amending 10.7 was a third option that was neither keeping
+    the rule nor ignoring it. The section still wins; it now says something
+    else. Recorded rather than quietly buried, because a recommendation that
+    loses is evidence about this role's judgement and belongs in the record.
+
+    **Relayed, and more thinly than item 22's.** The decision reached here as
+    the numeral "1" against the S14 session's numbered list, read by that
+    session as this amendment and disclosed to Imran as its reading before
+    anything landed. It is amended on that basis because the change is
+    reversible and S19 was otherwise stalled, but **this is the likeliest of
+    the relayed rulings to be a misread**, and 10.7's own sentence is the
+    thing to correct if it is.
+
+    The amendment keeps "short" and "one action link each", the halves doing
+    the deliverability work, and makes the text part mandatory: it must carry
+    the same words and the same one link, so HTML alone does not meet the
+    section. The grounds sit in 10.7 itself rather than only here, because a
+    rule whose reason lives in a change log gets re-litigated.
+
+    **Two findings widen S19 past styling, both verified in code by this role
+    rather than taken from the brief.** The invite and share-grant emails
+    **cannot name anybody**: `templates.ts:83` renders "Someone has invited
+    you to share a list on Dana" because the 7.5 and 7.4 call sites pass no
+    payload, and `RenderedEmail` is `{subject, text}` with no html field at
+    all. S19 is therefore a payload widening on `OutboundMessage` and its two
+    call sites, plus a second rendered part, rather than a re-skin. That half
+    needs no amendment, 10.7 constraining shape and not content. DES-034
+    remains open and still gates the actual words.
+
+27. **A forwardable invite link is a real intention the schema cannot meet,
+    and the owner has parked it (Imran, 2026-08-25).** He asked for an invite
+    link a person could forward over WhatsApp, then parked it: "leave the
+    WhatsApp requirement for now". Parked, not refused, and recorded here and
+    in section 13 rather than dropped, because the next person to read the
+    invite emails will have the same idea from nothing and re-derive the same
+    dead end.
+
+    Why no email change reaches it, verified against
+    `0000_core_schema.sql`: `invites` has **no token column**, its `email` is
+    `NOT NULL` under a lowercase check, 7.5's accept and decline are
+    matched-recipient-only under the 404 leak rule, and Q12's index is
+    `invites (email) WHERE status = 'pending'`. An invite is bound to an
+    address by the schema, so a forwarded link lands a stranger on an empty
+    `/app`, which is the current behaviour working as designed. Delivering it
+    needs a token column (**frozen section 4**), a public redemption route
+    (**frozen section 7**), and a ruling on whether possession of a link
+    grants access, which is a security decision rather than a schema one and
+    is the part to decide first. Scoped by this role on his word, not before.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
