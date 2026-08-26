@@ -29,9 +29,26 @@ from its own day.
 rendered identically to a real row is a calendar that says a task is due on
 a day it is not.
 
+**Reworked onto 9.3's v2 card at S15 (items 15 and 19).** Nothing this
+criterion asserts moves and its sentence does not move either; what moved is
+how the opened task's date is read. v1 opened the "More options" expander and
+read the due-date field; 9.3's v2 card puts the date on its header strip as a
+chip, so the chip is what answers.
+
+**The chip renders a date rather than holding one, and that changes what this
+file may assert.** The v1 field was an `input[type=date]` whose value was the
+4.11 civil date character for character, so the assertion could be an
+equality against the anchor. A chip shows what a person reads, and section 9
+spells no date format anywhere, which AC-178 already records for the history
+block: "the format is the design's and this section spells none". So what is
+held to here is **which day is named**, the anchor's and not the clicked
+ghost's, and that is exactly the discrimination the criterion is for. A
+client that made the projection into a task shows the ghost's day, and no
+format hides that.
+
 Spec: 9.5 (the calendar's zooms and controls, ghost styling, the click
-behaviors and the banner copy), 6 Q3C (real rows, virtual instances, cell
-order), 8.5 (projection), 4.11.
+behaviors and the banner copy), 9.3 (the v2 header strip of chips), 6 Q3C
+(real rows, virtual instances, cell order), 8.5 (projection), 4.11.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -41,14 +58,15 @@ import {
   caseTitle,
   clickControl,
   computedStyle,
+  chipValue,
   createTask,
-  fieldValue,
   firstOfMonth,
-  formField,
   routes,
   seedIds,
   seedSubs,
   signIn,
+  taskChip,
+  taskSurface,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -70,6 +88,21 @@ const BASE = 'ac-098 daily series'
 const ANCHOR = firstOfMonth(1)
 /** A day the rule reaches and the current occurrence does not: a ghost. */
 const GHOST_DAY = 5
+/** The day of the month the current occurrence is due, which is the 1st. */
+const ANCHOR_DAY = Number(ANCHOR.slice(8))
+
+/**
+ * What the opened surface says the due date is, as the day it names.
+ *
+ * A chip renders the date for a reader rather than holding the 4.11 string,
+ * and section 9 fixes no format, so the day is the part of it this file can
+ * hold an implementation to. That is enough: the two candidates differ by
+ * four days, and a client that opened the ghost as a task of its own names
+ * the day that was clicked.
+ */
+async function dueDayShown(page: Page): Promise<string> {
+  return chipValue(taskChip(page, 'due date'), 'due date')
+}
 
 async function openNextMonthCalendar(page: Page): Promise<void> {
   await page.goto(routes.planned)
@@ -121,17 +154,24 @@ test.describe('AC-098: clicking a calendar ghost', () => {
         'copy is normative like all copy in section 9',
     ).toBeVisible()
 
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
-        + 'names it "More options"',
-    )
+    await expect(
+      taskSurface(page),
+      "spec 9.1's v2 roles table: the task surface is a dialog when opened as one, and 9.3 " +
+        'puts the due date on its header strip with nothing to expand',
+    ).toBeVisible()
+    const shown = await dueDayShown(page)
     expect(
-      await fieldValue(formField(page, 'due date')),
-      'spec 6 Q3C: a ghost is a projection and not a row, so what opens is the series\' ' +
-        'current occurrence, carrying its own date. A form holding the clicked cell\'s date ' +
+      shown,
+      "spec 6 Q3C: a ghost is a projection and not a row, so what opens is the series' " +
+        "current occurrence, carrying its own date. A surface naming the clicked cell's day " +
         'is an implementation that made the projection into a task',
-    ).toBe(ANCHOR)
+    ).toMatch(new RegExp(`\\b${String(ANCHOR_DAY)}\\b`))
+    expect(
+      shown,
+      `spec 6 Q3C: and it is not the ghost's day. The cell clicked was the ${String(GHOST_DAY)}th ` +
+        'and the occurrence is due on the ' +
+        `${String(ANCHOR_DAY)}st, so a strip naming the former has opened the projection`,
+    ).not.toMatch(new RegExp(`\\b${String(GHOST_DAY)}\\b`))
   })
 
   test('AC-098: the real row opens the same task without the banner', async ({ page }) => {
@@ -156,15 +196,14 @@ test.describe('AC-098: clicking a calendar ghost', () => {
         'about it. A client showing the banner for every repeat passes AC-098 as written',
     ).toHaveCount(0)
 
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section "
-        + 'names it "More options"',
-    )
+    await expect(
+      taskSurface(page),
+      "spec 9.1's v2 roles table: the task surface is a dialog when opened as one",
+    ).toBeVisible()
     expect(
-      await fieldValue(formField(page, 'due date')),
+      await dueDayShown(page),
       'the same task opens either way, which is what makes the banner the only difference',
-    ).toBe(ANCHOR)
+    ).toMatch(new RegExp(`\\b${String(ANCHOR_DAY)}\\b`))
   })
 
   test('AC-098: a ghost is drawn as a ghost and a real row is not', async ({ page }) => {
