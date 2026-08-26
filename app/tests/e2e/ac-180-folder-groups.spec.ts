@@ -41,12 +41,25 @@ routed to the Integration Steward on the P8 precedent where eight controls
 described but not named were escalated rather than guessed at. The P8R
 mid-package change control of 2026-08-13 answered it, on this role's own
 escalation, and the owner re-accepted the same day: the four actions are "New
-folder group", "Rename group", "Delete group" and "Move to group", a folder
+folder group", "Rename group", "Delete group" and "Move to shelf", a folder
 row's menu and a folder group's menu are both "More actions", and a
 folder-group dialog's field is "Group name". Every locator below is those
 strings, exactly. A description matched loosely is a locator that finds the
 wrong control on the day a second one resembles it, which is 9.1's own reason
 for naming anything.
+
+**One of those four moved at S17b, and S17a is where the move was scheduled.**
+The act read "Move to group" until this package, and `lib/object-acts.ts`
+records why in terms: it was "Move to group" rather than 9.6's "Move to shelf"
+"because that is what AC-180 asserts on the surface that has it today and
+because shelves reaching the Library is S17b's row, not this one. When that row
+lands, the word changes here and in one place." This is that row. 9.6 fixes the
+string, "a member's personal shelf placement is 'Move to shelf' on the row",
+and S17b makes the Library's groups the viewer's shelves rather than the bare
+`folder_members.label` strings they were, so the act and the thing it moves a
+folder onto now carry one name. Nothing else in this file moved: a group is
+still that label, the four operations are still the same four, and every
+assertion below is the one it was.
 
 Two controls are still descriptions and are marked where they are used,
 because that table reaches neither. A dialog's commit control is named nowhere
@@ -176,7 +189,7 @@ function groupMenu(page: Page, label: string): Locator {
 }
 
 /**
- * One destination inside the "Move to group" submenu.
+ * One destination inside the "Move to shelf" submenu.
  *
  * Three roles because a menu-borne single choice is all three in the ordinary
  * sense 9.1's roles table sends an unlisted control to, and because the
@@ -295,8 +308,8 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: "a folder is moved between groups from its own menu"',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Move to group', exact: true }),
-      'spec 9.1: the folder\'s own menu carries the move, named "Move to group" by that ' +
+      page.getByRole('menuitem', { name: 'Move to shelf', exact: true }),
+      'spec 9.1: the folder\'s own menu carries the move, named "Move to shelf" by that ' +
         "section's names table",
     )
     await clickControl(
@@ -316,7 +329,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: the folder\'s own menu again, for the move out',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Move to group', exact: true }),
+      page.getByRole('menuitem', { name: 'Move to shelf', exact: true }),
       'spec 9.1: the folder\'s own menu carries the move',
     )
     await clickControl(
