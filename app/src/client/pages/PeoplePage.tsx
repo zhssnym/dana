@@ -36,6 +36,7 @@ import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { presenterToday, initialsOf } from '../parts/presenters.js'
 import { PageHeading } from './page-heading.js'
 import { PageBody } from '../states/PageStates.js'
+import { PersonFace } from '../components/person-face.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
@@ -141,11 +142,11 @@ export function PeoplePage(): React.JSX.Element {
                   key={entry.user.id}
                   className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 hover:bg-[var(--color-graphite-50)]"
                 >
-                  <Avatar className="size-9">
-                    <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
-                      {initialsOf(entry.user.display_name ?? entry.user.email)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <PersonFace
+                    name={entry.user.display_name ?? entry.user.email}
+                    initials={initialsOf(entry.user.display_name ?? entry.user.email)}
+                    className="size-9"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">
                       {entry.user.display_name ?? entry.user.email}

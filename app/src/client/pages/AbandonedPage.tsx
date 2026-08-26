@@ -32,6 +32,7 @@ import { PageBody } from '../states/PageStates.js'
 import { ABANDONED_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.abandoned
 
@@ -76,7 +77,13 @@ export function AbandonedPage(): React.JSX.Element {
         ) : place.groupBy !== 'none' ? (
           <div className="space-y-6">
             {columns.map((column) => (
-              <PageSection key={column.key} name={column.name} heading={column.name}>
+              <PageSection
+                key={column.key}
+                name={column.name}
+                heading={column.name}
+                headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                count={column.rows.length}
+              >
                 <TaskRows
                   tasks={column.rows}
                   context={context}

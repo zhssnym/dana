@@ -34,7 +34,6 @@ export { FolderLabelDialog } from './folder-label-dialog.js'
 export { FolderRow } from './folder-row.js'
 export type { FolderRowProps } from './folder-row.js'
 export { NewFolderDialog } from './new-folder-dialog.js'
-export { PageBar } from './page-bar.js'
 export { QuickAdd } from './quick-add.js'
 export {
   EmptyState,

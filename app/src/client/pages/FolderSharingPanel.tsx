@@ -88,6 +88,7 @@ import {
 import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
+import { PersonFace } from '../components/person-face.js'
 
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
@@ -225,11 +226,7 @@ export function FolderSharingPanel({
                       key={member.user.id}
                       className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-[var(--color-graphite-50)]"
                     >
-                      <Avatar className="size-8">
-                        <AvatarFallback className="text-xs font-medium">
-                          {initialsOf(name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <PersonFace name={name} initials={initialsOf(name)} className="size-8" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-medium text-foreground">{name}</p>

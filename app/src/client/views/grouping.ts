@@ -31,10 +31,25 @@ import type { GroupBy } from './filter.js'
 import { rungFor } from './ladder.js'
 import type { ColumnValue } from './place-pages.js'
 
+/*
+What a group's heading draws beside its name, since S17a.
+
+The owner's ruling of 2026-08-22 gives a section a mark, "a folder's glyph or
+even a profile avatar", and it is optional in the honest sense: a date rung
+has none and the heading simply starts its name earlier, because the mark is
+inline rather than in a reserved slot. So this says which kind of mark the
+axis produced and never how to draw one, the drawing being a page's.
+*/
+export type GroupMark =
+  | { readonly kind: 'folder'; readonly folderId: string }
+  | { readonly kind: 'person'; readonly name: string }
+
 export interface TaskGroup {
   readonly key: string
   /** The heading and the region's name (9.1's regions rule). */
   readonly name: string
+  /** The glyph or face beside the name, where the axis has one. */
+  readonly mark: GroupMark | null
   /**
    * What a capture in this group writes, or null where the group is a
    * relation rather than a value and there is nothing to make (DES-182).
@@ -47,6 +62,7 @@ interface Slot {
   readonly key: string
   readonly name: string
   readonly capture: ColumnValue | null
+  readonly mark: GroupMark | null
 }
 
 function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string | null): Slot {
@@ -56,16 +72,29 @@ function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string 
         key: task.folder.id,
         name: task.folder.name,
         capture: { folder_id: task.folder.id },
+        mark: { kind: 'folder', folderId: task.folder.id },
       }
     case 'person': {
       if (task.assignee === null) {
-        return { key: UNASSIGNED, name: 'Unassigned', capture: { assignee_id: null } }
+        return {
+          key: UNASSIGNED,
+          name: 'Unassigned',
+          capture: { assignee_id: null },
+          mark: null,
+        }
       }
       const mine = task.assignee.id === viewerId
+      /* The face is tinted from the person's own name and never from the
+         heading's, which is "You" for the viewer: one person is one colour on
+         every surface, and a group headed "You" that painted itself from that
+         word would give the viewer a different disc here than on their own
+         rows (`parts/person-tint.ts`, AC-244). */
+      const who = task.assignee.display_name ?? DELETED_USER
       return {
         key: task.assignee.id,
-        name: mine ? 'You' : (task.assignee.display_name ?? DELETED_USER),
+        name: mine ? 'You' : who,
         capture: { assignee_id: task.assignee.id },
+        mark: { kind: 'person', name: who },
       }
     }
     case 'date': {
@@ -74,10 +103,11 @@ function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string 
         key: rung.key,
         name: rung.name,
         capture: rung.date === null ? null : { due_date: rung.date },
+        mark: null,
       }
     }
     case 'none':
-      return { key: 'all', name: 'All', capture: null }
+      return { key: 'all', name: 'All', capture: null, mark: null }
   }
 }
 
@@ -102,7 +132,7 @@ export function groupRows(
   for (const seed of extra) {
     order.push(seed.key)
     groups.set(seed.key, {
-      slot: { key: seed.key, name: seed.name, capture: seed.capture },
+      slot: { key: seed.key, name: seed.name, capture: seed.capture, mark: seed.mark },
       rows: [],
     })
   }
@@ -122,6 +152,7 @@ export function groupRows(
       key,
       name: held?.slot.name ?? key,
       capture: held?.slot.capture ?? null,
+      mark: held?.slot.mark ?? null,
       rows: held?.rows ?? ([] as readonly TaskCard[]),
     }
   })
