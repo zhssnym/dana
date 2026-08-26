@@ -5,27 +5,34 @@ Same discipline as `ui/copy.ts` and `task-form/copy.ts`: a string section 9
 writes is transcribed character for character, and a string section 9 does
 not write is named here once so that one file decides it.
 
-**The five chip names are deliberately not the ten field names of 9.3's v1
-table.** That table is still implemented by the fields below the strip and
-its names are still normative there, so a chip called "Due date" would put
-two controls of one name on one surface and the suite's `formField` helper,
-which addresses a field by its label, would resolve both. Each name below
-therefore says the same thing in the strip's own voice: it announces the
-field, it is unique in the document, and it is what a screen reader reads
-before the value. This is an interim of the reunion 9.3's v2 opening asks for
-and is recorded as such in `chips.tsx`.
+**The five chip names are 9.3's own field names, and they became so when the
+v1 fields went.** They were deliberately different while the reunion was
+half-built: the fields below the strip were still implemented and their names
+were still normative there, so a chip called "Due date" would have put two
+controls of one name on one surface. S15 retired those fields, so the
+collision is gone and the names are the section's. 9.1's addressing paragraph
+is what makes this the right end state rather than a tidy-up: "every control
+this section names is reachable by its accessible role and by its normative
+name", and a strip whose chips did not say which field they were would be
+five values and no questions.
+
+A chip announces its field and then reads its value, which is why the two
+appear together in its accessible name. That is a control whose visible text
+is data rather than a label, and the announcement is what a screen reader
+needs before the value means anything.
 */
 
-/** The strip's five chips, each announced before its value. */
-export const CHIP_DUE = 'Due'
-export const CHIP_FOLDER = 'In folder'
-export const CHIP_ASSIGNEE = 'Assigned to'
-export const CHIP_REMINDER = 'Task reminder'
-export const CHIP_REPEAT = 'Repeats'
+/** The five fields of 9.3's v2 table that the header strip carries. */
+export const CHIP_DUE = 'Due date'
+export const CHIP_FOLDER = 'Folder'
+export const CHIP_ASSIGNEE = 'Assignee'
+export const CHIP_REMINDER = 'Reminder'
+export const CHIP_REPEAT = 'Repeat'
 
-/** The two pickers that open as their own surface, named for a reader. */
+/** The pickers that open as their own surface, named for a reader. */
 export const PICKER_DUE = 'Due date'
 export const PICKER_REMINDER = 'Reminder'
+export const PICKER_REPEAT = 'Repeat'
 
 /** The reminder picker's one control: 9.3's "a time on that day". */
 export const REMINDER_TIME = 'Reminder time'
@@ -34,10 +41,34 @@ export const REMINDER_TIME = 'Reminder time'
 export const REMINDER_NONE = 'None'
 
 /**
+ * The due time a v1 task may still carry.
+ *
+ * 9.3's v2 due row: "a day; the pickers offer no time of day (a stored
+ * due_time from v1 is displayed and clearable, never settable)". So there is
+ * no control that sets one, and there is a control that removes one, and both
+ * halves of that sentence need words.
+ */
+export const DUE_TIME_SHOWN = 'Due time'
+export const DUE_TIME_CLEAR = 'Remove the time'
+
+/**
+ * The operands a repeat preset asks for, labelled.
+ *
+ * 9.3 enumerates the presets and their operands and writes no copy for the
+ * labels, the same way it writes none for the date picker's own affordances,
+ * so these are the design's and are named once here. They moved from the v1
+ * field to the repeat picker at S15 with the rest of the control.
+ */
+export const REPEAT_ON = 'Repeat on'
+export const REPEAT_EVERY = 'Repeat every'
+export const REPEAT_ON_DAY = 'Repeat on day'
+export const REPEAT_ENDS_ON = 'Ends on'
+
+/**
  * 9.3's v2 assignee row: "Unassigned", offered last after a separator, which
  * is the way out the v1 dropdown never had (DES-194, section 13 item 28).
  */
 export const UNASSIGNED = 'Unassigned'
 
-/** 9.3's "On disable, helper" column, shared with the fields below. */
+/** 9.3's "On disable, helper" column, shared by the two date-dependent rows. */
 export { DATE_DEPENDENT_HELPER } from '../task-form/copy.js'
