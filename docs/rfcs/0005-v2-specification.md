@@ -3018,6 +3018,161 @@ fold, the way P7's mid-package change control ratified the pass callable:
     `ba3b36a` at both readings, so nothing was in flight against the branch
     and the local tip's one unpushed commit was item 39's own.
 
+41. **Ledger entry L-117 is wrong in the client's favour, S21's owner column
+    is short by a role, and Imran answered the two rulings that blocked S21
+    closing (S21, 2026-08-26).** Four things, recorded before a line of this
+    package was written, because two of them are corrections to another
+    role's ratified record and two of them are rulings that exist in a
+    handoff and nowhere a later session would find them.
+
+    **(a) L-117 reads *no* and the measurement says *yes*. The client's icon
+    family is already the animated one.** The entry reads "`lib/icons.tsx`
+    in the client is a re-export module with no animation", and DES-125's
+    animated Lucide is in fact ported. Measured against the file rather than
+    inferred, at `db6f837`:
+
+    - `app/src/client/lib/icons.tsx` is **695 lines** against the
+      prototype's 659.
+    - Its line 67 is `import * as Anim from "@animateicons/react/lucide"`,
+      and the file carries **117** `Anim.` references against the
+      prototype's 116.
+    - `IconMotion` is implemented at its line 84, its context at 82, and its
+      header carries the prototype's own reasoning: the `enabled={false}`
+      region rule, the two reasons the sidebar uses it, and the
+      mount-not-hover flash.
+    - `@animateicons/react` is a real dependency at `app/package.json:23`.
+
+    **The correction is raised here rather than made in the ledger.** That
+    file is the Steward's, ratified two commits ago at item 40, and a
+    session that edits another role's ratified record to match what it found
+    is the drift protocol section 3 exists to stop. The Steward corrects the
+    row; this item is the evidence. Nothing else in the entry moves: its
+    section column still reads *unspecified*, so L-117 stays in Part D's
+    fifty-two and still owes section 9 a sentence, which is the half of it
+    that was never about the code.
+
+    **What follows for this package.** L-117 closes **by measurement rather
+    than by edit**, and the "animated like the icon family" half of the
+    animated mark's own header already has its family to be animated like.
+
+    **(b) RFC 0004's S21 row names one role and the work needs three, on
+    item 12's precedent and item 34's.** The row names
+    `08-component-and-design-system.md` with "criteria from
+    `11-adversarial-test.md` where the triage moved any". Read against the
+    Owns sections, which RFC 0004's own sentence makes that table's
+    authority, that column is short by **role 07**, and not by a corner of
+    the package.
+
+    Role **08** owns `app/src/client/styles/tokens.css`, the single file of
+    11.4, and `app/src/client/components/**` outside the calendar, task-form
+    and search directories: the tokens, the twenty-six primitives, and the
+    new `components/dana-mark.tsx`. Role **07** owns everything else under
+    `app/src/client/`, which here is the five places the mark is drawn
+    (`pages/dana-identity.tsx`, `pages/InviteGate.tsx` twice,
+    `pages/LandingPage.tsx`, `shell/app-sidebar.tsx`), `shell/appearance.ts`,
+    `lib/icons.tsx`, `views/ViewStrip.tsx`, and `app/index.html`, which role
+    07's Owns section names in terms. Role **11** owns any criterion. The
+    row is corrected rather than the persona files, exactly as S12's was at
+    item 12 and S19's at item 34, and the roles run in sequence in separate
+    commits, item 15's discipline.
+
+    **(c) C2 is answered: the dark ramp stands (Imran, 2026-08-26).** The
+    rulings sheet's C2 asks whether the ten folder swatches on a dark ground
+    need one of `swatch-options.tsx`'s three treatments, and records that
+    whether he ever ruled is not visible from the repository. It is not: the
+    design contract's DES-205 row reads "APPROVED for placement" with "the
+    dark ramp itself is the later colourway session with Imran", and that
+    session never happened. Put to him at this package's handoff, he ruled
+    that **the current `[data-theme="dark"]` block in `tokens.css` is the
+    ruling**. `swatch-options.tsx` stays what L-244 already calls it, a
+    review surface that shipped nothing.
+
+    This closes **L-252**, "dark mode quality", on the measurement rather
+    than on an edit, because the value-by-value diff L-252 says nobody has
+    run comes back clean: see the measurements below.
+
+    **(d) Part D is answered: fold the fifty-two as written (Imran,
+    2026-08-26).** Asked whether the Steward may fold the batched block of
+    fifty-two unspecified decisions into section 9 at S29's spec fold
+    without a separate ruling each, he answered, verbatim: *"I don't know, I
+    only want the Dana v2.0 as exactly same of Prototype v2."*
+
+    **The reading, recorded rather than the paraphrase.** He declined the
+    procedural half of the question and restated in his own terms the
+    standing direction item 37 already carries. Every one of the fifty-two
+    is a decision the prototype made, that no numbered section carries, and
+    that the client already draws or will draw by the row that owes it;
+    folding them changes no pixel and retires no behaviour. So "Dana 2.0 is
+    exactly prototype-v2" and "fold the fifty-two as written" are the same
+    sentence seen from two sides: the fold is the mechanism by which his
+    instruction survives the session that heard it, which is 11.13's whole
+    point and the reason five files still fetch a mark nobody ever told them
+    to draw. **The answer means the fifty-two as listed and nothing wider**;
+    a session that needs it to mean more has over-read it and owes an
+    escalation. The Steward holds the fold itself at S29, and the sheet's
+    remaining fifteen questions are untouched and still belong to S23, S26
+    and S27.
+
+    **Two recommendations this item carries rather than enacts.**
+
+    **The view strip travels whole with S24, L-033 included.** Ledger L-028
+    to L-032 are marked S21/S24 and L-033 S21 alone. Item 39 rules the strip
+    becomes the prototype's collapsing icon radiogroup, which changes its
+    options from buttons to `role="radio"`, moves their labels into
+    tooltips, and parks every option but the current one at zero width. The
+    triage's **F4** measures the cost: seven spec files reach a view by a
+    role of button and a name of Calendar or Board, and each breaks on all
+    three counts. **The triage assigns every one of those cases to S24**,
+    red first, under persona 11, in the package that lifts the surface. A
+    strip lifted at S21 therefore turns eighteen green cases red in a
+    package with no authority to make them green again, which is protocol
+    section 8's line and the shape of the false green item 8 records from
+    S9. S21 records the handoff; S24 does the work.
+
+    **Three of S21's named modules are already closed by the ledger and are
+    not among its 25 entries.** The row lists `folder-mark`, `person-face`
+    and `icon-action` alongside the tokens and the mark. The ledger's L-189,
+    L-190 and L-192 read **closed** against the client, asserted by AC-243,
+    AC-244 and AC-264, and `icon-action.tsx` has no client file of its own
+    because 9.1's addressing rule reached the same place by another road.
+    The row is not corrected for this, the ledger being the instrument every
+    session from S21 on lifts against and already saying so; it is named
+    here so a later reader does not read three unbuilt modules into a row
+    that has none.
+
+    **The measurements this package opens with, so no later session spends
+    itself rediscovering them.** All read at `db6f837` against
+    `docs/design/prototype-v2/src/` as that commit carries it, which is the
+    read this package lifted from; the Codex polish lane commits to the same
+    directory on `design/v2-refresh`, so naming the commit is not ceremony.
+
+    - **The tokens are identical, value for value.** The prototype's
+      `styles/tokens.css` declares **164 names in 210 declarations** across
+      `:root`, `@theme inline`, `[data-theme="dark"]` and the two
+      `[data-dana-mark-surface]` blocks; the client's declares those same
+      164 plus `--sharing-panel-width`, in 211. **Zero of the 164 differ in
+      value**, block by block, the three multi-line declarations
+      (`--font-family-sans`, `--elevation-1`, `--elevation-2`) compared by
+      hand and identical too. The motion constants S21's row names are among
+      them: three durations and three easings at the client's lines 339 to
+      344, with the reduced-motion collapse at 602. So the row's acceptance,
+      "the token diff against the prototype is vocabulary only, the 11.13
+      standard", **is met today and is closed by measurement**.
+    - **Twenty-five of the twenty-six primitives are identical.** All
+      twenty-six exist in `app/src/client/components/ui/`, and twenty-five
+      match the prototype's line count exactly. Normalised for the import
+      specifier, the per-file differences are of two kinds and neither is a
+      defect: the specifier itself (`@/lib/utils` becomes `./utils.js`, the
+      client being ESM with real extensions) and em dashes rewritten to
+      commas and colons in comment prose, which is protocol section 7.
+    - **`sidebar.tsx` is the one exception and it must stay one.** It is 768
+      lines against 748, and the difference is a comment plus the rail
+      control's two accessible names: 9.1's names table gives it "Collapse
+      sidebar" and "Expand sidebar" where shadcn ships one "Toggle Sidebar",
+      **and AC-182 reads the control by them**. A verbatim lift of that file
+      turns AC-182 red for a reason 11.13 already settled in the section's
+      favour. The departure is the one named seam in the primitive set.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
