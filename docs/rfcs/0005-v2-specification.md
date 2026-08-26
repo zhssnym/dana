@@ -74,6 +74,7 @@ section 9 baseline before acceptance (see the Draft note).*
 11. Replace sections 4.3 and 4.5 — `deleted_at` plus the folder identity columns and the task's section assignment (expand-only) — **verbatim below**
 12. Insert new sections 7.12–7.17 — the six systems' endpoint families, **verbatim below**
 13. Replace section 10.3: the limits table gains the v2 rows — **verbatim below**
+12a. Replace the TaskCard line of section 7.0: `section_block_id` and `created_by`, both additive — **verbatim below**, added 2026-08-25 by change control item 24 on Imran's item 19 approval. **This is the only unit in this RFC that touches frozen section 7**
 13a. Insert new section 10.8, response security headers — **verbatim below**, added 2026-08-25 by change control item 18
 14. Replace section 11.7: the pass gains two duties — **verbatim below** (11.5's rules need no change; the Inbox→Desk migration is Compatibility's, executed by RFC 0004's S2)
 15. Append rows to the table in section 11.13 for `prototype-v2/` and `v2-refs/` — **verbatim below**
@@ -483,6 +484,48 @@ DES-198 copy rules server-side. POST /api/v1/workflows/import — zod-validated
 structure file, caps per section 10, creates folders/sections/titles only;
 never ids, people, dates or states. POST /api/v1/folders/:id/transfer-ownership
 { to: user_id } — owner-only, member target, the DES-225/8.9 flow.
+
+### 7.17b Replace the TaskCard line of section 7.0
+
+The two widenings Imran approved at change control item 19, written as one
+unit because they land on one line. **Frozen section 7 moves only here**, and
+the line below replaces the `TaskCard` bullet of 7.0 entire:
+
+```markdown
+- TaskCard: { id, title, status, important, due_date, due_time, folder: {id, name, is_default}, assignee: {id, display_name, avatar_url} or null, is_recurring: bool, steps_done: int, steps_total: int, pulled: bool (viewer has a My Day entry), pending_invite_email: string or null (from invites.task_id), section_block_id: string or null, created_by: {id, display_name, avatar_url} or null, created_at, updated_at }.
+```
+
+Three readings, so no implementing session has to guess.
+
+**`section_block_id` rides TaskCard rather than the folder read alone**, which
+is a deliberate departure from item 19's phrasing ("on the folder read") and
+is flagged here rather than made quietly. The reason is the contract's own,
+already ruled on this exact question: 7.0's P4 note settles a group's folder
+stub as one shape across two keys because "the two keys spell one thing, so
+they answer one shape". `GET /folders/:id/tasks` answers `{ scheduled:
+[TaskCard], unscheduled: [TaskCard], truncated }`, so section on the folder
+read *is* section on TaskCard; giving the folder read a private element shape
+would put two task shapes on the wire, which is the drift 11.13 and this
+role's own mandate exist to refuse. It is null for every task not placed
+under a section, which is every task on every view that is not a folder page,
+so no other surface changes meaning.
+
+**`created_by` is the person stub, not an id.** It is the same
+`{id, display_name, avatar_url}` object `assignee` already carries, for the
+reason 7.4's note gives about the members element: a heading that names a
+person needs exactly what a card's person label needs. It is null only where
+the creator's account was scrubbed by 8.10, which is what "renders as Deleted
+user" in that section means on the wire. TaskDetail already carries a
+`created_by` and its value becomes this same stub, so the two shapes agree
+rather than one being an id and the other an object.
+
+**What this invalidates, which is a criteria change as much as an API one**,
+exactly as item 19 warned. `app/src/shared/tasks.test.ts` asserts that
+TaskCard carries exactly the keys 7.0 enumerates, so it goes red on this unit
+by design and is the unit's own proof. Persona 11 reads that test and every
+criterion asserting a TaskCard key set **before** `04-api-and-contract.md`
+writes a line, and the widening is additive so no existing key moves, changes
+type or changes meaning.
 
 ### 7.17 View routes
 
@@ -1781,6 +1824,36 @@ fold, the way P7's mid-package change control ratified the pass callable:
     folder page cannot draw tasks under their sections and Assignments
     cannot carry its "from" half, so they are the cheapest unblocking act
     left on the board and are owed by the Steward, not by any session.
+
+24. **The two section 7 widenings are written, as unit 12a, and S18 is
+    unblocked (Integration Steward, 2026-08-25).** Owed by this role at item
+    23 and discharged in the same session rather than carried: they were the
+    cheapest unblocking act on the board and nothing else could start
+    without them. Unit 12a replaces 7.0's TaskCard line and is **the only
+    unit in this RFC that touches frozen section 7**, which is why it is
+    numbered into the inventory rather than left in prose.
+
+    One departure from item 19's wording, made openly. Imran approved
+    `section_block_id` "on the folder read"; the unit puts it on **TaskCard**
+    instead, because `GET /folders/:id/tasks` answers arrays of TaskCards, so
+    section on the folder read is section on TaskCard, and a private element
+    shape for one endpoint is two task shapes on the wire. The contract has
+    already ruled this exact question the same way at the P4 change control,
+    where a group's folder stub is one shape across two keys because "the two
+    keys spell one thing, so they answer one shape". If he meant a second
+    shape, this is the sentence to correct and the unit changes with it.
+
+    `created_by` is the `{id, display_name, avatar_url}` person stub rather
+    than an id, matching `assignee` and making TaskDetail's existing
+    `created_by` agree with it instead of one being an id and the other an
+    object. Both fields are additive; no existing key moves, changes type or
+    changes meaning.
+
+    **The unit names what it invalidates, which item 19 required.**
+    `shared/tasks.test.ts` asserts TaskCard's exact key set and goes red on
+    this unit by design, which is the unit's own proof rather than a
+    casualty. Persona 11 reads it and every criterion asserting a TaskCard
+    key set before `04-api-and-contract.md` writes a line.
 
 ## Implementation plan
 
