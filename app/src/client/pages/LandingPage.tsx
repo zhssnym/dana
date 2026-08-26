@@ -80,6 +80,7 @@ import {
 
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
+import { DanaMark } from '../components/dana-mark.js'
 /* The public family's header control, lifted out at S16 so the legal pages
    of DES-032 wear the same one rather than a second copy of it. */
 import { DanaIdentity } from './dana-identity.js'
@@ -911,7 +912,11 @@ export function LandingPage(): React.JSX.Element {
       */}
       <section className="px-5 py-10 text-center sm:px-8 sm:py-12">
         <Reveal className="mx-auto max-w-[1120px] rounded-[28px] bg-muted/55 px-6 py-12 sm:px-12 sm:py-14">
-          <img src="/dana-mark.svg" alt="" className="mx-auto size-11" />
+          {/* Drawn rather than fetched at S21 (ledger L-141, AC-265), and the
+              same call `landing-screen.tsx:517` makes. It sits in no link or
+              button, so it plays from itself: a 44px mark is a big enough
+              target for that in a way a 14px icon in a row is not. */}
+          <DanaMark className="mx-auto size-11" />
           <h2 className="mx-auto mt-6 text-[clamp(36px,4.4vw,54px)] leading-[1.04] font-semibold tracking-[-0.045em]">
             Start on Desk.
           </h2>
