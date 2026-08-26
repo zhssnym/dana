@@ -250,6 +250,23 @@ export function caseTitle(base: string): string {
   return `${base} ${test.info().testId}`
 }
 
+/**
+ * A unique name that fits 10.3's 40-character cap, for the things that have
+ * one: a shelf name, a folder name, a personal label.
+ *
+ * `caseTitle` is built for task titles, which 10.3 allows 300 characters, and
+ * its test id alone can run past 40. A fixture using it for a shelf gets a 422
+ * from the server before the criterion has read anything, which is a red about
+ * the harness wearing the costume of a red about the client. The tail of the
+ * id is kept rather than the head because that is where it varies between the
+ * cases of one file.
+ */
+export function shortName(base: string): string {
+  const id = test.info().testId
+  const room = 40 - base.length - 1
+  return `${base} ${id.slice(Math.max(0, id.length - room))}`
+}
+
 interface NewTask {
   title: string
   folder_id?: string
@@ -1713,6 +1730,47 @@ export async function createShelf(page: Page, name: string): Promise<{ id: strin
       `${response.status()}: ${await response.text()}`,
   ).toBe(201)
   return (await response.json()) as { id: string }
+}
+
+/**
+ * A folder put on a shelf, or taken off every shelf with null.
+ *
+ * A shelf's membership is frozen 7.4's `folder_members.label`, held in step
+ * with the shelf's own name by 4.18, so putting a folder on a shelf is
+ * writing that shelf's name onto the viewer's membership. This is what the
+ * row's "Move to shelf" commits, and a fixture uses the address rather than
+ * the control so a case can measure the Library instead of the menu.
+ */
+export async function labelFolder(
+  page: Page,
+  id: string,
+  label: string | null,
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.patch(`/api/v1/folders/${id}/my-membership`, {
+    data: { label },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PATCH /folders/${id}/my-membership answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/**
+ * A shelf removed at a case's close, so the Library the rest of this leg
+ * reads is the one the runner seeded. 7.16's delete unlabels its folders and
+ * keeps them, so this leaves no folder behind either.
+ */
+export async function deleteShelf(page: Page, id: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.delete(`/api/v1/shelves/${id}`, {
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `DELETE /shelves/${id} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(204)
 }
 
 /**

@@ -31,12 +31,38 @@ where v1's did. The three v1 flags of frozen 7.2 are untouched by this
 surface, per item 6: they stay stored, AC-119 to AC-123 stay green on them,
 and the fold makes `pinned_views` the record from the moment it is written.
 
-Two sections 9.7 names are not here and neither is this package's to add.
-**Appearance** (theme, row density, the clock, where a task opens) has its
-stored fields in the same bundle and no built control, and RFC 0004 assigns
-it to no row; the parity audit lists it under the Settings surface and the
-session log records it as owed. **Storage used against 10.3's quota** waits
-on a read that reports it.
+**Appearance arrived at S17b**, assigned here by RFC 0005 change control item
+30 after S16 found it belonged to no package. Its four fields, theme, row
+density, the clock and where a task opens, had been in the 4.19 bundle since
+S7 with no control anywhere, so the client "persists four preferences a person
+has no way to set". A switch that changes no row is that defect one level
+down, so three of the four drive the client as well as the column: the theme
+and the density land on the document through `shell/appearance.ts`, and the
+clock is written into `lib/time-format.ts`, the one place a time becomes
+words, which S17b also had to repoint because `presenters.ts` was writing a
+row's due time at a fixed 24 hours and never asking.
+
+**The fourth is honest about its consumer and this is where that is
+recorded.** Where a task opens has three values, dialog, panel and tab, and
+the surface that could answer to all three is the v2 task surface of DES-117
+and DES-136, whose five homes S15's own log row reports as not ported;
+`components/task-form/**` is the Complex Interaction engineer's and is
+outside this package besides. So the control exists, the column is written,
+and the preference is read by the surface that arrives with that port. What
+item 30 recorded, a preference with no way in, is closed for all four; what
+remains is one preference whose reader is owed, which is a smaller and
+differently-shaped thing and is named in S17b's log row rather than left for
+somebody to find.
+
+**Storage used against 10.3's quota is the one thing 9.7 names that is still
+not here**, and it is not this package's to invent. The quota is real and
+enforced, `server/domain/files.ts` holding it at 1 GB and refusing an upload
+that would cross it, and nothing reports the total: no `storage_used` exists
+anywhere in `app/src` or `docs/spec`, and `server/routes/files.ts` offers
+upload, fetch and delete with no listing to sum. So the line waits on a read,
+escalated at RFC 0005 change control item 35 (c) with a recommendation, and
+the alternative, a client-side estimate or a label with an invented figure
+under it, is worse than an absent label.
 
 The note beside Desk and the danger zone's two sentences are normative copy
 and are transcribed; the section and row descriptions are the designer's own
@@ -65,9 +91,20 @@ import type { ReactNode } from 'react'
 /* The pin list's two marks come from the icon module of DES-125, which is
    where the sidebar takes them from: one drawing, one name, and this list
    and the sidebar showing one page rather than two. */
-import { Bookmark } from '../lib/icons.js'
+import {
+  Bookmark,
+  /* DES-205's three theme glyphs and the three rows beside it, all through
+     the icon module of DES-125 rather than lucide directly. */
+  Clock3 as Clock,
+  ListTodo,
+  Monitor,
+  Moon,
+  PanelRight,
+  Sun,
+} from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { DEFAULT_PINNED } from '../../shared/bundle.js'
+import type { SettingsBundle } from '../../shared/bundle.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { mutateApi } from '../api/http.js'
 import { usePatchBundle, usePatchSavedView } from '../api/mutations.js'
@@ -111,6 +148,74 @@ const TIMEZONE_NOTE = "Dana follows your device's timezone automatically"
 const VIEWS_DESCRIPTION =
   'Every view Dana has. Pin the ones you want in the sidebar, and nothing ' +
   'here changes or deletes a task.'
+
+/*
+Appearance, its four rows and the sentence each of them says about the value
+it is holding (9.7, DES-205, DES-113).
+
+**The section's own line is the designer's**, from `settings-screen.tsx`, and
+it earns its place: this is the one section of Settings whose rows change what
+a person sees rather than what Dana holds, and saying so is what stops somebody
+looking here for a way to change a task.
+
+**Each row's description is the value in words rather than a restatement of
+the label.** His two do exactly that, "Following your device" under Theme and
+"Two lines, the title, then its details underneath" under Row height, so the
+row answers "what is this set to" without the reader parsing a segmented
+control. The two rows section 9 adds are written to the same rule.
+
+**The density labels are 9.7's `comfortable` and `compact` and not the
+prototype's "Two lines" and "One line".** The column is 4.19's and those are
+its two values; his words describe DES-113's two row *shapes*, which need the
+v2 task row that S15's log row records as not ported. So the control writes the
+preference the section names, and the description says what it does today
+rather than promising the shape that has not arrived.
+*/
+const APPEARANCE_DESCRIPTION = 'How Dana draws your work. Nothing here changes a task.'
+
+const THEME_OPTIONS = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const satisfies readonly { value: SettingsBundle['theme']; label: string }[]
+
+const THEME_NOTE: Record<SettingsBundle['theme'], string> = {
+  system: 'Following your device',
+  light: 'Light, whatever your device says',
+  dark: 'Dark, whatever your device says',
+}
+
+const DENSITY_OPTIONS = [
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'compact', label: 'Compact' },
+] as const satisfies readonly { value: SettingsBundle['row_density']; label: string }[]
+
+const DENSITY_NOTE: Record<SettingsBundle['row_density'], string> = {
+  comfortable: 'Lists breathe, with space between rows',
+  compact: 'Lists close up, so more fits on a screen',
+}
+
+const CLOCK_OPTIONS = [
+  { value: '12h', label: '12-hour' },
+  { value: '24h', label: '24-hour' },
+] as const satisfies readonly { value: SettingsBundle['clock']; label: string }[]
+
+const CLOCK_NOTE: Record<SettingsBundle['clock'], string> = {
+  '12h': 'Times read 5:30 PM',
+  '24h': 'Times read 17:30',
+}
+
+const TASK_OPEN_OPTIONS = [
+  { value: 'dialog', label: 'Dialog' },
+  { value: 'panel', label: 'Panel' },
+  { value: 'tab', label: 'Tab' },
+] as const satisfies readonly { value: SettingsBundle['task_open']; label: string }[]
+
+const TASK_OPEN_NOTE: Record<SettingsBundle['task_open'], string> = {
+  dialog: 'Over the page you were on',
+  panel: 'Beside it, at the right edge',
+  tab: 'As a tab of its own',
+}
 
 /**
  * What a saved view's row says under its name.
@@ -202,6 +307,58 @@ function SettingRow({
 }
 
 /**
+ * A segmented set of exclusive choices, the designer's own control for the
+ * Appearance rows.
+ *
+ * A `radiogroup` of `radio`s rather than a select or a switch, which is his
+ * shape and 9.1's addressing rule agreeing: the group carries the setting's
+ * name and each option carries its own, so a criterion asks for "Dark" within
+ * "Theme" and cannot be answered by the wrong control on the same page. Two
+ * options or three, the control is one; nothing here special-cases a pair.
+ */
+function Choice<T extends string>({
+  label,
+  value,
+  options,
+  onSelect,
+}: {
+  readonly label: string
+  readonly value: T
+  readonly options: readonly { readonly value: T; readonly label: string }[]
+  readonly onSelect: (next: T) => void
+}): React.JSX.Element {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="flex items-center gap-0.5 rounded-lg bg-[var(--color-graphite-100)] p-0.5"
+    >
+      {options.map((option) => {
+        const current = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={current}
+            onClick={() => {
+              onSelect(option.value)
+            }}
+            className={
+              current
+                ? 'h-7 rounded-md bg-card px-2.5 text-xs font-medium text-[var(--color-graphite-900)] shadow-[var(--elevation-1)] transition-colors'
+                : 'h-7 rounded-md px-2.5 text-xs font-medium text-[var(--color-graphite-600)] transition-colors hover:text-[var(--color-graphite-900)]'
+            }
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * One row of the pin list, native or saved.
  *
  * One component for both kinds, because 9.7 describes one list: the two
@@ -264,6 +421,20 @@ export function SettingsPage(): React.JSX.Element {
   invites a person to fix something that was never broken.
   */
   const pinned = new Set<string>(bundle.data?.pinned_views ?? DEFAULT_PINNED)
+
+  /*
+  Appearance's four, from the same bundle and with 4.19's own defaults where
+  the read has not answered.
+
+  The falls are the column defaults rather than a guess: a control that
+  rendered nothing selected while the bundle was in flight would flicker into
+  a value a moment later, and a control that showed the wrong value would
+  invite a press that writes what was already true.
+  */
+  const theme = bundle.data?.theme ?? 'system'
+  const density = bundle.data?.row_density ?? 'comfortable'
+  const clock = bundle.data?.clock ?? '12h'
+  const taskOpen = bundle.data?.task_open ?? 'dialog'
 
   /**
    * A native view's pin is a key in the bundle's list, so the write is the
@@ -334,6 +505,99 @@ export function SettingsPage(): React.JSX.Element {
             {/* Said once, where the one locked row is, rather than as a list
                 of names somebody has to keep in step with the page set. */}
             <p className="mt-3 px-2 text-xs text-muted-foreground">{DESK_LOCKED}</p>
+          </SettingsSection>
+
+          {/*
+          9.7's Appearance section, built at S17b, which RFC 0005 change
+          control item 30 assigned here after S16 found it belonged to no
+          package. That item's own words are what this closes: the four fields
+          have been in the 4.19 bundle since S7 with no control for any of
+          them, so "the client persists four preferences a person has no way
+          to set".
+
+          **All four, where the prototype draws two.** `settings-screen.tsx`
+          offers Row height and Theme and no clock and no task-open control.
+          11.13 settles that without an escalation, "section 9 always wins over
+          any design artifact on structure and copy", and 9.7 names four: the
+          prototype is short here rather than contradictory, so its two arrive
+          in its shape and the other two arrive beside them in the same idiom.
+
+          **Theme is here and nowhere else** (DES-205, in the designer's own
+          words): not the account menu, which "is about *you*, your picture,
+          your sign-out, help with the app", where a theme is about how Dana
+          draws; and not the window bar, because "a control in the chrome is a
+          control you press by accident, and nobody changes their theme often
+          enough to pay rent in the bar".
+
+          **Each is a radiogroup and never a switch**, which is his reason and
+          not a house style: neither value is the absence of the other. A
+          switch labelled "Compact" makes the taller row the *unchecked*
+          state, when DES-113's whole argument is that it is the considered
+          default rather than the leftover.
+          */}
+          <SettingsSection name="Appearance" description={APPEARANCE_DESCRIPTION}>
+            <div className="space-y-0.5">
+              <SettingRow
+                icon={theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor}
+                title="Theme"
+                description={THEME_NOTE[theme]}
+                control={
+                  <Choice
+                    label="Theme"
+                    value={theme}
+                    options={THEME_OPTIONS}
+                    onSelect={(next) => {
+                      patchBundle.mutate({ theme: next })
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                icon={ListTodo}
+                title="Row density"
+                description={DENSITY_NOTE[density]}
+                control={
+                  <Choice
+                    label="Row density"
+                    value={density}
+                    options={DENSITY_OPTIONS}
+                    onSelect={(next) => {
+                      patchBundle.mutate({ row_density: next })
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                icon={Clock}
+                title="Clock"
+                description={CLOCK_NOTE[clock]}
+                control={
+                  <Choice
+                    label="Clock"
+                    value={clock}
+                    options={CLOCK_OPTIONS}
+                    onSelect={(next) => {
+                      patchBundle.mutate({ clock: next })
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                icon={PanelRight}
+                title="Where a task opens"
+                description={TASK_OPEN_NOTE[taskOpen]}
+                control={
+                  <Choice
+                    label="Where a task opens"
+                    value={taskOpen}
+                    options={TASK_OPEN_OPTIONS}
+                    onSelect={(next) => {
+                      patchBundle.mutate({ task_open: next })
+                    }}
+                  />
+                }
+              />
+            </div>
           </SettingsSection>
 
           <SettingsSection name="Account">

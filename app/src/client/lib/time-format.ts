@@ -12,12 +12,26 @@ The store is deliberately not a React context. Times are written in the row,
 in the card's chips, inside two pickers and in a settings control, and a
 provider would have to wrap all of them; a module store with
 `useSyncExternalStore` reaches every one without anybody threading anything.
-It is the shape the reverted `lib/density.tsx` used for row density, and if
-that preference comes back it should come back like this.
-
-Lane 1: it lives in the browser and does not follow a person between devices.
+**It follows the person between devices since S17b, and the paragraph this
+replaces is why that is worth a note rather than a silent diff.** It read:
+"Lane 1: it lives in the browser and does not follow a person between devices.
 Syncing it to the account is a separate want and needs a column, an endpoint
-and therefore an RFC, the same conversation DES-113 parked for row density.
+and therefore an RFC, the same conversation DES-113 parked for row density."
+The column is 4.19's `clock`, the endpoint is `GET` and `PATCH /settings`, and
+both have been live since S7: the RFC this file was waiting for had landed
+before the file was written, and nothing pointed the two at each other. 9.7
+names the control, RFC 0005 change control item 30 assigned it to S17b, and
+this is the row that joined them up.
+
+**The account is the record and `localStorage` is a cache of it.** That
+ordering is the whole design. `adoptClock` writes the bundle's value into this
+store when the read arrives, which is what makes a fresh browser show the
+person's own choice rather than the default; the local copy exists only so the
+frame before the bundle answers shows the value they last saw rather than a
+flash of 12-hour. The settings control writes the column and nothing else
+writes it, so at no moment are two records authoritative for one reader, which
+is the property change control item 6 required of the pin list and this is the
+same refusal one preference over.
 */
 
 import { useSyncExternalStore } from "react"
@@ -48,6 +62,24 @@ export function setTimeFormat(next: TimeFormat) {
     /* Remembered for this session only, which is the honest fallback. */
   }
   listeners.forEach((notify) => notify())
+}
+
+/**
+ * Takes the account's value (4.19's `clock`) as the truth, at S17b.
+ *
+ * Called by the shell whenever the bundle settles. It is deliberately the same
+ * write as a person pressing the control: the store does not care which of the
+ * two moved it, and `setTimeFormat` already refuses a write that changes
+ * nothing, so an arriving bundle that agrees with the cache notifies nobody.
+ *
+ * `'24h'` and `'12h'` are 4.19's spelling and `'24'` and `'12'` are this
+ * module's, and the two are translated here rather than either side moving.
+ * The column's is the wire's and cannot change without a migration; this
+ * module's is what is already in every person's `localStorage`, and rewriting
+ * it would silently reset the preference of everyone who has set one.
+ */
+export function adoptClock(clock: "12h" | "24h"): void {
+  setTimeFormat(clock === "24h" ? "24" : "12")
 }
 
 export function useTimeFormat(): TimeFormat {

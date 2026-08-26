@@ -50,15 +50,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { Plus, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
-import { folderMark } from '../parts/presenters.js'
+import { folderMark, shelfMark } from '../parts/presenters.js'
 
 import { closeTab, openInNewTab, reorderTabs, selectTab, useTabs } from './tabs.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1's names table, transcribed. */
 const NEW_TAB = 'New tab'
@@ -73,11 +75,21 @@ export interface TabFace {
 export function TabStrip({
   face,
   folders,
+  shelves,
   onNavigate,
 }: {
   /** What a path looks like as a tab, which the shell already computes. */
   readonly face: (path: string) => TabFace
   readonly folders: readonly Folder[]
+  /**
+   * The viewer's shelves (7.16), so the menu offers 9.1's whole sentence.
+   *
+   * That section gives the plus "any shelf or folder", and this menu mapped
+   * the folder list alone: half a sentence with no control behind it, which
+   * is the audit's shelf-reachability row. The read reaches the shell
+   * unconditionally since S17b, so this costs no request of its own.
+   */
+  readonly shelves: readonly Shelf[]
   readonly onNavigate: (path: string) => void
 }): React.JSX.Element {
   const { tabs, activeId } = useTabs()
@@ -227,6 +239,30 @@ export function TabStrip({
                   aria-hidden="true"
                 />
                 {folder.name}
+              </DropdownMenuItem>
+            )
+          })}
+          {/* The other half of 9.1's "any shelf or folder", since S17b. The
+              shelves follow the folders rather than interleaving with them,
+              which is the Library's own arrangement read across: a shelf
+              holds folders, so offering it beside them and not among them is
+              what says which is which. Each wears its own mark through the
+              same resolver, DES-130 applied to the second kind. */}
+          {shelves.length === 0 ? null : <DropdownMenuSeparator />}
+          {shelves.map((shelf) => {
+            const mark = shelfMark(shelf)
+            return (
+              <DropdownMenuItem
+                key={shelf.id}
+                onClick={() => onNavigate(openInNewTab(`/app/shelves/${shelf.id}`))}
+              >
+                <mark.icon
+                  className="size-4"
+                  strokeWidth={1.75}
+                  style={{ color: mark.color }}
+                  aria-hidden="true"
+                />
+                {shelf.name}
               </DropdownMenuItem>
             )
           })}

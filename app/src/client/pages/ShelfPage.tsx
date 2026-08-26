@@ -26,10 +26,20 @@ table), and the press appends through the tab store rather than
 retargeting.
 
 **No views, no filter** (9.10): a view redraws tasks and a shelf holds
-folders; its list is its label, and narrowing it would be editing it. The
-overflow carries the shelf's contract: History, Rename, Copy link,
-Duplicate (the page, no folders), Save as workflow, Delete. Delete unlabels
-and keeps every folder (AC-203's server half), and 9 puts no confirm on it.
+folders; its list is its label, and narrowing it would be editing it.
+
+**The overflow is `lib/object-acts.ts`'s since S17b, where it was this file's
+own.** 9.10 gives the shelf a contract, History, Rename, Copy link, Duplicate
+(the page, no folders), Save as workflow, Delete, and this file drew that
+contract by hand: the right acts in the right order, agreeing with DES-201's
+declaration in shape without going through it, which is the state that lets two
+menus for one object drift while both look correct. S17a's log row handed it
+here rather than touching it, this being S17b's shelf work. The handlers did
+not change; the labels, glyphs, order and separators are the contract's now,
+and two read differently for the contract's own reason, "Rename shelf" and
+"Delete shelf", because "Delete" alone is the one label a person should never
+have to guess the object of. Delete unlabels and keeps every folder (AC-203's
+server half), and 9 puts no confirm on it.
 
 **Save as workflow exports structure and titles only** (DES-206): the
 folders on this shelf by name, which is exactly what the import's schema
@@ -58,6 +68,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
+import { ObjectMenu } from '../components/object-menu.js'
 import {
   Sheet,
   SheetContent,
@@ -65,7 +76,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '../components/ui/sheet.js'
-import { FolderPlus, MoreHorizontal, Plus } from '../lib/icons.js'
+import { FolderPlus, Plus } from '../lib/icons.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { useSubjectEvents } from '../api/queries.js'
 import { paths } from '../routes.js'
@@ -247,107 +258,101 @@ export function ShelfPage(): React.JSX.Element {
     <div className="space-y-4">
       <PageBody query={shelf} isEmpty={false} emptyCopy="">
         <WindowBarActions>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={MORE_ACTIONS}
-                  className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
-                />
-              }
-            >
-              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem
-                onClick={() => {
-                  setHistoryOpen(true)
-                }}
-              >
-                History
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setRenaming(true)
-                }}
-              >
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    `${globalThis.location.origin}${paths.shelf(id)}`,
-                  )
-                }}
-              >
-                Copy link
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  /* The page, no folders (9.10): a folder is on one shelf. */
-                  createShelf.mutate(
-                    {
-                      name: `${name} copy`.slice(0, 40),
-                      icon: detail?.icon ?? null,
-                      color: detail?.color ?? null,
-                      description: detail?.description ?? null,
+          {/*
+          From the contract since S17b, where this was a menu of its own.
+
+          S17a built `lib/object-acts.ts` so that "a folder's menu is the same
+          menu wherever it is drawn" (DES-201), and its log row handed this
+          file here in terms: the shelf's menu "goes with S17b's shelf work
+          rather than being touched here". It matched the contract in shape and
+          not through it, which is the state that lets two menus drift while
+          both look right, and it is what the audit's object-menu row means by
+          "the folder page rebuilt most acts bespoke, so the two have already
+          diverged".
+
+          Every handler below is the one that was here; what changed is that
+          the labels, the glyphs, the order and the separators are the
+          contract's rather than this file's. Two read differently as a result
+          and the contract is right both times: "Rename shelf" and "Delete
+          shelf" where this said "Rename" and "Delete", because "Delete" alone
+          is the one label a person should never have to guess the object of.
+
+          "Open shelf" is not supplied, and the contract's own safety property
+          is what expresses that: this *is* the shelf's page, so an act that
+          reached it would reach where the person is standing.
+          */}
+          <ObjectMenu
+            kind="shelf"
+            name={name}
+            handlers={{
+              history: () => {
+                setHistoryOpen(true)
+              },
+              rename: () => {
+                setRenaming(true)
+              },
+              'copy-link': () => {
+                void navigator.clipboard.writeText(
+                  `${globalThis.location.origin}${paths.shelf(id)}`,
+                )
+              },
+              duplicate: () => {
+                /* The page, no folders (9.10): a folder is on one shelf. */
+                createShelf.mutate(
+                  {
+                    name: `${name} copy`.slice(0, 40),
+                    icon: detail?.icon ?? null,
+                    color: detail?.color ?? null,
+                    description: detail?.description ?? null,
+                  },
+                  {
+                    onSuccess: (made) => {
+                      const copied = (page.data?.blocks ?? [])
+                        .filter((block) => block.kind !== 'folder_ref')
+                        .map((block, position) => ({
+                          kind: block.kind,
+                          position,
+                          text: block.text,
+                          file_id: block.file_id,
+                        }))
+                      if (copied.length > 0) {
+                        putNewPage.mutate({ id: made.id, body: { blocks: copied } })
+                      }
+                      navigate(paths.shelf(made.id))
                     },
-                    {
-                      onSuccess: (made) => {
-                        const copied = (page.data?.blocks ?? [])
-                          .filter((block) => block.kind !== 'folder_ref')
-                          .map((block, position) => ({
-                            kind: block.kind,
-                            position,
-                            text: block.text,
-                            file_id: block.file_id,
-                          }))
-                        if (copied.length > 0) {
-                          putNewPage.mutate({ id: made.id, body: { blocks: copied } })
-                        }
-                        navigate(paths.shelf(made.id))
-                      },
-                    },
-                  )
-                }}
-              >
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  const blob = new Blob([shelfWorkflowFile(name, onShelf)], {
-                    type: 'application/json',
-                  })
-                  const url = URL.createObjectURL(blob)
-                  const anchor = document.createElement('a')
-                  anchor.href = url
-                  anchor.download = `${name}.dana-workflow.json`
-                  anchor.click()
-                  URL.revokeObjectURL(url)
-                }}
-              >
-                Save as workflow
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => {
-                  /* Unlabels its folders and keeps them (9.10); section 9
-                     puts no confirm on it, and the way back is making it
-                     again. */
-                  remove.mutate(id, {
-                    onSuccess: () => {
-                      navigate(paths.desk)
-                    },
-                  })
-                }}
-              >
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  },
+                )
+              },
+              workflow: () => {
+                const blob = new Blob([shelfWorkflowFile(name, onShelf)], {
+                  type: 'application/json',
+                })
+                const url = URL.createObjectURL(blob)
+                const anchor = document.createElement('a')
+                anchor.href = url
+                anchor.download = `${name}.dana-workflow.json`
+                anchor.click()
+                URL.revokeObjectURL(url)
+              },
+              delete: () => {
+                /* Unlabels its folders and keeps them (9.10); section 9 puts
+                   no confirm on it, and the way back is making it again. */
+                remove.mutate(id, {
+                  onSuccess: () => {
+                    navigate(paths.desk)
+                  },
+                })
+              },
+            }}
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={MORE_ACTIONS}
+                className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
+              />
+            }
+          />
         </WindowBarActions>
 
         <IdentityHead
