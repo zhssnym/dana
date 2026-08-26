@@ -85,8 +85,10 @@ function recordingSink(refuse: (message: OutboundMessage) => boolean = () => fal
   return {
     received,
     forTasks: (taskIds) =>
-      received.filter((message) =>
-        taskIds.includes(message.reminder?.taskId ?? ''),
+      received.filter(
+        (message) =>
+          message.template === 'reminder' &&
+          taskIds.includes(message.reminder.taskId),
       ),
     send(message: OutboundMessage): void {
       if (refuse(message)) {
@@ -109,10 +111,14 @@ async function seedUser(): Promise<{ id: string; email: string }> {
   return { id: String(found[0]?.id), email }
 }
 
+/** The one folder every case here seeds, named so the reminder template's
+ * context line can be asserted against it. */
+const FOLDER_NAME = 'pass'
+
 async function seedFolder(ownerId: string): Promise<string> {
   const found = await rows(
     db,
-    sql`INSERT INTO folders (owner_id, name) VALUES (${ownerId}::uuid, ${'pass'})
+    sql`INSERT INTO folders (owner_id, name) VALUES (${ownerId}::uuid, ${FOLDER_NAME})
         RETURNING id`,
   )
   const folderId = String(found[0]?.id)
@@ -248,6 +254,10 @@ describe('the 11.7 pass over its rows', () => {
           title: 'file the quarterly return',
           dueDate: '2026-08-20',
           dueTime: '12:00',
+          // Item 32 gives this template a context line naming the folder,
+          // and the claim statement already joins folders for 8.6's
+          // deleted-folder skip, so it costs no read.
+          folderName: FOLDER_NAME,
         },
       },
     ])

@@ -2392,6 +2392,147 @@ fold, the way P7's mid-package change control ratified the pass callable:
     is left with the Steward as change control rather than decided by a
     session editing a frozen section on its own authority.
 
+34. **S19's owner column named a role that owns none of its files, the call
+    sites are four rather than two, and the 11.4 reading section 13 item 34
+    asked for is recorded here before a line was written (S19, 2026-08-26).**
+
+    **The owner correction, on item 12's precedent.** RFC 0004's S19 row
+    named `07-frontend-architect.md` with `10-platform.md`. Role 07 owns
+    `app/src/client/**` and spec section 9.2, and this package has no client
+    file in it: both surfaces are server-rendered. Read against the Owns
+    sections, which RFC 0004's own sentence makes that table's authority,
+    the package needs four roles and runs them in sequence in separate
+    commits: **11** for the criteria, **10** for `app/src/server/notify/**`
+    and the `app/src/server/scheduler/**` claim that feeds the reminder
+    template, **03** for the call sites, and **06** for
+    `app/src/server/auth/pages.ts`. The row is corrected rather than the
+    persona files, exactly as S12's was.
+
+    **Role 03 is the addition this package's brief did not make, and it is
+    not optional.** `10-platform.md` says it from its own side, "the
+    Collaboration engineer owns the call sites", and role 03's Owns section
+    names "the routes for folders, members, invites, connections, tasks,
+    steps, my-day, and the reminder endpoint" plus `app/src/server/domain/**`.
+    The whole of this package is a payload widening, and a payload no call
+    site fills is the defect item 32 describes rather than a fix for it.
+    Working the call sites as role 10 would be the two-directory crossing
+    protocol section 3 forbids.
+
+    **The call sites are four, not two.** Items 26 and 32 both say two,
+    `invites.ts` and `folders.ts`, and item 32 knows about the second share
+    grant without counting it. Verified in the tree at `9257eb4`:
+    `folders.ts:369` share grant on the 7.4 member add, `invites.ts:209`
+    share grant on the 7.5 instant-share conversion, `invites.ts:237` the
+    invite on create, and `invites.ts:474` the invite on **resend**, which
+    neither item names and which splits on `folder_id` exactly as create
+    does. The reminder's own site is `scheduler/pass.ts:206` and is role
+    10's. So the split reaches three invite-bearing sites, and a session
+    that widened only the two named would have shipped a resend still saying
+    "Someone".
+
+    **Every payload is assembled from a read its site already makes, which
+    is what keeps a second query out of a route handler.** `createInvite`
+    already selects the inviter's row to compare addresses, so it selects
+    the display name in the same statement; `accessOf` already reads the
+    folder row, so it returns the name from the same statement;
+    `inviteFactsFor` already joins the viewer's own row as `me`, so the
+    resend site reads the inviter's name from it; `membersOf` and
+    `inviteById` are already called at their sites and move ahead of the
+    send rather than being called twice; and the reminder claim already
+    joins `folders`, so it selects the folder name there. The 5.2 and 5.3
+    ordering rule is untouched at all four sites: the send still follows the
+    commit, so a rolled-back write can never have mailed anybody.
+
+    **The 11.4 reading, which section 13 item 34 asks for before the work
+    rather than during it.** Neither surface can import
+    `app/src/client/styles/tokens.css`: an email client reads no external
+    stylesheet, and a server-rendered string never passes through Vite. So
+    both write the design's values a second time, and 11.4's rule is
+    unamended and unweakened, because what it governs is the client.
+    `app/src/server/auth/pages.ts` has carried this duplication with its
+    reason in its own header since `ef6f39a` and is the nearer precedent;
+    the `vite.config.ts` and `tokens.css` pair item 34 names is the shape,
+    a comment on both sides. This package takes that shape: the two server
+    files each name the rule they cannot reach and why, and the crossing
+    into `tokens.css` for the matching comment is **not taken**, that file
+    being the Component engineer's. It is named here instead, which is the
+    honest half of a comment on both sides that one role can write.
+
+    **11.8's template list grows from three to four**, invite splitting into
+    `invite_folder` and `invite_connection` per item 32. That section's
+    sentence is amended with this item as its reason, on the shape item 26
+    used for 10.7. The two harness matchers were read before the split
+    rather than after: `auth-harness.ts` matches share grants with
+    `/share[\s_-]?grant/i` and `sharing-harness.ts` matches invites with
+    `/invite/i`, so every existing criterion that counts an invite send
+    keeps counting it, and the tolerance those matchers were written for is
+    what makes the split cost nothing.
+
+    **Item 32's four action destinations resolve to three distinct
+    addresses, and the reason is a deliberate absence from 9.1's route
+    table.** Both invitations land on "the invites view", and 9.8's invite
+    gate has no path: `routes.ts` records that it renders in place of the
+    application whenever Q12 is non-empty, mounted by `app-shell.tsx` over
+    whatever `/app` route is beneath it. So an invitation's link is
+    `${appOrigin}/app`, which is 10.6's start URL and where a recipient who
+    has just signed in meets the gate; the share grant lands on
+    `/app/folders/{id}` and the reminder on `/app/tasks/{id}`. Four
+    destinations in the ruling, three addresses in the client, and nothing
+    is lost: what item 32 rules is that a template stops landing on one
+    fixed address, and three of the four now do not.
+
+    **Two glyphs of the prototype's treatment are not carried into the
+    email, under 11.13's rule that section 9 wins on structure and copy and
+    a design artifact is read for what the medium can hold.**
+    `transactional-email-screen.tsx` draws a lucide glyph in the icon tile
+    and a second in the context card. Both are inline SVG, which Gmail
+    strips and which the Word rendering engine behind Outlook on Windows
+    does not draw, so in the majority of clients the tile would be an empty
+    bordered box rather than an icon. The purpose badge carries the same
+    fact in words on every client, so the badge is kept and the two tiles
+    that would otherwise be blank are dropped. The mark is carried as
+    `${appOrigin}/icon-192.png` with `alt="Dana"`, so a client with remote
+    images blocked reads the wordmark rather than nothing. Everything else
+    of the composition is carried: the top rule, the header, the badge, the
+    heading, the body, the context card's two lines, the one dark action
+    button, and the footer.
+
+    **The auth refusal page needed work, measured rather than assumed.**
+    Section 13 item 34 calls its appearance deferred and that is stale;
+    what is true is narrower. The page was styled at `ef6f39a` against the
+    **v1** designer's gate card, and item 20 moved the standard to
+    `docs/design/prototype-v2/`, whose counterpart is
+    `public-auth-screen.tsx`'s `UnverifiedEmailScreen`. Compared value by
+    value, the two agree on the card's 940 by 520 frame, the 320 pixel dark
+    panel, the 48 pixel icon tile at radius 12, the 44 pixel action button
+    at 20 pixels of side padding, and every colour, each of which is a
+    graphite token written out. They differ in nine places, all of them
+    v2's own moves: the card's radius (18 against 16), its border (a
+    graphite-200 hairline against none) and its shadow; the dark panel's
+    padding and its closing hairline; the mark's size; the icon tile's
+    border step and its shadow; the heading's size, tracking and colour (36
+    pixels at -0.035em in graphite-950 against 32 at -0.02em in
+    graphite-900); the body's leading; and the action's weight. So the page
+    is reworked onto the v2 card and 9.2's copy does not move a character,
+    which keeps this inside role 06 rather than making it the escalation
+    the row flagged: 9.2 is role 07's section, and only the presentation
+    moved.
+
+    **10.7's own amendment cites the wrong item and is corrected with this
+    one.** Its second paragraph says "RFC 0005 change control item 25";
+    item 25 is the 9.3 reunion's acceptance surface and item **26** is the
+    amendment that sentence records. A one word citation fix inside role
+    10's own spec section.
+
+    **Numbers, read at this package's opening on `v2-build` at `9257eb4`
+    and again at its merge**, which is the check items 13 and 25 exist
+    because three sessions skipped it. AC-251 to AC-257, SESSION-LOG row
+    32, and this item 34. **AC-257 was released rather than spent**, recorded
+    at the criteria commit: the refusal page owes nine values rather than a
+    behaviour, AC-008 already pins its 9.2 copy through the rework, and
+    values belong in the owning module's unit test under protocol section 8.
+    The spent range is AC-251 to AC-256 and 257 is free for the next session.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
