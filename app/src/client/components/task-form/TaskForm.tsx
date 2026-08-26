@@ -368,9 +368,10 @@ export function TaskForm({
 
   /*
   Every person this client can put a name to, for the history block of 9.3.
-  Frozen 7.2 gives `created_by` and `completed_by` as bare ids, so the names
-  come from the three readable surfaces that carry one: the viewer, the task's
-  folder members, and the roster. An id none of them holds is 4.1's "Deleted
+  `completed_by` is a bare id and `created_by` is unit 12a's person stub, and
+  the block is fed the id of each, so the names still come from the three
+  readable surfaces that carry one: the viewer, the task's folder members, and
+  the roster. An id none of them holds is 4.1's "Deleted
   user", which is right by construction rather than by a flag, because 8.10
   step 4 removes a deleted account's memberships and 7.3 excludes it from the
   roster.
@@ -897,7 +898,7 @@ export function TaskForm({
         {editing ? (
           <TaskHistory
             createdAt={task.created_at}
-            createdBy={task.created_by}
+            createdBy={task.created_by?.id ?? null}
             completedAt={task.completed_at}
             completedBy={task.completed_by}
             people={people}
