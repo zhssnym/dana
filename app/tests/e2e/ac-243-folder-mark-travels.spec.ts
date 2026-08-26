@@ -42,6 +42,14 @@ member reads, and two colours are chosen that no seed row and no other spec
 uses, so a surface carrying one carries it because this folder was painted
 with it.
 
+**The task rows are read on Anytime and not on All, and the first run of this
+file is why.** All arranges its open work into a section per folder, so Q2's
+rule applies there and a row inside a folder group draws no folder chip at all:
+the heading above it is the folder. Read on All, the two cases below found a
+row carrying its star and its overflow and nothing else, which is that rule
+working rather than the port failing. Anytime is Q2's rows ungrouped, so a row
+there carries the chip this criterion is about.
+
 **The folders are this file's own and are deleted at the close.** The runner
 seeds once and every spec in this leg reads the same sidebar, so a folder left
 behind would change what they see.
@@ -168,7 +176,7 @@ test.describe('AC-243: a folder\'s mark travels', () => {
     )
     expect(reference.length).toBeGreaterThan(0)
 
-    await page.goto(routesV2.all)
+    await page.goto(routesV2.anytime)
     const row = taskRow(page, fixture.travelTask)
     await expect(row).toBeVisible()
 
@@ -238,7 +246,7 @@ test.describe('AC-243: a folder\'s mark travels', () => {
         'passes each "the mark appears here too" assertion above and fails this one',
     ).toBe(false)
 
-    await page.goto(routesV2.all)
+    await page.goto(routesV2.anytime)
     const homeTaskRow = taskRow(page, fixture.homeTask)
     const homeTaskGlyph = await glyphGeometry(homeTaskRow)
     expect(homeTaskGlyph).toEqual(expect.arrayContaining(homeMark))

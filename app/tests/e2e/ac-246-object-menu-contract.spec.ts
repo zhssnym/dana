@@ -99,10 +99,17 @@ function libraryRow(page: Page, name: string): Locator {
   return sidebar(page).getByRole('link', { name: new RegExp(name) })
 }
 
+/*
+The row is found by its text and not by `filter({ has })`, and the first run of
+this file is why: an inner locator rooted at the navigation landmark is not
+queried against the outer listitem, so the filter matched nothing and the
+failure read as a missing control on a row that was drawing one. AC-173's
+helper had the working shape all along.
+*/
 async function openLibraryMenu(page: Page, name: string): Promise<void> {
   const row = libraryRow(page, name)
   await row.hover()
-  const item = sidebar(page).getByRole('listitem').filter({ has: row }).last()
+  const item = sidebar(page).getByRole('listitem').filter({ hasText: name }).last()
   await clickControl(
     item.getByRole('button', { name: 'More actions', exact: true }),
     'spec 9.1: a sidebar folder row\'s menu is "More actions", the same control the folder ' +
