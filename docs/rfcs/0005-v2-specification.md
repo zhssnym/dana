@@ -1655,6 +1655,47 @@ fold, the way P7's mid-package change control ratified the pass callable:
     sequencing against item 19's gate is Imran's, not this role's: it is a
     build-order resequencing and the persona sends those to the owner.
 
+21. **`app/.env` is tracked on `origin/main` and the deferral that allowed
+    it has now expired by its own terms (Integration Steward, 2026-08-25).**
+    The S14 remainder merged origin's `v2-build` as it stood, on the owner's
+    instruction of 2026-08-25 that the secret "stays as it is until the app
+    goes live", and routed the resulting contract disagreement here rather
+    than resolving it. Recorded now, with the state verified rather than
+    reported.
+
+    What is true at `e5bf809` and `50a4298`: `app/.env` is tracked on
+    `origin/main`, on `origin/v2-build` and on the local branch, and no
+    `.gitignore` on any of the three carries an env rule at all. `b9b2cfa`
+    had untracked the file and restored those rules on `v2-build`;
+    `c399147` reversed both halves, re-adding 44 lines of `app/.env` and
+    removing 2 lines from `.gitignore`, and the production merge carried
+    that state to `main`. One correction to row 16a's phrasing while the
+    facts are being written down: PR #9 does not fix this on `main`.
+    `51c3ff6` is the tip of its own branch and is **not** an ancestor of
+    `origin/main`, which has never received it; the only commit that ever
+    touched `app/.env` on `main` is `bf90c0a`, which added it.
+
+    This contradicts 11.11, whose secrets rule reads "a gitignored .env
+    locally, and an `.env.example` naming every variable". The contradiction
+    is recorded rather than corrected, because the owner ruled and a ruling
+    is not this role's to overturn.
+
+    **What is new, and why this item exists rather than a note:** the
+    deferral was conditional, and the condition is now met. The app went
+    live at `e5bf809`. So the sentence that authorised leaving the file
+    tracked no longer authorises anything, and the three acts it was holding
+    off are due: rotate `GOOGLE_CLIENT_SECRET` in the Google Cloud console
+    under OAuth client "Dana web", untrack `app/.env` on both branches with
+    `git rm --cached` so the working copy the dev server reads survives, and
+    restore the `.env*` and `!.env.example` rules. **Rotation is the only
+    one of the three that changes the exposure**, because the value is in
+    published history at `bf90c0a` and untracking has never removed it from
+    there; the other two stop it spreading further. All three are the
+    owner's to authorise and the first is his alone to perform. Not
+    attempted here: `main` is production and outward-facing, and acting on
+    this role's own reading of when "goes live" was satisfied is exactly the
+    interpretation a Steward does not make unilaterally.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
