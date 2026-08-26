@@ -80,6 +80,9 @@ import {
 
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
+/* The public family's header control, lifted out at S16 so the legal pages
+   of DES-032 wear the same one rather than a second copy of it. */
+import { DanaIdentity } from './dana-identity.js'
 import {
   ArrowDown,
   ArrowRight,
@@ -253,19 +256,6 @@ function SectionEyebrow({
       <span className="size-1.5 rounded-full" style={{ background: color }} aria-hidden="true" />
       {children}
     </p>
-  )
-}
-
-function DanaIdentity(): React.JSX.Element {
-  return (
-    <a
-      href="/"
-      className="inline-flex items-center gap-3 rounded-md text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-      aria-label="Dana home"
-    >
-      <img src="/dana-mark.svg" alt="" className="size-8" />
-      <span>Dana</span>
-    </a>
   )
 }
 
