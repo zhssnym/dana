@@ -336,6 +336,16 @@ export interface Card extends Record<string, unknown> {
     avatar_url: string | null
   } | null
   folder: { id: string; name: string; is_default: boolean }
+  // RFC 0005 unit 12a's two widenings of frozen 7.0. created_by is the same
+  // person shape assignee carries, and is null only where 8.10 scrubbed the
+  // creator; section_block_id is the 4.17 section the row sits under on its
+  // folder's page, null for a task under none.
+  created_by: {
+    id: string
+    display_name: string | null
+    avatar_url: string | null
+  } | null
+  section_block_id: string | null
 }
 
 /** Every row of every 7.10 body is a 7.0 TaskCard. This is the contract test
