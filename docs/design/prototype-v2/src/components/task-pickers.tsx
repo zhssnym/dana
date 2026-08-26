@@ -1,0 +1,579 @@
+/*
+The three pickers that answer a question about time, and the parts they are
+built from.
+
+Extracted from `screens/row-concepts.tsx` on 2026-08-18 with the port of the
+row into the shell. DES-123 is why this is a module and not a copy: the date
+and time pickers are constant to the Dana brand, so they are one component
+wherever they appear and changing them changes every place at once. A picker
+copied into a second place is a picker that will one day disagree with itself.
+
+DES-120 is the shape they all share — the answers somebody probably wants, a
+hairline, then one option that opens everything exact — and the reasoning for
+it lives in that entry rather than being restated here. DES-109 is the
+behaviour: there is no Save and no Done, choosing commits. DES-122 is why the
+Due panel has no clock in it.
+*/
+
+import { Ban, CalendarDays, Repeat2, type LucideIcon } from "@/lib/icons"
+import { useState, type ReactNode } from "react"
+import { Check as CheckIcon } from "@/lib/icons"
+
+import { Calendar, TimeRow, sameDay } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { formatTime, useTimeFormat } from "@/lib/time-format"
+import {
+  DAY_LONG,
+  LAB_TODAY,
+  MONTH_SHORT,
+  WEEKDAY_KEYS,
+  WORKING_WEEK,
+  addDays,
+  dueLabelFor,
+  nextWeekday,
+  ordinal,
+  parseDueLabel,
+  repeatAnchor,
+  repeatSummary,
+  shortDate,
+  type ConceptTask,
+} from "@/lib/task-model"
+import { cn } from "@/lib/utils"
+
+const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
+const FOCUS =
+  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+
+/* A chip that opens a panel rather than a list. Same anatomy as PropChip so
+   the strip reads as one row of equals. */
+export function PickerChip({
+  icon: Icon,
+  value,
+  tooltip,
+  muted = false,
+  color,
+  children,
+}: {
+  icon: LucideIcon
+  value: string
+  tooltip: string
+  muted?: boolean
+  color?: string
+  children: ReactNode
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={tooltip}
+            title={tooltip}
+            onClick={(event) => event.stopPropagation()}
+            className={cn("rounded-md", FOCUS)}
+          >
+            <span
+              className={cn(
+                "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[12px] leading-4 transition-[background-color,border-color]",
+                T_FAST,
+                "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
+                muted
+                  ? "text-[var(--color-graphite-500)]"
+                  : "text-[var(--color-graphite-800)]",
+              )}
+            >
+              <Icon
+                className="size-3.5 shrink-0"
+                style={color ? { color } : undefined}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+              <span className="truncate">{value}</span>
+            </span>
+          </button>
+        }
+      />
+      <PopoverContent align="start" className="w-auto p-2">
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/* One choice in a picker, shaped like a menu item rather than a pill: full
+   width, on its own line, with the value it resolves to on the right where a
+   person reads it instead of working it out. "Tomorrow" is only useful next
+   to the date it means.
+
+   Every picker in the card now leads with a list of these, because nearly
+   every date anybody sets is one of about five, and making the common answer
+   one click is worth more than the calendar it sits above. */
+export function PickerOption({
+  icon: Icon,
+  label,
+  hint,
+  active,
+  onSelect,
+}: {
+  icon?: LucideIcon
+  label: string
+  hint?: string
+  active: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={active}
+      onClick={onSelect}
+      className={cn(
+        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors",
+        T_FAST,
+        FOCUS,
+        "hover:bg-[var(--color-graphite-100)]",
+        active
+          ? "font-medium text-[var(--color-graphite-900)]"
+          : "text-[var(--color-graphite-700)]",
+      )}
+    >
+      {Icon ? (
+        <Icon
+          className="size-4 shrink-0 text-[var(--color-graphite-400)]"
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+      ) : null}
+      <span className="flex-1 truncate">{label}</span>
+      {hint ? (
+        <span className="shrink-0 text-[12px] leading-4 tabular-nums text-[var(--color-graphite-400)]">
+          {hint}
+        </span>
+      ) : null}
+      {/* The tick holds its place whether or not it is showing, so a list of
+          options never reflows by a few pixels as the selection moves. */}
+      <CheckIcon
+        className={cn(
+          "size-3.5 shrink-0 text-[var(--color-graphite-800)] transition-opacity",
+          T_FAST,
+          active ? "opacity-100" : "opacity-0",
+        )}
+        strokeWidth={2.5}
+        aria-hidden="true"
+      />
+    </button>
+  )
+}
+
+/* The hairline between a picker's easy answers and its exact ones. */
+export function PickerDivider() {
+  return <div aria-hidden="true" className="my-1 h-px bg-[var(--color-graphite-200)]" />
+}
+
+export function PickerLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-2 pb-1 text-[11px] leading-4 font-medium tracking-wide text-[var(--color-graphite-400)] uppercase">
+      {children}
+    </div>
+  )
+}
+
+/* One row of short exclusive choices, behaving like a segmented control. The
+   only shape left in the pickers where a pill row is still right: a
+   recurrence interval and its weekdays are a set you compare at a glance,
+   not a menu you read down. */
+export function PickerSegments({
+  label,
+  options,
+  active,
+  onPick,
+}: {
+  label: string
+  options: { key: string; label: string }[]
+  active: string
+  onPick: (key: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1">
+      <span className="w-12 shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1">
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            aria-pressed={active === option.key}
+            onClick={() => onPick(option.key)}
+            className={cn(
+              "h-7 rounded-md px-2.5 text-[12px] leading-4 transition-colors",
+              T_FAST,
+              FOCUS,
+              active === option.key
+                ? "bg-[var(--color-graphite-900)] font-medium text-white"
+                : "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------- the pickers -- */
+/*
+Due, Reminder and Repeat, rebuilt 2026-08-18 at Imran's direction.
+
+What they were: a label, a row of three or four pills, and a bare month grid
+underneath that never showed which day was selected. What was wrong with that
+is not that it was ugly, though it was; it is that it made the rare answer and
+the common one cost the same. Nearly every date anybody sets is today,
+tomorrow, this weekend or next week, and all four of those were being spelled
+out on a calendar.
+
+So all three now open on the answers somebody probably wants, each showing the
+date it resolves to, and keep the exact controls below a hairline. The shape is
+deliberately identical across the three, so learning one teaches the other two,
+and it is the shape the rest of the product's menus already have.
+
+DES-109 governs the behaviour: there is no Save and no Done. Choosing commits.
+*/
+
+export interface PanelProps {
+  task: ConceptTask
+  patch: (id: string, fields: Partial<ConceptTask>) => void
+}
+
+/*
+All three panels are one shape, settled 2026-08-18: the answers somebody
+probably wants, a hairline, then one option that opens everything exact. Only
+that last option can expand, and only one thing is ever expanded, so the panel
+is the size of the question being asked rather than the size of the largest
+question it could ask.
+
+The version before this stood a calendar and two sixty-row time columns open
+at all times. Every panel was the same size as the worst case.
+*/
+
+export function DuePanel({ task, patch }: PanelProps) {
+  const selected = task.due ? parseDueLabel(task.due.label) : null
+  const [custom, setCustom] = useState(false)
+  const set = (date: Date) => patch(task.id, { due: dueLabelFor(date) })
+
+  const presets = [
+    { label: "Today", date: LAB_TODAY },
+    { label: "Tomorrow", date: addDays(LAB_TODAY, 1) },
+    { label: "This weekend", date: nextWeekday(LAB_TODAY, 6) },
+    { label: "Next week", date: nextWeekday(LAB_TODAY, 1) },
+  ]
+
+  /* A due date is a day and not a moment, ruled by Imran 2026-08-18, so there
+     is no clock in this panel at all. It is the one of the three where a time
+     was decoration: "due at 17:45" is a reminder wearing a due date's clothes,
+     and Dana already has somewhere to say that. */
+  return (
+    <div className="w-[268px]">
+      <div role="menu" aria-label="Due date" className="flex flex-col">
+        {presets.map((preset) => (
+          <PickerOption
+            key={preset.label}
+            label={preset.label}
+            hint={shortDate(preset.date)}
+            active={sameDay(selected, preset.date)}
+            onSelect={() => set(preset.date)}
+          />
+        ))}
+        <PickerOption
+          icon={Ban}
+          label="No date"
+          active={!task.due}
+          onSelect={() => patch(task.id, { due: undefined })}
+        />
+      </div>
+
+      <PickerDivider />
+
+      <PickerOption
+        icon={CalendarDays}
+        label="Custom date…"
+        hint={custom || !selected ? undefined : shortDate(selected)}
+        active={custom}
+        onSelect={() => setCustom((open) => !open)}
+      />
+
+      {custom ? (
+        <div className="pt-1">
+          <Calendar selected={selected} onSelect={set} today={LAB_TODAY} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export function ReminderPanel({ task, patch }: PanelProps) {
+  const format = useTimeFormat()
+  const due = task.due ? parseDueLabel(task.due.label) : null
+  const [custom, setCustom] = useState(false)
+  const customDate = task.reminder ? parseDueLabel(task.reminder) : null
+  const customTime = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
+
+  /* Relative reminders are the whole point of the list, and every one is
+     measured from the due date. Showing the day each lands on is what stops
+     "1 week before" being arithmetic somebody has to do in their head. */
+  const presets = [
+    { label: "On the day it is due", hint: due ? shortDate(due) : undefined },
+    { label: "1 day before", hint: due ? shortDate(addDays(due, -1)) : undefined },
+    { label: "2 days before", hint: due ? shortDate(addDays(due, -2)) : undefined },
+    { label: "1 week before", hint: due ? shortDate(addDays(due, -7)) : undefined },
+  ]
+
+  return (
+    <div className="w-[268px]">
+      {!due ? (
+        <p className="px-2 pt-1 pb-2 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          This task has no due date yet. These are measured from one.
+        </p>
+      ) : null}
+
+      <div role="menu" aria-label="Reminder" className="flex flex-col">
+        {presets.map((preset) => (
+          <PickerOption
+            key={preset.label}
+            label={preset.label}
+            hint={preset.hint}
+            active={task.reminder === preset.label}
+            onSelect={() => patch(task.id, { reminder: preset.label })}
+          />
+        ))}
+        <PickerOption
+          icon={Ban}
+          label="No reminder"
+          active={!task.reminder}
+          onSelect={() => patch(task.id, { reminder: undefined })}
+        />
+      </div>
+
+      <PickerDivider />
+
+      {/* The one reminder that is not relative to anything. Everything exact
+          lives behind this single option, and the clock lives at the foot of
+          the calendar rather than beside it, because you pick the day first
+          and the time is the refinement. */}
+      <PickerOption
+        icon={CalendarDays}
+        label="Custom date & time…"
+        active={custom}
+        onSelect={() => setCustom((open) => !open)}
+      />
+
+      {custom ? (
+        <div className="flex flex-col gap-2 pt-1">
+          <Calendar
+            selected={customDate}
+            onSelect={(date) =>
+              patch(task.id, {
+                reminder: `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}${
+                  customTime ? ` at ${customTime}` : ""
+                }`,
+              })
+            }
+            today={LAB_TODAY}
+          />
+          <TimeRow
+            value={customTime}
+            onSelect={(time) =>
+              patch(task.id, {
+                reminder: `${(task.reminder ?? shortDate(LAB_TODAY)).replace(
+                  / at .*/,
+                  "",
+                )} at ${time}`,
+              })
+            }
+            onClear={() =>
+              patch(task.id, {
+                reminder: (task.reminder ?? "").replace(/ at .*/, "") || undefined,
+              })
+            }
+          />
+          {/* What the two controls above add up to, in the person's own
+              clock, so the panel answers its own question without them
+              having to close it and read the chip. */}
+          {customDate ? (
+            <p className="px-1 pb-0.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+              Reminds on {shortDate(customDate)}
+              {formatTime(customTime, format) ? ` at ${formatTime(customTime, format)}` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+export function RepeatPanel({ task, patch }: PanelProps) {
+  const anchor = repeatAnchor(task)
+  const [custom, setCustom] = useState(false)
+  const summary = repeatSummary(task)
+
+  /* Five answers cover essentially every repeating task anybody writes down,
+     and each is spelled out against this task's own date rather than left as
+     a word somebody has to translate. */
+  const presets: { label: string; fields: Partial<ConceptTask> }[] = [
+    {
+      label: "Daily",
+      fields: { recurrence: true, repeatUnit: "day", repeatEvery: "1", repeatDays: [] },
+    },
+    {
+      label: `Weekly on ${DAY_LONG[anchor.getDay()]}`,
+      fields: {
+        recurrence: true,
+        repeatUnit: "week",
+        repeatEvery: "1",
+        repeatDays: [WEEKDAY_KEYS[(anchor.getDay() + 6) % 7]],
+      },
+    },
+    {
+      label: "Every weekday",
+      fields: {
+        recurrence: true,
+        repeatUnit: "week",
+        repeatEvery: "1",
+        repeatDays: [...WORKING_WEEK],
+      },
+    },
+    {
+      label: `Monthly on the ${ordinal(anchor.getDate())}`,
+      fields: { recurrence: true, repeatUnit: "month", repeatEvery: "1", repeatDays: [] },
+    },
+    {
+      label: `Yearly on ${anchor.getDate()} ${MONTH_SHORT[anchor.getMonth()]}`,
+      fields: { recurrence: true, repeatUnit: "year", repeatEvery: "1", repeatDays: [] },
+    },
+  ]
+
+  return (
+    <div className="w-[268px]">
+      <div role="menu" aria-label="Repeat" className="flex flex-col">
+        <PickerOption
+          icon={Ban}
+          label="Does not repeat"
+          active={!task.recurrence}
+          onSelect={() =>
+            patch(task.id, {
+              recurrence: false,
+              repeatDays: [],
+              repeatEnds: undefined,
+            })
+          }
+        />
+        {presets.map((preset) => (
+          <PickerOption
+            key={preset.label}
+            label={preset.label}
+            active={task.recurrence === true && summary === preset.label}
+            onSelect={() => patch(task.id, preset.fields)}
+          />
+        ))}
+      </div>
+
+      <PickerDivider />
+
+      <PickerOption
+        icon={Repeat2}
+        label="Custom repeat…"
+        active={custom}
+        onSelect={() => {
+          setCustom((open) => !open)
+          if (!task.recurrence) patch(task.id, { recurrence: true, repeatUnit: "week" })
+        }}
+      />
+
+      {custom ? (
+        <div className="pt-1">
+          <PickerSegments
+            label="Every"
+            active={task.repeatEvery ?? "1"}
+            options={[
+              { key: "1", label: "1" },
+              { key: "2", label: "2" },
+              { key: "3", label: "3" },
+              { key: "4", label: "4" },
+            ]}
+            onPick={(key) => patch(task.id, { repeatEvery: key })}
+          />
+          <PickerSegments
+            label=""
+            active={task.repeatUnit ?? "week"}
+            options={[
+              { key: "day", label: "days" },
+              { key: "week", label: "weeks" },
+              { key: "month", label: "months" },
+            ]}
+            onPick={(key) =>
+              patch(task.id, { repeatUnit: key as ConceptTask["repeatUnit"] })
+            }
+          />
+          {(task.repeatUnit ?? "week") === "week" ? (
+            <div className="px-2 py-1">
+              {/* The weekday row gets its own line and a seven-column grid.
+
+                  It was a label plus seven 28px circles on one line: 48 + 8 +
+                  7×28 + 6×4 = 292px inside a 268px panel, so the last day sat
+                  outside the popover's own edge — the thing Imran saw as
+                  "elements out of the margins". A row of seven fixed circles
+                  beside a fixed label cannot fit a panel sized for prose, and
+                  widening the panel to suit one row would make every other
+                  picker wider for nothing (DES-147: a popover is as wide as
+                  what it holds). A grid divides whatever width there is, so
+                  this row cannot overflow at any panel size. */}
+              <span className="mb-1 block text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                On
+              </span>
+              <div className="grid grid-cols-7 gap-1">
+                {WEEKDAY_KEYS.map((day) => {
+                  const on = task.repeatDays?.includes(day) ?? false
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={day}
+                      onClick={() =>
+                        patch(task.id, {
+                          repeatDays: on
+                            ? (task.repeatDays ?? []).filter((d) => d !== day)
+                            : [...(task.repeatDays ?? []), day],
+                        })
+                      }
+                      className={cn(
+                        "flex h-7 w-full items-center justify-center rounded-full text-[11px] leading-4 transition-colors",
+                        T_FAST,
+                        FOCUS,
+                        on
+                          ? "bg-[var(--color-graphite-900)] font-medium text-white"
+                          : "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+                      )}
+                    >
+                      {day.slice(0, 1)}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+          <PickerSegments
+            label="Until"
+            active={task.repeatEnds ?? ""}
+            options={[
+              { key: "", label: "No end" },
+              { key: "12 Sep", label: "12 Sep" },
+              { key: "31 Dec", label: "31 Dec" },
+            ]}
+            onPick={(key) => patch(task.id, { repeatEnds: key || undefined })}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}

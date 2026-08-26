@@ -230,11 +230,13 @@ describe('AC-012: the owner renames and every member reads the new name', () => 
     // The other held edge of the ruling: a body over the parse limit is a
     // body that did not parse, 400 and never 413. The name inside is
     // invalid, so if the limit were missing this would answer 422 and the
-    // report would name the mapping instead of passing vacuously.
+    // report would name the mapping instead of passing vacuously. The
+    // limit is 10.3's 3 MB row since RFC 0005 change control item 18; the
+    // padding sits above it.
     const { owner, folderId } = await stage()
     const oversized = JSON.stringify({
       name: '',
-      padding: 'p'.repeat(2_000_000),
+      padding: 'p'.repeat(3 * 1024 * 1024 + 1024),
     })
     const response = await owner.browser.api(`/folders/${folderId}`, {
       method: 'PATCH',

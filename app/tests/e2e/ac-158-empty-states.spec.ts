@@ -34,8 +34,21 @@ seeded one: 11.10 makes that endpoint this leg's session source, a bare
 sign-in provisions a fresh user through the same 7.1 transaction, and the
 seeded rows every other spec reads are left alone.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where it is asserted does. Section 6 is the reason
+the eight strings do not move with it: RFC 0005 replaced five query headings
+and touched no query's logic, criteria, or copy, and it kept the v1 page name
+in each heading's parentheses precisely because criteria cite them. So Q1's
+empty state is Today's, Q2's is Anytime's, Q3's is Scheduled's, and this file
+walks those three addresses instead of /app, /app/tasks and /app/planned.
+
+The recap and the calendar keep their pages too: 9.4 still heads the recap
+"Done today (N)" and hides it while empty, and 9.5 still gives the calendar
+to Scheduled alone, that being the one page where having a date is what puts
+a task on it.
+
 Spec: 9 preamble (the five states), 6 Q1, Q1R, Q2, Q3, Q3C, Q4, Q5, Q6, Q7,
-Q8, 9.1's route table, 11.10.
+Q8, 9.1's v2 route table, 11.10.
 */
 import { expect, test } from '@playwright/test'
 
@@ -43,7 +56,7 @@ import {
   ACTION_TIMEOUT_MS,
   clickControl,
   emptyState,
-  routes,
+  routesV2,
   signIn,
   TEST_TIMEOUT_MS,
 } from './harness.js'
@@ -60,12 +73,12 @@ test.describe('AC-158: the empty state of every page', () => {
     await signIn(page, EMPTY_SUB, 'Ac158 Empty')
 
     for (const [where, path, expected] of [
-      ['My Day', routes.myDay, emptyState.myDay],
-      ['Tasks', routes.tasks, emptyState.tasks],
-      ['Planned', routes.planned, emptyState.planned],
-      ['Important', routes.important, emptyState.important],
-      ['All', routes.all, emptyState.all],
-      ['Done', routes.done, emptyState.done],
+      ['Today', routesV2.today, emptyState.myDay],
+      ['Anytime', routesV2.anytime, emptyState.tasks],
+      ['Scheduled', routesV2.scheduled, emptyState.planned],
+      ['Important', routesV2.important, emptyState.important],
+      ['All', routesV2.all, emptyState.all],
+      ['Done', routesV2.done, emptyState.done],
     ] as const) {
       await page.goto(path)
       await expect(
@@ -84,10 +97,15 @@ test.describe('AC-158: the empty state of every page', () => {
     expect(response.status(), 'GET /folders answered non-200').toBe(200)
     const all = (await response.json()) as { id: string; is_default: boolean }[]
     const inbox = all.find((folder) => folder.is_default)
-    expect(inbox, 'spec 7.1: provisioning creates one Inbox with owner membership').toBeDefined()
+    expect(
+      inbox,
+      'spec 7.1: provisioning creates one default folder with owner membership, named Desk ' +
+        'since RFC 0005. It is found by is_default rather than by name, which is what keeps ' +
+        'this case reading a folder rather than a string',
+    ).toBeDefined()
     if (inbox === undefined) throw new Error('unreachable: asserted above')
 
-    await page.goto(routes.folder(inbox.id))
+    await page.goto(routesV2.folder(inbox.id))
     await expect(
       page.getByText(emptyState.folder),
       'spec 6 Q7: sections 1 and 2 are absent when empty, with this single line when both ' +
@@ -111,7 +129,7 @@ test.describe('AC-158: the empty state of every page', () => {
   test('AC-158: the recap is hidden and the calendar is a bare grid', async ({ page }) => {
     await signIn(page, EMPTY_SUB, 'Ac158 Empty')
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expect(
       page.getByRole('heading', { name: /Done today/ }),
       'spec 6 Q1R: the recap section is hidden entirely while empty. 9.4 heads it "Done ' +
@@ -119,10 +137,11 @@ test.describe('AC-158: the empty state of every page', () => {
         'heading reading "Done today (0)" on their first screen',
     ).toHaveCount(0)
 
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
     await clickControl(
       page.getByRole('button', { name: /^calendar$/i }),
-      'spec 9.5: Planned carries a mode toggle between list and calendar',
+      'spec 9.5: Scheduled is the one page that offers the calendar, because having a date is ' +
+        'what puts a task on it',
     )
     await expect(
       page.getByRole('gridcell').first(),

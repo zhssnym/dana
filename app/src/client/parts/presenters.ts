@@ -487,11 +487,20 @@ export interface RowContext {
   readonly showFolder?: boolean
   /** 9.4's pulled marker and un-pull control are My Day's alone. */
   readonly showPullMarker?: boolean
+  /**
+   * 9.5's v2 Done bullet: rows there "drop the spent due-date echo under
+   * headings that already group by completion". Every other page shows one,
+   * so the default is true, and Done is the only caller that passes false.
+   */
+  readonly showDue?: boolean
 }
 
 /**
- * The display half of his task row: everything but the callbacks and the
- * visual-state props his state lab drives.
+ * The display half of his task row: everything but the callbacks.
+ *
+ * It used to read "everything but the callbacks and the visual-state props his
+ * state lab drives", and the second half went with those props at S11: nothing
+ * in this client ever drove them, which is DES-184 one axis over.
  *
  * Written as a `Pick` of his own interface rather than as a fresh shape, so a
  * prop that changes name or type in `task-row.tsx` fails the typecheck here
@@ -571,6 +580,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     starTooltip = 'inward',
     showFolder = true,
     showPullMarker = false,
+    showDue = true,
   } = context
 
   /*
@@ -591,7 +601,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
   return {
     title: task.title,
     folder: showFolder ? folderDisplay(task.folder, folders) : undefined,
-    due: dueDisplay(task, today),
+    due: showDue ? dueDisplay(task, today) : undefined,
     status: task.status,
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip),

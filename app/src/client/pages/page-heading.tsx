@@ -22,19 +22,33 @@ paraphrased, which is the same discipline the normative strings get, because a
 port that reworded them would be a difference from the prototype and RFC 0002
 makes that a defect.
 */
-import type { LucideIcon } from 'lucide-react'
+/* The icon module of DES-125, since S8. */
+import type { LucideIcon } from '../lib/icons.js'
 import type { ReactNode } from 'react'
 
 export function PageHeading({
   icon: Icon,
   title,
   subtitle,
+  fact,
   actions,
 }: {
   readonly icon: LucideIcon
   readonly title: string
   readonly subtitle: string
-  /** The one control a header may carry, which is My Day's switch and Planned's modes. */
+  /**
+   * The quiet figure beside the name, and only two places have one.
+   *
+   * DES-149: "the fact rides the title's line; prose sits under it", and "a
+   * progress figure, which only Today and a folder have, is the quiet figure
+   * beside the name. Tasks, Planned, Important, All and Done are queries, and
+   * nothing completes a query, so their fact slot stays empty rather than
+   * growing an invented number to fill it." 9.4's head names it in terms, "the
+   * fact 'N of M done'".
+   */
+  readonly fact?: string
+  /** The one control a header may carry, which is now People's alone: DES-150
+   * moved every place-page's control into the window bar. */
   readonly actions?: ReactNode
 }): React.JSX.Element {
   return (
@@ -46,9 +60,14 @@ export function PageHeading({
           aria-hidden="true"
         />
         <div className="min-w-0">
-          <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
-            {title}
-          </h1>
+          <div className="flex min-w-0 items-baseline gap-3">
+            <h1 className="truncate text-2xl leading-8 font-semibold text-foreground">
+              {title}
+            </h1>
+            {fact === undefined ? null : (
+              <span className="shrink-0 text-xs text-muted-foreground">{fact}</span>
+            )}
+          </div>
           <p className="mt-1 text-xs leading-4 text-muted-foreground">{subtitle}</p>
         </div>
       </div>

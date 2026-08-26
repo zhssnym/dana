@@ -3,8 +3,8 @@ AC-183: given each of section 9's normative strings that the designer's
 prototype omitted, split or reworded, then the built client renders each as
 one text run, character for character as its section writes it: 9.1's
 failed-read line and 404 line, 9.3's steps cap notice, 9.4's abandon confirm,
-9.6's leave, remove-member and delete-folder confirms, and 9.8's
-already-connected refusal and remove-connection confirm.
+9.6's leave and remove-member confirms, and 9.8's already-connected refusal
+and remove-connection confirm.
 
 Appended to section 12 by RFC 0002, Accepted 2026-08-13. The sentence above
 is that RFC's Append unit transcribed unchanged, and it becomes section 12's
@@ -47,13 +47,46 @@ anywhere: a criterion that reads the string it asserts out of the code under
 test asserts that the code equals itself, which is precisely the check a copy
 regression has to survive.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and one clause
+escalated.** Three cases stood on pages that moved: the failed read is
+injected on Anytime, which draws Q2 at /app/anytime now that /app/tasks
+redirects, the steps editor is reached from the same page, and the abandon
+confirm is opened on Today, which draws Q1 at /app/today now that Desk holds
+/app. Nothing about the nine strings moves with them.
+
+**The delete-folder clause was dropped by the owner's ruling of 2026-08-24.**
+The criterion named "9.6's leave, remove-member and delete-folder confirms",
+and 9.6 no longer has a delete-folder confirm: "deleting moves the folder to
+Trash for every member at once, with the undo bar and no confirmation: two
+ways back is why the question left." A criterion enumerating a string its own
+section has since removed is a criterion whose text is false in that clause,
+so it was raised as a Replace unit in RFC 0005's change control item 8 and
+accepted as recommended. The case that asserted it is gone with the clause,
+and what replaced the confirmation is the undo bar, which AC-225 reads. Eight
+strings remain and the criterion is otherwise verbatim.
+
+9.4's abandon confirm needed no unit: v2 rewords the sentence from "My Day"
+to "Today", the criterion points at the confirm rather than quoting it, and
+the string moves when S10 redraws the page that renders it.
+
+**The leave case's locator was corrected at RFC 0005 change control item 14,
+2026-08-25, and the sentence it asserts did not move.** It reached the
+folder's overflow menu inside the "Folder header" region, and 9.1's
+replacement puts the object's overflow menu at the window bar's right end,
+where the v2 folder page draws it; the menu is now reached the way AC-217
+reaches it, by role and name inside the main landmark, ahead of the task
+rows' menus that share the name. The transcription at the top of this file
+was brought in step with section 12 in the same act: the owner's item 8
+ruling had amended the criterion's text and this header still carried the
+delete-folder clause it dropped.
+
 Spec: 9.1 (the inline state copy, the conflict rule, "Continue" and
-"Cancel"), 9.3 (the steps cap notice), 9.4 (the abandon confirm), 9.6 (the
-leave, remove-member and delete-folder confirms), 9.8 (the already-connected
-refusal and the remove-connection confirm), 10.2, 10.3, 7.5.
+"Cancel", and the v2 routes table), 9.3 (the steps cap notice), 9.4 (the
+abandon confirm), 9.6 (the leave, remove-member and delete-folder confirms),
+9.8 (the already-connected refusal and the remove-connection confirm), 10.2,
+10.3, 7.5.
 */
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
@@ -64,14 +97,13 @@ import {
   expectOneTextRun,
   fillControl,
   regionOf,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  transition,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -81,29 +113,6 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** 10.3's cap, which 9.3's notice reports. */
 const STEP_CAP = 50
-const DOOMED = 'ac-183 folder with counted tasks'
-/** Three different numbers, none of them one, per AC-162's reasoning. */
-const OPEN = 3
-const COMPLETED = 2
-const ABANDONED = 4
-
-async function ensureFolder(page: Page, name: string): Promise<string> {
-  const token = await csrfToken(page.context())
-  const list = await page.request.get('/api/v1/folders')
-  const existing = ((await list.json()) as { id: string; name: string }[]).find(
-    (folder) => folder.name === name,
-  )
-  if (existing !== undefined) return existing.id
-  const created = await page.request.post('/api/v1/folders', {
-    data: { name },
-    headers: { 'X-CSRF-Token': token },
-  })
-  expect(
-    created.status(),
-    `POST /folders answered ${created.status()}: ${await created.text()}`,
-  ).toBe(201)
-  return ((await created.json()) as { id: string }).id
-}
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
@@ -118,7 +127,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
         body: JSON.stringify({ error: { code: 'internal', message: 'Something broke.' } }),
       })
     })
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expectOneTextRun(
       page,
       copy.readFailed,
@@ -133,7 +142,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
 
     // The other seeded user's Inbox exists and this viewer is not a member,
     // so 10.2 answers 404 without anything being broken.
-    await page.goto(routes.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranInbox))
     await expectOneTextRun(
       page,
       copy.notFound,
@@ -161,7 +170,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
       ).toBe(201)
     }
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText(title),
       'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
@@ -181,14 +190,14 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.4's abandon confirm", async ({ page }) => {
-    const title = 'ac-183 abandon me from my day'
+    const title = 'ac-183 abandon me from today'
     await createTask(page, {
       title,
       folder_id: seedIds.groceries,
       due_date: seedDate(0),
       assignee_id: seedIds.hassan,
     })
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await clickControl(
       taskRow(page, title).getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.4: a row carries an overflow menu',
@@ -219,18 +228,20 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     const context = await browser.newContext()
     const page = await context.newPage()
     await signIn(page, seedSubs.imran)
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
+    // The window bar's menu, not the folder header's: 9.1's replacement puts
+    // the object's overflow menu at the bar's right end, so it is reached the
+    // way AC-217 reaches it, by role and name inside the main landmark, ahead
+    // of the task rows' menus that share the name. Corrected at RFC 0005
+    // change control item 14; this criterion's sentence did not move.
     await clickControl(
-      regionOf(page, 'Folder header').getByRole('button', {
-        name: 'More actions',
-        exact: true,
-      }),
-      'spec 9.6 and 9.1: the folder header is a named region, and its overflow menu carries ' +
-        'Leave for a member who is not the owner',
+      page.getByRole('main').getByRole('button', { name: 'More actions', exact: true }).first(),
+      "spec 9.1: the active tab's controls include the object's overflow menu, named " +
+        '"More actions", and for a member who is not the owner it carries Leave (9.6)',
     )
     await clickControl(
       page.getByRole('menuitem', { name: /leave/i }),
-      'spec 9.6: the header overflow carries Leave, non-owner only per the 5.4 matrix',
+      'spec 9.6: the object menu carries Leave, non-owner only per the 5.4 matrix',
     )
 
     await expectOneTextRun(
@@ -250,7 +261,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.6's remove-member confirm", async ({ page }) => {
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await clickControl(
       page.getByRole('button', { name: 'Share' }),
       'spec 9.6: the folder header carries a Share button, which opens the sharing panel',
@@ -280,60 +291,8 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     )
   })
 
-  test("AC-183: 9.6's delete-folder confirm", async ({ page }) => {
-    const folderId = await ensureFolder(page, DOOMED)
-    const existing = await page.request.get(`/api/v1/folders/${folderId}`)
-    const counts = ((await existing.json()) as { counts: { pending: number } }).counts
-    if (counts.pending === 0) {
-      for (let i = 0; i < OPEN; i += 1) {
-        await createTask(page, { title: `ac-183 open ${i}`, folder_id: folderId })
-      }
-      for (let i = 0; i < COMPLETED; i += 1) {
-        const task = await createTask(page, {
-          title: `ac-183 completed ${i}`,
-          folder_id: folderId,
-        })
-        await transition(page, task.id, 'complete', 'UTC')
-      }
-      for (let i = 0; i < ABANDONED; i += 1) {
-        const task = await createTask(page, {
-          title: `ac-183 abandoned ${i}`,
-          folder_id: folderId,
-        })
-        await transition(page, task.id, 'abandon', 'UTC')
-      }
-    }
-
-    await page.goto(routes.folder(folderId))
-    await clickControl(
-      regionOf(page, 'Folder header').getByRole('button', {
-        name: 'More actions',
-        exact: true,
-      }),
-      'spec 9.6 and 9.1: the folder header is a named region carrying an overflow menu',
-    )
-    await clickControl(
-      page.getByRole('menuitem', { name: /delete/i }),
-      'spec 9.6: the header overflow carries Delete, owner only',
-    )
-
-    await expectOneTextRun(
-      page,
-      copy.deleteFolder(DOOMED, OPEN, COMPLETED, ABANDONED),
-      'spec 9.6: the delete confirm carries the folder name and three counts, and the ' +
-        "prototype renders its first clause as the dialog's title. It is the only place a " +
-        'person is told the deletion reaches every member rather than only their own view. The ' +
-        'three counts differ here and none is one, so a client rendering the same number three ' +
-        'times cannot pass by looking numeric',
-    )
-    await clickControl(
-      page.getByRole('button', { name: 'Cancel', exact: true }),
-      'spec 9.1: every confirmation offers Continue and Cancel, and this case deletes nothing',
-    )
-  })
-
   test("AC-183: 9.8's already-connected refusal", async ({ page }) => {
-    await page.goto(routes.people)
+    await page.goto(routesV2.people)
     const email = page.getByLabel(/invite by email/i)
     await fillControl(
       email,
@@ -353,7 +312,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
   })
 
   test("AC-183: 9.8's remove-connection confirm", async ({ page }) => {
-    await page.goto(routes.people)
+    await page.goto(routesV2.people)
     const entry = page
       .getByRole('listitem')
       .or(page.getByRole('row'))

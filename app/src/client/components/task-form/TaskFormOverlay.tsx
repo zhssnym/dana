@@ -181,7 +181,23 @@ export function TaskFormOverlay(): React.JSX.Element | null {
       create.mutate(body, { onSuccess: close })
       return
     }
-    if (patch === null || detail === null) return
+    if (patch === null) return
+    writeEdit(patch, reminder, close)
+  }
+
+  /*
+  9.3's v2 commit, which is the same pair of writes with no close after it.
+
+  A chip answers and the write goes out; the surface stays, because the person
+  is still on it. `onSave` is the control that also closes, so the two differ
+  in exactly one argument and nothing about the ordering above is duplicated.
+  */
+  function writeEdit(
+    patch: PatchTaskBody,
+    reminder: ReminderInput | null,
+    done: (() => void) | null,
+  ): void {
+    if (detail === null) return
     const taskId = detail.id
     const had = detail.reminder !== null
 
@@ -213,7 +229,9 @@ export function TaskFormOverlay(): React.JSX.Element | null {
     const written = independent
       ? quiet(writeReminder())
       : patched.then(() => quiet(writeReminder()))
-    void Promise.all([patched, written]).then(close)
+    void Promise.all([patched, written]).then(() => {
+      done?.()
+    })
   }
 
   return (
@@ -278,6 +296,9 @@ export function TaskFormOverlay(): React.JSX.Element | null {
               dropReminder.isPending
             }
             onSave={onSave}
+            onCommit={(patch, reminder) => {
+              writeEdit(patch, reminder, null)
+            }}
             onClose={close}
             onDelete={() => {
               if (detail === null) return

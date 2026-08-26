@@ -215,20 +215,27 @@ describe('AC-066: an overtaken assignment is skipped, the grant is not', () => {
       204,
       'any member deletes the task before acceptance (spec 7.6)',
     )
+    // RFC 0005 split AC-042's other half in two: the delete now marks the
+    // row (7.13), so the parked task_id survives the trip to Trash and
+    // 4.9's SET NULL fires at the purge instead. What must not survive is
+    // the assignment: a trashed task is 8.7's "moved on" in its newest
+    // form, and the acceptance skips it silently.
     expect(
       (await requireInviteRow(app.db, inviteId)).task_id,
-      'the premise: 4.9\'s ON DELETE SET NULL cleared the parked task_id, the invite surviving the task (AC-042\'s other half)',
-    ).toBeNull()
+      'the invite keeps its parked task_id while the task waits in Trash (spec 7.13, 4.9 at the purge)',
+    ).toBe(taskId)
     await expectGrantedWithoutAssignment(
       recipient,
       inviteId,
       folderId,
-      'acceptance after the task was deleted (spec 8.7: "if t exists" fails, skip silently)',
+      'acceptance after the task was trashed (spec 8.7: a task in Trash has moved on, skip silently)',
     )
+    const row = await taskRow(app.db, taskId)
+    expect(row, 'the task still waits in Trash').toBeDefined()
     expect(
-      await taskRow(app.db, taskId),
-      'and nothing resurrected the task',
-    ).toBeUndefined()
+      (row as { assignee_id?: unknown } | undefined)?.assignee_id ?? null,
+      'and nothing assigned it on the way past',
+    ).toBeNull()
   })
 
   test('AC-066: invariants hold afterwards', async () => {

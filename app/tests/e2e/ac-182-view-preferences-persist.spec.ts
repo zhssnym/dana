@@ -38,9 +38,19 @@ for, and neither 9.1 nor 9.3 names one. The rail's own control has no name
 either and is matched by description. Both gaps go to the Integration Steward
 with the rest of this package's.
 
-Spec: 9.1 (the sidebar's width and rail as view preferences, the folder list,
-the routes table), 9.3 (the form's width, on the sidebar's rule), 9.7 (the
-page toggles, so that all six entries are present), 10.6.
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Neither width nor
+the rail moves; what the rail has to still reach does. "Every page 9.1 puts
+in it" is now DES-152's page block, Desk, Today, Scheduled, Assignments,
+Important and All, plus whichever unpinned views the pin list has pinned, so
+the list this file walks is that one and the state is made by writing pins
+rather than the three v1 flags. After the first write those flags no longer
+reach this surface, which is why setting them here would be asserting
+whichever of the two records happened to be live.
+
+Spec: 9.1 (the sidebar's width and rail as view preferences, the page block,
+the Library, and the v2 routes table), 9.3 (the form's width, on the
+sidebar's rule), 9.7 (the pin list, so that the whole block is present),
+4.19 (pinned_views), 10.6.
 */
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
@@ -48,14 +58,16 @@ import type { Locator, Page } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   clickControl,
+  DEFAULT_PINS,
   floatingAddButton,
-  patchSettings,
-  routes,
+  patchBundle,
+  routesV2,
   seedIds,
   seedSubs,
   sidebar,
   signIn,
   TEST_TIMEOUT_MS,
+  V2_PAGE_NAMES,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -63,8 +75,8 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-/** 9.1's six pages, which the rail must still reach. */
-const PAGES = ['My Day', 'Tasks', 'Planned', 'Important', 'All', 'Done'] as const
+/** 9.1's page block as this account pins it, which the rail must still reach. */
+const PAGES = [...V2_PAGE_NAMES, 'Done'] as const
 
 /**
  * The control that collapses the sidebar to its icon rail. 9.1 names the
@@ -94,14 +106,16 @@ async function widthOf(locator: Locator): Promise<number> {
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
-  // So that all six page entries and the folder list are present, which is
-  // what the rail case asserts the rail still reaches.
-  await patchSettings(page, { show_important: true, show_all: true, show_done: true })
+  // So that the whole page block and the Library are present, which is what
+  // the rail case asserts the rail still reaches. Done is pinned on top of
+  // the six that ship pinned, because a rail that drops an entry is likeliest
+  // to drop the one the pin list added.
+  await patchBundle(page, { pinned_views: [...DEFAULT_PINS, 'done'] })
 })
 
 test.describe('AC-182: the sidebar rail and the two widths', () => {
   test('AC-182: the rail survives a reload', async ({ page }) => {
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.desk)
     const open = await widthOf(sidebar(page))
 
     await clickControl(
@@ -126,7 +140,7 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
   })
 
   test('AC-182: the rail still reaches every page and every folder', async ({ page }) => {
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.desk)
     await clickControl(
       railControl(page).first(),
       'spec 9.1: the sidebar collapses to an icon rail',
@@ -143,17 +157,18 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
     }
     await expect(
       nav.getByRole('link', { name: new RegExp('Inbox') }),
-      'spec 9.1: the folder list is what the sidebar holds too, Inbox pinned first',
+      "spec 9.1: the Library is what the sidebar holds too, and the account's default folder " +
+        'is in it',
     ).toHaveCount(1)
     await expect(
       nav.getByRole('link', { name: new RegExp('Groceries') }),
-      'spec 9.1: including the folders inside label groups, which is the part of the list a ' +
-        'rail is likeliest to drop, the group heading having nowhere to go',
+      'spec 9.1: including a folder carrying a member label, which is the part of the Library ' +
+        'a rail is likeliest to drop, a shelf heading having nowhere to go',
     ).toHaveCount(1)
   })
 
   test('AC-182: a resized sidebar survives a reload', async ({ page }) => {
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.desk)
     const before = await widthOf(sidebar(page))
 
     const handle = resizeHandle(page)
@@ -187,10 +202,11 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
   })
 
   test('AC-182: a resized task form survives a reload', async ({ page }) => {
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form',
+      'spec 9.1: the floating add button opens the task form, and Today is one of the three ' +
+        'pages that section leaves it on',
     )
 
     const form = page.getByRole('dialog')
@@ -234,14 +250,14 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
     // 9.1 says the rail changes nothing about what the sidebar holds, and it
     // is one sidebar across every route, so a preference stored per page is
     // a preference that vanishes on the first navigation.
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.desk)
     await clickControl(
       railControl(page).first(),
       'spec 9.1: the sidebar collapses to an icon rail',
     )
     const railed = await widthOf(sidebar(page))
 
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     expect(
       await widthOf(sidebar(page)),
       'spec 9.1: the sidebar is the application\'s only chrome and there is one of it, so a ' +

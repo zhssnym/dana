@@ -42,6 +42,26 @@ sits a fixed distance from its right edge instead of sliding as the controls
 grow, which also removes the layout jitter that sliding produced. Flagged for
 the human visual review of section 13 item 33.
 
+**Five props left at S11, and DES-184 is the reason they were here.** The
+designer found his own states page still drawing v1: "the lies were
+load-bearing. Five props survived on the shipping row's contract, accepted and
+ignored, carried so the states page keeps compiling." Three of his five are
+these, `visualState`, `showSecondaryActions` and `menuOpen`, and this client
+carried two more of its own, `completionPreview` and `collapsing`. Nothing in
+`app/` ever passed any of them: `taskRowDisplay` maps eleven props and none of
+these, and no page sets one. His other two, `unassigned` and `invitePending`,
+stay because here they are driven by real data (Q3's chip and 7.4's pending
+invite) rather than by a lab.
+
+What they cost while they lived is what a dead prop always costs: the row's
+contract described states nothing could reach, so a reader had to try passing
+one to find out. Hover, focus and the menu's open state are the row's own and
+are drawn in CSS from the pointer and from focus, which is what makes them
+true rather than illustrated. Dana ships no states page of its own and section
+9 names none; the sheet DES-184 is about is the review artifact under
+`docs/design/prototype/`, which 11.13 makes a directory every role reads and
+no agent writes.
+
 Icons pass `strokeWidth` at the call site. That is his idiom and it is now
 this client's: the global `.lucide` rule left with the old token file at R2.
 
@@ -105,7 +125,7 @@ import {
   COMPLETE_TASK,
   MARK_AS_NOT_DONE,
   MORE_ACTIONS,
-  REMOVE_FROM_MY_DAY,
+  REMOVE_FROM_TODAY,
   RESTORE,
   STAR_OFF,
   STAR_ON,
@@ -122,7 +142,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip.js'
 import { cn } from './ui/utils.js'
 
 export type TaskStatus = 'pending' | 'completed' | 'abandoned'
-export type TaskRowVisualState = 'default' | 'hover' | 'focus' | 'selected'
 
 const rowActionHover = 'hover:!bg-transparent aria-expanded:!bg-transparent'
 
@@ -164,11 +183,20 @@ export interface TaskRowProps {
     total: number
   }
   recurrence?: string
-  visualState?: TaskRowVisualState
-  showSecondaryActions?: boolean
-  menuOpen?: boolean
-  completionPreview?: boolean
-  collapsing?: boolean
+  /**
+   * The three things a surface carrying this row on a drag needs to attach,
+   * all optional and all inert where nothing drags.
+   *
+   * They land on the row's own element rather than on a wrapper, because the
+   * wrapper would sit between 9.1's list and its list items and the row is
+   * the thing the engine measures and moves. The board is the first caller
+   * (9.1: dropping a card in a column writes that column's value).
+   */
+  rowRef?: (element: HTMLElement | null) => void
+  dragProps?: { onPointerDown: (event: React.PointerEvent) => void }
+  dragStyle?: React.CSSProperties
+  /** What a release would do, drawn on the row being carried. */
+  proposal?: string
   onOpen?: () => void
   onToggleComplete?: (completed: boolean) => void
   onToggleImportant?: () => void
@@ -305,11 +333,10 @@ export function TaskRow({
   invitePending,
   steps,
   recurrence,
-  visualState = 'default',
-  showSecondaryActions = false,
-  menuOpen = false,
-  completionPreview = false,
-  collapsing = false,
+  rowRef,
+  dragProps,
+  dragStyle,
+  proposal,
   onOpen,
   onToggleComplete,
   onToggleImportant,
@@ -319,8 +346,10 @@ export function TaskRow({
 }: TaskRowProps) {
   const isCompleted = status === 'completed'
   const isAbandoned = status === 'abandoned'
-  const actionsVisible =
-    showSecondaryActions || visualState !== 'default' || menuOpen
+  /* Revealed by the pointer and by focus, which the class below does in CSS,
+     and by a row's own state where 9.5 says a control stays: the star when it
+     is on, and nothing else. */
+  const actionsVisible = false
   // 9.5: the star's name is its own state on every page. The tooltip is the
   // same string unless the page points it outward, which only Important does.
   const starName = important ? STAR_ON : STAR_OFF
@@ -346,7 +375,7 @@ export function TaskRow({
         onToggle={onToggleImportant}
       />
 
-      <DropdownMenu defaultOpen={menuOpen} modal={!menuOpen}>
+      <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
@@ -399,6 +428,9 @@ export function TaskRow({
       // enumerates what one holds, so this is a real thing here rather than a
       // div the suite is guessing at. The list around it is the page's.
       role="listitem"
+      ref={rowRef}
+      style={dragStyle}
+      {...dragProps}
       tabIndex={onOpen ? 0 : undefined}
       aria-label={onOpen ? `Open task: ${title}` : undefined}
       onClick={(event) => {
@@ -423,21 +455,23 @@ export function TaskRow({
       }}
       data-task-status={status}
       className={cn(
-        'group/task grid h-[var(--task-row-height)] w-full cursor-pointer grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-0 overflow-hidden rounded-md border-0 bg-card p-0 transition-[height,opacity,transform,background-color] duration-200 ease-out hover:bg-[var(--color-graphite-100)] focus-within:bg-[var(--color-graphite-100)] focus-within:ring-2 focus-within:ring-ring/30',
-        collapsing && 'pointer-events-none h-0 -translate-y-1 scale-[0.99] opacity-0',
-        visualState === 'hover' && 'bg-[var(--color-graphite-100)]',
-        visualState === 'focus' &&
-          'bg-[var(--color-graphite-100)] ring-2 ring-ring/30',
-        visualState === 'selected' &&
-          'bg-[var(--color-dana-accent-50)] ring-1 ring-[var(--color-dana-accent-200)]',
+        'group/task relative grid h-[var(--task-row-height)] w-full cursor-pointer grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center gap-0 overflow-hidden rounded-md border-0 bg-card p-0 transition-[height,opacity,transform,background-color] duration-200 ease-out hover:bg-[var(--color-graphite-100)] focus-within:bg-[var(--color-graphite-100)] focus-within:ring-2 focus-within:ring-ring/30',
       )}
     >
+      {/* What a release would do, on the row being carried. Words rather
+          than an outline, for DES-171's reason at the sidebar: a container
+          takes the drop and says so. */}
+      {proposal === undefined ? null : (
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+          {proposal}
+        </span>
+      )}
       <ItemMedia
         className="size-[var(--control-height)]"
         onClick={(event) => event.stopPropagation()}
       >
         <CompletionControl
-          status={completionPreview ? 'completed' : status}
+          status={status}
           onToggle={onToggleComplete}
         />
       </ItemMedia>
@@ -484,7 +518,7 @@ export function TaskRow({
             )}
             onClick={onRemoveFromMyDay}
           >
-            {REMOVE_FROM_MY_DAY}
+            {REMOVE_FROM_TODAY}
           </Button>
         ) : null}
 

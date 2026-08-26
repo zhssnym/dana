@@ -152,10 +152,18 @@ const CARD_COLUMNS = sql`
  * the second query cannot scope itself differently from the first.
  */
 export function accessibleTasks(viewerId: string): SQL {
+  // The folders join is part of the scope since RFC 0005, not merely a name
+  // source: section 6's implicit guard excludes trashed rows from every
+  // query, and a task in a trashed folder is unreachable while its folder
+  // is (4.5). Written here once so no view can scope itself differently.
   return sql`
     FROM tasks t
     JOIN folder_members m
-      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}`
+      ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+    JOIN folders f
+      ON f.id = t.folder_id
+     AND f.deleted_at IS NULL
+     AND t.deleted_at IS NULL`
 }
 
 /**
@@ -168,8 +176,9 @@ export function accessibleTasks(viewerId: string): SQL {
  * primary key makes it at most one row.
  */
 export function cardSource(viewerId: string): SQL {
+  // accessibleTasks carries the folders join (alias f) since the guard
+  // moved into the scope; a second join here would read the same row twice.
   return sql`${accessibleTasks(viewerId)}
-    JOIN folders f ON f.id = t.folder_id
     LEFT JOIN users a ON a.id = t.assignee_id
     LEFT JOIN my_day_entries e
       ON e.task_id = t.id AND e.user_id = ${viewerId}

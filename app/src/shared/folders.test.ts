@@ -39,7 +39,7 @@ describe('postFoldersBody and patchFolderBody (7.4: { name }, 10.3: 1 to 100)', 
     }
   })
 
-  test('refuses wrong types and the absent field', () => {
+  test('refuses wrong types; the create requires the name, the patch does not', () => {
     for (const [label, body] of bodies) {
       for (const name of [123, true, null, ['x'], { name: 'x' }]) {
         expect(
@@ -47,8 +47,25 @@ describe('postFoldersBody and patchFolderBody (7.4: { name }, 10.3: 1 to 100)', 
           `${label}: ${JSON.stringify(name)} is not a string`,
         ).toBe(false)
       }
-      expect(body.safeParse({}).success, `${label}: missing name`).toBe(false)
     }
+    expect(
+      postFoldersBody.safeParse({}).success,
+      'the create: missing name',
+    ).toBe(false)
+    // RFC 0005: the PATCH carries the 4.3 identity beside the rename, any
+    // subset, so a nameless body is a legal dressing-only edit.
+    expect(
+      patchFolderBody.safeParse({}).success,
+      'the patch: any subset, name included out',
+    ).toBe(true)
+    expect(
+      patchFolderBody.safeParse({ icon: 'plane', color: '#1a92d1' }).success,
+      'the patch: the identity fields alone',
+    ).toBe(true)
+    expect(
+      patchFolderBody.safeParse({ color: 'blue' }).success,
+      'the patch: a colour is #RRGGBB or refused',
+    ).toBe(false)
   })
 
   test('names the field in its issue path', () => {
@@ -190,6 +207,10 @@ describe('folder (7.0: the shared Folder object)', () => {
     counts: { pending: 3, completed: 0 },
     my_label: null,
     my_color: null,
+    icon: null,
+    color: null,
+    cover_file_id: null,
+    description: null,
   }
 
   test('accepts the shape with and without personal fields set', () => {
@@ -249,6 +270,10 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     counts: { pending: 0, completed: 0 },
     my_label: null,
     my_color: null,
+    icon: null,
+    color: null,
+    cover_file_id: null,
+    description: null,
     members: [member],
     pending_invites: [invite],
   }

@@ -54,27 +54,58 @@ answer to a question 11.6's double-submit expects one answer to.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import type { LucideIcon } from 'lucide-react'
-import { CalendarDays, CheckCircle2, Folder as FolderIcon, Layers3, ListTodo, Settings2, Star, SunMedium, UsersRound } from 'lucide-react'
+/* The icon module of DES-125, since S8: every icon Dana uses is an export
+   of one file and nothing imports `lucide-react` directly. */
+import type { LucideIcon } from '../lib/icons.js'
+import {
+  Ban,
+  CalendarDays,
+  CalendarX,
+  CheckCircle2,
+  Folder as FolderIcon,
+  LampDesk,
+  Layers3,
+  Settings,
+  Star,
+  SunMedium,
+  Trash2,
+  UserRoundCheck,
+  UsersRound,
+} from '../lib/icons.js'
 
-import { mutateApi } from '../api/http.js'
-import { useCreateFolder } from '../api/mutations.js'
-import { useFolders, useMe, usePendingInvites, useSettings } from '../api/queries.js'
+import { ApiError, mutateApi } from '../api/http.js'
+import { useCreateFolder, usePatchBundle } from '../api/mutations.js'
+import {
+  useBundle,
+  useFolders,
+  useMe,
+  usePendingInvites,
+  useSavedViews,
+  useShelves,
+} from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
-import { NewFolderDialog, PageBar } from '../components/index.js'
+import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskFormOverlay } from '../components/task-form/index.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
-import { paths, sidebarPages } from '../routes.js'
+import { navPages, paths } from '../routes.js'
+import { placeAt, surfaceDefaults } from '../views/place-pages.js'
+import { effectiveMode, useViewMode } from '../views/view-mode.js'
+import type { ViewMode } from '../views/view-mode.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
+import { undoLast, undoShortcutApplies } from './undo.js'
+import { UndoBar } from './UndoBar.js'
 import { openSearch } from './overlays.js'
+import { TabStrip } from './TabStrip.js'
+import { WindowBar } from './WindowBar.js'
+import { retarget, useTabs } from './tabs.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -85,9 +116,13 @@ import {
 } from './preferences.js'
 import type { TaskFormDefaults } from './overlays.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
+import type { SavedView } from '../../shared/bundle.js'
 
 /** The prefix 9.1's routes table gives a folder page. */
 const FOLDER_PREFIX = '/app/folders/'
+const SHELF_PREFIX = '/app/shelves/'
+const TASK_PREFIX = '/app/tasks/'
 
 /**
  * The folder list before it has arrived, held once so its identity is stable.
@@ -98,49 +133,61 @@ const FOLDER_PREFIX = '/app/folders/'
  */
 const NO_FOLDERS: readonly Folder[] = []
 
+/** The same stable-identity trick for the saved views the page block ends on. */
+const NO_SAVED_VIEWS: readonly SavedView[] = []
+
+/** Every view there is, so the shell reads the store rather than a page. */
+const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
+
 /**
- * The entry-point defaults of 9.3, keyed by the page the button sits on.
+ * Where the floating button appears, and what it makes there.
  *
- * The folder page's cell was closed at the P8 change control and restated by
- * RFC 0002 when 9.6 lost its two sections: the value is an empty due date
- * whether the form was opened from the page's quick-add or from this button,
- * because a folder is not a dated page.
+ * **The rule inverted at RFC 0005 and this is the inversion.** v1 put the
+ * button on every page except Done. 9.1 now puts it only on "the pages with
+ * no capture affordance of their own, Today, Important, and Assignments",
+ * and never on Done or Abandoned. Every other page has a quick-add row where
+ * its own list begins, so a second control floating over it is two ways to do
+ * one thing, forty pixels apart.
+ *
+ * **And it is absent in board view, which S10 added and DES-182 argued.** "In
+ * board view every column captures and the floating button is absent": the
+ * button is the capture point that leaves wherever a capture row already
+ * exists, and a column says where the task lands better than any row. The
+ * mode is read from the same store the strip writes, so the shell and the
+ * page cannot disagree about which view is showing.
+ *
+ * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
+ * page." A deleted-things page that offers to make a new thing is offering
+ * an act its own subject cannot receive.
+ *
+ * The defaults are 9.3's entry table, and they are `place-pages.ts`'s rather
+ * than this file's, because DES-182's fault was three surfaces each deciding
+ * them: the button, the quick-add and the board column now read one table.
  */
-function floatingDefaults(pathname: string): TaskFormDefaults | null {
-  if (pathname === paths.done) return null // 9.1: every page except Done.
-  if (pathname === paths.myDay) return { due_date: todayInBrowserZone(), important: false }
-  if (pathname === paths.planned) {
-    return { due_date: todayInBrowserZone(), important: false }
-  }
-  if (pathname === paths.important) return { due_date: null, important: true }
-  if (pathname.startsWith(FOLDER_PREFIX)) {
-    return {
-      due_date: null,
-      important: false,
-      folder_id: pathname.slice(FOLDER_PREFIX.length),
-    }
-  }
-  // Tasks, All, and the bare button: empty date, important off, Inbox, which
-  // the server supplies by defaulting folder_id to the viewer's Inbox (7.6).
-  return { due_date: null, important: false }
+function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | null {
+  const spine = placeAt(pathname)
+  if (spine === null || spine.capture !== 'floating') return null
+  if (effectiveMode(mode, spine.views) === 'board') return null
+  const defaults = surfaceDefaults(spine.key, todayInBrowserZone())
+  return { due_date: defaults.due_date, important: defaults.important }
 }
 
-/** Whether a keystroke landed somewhere a person is typing. */
-function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName.toLowerCase()
-  return tag === 'input' || tag === 'textarea' || target.isContentEditable
-}
+/* `isTyping` left with the search shortcut it guarded (see `overlays.ts`);
+   the undo shortcut below has its own guard in `undo.ts`. */
 
 /** The glyph the page strip shows, which is the designer's and not 9.1's. */
 const pageIcons: Record<string, LucideIcon> = {
-  [paths.myDay]: SunMedium,
-  [paths.tasks]: ListTodo,
-  [paths.planned]: CalendarDays,
+  [paths.desk]: LampDesk,
+  [paths.today]: SunMedium,
+  [paths.scheduled]: CalendarDays,
+  [paths.assignments]: UserRoundCheck,
+  [paths.abandoned]: Ban,
+  [paths.anytime]: CalendarX,
+  [paths.trash]: Trash2,
   [paths.important]: Star,
   [paths.all]: Layers3,
   [paths.done]: CheckCircle2,
-  [paths.settings]: Settings2,
+  [paths.settings]: Settings,
   [paths.people]: UsersRound,
 }
 
@@ -156,10 +203,9 @@ const pageIcons: Record<string, LucideIcon> = {
 function currentPage(
   pathname: string,
   folders: readonly Folder[] | undefined,
+  shelves: readonly Shelf[] | undefined,
 ): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
-  const page = sidebarPages.find((candidate) =>
-    candidate.path === paths.myDay ? pathname === paths.myDay : pathname === candidate.path,
-  )
+  const page = navPages.find((candidate) => pathname === candidate.path)
   if (page !== undefined) {
     return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }
   }
@@ -178,6 +224,18 @@ function currentPage(
       iconColor: folder?.my_color ?? DEFAULT_FOLDER_COLOR,
     }
   }
+  /* A shelf tab wears the shelf's name (9.1: every tab is the same tab),
+     from the shelves read the sidebar's Library will share. */
+  if (pathname.startsWith(SHELF_PREFIX)) {
+    const id = pathname.slice(SHELF_PREFIX.length)
+    const shelf = shelves?.find((candidate) => candidate.id === id)
+    return { title: shelf?.name ?? '', icon: FolderIcon, iconColor: undefined }
+  }
+  /* A task tab: the title would need the task read, which only the page
+     holds; "Task" keeps the tab honest without a second fetch path. */
+  if (pathname.startsWith(TASK_PREFIX)) {
+    return { title: 'Task', icon: undefined, iconColor: undefined }
+  }
   return { title: '', icon: undefined, iconColor: undefined }
 }
 
@@ -185,11 +243,35 @@ export function AppShell(): React.JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
   const me = useMe()
-  const settings = useSettings()
+  /*
+  The bundle of 4.19 rather than frozen 7.2's settings, since S9.
+
+  The three v1 page flags still exist and still decide the same entries: with
+  no pins written, the server derives the pin list from them (RFC 0005's
+  change control item 6), so a v1 account's show_done arrives as Done pinned
+  and nothing about 7.2 moved. What changed is that the sidebar now reads one
+  record of that fact instead of two, which is what the fold was for.
+  */
+  const bundle = useBundle()
   const folders = useFolders()
+  // The shelves read (7.16), which a shelf tab's face resolves through.
+  const { tabs } = useTabs()
+  /* Only a shelf tab needs shelf names, so the read waits until one is open
+     rather than costing every page a request at mount. */
+  const shelvesWanted =
+    location.pathname.startsWith(SHELF_PREFIX) ||
+    tabs.some((tab) => tab.path.startsWith(SHELF_PREFIX))
+  const shelves = useShelves(shelvesWanted)
   const invites = usePendingInvites()
+  /* 9.1 ends the page block with the viewer's pinned saved views, so the
+     chrome reads them here beside the pin list rather than in a page. */
+  const savedViews = useSavedViews()
   const createFolder = useCreateFolder()
   const update = useUpdateAffordance()
+  /* The remembered view, unresolved: every mode is passed as offered so this
+     reads the store rather than a page's answer to it, and floatingDefaults
+     resolves it against the page it is actually on. */
+  const [remembered] = useViewMode(ALL_VIEWS)
   const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS)
 
   // 9.1's two view preferences, read once at the first render so the sidebar
@@ -198,21 +280,68 @@ export function AppShell(): React.JSX.Element {
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(readSidebarWidth)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
 
-  // 9.1's shortcut for the search control. On the document rather than on the
-  // button, because a shortcut that only fires while its control has focus is
-  // not one. "/" is ignored while the person is typing, or every quick-add row
-  // on the page would swallow its own slashes.
+  /*
+  The viewer's arrangement of the Library (DES-171, built at S11).
+
+  Held here as well as in the bundle, and the reason is what a drag is: the
+  column has to be in its new order on the frame the row is released, and a
+  write that had to land and be refetched first would show the row springing
+  back to where it came from and then moving. So this state is the sidebar's
+  answer and the write is the record of it. Seeded from the bundle the first
+  time that read settles and never again, a later refetch being this session's
+  own writes coming back.
+
+  Null until the bundle arrives, which is what tells the seeding effect it has
+  not run yet: an empty array is a real value here, meaning a viewer who has
+  dragged nothing, and DES-171 makes that the ordinary case rather than an
+  absence.
+  */
+  const patchBundle = usePatchBundle()
+  const [sidebarOrder, setSidebarOrder] = useState<readonly string[] | null>(null)
+  const storedOrder = bundle.data?.sidebar_order
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      const ctrlK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k'
-      const slash = event.key === '/' && !isTyping(event.target)
-      if (!ctrlK && !slash) return
+    if (storedOrder !== undefined) setSidebarOrder((held) => held ?? storedOrder)
+  }, [storedOrder])
+
+  /* 9.1's search shortcut moved to `overlays.ts` and is installed from
+     `main.tsx` at module scope, so the window listens from the moment the
+     bundle runs rather than from whenever this tree finishes mounting; the
+     reason and the latch that goes with it are written there. */
+
+  /*
+  9.1's undo shortcut, Ctrl+Z or Cmd+Z, and no redo.
+
+  On the document for the same reason the search shortcut is: undo has to
+  reach the act from wherever the person ended up, which is usually not the
+  bar. It is refused while somebody is typing, and that refusal is the most
+  important line in this block: a text input's own undo is older, better
+  understood, and scoped to the words in front of them, so stealing Ctrl+Z
+  from a half-written task title to un-delete something three screens away
+  would be the most alarming thing this feature could do.
+  */
+  /*
+  Ordinary navigation retargets the active tab, as an address bar does
+  (9.1). One effect on the router's own location covers every way this
+  client can move: a sidebar link, a folder row, a redirect, the back
+  button and a programmatic navigate all land here, so no link in the
+  application has to know that tabs exist. `retarget` is a no-op when the
+  path already matches, which is what stops it looping with the navigations
+  the strip itself asks for.
+  */
+  useEffect(() => {
+    retarget(location.pathname)
+  }, [location.pathname])
+
+  useEffect(() => {
+    function onUndo(event: KeyboardEvent): void {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+      if (!undoShortcutApplies(event.target)) return
       event.preventDefault()
-      openSearch()
+      undoLast()
     }
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onUndo)
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onUndo)
     }
   }, [])
 
@@ -229,8 +358,23 @@ export function AppShell(): React.JSX.Element {
     document.cookie = 'sidebar_state=; path=/; max-age=0'
   }, [railOpen])
 
-  const defaults = floatingDefaults(location.pathname)
-  const page = currentPage(location.pathname, folders.data)
+  /*
+  F-8 (RFC 0005 change control item 18, ed33d2f): an unauthenticated read at
+  any /app route sends the person to / rather than rendering the shell over a
+  wall of refusals. The branch is the refusal alone, an ApiError carrying
+  10.1's 401: a /me that is slow, offline, or failed any other way keeps the
+  shell, because 10.6 opens every /app path from the cached worker with no
+  network at all, and a redirect firing on anything but a refusal would
+  bounce every real session on a bad connection. A full document load rather
+  than a client navigation, for signOut's reason below: whatever the caches
+  hold belongs to nobody the browser can still name.
+  */
+  const signedOut = me.error instanceof ApiError && me.error.status === 401
+  useEffect(() => {
+    if (signedOut) window.location.replace(paths.landing)
+  }, [signedOut])
+
+  const defaults = floatingDefaults(location.pathname, remembered)
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
@@ -267,6 +411,12 @@ export function AppShell(): React.JSX.Element {
   The returned tree carries no chrome except the two global states; see
   `pages/InviteGate.tsx` for why those two and not the rest.
   */
+  // F-8's other half: while the document load above is in flight, the shell
+  // must not mount its pages, whose reads would each earn the same 401.
+  if (signedOut) {
+    return <></>
+  }
+
   if ((invites.data?.length ?? 0) > 0) {
     return (
       <>
@@ -327,12 +477,19 @@ export function AppShell(): React.JSX.Element {
           }
         >
           <AppSidebar
-            settings={settings.data}
+            pinnedViews={bundle.data?.pinned_views}
             folders={folders.data}
+            sidebarOrder={sidebarOrder ?? []}
+            onSidebarOrderChange={(ids) => {
+              setSidebarOrder(ids)
+              patchBundle.mutate({ sidebar_order: [...ids] })
+            }}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
+            currentSearch={location.search}
+            savedViews={savedViews.data ?? NO_SAVED_VIEWS}
             sidebarWidth={sidebarWidth}
             onSidebarWidthChange={(width) => setSidebarWidth(clampSidebarWidth(width))}
             onSidebarWidthCommit={(width) => {
@@ -355,10 +512,31 @@ export function AppShell(): React.JSX.Element {
               page strip below it a page's header rather than the
               application's banner (AC-174). */}
           <SidebarInset className="min-w-0 overflow-hidden bg-card">
-            <PageBar
-              title={page.title}
-              icon={page.icon}
-              iconColor={page.iconColor}
+            {/*
+            The tab strip of 9.1, above the window bar and inside `main`.
+
+            Inside rather than above the inset for AC-174's reason: a
+            `header` outside `main` is the banner landmark that criterion
+            asserts the absence of, and the strip is chrome belonging to the
+            window rather than to the application.
+            */}
+            <TabStrip
+              face={(path) => currentPage(path, folders.data, shelves.data)}
+              folders={folders.data ?? NO_FOLDERS}
+              onNavigate={(path) => {
+                void navigate(path)
+              }}
+            />
+            {/*
+            The window bar of 9.1 and DES-139, replacing the v1 page strip.
+
+            The strip it replaces repeated the page's title, which 9.1 now
+            forbids in as many words because the tab above says it. The one
+            thing on it that was not the title, 10.6's update affordance,
+            came across with the bar.
+            */}
+            <WindowBar
+              pathname={location.pathname}
               showUpdate={update.showUpdate}
               onUpdate={update.applyUpdate}
             />
@@ -392,6 +570,10 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
+      {/* 9.1's undo bar: one for the whole window, bottom-left, outside the
+          sidebar provider so it is not clipped by the shell's own layout and
+          so there is exactly one of it however many pages mount. */}
+      <UndoBar />
       <ToastRegion />
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search

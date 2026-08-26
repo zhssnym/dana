@@ -344,6 +344,10 @@ export const postTasksBody = z
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
     assignee_id: uuid.nullable().optional(),
+    // 4.5 (RFC 0005): the section this task sits under on its folder's
+    // page; null is the loose block. Membership of the named block in the
+    // task's folder is the server's to check (7.11).
+    section_block_id: uuid.nullable().optional(),
     reminder: reminderInput.nullable().optional(),
     steps: z
       .array(stepTitle)
@@ -516,6 +520,7 @@ export const patchTaskBody = z
     recurrence_rule: recurrenceRule.nullable().optional(),
     folder_id: uuid.optional(),
     assignee_id: uuid.nullable().optional(),
+    section_block_id: uuid.nullable().optional(),
     reminder: patchReminderInput.optional(),
   })
   /*
@@ -912,6 +917,7 @@ export const taskDetail = taskCard.extend({
   notes: taskNotes.nullable(),
   recurrence_rule: recurrenceRule.nullable(),
   series_id: z.uuid().nullable(),
+  section_block_id: z.uuid().nullable(),
   reminder: taskReminder.nullable(),
   steps: z.array(taskStep),
   completed_at: z.iso.datetime().nullable(),

@@ -38,8 +38,17 @@ collapsed state and asserts that escape leaves no box on the page at all. What
 the case owes is one activation, and what it asserts, that an ordinary failed
 request shows the general toast, does not move.
 
-Spec: 9.1 (both toasts, the 409 rule, and the quick-add's two states), 5.1
-(the copy, verbatim), 8.3 (staleness between refetches), 7.6, 7.0.
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where it is asserted does. The page all three cases
+stood on was /app/tasks, which 9.1's route table now retires into a redirect;
+Q2's rows are drawn by Anytime at /app/anytime, and its quick-add is where
+9.1's v2 capture rule leaves it, in the group a row belongs to. So the file
+needs a page that carries rows and a write path, and Anytime is the same page
+under the name DES-152 gives it.
+
+Spec: 9.1 (both toasts, the 409 rule, the quick-add's two states, and the v2
+routes table), 5.1 (the copy, verbatim), 8.3 (staleness between refetches),
+7.6, 7.0.
 */
 import { expect, test } from '@playwright/test'
 
@@ -52,7 +61,7 @@ import {
   createTask,
   fillControl,
   openQuickAdd,
-  routes,
+  routesV2,
   seedIds,
   seedSubs,
   signIn,
@@ -75,7 +84,7 @@ test.describe('AC-157: a 409 shows 5.1\'s copy', () => {
     const title = 'ac-157 abandoned under the viewer'
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expect(
       taskRow(page, title),
       'the row is on the page and pending, which is the state this client still believes in ' +
@@ -119,7 +128,7 @@ test.describe('AC-157: a 409 shows 5.1\'s copy', () => {
     const title = 'ac-157 completed under the viewer'
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await expect(
       taskRow(page, title),
       'the row is on the page and pending, which is the state this client still believes in ' +
@@ -165,7 +174,7 @@ test.describe('AC-157: a 409 shows 5.1\'s copy', () => {
     // cases above honest: a client with no toasts at all passes both of them
     // for the wrong reason, since each asserts an absence.
     await signIn(page, seedSubs.hassan)
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
 
     await page.route('**/api/v1/tasks', async (route) => {
       if (route.request().method() !== 'POST') {

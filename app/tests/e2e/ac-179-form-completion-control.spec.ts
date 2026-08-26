@@ -41,7 +41,15 @@ expander is left closed so that the steps editor's per-row checks are not on
 the page, which makes the completion control the only one there. The naming
 gap is routed to the Integration Steward with the rest of this package's.
 
-Spec: 9.3 (the completion control, in edit mode), 9.4 (the row checkbox it is
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where the rows are read does. The undated rows are
+read on Anytime, which draws Q2 at /app/anytime now that /app/tasks
+redirects, and the dated repeating row on Today, which draws Q1 at
+/app/today now that Desk holds /app. The comment on the last case still
+holds under both names: a dated row is deliberately not on the undated page.
+
+Spec: 9.3 (the completion control, in edit mode), 9.1 (the v2 routes table),
+9.4 (the row checkbox it is
 the same transition as), 9.5 ("Mark as not done" and the G-SERIES confirm),
 5.1 (the transitions and the successor), frozen 7.6 and 7.2, AC-034, AC-079.
 */
@@ -53,7 +61,7 @@ import {
   clickControl,
   copy,
   createTask,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -162,7 +170,7 @@ test.describe('AC-179: the task form completes and un-completes', () => {
       assignee_id: seedIds.hassan,
     })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await openForEdit(page, 'ac-179 completed through the form')
     await clickControl(
       completionControl(page),
@@ -170,7 +178,7 @@ test.describe('AC-179: the task form completes and un-completes', () => {
     )
     const formState = await storedState(page, viaForm.id)
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       taskRow(page, 'ac-179 completed through the row').getByRole('checkbox'),
       'spec 9.4: a row carries a complete checkbox, which is the transition 9.3 says the form ' +
@@ -202,7 +210,7 @@ test.describe('AC-179: the task form completes and un-completes', () => {
       folder_id: seedIds.groceries,
       assignee_id: seedIds.hassan,
     })
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       taskRow(page, 'ac-179 un-completed through the form').getByRole('checkbox'),
       'spec 9.4: the row control completes it, which is the state the form control is asserted ' +
@@ -210,7 +218,7 @@ test.describe('AC-179: the task form completes and un-completes', () => {
     )
     await waitForApiIdle(page, 'the completion settles before the form is opened on it')
 
-    await page.goto(routes.done)
+    await page.goto(routesV2.done)
     await openForEdit(page, 'ac-179 un-completed through the form')
     await clickControl(
       completionControl(page),
@@ -242,9 +250,9 @@ test.describe('AC-179: the task form completes and un-completes', () => {
       assignee_id: seedIds.hassan,
       recurrence_rule: 'FREQ=DAILY',
     })
-    // My Day rather than Tasks: this row is dated, and 6 Q2 admits undated
-    // rows only, so Tasks is the one page it is deliberately not on.
-    await page.goto(routes.myDay)
+    // Today rather than Anytime: this row is dated, and 6 Q2 admits undated
+    // rows only, so Anytime is the one page it is deliberately not on.
+    await page.goto(routesV2.today)
     await clickControl(
       taskRow(page, title).getByRole('checkbox'),
       'spec 5.1: completing a rule-carrying row generates the successor in the same ' +
@@ -252,7 +260,7 @@ test.describe('AC-179: the task form completes and un-completes', () => {
     )
     await waitForApiIdle(page, 'the completion and its successor settle before the form opens')
 
-    await page.goto(routes.done)
+    await page.goto(routesV2.done)
     await openForEdit(page, title)
     await clickControl(
       completionControl(page),

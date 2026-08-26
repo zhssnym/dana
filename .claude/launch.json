@@ -2,6 +2,50 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "prototype-v2-5240",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "docs/design/prototype-v2",
+        "--",
+        "--port",
+        "5240"
+      ],
+      "port": 5240
+    },
+    {
+      "name": "prototype-v2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "docs/design/prototype-v2",
+        "--",
+        "--port",
+        "5200"
+      ],
+      "port": 5200
+    },
+    {
+      "name": "prototype-v2-share",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--config",
+        "vite.config.share.ts",
+        "--port",
+        "5201",
+        "--host",
+        "127.0.0.1"
+      ],
+      "cwd": "docs/design/prototype-v2",
+      "port": 5201
+    },
+    {
       "name": "imran-prototype",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
@@ -23,6 +67,44 @@
         "cd /d D:\\dana\\app && (if exist .data rmdir /s /q .data) && set TEST_DATABASE_URL=&& set DANA_DEV_LOGIN=1&& set PORT=3100&& npm run e2e:app"
       ],
       "port": 3100
+    },
+    {
+      "name": "prototype-v2-icons",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "docs/design/prototype-v2",
+        "--",
+        "--port",
+        "5210"
+      ],
+      "port": 5210
+    },
+    {
+      "name": "prototype-v2-folder",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "docs/design/prototype-v2",
+        "--",
+        "--port",
+        "5230"
+      ],
+      "port": 5230
+    },
+    {
+      "name": "dana-app-audit-dev",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set TEST_DATABASE_URL=&& set DANA_DEV_LOGIN=1&& set PORT=3000&& npm run dev"
+      ],
+      "cwd": "C:\\Users\\imran\\OneDrive\\Documents\\ChatGPT\\Dana App\\.work\\hassan-repo-audit/app",
+      "port": 5173
     }
   ]
 }

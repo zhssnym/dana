@@ -26,7 +26,7 @@ per 9.1's addressing sentence.
 
 **"Immediately" is asserted as a client-side navigation, not a reload.**
 8.3's policy is refetch after each own mutation, so a restore performed on
-Planned and then confirmed by loading My Day fresh from the server would
+Scheduled and then confirmed by loading Today fresh from the server would
 pass against a client that never refetches anything. The case below walks
 the sidebar link instead, which is a route change inside the running
 application, and it is the refetch that has to put the row there.
@@ -36,8 +36,22 @@ Restoring is a transition, and the rule this leg runs under is that a spec
 never transitions a seeded row: the seed is shared by every spec and is
 written once.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
+criterion asserts moves; where it is asserted does. 9.1's route table retires
+/app/planned into a redirect and puts Desk at /app, so the three pages this
+file walked are Scheduled (/app/scheduled), Today (/app/today) and Anytime
+(/app/anytime). They are Q3, Q1 and Q2 under the names DES-152 gives them,
+which is why section 6 keeps the v1 name in each heading's parentheses and
+why every assertion below is the one it always was.
+
+The criterion's own sentence still says "returns it to My Day", and that is
+the naming bridge rather than a falsehood: Q1's heading reads "Today, open
+list (v1: My Day)" precisely because criteria cite it by the older name. What
+the case walks is the sidebar entry the page has now.
+
 Spec: 9.5 (the abandoned row's fading, chip and Restore control), 9.4 (the
-My Day groups), 5.1 (abandon and restore), 6 Q1 and Q3, 8.3, 7.6.
+Today groups), 5.1 (abandon and restore), 6 Q1 and Q3, 8.3, 7.6, 9.1 (the v2
+routes table).
 */
 import { expect, test } from '@playwright/test'
 
@@ -46,7 +60,7 @@ import {
   clickControl,
   computedStyle,
   createTask,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -94,13 +108,13 @@ test.describe('AC-097: the abandoned row and its restore', () => {
     })
     await transition(page, abandoned.id, 'abandon', 'UTC')
 
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
 
     const row = taskRow(page, OVERDUE)
     await expect(
       row,
       'spec 6 Q3 admits status IN (pending, abandoned), so a dated abandoned task has its ' +
-        'home on Planned. AC-053 owns its presence; this file owns how it is drawn',
+        'home on Scheduled. AC-053 owns its presence; this file owns how it is drawn',
     ).toBeVisible()
 
     await expect(
@@ -145,14 +159,14 @@ test.describe('AC-097: the abandoned row and its restore', () => {
     })
     await transition(page, restored.id, 'abandon', 'UTC')
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await expect(
       taskRow(page, 'ac-097 restore returns to my day'),
-      'spec 6 Q1 filters on status = pending, so an abandoned task is not in My Day. This is ' +
+      'spec 6 Q1 filters on status = pending, so an abandoned task is not on Today. This is ' +
         'the control that makes the arrival below mean the restore put it there',
     ).toHaveCount(0)
 
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
     await clickControl(
       taskRow(page, 'ac-097 restore returns to my day').getByRole('button', { name: 'Restore' }),
       'spec 9.5: an abandoned row carries a Restore control, which is what the second half of ' +
@@ -163,12 +177,12 @@ test.describe('AC-097: the abandoned row and its restore', () => {
     // makes refetch after an own mutation the whole invalidation strategy,
     // and "immediately" is that policy observed.
     await clickControl(
-      sidebarLink(page, 'My Day'),
-      'spec 9.1: the sidebar lists My Day, and reaching it through the link is what makes this a route change inside the running application rather than a fresh load',
+      sidebarLink(page, 'Today'),
+      'spec 9.1: the sidebar page block lists Today, and reaching it through the link is what makes this a route change inside the running application rather than a fresh load',
     )
     await expect(
       page.getByRole('heading', { name: 'Carried over' }),
-      'spec 9.4: My Day carries a group headed "Carried over", and 6 Q1 puts a pending task ' +
+      'spec 9.4: Today carries a group headed "Carried over", and 6 Q1 puts a pending task ' +
         'whose due date is before today in it',
     ).toBeVisible()
     await expect(
@@ -179,15 +193,15 @@ test.describe('AC-097: the abandoned row and its restore', () => {
     ).toBeVisible()
   })
 
-  test('AC-097: an undated abandoned row is drawn the same way in Tasks and in All', async ({
+  test('AC-097: an undated abandoned row is drawn the same way in Anytime and in All', async ({
     page,
   }) => {
     // AC-053's two pages, whose fading its own file routed here. The seeded
     // abandoned task is undated and is read rather than transitioned, so
     // nothing in this case changes what a later spec sees.
     for (const [where, path] of [
-      ['Tasks', routes.tasks],
-      ['All', routes.all],
+      ['Anytime', routesV2.anytime],
+      ['All', routesV2.all],
     ] as const) {
       await page.goto(path)
       const row = taskRow(page, 'Old idea')
@@ -197,8 +211,9 @@ test.describe('AC-097: the abandoned row and its restore', () => {
       ).toBeVisible()
       await expect(
         row.getByText('Abandoned'),
-        `spec 9.5: the "Abandoned" chip is on abandoned rows in ${where} too, the section ` +
-          'listing Tasks, Planned, Important, All and folder pages together',
+        `spec 9.5: the "Abandoned" chip is on abandoned rows in ${where} too, that section ` +
+          'writing one set of row rules over Scheduled, Assignments, Important, All, Anytime ' +
+          'and the folder page together',
       ).toBeVisible()
       await expect(
         row.getByRole('button', { name: 'Restore' }),

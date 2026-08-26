@@ -69,11 +69,56 @@ role here is corrected rather than the client's; what this case asserts, that
 the G-SERIES confirm carries 9.5's copy and that declining runs nothing, does
 not move.
 
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Two cases stood
+on pages that moved: the abandon confirm opens on Today, which draws Q1 at
+/app/today now that Desk holds /app, and the task delete on Anytime, which
+draws Q2 at /app/anytime now that /app/tasks redirects. Nothing about the
+confirmations moves with them.
+
+**Two of the six confirmations this file exercises are ones RFC 0005
+removes, and they stay here until the surfaces that render them do.** This
+criterion's text quantifies rather than enumerates, "each destructive action
+section 9 puts a confirm on", so what it asserts is whatever that section
+puts one on at the time it is read, and the answer changed twice. 9.3 now
+deletes a task to Trash "with the undo bar, and no confirmation: two ways
+back is why the question left", and 9.6 does the same for a folder,
+"deleting moves the folder to Trash for every member at once, with the undo
+bar and no confirmation". AC-225 is the criterion that reads what replaced
+them.
+
+The two cases are not removed now, and the reason is not caution. They pass
+against the v1 surfaces the client still carries, so removing them would buy
+this package nothing and would cost the coverage of every day between now
+and S11 and S12. They go when those packages land, under this criterion's
+own quantifier and without anyone's permission being needed, because a
+confirm section 9 no longer puts anywhere is not a confirm this criterion
+asks for. Written down here so that the session which removes them can read
+why rather than decide it again. AC-183's delete-folder clause is the other
+shape and its own file says so: that criterion names its strings one by one,
+so its list is its text and its text is the owner's to change.
+
+**The folder half of that removal happened here, at RFC 0005 change control
+item 14, 2026-08-25.** S12 landed 9.6's surface, so deleting a folder now
+moves it to Trash for every member with the undo bar and no confirmation,
+and the case that asserted the counts-carrying confirm went exactly as the
+paragraph above provided: under this criterion's own quantifier, with AC-225
+reading the undo bar that replaced it. Its fixture rule, three different
+counts and none of them one, retires with the copy that carried the counts.
+The task-delete case stays until S11 lands 9.3's surface, on the same
+reasoning. In the same act the leave case stopped reaching the folder's
+overflow menu inside the "Folder header" region: 9.1's replacement puts the
+object's overflow menu at the window bar's right end and the v2 folder page
+draws it there, so the menu is reached the way AC-217 already reaches it, by
+role and name inside the main landmark, ahead of the task rows' menus that
+share the name. The S9 precedent, a locator corrected inside a criterion
+whose sentence did not move.
+
 Spec: 9.3 (the delete confirm), 9.4 (the abandon confirm), 9.5 (the
-G-SERIES un-complete confirm), 9.6 (the folder delete confirm and its
-counts, and the leave and remove confirms), 9.1 (the regions the folder
-page's header and sharing panel are), 5.1, 5.3's R-CLEAN, 5.4, 8.5, 8.8,
-7.4.
+G-SERIES un-complete confirm), 9.6 (the leave and remove confirms, and the
+undo-bar folder delete that retired its confirm), 9.1 (the window bar's
+object menu, the sharing panel region, and the v2 routes table), 5.1, 5.3's
+R-CLEAN, 5.4, 8.5, 8.8, 7.4, AC-225 (the undo bar the two removed confirms
+become).
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -83,9 +128,8 @@ import {
   clickControl,
   copy,
   createTask,
-  csrfToken,
   regionOf,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -100,12 +144,6 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
-
-const DOOMED = 'ac-162 folder with counted tasks'
-/** Three different numbers, none of them one. */
-const OPEN = 3
-const COMPLETED = 2
-const ABANDONED = 4
 
 /**
  * The task's status, read after a barrier rather than straight after the
@@ -136,10 +174,10 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-162: the four confirms of section 9', () => {
-  test('AC-162: abandoning from My Day carries 9.4\'s copy and declining does nothing', async ({
+  test('AC-162: abandoning from Today carries 9.4\'s copy and declining does nothing', async ({
     page,
   }) => {
-    const title = 'ac-162 abandon me from my day'
+    const title = 'ac-162 abandon me from today'
     const task = await createTask(page, {
       title,
       folder_id: seedIds.groceries,
@@ -147,7 +185,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
       assignee_id: seedIds.hassan,
     })
 
-    await page.goto(routes.myDay)
+    await page.goto(routesV2.today)
     await clickControl(
       taskRow(page, title).getByRole('button', { name: 'More actions', exact: true }),
       'spec 9.4: a row carries an overflow menu',
@@ -182,7 +220,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     const title = 'ac-162 delete me from the form'
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText(title),
       "spec 9.5: a click on any row opens the task, and 9.3 puts delete in that form's " +
@@ -222,85 +260,11 @@ test.describe('AC-162: the four confirms of section 9', () => {
     ).toBe('pending')
   })
 
-  test('AC-162: the folder confirm names the folder and its three counts', async ({ page }) => {
-    const token = await csrfToken(page.context())
-    const created = await page.request.post('/api/v1/folders', {
-      data: { name: DOOMED },
-      headers: { 'X-CSRF-Token': token },
-    })
-    expect(
-      created.status(),
-      `POST /folders answered ${created.status()}: ${await created.text()}`,
-    ).toBe(201)
-    const folder = (await created.json()) as { id: string }
-
-    for (let i = 0; i < OPEN; i += 1) {
-      await createTask(page, { title: `ac-162 open ${i}`, folder_id: folder.id })
-    }
-    for (let i = 0; i < COMPLETED; i += 1) {
-      const task = await createTask(page, {
-        title: `ac-162 completed ${i}`,
-        folder_id: folder.id,
-      })
-      await transition(page, task.id, 'complete', 'UTC')
-    }
-    for (let i = 0; i < ABANDONED; i += 1) {
-      const task = await createTask(page, {
-        title: `ac-162 abandoned ${i}`,
-        folder_id: folder.id,
-      })
-      await transition(page, task.id, 'abandon', 'UTC')
-    }
-
-    await page.goto(routes.folder(folder.id))
-    // Inside the region rather than first on the page. 9.6's menu is a third
-    // control answering to "More actions" after the task form's and a task
-    // row's, and reaching it by position is what the last tester return
-    // flagged and what the second change control answered by naming this
-    // region. A third name for the menu was declined there: the two named
-    // menus share their name deliberately, being one control pointed at
-    // different objects, so what separates them is the container.
-    await clickControl(
-      regionOf(page, 'Folder header').getByRole('button', {
-        name: 'More actions',
-        exact: true,
-      }),
-      'spec 9.6 and 9.1: the folder header is a named region carrying an overflow menu with ' +
-        'rename, label, leave and delete',
-    )
-    await clickControl(
-      page.getByRole('menuitem', { name: /delete/i }),
-      'spec 9.3 and 9.6: delete lives in the overflow menu of the form and of the folder header',
-    )
-
-    await expect(
-      page.getByText(
-        `Delete ${DOOMED}? This permanently deletes ${OPEN} open, ${COMPLETED} completed, ` +
-          `and ${ABANDONED} abandoned tasks for every member.`,
-      ),
-      'spec 9.6: the folder delete confirm lists counts, and it is the only place a person is ' +
-        'told the deletion reaches every member rather than only their own view. The three ' +
-        'counts differ here and none is one, so a client rendering the same number three ' +
-        'times, or rendering 8.11\'s pending count where the copy asks for open and abandoned ' +
-        'separately, cannot pass by looking numeric',
-    ).toBeVisible()
-
-    await clickControl(
-      page.getByRole('button', { name: 'Cancel', exact: true }),
-      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
-    )
-    await waitForApiIdle(
-      page,
-      'a declined delete is asserted to have deleted nothing, so the page has to have finished ' +
-        'whatever it was going to send before the folder is asked for',
-    )
-    const after = await page.request.get(`/api/v1/folders/${folder.id}`)
-    expect(
-      after.status(),
-      'spec 8.8: a declined confirm runs no cascade, and the folder is asked for through 7.4 ' +
-        'rather than looked for on a page that may be rendering a stale cache',
-    ).toBe(200)
-  })
+  // The folder-delete case stood here until RFC 0005 change control item 14.
+  // 9.6 now deletes to Trash with the undo bar and no confirmation, so the
+  // confirm it asserted, the one carrying the folder's three counts, is not
+  // one section 9 puts anywhere; the header records the removal and AC-225
+  // reads the undo bar that replaced it.
 
   test('AC-162: un-completing a repeat warns about the next occurrence', async ({ page }) => {
     const title = 'ac-162 repeating and completed'
@@ -314,7 +278,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     // transaction, which is the occurrence the confirm is about.
     await transition(page, task.id, 'complete', 'UTC')
 
-    await page.goto(routes.done)
+    await page.goto(routesV2.done)
     await clickControl(
       taskRow(page, title).getByRole('checkbox', { name: 'Mark as not done', exact: true }),
       'spec 9.5: each Done row has "Mark as not done", which runs uncomplete and, on the ' +
@@ -352,18 +316,20 @@ test.describe('AC-162: the four confirms of section 9', () => {
     const page = await context.newPage()
     await signIn(page, seedSubs.imran)
 
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
+    // The window bar's menu, not the folder header's: 9.1's replacement puts
+    // the object's overflow menu at the bar's right end, so it is reached the
+    // way AC-217 reaches it, by role and name inside the main landmark, ahead
+    // of the task rows' menus that share the name. Corrected at RFC 0005
+    // change control item 14; this criterion's sentence did not move.
     await clickControl(
-      regionOf(page, 'Folder header').getByRole('button', {
-        name: 'More actions',
-        exact: true,
-      }),
-      'spec 9.6 and 9.1: the folder header is a named region, and its overflow menu carries ' +
-        'Leave for a member who is not the owner',
+      page.getByRole('main').getByRole('button', { name: 'More actions', exact: true }).first(),
+      "spec 9.1: the active tab's controls include the object's overflow menu, named " +
+        '"More actions", and for a member who is not the owner it carries Leave (9.6)',
     )
     await clickControl(
       page.getByRole('menuitem', { name: /leave/i }),
-      'spec 9.6: the header overflow carries Leave, non-owner only per the 5.4 matrix',
+      'spec 9.6: the object menu carries Leave, non-owner only per the 5.4 matrix',
     )
 
     await expect(
@@ -397,7 +363,7 @@ test.describe('AC-162: the four confirms of section 9', () => {
     page,
   }) => {
     // The owner removes the other member, which 5.4 gives to the owner alone.
-    await page.goto(routes.folder(seedIds.groceries))
+    await page.goto(routesV2.folder(seedIds.groceries))
     await clickControl(
       page.getByRole('button', { name: 'Share' }),
       'spec 9.6: the folder header carries a Share button, which opens the sharing panel',

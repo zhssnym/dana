@@ -168,9 +168,14 @@ const INVITE_KEYS = [
   'task_id',
 ]
 
-/** The eight keys of the 7.0 Folder object, folders-contract.test.ts's list. */
+/** The twelve keys of the 7.0 Folder object, folders-contract.test.ts's
+ * list; the 4.3 identity four joined with RFC 0005. */
 const FOLDER_KEYS = [
+  'color',
   'counts',
+  'cover_file_id',
+  'description',
+  'icon',
   'id',
   'is_default',
   'is_owner',

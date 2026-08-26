@@ -112,8 +112,18 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
   folders: {
     primaryKey: { name: 'folders_pkey', columns: ['id'] },
     uniques: [],
-    checks: [{ name: 'folders_name_length_check', columns: ['name'] }],
+    checks: [
+      { name: 'folders_color_format_check', columns: ['color'] },
+      { name: 'folders_description_length_check', columns: ['description'] },
+      { name: 'folders_name_length_check', columns: ['name'] },
+    ],
     foreignKeys: [
+      {
+        name: 'folders_cover_file_id_fkey',
+        columns: ['cover_file_id'],
+        references: { table: 'files', columns: ['id'] },
+        onDelete: 'set null',
+      },
       {
         name: 'folders_owner_id_fkey',
         columns: ['owner_id'],
@@ -123,6 +133,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [
       { name: 'folders_one_default_per_owner_idx', unique: true, columns: ['owner_id'], partial: true },
+      { name: 'folders_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
     ],
   },
   folder_members: {
@@ -153,7 +164,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
   },
   tasks: {
     primaryKey: { name: 'tasks_pkey', columns: ['id'] },
-    uniques: [],
+    uniques: [{ name: 'tasks_folder_id_id_key', columns: ['folder_id', 'id'] }],
     checks: [
       { name: 'tasks_completed_at_check', columns: ['completed_at', 'status'] },
       { name: 'tasks_completed_by_check', columns: ['completed_by', 'status'] },
@@ -191,6 +202,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'folders', columns: ['id'] },
         onDelete: 'cascade',
       },
+      {
+        name: 'tasks_section_block_id_fkey',
+        columns: ['section_block_id'],
+        references: { table: 'page_blocks', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       {
@@ -220,6 +237,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         partial: false,
         method: 'gin',
       },
+      {
+        name: 'tasks_section_block_id_idx',
+        unique: false,
+        columns: ['section_block_id'],
+        partial: true,
+      },
+      { name: 'tasks_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
     ],
   },
   steps: {
@@ -335,7 +359,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
   user_settings: {
     primaryKey: { name: 'user_settings_pkey', columns: ['user_id'] },
     uniques: [],
-    checks: [],
+    checks: [
+      { name: 'user_settings_arrangements_object_check', columns: ['arrangements'] },
+      { name: 'user_settings_clock_check', columns: ['clock'] },
+      { name: 'user_settings_pinned_views_array_check', columns: ['pinned_views'] },
+      { name: 'user_settings_row_density_check', columns: ['row_density'] },
+      { name: 'user_settings_sidebar_order_array_check', columns: ['sidebar_order'] },
+      { name: 'user_settings_task_open_check', columns: ['task_open'] },
+      { name: 'user_settings_theme_check', columns: ['theme'] },
+    ],
     foreignKeys: [
       {
         name: 'user_settings_user_id_fkey',
@@ -345,5 +377,277 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       },
     ],
     indexes: [],
+  },
+  events: {
+    primaryKey: { name: 'events_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'events_detail_length_check', columns: ['detail'] },
+      { name: 'events_subject_kind_check', columns: ['subject_kind'] },
+      { name: 'events_verb_check', columns: ['verb'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'events_actor_id_fkey',
+        columns: ['actor_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'events_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'events_folder_created_idx',
+        unique: false,
+        columns: ['folder_id', 'created_at'],
+        partial: false,
+        descColumns: ['created_at'],
+      },
+      {
+        name: 'events_subject_created_idx',
+        unique: false,
+        columns: ['subject_kind', 'subject_id', 'created_at'],
+        partial: false,
+        descColumns: ['created_at'],
+      },
+    ],
+  },
+  notifications: {
+    primaryKey: { name: 'notifications_pkey', columns: ['id'] },
+    uniques: [
+      { name: 'notifications_user_event_key', columns: ['user_id', 'event_id'] },
+    ],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'notifications_event_id_fkey',
+        columns: ['event_id'],
+        references: { table: 'events', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'notifications_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'notifications_unread_idx', unique: false, columns: ['user_id'], partial: true },
+    ],
+  },
+  comments: {
+    primaryKey: { name: 'comments_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [{ name: 'comments_body_length_check', columns: ['body'] }],
+    foreignKeys: [
+      {
+        name: 'comments_author_id_fkey',
+        columns: ['author_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'comments_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'comments_parent_id_fkey',
+        columns: ['parent_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'comments_task_scope_fkey',
+        columns: ['folder_id', 'task_id'],
+        references: { table: 'tasks', columns: ['folder_id', 'id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'comments_thread_idx',
+        unique: false,
+        columns: ['folder_id', 'task_id', 'created_at'],
+        partial: false,
+      },
+      { name: 'comments_parent_id_idx', unique: false, columns: ['parent_id'], partial: true },
+    ],
+  },
+  comment_likes: {
+    primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'comment_likes_comment_id_fkey',
+        columns: ['comment_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'comment_likes_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  comment_files: {
+    primaryKey: { name: 'comment_files_pkey', columns: ['comment_id', 'file_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'comment_files_comment_id_fkey',
+        columns: ['comment_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'comment_files_file_id_fkey',
+        columns: ['file_id'],
+        references: { table: 'files', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'comment_files_file_id_idx', unique: false, columns: ['file_id'], partial: false },
+    ],
+  },
+  files: {
+    primaryKey: { name: 'files_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'files_bytes_positive_check', columns: ['bytes'] },
+      { name: 'files_duration_voice_check', columns: ['duration_ms', 'kind'] },
+      { name: 'files_kind_check', columns: ['kind'] },
+      { name: 'files_name_length_check', columns: ['name'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'files_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'files_owner_id_fkey',
+        columns: ['owner_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [
+      { name: 'files_owner_id_idx', unique: false, columns: ['owner_id'], partial: false },
+      { name: 'files_folder_id_idx', unique: false, columns: ['folder_id'], partial: true },
+    ],
+  },
+  page_blocks: {
+    primaryKey: { name: 'page_blocks_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'page_blocks_kind_check', columns: ['kind'] },
+      { name: 'page_blocks_one_home_check', columns: ['folder_id', 'shelf_id'] },
+      { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'page_blocks_file_id_fkey',
+        columns: ['file_id'],
+        references: { table: 'files', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'page_blocks_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'page_blocks_ref_folder_id_fkey',
+        columns: ['ref_folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'page_blocks_shelf_id_fkey',
+        columns: ['shelf_id'],
+        references: { table: 'shelves', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'page_blocks_folder_position_idx',
+        unique: false,
+        columns: ['folder_id', 'position'],
+        partial: true,
+      },
+      {
+        name: 'page_blocks_shelf_position_idx',
+        unique: false,
+        columns: ['shelf_id', 'position'],
+        partial: true,
+      },
+      {
+        name: 'page_blocks_ref_folder_id_idx',
+        unique: false,
+        columns: ['ref_folder_id'],
+        partial: true,
+      },
+      { name: 'page_blocks_file_id_idx', unique: false, columns: ['file_id'], partial: true },
+    ],
+  },
+  shelves: {
+    primaryKey: { name: 'shelves_pkey', columns: ['id'] },
+    uniques: [{ name: 'shelves_user_id_name_key', columns: ['user_id', 'name'] }],
+    checks: [
+      { name: 'shelves_color_format_check', columns: ['color'] },
+      { name: 'shelves_description_length_check', columns: ['description'] },
+      { name: 'shelves_name_length_check', columns: ['name'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'shelves_cover_file_id_fkey',
+        columns: ['cover_file_id'],
+        references: { table: 'files', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'shelves_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  user_views: {
+    primaryKey: { name: 'user_views_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'user_views_definition_object_check', columns: ['definition'] },
+      { name: 'user_views_name_length_check', columns: ['name'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'user_views_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'user_views_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
   },
 }

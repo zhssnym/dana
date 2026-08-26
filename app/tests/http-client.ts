@@ -25,7 +25,9 @@ export interface RawResponse {
 export interface RawRequestOptions {
   method?: string
   headers?: Record<string, string>
-  body?: string
+  /** A Buffer is written raw; the byte length is computed either way. Added
+   * for the 7.15 multipart criteria, whose payloads are binary. */
+  body?: string | Buffer
   /** Sent verbatim as the Host header; fetch cannot do this. */
   hostHeader?: string
 }
@@ -229,10 +231,12 @@ export class TestBrowser {
     return this.request(`/api/v1${path}`, options)
   }
 
+  /** body is optional for the bodyless verbs; JSON.stringify(undefined) is
+   * undefined, so a GET sends no payload and no content-length. */
   json(
     path: string,
     method: string,
-    body: unknown,
+    body?: unknown,
     options: { csrf?: 'auto' | 'omit' | string } = {},
   ): Promise<RawResponse> {
     return this.api(path, {

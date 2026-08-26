@@ -47,6 +47,7 @@ Everything runs from `app/`, never from the repository root, where there is no
 ```bash
 npm ci
 npm run lint && npm run typecheck && npm test && npm run build   # the gate, in CI's order
+npm test -- --maxWorkers=2                 # vitest flags go after the --
 npm run dev                                # API server plus client dev server
 npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
 npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # one package's range
@@ -64,6 +65,32 @@ protocol points here rather than repeating them.
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
   naming files imports only those, while `-t` imports every file and skips
   execution in the rest. The Playwright leg is separate and is 135 cases.
+- PGlite workers can die mid-run: the report shows "[vitest-pool]: Worker
+  forks emitted error" or whole files failed with their tests skipped, and
+  both read as broken code and are not. Rerun the affected files alone before
+  believing any of those failures.
+- **Capping the workers is not certainty, corrected 2026-08-24 against
+  measurement.** This bullet used to say "cap the workers (`--maxWorkers=2`,
+  or 1 for certainty)" and named load as the cause, a dev server or a second
+  agent running. Both halves are now known to be too confident. That day a
+  `--maxWorkers=1` run on a machine with no CI job and no second agent on it
+  lost five files, and a parallel CI run half an hour earlier lost two; three
+  other runs of the same commit were clean. Capping lowers the odds and buys
+  nothing certain, and it is expensive: measured that day at about 25 minutes
+  serially against roughly 4 in parallel, at 228 files and 1665 tests. Prefer
+  the parallel default and read the file count, which is what actually tells
+  you whether a run measured the suite.
+- **`npm test` runs through `app/scripts/run-suite.mjs`, which fails a run
+  that exited 0 without accounting for every file it collected.** Written
+  2026-08-24 after a serial run reported `Test Files 223 passed (228)` and
+  `Tests 1636 passed (1665)`, emitted five worker-fork errors, warned that
+  this "might cause false positive tests", and returned exit code 0, which is
+  all CI's test steps read. The guard compares the categories vitest resolved
+  against the total it collected and refuses the difference; a non-zero exit
+  passes straight through, and a summary it cannot parse is passed through
+  rather than invented into a failure. It is proven both ways against the two
+  real runs of that day. Pass vitest flags after `--`, as in
+  `npm test -- --maxWorkers=2 tests/some-file.test.ts`.
 - Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
   arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
@@ -112,14 +139,36 @@ protocol points here rather than repeating them.
   leg needs a quiet machine, and the counts recorded for it, were this fault
   rather than load; `C:\Users\hassan\gate.ps1` still carries the superseded
   explanation and a stale count of 94.
+- **Two browser legs cannot share this machine, and the collision does not
+  announce itself as one.** Measured at S10 on 2026-08-25. `playwright.config.ts`
+  hardcodes port 3100 and sets `reuseExistingServer: false`, so every run starts
+  an `e2e:app` of its own; a run that has printed its tally has *not* released
+  the port, because the `npx` process outlives the report. That session's own
+  finished full leg held 3100 for over an hour while a concurrent S12
+  verification and a re-run each started a third and second server, all three
+  seeding and truncating one another's database underneath the browser. What it
+  looks like from the report is code: `Page crashed`, tests failing at 0 ms,
+  assertions timing out at 2.2 minutes that pass in 3 seconds alone, and one
+  criterion red twice in a row for what looks like a reproducible reason. The
+  whole leg read 141 of 158; the eight affected files re-run alone on a quiet
+  machine read 17 of 19 in 1.5 minutes against 32.8 for the contended whole, and
+  the two remaining reds were the genuine ones. So: **before a browser leg,
+  check that nothing else is on 3100 and that no stale `npx playwright` survives
+  a previous run**, and where two sessions must overlap, give each its own port
+  through an untracked config copy (`sed 's/3100/3110/' playwright.config.ts >
+  s10-verify.config.ts`, never committed) rather than taking turns. This is not
+  the vitest fork-flake and must not be treated as it: that one is not caused by
+  load, corrected above, and `run-suite.mjs` fails a run that loses files.
+  Separate worktrees make vitest legs genuinely independent, having no port and
+  no shared database; only the browser leg has a single hardcoded one.
 - The cluster's own locale is French_France.1252 under libc, which is not what the
   suite runs on and must never become it. The `dana_test` database is created with
   the builtin C.UTF-8 locale so that it orders text exactly as PGlite does; spec
   11.10 carries the CREATE DATABASE statement, the reasoning, and the two checks
   that prove the two legs agree. Never point `TEST_DATABASE_URL` at a database that
   inherited the cluster default. The string authenticates as `dana_ci`, never the
-  superuser, and lives in the runner installation's `.env` and in a gitignored
-  `app/.env`; it is never committed and never stored as a GitHub secret (11.11).
+  superuser, and lives in the runner installation's `.env` and in `app/.env`, which
+  is committed (see the last bullet) and is never stored as a GitHub secret (11.11).
 - CI runs on a self-hosted GitHub Actions runner on this machine (spec 11.11), so
   there is no CI while the machine is off or the runner service is stopped: a pushed
   branch simply has no verdict until then, rather than failing. Hosted runs stopped
@@ -137,7 +186,16 @@ protocol points here rather than repeating them.
 - `DANA_DEV_LOGIN=1` enables `POST /api/v1/auth/dev-login` for sessions without
   Google credentials. It is absent from production builds regardless of environment
   variables.
-- Never commit `.data/` (the local PGlite directory) or any `.env` file.
+- Never commit `.data/`, the local PGlite directory. **`app/.env` is committed, and
+  deliberately so**, on the owner's ruling of 2026-08-25: this repository is private
+  with two collaborators, and one shared working config is worth more to them than
+  each machine rebuilding one from `app/.env.example`. Two consequences follow and
+  neither is optional. The repository's privacy is now the only thing standing
+  between live credentials and the world, so it stays private, and a credential that
+  leaves it is rotated rather than argued about. And the file is an ordinary tracked
+  file, so a branch that drops it deletes it from the working tree of every machine
+  that checks that branch out; this was measured on the day the ruling landed, when
+  switching from `main` to a branch without it removed the operator's own copy.
 
 ## Architecture in brief
 
