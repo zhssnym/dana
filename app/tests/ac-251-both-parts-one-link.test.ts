@@ -35,6 +35,7 @@ import type { AuthTestApp, OutboundEmail } from './auth-harness.js'
 import {
   APP_ORIGIN,
   EmailCast,
+  deliverReminder,
   linksIn,
   renderedOf,
   urlsIn,
@@ -55,13 +56,23 @@ afterAll(async () => {
   await app.close()
 })
 
-/** The words of the HTML part a person would read, so an assertion about what
- * the two parts share is about sentences and not about markup. */
-function sentencesOf(html: string): string[] {
-  return visibleText(html)
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length > 20)
+/*
+The words of a part, lowercased, as a set.
+
+**Why words and not sentences.** The first shape of this case split the HTML
+part's visible text into sentences and required each one in the text part. It
+was wrong and would have failed a correct implementation: stripping tags joins
+adjacent elements into one run, so "Shared folder, From Hassan" and the action
+label and the first words of the footer arrive as a single "sentence" that no
+correctly written text part contains, while the sentences that are really
+sentences pass trivially. What 10.7's amended rule actually says is that the
+text part must say the same thing rather than be a stub, and a word set is the
+honest measure of that: a stub drops nearly every word, and a faithful
+alternative drops none. Corrected under persona 11 before the implementation
+was written, which is the only time a criterion may be corrected at all.
+*/
+function wordsOf(part: string): Set<string> {
+  return new Set(part.toLowerCase().match(/[a-z][a-z']{2,}/g) ?? [])
 }
 
 describe('AC-251: every transactional email is two parts carrying one link', () => {
@@ -113,24 +124,40 @@ describe('AC-251: every transactional email is two parts carrying one link', () 
     const staged = await cast.of(app)
     for (const email of staged.all) {
       const parts = renderedOf(email)
-      for (const sentence of sentencesOf(parts.html)) {
-        expect(
-          parts.text,
-          `10.7 as amended: the text part must say the same thing, and ${email.template}'s HTML part says "${sentence}" where the text part does not`,
-        ).toContain(sentence)
-      }
+      const spoken = wordsOf(visibleText(parts.html))
+      const written = wordsOf(parts.text)
+      const missing = [...spoken].filter((word) => !written.has(word))
+      expect(
+        missing,
+        `10.7 as amended: the text part must say the same thing as the HTML part rather than being a stub, and ${email.template}'s text part is missing words the HTML part shows`,
+      ).toEqual([])
+      expect(
+        spoken.size,
+        `and the HTML part is a message rather than a link with a button on it (${email.template})`,
+      ).toBeGreaterThan(15)
     }
   })
 
-  test('AC-251 adversarial: the HTML part escapes what a person typed', async () => {
+  test('AC-251 adversarial: a value a person typed is escaped into the HTML part', async () => {
     const staged = await cast.of(app)
-    const parts = renderedOf(staged.shareGrant)
+    const email = await deliverReminder(app, staged, {
+      title: '<script>alert("titles are user input")</script>',
+    })
+    const parts = renderedOf(email)
     expect(
       parts.html,
-      'a folder name and a display name are values a person wrote; the HTML part must carry them escaped, so no folder can be named into markup',
-    ).not.toMatch(/<(script|img|iframe)\b/i)
+      'a task title is a person\'s own words, and the day one of them carries markup must not be the day an email client runs it',
+    ).not.toContain('<script>')
     expect(
-      parts.html.includes('<!doctype') || parts.html.includes('<!DOCTYPE'),
+      parts.html,
+      'the escaped form is what an email client draws, which is the title as it was typed',
+    ).toContain('&lt;script&gt;')
+    expect(
+      parts.text,
+      'and the text part carries it raw, being text',
+    ).toContain('<script>')
+    expect(
+      parts.html.toLowerCase().includes('<!doctype'),
       'the HTML part is a whole document, which is what an email client is handed',
     ).toBe(true)
   })

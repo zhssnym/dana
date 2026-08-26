@@ -296,3 +296,42 @@ export class EmailCast {
     return this.cast.cleanup(db)
   }
 }
+
+/**
+ * One more reminder, delivered, for a case that needs a task the staged
+ * fixture does not carry: a date-only due, or a title made of the characters
+ * a person is free to type and an email client must not be free to run.
+ *
+ * The pass is 8.6's and polls every due row, so the answer is filtered to the
+ * one assignee this fixture owns, which is `reminderEmailsFor`'s own reasoning
+ * applied to a single address.
+ */
+export async function deliverReminder(
+  app: AuthTestApp,
+  staged: StagedEmails,
+  options: { title: string; dueDate?: string; dueTime?: string | null },
+): Promise<OutboundEmail> {
+  const taskId = await seedTask(app.db, {
+    folderId: staged.folderId,
+    createdBy: staged.inviter.id,
+    title: options.title,
+    assigneeId: staged.inviter.id,
+    dueDate: options.dueDate ?? '2026-10-02',
+    dueTime: options.dueTime === undefined ? '17:45' : options.dueTime,
+  })
+  await seedReminderRow(app.db, {
+    taskId,
+    createdBy: staged.inviter.id,
+    timeOfDay: '08:30',
+    fireAt: minutesAgo(3),
+  })
+  const before = app.emails.sent().length
+  await runPass(app)
+  return only(
+    app.emails
+      .sent()
+      .slice(before)
+      .filter((email) => email.to === staged.reminderTo),
+    'the pass must deliver exactly one reminder to this fixture assignee (spec 8.6, 11.7)',
+  )
+}
