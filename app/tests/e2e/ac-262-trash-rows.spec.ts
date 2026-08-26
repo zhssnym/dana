@@ -1,5 +1,5 @@
 /*
-AC-256: given a deleted task and a deleted folder in the Trash, then each row
+AC-262: given a deleted task and a deleted folder in the Trash, then each row
 names the days it has left of 4.3 and 4.5's thirty, says its kind as a glyph
 rather than as a word, and still says where it lived; and given that page, then
 it offers no control that deletes anything permanently, 7.13 assigning the
@@ -129,7 +129,7 @@ function trashRow(page: Page, title: string) {
   return page.getByRole('listitem').filter({ hasText: title }).first()
 }
 
-test.describe('AC-256: a Trash row carries its own facts', () => {
+test.describe('AC-262: a Trash row carries its own facts', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -145,7 +145,7 @@ test.describe('AC-256: a Trash row carries its own facts', () => {
     await deleteTask(page, fixture.taskId).catch(() => undefined)
   })
 
-  test('AC-256: each row names its own countdown, and the rule is still stated once', async ({
+  test('AC-262: each row names its own countdown, and the rule is still stated once', async ({
     page,
   }) => {
     await page.goto(routesV2.trash)
@@ -176,7 +176,7 @@ test.describe('AC-256: a Trash row carries its own facts', () => {
     }
   })
 
-  test('AC-256: the kind is a glyph and no longer a word', async ({ page }) => {
+  test('AC-262: the kind is a glyph and no longer a word', async ({ page }) => {
     await page.goto(routesV2.trash)
 
     const row = trashRow(page, fixture.folderName)
@@ -200,7 +200,7 @@ test.describe('AC-256: a Trash row carries its own facts', () => {
     ).toContainText(fixture.homeName)
   })
 
-  test('AC-256: the page offers nothing that deletes permanently', async ({ page }) => {
+  test('AC-262: the page offers nothing that deletes permanently', async ({ page }) => {
     await page.goto(routesV2.trash)
     await expect(trashRow(page, fixture.taskTitle)).toBeVisible()
 

@@ -1,5 +1,5 @@
 /*
-AC-255: given the Settings page, then it carries an Appearance region offering
+AC-261: given the Settings page, then it carries an Appearance region offering
 the theme, the row density, the clock and where a task opens, which are 9.7's
 four; and when a theme and a clock are chosen there, then the application
 draws in that theme and writes a timed row's time on that clock, and both are
@@ -97,7 +97,7 @@ async function themeAttribute(page: Page): Promise<string | null> {
   })
 }
 
-test.describe('AC-255: Settings carries Appearance', () => {
+test.describe('AC-261: Settings carries Appearance', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -128,7 +128,7 @@ test.describe('AC-255: Settings carries Appearance', () => {
     await deleteFolder(page, fixture.folderId)
   })
 
-  test('AC-255: the region offers 9.7\'s four controls', async ({ page }) => {
+  test('AC-261: the region offers 9.7\'s four controls', async ({ page }) => {
     await page.goto(routesV2.settings)
 
     await expect(
@@ -150,7 +150,7 @@ test.describe('AC-255: Settings carries Appearance', () => {
     }
   })
 
-  test('AC-255: a chosen theme draws the application and survives a reload', async ({ page }) => {
+  test('AC-261: a chosen theme draws the application and survives a reload', async ({ page }) => {
     await page.goto(routesV2.settings)
 
     await clickControl(
@@ -198,7 +198,7 @@ test.describe('AC-255: Settings carries Appearance', () => {
       .toBe('dark')
   })
 
-  test('AC-255: a chosen clock writes a row\'s time and survives a reload', async ({ page }) => {
+  test('AC-261: a chosen clock writes a row\'s time and survives a reload', async ({ page }) => {
     await page.goto(routesV2.folder(fixture.folderId))
     const row = page.getByRole('listitem').filter({ hasText: fixture.taskTitle }).first()
     await expect(row).toBeVisible()
@@ -233,7 +233,7 @@ test.describe('AC-255: Settings carries Appearance', () => {
     ).toContainText('17:30')
   })
 
-  test('AC-255: a chosen density survives a reload', async ({ page }) => {
+  test('AC-261: a chosen density survives a reload', async ({ page }) => {
     await page.goto(routesV2.settings)
 
     await clickControl(

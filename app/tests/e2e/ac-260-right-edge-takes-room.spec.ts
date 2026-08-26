@@ -1,5 +1,5 @@
 /*
-AC-254: given a folder page whose conversation is in the side panel, then the
+AC-260: given a folder page whose conversation is in the side panel, then the
 page's own body is narrower by about the panel's width than the same body with
 the panel closed, the panel taking room rather than covering it; and when the
 panel is closed again, then the body returns to the width it had.
@@ -112,7 +112,7 @@ async function openConversationPanel(page: Page): Promise<Locator> {
   return panel
 }
 
-test.describe('AC-254: the right-edge panel takes room', () => {
+test.describe('AC-260: the right-edge panel takes room', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -127,7 +127,7 @@ test.describe('AC-254: the right-edge panel takes room', () => {
     await deleteFolder(page, fixture.folderId)
   })
 
-  test('AC-254: opening the panel narrows the page and closing it restores the width', async ({
+  test('AC-260: opening the panel narrows the page and closing it restores the width', async ({
     page,
   }) => {
     await page.goto(routesV2.folder(fixture.folderId))

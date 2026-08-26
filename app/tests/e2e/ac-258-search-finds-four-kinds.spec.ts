@@ -1,5 +1,5 @@
 /*
-AC-252: given one query that matches a task through a step's title, a folder
+AC-258: given one query that matches a task through a step's title, a folder
 by name, a shelf by name and a page's own paragraph, then the search overlay
 draws a result of each of those four kinds, each under its own heading, and
 the task results keep Q8's Pending, Abandoned and Completed subgrouping inside
@@ -161,7 +161,7 @@ function overlay(page: Page) {
   return page.getByRole('dialog')
 }
 
-test.describe('AC-252: search finds all four kinds', () => {
+test.describe('AC-258: search finds all four kinds', () => {
   let fixture: Fixture
 
   test.beforeEach(async ({ page }) => {
@@ -177,7 +177,7 @@ test.describe('AC-252: search finds all four kinds', () => {
     await deleteFolder(page, fixture.otherFolderId)
   })
 
-  test('AC-252: one query answers a task, a folder, a shelf and a page', async ({ page }) => {
+  test('AC-258: one query answers a task, a folder, a shelf and a page', async ({ page }) => {
     await page.goto(routesV2.desk)
     await openSearch(page)
     await page.getByRole('searchbox').or(page.getByRole('textbox')).first().fill(fixture.word)
@@ -218,7 +218,7 @@ test.describe('AC-252: search finds all four kinds', () => {
     ).toHaveCount(0)
   })
 
-  test('AC-252: each kind stands under its own heading, and tasks keep Q8\'s subgrouping', async ({
+  test('AC-258: each kind stands under its own heading, and tasks keep Q8\'s subgrouping', async ({
     page,
   }) => {
     await page.goto(routesV2.desk)
@@ -246,7 +246,7 @@ test.describe('AC-252: search finds all four kinds', () => {
     ).toBeVisible()
   })
 
-  test('AC-252: the places are offered before anything is typed', async ({ page }) => {
+  test('AC-258: the places are offered before anything is typed', async ({ page }) => {
     await page.goto(routesV2.desk)
     await openSearch(page)
 
@@ -268,11 +268,11 @@ test.describe('AC-252: search finds all four kinds', () => {
     await expect(
       sheet.getByText(fixture.shelfName, { exact: false }).first(),
       'spec 9.9 names shelves among the places offered before a keystroke, which needs the ' +
-        'shelves read AC-251 brings into the chrome',
+        'shelves read AC-257 brings into the chrome',
     ).toBeVisible()
   })
 
-  test('AC-252: a place row goes to its place', async ({ page }) => {
+  test('AC-258: a place row goes to its place', async ({ page }) => {
     await page.goto(routesV2.desk)
     await openSearch(page)
 

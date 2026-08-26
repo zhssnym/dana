@@ -1,5 +1,5 @@
 /*
-AC-258: given the sidebar at its full width, then its footer offers "New
+AC-264: given the sidebar at its full width, then its footer offers "New
 folder" and then "New shelf", "Import" and "Trash" as one row of three, which
 is 9.1's composition; and when the sidebar is narrowed, then "New shelf" keeps
 its label while the other two show their glyphs alone, and all three are named
@@ -96,13 +96,13 @@ async function drag(page: Page, to: 'wide' | 'narrow'): Promise<void> {
   await page.mouse.up()
 }
 
-test.describe('AC-258: the sidebar footer is 9.1\'s composition', () => {
+test.describe('AC-264: the sidebar footer is 9.1\'s composition', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page, seedSubs.hassan)
     await page.goto(routesV2.desk)
   })
 
-  test('AC-258: New folder, then the row of three', async ({ page }) => {
+  test('AC-264: New folder, then the row of three', async ({ page }) => {
     await expect(
       control(page, 'New folder'),
       'spec 9.1: "one primary New folder action"',
@@ -153,7 +153,7 @@ test.describe('AC-258: the sidebar footer is 9.1\'s composition', () => {
     }
   })
 
-  test('AC-258: narrowing keeps New shelf\'s label and drops the other two', async ({ page }) => {
+  test('AC-264: narrowing keeps New shelf\'s label and drops the other two', async ({ page }) => {
     /*
     Widened first, and that is the assertion rather than the setup. DES-216
     is a *transition*, so a case that only read the narrow end could pass
@@ -211,7 +211,7 @@ test.describe('AC-258: the sidebar footer is 9.1\'s composition', () => {
     }
   })
 
-  test('AC-258: Import reaches a workflow file', async ({ page }) => {
+  test('AC-264: Import reaches a workflow file', async ({ page }) => {
     const chooser = page.waitForEvent('filechooser')
     await clickControl(
       control(page, 'Import'),

@@ -834,7 +834,7 @@ export function FolderPage({
                 /* DES-132's board, on the folder page at last. It is the
                    shared `views/TaskBoard.tsx` and not a second one, which is
                    what makes S17b's two-columns-per-row change reach here and
-                   every place page together (AC-253). */
+                   every place page together (AC-259). */
                 <TaskBoard
                   place={place}
                   columns={boardColumns}

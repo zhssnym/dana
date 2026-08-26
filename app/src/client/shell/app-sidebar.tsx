@@ -682,7 +682,7 @@ function FolderGroupBlock({
             9.1 asks for both, "a shelf is a collapsible group of folder rows
             headed by its name", and a heading that became a link and stopped
             folding would trade one defect for another. AC-214's Library still
-            collapses; AC-251 reads both.
+            collapses; AC-257 reads both.
 
             **The name is a link where the designer draws a button**, and the
             departure is this client's own consistency rather than a

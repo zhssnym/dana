@@ -170,7 +170,7 @@ export function TaskRows({
     not ported. What 9.7 asks for by name is "row density (comfortable,
     compact)", which is how close a list stands, and that is what a list can
     honour today: comfortable keeps the spacing every page has had, compact
-    closes it so more fits on a screen. AC-255 asserts the preference and
+    closes it so more fits on a screen. AC-261 asserts the preference and
     deliberately not the row shape.
 
     Driven off the document attribute `shell/appearance.ts` sets rather than by

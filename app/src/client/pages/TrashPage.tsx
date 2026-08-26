@@ -41,7 +41,7 @@ requires each row to name "who deleted it and when (from 4.13)", and the 7.13
 read carries `deleted_at` and no actor: `shared/trash.ts` has no field for one
 and `server/domain/trash.ts` selects none, though the event log records one for
 every delete. No client-side work reaches it, so it is escalated rather than
-approximated, at RFC 0005 change control item 34 (b), with a recommendation:
+approximated, at RFC 0005 change control item 35 (b), with a recommendation:
 `deleted_by` as the person stub AC-250 already uses for `created_by`, joined
 from the delete event and null where the actor's account has been scrubbed. The
 "and when" half is what the countdown answers today.
@@ -53,7 +53,7 @@ confirm and calls it "the only act in Dana with no way back". 7.13 disagrees,
 names restore alone, and no such route exists in `app/src/server/routes/`. RFC
 0005 change control item 20 sends a prototype-versus-numbered-section
 disagreement to a ruling rather than to a session, so this file follows the
-sections and item 34 (a) carries the escalation. AC-256 asserts the absence, so
+sections and item 35 (a) carries the escalation. AC-262 asserts the absence, so
 a reversal moves a criterion rather than leaving a defect unrecorded.
 */
 import { useRestoreFolder, useTransitionTask } from '../api/mutations.js'

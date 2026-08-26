@@ -617,7 +617,7 @@ export function AppShell(): React.JSX.Element {
           looked narrower and was not, which is the difference between a
           layout and an indent. A margin takes the room off the element
           itself, which is what "the page gets narrower" means and what
-          AC-254 reads. The transition is on the margin alone, because a
+          AC-260 reads. The transition is on the margin alone, because a
           panel that appears instantly beside a page that jumps reads as two
           events rather than one.
           */}

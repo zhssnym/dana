@@ -60,7 +60,7 @@ enforced, `server/domain/files.ts` holding it at 1 GB and refusing an upload
 that would cross it, and nothing reports the total: no `storage_used` exists
 anywhere in `app/src` or `docs/spec`, and `server/routes/files.ts` offers
 upload, fetch and delete with no listing to sum. So the line waits on a read,
-escalated at RFC 0005 change control item 34 (c) with a recommendation, and
+escalated at RFC 0005 change control item 35 (c) with a recommendation, and
 the alternative, a client-side estimate or a label with an invented figure
 under it, is worse than an absent label.
 
