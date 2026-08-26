@@ -199,6 +199,30 @@ protocol points here rather than repeating them.
   load, corrected above, and `run-suite.mjs` fails a run that loses files.
   Separate worktrees make vitest legs genuinely independent, having no port and
   no shared database; only the browser leg has a single hardcoded one.
+- **A lone browser leg on its own port still loses about one case a run when
+  commit charge is short, and the port-collision bullet above does not cover
+  it.** Measured 2026-08-26 at S22, three whole runs of one commit on an owned
+  port 3122 with nothing listening on 3100 and no stale `npx playwright`:
+  **227 of 228, then 227 of 228, then 228 of 228.** The two reds were
+  different cases (`session-path.spec.ts:133`, then
+  `ac-217-folder-menu-by-role.spec.ts:83`), each hit the 120-second test
+  timeout, and each passed alone in under 7 seconds against a 2.2-minute
+  failure in the leg. **The presenting shape is the same as the collision
+  above and the cause cannot be it**, which is the whole reason for this
+  bullet: a session that reads the S10 note, checks the port, finds it clear
+  and therefore believes the red, believes a defect that is not there. What
+  was true instead was `FreeVirtualMemory` around 3.5 GB of 33.9 with two
+  Chrome processes holding 4.4 GB of private bytes each, the same commit-charge
+  ceiling the vitest bullets record, and the leg ran 14.4 and 20.3 minutes
+  against 17.2 for the clean one. **The cause is not asserted further than
+  that**, on the corrected-bullet lesson above: memory pressure is what was
+  measured alongside it, not what was proven to produce it. What to do is
+  cheap and does not depend on the cause. **Re-run a failing case alone before
+  believing it, and read a whole-leg red of one or two cases as unmeasured
+  rather than as broken**, exactly as the vitest fork-flake bullet says for its
+  own leg. Where a green whole leg is what you owe, freeing commit charge
+  first is worth more than re-running: closing the two browsers was worth
+  8.8 GB, more than every test process on the machine put together.
 - The cluster's own locale is French_France.1252 under libc, which is not what the
   suite runs on and must never become it. The `dana_test` database is created with
   the builtin C.UTF-8 locale so that it orders text exactly as PGlite does; spec
