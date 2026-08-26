@@ -1791,7 +1791,8 @@ export async function glyphGeometry(locator: Locator): Promise<string[]> {
 }
 
 /**
- * DELETE /tasks/:id, which 7.6 moves to Trash rather than purging.
+ * DELETE /tasks/:id, which 7.6 moves to Trash rather than purging and answers
+ * 204, measured rather than assumed: this expected 200 on its first run.
  *
  * For the reason `deleteSavedView` records: the runner seeds once and every
  * spec in this leg reads the same pages, so a fixture task left on Assignments
@@ -1805,5 +1806,5 @@ export async function deleteTask(page: Page, id: string): Promise<void> {
   expect(
     response.status(),
     `DELETE /tasks/${id} answered ${response.status()}: ${await response.text()}`,
-  ).toBe(200)
+  ).toBe(204)
 }
