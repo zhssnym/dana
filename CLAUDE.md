@@ -69,6 +69,23 @@ protocol points here rather than repeating them.
   forks emitted error" or whole files failed with their tests skipped, and
   both read as broken code and are not. Rerun the affected files alone before
   believing any of those failures.
+- **A local `app/.data` can reach a state where every query throws and the
+  application looks comprehensively broken while the code is fine.** Seen once,
+  2026-08-26, at S17b. Every request answers 500, `resolveSession` included,
+  and the throw is at `PglitePreparedQuery.queryWithCache`. **The tell is that
+  the 500s come from session resolution rather than from the handler under
+  test**, so a package that changed one route appears to have broken every
+  route it never touched. `rm -rf app/.data` fixes it and costs nothing, that
+  directory being a local scratch database that is never committed. **The cause
+  is unknown and is deliberately not guessed at here.** The session that hit it
+  had no dev server on that worktree, had run roughly twenty focused Playwright
+  runs against the directory over one evening, and had not captured the first
+  failing run; whether the fault was two of those overlapping, accumulated
+  state across their seed-and-truncate cycles, or something else is not known.
+  A wrong cause in this file is worse than none, and the corrected
+  "capping the workers is not certainty" bullet below is that mistake already
+  made once: it named load, was measured wrong, and until it was corrected it
+  was teaching sessions to serialise runs that never needed serialising.
 - **Capping the workers is not certainty, corrected 2026-08-24 against
   measurement.** This bullet used to say "cap the workers (`--maxWorkers=2`,
   or 1 for certainty)" and named load as the cause, a dev server or a second
