@@ -1337,6 +1337,15 @@ export const routesV2 = {
   trash: '/app/trash',
   settings: '/app/settings',
   people: '/app/people',
+  /*
+  The two public pages, which are outside /app and therefore outside the
+  redirect AC-239 asserts. They are not rows of 9.1's table: that table
+  covers the application, and DES-032's pages are the landing's neighbours,
+  linked from its footer by 9.2 and reachable signed out. RFC 0005's change
+  control carries the reading, on the `savedViewPath` precedent.
+  */
+  privacy: '/privacy',
+  terms: '/terms',
 } as const
 
 /**
@@ -1419,6 +1428,45 @@ export async function deleteFolder(page: Page, id: string): Promise<void> {
     response.status(),
     `DELETE /folders/${id} answered ${response.status()}: ${await response.text()}`,
   ).toBe(200)
+}
+
+/**
+ * POST /views, the saved view of 4.19.
+ *
+ * `pinned` is a parameter rather than a default, because the two values are
+ * two different fixtures: a pinned view is one the sidebar already lists, and
+ * an unpinned one is the state RFC 0005 item 9 says had no surface that could
+ * reach it until 9.7's pin list landed. AC-241 needs the second.
+ */
+export async function createSavedView(
+  page: Page,
+  name: string,
+  definition: Record<string, unknown>,
+  pinned: boolean,
+): Promise<{ id: string }> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.post('/api/v1/views', {
+    data: { name, definition, pinned },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `POST /views for the fixture ${JSON.stringify(name)} answered ` +
+      `${response.status()}: ${await response.text()}`,
+  ).toBe(201)
+  return (await response.json()) as { id: string }
+}
+
+/** DELETE /views/:id, so a spec's own view does not outlive it in a shared seed. */
+export async function deleteSavedView(page: Page, id: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.delete(`/api/v1/views/${id}`, {
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `DELETE /views/${id} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(204)
 }
 
 /** POST /shelves (7.16). */
