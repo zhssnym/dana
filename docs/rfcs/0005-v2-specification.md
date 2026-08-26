@@ -3173,6 +3173,86 @@ fold, the way P7's mid-package change control ratified the pass callable:
       turns AC-182 red for a reason 11.13 already settled in the section's
       favour. The departure is the one named seam in the primitive set.
 
+42. **S21 mid-package, 2026-08-26: the theme flash is real, it is measured
+    here, and closing it is a mechanism this client deliberately does not
+    have, so it is routed rather than built.** Ledger entry L-080's verdict
+    reads "to verify at S21", and this is that verification.
+
+    **What the prototype does.** `lib/theme.ts`'s `applyStoredTheme` sets the
+    attribute on `<html>` from `localStorage` before React mounts, and its
+    header says why in terms: "it is also why the theme survives a reload
+    without a flash". That module's own last paragraph is the part that
+    matters here: "this is a `user_settings` column, and until it is,
+    `localStorage` is the right stand-in".
+
+    **What this client does, and it is the column rather than the stand-in.**
+    `theme` has been a 4.19 column since S7, 9.7 names the control, S17b built
+    it, and `shell/appearance.ts` resolves the three states honestly, watches
+    the device while `system` is in force, and writes `data-theme`. It writes
+    it from the settings bundle, in an effect, so it writes it after mount.
+
+    **Measured on 2026-08-26 rather than reasoned, on the browser leg at
+    `4fb75cb`, and in two readings.** First, the document the server sends
+    carries no theme at all: `GET /app` answers 200 with `<html lang="en">`
+    and no `data-theme` anywhere in the body, so the first paint cannot be
+    dark for anybody, whatever the client does next. Second, with the settings
+    response held for a beat, which is what a slow connection does for free, a
+    viewer whose stored theme is dark is shown `data-theme="light"` at
+    `rgb(250, 250, 251)` while it is held, and `data-theme="dark"` at
+    `rgb(15, 16, 19)` when it lands. **That is the full brightness range, not
+    a subtle one**, and it is the white flash the prototype's header says
+    every product that stores a theme has to solve exactly once.
+
+    **Nothing is broken and nothing asserts otherwise.** AC-261 asserts that
+    the choice survives a reload, which it does, and its own comment already
+    records this mechanism in the criterion's own words: "a fresh document
+    paints 4.19's default while the bundle read is in flight and takes the
+    stored value when it answers, so the honest question is *does it end up
+    dark* rather than *is it dark on the first frame*". No numbered section
+    carries either the flash or its absence.
+
+    **Why S21 did not close it, which is the whole of this item.** A script
+    that runs before React mounts can read `localStorage` and can read nothing
+    else: it has no session, no cookie it may act on, and no way to await an
+    API call without being the thing that delays the paint. So closing the
+    flash means mirroring a server-held column into the browser and keeping
+    the mirror in step with the column, at sign-in, at the Settings mutation,
+    at sign-out, and across two devices that disagree. That is a mechanism the
+    prototype has because `localStorage` is its only store, and one this
+    client deliberately does not have because the column is its only store.
+    **A session inventing it on its own authority would be exactly the
+    unrecorded deviation protocol section 1 forbids**, and it would be
+    invisible: the flash would stop and nothing would say that a preference
+    now lives in two places.
+
+    **Recommendation, with the options, per protocol section 6.** Three exist.
+    *(a) Leave it.* Costs one white frame per cold load to viewers on dark,
+    and nothing else; the preference stays in one place. *(b) Mirror the
+    resolved theme into `localStorage` at every point the bundle is read or
+    written, and read it from a pre-mount script in `app/index.html`.* Closes
+    the flash completely and is the prototype's own shape, at the cost of a
+    second home for one field and four places that must stay in step. *(c)
+    Send the attribute with the document*, the server knowing the session and
+    therefore the column, which closes it with no second store at all but
+    makes the SPA shell no longer a static file, which 11.4 and the
+    one-deployable shape both lean on.
+
+    **This role recommends (b) and does not build it**, because the flash is
+    visible on the surface Imran reviews at dana.so every day of this arm and
+    one white frame is the kind of thing item 31's review is for, and because
+    (c) trades a smaller problem for a larger one. The mirror is
+    write-through and single-direction: the column stays the truth, the
+    browser copy is a cache that a wrong value only costs one frame of. If it
+    is taken, it belongs with a sentence in section 9.7 saying so, and the
+    fifty-two of item 41(d) are the precedent for how a decision like it
+    becomes real rather than remembered.
+
+    **Routed to the Steward and to the owner, not decided here.** Until it is
+    answered, `shell/appearance.ts` stands as written and L-080 is verified
+    rather than closed: the ledger's question is answered, the fix is not
+    made, and which of the three happens is a decision about where a
+    preference lives, which is his.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
