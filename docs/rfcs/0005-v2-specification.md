@@ -2048,6 +2048,43 @@ fold, the way P7's mid-package change control ratified the pass callable:
     and 7.8's `my-day` endpoint path, and the path is frozen section 7 and
     stays.
 
+30. **S16's route-table reading is upheld with a stronger reason, and 9.7's
+    Appearance section is assigned (Integration Steward, 2026-08-25).** Two
+    answers to the S16 session. Numbered 30 because that session holds 29 on
+    an unpushed branch; if these land out of order, that is why.
+
+    **`/privacy` and `/terms` correctly have no row in 9.1's route table, and
+    adding one would be a defect rather than a tidy-up.** S16 kept them out
+    on the S10 saved-views precedent and asked to be corrected if that was
+    wrong. It was right, and the reason is stronger than the precedent it
+    used: F-8's ruling, now AC-239, sends **any** unauthenticated read of an
+    `/app` route to `/`. A privacy policy is read overwhelmingly by people
+    who are not signed in, and Google's OAuth consent configuration fetches
+    it with no session at all. Putting those two paths in the application's
+    table would make that redirect bounce precisely the audience they exist
+    for, breaking the obligation S16 was built to satisfy in the act of
+    satisfying it. They are the landing's neighbours, 9.2 names them, and
+    they stay outside `/app`. Verified rather than assumed: section 9
+    mentions them only in 9.2 and never in 9.1's table.
+
+    **9.7's Appearance section, and the Account storage line, are assigned to
+    S17b.** The S16 session found them owned by nobody and was right to stop
+    rather than absorb them: 9.7 names five sections, that package's scope
+    was the Views pin list, and neither S17a nor S17b named the rest.
+    Verified here: the 4.19 bundle carries `theme`, `density`, `clock` and
+    `task_open`, all four stored since S7, while `SettingsPage.tsx` renders
+    Pages, Account and Danger zone with **no Appearance section and no
+    control for any of the four**. The client therefore persists four
+    preferences a person has no way to set.
+
+    This is item 9's and item 20's shape a third time, one level down: a
+    thing section 9 names, that a package's scope excluded, that no later row
+    picked up. Recorded as a pattern rather than an incident, because three
+    occurrences is where it stops being bad luck: **scoping a package by
+    naming what it includes silently orphans the remainder.** The cheap guard
+    for whoever writes the next plan row is to name what a row is *not*
+    taking whenever it takes part of a numbered section.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
