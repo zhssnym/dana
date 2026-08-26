@@ -1716,6 +1716,47 @@ export async function createShelf(page: Page, name: string): Promise<{ id: strin
 }
 
 /**
+ * A folder put on a shelf, or taken off every shelf with null.
+ *
+ * A shelf's membership is frozen 7.4's `folder_members.label`, held in step
+ * with the shelf's own name by 4.18, so putting a folder on a shelf is
+ * writing that shelf's name onto the viewer's membership. This is what the
+ * row's "Move to shelf" commits, and a fixture uses the address rather than
+ * the control so a case can measure the Library instead of the menu.
+ */
+export async function labelFolder(
+  page: Page,
+  id: string,
+  label: string | null,
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.patch(`/api/v1/folders/${id}/my-membership`, {
+    data: { label },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PATCH /folders/${id}/my-membership answered ${response.status()}: ${await response.text()}`,
+  ).toBe(200)
+}
+
+/**
+ * A shelf removed at a case's close, so the Library the rest of this leg
+ * reads is the one the runner seeded. 7.16's delete unlabels its folders and
+ * keeps them, so this leaves no folder behind either.
+ */
+export async function deleteShelf(page: Page, id: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.delete(`/api/v1/shelves/${id}`, {
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `DELETE /shelves/${id} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(204)
+}
+
+/**
  * The tab strip of 9.1, addressed the way its roles table fixes: a tablist
  * of tabs, the active one current. `getByRole('tab')` resolves through
  * aria, so these return nothing at all against a client with no strip,
