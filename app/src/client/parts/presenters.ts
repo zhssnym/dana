@@ -308,6 +308,29 @@ export function folderMark(folder: Folder | undefined): FolderMark {
 }
 
 /**
+ * A shelf's mark, through the same resolver, added at S17b when shelves
+ * reached the Library.
+ *
+ * 4.18 gives a shelf the same two identity columns 4.3 gives a folder, an
+ * icon key and a colour, and 9.10 calls the shelf "the folder page one level
+ * up" with "a mark (icon and colour)" of its own. So the resolution is the
+ * same resolution and this is a second signature rather than a second
+ * implementation: one glyph table, one default, and a shelf that has chosen
+ * nothing answering the plain glyph exactly as a folder does. Writing
+ * `markIcon(shelf.icon)` at the sidebar's call site would have been shorter
+ * and would have been the second resolver DES-130 exists to prevent.
+ */
+export function shelfMark(shelf: {
+  readonly icon: string | null
+  readonly color: string | null
+}): FolderMark {
+  return {
+    icon: markIcon(shelf.icon),
+    color: shelf.color ?? DEFAULT_FOLDER_COLOR,
+  }
+}
+
+/**
  * A folder's display trio, resolved by id.
  *
  * This is the mismatch this module exists for. 7.0's `TaskCard` carries a
@@ -409,12 +432,24 @@ export function folderIdsForNames(
  *
  * `localeCompare` rather than a code-unit sort: 9.1 says "labels ascending"
  * and spells no collation, and a person's own label is free text they wrote.
+ *
+ * **The shelves join the labels at S17b**, and the two callers are why it is
+ * one list rather than two. This feeds the "Move to shelf" submenu, which has
+ * to offer a shelf holding nothing or a person can never put the first folder
+ * on one; and it feeds the group dialog's duplicate check, which has to refuse
+ * a name a shelf already carries or the create below it hits 7.16's own
+ * refusal with a message about groups. 4.18 makes them one namespace, a
+ * shelf's name being its folders' label, so a union is what that namespace is.
  */
-export function folderGroupLabels(folders: readonly Folder[]): string[] {
+export function folderGroupLabels(
+  folders: readonly Folder[],
+  shelves: readonly { readonly name: string }[] = [],
+): string[] {
   const labels = new Set<string>()
   for (const folder of folders) {
     if (folder.my_label !== null) labels.add(folder.my_label)
   }
+  for (const shelf of shelves) labels.add(shelf.name)
   return [...labels].sort((a, b) => a.localeCompare(b))
 }
 

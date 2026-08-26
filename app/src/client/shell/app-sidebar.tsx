@@ -98,7 +98,7 @@ The labels are the viewer's own, from the `my_label` of 7.4's membership row,
 so the same folder is inside a group for one member and among the unlabeled
 for another. AC-155 reads all four clauses.
 */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
 /* The icon module of DES-125, since S8: one file owns the family and
@@ -111,9 +111,10 @@ import {
   FolderPlus,
   Folders,
   LogOut,
-  MoreHorizontal,
-  Pencil,
+
+
   Search,
+  Workflow,
   Settings as SettingsGlyph,
   Bookmark,
   Trash2,
@@ -153,8 +154,9 @@ import {
   TooltipTrigger,
 } from '../components/ui/tooltip.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
+import { ObjectMenu } from '../components/object-menu.js'
 import { useDuplicateFolder } from '../api/mutations.js'
-import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
+import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
 import { paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from './NotificationsBell.js'
 import { openInNewTab } from './tabs.js'
@@ -178,6 +180,51 @@ import {
 import type { DirectoryEntry } from './library-order.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
+
+/* A stable empty list, so a shelves read still in flight does not rebuild the
+   column's memo on every render of the shell above it. */
+const NO_SHELVES: readonly Shelf[] = []
+
+/* One class for the three, because they are one row and a difference between
+   them here would be a difference nobody decided. */
+const ROW_OF_THREE_CLASS =
+  'h-[var(--shell-sidebar-item-height)] w-full justify-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0'
+
+/**
+ * The glyph on a Library group's heading.
+ *
+ * A shelf wears its own mark, 4.18's icon and colour through the one resolver
+ * S17a built for a folder's (DES-130), so a person who put a suitcase on
+ * Travel meets a suitcase in the Library. A label no shelf row names has no
+ * identity to draw and keeps the plain Folders glyph the group always had.
+ */
+function GroupGlyph({
+  shelf,
+  className,
+}: {
+  readonly shelf: Shelf | null
+  readonly className: string
+}): React.JSX.Element {
+  if (shelf === null) {
+    return (
+      <Folders
+        className={`${className} text-[var(--color-graphite-500)]`}
+        strokeWidth={1.75}
+        aria-hidden="true"
+      />
+    )
+  }
+  const mark = shelfMark(shelf)
+  return (
+    <mark.icon
+      className={className}
+      style={{ color: mark.color }}
+      strokeWidth={1.75}
+      aria-hidden="true"
+    />
+  )
+}
 import { PersonFace } from '../components/person-face.js'
 
 /**
@@ -538,6 +585,11 @@ function FolderGroupBlock({
 }): React.JSX.Element {
   const [open, setOpen] = useState(true)
   const self = groupKey(group.label)
+  const navigate = useNavigate()
+  /* Null for a label no shelf row names, which is what makes the reaching
+     acts absent rather than broken: 9.10's page is the shelf's, and a label
+     that is not one has no address to open or to copy. */
+  const shelfPath = group.shelf === null ? null : paths.shelf(group.shelf.id)
 
   /*
   The group's own folders, on the same engine as everything else.
@@ -616,60 +668,111 @@ function FolderGroupBlock({
           )}
           <CollapsibleTrigger
             data-sidebar-tier="group"
-            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+            /*
+            The glyph is the disclosure and the name is the way in (DES-207),
+            which is the designer's own sentence and the whole of what S17b
+            changes about this row.
+
+            The whole row used to toggle, and that was right while a shelf was
+            only a heading over some folders. It has a page now (9.10), so the
+            row behaves like every other row that names something you can
+            open: the label goes there, and the disclosure keeps the corner it
+            already announced, the Folders glyph having swapped to a chevron
+            on hover since the day it was drawn. Both halves are kept because
+            9.1 asks for both, "a shelf is a collapsible group of folder rows
+            headed by its name", and a heading that became a link and stopped
+            folding would trade one defect for another. AC-214's Library still
+            collapses; AC-251 reads both.
+
+            **The name is a link where the designer draws a button**, and the
+            departure is this client's own consistency rather than a
+            preference: every folder row in this Library is a link, 9.1's
+            roles table makes them one, and a shelf row that navigated on
+            click without being one would be the only row here a middle click
+            could not open in a tab. **Where no shelf row backs the label
+            there is nothing to link to**, so the name stays plain text and
+            the row reads exactly as it did: an account labelled before 7.16
+            existed loses nothing.
+            */
+            aria-label={`Show the folders on ${group.label}`}
+            className="flex h-full shrink-0 items-center rounded-md py-0 pl-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           >
             <span className="relative size-4 shrink-0" aria-hidden="true">
-              <Folders
-                className="absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
-                strokeWidth={1.75}
+              <GroupGlyph
+                shelf={group.shelf}
+                className="absolute inset-0 !size-4 opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
               />
               <ChevronDown
                 className={`absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${open ? '' : '-rotate-90'}`}
                 strokeWidth={1.75}
               />
             </span>
-            <span className="truncate">{group.label}</span>
           </CollapsibleTrigger>
-          {/* Opacity and never a collapsed box, the rule `folder-row.tsx`
-              records: a control with an empty bounding box is not visible to
-              anything that addresses it by role and name. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                  aria-label={MORE_ACTIONS}
-                  // The heading row is the group's grip, so its own controls
-                  // have to say they are not: a press on a control belongs to
-                  // that control (`grip`, in `library-drag.ts`).
-                  data-no-drag
-                />
-              }
+          {group.shelf === null ? (
+            <span className="flex h-full min-w-0 flex-1 items-center gap-2 py-0 pr-1 pl-2 text-left text-[13px] font-semibold">
+              <span className="truncate">{group.label}</span>
+            </span>
+          ) : (
+            <Link
+              to={paths.shelf(group.shelf.id)}
+              data-sidebar-tier="group"
+              data-no-drag
+              className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-2 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             >
-              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                onClick={() => {
-                  groups.onRenameGroup(group.label)
-                }}
-              >
-                <Pencil className="size-4" aria-hidden="true" />Rename group
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => {
-                  groups.onDeleteGroup(group.label)
-                }}
-              >
-                <Trash2 className="size-4" aria-hidden="true" />Delete group
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <span className="truncate">{group.label}</span>
+            </Link>
+          )}
+          {/*
+          From the contract, like every other object's menu, since S17b
+          (DES-201). This used to be two hand-written items, Rename group and
+          Delete group, and the audit's object-menu row names the gap: "the
+          group menu lacks History, Copy link, Duplicate, Save as workflow".
+          Those are not four features, they are four acts a shelf has and this
+          surface was not offering, which is exactly the shape S17a built
+          `lib/object-acts.ts` to end.
+
+          **A group with no shelf row keeps the two items it had**, supplied
+          as the same two acts rather than as a second menu: rename and delete
+          are what a bare label can do, and the contract's own safety property,
+          an act with no handler not drawing, is what expresses that. So the
+          menu narrows for a label and widens for a shelf without either being
+          a special case.
+
+          Opacity and never a collapsed box, the rule `folder-row.tsx`
+          records: a control with an empty bounding box is not visible to
+          anything that addresses it by role and name.
+          */}
+          <ObjectMenu
+            kind="shelf"
+            name={group.label}
+            width="w-44"
+            handlers={{
+              open: shelfPath === null ? undefined : () => { navigate(shelfPath) },
+              rename: () => { groups.onRenameGroup(group.label) },
+              'copy-link':
+                shelfPath === null
+                  ? undefined
+                  : () => {
+                      void navigator.clipboard?.writeText(
+                        new URL(shelfPath, globalThis.location.origin).toString(),
+                      )
+                    },
+              delete: () => { groups.onDeleteGroup(group.label) },
+            }}
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                aria-label={MORE_ACTIONS}
+                // The heading row is the group's grip, so its own controls
+                // have to say they are not: a press on a control belongs to
+                // that control (`grip`, in `library-drag.ts`).
+                data-no-drag
+              />
+            }
+          />
         </div>
         <CollapsibleContent>
           <SidebarMenu className="pb-1">
@@ -740,19 +843,25 @@ function FolderGroupBlock({
  */
 function LibraryColumn({
   folders,
+  shelves,
   order,
   onOrderChange,
   activeId,
   groups,
 }: {
   readonly folders: readonly Folder[]
+  /** The viewer's shelves (7.16), which since S17b are what a group is. */
+  readonly shelves: readonly Shelf[]
   readonly order: readonly string[]
   readonly onOrderChange: (ids: readonly string[]) => void
   readonly activeId: string | null
   readonly groups: FolderGroupActions
 }): React.JSX.Element {
   const zones = useLibraryZones()
-  const entries = useMemo(() => arrangeColumn(folders, order), [folders, order])
+  const entries = useMemo(
+    () => arrangeColumn(folders, order, shelves),
+    [folders, order, shelves],
+  )
 
   /** The column with one entry moved, written back as a folder sequence. */
   function commit(next: readonly DirectoryEntry[]): void {
@@ -1033,6 +1142,7 @@ function AccountMenu({
 export function AppSidebar({
   pinnedViews,
   folders,
+  shelves,
   sidebarOrder,
   onSidebarOrderChange,
   groups: groupActions,
@@ -1048,6 +1158,8 @@ export function AppSidebar({
   onOpenSearch,
   onOpenSettings,
   onNewFolder,
+  onNewShelf,
+  onImportWorkflow,
   onSignOut,
 }: {
   /**
@@ -1060,6 +1172,18 @@ export function AppSidebar({
    */
   readonly pinnedViews: readonly string[] | undefined
   readonly folders: readonly Folder[] | undefined
+  /**
+   * The viewer's shelves (7.16), and the prop whose absence was the whole of
+   * the audit addendum's finding.
+   *
+   * The shell fetched `useShelves` and passed it nowhere, so 9.1's "holding
+   * the viewer's shelves and folders as one ordered list" was unimplemented
+   * for the shelves half and no work on the heading or a New shelf control
+   * could reach it. Absent while the read is in flight or has failed, and the
+   * Library then draws the label groups it always drew rather than emptying,
+   * which is `pinnedViews`' own rule applied to the column.
+   */
+  readonly shelves: readonly Shelf[] | undefined
   /**
    * The viewer's arrangement of the Library, from the 4.19 bundle.
    *
@@ -1088,10 +1212,17 @@ export function AppSidebar({
   readonly onOpenSearch: () => void
   readonly onOpenSettings: () => void
   readonly onNewFolder: () => void
+  /** 9.1's second act of making, which 7.16's POST /shelves is behind. */
+  readonly onNewShelf: () => void
+  /** 9.1's third: a workflow file, handed to 7.16's import as parsed text. */
+  readonly onImportWorkflow: (file: File) => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
   const { setOpen: setHelpOpen, sheet: helpSheet } = useHelpSheet()
+  /* The file input the Import button presses, hidden because a bare file
+     control cannot be given the row's shape and a button that opens one can. */
+  const workflowInput = useRef<HTMLInputElement>(null)
   const inbox = inboxOf(folders ?? [])
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
@@ -1228,6 +1359,7 @@ export function AppSidebar({
 
               <LibraryColumn
                 folders={folders ?? []}
+                shelves={shelves ?? NO_SHELVES}
                 order={sidebarOrder}
                 onOrderChange={onSidebarOrderChange}
                 activeId={activeFolderId}
@@ -1252,21 +1384,116 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        {/*
+        The row of three (DES-209, DES-216), which arrived at S17b with the
+        surfaces that make it. The sentence this replaces said so in the
+        future tense: "the other two acts that row owes, New shelf and
+        Import, arrive with the surfaces they make."
+
+        9.1: "then a row of three placed by role: New shelf, Import (a
+        workflow file), and Trash, the first two acts of making and the third
+        a destination." **Trash keeps the place the older footer already gave
+        it and gains the two neighbours it was waiting for**, so nothing about
+        the reading that put it here has changed: it is a destination, and it
+        ends the row because it is the only one of the three that is somewhere
+        you go rather than something you do. It is still a link where the
+        other two are buttons, which is that distinction made in the markup
+        rather than only in a comment.
+
+        **Whose label survives narrowing is arithmetic and not rank**
+        (DES-216, and Imran on 2026-08-24: "New shelf is not fully visible,
+        the remaining two should be shortened"). The three words need more
+        room than the default row has, and "New shelf" is the label that was
+        clipping and the one that reads worst clipped, so it keeps its word at
+        every width and the other two go to their glyphs until the row
+        genuinely fits all three. A container query asks the row how much room
+        it has, so the answer follows the drag rather than a breakpoint
+        somebody guessed.
+
+        **Each carries an `aria-label` as well as its text**, which is not
+        belt and braces: with the label hidden the button would have no
+        accessible name at all, and 9.1's addressing sentence makes every
+        control it names reachable by role and name in every state. The
+        tooltip says more than the name for the same reason it does in the
+        prototype, and 9.1's "all three named by tooltip in every state" is
+        satisfied by the name being inside it.
+        */}
+        <SidebarMenu className="@container mb-1 flex-row gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-0.5">
+          {/* Content-sized rather than equal thirds: equal shares gave "New
+              shelf" the same room as "Trash" and clipped it while its
+              neighbours sat in slack (Imran, 2026-08-24). */}
+          <SidebarMenuItem className="min-w-0 flex-auto">
+            <SidebarMenuButton
+              data-sidebar-tier="action"
+              aria-label="New shelf"
+              tooltip="New shelf, a group of folders"
+              className={ROW_OF_THREE_CLASS}
+              onClick={onNewShelf}
+            >
+              <Folders className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate group-data-[collapsible=icon]:hidden">New shelf</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className="min-w-0 flex-auto">
+            <SidebarMenuButton
+              data-sidebar-tier="action"
+              aria-label="Import"
+              tooltip="Import a workflow"
+              className={ROW_OF_THREE_CLASS}
+              onClick={() => {
+                workflowInput.current?.click()
+              }}
+            >
+              <Workflow className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate group-data-[collapsible=icon]:hidden @max-[262px]:hidden">
+                Import
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className="min-w-0 flex-auto">
+            <SidebarMenuButton
+              data-sidebar-tier="action"
+              aria-label="Trash"
+              tooltip="Trash, deleted items, kept 30 days"
+              isActive={currentPath === paths.trash}
+              className={ROW_OF_THREE_CLASS}
+              render={<Link to={paths.trash} />}
+            >
+              <Trash2 className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate group-data-[collapsible=icon]:hidden @max-[262px]:hidden">
+                Trash
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {/*
+        The workflow file itself (7.16's POST /workflows/import), read in the
+        browser and handed over as parsed structure.
+
+        The import is client-side only as far as reading the bytes goes: 10.3
+        caps a workflow file's contents and the server is what enforces every
+        one of those caps, so what this does is hand the endpoint a document
+        and let it refuse. A file that is not JSON at all is refused here,
+        because sending a parse failure to the server as a 400 would tell the
+        person less than the sentence the page can write itself.
+        */}
+        <input
+          ref={workflowInput}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file === undefined) return
+            void onImportWorkflow(file)
+          }}
+        />
         <SidebarMenu>
-          {/*
-          Trash is a destination and not an action (9.1), which is why it
-          sits here beside People and Settings rather than in the row
-          above them where New folder lives: a destination is somewhere
-          you go, look around, and come back from. The other two acts
-          that row owes, "New shelf" and "Import", arrive with the
-          surfaces they make.
-          */}
-          <NavigationRow
-            name="Trash"
-            to={paths.trash}
-            icon={Trash2}
-            active={currentPath === paths.trash}
-          />
+          {/* 9.1: "then People and Settings as links", after the row of
+              three and before the avatar menu. */}
           <NavigationRow
             name="People"
             to={paths.people}

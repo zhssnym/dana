@@ -61,7 +61,6 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
-  caseTitle,
   clickControl,
   createFolder,
   createShelf,
@@ -70,6 +69,7 @@ import {
   labelFolder,
   routesV2,
   seedSubs,
+  shortName,
   sidebar,
   signIn,
   TEST_TIMEOUT_MS,
@@ -90,9 +90,9 @@ interface Fixture {
 }
 
 async function build(page: Page): Promise<Fixture> {
-  const stockedName = caseTitle('ac-251 stocked')
-  const bareName = caseTitle('ac-251 bare')
-  const folderName = caseTitle('ac-251 folder')
+  const stockedName = shortName('s251a')
+  const bareName = shortName('s251b')
+  const folderName = shortName('s251f')
   const stocked = await createShelf(page, stockedName)
   const bare = await createShelf(page, bareName)
   const folder = await createFolder(page, folderName)
