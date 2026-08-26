@@ -3508,6 +3508,87 @@ fold, the way P7's mid-package change control ratified the pass callable:
     than for a further decision; new RFC 0004 rows for the drag package and
     the covers package; and the L-117 correction still outstanding from item
     41(a).
+45. **S22's proof screen cannot be produced at S22, measured 2026-08-26,
+    and the recommendation is that it moves to S23.** RFC 0004's S22 row
+    asks for "one prototype screen runs end to end on real data with its
+    component file unmodified" and its acceptance column for "the proof
+    screen's lifted files diff empty against the prototype except imports".
+    The adapters the row names are built; the proof is not, and the reason
+    is a property of the prototype rather than a shortfall of the package.
+
+    **The measurement.** Every one of the twenty-three files in
+    `docs/design/prototype-v2/src/screens/` falls into one of three piles,
+    and none of the three can answer the acceptance at S22's position in the
+    dependency order.
+
+    - **Eleven are fed by `components/task-row.tsx`**: `important`, `all`,
+      `done`, `tasks`, `my-day`, `assignments`, `planned`, `grouped`,
+      `folder-screen`, `folder-page-v2` and `shelf-page`. That file is 2,867
+      lines, is the first line of S23's row, is `09-complex-interaction.md`'s
+      rather than this role's, and carries the triage's F1 finding: a
+      verbatim lift of it "turns 49 cases red at once". `shell-page.tsx` is
+      S24's for the same kind of reason.
+    - **Six are labs or have no data at all**: `row-lab`, `row-concepts`,
+      `states-page`, `swatch-options`, `transactional-email-screen`, and the
+      two public pages, which run on no data to be end to end about.
+    - **The remainder are wired to their own `useState` and write nowhere.**
+      `people-screen.tsx` is the clearest case and was this session's first
+      candidate: its dependency tree is entirely primitives this client
+      already carries, so it costs nothing to lift, and it takes
+      `initialConnections` and `initialPendingInvites` as values and no
+      callbacks at all. Send invite appends to a local array
+      (`screens/people-screen.tsx:118-126`), Cancel filters one out, Remove
+      connection filters a connection out, and none of the three reaches
+      anything. Lifting it verbatim ships three controls that do nothing on
+      a surface Imran reviews at dana.so the same day, which is the false
+      green protocol section 4 forbids, dressed as a delivery.
+      `settings-screen.tsx` is wired through lib hooks and would qualify,
+      except that it calls `setRowDensity`, which S21 deliberately did not
+      write ("there is no setter: writing the preference is the Settings
+      page's mutation and must stay the one path"), and `setTheme`, which
+      is item 43's. `trash-screen.tsx` is wired and would qualify, except
+      that it draws the permanent delete control item 36 rules in, so
+      lifting it now turns AC-262's absence case red outside the amendment's
+      own commit, which is exactly what the triage's "nothing is weakened
+      silently" forbids.
+
+    **The mechanism, stated plainly, because it is worth more than the
+    finding.** The adapters S22 names have exactly three consumers between
+    them in the prototype: `components/task-row.tsx`, `components/task-card.tsx`
+    and `screens/shell-page.tsx`. No screen file imports `task-writer`,
+    `folder-library`, `people-library` or `task-acts` at all; the only thing
+    a screen takes from this package's territory is `nav-model`'s
+    `pageQuestion`, which `routes.ts` has carried since S9. So the plan's
+    assumption, that a screen exercises the seam, does not hold of the
+    artefact: **the prototype's screens are presentational and its wiring is
+    in its shell**, which is the same architecture this client has and is
+    why the seam sits where it sits.
+
+    **The recommendation, written after item 44's sitting and unaffected by
+    it.** S22a now sits between S22 and S23 on the critical path, and it is a
+    migration and its endpoints rather than a screen, so it changes neither
+    the measurement above nor the answer below. Move the proof to S23 and
+    leave the acceptance otherwise unchanged: `screens/important-screen.tsx`
+    is 117 lines, is the smallest screen that draws tasks, and its only unmet
+    dependency is `task-row.tsx` and `task-section.tsx`, which S23 is lifting
+    anyway. The proof then costs S23 one small file rather than costing S22 a
+    package it does not own, and it proves strictly more, because it
+    exercises the `TaskCard` mapping this package built and S22 could only
+    unit-test. S22's own acceptance becomes the adapters plus their seam
+    comments, which is the rest of the row's own acceptance column as written.
+
+    **What stands behind the seam meanwhile**, so the recommendation is not
+    a request to take six modules on trust: 26 unit cases in
+    `app/src/client/lib/adapter-seam.test.ts`, one per sentence each module's
+    header claims about what it crosses. They are unit tests and this role's
+    own under protocol section 8; no acceptance criterion is written, edited
+    or weakened by this package, the triage having moved none to S22.
+
+    **Routed to the Steward, not decided here.** RFC 0004's table is the
+    plan's and this role owns no file in `docs/rfcs/`; the row above is a
+    finding with a recommendation, and moving the row is the Steward's edit.
+    Until it is made, S22's row reads as unmet on its proof clause and met
+    on everything else, and that is the honest state rather than a green one.
 
 ## Implementation plan
 

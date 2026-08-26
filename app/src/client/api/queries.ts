@@ -104,10 +104,19 @@ export function useMultiMemberFolderIds(): ReadonlySet<string> {
   )
 }
 
-export function useFolder(id: string): UseQueryResult<GetFolderResponse> {
+export function useFolder(
+  id: string,
+  /* Off where the caller has no folder yet, which is what an assignee picker
+     mounted before its task is known has. Without it the query fires at
+     `/folders/`, and a trailing slash is not a 404 here, it is the list
+     endpoint answering an array this shape refuses. The default keeps every
+     existing call site as it was, which is `useShelves`'s own arrangement. */
+  enabled = true,
+): UseQueryResult<GetFolderResponse> {
   return useQuery({
     queryKey: queryKeys.folder(id),
     queryFn: () => getPlain(getFolderResponse, `/folders/${id}`),
+    enabled,
   })
 }
 
