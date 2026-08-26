@@ -98,15 +98,21 @@ async function build(page: Page): Promise<Fixture> {
   const folderName = caseTitle('ac-256 doomed')
   const folder = await createFolder(page, folderName)
 
+  /* The two deletes answer differently and both are 7.13's soft one: a task
+     answers 204 and a folder answers 200 carrying the counts of what went with
+     it, which is what the undo bar and the confirm-free delete of 9.6 read. */
   const csrf = await csrfToken(page.context())
-  for (const path of [`/api/v1/tasks/${task.id}`, `/api/v1/folders/${folder.id}`]) {
+  for (const [path, expected] of [
+    [`/api/v1/tasks/${task.id}`, 204],
+    [`/api/v1/folders/${folder.id}`, 200],
+  ] as const) {
     const response = await page.request.delete(path, {
       headers: { 'X-CSRF-Token': csrf },
     })
     expect(
       response.status(),
       `DELETE ${path} answered ${response.status()}: ${await response.text()}`,
-    ).toBe(204)
+    ).toBe(expected)
   }
 
   return {

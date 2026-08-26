@@ -171,21 +171,31 @@ test.describe('AC-255: Settings carries Appearance', () => {
       )
       .toBe('dark')
 
+    /* Polled rather than read once, and the distinction is the mechanism
+       rather than flakiness: a fresh document paints 4.19's default while the
+       bundle read is in flight and takes the stored value when it answers, so
+       the honest question is "does it end up dark" rather than "is it dark on
+       the first frame". A control that stored nothing never reaches it. */
     await page.reload()
-    expect(
-      await themeAttribute(page),
-      'spec 4.19: the choice is written to the bundle, so a fresh document reads it back. A ' +
-        'control holding the value in page state passes the assertion above and fails this one',
-    ).toBe('dark')
+    await expect
+      .poll(() => themeAttribute(page), {
+        message:
+          'spec 4.19: the choice is written to the bundle, so a fresh document reads it ' +
+          'back. A control holding the value in page state passes the assertion above and ' +
+          'fails this one',
+      })
+      .toBe('dark')
 
     /* And it is the application's, not the Settings page's: the theme follows
        the person onto every page, which is what one document attribute means. */
     await page.goto(routesV2.today)
-    expect(
-      await themeAttribute(page),
-      'DES-205 puts the theme under Appearance because it is "about how Dana draws", which ' +
-        'is every page rather than the one carrying the control',
-    ).toBe('dark')
+    await expect
+      .poll(() => themeAttribute(page), {
+        message:
+          'DES-205 puts the theme under Appearance because it is "about how Dana draws", ' +
+          'which is every page rather than the one carrying the control',
+      })
+      .toBe('dark')
   })
 
   test('AC-255: a chosen clock writes a row\'s time and survives a reload', async ({ page }) => {
