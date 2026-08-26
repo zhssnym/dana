@@ -46,6 +46,8 @@ import type { TaskCard } from '../../shared/tasks.js'
 import type { FolderGroupOption } from '../components/folder-group-dialog.js'
 import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
+import { formatTime } from '../lib/time-format.js'
+import type { TimeFormat } from '../lib/time-format.js'
 
 /* ------------------------------------------------------------------ *
  * Today
@@ -93,8 +95,13 @@ hand-written string. There was therefore nothing to port and the rule below is
 this session's, built to reproduce those strings exactly.
 
 **The time is carried when the row has one, on Q4's sentence:** dated rows
-"show due date and time like a Planned row". 24-hour notation, per the
-corpus-wide convention, and to minute precision because that is 4.11's.
+"show due date and time like a Planned row", to minute precision because that
+is 4.11's. **On the viewer's own clock since S17b**, where this read "24-hour
+notation, per the corpus-wide convention": that convention is this
+repository's for its documents, and 9.7 gives the person the choice for their
+rows. The notation therefore arrives on the context rather than being decided
+here, and a fresh account reads 12-hour, which is `lib/time-format.ts`'s
+default and Imran's ruling of 2026-08-18.
 
 **The month names are a fixed table and not `Intl`.** A locale-driven
 formatter renders "août" on a French browser beside section 9's English copy,
@@ -154,14 +161,24 @@ export function formatDueDate(dueDate: string, today: string): string {
 }
 
 /**
- * 4.11's wall-clock time as a row shows it: HH:MM, 24-hour.
+ * 4.11's wall-clock time as a row shows it, on the viewer's own clock.
  *
  * The column is rendered by Postgres as HH:MM:SS and read tolerantly by the
  * shared shape, so the seconds are dropped here rather than assumed absent.
+ *
+ * **It was fixed at 24-hour until S17b, and that was the clock preference's
+ * missing half.** `lib/time-format.ts` has been "the one place a time becomes
+ * words" since S11 and this was a second place, invisible because the two
+ * agreed whenever a person had not chosen: 12-hour is that module's default
+ * and this was not it, so a fresh account read 17:30 on its rows and 5:30 PM
+ * in its pickers. 9.7 names the control, S17b built it, and a control that
+ * changed the picker and left every row alone would be a setting nobody could
+ * see, which is the defect item 30 records one level up.
  */
-function formatDueTime(dueTime: string): string {
+function formatDueTime(dueTime: string, clock: TimeFormat): string {
   const match = /^(\d{2}):(\d{2})/.exec(dueTime)
-  return match === null ? dueTime : `${match[1] ?? ''}:${match[2] ?? ''}`
+  if (match === null) return dueTime
+  return formatTime(`${match[1] ?? ''}:${match[2] ?? ''}`, clock) ?? dueTime
 }
 
 /** What `TaskRowProps['due']` is, named so the rule below has a return type. */
@@ -178,11 +195,14 @@ export type DueDisplay = NonNullable<TaskRowProps['due']>
 export function dueDisplay(
   task: Pick<TaskCard, 'status' | 'due_date' | 'due_time'>,
   today: string,
+  /* The viewer's clock (9.7, 4.19). Defaulted to the module's own default so
+     the callers that draw a date and never a time need not thread it. */
+  clock: TimeFormat = '12',
 ): DueDisplay | undefined {
   const { due_date: dueDate, due_time: dueTime } = task
   if (dueDate === null) return undefined
 
-  const suffix = dueTime === null ? '' : ` ${formatDueTime(dueTime)}`
+  const suffix = dueTime === null ? '' : ` ${formatDueTime(dueTime, clock)}`
   const overdue = task.status === 'pending' && dueDate < today
 
   if (overdue) {
@@ -308,6 +328,29 @@ export function folderMark(folder: Folder | undefined): FolderMark {
 }
 
 /**
+ * A shelf's mark, through the same resolver, added at S17b when shelves
+ * reached the Library.
+ *
+ * 4.18 gives a shelf the same two identity columns 4.3 gives a folder, an
+ * icon key and a colour, and 9.10 calls the shelf "the folder page one level
+ * up" with "a mark (icon and colour)" of its own. So the resolution is the
+ * same resolution and this is a second signature rather than a second
+ * implementation: one glyph table, one default, and a shelf that has chosen
+ * nothing answering the plain glyph exactly as a folder does. Writing
+ * `markIcon(shelf.icon)` at the sidebar's call site would have been shorter
+ * and would have been the second resolver DES-130 exists to prevent.
+ */
+export function shelfMark(shelf: {
+  readonly icon: string | null
+  readonly color: string | null
+}): FolderMark {
+  return {
+    icon: markIcon(shelf.icon),
+    color: shelf.color ?? DEFAULT_FOLDER_COLOR,
+  }
+}
+
+/**
  * A folder's display trio, resolved by id.
  *
  * This is the mismatch this module exists for. 7.0's `TaskCard` carries a
@@ -409,12 +452,24 @@ export function folderIdsForNames(
  *
  * `localeCompare` rather than a code-unit sort: 9.1 says "labels ascending"
  * and spells no collation, and a person's own label is free text they wrote.
+ *
+ * **The shelves join the labels at S17b**, and the two callers are why it is
+ * one list rather than two. This feeds the "Move to shelf" submenu, which has
+ * to offer a shelf holding nothing or a person can never put the first folder
+ * on one; and it feeds the group dialog's duplicate check, which has to refuse
+ * a name a shelf already carries or the create below it hits 7.16's own
+ * refusal with a message about groups. 4.18 makes them one namespace, a
+ * shelf's name being its folders' label, so a union is what that namespace is.
  */
-export function folderGroupLabels(folders: readonly Folder[]): string[] {
+export function folderGroupLabels(
+  folders: readonly Folder[],
+  shelves: readonly { readonly name: string }[] = [],
+): string[] {
   const labels = new Set<string>()
   for (const folder of folders) {
     if (folder.my_label !== null) labels.add(folder.my_label)
   }
+  for (const shelf of shelves) labels.add(shelf.name)
   return [...labels].sort((a, b) => a.localeCompare(b))
 }
 
@@ -547,6 +602,18 @@ export interface RowContext {
    * so the default is true, and Done is the only caller that passes false.
    */
   readonly showDue?: boolean
+  /**
+   * The viewer's clock (9.7, stored at 4.19), which decides how a due time is
+   * written and never which times can be reached.
+   *
+   * Carried on the context rather than read inside this module, because
+   * nothing here reads a store any more than it reads a date: the same rule
+   * this file's header states for `today`, and for the same reason, that a
+   * pure function of its inputs is the only kind these unit tests can pin.
+   * `useRowBasis` subscribes and puts the answer here, so every row on a page
+   * redraws together when the preference moves.
+   */
+  readonly clock?: TimeFormat
 }
 
 /**
@@ -635,6 +702,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     showFolder = true,
     showPullMarker = false,
     showDue = true,
+    clock = '12',
   } = context
 
   /*
@@ -655,7 +723,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
   return {
     title: task.title,
     folder: showFolder ? folderDisplay(task.folder, folders) : undefined,
-    due: showDue ? dueDisplay(task, today) : undefined,
+    due: showDue ? dueDisplay(task, today, clock) : undefined,
     status: task.status,
     important: task.important,
     importantTooltip: importantTooltipFor(task, starTooltip),

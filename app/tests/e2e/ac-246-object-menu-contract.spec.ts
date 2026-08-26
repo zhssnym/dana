@@ -1,7 +1,7 @@
 /*
 AC-246: given one folder the viewer owns, then the acts its menu offers in the
 sidebar's Library and the acts its own page's menu offers come from one
-declared contract: both menus offer History, Rename, Move to group, Copy link,
+declared contract: both menus offer History, Rename, Move to shelf, Copy link,
 Duplicate, Save as workflow and Delete folder, those acts stand in the same
 relative order in both, and every other item either menu carries is one of the
 four that belong to a surface rather than to the folder, the sidebar's "Add
@@ -11,7 +11,7 @@ offer "Leave folder" in Delete folder's place and neither offers Rename or
 Delete folder.
 
 **The proof of the fault is two menus for one folder, and it is measurable
-today.** The sidebar row's menu offers "New folder group" and "Move to group";
+today.** The sidebar row's menu offers "New folder group" and "Move to shelf";
 the folder page's offers History, Copy link, Duplicate, Save as workflow,
 Rename folder, Transfer ownership and Delete folder. Where a person stands
 decides what they can do to the same object, which is DES-201's sentence at the
@@ -40,7 +40,7 @@ therefore cannot be wrong in the interesting way yet.
 
 Spec: 9.1 (every overflow menu is "More actions"; the window bar's right end
 holds the object's overflow menu), 9.6 (the role matrix and the acts it gives
-each role), AC-180 ("New folder group", "Move to group"), AC-217 (the role
+each role), AC-180 ("New folder group", "Move to shelf"), AC-217 (the role
 split on the page), DES-201, DES-207, and the prototype's `lib/object-acts.ts`.
 */
 import { expect, test } from '@playwright/test'
@@ -72,7 +72,7 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 const CONTRACT = [
   'History',
   'Rename',
-  'Move to group',
+  'Move to shelf',
   'Copy link',
   'Duplicate',
   'Save as workflow',

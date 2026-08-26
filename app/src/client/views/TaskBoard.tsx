@@ -100,7 +100,26 @@ export function TaskBoard({
     columns.find((column) => column.key === key)?.name ?? key
 
   return (
-    <div className="flex items-start gap-4 overflow-x-auto pb-2">
+    /*
+    Two columns per row since S17b, where this was one horizontally scrolling
+    row (`flex items-start gap-4 overflow-x-auto`).
+
+    The prototype's `components/task-board.tsx` is `grid grid-cols-2
+    items-start gap-3 pb-4` and the owner ruled for it, the one-row board
+    being too short: a board is meant to be looked at whole, and a row that
+    scrolls sideways hides its own third column behind a gesture nobody makes
+    on a page they are reading. Wrapping is also what lets a column grow
+    downwards without the board growing wider, which is what a column full of
+    cards actually does.
+
+    **This is the shared board and every place page draws it**, so the change
+    is deliberately not scoped to the folder page that prompted it; AC-259
+    reads the geometry on Anytime and on a folder page for that reason. What
+    the drag engine sees is unchanged: `lib/drop-zones.ts` hit-tests the
+    document rather than a layout, so a column that has wrapped onto the
+    second row is found exactly as one that has not.
+    */
+    <div className="grid grid-cols-2 items-start gap-3 pb-4">
       {columns.map((column) => (
         <BoardColumn
           key={column.key}
@@ -181,7 +200,12 @@ function BoardColumn({
       // value. AC-221 addresses the Groceries column by exactly this.
       aria-label={column.name}
       ref={zones.registerZone(column.key)}
-      className="flex w-80 shrink-0 flex-col gap-1 rounded-lg bg-[var(--color-graphite-25)] p-2"
+      /* The grid track sizes the column now, where `w-80 shrink-0` did while
+         the board was one scrolling row: a fixed width inside a two-column
+         grid either overflows its cell or leaves a gutter beside it, and
+         neither is a decision anybody made. The floor is the prototype's, so
+         a column holding one card is still a column rather than a caption. */
+      className="flex min-h-[280px] min-w-0 flex-col gap-1 rounded-lg bg-[var(--color-graphite-25)] p-2"
     >
       <h2 className="flex h-7 items-center gap-2 px-1 text-[13px] font-semibold text-[var(--color-graphite-700)]">
         <span className="truncate">{column.name}</span>

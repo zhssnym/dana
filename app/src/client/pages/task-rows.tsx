@@ -39,6 +39,8 @@ import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog
 import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM } from '../components/ui/copy.js'
 import { presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
+import { useTimeFormat } from '../lib/time-format.js'
+import type { TimeFormat } from '../lib/time-format.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -57,13 +59,21 @@ export function useRowBasis(): {
   today: string
   viewerId: string | null
   folders: readonly Folder[]
+  clock: TimeFormat
 } {
   const me = useMe()
   const folders = useFolders()
+  /* 9.7's clock, subscribed here so every row of a page redraws together when
+     the preference moves. The store is the one `lib/time-format.ts` owns, and
+     the shell writes the account's value into it when the 4.19 bundle
+     settles; nothing in `presenters.ts` reads it, that module being pure by
+     its own header's rule. */
+  const clock = useTimeFormat()
   return {
     today: presenterToday(),
     viewerId: me.data?.user.id ?? null,
     folders: folders.data ?? [],
+    clock,
   }
 }
 
@@ -151,7 +161,23 @@ export function TaskRows({
   readonly drag?: RowDrag
 }): React.JSX.Element {
   return (
-    <div role="list" className="space-y-0.5">
+    /*
+    9.7's row density reaching a list, at S17b.
+
+    **This is the narrow half of DES-113, and saying so is the point of the
+    comment.** That decision gives a row two *shapes*, two lines against one,
+    and the row that draws both is the v2 `task-row` S15's log row records as
+    not ported. What 9.7 asks for by name is "row density (comfortable,
+    compact)", which is how close a list stands, and that is what a list can
+    honour today: comfortable keeps the spacing every page has had, compact
+    closes it so more fits on a screen. AC-261 asserts the preference and
+    deliberately not the row shape.
+
+    Driven off the document attribute `shell/appearance.ts` sets rather than by
+    threading the bundle into every page, for that file's own reason: a
+    preference about how the whole document draws belongs on the document.
+    */
+    <div role="list" className="space-y-0.5 [[data-density=compact]_&]:space-y-0">
       {tasks.map((task, index) => (
         <TaskRow
           key={task.id}

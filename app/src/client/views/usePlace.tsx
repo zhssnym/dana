@@ -81,8 +81,36 @@ function peopleIn(
  * is a composition over Q5 that section 6's preamble says is not a query at
  * all.
  */
-export function usePlace(spine: PlaceSpine, rows: readonly TaskCard[]): Place {
-  const [filter, setFilter] = usePageFilter(spine.key)
+/**
+ * What a place-page supplies that its spine cannot carry, added at S17b when
+ * the folder page became one.
+ *
+ * Every field exists because it needs the page's own id, which is the whole of
+ * what separates a folder page from the eight in `PLACES`. A page that passes
+ * none of them behaves exactly as it did.
+ */
+export interface PlaceOptions {
+  /**
+   * Where this page's filter is remembered, if not under its spine's key.
+   *
+   * 9.1: "a filter belongs to the page and to the session: kept on return to
+   * that page, never carried to another." Two folders are two pages, so a
+   * folder page keys by its own id; keying by the kind would make a narrowing
+   * on Work follow a person into Home, which is that sentence read backwards.
+   */
+  readonly filterKey?: string
+  /** A capture writing this page's own folder rather than the table's row. */
+  readonly capture?: (title: string, column?: ColumnValue) => void
+  /** The same entry point escalated to 9.3's surface, with the same folder. */
+  readonly openFull?: (column?: ColumnValue) => void
+}
+
+export function usePlace(
+  spine: PlaceSpine,
+  rows: readonly TaskCard[],
+  options: PlaceOptions = {},
+): Place {
+  const [filter, setFilter] = usePageFilter(options.filterKey ?? spine.key)
   const [mode, setMode] = useViewMode(spine.views)
   const [search] = useSearchParams()
   const me = useMe()
@@ -173,8 +201,12 @@ export function usePlace(spine: PlaceSpine, rows: readonly TaskCard[]): Place {
     groupBy,
     people,
     narrow: (input) => applyFilter(input, filter, today),
-    capture,
-    openFull,
+    /* The page's own where it has one: a folder page's capture writes that
+       folder and nothing in `PLACES` knows which. Everything else about a
+       capture, the column's value riding over the page's defaults included,
+       stays here. */
+    capture: options.capture ?? capture,
+    openFull: options.openFull ?? openFull,
   }
 }
 

@@ -2533,6 +2533,149 @@ fold, the way P7's mid-package change control ratified the pass callable:
     values belong in the owning module's unit test under protocol section 8.
     The spent range is AC-251 to AC-256 and 257 is free for the next session.
 
+35. **S17b raises three reads that a numbered section requires and no route
+    answers, and one prototype-versus-frozen-section disagreement it did not
+    settle (2026-08-26, at the package's opening).** Item 20's rule is that a
+    difference between `prototype-v2/` and the client is a defect in the port
+    "unless a numbered section says otherwise", and that a disagreement between
+    the prototype and a numbered section is escalated rather than picked. Three
+    of the four below are the second shape and one is the first. All four were
+    verified against the tree at `9257eb4` before they were written, this
+    package's own rule, and each carries a recommendation as protocol section 6
+    requires.
+
+    **(a) "Delete for ever" has no endpoint and two numbered sections against
+    it. Recommendation: do not port it.** `prototype-v2/src/screens/trash-screen.tsx`
+    offers a per-row "Delete for ever" and an "Empty Trash" behind one confirm,
+    and argues for the confirm well: "it is the only act in Dana with no way
+    back, which is the entire reason to confirm, not because it is destructive,
+    since abandon and delete are destructive too, but because every other
+    destructive act in the product has a bar in the corner offering it back and
+    this one cannot." Two sections disagree and neither is silent. **7.13**:
+    "DELETE of a task or folder sets deleted_at (soft); purge is the tick's, at
+    30 days, permanent." **9.11** enumerates the page and names restore alone.
+    And there is no permanent-delete route anywhere in
+    `app/src/server/routes/`, checked. So this is a section 7 widening, a human
+    decision under protocol section 1, and the recommendation is to leave the
+    control unbuilt: the retention window is the product's promise, and a
+    control that shortens it for one person removes a row another member with
+    access could still restore, which is the property 9.11's "Trash is scoped
+    by access, not by who deleted" rests on. **AC-262's last arm asserts the
+    absence**, so if the ruling goes the prototype's way that arm moves with it
+    rather than the defect going unrecorded.
+
+    **And if it does go that way, one sentence has to travel with the
+    ruling.** 11.7 as change control item 18 amended it says the Trash purge
+    "collects the files rows its folder deletes will cascade away and removes
+    their objects from the store after the delete commits, because those rows
+    are the only index to the bytes and a purge that drops them without the
+    objects grows the disk without bound"; `scheduler/pass.ts` implements it
+    and `domain/accountDeletion.ts` carries the same rule for 8.10. A manual
+    "Delete for ever" is that same act arriving from a request instead of from
+    the tick, so an endpoint that deleted the rows without the collection
+    would leak bytes with no index left to find them by, silently and for
+    ever, and would be the one path in Dana that grows the disk without
+    bound. The recommendation is therefore that such an endpoint call the
+    collection the purge already does rather than write a delete beside it.
+    Recorded now because it is far cheaper to say before a ruling than to
+    discover after one, and it is the half of this escalation a reviewer
+    reading only 7.13 and 9.11 would not see. Raised by the S19 session on
+    2026-08-26 and verified here against 11.7 and `pass.ts` before it was
+    written down; the three roles it would land on are 04's for the frozen
+    section 7 address, 03's for the transaction, and 10's for the store.
+
+    **A ruling is reported to have arrived and this package did not act on it,
+    which is deliberate (2026-08-26, later the same night).** The S19 session
+    relays that Imran has ruled the prototype's way: the prototype is the
+    source and Trash gets a permanent delete control. **Recorded as relayed
+    rather than as read from an artifact**, which is item 22's own standard for
+    a ruling a session did not receive directly, and nothing here moved on it.
+
+    A relay is not the ruling, and protocol section 2 takes state from
+    artifacts: no amendment to 7.13 or 9.11 exists, so what those two sections
+    say is still what AC-262 asserts. More than that, **the reported reasoning
+    appears to rest on a misreading worth resolving before anything is built on
+    it.** The reason given for keeping the files was that a person's own data
+    on their own machine must not be removed, which Dana cannot reach at all:
+    4.16 puts every byte in the object store and names no public object URL.
+    Read literally, the ruling leaves those bytes on Dana's own disk,
+    unreachable, still spending the owner's 1 GB quota, and with no listing
+    anywhere in 7.15 to find them by again, which is exactly the unbounded
+    growth the paragraph above is about. S19 has put both readings back to him.
+
+    So the state to act on is that **the absence stands until 7.13 and 9.11 are
+    amended**; when they are, AC-262's last arm moves with them and the
+    collection question is settled in the same act rather than after it. This
+    paragraph exists so the next session finds the ruling reported, the reading
+    disputed and the criterion unchanged, rather than finding a criterion
+    somebody had quietly rewritten on a relay.
+
+    **(b) 9.11 requires the deleter on every Trash row and the read does not
+    carry one. Recommendation: widen the 7.13 read, which is not frozen.**
+    9.11: "each row naming what it was, where it lived, **who deleted it and
+    when** (from 4.13)". `shared/trash.ts` carries `deleted_at` and no actor,
+    and `server/domain/trash.ts` selects none, though 4.13's event log records
+    one for every delete. So the client cannot draw a clause the section
+    requires, by any client-side work. The recommended shape is
+    `deleted_by: { id, display_name, avatar_url } | null` on both
+    `trashedTask` and `trashedFolder`, joined from the delete event, null where
+    the actor's account has since been scrubbed under 8.10, which is AC-250's
+    own shape for `created_by` and needs no new convention. **7.13 is an RFC
+    0005 route rather than part of frozen 7.0 to 7.11**, so this is narrower
+    than the widenings item 19 approved and does not need their machinery.
+    S17b escalated rather than writing it, protocol section 3 forbidding the
+    reach into `src/server/**`, and the criterion was not written as a failing
+    case, because a criterion no client-side work can make green is a false red
+    rather than a finding.
+
+    **(c) 9.7's Account section names storage used against 10.3's quota and
+    nothing reports usage. Recommendation: add `storage_used` to the
+    `/settings` bundle.** The quota is real and enforced:
+    `server/domain/files.ts` holds `QUOTA_BYTES = 1 GB`, which is RFC 0005's
+    replacement 10.3 row, and refuses an upload that would cross it with a 413.
+    What does not exist is any read that reports the total: `grep -rn
+    storage_used app/src docs/spec` returns nothing, and
+    `server/routes/files.ts` exposes upload, fetch and delete with no listing
+    to sum. The recommended shape is one additive number, `storage_used`, on
+    the `GET /settings` bundle of 4.19, computed as the same `SUM` over the
+    owner's `files` rows that `files.ts` already runs at every upload. That
+    keeps one query in one place, needs no migration, and touches no frozen
+    section, `/settings` being 4.19's own v2 surface. S17b built the
+    Appearance section item 30 assigned it and **left the storage line
+    unbuilt**, because the alternative is a client-side estimate or a
+    fabricated number, and a label with an invented figure behind it is worse
+    than an absent label.
+
+    **(d) 9.7 names four Appearance controls and `prototype-v2` draws two.
+    Recorded as a reading rather than escalated, because 11.13 already
+    settles it.** `settings-screen.tsx` offers Row height and Theme and no
+    clock and no task-open control. 11.13: "section 9 always wins over any
+    design artifact on structure and copy", and the prototype is *short* here
+    rather than contradictory, so there is nothing to escalate: all four are
+    built, theme and density in the prototype's own shape and idiom, the other
+    two beside them. Two consequences are recorded so they are not
+    rediscovered. The prototype's density values are "two" and "one" lines and
+    4.19's column is `comfortable | compact`; the column is the record and
+    DES-113's two row *shapes* need the v2 task row that S15's own log row
+    reports as not ported, so S17b's control writes the preference and drives
+    the list's spacing, and AC-261 asserts exactly that and not the row shape.
+    And `lib/time-format.ts` keeps the clock in `localStorage`, its header
+    saying an account-level version "needs a column, an endpoint and therefore
+    an RFC"; 4.19 and `/settings` are that column and that endpoint, live since
+    S7, so S17b repointed that module at the bundle rather than leaving two
+    records of one fact, which is item 6's rule applied a second time.
+
+    **One documentation gap found in passing and not taken.** The S-fold of
+    item 28 folded section 9 alone. RFC 0005's units for **7.12 to 7.18** and
+    the replacement **10.3** are still unfolded: `docs/spec/07-api.md` ends at
+    7.11 and mentions shelves nowhere, and `docs/spec/10-non-functional.md`'s
+    10.3 table carries no file, comment, storage or body rows. So a session
+    reading the numbered sections for the Trash routes, the shelf routes, the
+    search extension or the storage quota finds nothing and has to know to read
+    this file, which is item 20's own mechanism one section over. Named here
+    rather than absorbed: it is a documentation package like the section 9
+    fold was, and it belongs to the Steward.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

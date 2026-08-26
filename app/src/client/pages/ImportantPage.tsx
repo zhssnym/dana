@@ -17,8 +17,15 @@ depending on where it was mounted.
 
 **"On this one page the star rests unfilled"** is 9.5's v2 sentence and it is
 the row's to keep, not this page's: a filled star on every row of the starred
-page distinguishes nothing. It travels with S11's row work, and this page
-passes nothing new for it.
+page distinguishes nothing. It travels with the v2 row port, which S15's log
+row records as still owed, and this page passes nothing new for it.
+
+**The page ends with the completed foot every page that lists tasks ends
+with** (the owner, 2026-08-22), added at S17b. 9.5 gives that section to All
+in terms and is quiet about this page rather than against it, and the ruling
+and `prototype-v2`'s own comments agree; `states/CompletedFoot.tsx` carries
+the reading, the one implementation, and the seam that comes of there being
+exactly one completed read in this client.
 */
 import { Star } from '../lib/icons.js'
 
@@ -29,6 +36,7 @@ import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
+import { CompletedFoot } from '../states/CompletedFoot.js'
 import { PageBody } from '../states/PageStates.js'
 import { IMPORTANT_EMPTY } from './empty-states.js'
 import { PageHeading } from './page-heading.js'
@@ -90,6 +98,18 @@ export function ImportantPage(): React.JSX.Element {
         ) : (
           <TaskRows tasks={narrowed} context={context} actions={actions} onAsk={confirm.ask} />
         )}
+
+        {/* The owner's ruling of 2026-08-22: every page that lists tasks ends
+            the same way. `states/CompletedFoot.tsx` carries the reasoning and
+            the one seam it has; the predicate is Q4's, this page's own spine,
+            so the foot is this page's work finished rather than every
+            finished thing. */}
+        <CompletedFoot
+          keep={(task) => task.important}
+          context={context}
+          actions={actions}
+          onAsk={confirm.ask}
+        />
       </PageBody>
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>
