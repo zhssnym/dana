@@ -2919,6 +2919,105 @@ fold, the way P7's mid-package change control ratified the pass callable:
     excepted. Criteria that assert a departure are the triage's rework
     pile, AC-093 being the first one known by number.
 
+40. **S20's three documents are ratified, and the ledger found four things
+    the plan did not predict (Integration Steward, 2026-08-26).** The
+    behavioural ledger, the batched rulings sheet and the browser criteria
+    triage are placed at
+    `docs/parity/2026-08-26-prototype-v2-behavioural-ledger.md`,
+    `docs/parity/2026-08-26-lift-rulings-sheet.md` and
+    `docs/parity/2026-08-26-browser-criteria-triage.md`, on the dated-file
+    precedent item 23 set for that directory and for the same reason: a
+    second record appends rather than overwrites, and RFC 0004's rows point
+    at them so the next session finds them by protocol section 2's rule
+    rather than by luck. Three roles, three commits, item 15's discipline:
+    07 for the ledger and the sheet, 11 for the triage, this role for the
+    ratification.
+
+    **What the ledger counts to.** 260 entries; every one of the 23 screens,
+    38 components, 26 ui primitives and 33 lib modules by name, the four
+    design labs included with their verdicts rather than excluded. 146
+    entries read yes against the client, 25 partial, 42 no. **66 read
+    *unspecified*, which is 11.13's mechanism measured for the first time**:
+    sixty-six decisions the prototype makes that no numbered section
+    carries, so no session was ever handed them. The triage's numbers are
+    203 survive, 19 rework, 1 retires, of 223 cases collected by
+    `npx playwright test --list` rather than counted by hand.
+
+    **Four findings, each verified rather than inferred, and each recorded
+    because a later reader would otherwise re-derive it.**
+
+    **(a) The client's task row draws a hand-written menu and no client
+    surface passes `kind="task"` at all.** `lib/object-acts.ts` was ported
+    whole at S17a, and its task half is declared and drawn nowhere:
+    `components/task-row.tsx:405-448` is Edit, Abandon…, Delete…, where 9.3
+    names seven acts in the footer and the contract declares nine. This is
+    section 13 item 42's "More actions carries Delete alone" seen from the
+    contract's side rather than the section's, and it is the sharpest
+    instance of item 39.
+
+    **(b) The 2026-08-25 parity audit is wrong on one row, and this role
+    ratified that audit.** Its conversation row reads "the conversation's
+    four homes reduced to two (DES-135)". The prototype declares **two**,
+    `screens/folder-page-v2.tsx:179`; the folded 9.6 specifies two; the
+    client draws two; and DES-135 is the 800px reading measure, the homes
+    being **DES-142**, "the conversation has two homes; the page's is a
+    closed section", approved by Imran on 2026-08-18. The audit's other
+    rows were spot-checked at ratification and this one was not, which is
+    the honest account of how it stood: item 23 records that this role
+    re-derived the search finding and no other. The ledger supersedes the
+    audit wherever the two disagree, and says so in its own preamble.
+
+    **(c) A verbatim lift breaks 89 green criteria for reasons that are not
+    defects, and the mechanism is the addressing contract rather than
+    behaviour.** The prototype's task row is a `<div>` carrying neither
+    `listitem` nor `row`, where 9.1's roles table fixes one and the harness
+    addresses it (49 cases); its card chips announce their **value** where
+    9.3 makes the name the **field's** (50 cases, ten of them the same
+    files). 11.13 settles both without a ruling: the role and the name are
+    the section's, so the lift owes them at a named seam. **This is the
+    first measured cost of the lift discipline's own sentence**, that a
+    lifted file diffs empty against its prototype original except at named
+    seams: the seams are not only the data modules RFC 0004 enumerated, and
+    the accessibility contract is one of them. The triage carries the list.
+
+    **(d) Six of this RFC's Replace units were never folded into section
+    12.** `docs/spec/12-acceptance-criteria.md` still carries the superseded
+    text for **AC-005, AC-014, AC-025, AC-042, AC-066, AC-093 and AC-094**,
+    while `app/tests/` carries the replacements and says so in its own
+    headers, `ac-014-delete-cascade.test.ts` opening "AC-014 (as replaced by
+    RFC 0005)" and `e2e/ac-093-entry-point-defaults.spec.ts` stating that
+    the RFC's sentence "becomes section 12's own text when the delta folds;
+    until then a reader comparing the two reads the RFC as the authority".
+    This is item 20's class of defect one section over, and item 8's three
+    units were folded, which is why it survived unnoticed. **S29 owns it and
+    its row now names it.**
+
+    **Two corrections owed to RFC 0004's table, both made with this item.**
+    S27's row asks for "the shelf page including whatever S20's rulings
+    decide a shelf's page is", and the answer is that **nothing further is
+    owed**: 9.10 and the prototype agree line for line and the client is
+    built to both, so that clause is struck rather than carried as an open
+    question nobody can close. And S29's row gains finding (d).
+
+    **One thing this role did not do and is naming rather than leaving
+    silent.** The triage escalated a fifth finding, that the prototype's
+    accessible names disagree with 9.1's names table in seven places outside
+    item 39's two axes. It is a ruling rather than a defect, so it was
+    placed on the rulings sheet as row **A2** rather than decided here, with
+    the recommendation the triage carried: 9.1's names stand, because that
+    table is the addressing contract the whole browser leg is built on and
+    none of the seven is visible on a screen. Placing another role's
+    escalation into a document that role owns is recorded here so the sheet's
+    provenance is readable; the sheet says the same in its own words.
+
+    **Numbers, read at this package's opening and again at this merge**, the
+    check items 13 and 25 exist for: next free acceptance number **AC-265**
+    both times and none spent, this package writing no criterion; next
+    SESSION-LOG row **34**; next section 13 item **46**, none written; and
+    this item **40**. `git ls-remote --heads origin v2-build` answered
+    `ba3b36a` at both readings, so nothing was in flight against the branch
+    and the local tip's one unpushed commit was item 39's own.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
