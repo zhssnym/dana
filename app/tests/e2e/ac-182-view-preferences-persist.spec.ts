@@ -66,6 +66,7 @@ import {
   seedSubs,
   sidebar,
   signIn,
+  taskSurface,
   TEST_TIMEOUT_MS,
   V2_PAGE_NAMES,
 } from './harness.js'
@@ -201,18 +202,40 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
     ).toBe(after)
   })
 
-  test('AC-182: a resized task form survives a reload', async ({ page }) => {
+  /*
+  **This case has outlived the sentence it was written against, and that is
+  recorded rather than resolved (S15, RFC 0005 change control item 20).**
+
+  v1's 9.3 carried "The form's width is the viewer's, persisted client-side,
+  on the sidebar's rule in 9.1", which is the sentence the criterion's own
+  clause quotes and the two assertions below read. The v2 replacement drops it
+  entirely: it fixes one width for the pickers ("one shape at one width") and
+  says of the surface only that "the side panel makes the page narrower rather
+  than covering it". So section 9 has gone quiet on this, which is protocol
+  section 6's silence trigger and the shape F-4 reached the Steward as, not a
+  design that changed its mind: the parity target still persists a width,
+  `prototype-v2`'s task-surface remembering a panel width under DES-138.
+
+  Two dispositions are open and item 20 carries both without recommending
+  between them, because they turn on what the owner wants asserted: either 9.3
+  regains a width sentence and this case stands as written, or the case goes
+  the way item 14's counts-carrying folder-delete case went and AC-182 keeps
+  its three sidebar arms. It is left standing and passing in the meantime,
+  which is the state that assumes least; deleting coverage on a guess is the
+  one move that cannot be undone by a ruling.
+  */
+  test('AC-182: a resized task surface survives a reload', async ({ page }) => {
     await page.goto(routesV2.today)
     await clickControl(
       floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form, and Today is one of the three ' +
+      'spec 9.1: the floating add button is a capture point, and Today is one of the three ' +
         'pages that section leaves it on',
     )
 
-    const form = page.getByRole('dialog')
+    const form = taskSurface(page)
     await expect(
       form,
-      "spec 9.1's roles table: the task form is a dialog",
+      "spec 9.1's v2 roles table: the task surface is a dialog when opened as one",
     ).toBeVisible()
     const before = await widthOf(form)
 
@@ -240,7 +263,7 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
         'the surface rather than of the task',
     )
     expect(
-      await widthOf(page.getByRole('dialog')),
+      await widthOf(taskSurface(page)),
       'spec 9.3: the width is persisted client-side, so the form opens at the width the viewer ' +
         'left it at. 9.3 fixes what the form holds and in what order and fixes no width',
     ).toBe(after)

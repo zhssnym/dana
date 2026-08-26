@@ -18,72 +18,86 @@ the endpoints, and no criterion read the two together. A field that is
 offered and silently dropped is the worst kind of defect this suite can miss,
 because the person is told nothing.
 
-**The read is sequenced behind the save.** A click returns once it has been
-dispatched, and a spec's `page.request` read travels on Playwright's own HTTP
-client rather than behind the page's in-flight writes, so a case that clicked
-and read immediately was asking the server a question while the answer was
-still being written. It passed on the timing of one machine. `waitForSaveToSettle`
-is the barrier, and it waits on the form closing, which the client does only
-once every write of that save has settled, and then on the API going quiet.
+**This criterion's premise is falsified by 9.3's v2 replacement, and this
+file is written to say so rather than to work around it.** The sentence above
+turns on there being a moment "while a task is being created" at which a
+reminder can be offered and then discarded, and on the v1 surface there was
+one: the form held a draft and posted it, so the reminder rode the arm of
+frozen 7.6's create body. 9.3's v2 opening removes the draft ("every edit
+commits as it is made, there is no Save control and no draft state") and
+9.1's capture rule removes the moment ("every capture creates the task with
+the entry defaults of 9.3 for where it stands"). The parity target agrees to
+the letter: `prototype-v2`'s full-form affordance is `createTaskAndOpen`,
+which creates the row and then opens it. **So a v2 client never sends a
+reminder on a create**, the row already existing by the time any chip can be
+answered, and the client-side half of this pair's split has closed.
+
+**What that costs and what it does not.** Both endpoints stay frozen and stay
+measured server-side: AC-149 reads the create body's reminder arm, AC-146 and
+AC-148 read frozen 7.9's PUT and DELETE. What is no longer separately
+measured is a client path that no longer exists. What is still worth a number
+of its own, and is what this file now asserts, is the same defect one step
+later: a person captures a task, answers its reminder on the card that opens,
+and the value is dropped. That is AC-170's mechanism reached from the capture
+path rather than from a row somebody opened later, and it is the arm a client
+is most likely to get wrong, because a freshly created row is the one whose
+identity the surface has only just learned.
+
+**The Replace this asks for is recommended and not taken.** RFC 0005 change
+control item 20 carries it, and the owner rules it on the item 14 precedent.
+Until then this file asserts what the v2 surface can be held to and names,
+here, exactly what the criterion's own words no longer discriminate.
+
+**The mode is asserted, and there is now one.** 9.3's v1 switched the control
+with due time, an offset picker with one and a time-of-day picker without,
+and 4.8 stores those as two columns of which exactly one is non-null. The v2
+table writes one rule, "one picker, a time on that day, writing 4.8's
+time_of_day mode", and refuses the due picker a clock at all. So the fixture
+runs once rather than twice, and the assertion that used to say "in whichever
+mode was offered" now says "in the mode the section leaves". The other column
+is asserted null for the reason it always was: a client writing every
+reminder as an offset would pass every assertion made against the strip.
+
+**The barrier is the commit, not a save.** `watchCommit` counts the requests
+the page has started and will not return until this edit's own write has gone
+out and been answered; API quiet alone would return in the window between the
+press and the request the press causes, and the read after it would report a
+row that had not been written. That is the exact shape of the defect this
+criterion exists to catch, which is why the barrier is positive.
 
 **The assertion is the stored row, read back through section 7.** What makes
-this criterion discriminate is that it never reads the form again after the
-save: it asks the server what it holds. A client that keeps the value in
-memory, renders it back into the form on reopen and never writes it would
-satisfy any assertion made against the form and fails here on the only
-question that matters.
+this criterion discriminate is that it never reads the surface again after
+the commit: it asks the server what it holds. A client that keeps the value
+in memory, renders it back into the strip and never writes it would satisfy
+any assertion made against the surface and fails here on the only question
+that matters.
 
-**The mode is asserted, not just the presence.** 9.3 switches the control
-with due time, an offset picker with one and a time-of-day picker without,
-and 4.8 stores those as two columns of which exactly one is non-null. So the
-fixture is run twice, once in each mode, and each case asserts which column
-the value landed in. A client that wrote every reminder as an offset would
-pass a one-mode criterion and put every timeless reminder on the wrong
-column.
-
-**The value asserted is the value the form held**, read off the control after
-setting it rather than fixed here, so this file states no offset the
-specification does not. 10.3 bounds an offset at 0 to 10080 minutes and 9.3
-calls the control preset-driven; which presets it offers is the implementer's,
-and asserting one of them would be asserting a menu rather than a write.
-
-Written before the implementation, which is this project's standing order and
-was the P2, P3, P4, P5 and P6 order too. The red these produce is on the
-stored reminder being null after a save that offered one; a red anywhere
-earlier, on the control or on the save, would be a different sentence
-failing and is worth reporting rather than repairing.
-
-**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Nothing this
-criterion asserts moves; where the form is opened from does. 9.1's v2 capture
-rule leaves the floating add button on Today, Important and Assignments
-alone, so all three cases open it from Today. Today's entry default dates the
-task, and every case here sets the due date itself before touching the
-reminder, so the mode the control is offered in is still this file's to
-choose rather than the page's.
-
-Spec: 9.3 (the reminder control, its two modes, and the ruling that it is
-saved like every other field), 9.1 (the v2 capture rule and the v2 routes
-table), frozen 7.6 (the create body's reminder arm),
-frozen 7.0 (TaskDetail's reminder, both columns with exactly one non-null),
-4.8, 8.6, 10.3.
+Spec: 9.3 (the v2 reminder row and the commit-as-it-is-made rule), 9.1 (the
+v2 capture rule and the v2 routes table), frozen 7.6 (the create body's
+reminder arm, now reached by no client path), frozen 7.9 (the PUT this path
+uses), frozen 7.0 (TaskDetail's reminder, both columns with exactly one
+non-null), 4.8, 8.6, 10.3.
 */
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
+  chipPicker,
   clickControl,
   fillControl,
-  findTaskId,
   floatingAddButton,
   formField,
+  findTaskId,
+  openChipPicker,
   routesV2,
-  seedDate,
   seedSubs,
-  setOfferedReminder,
+  setReminderTime,
   signIn,
   storedReminder,
-  waitForSaveToSettle,
+  taskSurface,
+  watchCommit,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -92,163 +106,107 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // rather than the clock, for the reason recorded at TEST_TIMEOUT_MS.
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-const BASE = 'ac-169 created with a reminder'
+const BASE = 'ac-169 captured with a reminder'
+
+/**
+ * Captures a task from Today, names it, and leaves its surface open.
+ *
+ * Today rather than one of the other two capture points because its row of
+ * 9.3's entry table dates the task ("folder Desk, a Today entry (membership),
+ * dated today"), and the reminder requires a due date. That is the same
+ * choice the v1 file made for the opposite reason: it opened here and then
+ * set its own date, because the control it needed was behind an expander.
+ */
+async function captureNamed(page: Page, title: string): Promise<void> {
+  await page.goto(routesV2.today)
+  await clickControl(
+    floatingAddButton(page),
+    'spec 9.1: the floating add button is a capture point and "every capture creates the task ' +
+      'with the entry defaults of 9.3 for where it stands"',
+  )
+  await expect(
+    taskSurface(page),
+    "spec 9.1's v2 roles table: the captured task opens on its surface, a dialog when opened " +
+      'as one',
+  ).toBeVisible()
+  const commit = watchCommit(page)
+  await fillControl(
+    formField(page, 'title'),
+    title,
+    'spec 9.3: the title is editable in place on the card and is what the task is called',
+  )
+  await formField(page, 'title').blur()
+  await commit.settled(
+    'the title is committed before the task is looked for by it, an edit committing as it is ' +
+      'made',
+  )
+}
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-169: a reminder set while creating is saved', () => {
-  test('AC-169: a time-of-day reminder survives the create', async ({ page }) => {
+test.describe('AC-169: a reminder set on a captured task is saved', () => {
+  test('AC-169: a reminder answered on the captured card survives', async ({ page }) => {
     const title = caseTitle(BASE)
+    await captureNamed(page, title)
 
-    await page.goto(routesV2.today)
-    await clickControl(
-      floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form with the entry-point defaults ' +
-        'of 9.3',
+    const commit = watchCommit(page)
+    const offered = await setReminderTime(page)
+    await commit.settled(
+      'spec 9.3: a chip commits as it is answered, so the reminder is on the wire before this ' +
+        'case asks the server what it holds',
     )
-    await fillControl(
-      formField(page, 'title'),
-      title,
-      'spec 9.3: title is always visible on the form',
-    )
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: the reminder sits behind the form's one expander",
-    )
-    // A date and no time, which is what puts 9.3's control in its
-    // time-of-day mode.
-    await fillControl(
-      formField(page, 'due date'),
-      seedDate(3),
-      'spec 9.3: the reminder is enabled only once a due date is set',
-    )
-    const offered = await setOfferedReminder(page)
-    expect(
-      offered.mode,
-      'spec 9.3: a task with a date and no due time gets the time-of-day picker',
-    ).toBe('time_of_day')
-
-    await clickControl(
-      page.getByRole('button', { name: 'Save', exact: true }),
-      'spec 9.3: the form is committed by its Save control',
-    )
-    await waitForSaveToSettle(page)
 
     const stored = await storedReminder(page, await findTaskId(page, title))
     expect(
       stored,
-      'spec 9.3: the reminder is saved like every other field of this form, and frozen 7.6 ' +
-        "gives the create body an arm for it. A null here is the form offering a field it " +
-        'discards, which is the defect this criterion exists for: the person sets a reminder, ' +
-        'the task saves, and nothing anywhere says the reminder did not',
+      'spec 9.3: the reminder is committed like every other field of this surface. A null here ' +
+        'is the surface offering a field it discards, which is the defect this criterion ' +
+        'exists for: the person sets a reminder, the task is there, and nothing anywhere says ' +
+        'the reminder is not',
     ).not.toBeNull()
     if (stored === null) throw new Error('unreachable: asserted above')
 
     expect(
       stored.time_of_day?.slice(0, 5) ?? null,
-      'spec 4.8 and 7.0: the time-of-day column carries what the form held',
-    ).toBe(offered.value)
+      "spec 4.8 and 9.3's v2 reminder row: the time-of-day column carries what the picker held",
+    ).toBe(offered)
     expect(
       stored.offset_minutes,
-      'spec 4.8: exactly one of the two columns is non-null, and this reminder was set in the ' +
-        'mode that is not this one',
+      'spec 4.8: exactly one of the two columns is non-null, and 9.3 v2 writes the other one',
     ).toBeNull()
   })
 
-  test('AC-169: an offset reminder survives the create in its own mode', async ({ page }) => {
+  test('AC-169: the reminder requires the date the capture point gave it', async ({ page }) => {
+    // The discriminating half of the v2 reminder row, which v1 spread over
+    // AC-092's dependency graph and this file's two modes. Today's entry
+    // default dates the task, so the chip is operable; the criterion's own
+    // subject is that a reminder answered here reaches the server, and this
+    // asserts that it was answerable at all rather than assuming it.
     const title = caseTitle(BASE)
+    await captureNamed(page, title)
 
-    await page.goto(routesV2.today)
-    await clickControl(
-      floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form',
+    await openChipPicker(
+      page,
+      'reminder',
+      'spec 9.3: the reminder requires a due date, and Today\'s row of the entry table gives ' +
+        'the captured task one, so the chip opens rather than refusing',
     )
-    await fillControl(
-      formField(page, 'title'),
-      title,
-      'spec 9.3: title is always visible on the form',
-    )
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: the reminder sits behind the form's one expander",
-    )
-    await fillControl(
-      formField(page, 'due date'),
-      seedDate(3),
-      'spec 9.3: the reminder is enabled only once a due date is set',
-    )
-    // A due time, which is what switches 9.3's control to its offset mode.
-    await fillControl(
-      formField(page, 'due time'),
-      '15:00',
-      'spec 9.3: due time is enabled once a due date is set',
-    )
-    const offered = await setOfferedReminder(page)
-    expect(
-      offered.mode,
-      'spec 9.3: the reminder control switches mode with due time, so a task carrying one gets ' +
-        'the offset picker. Both modes are exercised because a client writing every reminder ' +
-        'to one column passes a criterion that only ever sees the other',
-    ).toBe('offset_minutes')
-
-    await clickControl(
-      page.getByRole('button', { name: 'Save', exact: true }),
-      'spec 9.3: the form is committed by its Save control',
-    )
-    await waitForSaveToSettle(page)
-
-    const stored = await storedReminder(page, await findTaskId(page, title))
-    expect(
-      stored,
-      'spec 9.3 and frozen 7.6: the reminder arm of the create body carries what the form held',
-    ).not.toBeNull()
-    if (stored === null) throw new Error('unreachable: asserted above')
-
-    expect(
-      stored.offset_minutes,
-      'spec 4.8: the offset column carries the offset the form was set to, which is read off ' +
-        'the control rather than named here because which presets 9.3 offers is not this ' +
-        "file's to fix",
-    ).toBe(Number(offered.value))
-    expect(
-      stored.time_of_day,
-      'spec 4.8: exactly one of the two columns is non-null',
-    ).toBeNull()
+    await expect(
+      chipPicker(page).getByLabel(/^\s*reminder time\s*$/i),
+      'spec 9.3: the reminder picker is "one picker, a time on that day", so what it offers is ' +
+        'a clock time. A picker offering an offset is the v1 control surviving its own row',
+    ).toBeVisible()
   })
 
-  test('AC-169: a task created with no reminder stores none', async ({ page }) => {
-    // The control that keeps the two cases above honest. A client that wrote
-    // a reminder unconditionally, from a default the form never showed,
+  test('AC-169: a captured task nobody gave a reminder stores none', async ({ page }) => {
+    // The control that keeps the cases above honest. A client that wrote a
+    // reminder unconditionally, from a default the surface never showed,
     // satisfies both of them and puts a fire instant on every task a person
-    // creates.
+    // captures.
     const title = caseTitle(BASE)
-
-    await page.goto(routesV2.today)
-    await clickControl(
-      floatingAddButton(page),
-      'spec 9.1: the floating add button opens the task form',
-    )
-    await fillControl(
-      formField(page, 'title'),
-      title,
-      'spec 9.3: title is always visible on the form',
-    )
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: the reminder sits behind the form's one expander",
-    )
-    await fillControl(
-      formField(page, 'due date'),
-      seedDate(3),
-      'spec 9.3: a date is set so the reminder is enabled and deliberately left empty',
-    )
-    await clickControl(
-      page.getByRole('button', { name: 'Save', exact: true }),
-      'spec 9.3: the form is committed by its Save control',
-    )
-    await waitForSaveToSettle(page)
+    await captureNamed(page, title)
 
     expect(
       await storedReminder(page, await findTaskId(page, title)),

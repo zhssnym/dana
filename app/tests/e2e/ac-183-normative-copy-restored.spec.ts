@@ -102,6 +102,7 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  taskSurface,
   taskRow,
   TEST_TIMEOUT_MS,
 } from './harness.js'
@@ -173,13 +174,13 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText(title),
-      'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
+      'spec 9.4: a click on any row opens that task, which is how its steps block is reached',
     )
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section " +
-        'names it "More options"',
-    )
+    await expect(
+      taskSurface(page),
+      'spec 9.3: the card holds "Steps, Notes, and Attachments as blocks", so the editor is ' +
+        'on the surface with nothing to expand',
+    ).toBeVisible()
     await expectOneTextRun(
       page,
       copy.stepCapNotice,
