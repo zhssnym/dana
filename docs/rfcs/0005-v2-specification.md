@@ -3253,6 +3253,60 @@ fold, the way P7's mid-package change control ratified the pass callable:
     made, and which of the three happens is a decision about where a
     preference lives, which is his.
 
+43. **Item 42 is answered: close the theme flash with a write-through
+    `localStorage` mirror read by a pre-mount script, on Imran's ruling of
+    2026-08-26.** Item 42 measured the flash, named three options and
+    recommended (b); this records the answer and the condition attached to it.
+
+    **The ruling, with the condition it was given under.** Asked to choose
+    among leaving it, mirroring the resolved theme into the browser, or
+    sending the attribute with the document, he answered: *"I'll go with the
+    recommended one if it's the standard way and other platforms are doing it
+    so."* The condition was confirmed in the same exchange and is recorded
+    here as part of the ruling rather than as a claim standing behind it: the
+    inline pre-paint script reading `localStorage` is the prescribed pattern
+    in Tailwind's own dark mode documentation, is what `next-themes`
+    implements, and is what GitHub does **while also storing the theme on the
+    account**, which is Dana's exact shape. So the second home for the value
+    is the ordinary answer for an account-level theme rather than a departure.
+
+    **What is therefore ruled.** Option (b) of item 42. `app/index.html`
+    gains a small inline script that runs before the bundle, reads a mirrored
+    value and sets `data-theme` on the root, and the client writes that mirror
+    through wherever the 4.19 bundle is read or written.
+
+    **Three constraints the ruling carries, because they are what keep a
+    second home for one field from becoming a second source of truth.**
+
+    - **The column stays the truth and the mirror is a cache.** The 4.19
+      `theme` column is the record; the browser copy exists to paint one
+      frame. A stale or absent mirror must cost exactly one frame and never a
+      wrong preference, so the bundle's value always wins once it lands, and
+      the pre-mount script never writes the column.
+    - **The mirror is write-through and single-direction**, updated at every
+      point the bundle is read or written, and cleared at sign-out so a shared
+      device does not paint the previous person's theme.
+    - **`system` mirrors as `system`, not as what it resolved to**, or a
+      person whose choice is to follow their device is silently converted to
+      a fixed theme by the first machine they sign in on.
+
+    **Where it lands is not decided here.** The Appearance surface is S27's
+    row and `app/index.html` is role 07's; whether this rides S27 or an
+    earlier package is the Steward's sequencing call, not a ruling. What is
+    fixed is that it is built for 2.0.0 and that **section 9.7 gains the
+    sentence** saying the theme is applied before first paint from a mirrored
+    copy, so the decision survives the session that heard it, which is
+    11.13's mechanism and item 41(d)'s reasoning applied to one more
+    decision.
+
+    **AC-261 is not amended and does not need to be.** It asserts that the
+    choice survives a reload, which is true before and after, and its own
+    comment records why it asks "does it end up dark" rather than "is it dark
+    on the first frame". Whether a criterion should assert the absence of the
+    flash is persona 11's call in the package that builds it; a browser can
+    observe the attribute on the document at first paint, so one is writable
+    if that role wants it.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
