@@ -157,6 +157,7 @@ import { formatAgo, formatDayHeading } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
+import { folderLink } from '../lib/nav-links.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
@@ -723,9 +724,11 @@ export function FolderPage({
                 ),
               },
               'copy-link': () => {
-                void navigator.clipboard.writeText(
-                  `${globalThis.location.origin}${paths.folder(id)}`,
-                )
+                /* One answer to "where does this object live", from
+                   `lib/nav-links.ts`. It was spelled inline here, on the
+                   sidebar's folder row and on the shelf page, which is three
+                   copies of one address. */
+                void navigator.clipboard.writeText(folderLink(id))
               },
               duplicate: () => {
                 /* DES-198 server-side; the copy is the duplicator's own

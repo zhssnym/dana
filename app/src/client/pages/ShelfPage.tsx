@@ -79,6 +79,7 @@ import {
 import { FolderPlus, Plus } from '../lib/icons.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { useSubjectEvents } from '../api/queries.js'
+import { shelfLink } from '../lib/nav-links.js'
 import { paths } from '../routes.js'
 import { openInNewTab } from '../shell/tabs.js'
 import { WindowBarActions } from '../shell/WindowBar.js'
@@ -292,9 +293,9 @@ export function ShelfPage(): React.JSX.Element {
                 setRenaming(true)
               },
               'copy-link': () => {
-                void navigator.clipboard.writeText(
-                  `${globalThis.location.origin}${paths.shelf(id)}`,
-                )
+                /* `lib/nav-links.ts`, the one answer to where an object
+                   lives. An address is still not an invitation (9.10). */
+                void navigator.clipboard.writeText(shelfLink(id))
               },
               duplicate: () => {
                 /* The page, no folders (9.10): a folder is on one shelf. */

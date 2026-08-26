@@ -158,6 +158,7 @@ import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { useDuplicateFolder } from '../api/mutations.js'
 import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
+import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from './NotificationsBell.js'
 import { openInNewTab } from './tabs.js'
@@ -503,9 +504,9 @@ function SidebarFolderRow({
           : undefined
       }
       onCopyLink={() => {
-        void navigator.clipboard.writeText(
-          `${globalThis.location.origin}${paths.folder(folder.id)}`,
-        )
+        /* `lib/nav-links.ts`, so the sidebar row and the folder page copy
+           one address rather than two spellings of it. */
+        void navigator.clipboard.writeText(folderLink(folder.id))
       }}
       onDuplicate={() => {
         /* DES-198 server-side, and the copy is the duplicator's own private
@@ -590,7 +591,8 @@ function FolderGroupBlock({
   /* Null for a label no shelf row names, which is what makes the reaching
      acts absent rather than broken: 9.10's page is the shelf's, and a label
      that is not one has no address to open or to copy. */
-  const shelfPath = group.shelf === null ? null : paths.shelf(group.shelf.id)
+  const shelfId = group.shelf?.id ?? null
+  const shelfPath = shelfId === null ? null : paths.shelf(shelfId)
 
   /*
   The group's own folders, on the same engine as everything else.
@@ -751,12 +753,12 @@ function FolderGroupBlock({
               open: shelfPath === null ? undefined : () => { navigate(shelfPath) },
               rename: () => { groups.onRenameGroup(group.label) },
               'copy-link':
-                shelfPath === null
+                shelfId === null
                   ? undefined
                   : () => {
-                      void navigator.clipboard?.writeText(
-                        new URL(shelfPath, globalThis.location.origin).toString(),
-                      )
+                      /* `lib/nav-links.ts`, the same address the shelf page
+                         itself copies. */
+                      void navigator.clipboard?.writeText(shelfLink(shelfId))
                     },
               delete: () => { groups.onDeleteGroup(group.label) },
             }}
