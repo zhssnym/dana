@@ -48,13 +48,17 @@ import { useState } from 'react'
 import {
   Bell,
   CalendarDays,
+  Clock3,
   Folder as FolderIcon,
   Repeat2,
   UserRound,
+  X,
 } from '../../lib/icons.js'
 import type { LucideIcon } from '../../lib/icons.js'
 
 import type { Folder } from '../../../shared/folders.js'
+import { RECURRENCE_WEEKDAYS } from '../../../shared/recurrence.js'
+import type { RecurrenceWeekday } from '../../../shared/recurrence.js'
 import { formatDueDate } from '../../parts/presenters.js'
 import { Button } from '../ui/button.js'
 import { Calendar } from '../ui/calendar.js'
@@ -68,7 +72,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js'
 import { cn } from '../ui/utils.js'
 import { DATE_CLEAR, DATE_TODAY, DATE_TOMORROW, INVITE_BY_EMAIL } from '../task-form/copy.js'
-import { PRESET_LABELS, PRESET_ORDER } from '../task-form/presets.js'
+import { PRESET_LABELS, PRESET_ORDER, WEEKDAY_LABELS } from '../task-form/presets.js'
 import type { RepeatPreset, RepeatState } from '../task-form/presets.js'
 import {
   CHIP_ASSIGNEE,
@@ -77,15 +81,26 @@ import {
   CHIP_REMINDER,
   CHIP_REPEAT,
   DATE_DEPENDENT_HELPER,
+  DUE_TIME_CLEAR,
+  DUE_TIME_SHOWN,
   PICKER_DUE,
   PICKER_REMINDER,
+  PICKER_REPEAT,
   REMINDER_NONE,
   REMINDER_TIME,
+  REPEAT_ENDS_ON,
+  REPEAT_EVERY,
+  REPEAT_ON,
+  REPEAT_ON_DAY,
   UNASSIGNED,
 } from './copy.js'
 
 /** The one shape at one width 9.3 asks the pickers to keep. */
 const PICKER = 'w-[300px] p-3'
+
+/** The small numeric operands a repeat preset asks for. */
+const NUMBER_FIELD =
+  'h-8 w-16 rounded-md border border-border bg-transparent px-2 text-center text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30'
 
 const CHIP =
   'h-8 shrink-0 gap-1.5 rounded-full border border-border bg-transparent px-3 text-[13px] font-normal text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:text-muted-foreground/60'
@@ -171,11 +186,24 @@ export interface TaskChipsProps {
   readonly members: readonly { readonly user: { readonly id: string; readonly display_name: string | null } }[]
   readonly onAssigneeChange: (next: string | null) => void
   readonly onInvite: () => void
+  /**
+   * A due time carried in from v1, HH:MM or empty.
+   *
+   * 9.3's v2 due row: "a stored due_time from v1 is displayed and clearable,
+   * never settable". So this arrives as data and leaves through the control
+   * below it, and nothing on this strip can put one back.
+   */
+  readonly dueTime: string
+  readonly onDueTimeClear: () => void
   /** 4.8's time-of-day arm, HH:MM or empty. The only mode v2 writes. */
   readonly reminderTime: string
   readonly onReminderTimeChange: (next: string) => void
   readonly repeat: RepeatState
   readonly onRepeatChange: (next: RepeatPreset) => void
+  readonly onRepeatDaysChange: (next: readonly RecurrenceWeekday[]) => void
+  readonly onRepeatIntervalChange: (next: number) => void
+  readonly onRepeatMonthDayChange: (next: number) => void
+  readonly onRepeatUntilChange: (next: string) => void
   /** The viewer's today, from `api/tz.ts` through the form. */
   readonly today: string
 }
@@ -191,14 +219,21 @@ export function TaskChips({
   members,
   onAssigneeChange,
   onInvite,
+  dueTime,
+  onDueTimeClear,
   reminderTime,
   onReminderTimeChange,
   repeat,
   onRepeatChange,
+  onRepeatDaysChange,
+  onRepeatIntervalChange,
+  onRepeatMonthDayChange,
+  onRepeatUntilChange,
   today,
 }: TaskChipsProps): React.JSX.Element {
   const [dueOpen, setDueOpen] = useState(false)
   const [reminderOpen, setReminderOpen] = useState(false)
+  const [repeatOpen, setRepeatOpen] = useState(false)
 
   const dated = dueDate !== ''
   const selected = toLocalDate(dueDate)
@@ -209,6 +244,7 @@ export function TaskChips({
     assigneeId === null ? UNASSIGNED : (assignee?.user.display_name ?? UNASSIGNED)
 
   return (
+    <>
     <div data-task-chips className="flex flex-wrap items-center gap-1.5 px-1 pt-1 pb-2">
       {/* Due date. The picker is a day grid and three resolved presets; 9.3's
           v2 table refuses it a clock, and AC-219 reads that refusal as the
@@ -269,6 +305,34 @@ export function TaskChips({
           />
         </PopoverContent>
       </Popover>
+
+      {/*
+      A due time carried in from v1, shown and removable and never settable.
+
+      9.3's v2 due row puts the whole rule in one parenthesis: "the pickers
+      offer no time of day (a stored due_time from v1 is displayed and
+      clearable, never settable)". So this is not a field and is not on the
+      strip's list of five; it is a fact about the task that appears only when
+      the task has one, carrying the one act the sentence allows. A v2 task
+      never has one, because nothing here can write one, which is why this
+      renders nothing on almost every task.
+      */}
+      {dated && dueTime !== '' ? (
+        <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-border px-3 text-[13px] text-muted-foreground">
+          <Clock3 className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          <span className="sr-only">{DUE_TIME_SHOWN}</span>
+          <span>{dueTime}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={DUE_TIME_CLEAR}
+            onClick={onDueTimeClear}
+            className="-mr-2 size-6 rounded-full p-0 text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+        </span>
+      ) : null}
 
       {/* Folder. 9.3's v2 row is "the real folder library"; the "New folder…"
           entry it also names is owed with the reunion, and its absence is
@@ -376,30 +440,164 @@ export function TaskChips({
         </PopoverContent>
       </Popover>
 
-      {/* Repeat, preset-driven exactly as v1 and never a raw RRULE box. The
-          chosen-days and every-N arms stay on the field below until the
-          reunion moves them, which the README records. */}
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      {/*
+      Repeat: "preset-driven exactly as v1 (daily, weekdays, weekly on chosen
+      days, every N days or weeks, monthly on day 1 to 28, yearly, optional
+      'Ends on'); never a raw RRULE box".
+
+      **A popover rather than a menu, and the reason is the operands.** Until
+      S15 the presets were a menu here and the arms a preset asks for, the
+      chosen days, the interval, the month day and the "Ends on" date, lived
+      on the v1 field below. That field is gone, so the whole control has to
+      be here, and a menu is the wrong container for a form: a menu item is a
+      thing you pick and leave, and these are values you set while the list
+      stays open. The presets keep the option role so that a criterion reading
+      "the choices this picker offers" reads them whichever container they are
+      in, which is what `chipChoices` dispatches over.
+      */}
+      <Popover open={repeatOpen} onOpenChange={setRepeatOpen}>
+        <PopoverTrigger
           disabled={!dated}
           render={chipButton(!dated, dated ? undefined : DATE_DEPENDENT_HELPER)}
         >
           <ChipBody icon={Repeat2} name={CHIP_REPEAT} value={PRESET_LABELS[repeat.preset]} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          {PRESET_ORDER.map((preset) => (
-            <DropdownMenuItem
-              key={preset}
-              onClick={() => {
-                onRepeatChange(preset)
-              }}
-              className={cn('min-h-[var(--control-height)] text-sm')}
-            >
-              {PRESET_LABELS[preset]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </PopoverTrigger>
+        <PopoverContent role="dialog" aria-label={PICKER_REPEAT} className={PICKER}>
+          <div role="listbox" aria-label={PICKER_REPEAT} className="flex flex-col">
+            {PRESET_ORDER.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                role="option"
+                aria-selected={repeat.preset === preset}
+                onClick={() => {
+                  onRepeatChange(preset)
+                }}
+                className={cn(
+                  'flex min-h-[var(--control-height)] items-center rounded-md px-2 text-left text-sm hover:bg-accent',
+                  repeat.preset === preset && 'bg-accent font-medium',
+                )}
+              >
+                {PRESET_LABELS[preset]}
+              </button>
+            ))}
+          </div>
+
+          {/* The parts a preset asks for, and only the parts it asks for. */}
+          {repeat.preset === 'none' ? null : (
+            <div className="mt-2 space-y-2 border-t border-border pt-2">
+              {repeat.preset === 'weekly' || repeat.preset === 'everyNWeeks' ? (
+                <fieldset className="border-0 p-0">
+                  <legend className="mb-1 text-[11px] font-medium text-muted-foreground">
+                    {REPEAT_ON}
+                  </legend>
+                  <div className="flex items-center gap-1">
+                    {RECURRENCE_WEEKDAYS.map((day) => {
+                      const selected = repeat.days.includes(day)
+                      return (
+                        <label
+                          key={day}
+                          className={cn(
+                            'relative inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-[11px] hover:bg-accent',
+                            selected && 'bg-foreground text-background hover:bg-foreground/90',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={(event) => {
+                              onRepeatDaysChange(
+                                event.target.checked
+                                  ? [...repeat.days, day]
+                                  : repeat.days.filter((chosen) => chosen !== day),
+                              )
+                            }}
+                            className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                          />
+                          <span aria-hidden="true">{day.slice(0, 1)}</span>
+                          <span className="sr-only">{WEEKDAY_LABELS[day]}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+              ) : null}
+
+              {repeat.preset === 'everyNDays' || repeat.preset === 'everyNWeeks' ? (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="task-chip-repeat-interval" className="text-xs text-muted-foreground">
+                    {REPEAT_EVERY}
+                  </label>
+                  <input
+                    id="task-chip-repeat-interval"
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={repeat.interval}
+                    onChange={(event) => {
+                      onRepeatIntervalChange(Number(event.target.value))
+                    }}
+                    className={NUMBER_FIELD}
+                  />
+                  <span className="text-sm text-foreground">
+                    {repeat.preset === 'everyNDays' ? 'days' : 'weeks'}
+                  </span>
+                </div>
+              ) : null}
+
+              {repeat.preset === 'monthly' ? (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="task-chip-repeat-day" className="text-xs text-muted-foreground">
+                    {REPEAT_ON_DAY}
+                  </label>
+                  <input
+                    id="task-chip-repeat-day"
+                    type="number"
+                    min={1}
+                    max={28}
+                    value={repeat.monthDay}
+                    onChange={(event) => {
+                      onRepeatMonthDayChange(Number(event.target.value))
+                    }}
+                    className={NUMBER_FIELD}
+                  />
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="task-chip-repeat-until" className="text-xs text-muted-foreground">
+                  {REPEAT_ENDS_ON}
+                </label>
+                <input
+                  id="task-chip-repeat-until"
+                  type="date"
+                  value={repeat.until}
+                  onChange={(event) => {
+                    onRepeatUntilChange(event.target.value)
+                  }}
+                  className="h-8 w-40 rounded-md border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                />
+              </div>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+      </div>
+
+      {/*
+      9.3's "On disable, helper" for the two date-dependent rows, rendered
+      once for both.
+
+      One helper rather than two, because that column gives reminder and
+      repeat the same string and two copies of one sentence is two things on
+      the page saying it. Rendered as text and not only as a tooltip: the
+      table's word is "helper", which is something a person reads without
+      hovering, and a disabled control with no helper is what the column
+      exists to forbid.
+      */}
+      {dated ? null : (
+        <p className="px-1 pb-2 text-xs text-muted-foreground">{DATE_DEPENDENT_HELPER}</p>
+      )}
+    </>
   )
 }

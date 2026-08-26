@@ -782,6 +782,8 @@ nothing here is deleted by hand, rows aging out with 4.13's retention. An
 actor is never notified of their own act (4.14's rule, restated where a
 reader will look). Empty state: "Nothing new. When someone assigns you a
 task or answers you, it lands here."
+```
+
 ### Insert new section 9.13 after 9.12
 
 Added at S13 on 2026-08-24, from the owner's ruling of that date; ADD-1 in
@@ -1854,6 +1856,197 @@ fold, the way P7's mid-package change control ratified the pass callable:
     this unit by design, which is the unit's own proof rather than a
     casualty. Persona 11 reads it and every criterion asserting a TaskCard
     key set before `04-api-and-contract.md` writes a line.
+
+25. **The 9.3 reunion's real surface is thirteen acceptance files, not the
+    seven item 15 named, and two criteria are falsified in substance rather
+    than in wording (S15, 2026-08-25; four sentences taken under item 19,
+    two recommended and left with the owner).**
+
+    **The enumeration first, because it is the third time in this build that
+    a short list has been the finding.** Item 8's list of twenty was three
+    short and item 14's list of four was one wide; both were found by running
+    the leg rather than by reading the list. Item 15 named seven criteria
+    (AC-092, AC-093, AC-094, AC-161, AC-169, AC-170, AC-179). Measured on the
+    tree by grepping the browser suite rather than trusting that list:
+
+    - Nine files reference the v1 "More options" expander, the seven above
+      plus **AC-098** and **AC-183**.
+    - Eight use the four harness helpers, and it is not the same eight:
+      AC-092, AC-093, AC-094, **AC-098**, **AC-156**, AC-161, AC-169,
+      AC-170. AC-179 names the expander in an assertion message and uses no
+      helper.
+    - Union of those two: ten.
+
+    **Three more address the v1 form by apparatus neither grep looks for**,
+    and they are the ones a reader of item 15 would not expect. **AC-178**
+    opens the form by clicking a row, scopes to `getByRole('dialog')` and
+    dismisses it by a Cancel-or-Close control; it uses no helper and never
+    writes "More options", so it is invisible to both sweeps and is squarely a
+    9.3 criterion, its whole subject being the history block that section puts
+    on the card. **AC-182**'s fourth case opens the form from the floating
+    button and drags its resize handle. **AC-162**'s delete case opens the
+    form and reaches the overflow menu inside it for 9.3's delete confirm.
+    So the surface is **thirteen**: AC-092, AC-093, AC-094, AC-098, AC-156,
+    AC-161, AC-162, AC-169, AC-170, AC-178, AC-179, AC-182, AC-183.
+
+    **What creation is on the v2 surface, settled against the prototype
+    rather than reasoned.** 9.3's v2 says "every edit commits as it is made,
+    there is no Save control and no draft state" and still carries an entry
+    defaults table, which reads two ways until something decides it. 9.1's
+    capture rule decides it in terms, "every capture creates the task with the
+    entry defaults of 9.3 for where it stands", and `prototype-v2`'s shell
+    does exactly that: its full-form affordance is `createTaskAndOpen`, which
+    creates the row with the page's defaults and then opens it. There is no
+    draft anywhere in the parity target. So capture creates, and the card is
+    only ever opened on a task that already exists.
+
+    **That is what falsifies AC-169, and it is recommended rather than
+    taken.** AC-169 and AC-170 are a pair, and item 15 lists both because
+    "create and edit are two paths to two different endpoints": the reminder
+    arm of frozen 7.6's create body, and frozen 7.9's PUT. On the v2 surface
+    the client reaches only the second, every reminder being set on a row that
+    exists, so AC-169's premise "a reminder set in the task form while a task
+    is being created" has no client path and its distinction from AC-170 has
+    closed. Both endpoints stay frozen and stay asserted server-side by
+    AC-149, AC-146 and AC-148, so nothing about the contract is unmeasured;
+    what is gone is the client-side half of the split. **Recommended
+    Replace**, the criterion kept and re-aimed at the path v2 does have,
+    rather than retired, on the ground that a client which offers a reminder
+    on a freshly captured task and drops it is still the defect this number
+    was written for:
+
+    ```markdown
+    - AC-169 Given a task captured from any of 9.1's capture points and its surface opened on the created row, when a reminder is set there, then the stored task carries it in 4.8's time_of_day mode and a fresh read reports it; and given a capture that offers none, then the task stores none.
+    ```
+
+    **AC-182's fourth case has lost the sentence it was written against.**
+    Its text reads "given the task form resized, then each state survives a
+    reload", and v1's 9.3 carried "The form's width is the viewer's,
+    persisted client-side, on the sidebar's rule in 9.1". The v2 replacement
+    drops that sentence: it says only that "the side panel makes the page
+    narrower rather than covering it" and fixes one width for the pickers.
+    The behaviour survives in the parity target, `task-surface.tsx`
+    remembering a panel width under DES-138, so this is a section that went
+    quiet rather than a design that changed, which is the silence trigger of
+    protocol section 6 and the shape F-4 reached the Steward as. **Two
+    options, and no recommendation between them is offered because they turn
+    on what the owner wants asserted rather than on evidence**: either 9.3
+    regains a width sentence and AC-182's case stands unchanged, or the case
+    goes the way item 14's counts-carrying folder-delete case went and
+    AC-182 keeps its three sidebar arms. Left standing and passing in the
+    meantime, which is the state that assumes least.
+
+    **Four sentences were taken, and they are the ones item 19 authorised.**
+    AC-161, AC-170, AC-178 and AC-179 each addressed "the task form" and
+    assert nothing that moved; "the form" becomes "the task surface", 9.1's
+    own name for it, and every other clause is verbatim. Section 12 records
+    them together with why the two above are not among them.
+
+    **One harness helper could not be ported and is replaced rather than
+    moved**, which item 15 predicted and is worth writing down because the
+    replacement is not the obvious one. `waitForSaveToSettle` sequenced a read
+    behind the form *closing*, an event a surface with no Save control never
+    has. Waiting on API quiet alone is not the substitute it looks like: quiet
+    is also true in the window between a press and the request that press
+    causes, so a barrier built on it returns before the commit leaves the
+    browser and the read after it reports a stale row, which is the exact
+    shape of the defect AC-169 and AC-170 exist to catch. The replacement is
+    positive rather than negative: `watchCommit` takes the count of requests
+    the page has started, before the interaction, and waits for it to move
+    before it waits for quiet. A commit that never happens then fails as an
+    assertion about 9.3's commit rule rather than as a timeout.
+
+26. **10.7 is amended to permit HTML with a required text/plain alternative,
+    and this role's own recommendation is superseded (Imran, 2026-08-25).**
+    Item 23 recommended that 10.7 win over the prototype's three designed
+    emails, on 11.13's rule that a numbered section beats a design artifact.
+    He ruled the other way, and the resolution was available all along and
+    this role did not see it: 11.13 says the section wins **until it is
+    amended**, and amending 10.7 was a third option that was neither keeping
+    the rule nor ignoring it. The section still wins; it now says something
+    else. Recorded rather than quietly buried, because a recommendation that
+    loses is evidence about this role's judgement and belongs in the record.
+
+    **Relayed, and more thinly than item 22's.** The decision reached here as
+    the numeral "1" against the S14 session's numbered list, read by that
+    session as this amendment and disclosed to Imran as its reading before
+    anything landed. It is amended on that basis because the change is
+    reversible and S19 was otherwise stalled, but **this is the likeliest of
+    the relayed rulings to be a misread**, and 10.7's own sentence is the
+    thing to correct if it is.
+
+    The amendment keeps "short" and "one action link each", the halves doing
+    the deliverability work, and makes the text part mandatory: it must carry
+    the same words and the same one link, so HTML alone does not meet the
+    section. The grounds sit in 10.7 itself rather than only here, because a
+    rule whose reason lives in a change log gets re-litigated.
+
+    **Two findings widen S19 past styling, both verified in code by this role
+    rather than taken from the brief.** The invite and share-grant emails
+    **cannot name anybody**: `templates.ts:83` renders "Someone has invited
+    you to share a list on Dana" because the 7.5 and 7.4 call sites pass no
+    payload, and `RenderedEmail` is `{subject, text}` with no html field at
+    all. S19 is therefore a payload widening on `OutboundMessage` and its two
+    call sites, plus a second rendered part, rather than a re-skin. That half
+    needs no amendment, 10.7 constraining shape and not content. DES-034
+    remains open and still gates the actual words.
+
+27. **A forwardable invite link is a real intention the schema cannot meet,
+    and the owner has parked it (Imran, 2026-08-25).** He asked for an invite
+    link a person could forward over WhatsApp, then parked it: "leave the
+    WhatsApp requirement for now". Parked, not refused, and recorded here and
+    in section 13 rather than dropped, because the next person to read the
+    invite emails will have the same idea from nothing and re-derive the same
+    dead end.
+
+    Why no email change reaches it, verified against
+    `0000_core_schema.sql`: `invites` has **no token column**, its `email` is
+    `NOT NULL` under a lowercase check, 7.5's accept and decline are
+    matched-recipient-only under the 404 leak rule, and Q12's index is
+    `invites (email) WHERE status = 'pending'`. An invite is bound to an
+    address by the schema, so a forwarded link lands a stranger on an empty
+    `/app`, which is the current behaviour working as designed. Delivering it
+    needs a token column (**frozen section 4**), a public redemption route
+    (**frozen section 7**), and a ruling on whether possession of a link
+    grants access, which is a security decision rather than a schema one and
+    is the part to decide first. Scoped by this role on his word, not before.
+
+28. **Section 9 is folded, and one unit of this RFC was malformed (S-fold,
+    Integration Steward, 2026-08-25).** The eleven section 9 units are
+    written into `docs/spec/09-ui.md`: 9.1, 9.3, 9.4, 9.5, 9.6, 9.7 and 9.9
+    replaced, and 9.10 Shelves, 9.11 Trash, 9.12 Notifications and 9.13
+    First run inserted. That file was 267 lines of wholly v1 text and is now
+    276 lines of v2, 177 inserted against 169 deleted. This closes the debt
+    item 20 recorded and RFC 0004's S-fold row.
+
+    **Done mechanically rather than by hand, deliberately.** Each unit's
+    verbatim block was extracted from this file by its fence and spliced by
+    heading, and the assembly refuses to write unless every block's first
+    line is the `### 9.N` heading it claims to be. Nothing was retyped, so
+    no unit can have been silently paraphrased in transit, which is the
+    failure a hand fold of eleven units invites.
+
+    **The extraction found a defect in this RFC: 9.12's fenced block was
+    never closed.** It ran straight into "### Insert new section 9.13 after
+    9.12", so anyone taking 9.12 verbatim would have carried the next unit's
+    heading into the specification, which is precisely what the first
+    assembly did before the check caught it. The closing fence is added.
+    Recorded rather than quietly fixed, because these units have sat
+    accepted since S0 and nobody read 9.12 to its end in the five weeks
+    since, which is the same "written but never read" shape as item 20.
+
+    **9.2 and 9.8 are carried unchanged and that is correct.** 9.2 was
+    amended directly at S13 under item 10 and already read v2 (Desk at
+    `/app`, rules rather than copy); 9.8 was never replaced by this RFC.
+
+    **Item 16's sweep needed nothing further in section 9**, checked rather
+    than assumed. Two "My Day" strings survive and both are right: 9.4 names
+    the v1 `"Remove from My Day"` control as the thing carried forward and
+    states its new reading `"Remove from Today"` in the same sentence, and
+    9.8 records a superseded ruling of 2026-08-11 in its own historical
+    terms. That sweep's live targets were always the client copy constant
+    and 7.8's `my-day` endpoint path, and the path is frozen section 7 and
+    stays.
 
 ## Implementation plan
 

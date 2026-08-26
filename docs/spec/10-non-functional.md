@@ -45,4 +45,6 @@ Manifest: name Dana, display standalone, start_url /app, icons 192 and 512, them
 
 ### 10.7 Email deliverability
 
-One transactional provider serves invite, share-grant, and reminder templates. Launch checklist: sending domain with SPF, DKIM, DMARC configured; from-address noreply@ the product domain; plain, short templates with one action link each. This is a named operational setup cost, done once.
+One transactional provider serves invite, share-grant, and reminder templates. Launch checklist: sending domain with SPF, DKIM, DMARC configured; from-address noreply@ the product domain; short templates with one action link each. This is a named operational setup cost, done once.
+
+**Templates are HTML with a required text/plain alternative part**, amended 2026-08-25 on Imran's ruling (RFC 0005 change control item 25), where this sentence previously read "plain, short templates". Both halves are load-bearing and neither is optional: a send that carries HTML alone does not meet this section, and the text part must say the same thing and carry the same one action link rather than being a stub. "Short" and "one action link each" are unchanged and are the halves that do the deliverability work. The reason the plain-text rule was dropped: what decides inbox placement is the authentication this same sentence already requires, plus sender reputation and the text-to-link ratio, and well-formed multipart with a text alternative is what every transactional provider sends, so the rule was buying little and cost the whole of the designed email surface.

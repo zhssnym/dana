@@ -357,6 +357,19 @@ const API_SETTLE_MS = 250
 interface ApiTraffic {
   inFlight: number
   quietSince: number
+  /**
+   * Every request to the API this page has started, cumulative and never
+   * reset.
+   *
+   * `inFlight` and `quietSince` describe the present, and between them they
+   * cannot answer "has this interaction written anything yet": a page that
+   * has not sent its request is indistinguishable from one that sent it and
+   * was answered, both being zero in flight and both having been quiet a
+   * while. That is the question a surface which commits as it is edited has
+   * to ask, so the count is taken before the interaction and waited on after
+   * it.
+   */
+  sent: number
 }
 
 const traffic = new WeakMap<Page, ApiTraffic>()
@@ -370,12 +383,13 @@ const traffic = new WeakMap<Page, ApiTraffic>()
  */
 export function trackApi(page: Page): void {
   if (traffic.has(page)) return
-  const state: ApiTraffic = { inFlight: 0, quietSince: Date.now() }
+  const state: ApiTraffic = { inFlight: 0, quietSince: Date.now(), sent: 0 }
   traffic.set(page, state)
   const isApi = (request: Request): boolean => request.url().includes('/api/v1/')
   page.on('request', (request) => {
     if (!isApi(request)) return
     state.inFlight += 1
+    state.sent += 1
     state.quietSince = Date.now()
   })
   const settled = (request: Request): void => {
@@ -425,29 +439,76 @@ export async function waitForApiIdle(page: Page, why: string): Promise<void> {
   }
 }
 
+/** What `watchCommit` hands back: the barrier for the edit made after it. */
+export interface CommitBarrier {
+  /**
+   * Waits for the edit made since the watch began to have reached the server
+   * and settled, and fails saying so if it never went.
+   */
+  settled(why: string): Promise<void>
+}
+
 /**
- * The barrier a spec crosses between saving the task form and reading what
- * the server stored.
+ * The barrier a spec crosses between editing 9.3's task surface and reading
+ * what the server stored, and it replaces `waitForSaveToSettle` rather than
+ * porting it.
  *
- * Two signals rather than one, and each covers what the other cannot. The
- * form closes only once every write of that save has settled, so its
- * disappearance is the application's own report that the save finished; and
- * API quiet catches whatever follows it, including the 8.3 refetch, which on
- * a single-connection backend (11.15) is exactly what was landing between a
- * save's two writes.
+ * The v1 barrier waited on the form *closing*: a save's writes all settled
+ * before the dialog went, so its disappearance was the application's own
+ * report that the save had finished. 9.3's v2 opening removes the event
+ * along with the control that caused it, "there is no Save control and no
+ * draft state" and "every edit commits as it is made", so there is nothing
+ * left to close and nothing to wait on that way.
  *
- * The dialog half is synchronization and not an assertion of section 9, which
- * spells no closing behavior. It is written as an expectation anyway so that
- * a client which stopped closing the form fails here saying so, rather than
- * somewhere later saying something else.
+ * **API quiet on its own is not the replacement, and the reason it looks
+ * like one is what makes it dangerous.** `waitForApiIdle` returns as soon as
+ * nothing is in flight and the page has been quiet for `API_SETTLE_MS`, and
+ * both of those are true in the window between the press and the request the
+ * press causes: React has to render before the mutation is issued. Called
+ * straight after a chip commits, it would return before that commit left the
+ * browser, and the read after it would ask the server a question about a
+ * write that had not been made. That produces a red on a stored value being
+ * stale or null, which is the exact shape of the product defect AC-169 and
+ * AC-170 exist to catch, so the flake would read as the fault it was meant
+ * to find. Row 21 of SESSION-LOG is the worked example of that confusion.
+ *
+ * So the barrier is positive rather than negative: it counts the requests
+ * this page has started, takes the count before the interaction, and waits
+ * for it to move before it waits for quiet. Two signals again, and each
+ * still covers what the other cannot: the count says this edit's own write
+ * went out, and quiet says it and everything behind it, including 8.3's
+ * refetch, has been answered.
+ *
+ * **A commit that never happens fails here, and that is an assertion rather
+ * than a timeout.** On this surface an edit *is* a write, so a client that
+ * took the edit into local state and issued nothing has broken 9.3's commit
+ * rule; the wait for the count to move is what says so, in those words.
  */
-export async function waitForSaveToSettle(page: Page): Promise<void> {
-  await expect(
-    page.getByRole('dialog'),
-    'the task form closes once every write of the save has settled, which is what makes its ' +
-      'disappearance the signal a read can be sequenced behind rather than a guess at one',
-  ).toHaveCount(0)
-  await waitForApiIdle(page, 'the save had to finish before the stored row could be read')
+export function watchCommit(page: Page): CommitBarrier {
+  trackApi(page)
+  const state = traffic.get(page)
+  if (state === undefined) throw new Error('unreachable: tracker installed above')
+  const before = state.sent
+
+  return {
+    async settled(why: string): Promise<void> {
+      const deadline = Date.now() + 15_000
+      while (state.sent === before) {
+        if (Date.now() > deadline) {
+          expect(
+            state.sent - before,
+            `${why}. Fifteen seconds after the edit the page had sent no request to /api/v1 ` +
+              'at all. 9.3: "every edit commits as it is made, there is no Save control and ' +
+              'no draft state", so an edit that reaches no endpoint is a value held in the ' +
+              'browser and nowhere else',
+          ).toBeGreaterThan(0)
+          return
+        }
+        await page.waitForTimeout(25)
+      }
+      await waitForApiIdle(page, `${why}. The commit had to finish before the stored row could be read`)
+    },
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -500,78 +561,64 @@ export async function storedReminder(
 }
 
 /**
- * Sets the reminder the form is currently offering and reports what it holds.
+ * Sets the reminder on 9.3's v2 picker and reports the time it left there.
  *
- * 9.3 gives the control two modes and this dispatches on the one that is
- * there, the way `chooseOption` dispatches, so a case states a mode rather
- * than a widget. The value comes back out of the control rather than being
- * fixed here, which is what lets an assertion compare the stored row to the
- * form instead of to a number this suite invented: 9.3 calls the offset
- * control preset-driven and which presets it offers is the implementer's.
+ * **This replaces a helper that dispatched on two modes, and the dispatch is
+ * gone because one of the modes is.** v1's 9.3 switched the control with due
+ * time, an offset picker with one and a time-of-day picker without, and the
+ * old helper read the element's tag to tell which it had been given. The v2
+ * table writes one rule for the field, "requires a due date; one picker, a
+ * time on that day, writing 4.8's time_of_day mode", and writes the due
+ * picker's own row so there is no due time to switch on: "the pickers offer
+ * no time of day". So there is one mode, it is named rather than discovered,
+ * and a client that answered with an offset control would fail AC-219 on the
+ * sentence that refuses it rather than be quietly accommodated here.
  *
- * `skip` lets a case ask for a different offset than one it already used,
- * which is what AC-170's change arm needs.
+ * `skip` lets a case ask for a different time than one it already used, which
+ * is what AC-170's change arm needs.
  */
-export async function setOfferedReminder(
-  page: Page,
-  skip?: string,
-): Promise<{ mode: 'offset_minutes' | 'time_of_day'; value: string }> {
-  const control = formField(page, 'reminder')
-  await expect(
-    control,
-    'spec 9.3: the reminder is visible when the form is expanded and enabled once a date is ' +
-      'set, so there is a control to offer a reminder through',
-  ).toBeVisible()
-
-  const tag = await control.evaluate((element) =>
-    String((element as unknown as { tagName?: string }).tagName ?? '').toLowerCase(),
+export async function setReminderTime(page: Page, skip?: string): Promise<string> {
+  await openChipPicker(
+    page,
+    'reminder',
+    'spec 9.3: the reminder chip opens its picker in place, and the field requires a due date, ' +
+      'so a dated task has a control to offer a reminder through',
   )
-  if (tag === 'select') {
-    const value = await control.evaluate((element, avoid: string | undefined) => {
-      const select = element as unknown as { options: Iterable<{ value: string }> }
-      for (const option of select.options) {
-        if (option.value !== '' && option.value !== avoid) return option.value
-      }
-      return ''
-    }, skip)
-    expect(
-      value,
-      'spec 9.3: with a due time the reminder control is an offset picker, so it offers at ' +
-        'least one offset to pick' +
-        (skip === undefined ? '' : ', and at least two where a case changes one'),
-    ).not.toBe('')
-    await control.selectOption(value)
-    return { mode: 'offset_minutes', value }
-  }
-
   const time = skip === '09:00' ? '17:30' : '09:00'
   await fillControl(
-    control,
+    reminderTimeControl(page),
     time,
-    'spec 9.3: without a due time the reminder control is a time-of-day picker',
+    "spec 9.3: the reminder picker is \"one picker, a time on that day\", so the value a case " +
+      'leaves is a clock time and never an offset',
   )
-  return { mode: 'time_of_day', value: time }
+  await closeChipPicker(page)
+  return time
 }
 
 /**
- * Puts the reminder control back to holding nothing, whichever mode it is in.
- * 9.3's removal is a person emptying the control, and frozen 7.9 makes the
- * write behind it DELETE /tasks/:id/reminder, no task body expressing one.
+ * Puts the reminder back to holding nothing.
+ *
+ * 9.3's removal is still a person emptying the control, and frozen 7.9 still
+ * makes the write behind it DELETE /tasks/:id/reminder, no task body
+ * expressing a removal. What moved is only where the control is.
  */
-export async function clearOfferedReminder(page: Page): Promise<void> {
-  const control = formField(page, 'reminder')
-  await expect(
-    control,
-    'spec 9.3: the reminder control is on the form to be emptied',
-  ).toBeVisible()
-  const tag = await control.evaluate((element) =>
-    String((element as unknown as { tagName?: string }).tagName ?? '').toLowerCase(),
+export async function clearReminder(page: Page): Promise<void> {
+  await openChipPicker(
+    page,
+    'reminder',
+    'spec 9.3: the reminder picker is where a reminder is emptied, the field having no other ' +
+      'control on this surface',
   )
-  if (tag === 'select') {
-    await control.selectOption('')
-    return
-  }
-  await control.fill('')
+  await clickControl(
+    chipPicker(page).getByRole('button', { name: /^\s*clear\s*$/i }),
+    'spec 9.3 and frozen 7.9: a reminder is removed by emptying its control, and the write ' +
+      'behind that is DELETE /tasks/:id/reminder because no task body expresses a removal',
+  )
+  await expect(
+    chipPicker(page),
+    'the picker closes on the clear, so what follows reads the surface rather than the popover ' +
+      'over it',
+  ).toHaveCount(0)
 }
 
 /* ------------------------------------------------------------------ *
@@ -917,22 +964,198 @@ export async function optionLabels(page: Page, field: Locator): Promise<string[]
 }
 
 /**
- * A field of the 9.3 task form, addressed by the name that section gives it.
+ * A field of 9.3's task surface that is a labelled control, addressed by the
+ * name that section's field table gives it.
  *
- * By accessible name across roles rather than by role plus name, because
- * 9.3's ten fields are ten different roles: title is a text box, important a
- * switch, folder and assignee combo boxes, steps a group. What 9.1's
- * addressing sentence fixes is that the name announces and the name
- * addresses, and a label is exactly that binding.
+ * By accessible name across roles rather than by role plus name, because the
+ * fields are different roles: title is a text box, notes a text box, steps a
+ * group. What 9.1's addressing sentence fixes is that the name announces and
+ * the name addresses, and a label is exactly that binding.
  *
  * Matched case-insensitively and anchored. 9.3 writes its field names in
- * running prose ("due date", "due time"), where a rendered label is
- * capitalized, and a capital letter is not a rewording; anchoring keeps
- * "due date" from also matching "due date reminder" if an implementation
- * ever spells one that way.
+ * running prose ("due date", "notes"), where a rendered label is capitalized,
+ * and a capital letter is not a rewording; anchoring keeps "notes" from also
+ * matching "notes and attachments" if an implementation ever spells one that
+ * way.
+ *
+ * **This helper survived the v2 reunion and lost most of its callers, which
+ * is worth saying because item 15 expected it to move or go.** Five of the
+ * fields it used to resolve are now the header strip's chips and are reached
+ * by `taskChip` below, a chip being a button whose name announces the field
+ * and whose text is the value; what is left here are the fields that are
+ * still labelled controls on the card, which 9.3's v2 body names as the
+ * title "editable in place" and "Steps, Notes, and Attachments as blocks".
  */
 export function formField(page: Page, name: string): Locator {
   return page.getByLabel(new RegExp(`^\\s*${name}\\s*$`, 'i'))
+}
+
+/* ------------------------------------------------------------------ *
+ * 9.3's task surface and its header strip of chips
+ * ------------------------------------------------------------------ */
+
+/**
+ * The task surface of 9.3, whichever of its shapes is open.
+ *
+ * 9.1's v2 roles table: "The task surface: a dialog when opened as one; a
+ * page when opened as a tab or by its URL". This addresses the dialog shape,
+ * which is what every case in this leg opens.
+ *
+ * **Filtered by the title rather than taken as the first or the last
+ * dialog**, and the reason is that the chips open their pickers as dialogs
+ * too: 9.3 says each chip "opens its picker in place", and a popover asking
+ * a question is exactly what the dialog role is for, so a surface addressed
+ * by position moves the moment a picker is open over it. The title is the one
+ * thing 9.3 puts on the card and on no picker, so it identifies the surface
+ * by what the section says is in it.
+ */
+export function taskSurface(page: Page): Locator {
+  return page.getByRole('dialog').filter({ has: page.getByLabel(/^\s*title\s*$/i) })
+}
+
+/**
+ * One chip of 9.3's header strip, addressed by the field it announces.
+ *
+ * The five are the v2 field table's own names: due date, folder, assignee,
+ * reminder, repeat. 9.1's names table fixes strings for the chrome's controls
+ * and says "a control not named here is reached by its role in the ordinary
+ * sense", which for a chip is its role and its accessible name; 9.3 makes
+ * that name the field's, because a strip whose chips did not say which field
+ * they were would be five values and no questions.
+ *
+ * Matched as a prefix and not anchored at both ends, which is the one
+ * difference from `formField` and is deliberate: a chip's accessible name is
+ * the field and then its current value, "Due date 3 Sep", because the value
+ * is what a person reads off the strip without opening anything. Anchoring
+ * the tail would be asserting that the strip renders no value, which is the
+ * opposite of what the section asks for.
+ */
+export function taskChip(page: Page, name: string): Locator {
+  return taskSurface(page).getByRole('button', {
+    name: new RegExp(`^\\s*${name}\\b`, 'i'),
+  })
+}
+
+/**
+ * What a chip currently shows for its field, with the field's own name taken
+ * off the front.
+ *
+ * The name is in the accessible name and in the text, being a visually hidden
+ * run before the value, so a case reading "what does the strip say the due
+ * date is" has to strip it. Whitespace is collapsed for the reason
+ * `fieldValue` collapses it.
+ */
+export async function chipValue(chip: Locator, name: string): Promise<string> {
+  const text = await chip.evaluate((element) =>
+    ((element as unknown as { textContent: string | null }).textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
+  return text.replace(new RegExp(`^\\s*${name}\\s*`, 'i'), '').trim()
+}
+
+/**
+ * The picker a chip has opened, meaning the one a person is looking at.
+ *
+ * 9.3: "each opening its picker in place... one shape at one width", and it
+ * says nothing about what a picker is built from, which is deliberate:
+ * section 9 specifies structure, states and copy, not widgets. A picker
+ * asking for a day or a time is a small modal surface and carries the dialog
+ * role; one offering a list of named choices is a menu. Both are admitted
+ * here for the same reason `chooseOption` dispatches, and nothing else is.
+ *
+ * The task surface itself carries the dialog role too (9.1's roles table) and
+ * is excluded by the title it holds, which is the same test `taskSurface`
+ * makes and the same reason.
+ *
+ * **Filtered to what is on screen, which is not fastidiousness and was
+ * measured.** A popover that has been opened once stays in the document after
+ * it closes, keeping its role and its name, so a case that opened the repeat
+ * picker and then opened the reminder picker had two dialogs answering to
+ * "the picker" and died of strict mode against a client doing exactly what
+ * the section asks. Visibility is the right discriminator rather than a
+ * closed-state attribute: 9.3's sentence is about a picker being open in
+ * front of the person, and an element nobody can see is not one. This is the
+ * S11 class of fault, found by driving a live server and invisible to
+ * reading.
+ */
+export function chipPicker(page: Page): Locator {
+  return page
+    .getByRole('dialog')
+    .filter({ hasNot: page.getByLabel(/^\s*title\s*$/i) })
+    .or(page.getByRole('menu'))
+    .filter({ visible: true })
+}
+
+/**
+ * Opens one chip's picker and waits for it to be there to act on.
+ *
+ * The picker is then addressed by the field's own name where it has one,
+ * which is the two-signals-rather-than-one habit the rest of this file keeps:
+ * 9.3 gives each chip a picker of its own, so "the picker that is open" and
+ * "the picker for this field" should be the same element, and a client that
+ * opened the wrong one fails here saying which it opened.
+ */
+export async function openChipPicker(page: Page, name: string, why: string): Promise<Locator> {
+  await clickControl(taskChip(page, name), why)
+  const picker = chipPicker(page)
+  await expect(
+    picker,
+    `${why}. 9.3: the chip "opens its picker in place", so the press is answered by a picker ` +
+      'and not merely by a pressed chip',
+  ).toBeVisible()
+  return picker
+}
+
+/**
+ * Dismisses whatever picker is open, so the next read is of the surface.
+ *
+ * Escape rather than a control, because 9.3 spells no dismiss control for a
+ * picker and a criterion may not invent one; escape closing a popover is the
+ * platform behaviour every dialog in this client already has.
+ */
+export async function closeChipPicker(page: Page): Promise<void> {
+  await page.keyboard.press('Escape')
+  await expect(
+    chipPicker(page),
+    'the picker closes on escape, so what follows reads the surface rather than the popover ' +
+      'over it',
+  ).toHaveCount(0)
+}
+
+/** The reminder picker's one control: 9.3's "a time on that day". */
+export function reminderTimeControl(page: Page): Locator {
+  return chipPicker(page).getByLabel(/^\s*reminder time\s*$/i)
+}
+
+/**
+ * Whatever a chip's picker offers as its choices, whichever role it built
+ * them from, and only while a person can see them.
+ *
+ * Visibility-filtered for the reason `chipPicker` is and it is the same
+ * measured fault: a popover that has been opened once stays in the document
+ * after it closes, and its choices stay with it, so a case that opened the
+ * folder picker and then the assignee picker would count both lists as one.
+ * A choice nobody can see is not being offered.
+ */
+export function chipChoices(page: Page): Locator {
+  return page.getByRole('menuitem').or(page.getByRole('option')).filter({ visible: true })
+}
+
+/**
+ * The names a chip's picker offers, in the order it offers them.
+ *
+ * The sibling of `optionLabels` for the header strip, and it dispatches for
+ * the same reason that one does: 9.1's addressing sentence fixes how a
+ * control is identified and says nothing about how it is built, so a list of
+ * choices is read across both roles a menu can carry rather than assuming
+ * one. Order is preserved because two criteria assert it, AC-220 on the
+ * assignee menu's last entry and 9.3's repeat row on its preset sequence.
+ */
+export async function chipOptions(page: Page, name: string, why: string): Promise<string[]> {
+  await openChipPicker(page, name, why)
+  const texts = await chipChoices(page).allTextContents()
+  return texts.map((text) => text.replace(/\s+/g, ' ').trim())
 }
 
 /**
