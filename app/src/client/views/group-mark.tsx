@@ -33,7 +33,23 @@ export function groupHeadingMedia(
 ): ReactNode {
   if (mark === null) return undefined
   if (mark.kind === 'person') {
-    return <PersonFace name={mark.name} initials={initialsOf(mark.name)} dense />
+    /*
+    Hidden from the accessible name, and this is the one thing about a face in
+    a heading that is not obvious.
+
+    A folder's mark is an `svg` and already `aria-hidden`, so it contributes
+    nothing. A person's disc renders their initials as *text*, so a heading
+    control drawing one un-hidden would be named "H You" rather than "You",
+    and 9.1 requires a collapsible section's control to carry the section's
+    name. The person is named beside it in the heading either way, so nothing
+    is lost by hiding the disc: it is the second cue, which is this client's
+    standing rule for anything a colour or a glyph says.
+    */
+    return (
+      <span aria-hidden="true" className="flex shrink-0 items-center">
+        <PersonFace name={mark.name} initials={initialsOf(mark.name)} dense />
+      </span>
+    )
   }
   const resolved = folderMark(folders.find((folder) => folder.id === mark.folderId))
   return (
