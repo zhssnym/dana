@@ -2584,6 +2584,32 @@ fold, the way P7's mid-package change control ratified the pass callable:
     written down; the three roles it would land on are 04's for the frozen
     section 7 address, 03's for the transaction, and 10's for the store.
 
+    **A ruling is reported to have arrived and this package did not act on it,
+    which is deliberate (2026-08-26, later the same night).** The S19 session
+    relays that Imran has ruled the prototype's way: the prototype is the
+    source and Trash gets a permanent delete control. **Recorded as relayed
+    rather than as read from an artifact**, which is item 22's own standard for
+    a ruling a session did not receive directly, and nothing here moved on it.
+
+    A relay is not the ruling, and protocol section 2 takes state from
+    artifacts: no amendment to 7.13 or 9.11 exists, so what those two sections
+    say is still what AC-262 asserts. More than that, **the reported reasoning
+    appears to rest on a misreading worth resolving before anything is built on
+    it.** The reason given for keeping the files was that a person's own data
+    on their own machine must not be removed, which Dana cannot reach at all:
+    4.16 puts every byte in the object store and names no public object URL.
+    Read literally, the ruling leaves those bytes on Dana's own disk,
+    unreachable, still spending the owner's 1 GB quota, and with no listing
+    anywhere in 7.15 to find them by again, which is exactly the unbounded
+    growth the paragraph above is about. S19 has put both readings back to him.
+
+    So the state to act on is that **the absence stands until 7.13 and 9.11 are
+    amended**; when they are, AC-262's last arm moves with them and the
+    collection question is settled in the same act rather than after it. This
+    paragraph exists so the next session finds the ruling reported, the reading
+    disputed and the criterion unchanged, rather than finding a criterion
+    somebody had quietly rewritten on a relay.
+
     **(b) 9.11 requires the deleter on every Trash row and the read does not
     carry one. Recommendation: widen the 7.13 read, which is not frozen.**
     9.11: "each row naming what it was, where it lived, **who deleted it and
