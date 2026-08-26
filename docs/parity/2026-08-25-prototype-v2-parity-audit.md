@@ -102,7 +102,39 @@ not product.
 5. **The folder page has no board and its panels cover it** rather than
    taking room at the right edge, and its tasks ignore their sections.
 
-## What blocks whom
+## Addendum, 2026-08-25, from running the app rather than reading it
+
+Added by the Integration Steward after the section 9 fold, by driving the
+built client on a fresh account. It sharpens two rows above rather than
+adding surfaces, and both were verified in the running app and then in the
+source.
+
+**The Library block cannot render shelves at all, which is the root cause
+under "shelf pages, reachability".** That row names the group heading and the
+missing New shelf control, which are the symptoms. The cause is one line
+that does not exist: `app-shell.tsx` fetches `useShelves` but **never passes
+a `shelves` prop to `AppSidebar`**, whose props are `folders`,
+`pinnedViews`, `savedViews`, `groups` and the sizing handlers. The read is
+gated behind `shelvesWanted`, true only when a shelf route or tab is open,
+and its own comment says it exists so "a shelf tab's face resolves through"
+it; a second comment says the Library "will share" it, in the future tense it
+still has. Demonstrated live: a shelf created through 7.16 renders its own
+page correctly at `/app/shelves/:id`, with name, description, empty state and
+the Add folder row, and **is absent from the Library after a full reload**.
+So 9.1's "holding the viewer's shelves and folders as one ordered list" is
+unimplemented for the shelves half, and no amount of work on the heading or
+a New shelf control reaches it. S17b should take this first: the two symptoms
+are unfixable until the data arrives at the component.
+
+**The four newly folded sections were checked against their own copy and
+three are exact.** 9.11 Trash renders its heading, the rule sentence
+"Deleted things stay here for 30 days, then they're gone for good." and the
+empty state "Nothing in the Trash." verbatim. 9.12's bell carries the
+accessible name "Notifications" and its empty state reads "Nothing new. When
+someone assigns you a task or answers you, it lands here." verbatim. 9.13's
+starter offer appears on a fresh account's Desk, the account holding one
+folder and no tasks, which is that section's own definition of fresh. 9.10's
+shelf page renders; only its reachability fails, as above.
 
 - **Two frozen section 7 widenings**, `section_block_id` on the folder read
   and `created_by` on TaskCard, are approved by item 19 and not enacted.
