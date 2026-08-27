@@ -67,9 +67,8 @@ import type { RowActions } from '../parts/useRowActions.js'
 import { MorePages, PageBody } from '../states/PageStates.js'
 import { PageSection } from '../states/PageSection.js'
 import { DONE_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { PLACES } from '../views/place-pages.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { ConfirmDialog as RowConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 
 const SPINE = PLACES.done
@@ -174,7 +173,7 @@ export function DonePage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
+      <PlaceHead place={place} />
       <PageBody
         query={view}
         isEmpty={days.length === 0}

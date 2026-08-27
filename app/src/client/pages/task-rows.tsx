@@ -129,70 +129,17 @@ export function useConfirm(): {
   }
 }
 
-/**
- * What a surface that drags its rows attaches to each of them, by index.
- *
- * Optional and absent on every list that does not drag, which is all of them
- * but the board today. It is one prop rather than three so that a caller
- * either drags or does not: three optional callbacks are three ways to attach
- * two of them and wonder why the row will not move.
- */
-export interface RowDrag {
-  readonly rowRef: (index: number) => (element: HTMLElement | null) => void
-  readonly dragProps: (index: number) => {
-    onPointerDown: (event: React.PointerEvent) => void
-  }
-  readonly dragStyle: (index: number) => React.CSSProperties | undefined
-  readonly proposal: (index: number) => string | undefined
-}
-
-/**
- * `RowDrag`'s caller-computed style as the v2 row's own drag state.
- *
- * The offset is read back out of the transform the caller wrote, which is the
- * one piece of information the v2 row needs and the only one `RowDrag`
- * carries. Everything else the row derives: whether it is the carried one, and
- * whether it is settling back. The two dwell flags are the merge gesture's and
- * belong to the list that owns the dwell, which no board does.
- *
- * Reading a number back out of a string is not a shape anybody would design,
- * and it is the honest cost of leaving `views/TaskBoard.tsx` alone until S25
- * lifts it. Naming it here rather than hiding it is the point: when that row
- * lands, this function goes with the interface it translates.
- */
-function dragStateOf(
-  drag: RowDrag | undefined,
-  index: number,
-): { isActive: boolean; isDwelling: boolean; isArmed: boolean; isSettling: boolean; offset: number } | undefined {
-  if (drag === undefined) return undefined
-  const style = drag.dragStyle(index)
-  if (style === undefined) return undefined
-  const transform = typeof style.transform === 'string' ? style.transform : ''
-  const found = /translateY\((-?[\d.]+)px\)/.exec(transform)
-  const offset = found === null ? 0 : Number(found[1])
-  const isActive = style.zIndex !== undefined
-  return {
-    isActive,
-    isDwelling: false,
-    isArmed: false,
-    isSettling: isActive && style.transition !== 'none',
-    offset,
-  }
-}
-
 export function TaskRows({
   tasks,
   context,
   actions,
   onAsk,
-  drag,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
   readonly actions: RowActions
   /** Raised for the two overflow entries section 9 puts a confirmation on. */
   readonly onAsk: (message: string, run: () => void) => void
-  readonly drag?: RowDrag
 }): React.JSX.Element {
   return (
     /*
@@ -212,7 +159,7 @@ export function TaskRows({
     preference about how the whole document draws belongs on the document.
     */
     <div role="list" className="space-y-0.5 [[data-density=compact]_&]:space-y-0">
-      {tasks.map((task, index) => (
+      {tasks.map((task) => (
         <TaskRow
           key={task.id}
           {...taskRowDisplay(task, context)}
@@ -224,25 +171,18 @@ export function TaskRows({
           */
           id={task.id}
           /*
-          **Seam, S23: the three drag props become the v2 row's two.**
-
-          `RowDrag` was written against the v1 row, which took a ref, a
-          pointer handler and a style and applied all three itself. The v2 row
-          holds its own drag machinery: `itemRef` is the same ref, `listProps`
-          is whatever the engine wants spread onto the element, and
-          `dragState` replaces the caller-computed style, because the row is
-          the one that knows how a carried row should move and a caller
-          computing a transform was a caller deciding a motion token.
-
-          The style is therefore translated rather than passed. `RowDrag` is
-          the board's contract and the board is `views/TaskBoard.tsx`, which
-          is S25's to lift; keeping its shape means that page is untouched by
-          this row, which is what the boundary between the two is for.
+          **S23's drag seam is gone at S25, and it went the way its own
+          comment said it would.** That seam took `RowDrag`, the interface
+          `views/TaskBoard.tsx` published while it was still the v1 board, and
+          translated it into the v2 row's `dragState` by reading a pixel
+          offset back out of a CSS transform string. Its comment said "when
+          that row lands, this function goes with the interface it
+          translates", and the row has landed: the board is the prototype's
+          own now and drags through `TaskList`, which hands each row its state
+          directly. Nothing in this client passes `RowDrag` any more, so the
+          three props and the parser behind them are deleted rather than left
+          optional. No list this file draws drags today.
           */
-          itemRef={drag?.rowRef(index)}
-          listProps={drag?.dragProps(index)}
-          dragState={dragStateOf(drag, index)}
-          proposal={drag?.proposal(index)}
           onOpen={() => {
             actions.onOpenTask(task)
           }}

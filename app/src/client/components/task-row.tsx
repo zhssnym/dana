@@ -2077,6 +2077,9 @@ export interface TaskRowProps {
   */
   unassigned?: boolean
   invitePending?: string
+  /* **Seam, S25: 9.5's from half.** The person who made this task, drawn only
+     where the page asks. See the chip at the foot of `rowChips`. */
+  createdBy?: string
   /* What a release would do, drawn on the row being carried. Seam, S23; see
      `ExpandShell`. */
   proposal?: string
@@ -2714,6 +2717,41 @@ export function TaskRow(props: TaskRowProps) {
         </DetailChip>
       ),
     },
+    /*
+    **Seam, S25: Assignments' from half, the third adornment the prototype
+    dropped and section 9 keeps.**
+
+    9.5 is normative and in terms: "the 'from' half of a row names the
+    creator, Dana recording no assigner." The prototype's own screen weighs
+    the same fact and lands elsewhere, that "the assignee is this page's spine
+    and creator belongs in the filter", which is a reading of the same honesty
+    problem rather than a contradiction of it. This client does both: the chip
+    is here and the created-by axis landed in `views/filter.ts` beside it.
+    Ledger L-224 and L-254 are this chip, and both read *no* with S25 named.
+
+    11.13 governs the difference and the section wins, which is the ruling F1
+    and F2 took and the one the two chips above took at S23: the lift owes the
+    adornment at a named seam.
+
+    **A chip of this strip rather than a badge beside it**, DES-113's rule for
+    the two densities being that the details may differ in where they sit "and
+    in nothing else". **And drawn only where a page asks for it**, because a
+    creator on every row of every page is the row repeating what nobody asked;
+    `parts/presenters.ts` fills it from `context.showCreator`, and Assignments
+    is the one page that passes it, which is the same per-list decision
+    `given` is and for DES-154's reason.
+    */
+    {
+      key: "created-by",
+      shown: Boolean(props.createdBy),
+      body: () =>
+        !props.createdBy ? null : (
+
+        <DetailChip interactive={false}>
+          <DetailWord icon={UserRound}>From {props.createdBy}</DetailWord>
+        </DetailChip>
+      ),
+    },
   ]
 
   const visibleChips = rowChips.filter((chip) => chip.shown)
@@ -2936,6 +2974,18 @@ export interface TaskListWiring {
     isSettling: boolean
     offset: number
   }
+  /*
+  **Seam, S25: what a release would do, for a list that drags into a
+  container.**
+
+  S23 gave the row the slot and the words, DES-171's "a container takes the
+  drop and says so", and left the list with no way to fill it: the engine's
+  `overKey` was never asked for and never handed on, so the only surface that
+  drags into a container, the board, could not draw one. AC-228 reads "Into
+  {column}" while the pointer is still down, which is the one moment it
+  exists. Undefined on every row that is not the carried one.
+  */
+  proposal?: string
   isSelected: boolean
   selecting: boolean
 }
@@ -2972,6 +3022,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   tasks,
   onReorder,
   onDropAt,
+  onOver,
   onDragStateChange,
   onMerge,
   onBulk,
@@ -2999,6 +3050,12 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   means the page took it and this list should leave its own order alone.
   */
   onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
+  /* **Seam, S25.** What a release at this point would do, asked while the
+     drag is still in the air, so the carried row can say it. It returns the
+     words rather than a key, because the words are the only thing the row
+     draws and a key would need a second prop to translate. See `proposal` on
+     `TaskListWiring`. */
+  onOver?: (taskId: string, point: { x: number; y: number }) => string | null
   /* Whether a row in this list is currently being carried. A page with
      sections needs it: the place to drop a task that belongs to none of them
      only has to exist while something is in the air. Pass a stable setter. */
@@ -3069,6 +3126,12 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
       ? (from, point) => {
           const task = ordered[from]
           return task ? onDropAt(task.id, point) : false
+        }
+      : undefined,
+    onOver: onOver
+      ? (from, point) => {
+          const task = ordered[from]
+          return task ? onOver(task.id, point) : null
         }
       : undefined,
     onReorder: (from, to) => {
@@ -3185,6 +3248,13 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
             else openers.current.delete(task.id)
           },
           dragState: drag.itemState(index),
+          /* Seam, S25: the words only the carried row draws, and only while
+             a container has been proposed. `overKey` is the label because
+             `onOver` returns one; see that prop. */
+          proposal:
+            drag.itemState(index).isActive && drag.overKey !== null
+              ? drag.overKey
+              : undefined,
           isSelected: selection.selected.includes(task.id),
           selecting: selection.selecting,
         }

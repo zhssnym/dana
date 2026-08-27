@@ -847,7 +847,6 @@ export function FolderPage({
                   columns={boardColumns}
                   context={context}
                   actions={actions}
-                  onAsk={confirm.ask}
                 />
               ) : loose.length === 0 && visible.length === 0 ? (
                 <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
