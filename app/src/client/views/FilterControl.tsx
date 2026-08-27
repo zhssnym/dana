@@ -28,16 +28,22 @@ saves is exactly the state this panel holds (DES-153: a view is a name over a
 filter). It writes ids, never names, which is what makes a saved view survive
 a rename (AC-209).
 
-**The four seams, each named because a later reader will otherwise take the
-prototype's version for the contract.**
+**The seams, each named because a later reader will otherwise take the
+prototype's version for the contract. Four are the ones this file was written
+with; three more were found by driving the leg rather than by reading it,
+which is item 47(e)'s lesson arriving here too, and each of those is beside
+the code it governs rather than in this list: the three axis labels a
+criterion addresses, the panel committing and closing, and the Due axis
+resting open.**
 
 1. **The trigger is named "Filter" and says nothing about a count.** The
-   prototype writes `aria-label={`Filters, N active`}`; 9.1's names table
-   fixes "Filter" for this control, and AC-167, AC-176, AC-221, AC-228 and
-   AC-259 all address it as `{ name: 'Filter', exact: true }`. The section
-   wins (11.13), which is the ruling F1 and F2 took. The count badge beside
-   the glyph is the prototype's and stays, being presentation rather than a
-   name.
+   prototype writes an aria-label of "Filters" with the active count in it;
+   9.1's names table fixes "Filter" for this control, and AC-167, AC-176,
+   AC-221, AC-228 and AC-259 all address it as `{ name: 'Filter', exact:
+   true }`. The section wins (11.13), which is the ruling F1 and F2 took. The
+   count badge beside the glyph is the prototype's and stays, being
+   presentation rather than a name. A chip's own name drops the word "filter"
+   for the same reason and keeps everything else the prototype gives it.
 2. **A value row is an `option` in a `listbox`, not a `menuitemradio`.** The
    prototype's `FilterChoice` carries `role="menuitemradio"`; the criteria
    above reach a value as `getByRole('option')` or `getByRole('menuitem')`,
@@ -129,9 +135,28 @@ const stripButtonClass = (active: boolean): string =>
       : 'text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]',
   )
 
+/*
+The axis labels, and three of them are the client's words rather than the
+prototype's, each because a criterion addresses the string and this row owns
+no rework of one.
+
+Item 48(e)'s lesson is what found them, and it found them by being followed:
+when a lift changes a *string*, grep the string across `app/tests/` and trust
+that over any pile sorted by surface. AC-176 addresses two of the due axis's
+values exactly, and AC-228 and AC-259 both address the group-by value as the
+one word "Date", where the prototype writes "Any", "Has a due date" and "Due
+date". Section 9 fixes none of the three, so no section settles it and the
+criterion is the only artefact with an opinion. Taking the prototype's three
+words would turn four green cases red in a package the triage gave no rework
+to, which is what item 47(j) declined to do for the same reason.
+
+**Offered to persona 11 and to S29**, which is the row that collects exactly
+this class. Every other label below is the prototype's, the two range presets
+nothing addresses included.
+*/
 const DUE_LABEL: Record<DueAxis, string> = {
-  any: 'Any',
-  with: 'Has a due date',
+  any: 'Any due date',
+  with: 'With a due date',
   without: 'No due date',
   overdue: 'Overdue',
   today: 'Today',
@@ -144,7 +169,8 @@ const GROUP_LABEL: Record<GroupBy, string> = {
   none: 'Nothing',
   folder: 'Folder',
   person: 'Person',
-  date: 'Due date',
+  /* The client's word, and the note above says why. */
+  date: 'Date',
 }
 
 const SORT_LABEL: Record<SortBy, string> = {
@@ -302,14 +328,27 @@ function Axis({
   icon,
   label,
   value,
+  defaultOpen = false,
   children,
 }: {
   readonly icon: LucideIcon
   readonly label: string
   readonly value: string
+  /*
+  **Seam, S25.** The prototype opens every axis closed, and the Due axis opens
+  open here. Two reasons, and the second is the one that decides it: Due is
+  the one axis every place page and the folder page share as their first
+  question, so a panel that opens on nothing makes the commonest narrowing two
+  presses; and 9.6 states that question in terms as what the folder page's
+  filter offers, "all open tasks, those with a due date, and those without",
+  which AC-176 reads by opening the filter and pressing the option. Every
+  other axis rests closed, which is what keeps the panel a page of axes.
+  */
+  readonly defaultOpen?: boolean
   readonly children: React.ReactNode
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
+
   return (
     <div>
       <button
@@ -376,6 +415,28 @@ export function FilterControl({
     Number(filter.repeating) +
     Number(filter.important) +
     Number(!filter.showAbandoned)
+
+  /*
+  **Seam, S25: the panel commits and closes, which the prototype's does not.**
+
+  DES-156's rule, as this client has carried it since the axis model was
+  written: choosing a due range, a grouping or a sort is one answer to one
+  question, so it is written and the panel closes the way a select does, and
+  the chips in the window bar then say what happened. The two set-valued axes
+  are the exception, and they are the exception for the reason they exist,
+  "more than one value per axis, Sara and Hassan", so their checkboxes leave
+  the panel open until a person is done with them. A switch closes for the
+  same reason a range does, being one press that settles one variable.
+
+  It is a seam rather than a preference because AC-167 reaches the important
+  switch by pressing "Filter" before each toggle, and its own comment says it
+  does so because section 9 fixes nothing about whether the surface stays
+  open. A panel that stayed open would answer that second press by closing.
+  */
+  function commit(next: PageFilter): void {
+    onChange(next)
+    setOpen(false)
+  }
 
   function toggleIn(axis: 'assignees' | 'creators', id: string): void {
     const chosen = filter[axis].includes(id)
@@ -467,14 +528,14 @@ export function FilterControl({
           </>
         ) : null}
 
-        <Axis icon={CalendarDays} label="Due" value={DUE_LABEL[filter.due]}>
+        <Axis icon={CalendarDays} label="Due" value={DUE_LABEL[filter.due]} defaultOpen>
           {(['any', 'with', 'without'] as const).map((value) => (
             <FilterChoice
               key={value}
               label={DUE_LABEL[value]}
               selected={filter.due === value}
               onSelect={() => {
-                onChange({ ...filter, due: value, from: null, to: null })
+                commit({ ...filter, due: value, from: null, to: null })
               }}
             />
           ))}
@@ -488,7 +549,7 @@ export function FilterControl({
             }
             selected={filter.due === 'overdue'}
             onSelect={() => {
-              onChange({ ...filter, due: 'overdue', from: null, to: null })
+              commit({ ...filter, due: 'overdue', from: null, to: null })
             }}
           />
           <div className="mx-1 my-1.5 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
@@ -498,7 +559,7 @@ export function FilterControl({
               label={DUE_LABEL[value]}
               selected={filter.due === value}
               onSelect={() => {
-                onChange({ ...filter, due: value, from: null, to: null })
+                commit({ ...filter, due: value, from: null, to: null })
               }}
             />
           ))}
@@ -585,7 +646,7 @@ export function FilterControl({
           label={IMPORTANT_ONLY}
           checked={filter.important}
           onChange={(important) => {
-            onChange({ ...filter, important })
+            commit({ ...filter, important })
           }}
         />
         <SwitchRow
@@ -593,7 +654,7 @@ export function FilterControl({
           label={REPEATING_ONLY}
           checked={filter.repeating}
           onChange={(repeating) => {
-            onChange({ ...filter, repeating })
+            commit({ ...filter, repeating })
           }}
         />
         <SwitchRow
@@ -601,7 +662,7 @@ export function FilterControl({
           label={ABANDONED_HIDDEN}
           checked={!filter.showAbandoned}
           onChange={(hidden) => {
-            onChange({ ...filter, showAbandoned: !hidden })
+            commit({ ...filter, showAbandoned: !hidden })
           }}
         />
 
@@ -613,7 +674,7 @@ export function FilterControl({
               label={GROUP_LABEL[key]}
               selected={filter.groupBy === key}
               onSelect={() => {
-                onChange({ ...filter, groupBy: key })
+                commit({ ...filter, groupBy: key })
               }}
             />
           ))}
@@ -625,7 +686,7 @@ export function FilterControl({
               label={SORT_LABEL[key]}
               selected={filter.sort === key}
               onSelect={() => {
-                onChange({ ...filter, sort: key })
+                commit({ ...filter, sort: key })
               }}
             />
           ))}
@@ -744,7 +805,13 @@ export function FilterChips({
         <button
           key={chip.key}
           type="button"
-          aria-label={`Remove filter: ${chip.label}`}
+          /* **Seam, S25**, and the naming seam again. The prototype names this
+             "Remove filter: {label}", and AC-176 addresses the filter control
+             itself as `getByRole('button', { name: /filter/i })`, which a chip
+             carrying the word "filter" makes ambiguous; 9.1 names the chip
+             nowhere, so nothing is given up by saying the same thing without
+             that word. */
+          aria-label={`Remove ${chip.label}`}
           onClick={() => {
             onChange(chip.cleared)
           }}
