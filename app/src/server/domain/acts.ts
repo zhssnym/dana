@@ -18,6 +18,8 @@ The import is the same maker's-work rule with a file for a source, and its
 refusals are the schema's shape (shared/workflows.ts): what the caps admit
 is created, and what the file smuggled was never read.
 */
+import { randomUUID } from 'node:crypto'
+
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -25,6 +27,7 @@ import type { ImportWorkflowBody } from '../../shared/workflows.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
 import { recordEvent } from './events.js'
+import { upsertReminder } from './tasks.js'
 
 /* ------------------------------------------------------------------ *
  * POST /folders/:id/duplicate
@@ -260,6 +263,10 @@ export async function importWorkflow(
   db: Db,
   viewerId: string,
   file: ImportWorkflowBody,
+  /** today(V) in the zone the request named, or null where the file asks no
+   * date to be evaluated. The caller resolves it, because 8.1 makes the zone
+   * an input of the request rather than a fact the server holds. */
+  anchor: string | null = null,
 ): Promise<ImportResult> {
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
@@ -293,14 +300,45 @@ export async function importWorkflow(
                       ${block.text})`,
         )
       }
-      // Titles arrive as typed work would: pending, undated, the
-      // importer's (the DES-198 contradiction's one rule).
+      // Work arrives as typed work would: pending, unticked, the
+      // importer's (the DES-198 contradiction's one rule). What travels is
+      // item 44's B3 list and no more, which is the widening; what does not
+      // is still ids, people, due dates and states.
       for (const task of folder.tasks ?? []) {
-        await tx.execute(
-          sql`INSERT INTO tasks (folder_id, title, assignee_id, created_by)
-              VALUES (${folderId}::uuid, ${task.title}, ${viewerId}::uuid,
-                      ${viewerId}::uuid)`,
+        // A repeat needs 4.5's anchor and a reminder needs 8.6's, and the
+        // file carries no date, so the day the run began is the date they
+        // get. A task carrying neither stays undated, which is what the
+        // exclusion is about (change control item 46(a)).
+        const dated =
+          task.recurrence_rule !== undefined || task.reminder !== undefined
+        const madeTask = await rowsOf(
+          tx,
+          sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
+                                 recurrence_rule, series_id, assignee_id,
+                                 created_by)
+              VALUES (${folderId}::uuid, ${task.title},
+                      ${task.notes ?? null}, ${task.important ?? false},
+                      ${dated ? anchor : null}::date,
+                      ${task.recurrence_rule ?? null},
+                      ${task.recurrence_rule === undefined ? null : randomUUID()}::uuid,
+                      ${viewerId}::uuid, ${viewerId}::uuid)
+              RETURNING id`,
         )
+        const taskId = String(madeTask[0]?.id)
+        for (const [index, step] of (task.steps ?? []).entries()) {
+          await tx.execute(
+            sql`INSERT INTO steps (task_id, title, position)
+                VALUES (${taskId}::uuid, ${step.title}, ${index})`,
+          )
+        }
+        if (task.reminder !== undefined) {
+          await upsertReminder(
+            tx,
+            taskId,
+            { offsetMinutes: null, timeOfDay: task.reminder.time_of_day },
+            viewerId,
+          )
+        }
       }
       await recordEvent(tx, {
         actorId: viewerId,
