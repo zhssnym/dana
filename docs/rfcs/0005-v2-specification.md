@@ -1,10 +1,36 @@
 # RFC 0005: The v2 specification — navigation, day-level dates, roles, and the six systems
 
-- **Status:** Accepted — by Imran, 2026-08-24 ("accepted, start S1"), recorded
-  the same day. Provisional numbers checked against the specification at
-  acceptance: sections 4.13 to 4.19, 7.12 to 7.18, 9.10 to 9.12 and criteria
-  from AC-184 are unclaimed and stand. The criteria units arrive from S1 per
-  the plan and complete inventory item 17.
+- **Status:** Accepted. **Re-accepted by Imran on 2026-08-27**, in his own
+  words: "Yeah, I accept all the decisions which is going toward applying
+  prototype v2 as Dana v2.0". First accepted by him on 2026-08-24 ("accepted,
+  start S1"), recorded the same day. Provisional numbers checked against the
+  specification at that first acceptance: sections 4.13 to 4.19, 7.12 to 7.18,
+  9.10 to 9.12 and criteria from AC-184 were unclaimed and stand. The criteria
+  units arrive from S1 per the plan and complete inventory item 17.
+
+  **What the second acceptance is for, because a status line that changes
+  without a reason is worse than one that is out of date.** The delta grew
+  after 2026-08-24: change control items 44 and 46 wrote nine further
+  amendment units into it, five of which reach frozen sections 4 and 7 (the
+  task's hand order, the page block's width, the place-cover table 4.20, the
+  order endpoint on 7.6, the workflow file's widening and the block width on
+  7.16, and 7.19). The template's rule is that a post-acceptance change to the
+  delta returns an RFC to `Draft` for re-acceptance, and the status field never
+  moved, so this document was carrying a signature for a version of itself that
+  no longer existed. **The substance was never in doubt**: item 44 records each
+  frozen change as ruled by him with its cost stated, and S22a built all nine.
+  What this line restores is the bookkeeping, and it was taken before S29a
+  folds those units into the frozen sections rather than after, because a
+  contract should not trace back to a signature for different content.
+
+  **Its scope, stated so nobody stretches it.** It re-accepts this RFC's delta
+  as it stands on 2026-08-27, item 46's nine units included. It is not an
+  approval of anything unruled: every open question in this file and in section
+  13 stays open, and the sentence it is written in is his standing ruling of
+  items 37 and 48(k) rather than a new one. **It is not `Implemented`**, which
+  means the whole delta is folded into the specification, and most of it is
+  not; RFC 0004's S29a is the row that folds the rest. Recorded at change
+  control item 49(k), which is where the question was put to him.
 - **Created:** 2026-08-24
 - **Target release:** 2.0.0, September 2026 — a plan, not a promise; the
   infrastructure half is date-bound (database expiry 2026-09-12)
@@ -4787,6 +4813,24 @@ fold, the way P7's mid-package change control ratified the pass callable:
     delta is folded, units of this RFC were still being written at S22a, and
     this row folded what it names.
 
+    **Answered by Imran the same day, 2026-08-27, and the recommendation was
+    taken.** His words: *"Yeah, I accept all the decisions which is going toward
+    applying prototype v2 as Dana v2.0"*. The status line at the head of this
+    file now carries the second acceptance with that sentence, the date, what it
+    re-accepts and what it does not, and S29a's dependency on this question is
+    met. **Two things about the answer are worth keeping rather than
+    smoothing.** He gave it in the frame of items 37 and 48(k) rather than in
+    the frame of the template, which is the fourth time that one standing ruling
+    has decided a question put to him about something else, and it is why the
+    status line records the sentence verbatim instead of paraphrasing it into a
+    yes. And the question was put to him **plainly rather than in the
+    repository's own vocabulary**, on his instruction of that afternoon to say
+    it naturally; the first version named the template's rule and the unit
+    numbers and he asked what it meant. The lesson is worth the line it costs:
+    an escalation that only a session can parse is not an escalation, and this
+    role's own protocol asks for the options and a recommendation, not for the
+    ceremony around them.
+
     **Numbers, read at this package's opening and again at this merge**, the
     check items 13 and 25 exist for. Next free acceptance number **AC-274** both
     times and **none spent**, this row writing no criterion; next SESSION-LOG
@@ -4797,6 +4841,27 @@ fold, the way P7's mid-package change control ratified the pass callable:
     produced when two sessions wrote "item 32" eight minutes apart: `s25-places`
     was checked at both readings and had spent no criterion, no log row and no
     change control item.
+
+    **What happened at the merge itself, recorded because both halves of it are
+    what the machine notes predict and one of them cost a verdict.** The merge
+    landed at `069f3b6` off `a08d1f0` with the branch clear. **S25 then merged
+    inside the same CI cycle and cancelled this row's run**, which is exactly
+    the collision RFC 0004's own closing note and the S29 brief both describe:
+    `concurrency: ci-${{ github.ref }}` with `cancel-in-progress` gives every
+    ref its own group, so "clear to push" and "clear to merge" are two different
+    clearances, and the second merge into `v2-build` in one cycle takes the
+    first's verdict with it. **What stands in its place is better than nothing
+    and worth naming precisely**: runs 33085173548 and 33093786376 are both
+    green and both ran on trees containing this fold whole, so the content has a
+    verdict and this row's own merge commit does not. That is the honest state,
+    and it costs nothing here because no file under `app/` changed, the merged
+    tree's gate being `a08d1f0`'s gate. It would have cost a great deal on a row
+    that touched code. **The second half is the one that worked.** S25 read this
+    row's numbers off the branch before claiming its own and renumbered around
+    them, taking item 50, SESSION-LOG row 41 and section 13 items 51 and 52,
+    which is items 13 and 25's check doing exactly what the evening of S18 and
+    DES-034 created it for. Two sessions merged into one branch within the hour
+    and not one number collided.
 50. **S25's places lift: the owner column wrong a seventh time, the cover
     landed and half of it unreachable, the markup measure going the other way
     from S24's, and a ledger entry that read closed being closed in two of its
