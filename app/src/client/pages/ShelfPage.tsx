@@ -168,6 +168,7 @@ export function ShelfPage(): React.JSX.Element {
           text: null,
           file_id: null,
           ref_folder_id: folder.id,
+          width_pct: null,
           updated_at: '',
         }),
       )

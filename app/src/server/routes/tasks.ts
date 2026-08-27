@@ -32,6 +32,7 @@ import {
   carriesStatus,
   patchStepBody,
   patchTaskBody,
+  postTaskOrderBody,
   postTaskStepsBody,
   postTasksBody,
   putTaskReminderBody,
@@ -64,6 +65,7 @@ import {
   transitionTask,
 } from '../domain/tasks.js'
 import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
+import { placeTaskInOrder } from '../domain/task-order.js'
 import { restoreTask } from '../domain/trash.js'
 
 export interface TasksRouterOptions {
@@ -448,6 +450,58 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       transition(event),
     )
   }
+
+  /* ---------------------------------------------------------------- *
+   * 7.6's order endpoint (RFC 0005 change control item 44, B4)
+   * ---------------------------------------------------------------- */
+
+  router.post(
+    '/tasks/:id/order',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const parsed = postTaskOrderBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      const outcome = await placeTaskInOrder(db, viewer(req), taskId, {
+        afterId: parsed.data.after_id,
+        beforeId: parsed.data.before_id,
+      })
+      switch (outcome.kind) {
+        case 'not_found':
+          notFound(res)
+          return
+        case 'not_arrangeable':
+          // A hand order is the unscheduled list's alone: a dated row is
+          // ordered by its date and a completed one by when it was
+          // finished, which is a state conflict rather than a bad request.
+          sendError(
+            res,
+            409,
+            'conflict',
+            'Only an undated, unfinished task carries a hand order.',
+          )
+          return
+        case 'bad_neighbour':
+          fieldError(
+            res,
+            outcome.field,
+            'must name another task in the same unscheduled list',
+          )
+          return
+        case 'placed':
+          res.status(200).json(outcome.task)
+          return
+      }
+    },
+  )
 
   /* ---------------------------------------------------------------- *
    * 7.7 steps

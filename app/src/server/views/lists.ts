@@ -33,6 +33,7 @@ import type {
   TaskCardGroup,
 } from '../../shared/views.js'
 import { takeCapped } from '../../shared/views.js'
+import { rowsOf } from '../domain/db.js'
 import type { Executor } from '../domain/db.js'
 
 import { CAP_PROBE, OPEN_SCOPE, STATUS_RANK, readCards } from './cards.js'
@@ -43,6 +44,26 @@ import { CAP_PROBE, OPEN_SCOPE, STATUS_RANK, readCards } from './cards.js'
 
 /** Q2's row order: "status_rank, created_at descending, id descending". */
 const Q2_ROW_ORDER = sql`${STATUS_RANK} ASC, t.created_at DESC, t.id DESC`
+
+/**
+ * Q7's second section as RFC 0005 change control item 44 B4 amended it: the
+ * hand order of 4.5 first, nulls leading, then Q2's own row keys.
+ *
+ * **This is the only order in section 6 that B4 moved**, and the ruling says
+ * so in terms: it "keeps every one of section 6's eleven queries and their
+ * byte-identical ordering guarantee untouched except the one that reads a
+ * folder's unscheduled list". Nothing else in this file reads `position`,
+ * and AC-269 is the criterion that holds the rest of them still.
+ *
+ * Nulls lead because Q2 already lists a folder's undated rows newest first,
+ * so a task created since the last arrangement lands where it has always
+ * landed. Q2's keys stay behind the new one rather than being replaced: two
+ * people may place into one gap at once, so ties in `position` are expected
+ * by design, and the keys behind it end in id, which is what the preamble's
+ * byte-identical guarantee is made of.
+ */
+export const FOLDER_UNSCHEDULED_ORDER = sql`t.position ASC NULLS FIRST,
+       ${Q2_ROW_ORDER}`
 
 /**
  * Q3's order: "due_date ascending, status_rank, timed flag (all-day rows
@@ -231,7 +252,9 @@ export async function allView(
  * the same two functions rather than restating their predicates, which is
  * what stops the folder-scoped copy of an order from drifting from the
  * page-scoped one. The second takes Q2's row order alone, the folder
- * clauses of the grouped order having nothing left to order.
+ * clauses of the grouped order having nothing left to order, and since
+ * RFC 0005 change control item 44 it takes the hand order of 4.5 in front of
+ * those keys; the constant below is where that sits.
  */
 export function folderScheduled(
   executor: Executor,
@@ -250,6 +273,40 @@ export function folderUnscheduled(
     executor,
     viewerId,
     sql` AND t.folder_id = ${folderId}`,
-    Q2_ROW_ORDER,
+    FOLDER_UNSCHEDULED_ORDER,
   )
+}
+
+/**
+ * The same list as ids alone, for the mutation that writes the order.
+ *
+ * It is here so that the order lives in one place. The endpoint that places
+ * a task has to know the sequence the page is showing, because a drop names
+ * its neighbours and because the seeding pass has to preserve what the
+ * reader already saw; deriving that from a second ORDER BY written in the
+ * domain would be one of section 6's orders stated twice, which is the drift
+ * this file refuses everywhere else.
+ *
+ * The scope is `folderScheduled`'s mirror image, OPEN_SCOPE plus an absent
+ * due_date plus the folder. Folder membership is the caller's to have
+ * resolved: this is not a view endpoint, and the 10.2 chokepoint for it is
+ * `accessibleTask` in the domain module that calls this.
+ */
+export async function folderUnscheduledIds(
+  executor: Executor,
+  folderId: string,
+): Promise<Array<{ id: string; position: string | null }>> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT t.id, t.position
+        FROM tasks t
+        WHERE ${OPEN_SCOPE} AND t.due_date IS NULL
+          AND t.deleted_at IS NULL AND t.folder_id = ${folderId}
+        ORDER BY ${FOLDER_UNSCHEDULED_ORDER}
+        LIMIT ${CAP_PROBE}`,
+  )
+  return found.map((row) => ({
+    id: String(row.id),
+    position: row.position === null ? null : String(row.position),
+  }))
 }
