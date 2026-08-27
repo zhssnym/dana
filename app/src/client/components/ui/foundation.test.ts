@@ -75,10 +75,6 @@ describe('the icon family is one decision in one file (DES-125)', () => {
     'components/quick-add.tsx',
     'components/search/SearchOverlay.tsx',
     'components/state-patterns.tsx',
-    'components/task-form/StepsEditor.tsx',
-    'components/task-form/TaskForm.tsx',
-    'components/task-form/TaskHistory.tsx',
-    'components/task-row.tsx',
   ]
 
   test('only the icon module imports lucide-react, beside a named v1 list', () => {
@@ -99,19 +95,26 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
 
   const V1_RAMP = [
     'components/calendar/PlannedCalendar.tsx',
+    'components/comments.tsx',
     'components/folder-group-dialog.tsx',
     'components/folder-label-dialog.tsx',
     'components/folder-row.tsx',
+    'components/history-sheet.tsx',
+    'components/icon-action.tsx',
     'components/new-folder-dialog.tsx',
     'components/quick-add.tsx',
     'components/search/SearchOverlay.tsx',
     'components/state-patterns.tsx',
-    'components/task-form/StepsEditor.tsx',
-    'components/task-form/TaskForm.tsx',
-    'components/task-form/TaskFormOverlay.tsx',
-    'components/task-form/TaskFormResizeHandle.tsx',
-    'components/task-form/TaskHistory.tsx',
+    'components/task-assignee-invite.tsx',
+    'components/task-board.tsx',
+    'components/task-card.tsx',
+    'components/task-history-block.tsx',
+    'components/task-pickers.tsx',
     'components/task-row.tsx',
+    'components/task-section.tsx',
+    'components/task-surface.tsx',
+    'components/view-strip.tsx',
+    'components/window-bar.tsx',
   ]
 
   test('no ramp step outside components/ui, beside a named v1 list', () => {

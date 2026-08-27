@@ -70,5 +70,4 @@ export const REPEAT_ENDS_ON = 'Ends on'
  */
 export const UNASSIGNED = 'Unassigned'
 
-/** 9.3's "On disable, helper" column, shared by the two date-dependent rows. */
-export { DATE_DEPENDENT_HELPER } from '../task-form/copy.js'
+

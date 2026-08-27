@@ -87,7 +87,13 @@ import {
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
-import { TaskFormOverlay } from '../components/task-form/index.js'
+import { TaskSurfaceHost } from '../components/task-surface-host.js'
+/* The folder table published for the lifted pickers' bare `folderLibrary()`.
+   Mounted once, here, because this component is what every /app path renders
+   and a publisher with several writers is one whose value depends on unmount
+   order. `lib/folder-library.ts` carries the reasoning. */
+import { FolderLibraryMemory } from '../lib/folder-library.js'
+import { TaskWriter, useApiTaskPatch } from '../lib/task-writer.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { folderMark } from '../parts/presenters.js'
@@ -107,6 +113,7 @@ import { UndoBar } from './UndoBar.js'
 import { useAppearance } from './appearance.js'
 import { openSearch } from './overlays.js'
 import { useRightEdge } from './right-edge.js'
+import { useModalOpen } from '../components/right-edge.js'
 import { TabStrip } from './TabStrip.js'
 import { WindowBar } from './WindowBar.js'
 import { retarget } from './tabs.js'
@@ -301,6 +308,9 @@ export function AppShell(): React.JSX.Element {
   /* What an open right-edge panel has reserved (DES-154, DES-186). Zero when
      nothing is open, which is almost always. */
   const rightEdge = useRightEdge()
+  /* Whether a modal task surface is open over the page. Seam, S23; see the
+     wrapper below. */
+  const modalOpen = useModalOpen()
   /*
   9.7's Appearance, applied to the document (RFC 0005 change control item 30).
   4.19's own defaults stand in while the bundle read is in flight, so the first
@@ -455,6 +465,9 @@ export function AppShell(): React.JSX.Element {
   }, [signedOut])
 
   const defaults = floatingDefaults(location.pathname, remembered)
+  /* The one write path out of a card. See the provider at this component's
+     root. Seam, S23. */
+  const taskPatch = useApiTaskPatch()
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
@@ -508,6 +521,28 @@ export function AppShell(): React.JSX.Element {
   }
 
   return (
+    /*
+    **Seam, S23: the one write path out of a card, provided once.**
+
+    `lib/task-writer.tsx` is that path and its header carries Imran's reason
+    for it: "dialog, sidebar, inline, and maybe more are just views of the same
+    task row, so the data inside them should be the same and updated
+    simultaneously." Every lifted card reaches for it through `useTaskWriter`,
+    and a card that finds nothing there keeps its edits and sends none, which
+    is what a row expanded on a page did until this line: the chevron opened a
+    real card whose every edit went nowhere.
+
+    Here rather than in a page, because 9.3's inline card is drawn wherever a
+    row is and this component is what every /app path renders. The prototype
+    puts it in its shell for the same reason and says so: "it is not a value
+    read in fifty places, it is one function owned by the one component that
+    already wraps every screen."
+
+    The surface host provides its own inside this one, and deliberately: a
+    capture's edits ride a draft until the task exists, which is a different
+    function for the window in which there is nothing to write to.
+    */
+    <TaskWriter patch={taskPatch}>
     <>
       {/*
       9.9's overlay, ahead of everything for the reason in this file's header.
@@ -531,7 +566,20 @@ export function AppShell(): React.JSX.Element {
       <div className="relative z-50">
         <SearchOverlay />
       </div>
-      <div className="flex h-svh flex-col overflow-hidden bg-background">
+      {/*
+      **Seam, S23: a modal task surface takes the page out of the document.**
+
+      9.1's roles table makes that surface "a dialog when opened as one", and
+      `components/right-edge.tsx`'s `HoldsTheDocument` carries the whole of
+      the reasoning and the measurement. What lands here is the other half:
+      `aria-hidden` takes this subtree out of the accessible tree, which is
+      what modal means, and `inert` takes it out of the pointer and the tab
+      order, which is what stops a click reaching a control nobody can see.
+      */}
+      <div
+        {...(modalOpen ? { "aria-hidden": true, inert: true } : {})}
+        className="flex h-svh flex-col overflow-hidden bg-background"
+      >
         <SidebarProvider
           className="h-svh min-h-0"
           open={railOpen}
@@ -692,9 +740,11 @@ export function AppShell(): React.JSX.Element {
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}
+      <FolderLibraryMemory />
       <div className="relative z-50">
-        <TaskFormOverlay />
+        <TaskSurfaceHost />
       </div>
     </>
+    </TaskWriter>
   )
 }
