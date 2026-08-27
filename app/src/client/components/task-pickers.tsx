@@ -510,14 +510,18 @@ export function DuePanel({ task, patch }: PanelProps) {
           />
         ))}
         <PickerOption
-            finishes
           icon={Ban}
           label={task.due ? DATE_CLEAR : "No date"}
           active={!task.due}
           onSelect={() => {
             if (!task.due) return
+            /* The warning lives in this popover, so clearing closes it only
+               where there is nothing to ask. Seam, S23. */
             if (cascades) setConfirming(true)
-            else clear()
+            else {
+              clear()
+              close()
+            }
           }}
         />
       </div>
@@ -535,7 +539,6 @@ export function DuePanel({ task, patch }: PanelProps) {
       <PickerDivider />
 
       <PickerOption
-            finishes
         icon={CalendarDays}
         label="Custom date…"
         hint={custom || !selected ? undefined : shortDate(selected)}
@@ -552,65 +555,70 @@ export function DuePanel({ task, patch }: PanelProps) {
   )
 }
 
+/*
+**Seam, S23, and it is the largest one this file takes: 9.3 retired the
+offsets that this panel is made of.**
+
+The prototype offers four relative answers, "On the day it is due", "1 day
+before", "2 days before", "1 week before", each measured from the due date,
+and its header calls them "the whole point of the list". They were the whole
+point in v1, where 4.8 stored a reminder either way. 9.3's v2 reminder row
+retires one of the two arms in one clause: "requires a due date; **one picker,
+a time on that day**, writing 4.8's time_of_day mode". AC-169 says the same
+from the other side and says why it matters: "A picker offering an offset is
+the v1 control surviving its own row", and AC-212 pins what the write stores.
+
+So the presets go and a clock takes their place. What survives from the
+prototype is everything else about the panel: the shape, the width, the
+hairline, the Clear, and DES-109's rule that choosing commits.
+
+**The three quick answers are times rather than offsets**, which keeps
+DES-120's arrangement, "the answers somebody probably wants, a hairline, then
+one option that opens everything exact", without keeping the thing 9.3
+removed. They are the three a reminder is usually set to and they are the
+design's rather than the section's, which writes none.
+
+**The helper is 9.3's own and not the prototype's sentence.** A reminder
+"requires a due date", and the chip is disabled without one, so this panel is
+never opened undated; the sentence the prototype draws for that case is
+therefore unreachable and goes with the presets it explained.
+*/
 export function ReminderPanel({ task, patch }: PanelProps) {
   const format = useTimeFormat()
   const due = task.due ? parseDueLabel(task.due.label) : null
-  const [custom, setCustom] = useState(false)
-  const customDate = task.reminder ? parseDueLabel(task.reminder) : null
-  const customTime = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
+  const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
 
-  /* Relative reminders are the whole point of the list, and every one is
-     measured from the due date. Showing the day each lands on is what stops
-     "1 week before" being arithmetic somebody has to do in their head. */
-  const presets = [
-    { label: "On the day it is due", hint: due ? shortDate(due) : undefined },
-    { label: "1 day before", hint: due ? shortDate(addDays(due, -1)) : undefined },
-    { label: "2 days before", hint: due ? shortDate(addDays(due, -2)) : undefined },
-    { label: "1 week before", hint: due ? shortDate(addDays(due, -7)) : undefined },
-  ]
+  /* The words a reminder is stored as, which `lib/task-model.ts`'s
+     `reminderChipValue` reads back and re-clocks for the viewer. The day is
+     the task's own, 4.8's time_of_day mode being a time on the due date. */
+  const wordsFor = (time: string) =>
+    due ? `${shortDate(due)} at ${time}` : `at ${time}`
+
+  const quick = ["09:00", "12:00", "17:00"]
 
   return (
     <div className="w-[268px]">
-      {!due ? (
-        <p className="px-2 pt-1 pb-2 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-          This task has no due date yet. These are measured from one.
-        </p>
-      ) : null}
-
       {/* Seam, S23: one role per picker. See the due panel above. */}
       <div role="group" aria-label="Reminder" className="flex flex-col">
-        {/*
-        **Seam, S23: the field has a Clear.** 9.3's reminder row is "one
-        picker, a time on that day", and a field with no way back out is the
-        closed set `lib/people-library.ts` names one axis over. Frozen 7.9
-        makes the write behind it `DELETE /tasks/:id/reminder`, "no task body
-        expressing a removal", and nothing cascades from it, so unlike the due
-        date's it needs no confirmation. Offered only while a reminder is set,
-        the same rule as the due picker's.
-        */}
-        {task.reminder ? (
+        {quick.map((time) => (
           <PickerOption
             finishes
-            icon={Ban}
-            label={DATE_CLEAR}
-            active={false}
-            onSelect={() => patch(task.id, { reminder: undefined })}
-          />
-        ) : null}
-        {presets.map((preset) => (
-          <PickerOption
-            finishes
-            key={preset.label}
-            label={preset.label}
-            hint={preset.hint}
-            active={task.reminder === preset.label}
-            onSelect={() => patch(task.id, { reminder: preset.label })}
+            key={time}
+            label={formatTime(time, format) ?? time}
+            active={at === time}
+            onSelect={() => patch(task.id, { reminder: wordsFor(time) })}
           />
         ))}
+        {/*
+        **The way back out**, offered only while a reminder is set, the same
+        rule as the due picker's. Frozen 7.9 makes the write behind it
+        `DELETE /tasks/:id/reminder`, "no task body expressing a removal", and
+        nothing cascades from it, so unlike the due date's it asks nothing.
+        */}
         <PickerOption
-            finishes
+          finishes
           icon={Ban}
-          label="No reminder"
+          label={task.reminder ? DATE_CLEAR : "No reminder"}
           active={!task.reminder}
           onSelect={() => patch(task.id, { reminder: undefined })}
         />
@@ -618,63 +626,26 @@ export function ReminderPanel({ task, patch }: PanelProps) {
 
       <PickerDivider />
 
-      {/* The one reminder that is not relative to anything. Everything exact
-          lives behind this single option, and the clock lives at the foot of
-          the calendar rather than beside it, because you pick the day first
-          and the time is the refinement. */}
-      <PickerOption
-            finishes
-        icon={CalendarDays}
-        label="Custom date & time…"
-        active={custom}
-        onSelect={() => setCustom((open) => !open)}
-      />
-
-      {custom ? (
-        <div className="flex flex-col gap-2 pt-1">
-          <Calendar
-            selected={customDate}
-            onSelect={(date) =>
-              patch(task.id, {
-                reminder: `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}${
-                  customTime ? ` at ${customTime}` : ""
-                }`,
-              })
-            }
-            today={today()}
-          />
-          <TimeRow
-            /* Seam, S23: 9.3's field name on the picker's one control. */
-            label="Reminder time"
-            value={customTime}
-            onSelect={(time) =>
-              patch(task.id, {
-                reminder: `${(task.reminder ?? shortDate(today())).replace(
-                  / at .*/,
-                  "",
-                )} at ${time}`,
-              })
-            }
-            onClear={() =>
-              patch(task.id, {
-                reminder: (task.reminder ?? "").replace(/ at .*/, "") || undefined,
-              })
-            }
-          />
-          {/* What the two controls above add up to, in the person's own
-              clock, so the panel answers its own question without them
-              having to close it and read the chip. */}
-          {customDate ? (
-            <p className="px-1 pb-0.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-              Reminds on {shortDate(customDate)}
-              {formatTime(customTime, format) ? ` at ${formatTime(customTime, format)}` : ""}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      {/*
+      9.3's "one picker, a time on that day", exact. It is open rather than
+      behind a disclosure, which is the one place this departs from DES-120's
+      arrangement and is AC-169's own requirement: the picker is opened and
+      the time is answered, with nothing to unfold first.
+      */}
+      <div className="pt-1">
+        <TimeRow
+          label="Reminder time"
+          value={at}
+          onSelect={(time) => {
+            patch(task.id, { reminder: wordsFor(time) })
+          }}
+          onClear={() => patch(task.id, { reminder: undefined })}
+        />
+      </div>
     </div>
   )
 }
+
 export function RepeatPanel({ task, patch }: PanelProps) {
   const anchor = repeatAnchor(task)
   const [custom, setCustom] = useState(false)
