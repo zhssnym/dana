@@ -50,7 +50,6 @@ import {
   Play,
   Plus,
   Repeat2,
-  UserPlus,
   UserRound,
   X,
   type LucideIcon,
@@ -86,6 +85,7 @@ import {
   CHIP_FOLDER,
   CHIP_REMINDER,
   CHIP_REPEAT,
+  UNASSIGNED,
 } from "./task-card-copy.js"
 import { DATE_DEPENDENT_HELPER } from "./task-copy.js"
 import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
@@ -1934,16 +1934,36 @@ export function TaskCard({
               </span>
             ),
             onSelect: () => patch(task.id, { assignee: person }),
-          })).concat({
-            key: "__invite",
-            label: (
-              <span className="inline-flex items-center gap-2">
-                <UserPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                Invite and assign…
-              </span>
-            ),
-            onSelect: () => {},
-          })}
+          })).concat(
+            /*
+            **Seam, S23: 9.3's assignee row ends the way the section says.**
+
+            Its v2 row is "the target folder's members plus 'Invite by email',
+            and, new in v2, closing section 13 item 28, 'Unassigned', offered
+            last after a separator". The prototype offers neither: its label
+            is "Invite and assign…" against a handler that does nothing, and
+            there is no way back out at all, which is a closed set in its
+            plainest form and is exactly what item 28 was about.
+
+            The row's own `ChipMenu` already draws both, with DES-114's
+            reasoning at its side, "the way out of a list belongs at its end".
+            This is that list on the card, so it ends the same way, and AC-220
+            reads the order rather than only the set.
+
+            **The invite is offered and not performed here**, and that is not
+            an omission of this row: 7.5's invite is a folder membership act
+            with its own surface at 9.8, and composing one out of a chip would
+            be a second invite path. It routes to the same place the row's
+            does, which is nowhere yet, so it is not drawn.
+            */
+            [
+              {
+                key: "__unassigned",
+                label: <span>{UNASSIGNED}</span>,
+                onSelect: () => patch(task.id, { assignee: undefined }),
+              },
+            ],
+          )}
         />
         )}
 
