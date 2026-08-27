@@ -46,6 +46,7 @@ const SECTION_4_TABLES = [
   'shelves',
   'steps',
   'tasks',
+  'user_page_covers',
   'user_settings',
   'user_views',
   'users',
