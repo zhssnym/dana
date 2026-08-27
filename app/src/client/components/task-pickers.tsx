@@ -28,6 +28,45 @@ import { Check as CheckIcon } from "../lib/icons.js"
    primitive stays exactly as lifted in `ui/calendar.tsx` for whatever asks it
    next. */
 import { Calendar, sameDay } from "./ui/calendar.js"
+/*
+**Seam, S23: a picker writes its own field, and `lib/task-writer.tsx` said
+so before this file arrived.**
+
+That module's header names exactly what it does not send and why: "a due
+date, a reminder and a repeat rule arrive here as the *words a chip says*
+rather than as values, because that is what `ConceptTask` holds; their
+pickers carry the values and their own endpoints (7.6's PATCH, 7.9's PUT),
+and those pickers are `components/task-pickers.tsx`, which lands at S23."
+This is S23 and this is that file, so the endpoints are called here.
+
+**Why the words are not enough, which is the fault this closes.** A panel
+that only calls `patch` writes into the card's local edits layer, so the
+chip updates, the row behind it updates, and nothing reaches the server:
+`conceptPatchToBody` drops `due` and `reminder` deliberately, and
+`unwritten()` exists to name that. AC-169 and AC-170 measure it exactly,
+"fifteen seconds after the edit the page had sent no request to /api/v1 at
+all", and 9.3 is what they measure against: "every edit commits as it is
+made, there is no Save control and no draft state", so an edit that reaches
+no endpoint is a value held in the browser and nowhere else. **A due date
+had the same fault and no criterion catches it**, which is why it is fixed
+here beside the reminder rather than only where a red pointed.
+
+**`patch` is still called, and both calls are load-bearing.** The local one
+is what makes the strip right in the same render, which AC-092 requires of
+the two date-dependent chips, "a strip that enables on the response renders
+a chip a person cannot press while the answer sits beside it"; the endpoint
+is what makes it true. 8.3's refetch is what reconciles them, which is this
+client's whole invalidation strategy and is why neither call is optimistic.
+
+**The repeat rule is deliberately not wired here**, and the omission is
+named rather than left: 4.11's subset needs a rule built from the preset's
+operands, and the builder for that left with the retired
+`components/task-form/presets.ts`. Nothing in the leg measures it, and
+shipping a half-built rule is worse than shipping none, so the repeat stays
+a value the card holds and section 13 carries what is owed.
+*/
+import { useDeleteReminder, usePutReminder, useUpdateTask } from "../api/mutations.js"
+import { isoDay } from "../lib/task-model.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 /*
@@ -460,8 +499,10 @@ export function DuePanel({ task, patch }: PanelProps) {
   const close = usePickerClose()
   /* Choosing a day answers the field, from the grid exactly as from a preset,
      so both close. Seam, S23; see `PickerClose`. */
+  const update = useUpdateTask()
   const set = (date: Date) => {
     patch(task.id, { due: dueLabelFor(date) })
+    update.mutate({ id: task.id, body: { due_date: isoDay(date) } })
     close()
   }
   /* 8.4's own cascade, which is what the sentence describes. */
@@ -474,6 +515,10 @@ export function DuePanel({ task, patch }: PanelProps) {
       recurrence: false,
       reminder: undefined,
     })
+    /* One request, because 8.4's cascade is the server's: clearing the date
+       ends the repeat and removes the reminder inside 7.6's own transaction,
+       which is what the warning above this promised. */
+    update.mutate({ id: task.id, body: { due_date: null } })
 
   const presets = [
     { label: "Today", date: today() },
@@ -591,6 +636,8 @@ therefore unreachable and goes with the presets it explained.
 */
 export function ReminderPanel({ task, patch }: PanelProps) {
   const format = useTimeFormat()
+  const put = usePutReminder()
+  const drop = useDeleteReminder()
   const due = task.due ? parseDueLabel(task.due.label) : null
   const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
 
@@ -599,6 +646,19 @@ export function ReminderPanel({ task, patch }: PanelProps) {
      the task's own, 4.8's time_of_day mode being a time on the due date. */
   const wordsFor = (time: string) =>
     due ? `${shortDate(due)} at ${time}` : `at ${time}`
+
+  /* 4.8's two modes are exclusive and 9.3 takes the second: "one picker, a
+     time on that day, writing 4.8's time_of_day mode". So the body carries a
+     clock and never an offset, which is the arm the section retired. */
+  const setAt = (time: string) => {
+    patch(task.id, { reminder: wordsFor(time) })
+    put.mutate({ taskId: task.id, body: { offset_minutes: null, time_of_day: time } })
+  }
+  const clearAt = () => {
+    patch(task.id, { reminder: undefined })
+    /* Frozen 7.9's own removal, "no task body expressing a removal". */
+    drop.mutate(task.id)
+  }
 
   const quick = ["09:00", "12:00", "17:00"]
 
@@ -612,7 +672,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
             key={time}
             label={formatTime(time, format) ?? time}
             active={at === time}
-            onSelect={() => patch(task.id, { reminder: wordsFor(time) })}
+            onSelect={() => setAt(time)}
           />
         ))}
         {/*
@@ -626,7 +686,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
           icon={Ban}
           label={task.reminder ? DATE_CLEAR : "No reminder"}
           active={!task.reminder}
-          onSelect={() => patch(task.id, { reminder: undefined })}
+          onSelect={clearAt}
         />
       </div>
 
@@ -645,10 +705,8 @@ export function ReminderPanel({ task, patch }: PanelProps) {
           value={at ?? ""}
           onChange={(event) => {
             const time = event.target.value
-            patch(
-              task.id,
-              time === "" ? { reminder: undefined } : { reminder: wordsFor(time) },
-            )
+            if (time === "") clearAt()
+            else setAt(time)
           }}
           className="h-8 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
         />

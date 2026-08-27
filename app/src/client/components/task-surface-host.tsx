@@ -69,7 +69,8 @@ import {
 import { onOpenTaskForm } from '../shell/overlays.js'
 import type { TaskFormDefaults } from '../shell/overlays.js'
 import { onOpenTask } from './task-open.js'
-import { UPCOMING_OCCURRENCE } from './task-copy.js'
+import { UNCOMPLETE_SERIES_CONFIRM, UPCOMING_OCCURRENCE } from './task-copy.js'
+import { ConfirmDialog } from './ui/ConfirmDialog.js'
 import { TaskSurface, type TaskSurfaceMode } from './task-surface.js'
 import type { TaskRowProps } from './task-row.js'
 
@@ -110,6 +111,23 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const [draft, setDraft] = useState<ConceptTask | null>(null)
   const [created, setCreated] = useState<string | null>(null)
   const making = useRef(false)
+  /*
+  **Seam, S23: 9.5's confirmation, on the surface that has no screen behind
+  it.**
+
+  9.3 gives the card's completion control 9.5's rule "unchanged": an
+  un-complete that takes a G-SERIES successor confirms first, because 5.1
+  deletes that successor in the same transaction and the parenthesis is the
+  part the person cannot see, "any edits already made to the next occurrence
+  go with it". A row gets this from its page, which is where the confirm has
+  lived since P8; a surface has no page behind it, so it is here, in the one
+  component that owns the surface's write.
+
+  Only on the branch that has one: a task with no rule generates no
+  successor, so there is nothing to warn about and a confirmation with an
+  empty consequence is the dead control DES-144 removes.
+  */
+  const [uncompleting, setUncompleting] = useState<(() => void) | null>(null)
 
   const preference = useTaskSurfacePreference()
   const [mode, setMode] = useState<TaskSurfaceMode | null>(null)
@@ -223,7 +241,14 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   */
   function write(_taskId: string, fields: Partial<ConceptTask>): void {
     if (editing !== null) {
-      patch(editing, fields)
+      const id = editing
+      if (fields.done === false && concept.recurrence === true) {
+        setUncompleting(() => () => {
+          patch(id, fields)
+        })
+        return
+      }
+      patch(id, fields)
       return
     }
     const next: ConceptTask = { ...(draft ?? seed()), ...fields }
@@ -267,6 +292,17 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
 
   return (
     <TaskWriter patch={write}>
+      {uncompleting === null ? null : (
+        <ConfirmDialog
+          message={UNCOMPLETE_SERIES_CONFIRM}
+          onContinue={() => {
+            const run = uncompleting
+            setUncompleting(null)
+            run()
+          }}
+          onCancel={() => setUncompleting(null)}
+        />
+      )}
       {open.upcoming ? (
         <p role="status" className="sr-only">
           {UPCOMING_OCCURRENCE}
