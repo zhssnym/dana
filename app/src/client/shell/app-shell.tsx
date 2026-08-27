@@ -87,7 +87,7 @@ import {
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
-import { TaskFormOverlay } from '../components/task-form/index.js'
+import { TaskSurfaceHost } from '../components/task-surface-host.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { folderMark } from '../parts/presenters.js'
@@ -693,7 +693,7 @@ export function AppShell(): React.JSX.Element {
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}
       <div className="relative z-50">
-        <TaskFormOverlay />
+        <TaskSurfaceHost />
       </div>
     </>
   )

@@ -146,6 +146,40 @@ export interface RowDrag {
   readonly proposal: (index: number) => string | undefined
 }
 
+/**
+ * `RowDrag`'s caller-computed style as the v2 row's own drag state.
+ *
+ * The offset is read back out of the transform the caller wrote, which is the
+ * one piece of information the v2 row needs and the only one `RowDrag`
+ * carries. Everything else the row derives: whether it is the carried one, and
+ * whether it is settling back. The two dwell flags are the merge gesture's and
+ * belong to the list that owns the dwell, which no board does.
+ *
+ * Reading a number back out of a string is not a shape anybody would design,
+ * and it is the honest cost of leaving `views/TaskBoard.tsx` alone until S25
+ * lifts it. Naming it here rather than hiding it is the point: when that row
+ * lands, this function goes with the interface it translates.
+ */
+function dragStateOf(
+  drag: RowDrag | undefined,
+  index: number,
+): { isActive: boolean; isDwelling: boolean; isArmed: boolean; isSettling: boolean; offset: number } | undefined {
+  if (drag === undefined) return undefined
+  const style = drag.dragStyle(index)
+  if (style === undefined) return undefined
+  const transform = typeof style.transform === 'string' ? style.transform : ''
+  const found = /translateY\((-?[\d.]+)px\)/.exec(transform)
+  const offset = found === null ? 0 : Number(found[1])
+  const isActive = style.zIndex !== undefined
+  return {
+    isActive,
+    isDwelling: false,
+    isArmed: false,
+    isSettling: isActive && style.transition !== 'none',
+    offset,
+  }
+}
+
 export function TaskRows({
   tasks,
   context,
@@ -182,9 +216,32 @@ export function TaskRows({
         <TaskRow
           key={task.id}
           {...taskRowDisplay(task, context)}
-          rowRef={drag?.rowRef(index)}
-          dragProps={drag?.dragProps(index)}
-          dragStyle={drag?.dragStyle(index)}
+          /*
+          **The v2 row's id, and it is not decoration.** Every act the
+          overflow menu performs needs it, the History sheet reads 7.12 with
+          it, and Copy link builds 9.1's `/app/tasks/:id` from it. The v1 row
+          took none because its menu had three items and each was a callback.
+          */
+          id={task.id}
+          /*
+          **Seam, S23: the three drag props become the v2 row's two.**
+
+          `RowDrag` was written against the v1 row, which took a ref, a
+          pointer handler and a style and applied all three itself. The v2 row
+          holds its own drag machinery: `itemRef` is the same ref, `listProps`
+          is whatever the engine wants spread onto the element, and
+          `dragState` replaces the caller-computed style, because the row is
+          the one that knows how a carried row should move and a caller
+          computing a transform was a caller deciding a motion token.
+
+          The style is therefore translated rather than passed. `RowDrag` is
+          the board's contract and the board is `views/TaskBoard.tsx`, which
+          is S25's to lift; keeping its shape means that page is untouched by
+          this row, which is what the boundary between the two is for.
+          */
+          itemRef={drag?.rowRef(index)}
+          listProps={drag?.dragProps(index)}
+          dragState={dragStateOf(drag, index)}
           proposal={drag?.proposal(index)}
           onOpen={() => {
             actions.onOpenTask(task)

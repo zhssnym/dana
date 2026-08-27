@@ -32,6 +32,7 @@ import {
   folderGroupOptions,
   folderIdsForNames,
   folderLabelFields,
+  folderMark,
   folderRowDisplay,
   formatDueDate,
   initialsOf,
@@ -370,13 +371,27 @@ describe('folderDisplay: the id-keyed to name-keyed bridge', () => {
   wears one glyph on its sidebar row, on a task's chip and in the tab menu
   because one function answers all three. An unset icon answers the plain
   folder, which is what makes replacing the literal safe.
+
+  **It is read off `folderMark` rather than off `folderDisplay` since S23**,
+  which is where it always came from and is now the only place it is offered.
+  The lifted task row asks `components/folder-mark.tsx` for its own glyph, so
+  the display trio carries the id the row cannot resolve for itself in place
+  of a mark it can. One resolver either way, which is what this asserts.
   */
   test('the glyph is the folder\'s chosen one, and the plain folder where none is', () => {
-    const chosen = folderDisplay({ id: WORK, name: 'Work' }, [folder({ icon: 'car' })]).icon
-    const unset = folderDisplay({ id: WORK, name: 'Work' }, [folder()]).icon
+    const chosen = folderMark(folder({ icon: 'car' })).icon
+    const unset = folderMark(folder()).icon
     expect(chosen).toBe(markIcon('car'))
     expect(unset).toBe(markIcon(null))
     expect(chosen).not.toBe(unset)
+  })
+
+  /* The id the row needs and cannot resolve, which is what replaced the mark
+     on this trio. It is the stub's own, so a card naming a folder the list
+     has not caught up with still addresses the right one. */
+  test('the folder\'s id rides the display, resolved or not', () => {
+    expect(folderDisplay({ id: WORK, name: 'Work' }, [folder()]).id).toBe(WORK)
+    expect(folderDisplay({ id: WORK, name: 'Work' }, []).id).toBe(WORK)
   })
 
   test('the id decides, not the name: two folders may share one name', () => {
@@ -389,7 +404,7 @@ describe('folderDisplay: the id-keyed to name-keyed bridge', () => {
     const resolved = folderDisplay({ id: WORK, name: 'Work' }, [])
     expect(resolved.name).toBe('Work')
     expect(resolved.color).toBe(DEFAULT_FOLDER_COLOR)
-    expect(resolved.icon).toBe(markIcon(null))
+    expect(folderMark(undefined).icon).toBe(markIcon(null))
   })
 
   test('a folder renamed since the card was fetched renders its current name', () => {

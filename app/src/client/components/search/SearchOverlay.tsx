@@ -109,7 +109,7 @@ import {
   DialogTitle,
 } from '../ui/dialog.js'
 import { cn } from '../ui/utils.js'
-import { openTask } from '../task-form/index.js'
+import { openTask } from '../task-open.js'
 import { SEARCH_EMPTY, SEARCH_FOOTER } from './copy.js'
 
 /** 9.9's own number. */

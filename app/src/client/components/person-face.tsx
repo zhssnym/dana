@@ -75,3 +75,47 @@ export function PersonFace({
     </Avatar>
   )
 }
+
+/*
+The same disc under the name every lifted surface calls it, added at S23.
+
+`components/task-row.tsx`, `components/task-card.tsx` and
+`components/task-board.tsx` all render `<Face person={...} />`, taking a
+person as one object because that is the shape `ConceptTask` carries one in.
+This client's own call sites pass the three fields flat, which is the better
+shape for a component whose tint is a function of one of them, and the lift
+discipline forbids rewriting a lifted body to suit either.
+
+So this is an adapter and not a second component: it destructures and calls
+the one above. The alternative was widening `PersonFace` to accept both
+shapes, which is a component with two contracts and a branch that would
+outlive the reason for it.
+
+`image` is optional here and nullable there, and the two mean the same thing:
+7.15's avatar, when the person has uploaded one.
+*/
+export interface Person {
+  readonly initials: string
+  readonly name: string
+  readonly image?: string
+}
+
+export function Face({
+  person,
+  dense = false,
+  className,
+}: {
+  readonly person: Person
+  readonly dense?: boolean
+  readonly className?: string
+}): React.JSX.Element {
+  return (
+    <PersonFace
+      name={person.name}
+      initials={person.initials}
+      image={person.image ?? null}
+      dense={dense}
+      className={className}
+    />
+  )
+}
