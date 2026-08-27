@@ -4457,7 +4457,83 @@ fold, the way P7's mid-package change control ratified the pass callable:
     a component behind them. **They are owed and are recorded here rather than
     quietly carried**, because the alternative, a session reporting the shell
     lift done with them outstanding, is the shape item 20 and item 37 both
-    exist to stop.
+    exist to stop. **Both were built before this row merged, at (k)**, on
+    Imran's restatement of the same afternoon.
+
+    **(k) The shell is taken to exact on Imran's restatement, and the last pass
+    cost five criteria before it cost none.** He read (j)'s table and answered
+    it: *"I don't know but the shell must be exactly as prototype v2 in Dana
+    2.0."* So the two things (j) recorded as owed were built rather than
+    deferred, three more were found on the way, and the measure closed at
+    **89 of 104, 86%**, from 73% at the row's opening.
+
+    **What that pass took.** The Library's drag says what the prototype's says:
+    a carried shelf takes the graphite ring, a shelf about to receive takes the
+    accent wash as a whole, and the two receive affordances arrive, the insert
+    line when the shelf is open and holding folders and the accent "Into
+    {shelf}" when it is closed or empty. The tab strip's "+" takes the
+    prototype's own markup and its scroll-capped menu. The system toast dodges
+    the capture button. A folder's mark rests at 0.62 and comes to full on the
+    active row where this drew 0.90 flat. And **"Add folder to {shelf}" is
+    restored**, which P8R had dropped on a rule that read correctly at the
+    time, a control no numbered section names being either given the designer's
+    string or dropped; item 37 overturns the premise rather than the rule.
+
+    **The insert line cost a parameter, and that is the honest half.**
+    `moveFolderTo` appended, which was true while nothing on screen claimed
+    otherwise. A line naming a slot the drop then ignores is the interface
+    saying one thing and doing another in the one gesture where a person is
+    watching closely, so the drop measures the same `proposalIn` the line drew
+    and writes that index, with a clamp and two unit tests over it.
+
+    **Then the whole leg answered 224 of 229, and all five reds were the pass's
+    own.** None was flake and all three causes were one species: **a change
+    that costs the prototype nothing and costs this client a criterion.**
+
+    - **`pointer-events-none` on a row's action strip.** The prototype's
+      reasoning is sound on its own terms, a strip at zero opacity still
+      answering a click. It cost four cases: AC-180's two and AC-223's both
+      address "More actions" on a sidebar row, and a control receiving no
+      pointer until its row is hovered cannot be clicked by anything that
+      hit-tests before it moves the pointer. Given up, and 11.13 decides it:
+      `folder-row.tsx` already carried the rule and 9.1 is behind it, "a
+      control with an empty bounding box is not visible to anything that
+      addresses it by role and name", and a control answering no pointer is
+      not operable by one either.
+    - **9.1's one sentence drawn twice.** The shelf says "Into {shelf}" itself
+      now and the carried row went on saying it too, so AC-227's locator found
+      two. The carried row keeps the hold's states and "Out of group", the
+      ungrouped list having no container to speak for it.
+    - **"Add folder" became a substring across two surfaces** the moment the
+      sidebar's control returned. AC-223's `.first()` took the sidebar's,
+      because the sidebar precedes `main`. The locator is scoped to `main`,
+      where 9.10 puts the page's control; **the scope is the correction and
+      the name is untouched**, which is item 47(e)'s ambiguity read across two
+      surfaces rather than two rows.
+
+    **The lesson is the one worth carrying to S25 to S27, and it is stronger
+    than (j)'s method.** Every one of those three looked right in the source
+    and two of them looked like corrections *to* the prototype. **A markup
+    measurement finds what is missing; only the leg finds what the missing
+    thing was holding up.** Run both, and run the leg after the last class
+    string moves rather than before.
+
+    **What is still not the prototype's, and every one of the fifteen is named.**
+    Two are prose the scanner matched. Three are one rule written as a single
+    string where the prototype writes two. Ten are departures with a section or
+    a criterion behind each: `min-w-[1180px]` is a viewport floor **section 13
+    item 32 forbids**, and this is the fourth time it has been declined;
+    `transition-none` on the sidebar is what AC-182 needs; the page narrows by
+    a margin rather than a padding, which S17b measured after the elegant
+    version could not be explained; two `:hidden` are 9.1 keeping folder rows
+    reachable in the icon rail where the prototype hides the section; the
+    account menu's name keeps `truncate`, a lab having short names and a roster
+    not; the dwell ring reads `DWELL_MS` rather than repeating 1500 in two
+    places; and the undo bar is `fixed` rather than `absolute` because this
+    shell mounts it outside its own box. **Nothing is unexplained, and the
+    first of the ten is the owner's to overturn**: item 32 is his own ruling
+    standing against his own restatement, and a session may not choose between
+    two of his rulings.
 
 ## Implementation plan
 
