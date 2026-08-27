@@ -322,11 +322,24 @@ export function FolderRow({
           // (`shell/library-drag.ts`), and a press on a control belongs to
           // that control, so the row's own actions say they are not the grip.
           data-no-drag
-          /* `pointer-events` is the prototype's and it is a correction, not
-             a flourish: a strip at zero opacity still answers a click, so a
-             row that has not been hovered was catching presses meant for the
-             row itself along its right end. */
-          className="pointer-events-none absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:pointer-events-auto group-hover/folder-row:opacity-100 group-focus-within/folder-row:pointer-events-auto group-focus-within/folder-row:opacity-100"
+          /*
+          **The prototype's `pointer-events-none` is not taken, and it was
+          taken once and measured.** Its reasoning is sound on its own terms, a
+          strip at zero opacity still answering a click, and it costs the
+          prototype nothing. It costs this client four browser criteria:
+          AC-180's two cases and AC-223's both address "More actions" on a
+          sidebar row, and a control that receives no pointer events until its
+          row is hovered cannot be clicked by anything that hit-tests before it
+          moves the pointer. Measured at S24, whole leg: the click resolved the
+          right button, then retried for fifteen seconds against the row's own
+          link underneath it.
+
+          This file's own rule already covers the case and 9.1 is behind it:
+          "a control with an empty bounding box is not visible to anything that
+          addresses it by role and name", and a control that answers no pointer
+          is not operable by it either. 11.13 gives the section the win.
+          */
+          className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100"
         >
           {onAddTask ? (
             <Button

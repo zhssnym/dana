@@ -906,11 +906,15 @@ function FolderGroupBlock({
                     itemRef: inner.setItemRef(index),
                     rowProps: grip(inner.handleProps(index)),
                     state,
+                    /* "Out of group" only. A release **into** a shelf is
+                       said by that shelf, which draws the line when it is open
+                       and the words when it is closed, and saying it on the
+                       carried row as well put 9.1's one sentence on the page
+                       twice. The ungrouped list has no container to say it, so
+                       that half stays here. */
                     proposal:
-                      state.isActive && inner.overKey !== null
-                        ? inner.overKey === DIRECTORY
-                          ? 'Out of group'
-                          : `Into ${labelOfKey(inner.overKey)}`
+                      state.isActive && inner.overKey === DIRECTORY
+                        ? 'Out of group'
                         : null,
                   }}
                 />
@@ -1104,15 +1108,16 @@ function LibraryColumn({
           const state = outer.itemState(index)
           const holding = canGroup && state.isDwelling && !state.isArmed
           const armed = canGroup && state.isArmed
-          const proposal = !state.isActive
+          /* The hold's two states, and nothing about containers: a shelf
+             about to receive says so itself, in the prototype's own two forms.
+             AC-227 reads that sentence once and found it twice. */
+          const proposal = !state.isActive || outer.overKey !== null
             ? null
-            : outer.overKey !== null
-              ? `Into ${labelOfKey(outer.overKey)}`
-              : armed
-                ? 'Release to group'
-                : holding
-                  ? 'Hold to group'
-                  : null
+            : armed
+              ? 'Release to group'
+              : holding
+                ? 'Hold to group'
+                : null
 
           if (entry.kind === 'group') {
             return (
