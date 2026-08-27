@@ -28,7 +28,7 @@ the preamble of `../rfcs/0000-template.md`.
 | 5 | [`05-state-machines.md`](05-state-machines.md) | Task status, invites, membership, and the permission matrix |
 | 6 | [`06-queries.md`](06-queries.md) | The twelve queries behind every page, with exact orderings |
 | 7 | [`07-api.md`](07-api.md) | Every endpoint, its shapes, and its error codes. FROZEN |
-| 8 | [`08-business-logic.md`](08-business-logic.md) | Timezones, My Day, recurrence, reminders, sharing, deletion, counts |
+| 8 | [`08-business-logic.md`](08-business-logic.md) | Timezones, Today, recurrence, reminders, sharing, deletion, counts |
 | 9 | [`09-ui.md`](09-ui.md) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional.md`](10-non-functional.md) | Auth, authorization, limits, rate limits, logging, PWA, email |
 | 11 | [`11-architecture.md`](11-architecture.md) | The stack, its constraints, rejected alternatives, and hazards |
