@@ -110,6 +110,7 @@ import {
   CircleQuestionMark,
   FolderPlus,
   Folders,
+  MoreHorizontal,
   LogOut,
 
 
@@ -658,7 +659,7 @@ function FolderGroupBlock({
       <Collapsible open={open} onOpenChange={setOpen}>
         <div
           {...grip(drag.handleProps)}
-          className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10"
+          className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10"
         >
           {/* What a release would do, on the heading being carried. 9.1 fixes
               the sentence for the container case and DES-171 gives the reason
@@ -1252,7 +1253,11 @@ export function AppSidebar({
       lost is the slide, which is flagged for the visual review of section 13
       item 33.
       */
-      className="h-full shrink-0 border-r border-sidebar-border bg-sidebar transition-none"
+      /* No right border. The prototype's sidebar has none, this client's
+         had one that no comment ever argued for, and a rule drawn down the
+         whole window is not a small difference. S24, against
+         `prototype-v2/src/components/app-sidebar.tsx:576`. */
+      className="h-full shrink-0 bg-sidebar transition-none"
     >
       <SidebarBrandHeader onOpenSearch={onOpenSearch} />
 
@@ -1312,7 +1317,11 @@ export function AppSidebar({
           className="mx-3 my-2 border-t border-[var(--color-graphite-200)] group-data-[collapsible=icon]:mx-2"
         />
 
-        <Collapsible open={foldersOpen} onOpenChange={setFoldersOpen}>
+        {/* `mt-2` is the prototype's: the Library stands off the page block
+            above it. Its `group-data-[collapsible=icon]:hidden` is not taken,
+            9.1 keeping the folder rows reachable in the rail where the
+            prototype hides the whole section. */}
+        <Collapsible className="mt-2" open={foldersOpen} onOpenChange={setFoldersOpen}>
           <SidebarGroup className="py-0">
             {/* The heading is hidden in the rail and the rows below it are
                 not, which is 9.1's "changes nothing about what the sidebar
@@ -1342,6 +1351,49 @@ export function AppSidebar({
                   aria-hidden="true"
                 />
               </CollapsibleTrigger>
+              {/*
+              "Library options", the prototype's own control and absent from
+              this client until S24.
+
+              It offers the two acts of making that the section's footer also
+              offers, and that is the prototype's arrangement rather than a
+              duplication this file invented: the footer's row is where a
+              person goes deliberately, and this is where a person's hand
+              already is when they are looking at the list they want to add
+              to. Both call the same two handlers, so there is one act behind
+              each and two doors to it.
+
+              Named "Library options" and not "More actions": 9.1's names
+              table fixes "More actions" for an object's overflow menu, and
+              the Library is a section of the chrome rather than an object.
+              A control not named in that table is reached by its role in the
+              ordinary sense, which is what this is.
+              */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0 rounded-md text-[var(--color-graphite-500)] opacity-0 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] group-hover/folder-directory:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                      aria-label="Library options"
+                    />
+                  }
+                >
+                  <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={onNewFolder}>
+                    <FolderPlus className="size-4" aria-hidden="true" />
+                    New folder
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onNewShelf}>
+                    <Folders className="size-4" aria-hidden="true" />
+                    New shelf
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </h2>
             <CollapsibleContent>
               {/* Inbox above the column and never in it: 9.1 pins it first,
@@ -1380,7 +1432,12 @@ export function AppSidebar({
             <SidebarMenuButton
               data-sidebar-tier="action"
               tooltip="New folder"
-              className="h-[var(--shell-sidebar-item-height)] justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)]"
+              /* `w-full` and the two rail overrides are the prototype's and
+                 were dropped in the port: without them 9.1's one primary
+                 footer action is a button the width of its own label, and in
+                 the icon rail it keeps its full height and padding where
+                 every other rail control is a square. */
+              className="h-[var(--shell-sidebar-item-height)] w-full justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0"
               onClick={onNewFolder}
             >
               <FolderPlus className="!size-4" strokeWidth={1.75} aria-hidden="true" />
