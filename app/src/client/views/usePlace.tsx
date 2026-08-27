@@ -30,6 +30,8 @@ import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults, surfaceDefaults } from './place-pages.js'
 import type { ColumnValue, PlaceSpine } from './place-pages.js'
+import { PageCover } from '../components/page-cover.js'
+import { PageHead } from '../components/page-head.js'
 import { ViewStrip } from '../components/view-strip.js'
 import type { ViewStripOption } from '../components/view-strip.js'
 import { CalendarDays, LayoutGrid, List } from '../lib/icons.js'
@@ -297,6 +299,53 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
           }}
         />
       </WindowBarActions>
+    </>
+  )
+}
+
+/**
+ * A place-page's head: the lifted `PageHead` of `prototype-v2`, with the
+ * cover band above it (RFC 0005 change control item 44's B1, S25).
+ *
+ * **It is one composition here rather than eight in the pages**, which is
+ * `PlaceChrome`'s own reason one function up and DES-154's rule: a settled
+ * behaviour belongs to the mechanism. The prototype puts the band in its
+ * shell because its shell is what knows which page is showing; this client's
+ * pages each know their own spine, so the pair sits with the spine.
+ *
+ * **The bleed undoes the shell's measure and nothing else.** `app-shell.tsx`
+ * wraps every page in `max-w px-10 py-6`, and a cover is a band across the
+ * page rather than a picture inside its column, so it steps back out of that
+ * padding exactly. The head's own mark then rides up over the band on the
+ * negative margin `PageMark` carries for the purpose, which only works while
+ * the two are siblings in one flow.
+ *
+ * **The description is Dana's sentence and not a field**, `descriptionEditable`
+ * being false here for the reason `page-head.tsx` states at that prop: 9.4
+ * asks for an editable description, 4.20 stores no wording, and a rewrite
+ * that is accepted and silently discarded is worse than a sentence.
+ */
+export function PlaceHead({
+  place,
+  fact,
+}: {
+  readonly place: Place
+  /** 9.4's "N of M done". Only a page with a completion has one. */
+  readonly fact?: string
+}): React.JSX.Element {
+  return (
+    <>
+      <div className="-mx-10 -mt-6">
+        <PageCover storageName={place.spine.key} />
+      </div>
+      <PageHead
+        storageName={place.spine.key}
+        icon={place.spine.icon}
+        title={place.spine.name}
+        description={place.spine.question}
+        descriptionEditable={false}
+        {...(fact === undefined ? {} : { fact })}
+      />
     </>
   )
 }
