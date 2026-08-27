@@ -236,7 +236,10 @@ export function FolderRow({
       style={{ ...dragStyle, ...rowProps?.style }}
       data-dragging={dragState?.isActive ? 'true' : undefined}
       className={cn(
-        'group/folder-row',
+        /* `rounded-md` is the prototype's, and it is what gives the carried
+           row and the held-over row their corners; without it the accent wash
+           and the ring were square against a list of rounded rows. */
+        'group/folder-row rounded-md',
         tree &&
           "before:absolute before:-top-0.5 before:left-6 before:z-0 before:h-[calc(50%+2px)] before:w-1.5 before:rounded-bl-[6px] before:border-b before:border-l before:border-[var(--color-graphite-300)] before:content-[''] after:absolute after:top-1/2 after:-bottom-0.5 after:left-6 after:z-0 after:border-l after:border-[var(--color-graphite-300)] after:content-['']",
         tree && treeLast && 'after:hidden',

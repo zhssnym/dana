@@ -736,7 +736,7 @@ export function AppShell(): React.JSX.Element {
           events rather than one.
           */}
           <SidebarInset
-            className="min-w-0 overflow-hidden bg-card transition-[margin] duration-200 ease-out"
+            className="min-w-0 overflow-hidden bg-card transition-[margin] duration-[var(--duration-slow)] ease-[var(--ease-enter)]"
             style={{ marginRight: `${String(rightEdge)}px` }}
           >
             {/*
