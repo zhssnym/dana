@@ -22,6 +22,8 @@ import { useSyncExternalStore } from 'react'
 import { AlertCircle, Clock3, WifiOff, X } from 'lucide-react'
 
 import { Button } from '../components/ui/button.js'
+import { cn } from '../components/ui/utils.js'
+
 import { OFFLINE_WRITE_TOAST } from './toasts.js'
 import { dismissToast, subscribeToToasts, toastSnapshot } from './toasts.js'
 import type { Toast } from './toasts.js'
@@ -32,7 +34,19 @@ function toastIcon(message: string): typeof AlertCircle {
   return AlertCircle
 }
 
-export function ToastRegion(): React.JSX.Element | null {
+/**
+ * @param clearsCapture Whether the floating capture button of 9.1 is on this
+ * page. The prototype's shell moves its toast up by the button's height where
+ * one is drawn and puts it back on the corner where none is, which is the same
+ * reasoning the undo bar's bottom-left placement rests on: a notice landing on
+ * the one control people press most is a worse fault than the one it reports.
+ * Taken at S24 with the rest of the shell.
+ */
+export function ToastRegion({
+  clearsCapture = true,
+}: {
+  readonly clearsCapture?: boolean
+} = {}): React.JSX.Element | null {
   const toasts = useSyncExternalStore<readonly Toast[]>(
     subscribeToToasts,
     toastSnapshot,
@@ -41,7 +55,12 @@ export function ToastRegion(): React.JSX.Element | null {
   if (toasts.length === 0) return null
   return (
     <div role="status" aria-live="polite">
-      <ul className="fixed right-6 bottom-[76px] z-[60] flex w-[360px] flex-col gap-2">
+      <ul
+        className={cn(
+          'fixed right-6 z-[60] flex w-[360px] flex-col gap-2',
+          clearsCapture ? 'bottom-[76px]' : 'bottom-6',
+        )}
+      >
         {toasts.map((toast) => {
           const Icon = toastIcon(toast.message)
           return (

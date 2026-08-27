@@ -115,6 +115,25 @@ export interface FolderGroupActions {
    */
   readonly onGroupFolders: (folders: readonly Folder[]) => void
   /** "Move to group", null being the ungrouped list rather than a group. */
+  /**
+   * "Add folder to {shelf}", the prototype's own control on a shelf heading.
+   *
+   * **Restored at S24 and it had been dropped on purpose**, which is why this
+   * comment exists rather than a line of wiring. P8R's ruling was that a
+   * control no numbered section names is either given the designer's string or
+   * dropped, and it took the third option for this one and for "Add task to
+   * {folder}" beside it. Change control item 37 overturns the premise: Dana
+   * 2.0 is the exact `prototype-v2`, so a control the prototype draws in the
+   * shell is part of the shell rather than an affordance awaiting a section.
+   * Imran restated it at S24 in his own words, "the shell must be exactly as
+   * prototype v2 in Dana 2.0".
+   *
+   * It opens 9.1's New-folder dialog with the shelf already named, so the
+   * folder is created and filed in one act rather than made loose and then
+   * moved. One surface for making a folder, three doors to it, which is
+   * `onGroupFolders`' own argument one entry up.
+   */
+  readonly onAddFolderTo: (label: string) => void
   readonly onMoveToGroup: (folder: Folder, label: string | null) => void
   readonly onRenameGroup: (label: string) => void
   readonly onDeleteGroup: (label: string) => void
@@ -136,6 +155,14 @@ export function useFolderGroupActions(
   folders: readonly Folder[],
   /** The viewer's shelves (7.16); a label these do not name is a bare one. */
   shelves: readonly Shelf[] = [],
+  /**
+   * How to open 9.1's New-folder dialog with a shelf already named.
+   *
+   * Passed in rather than held here, because that dialog is the shell's: it is
+   * mounted outside every row for the reason this file's own return records, a
+   * dialog inside a row being unmounted by the refetch its own write causes.
+   */
+  openNewFolderIn: (label: string) => void = () => {},
 ): {
   readonly actions: FolderGroupActions
   readonly dialogs: React.JSX.Element
@@ -175,6 +202,9 @@ export function useFolderGroupActions(
     },
     onNewShelf: () => {
       setDialog({ mode: 'create', folders: [] })
+    },
+    onAddFolderTo: (label) => {
+      openNewFolderIn(label)
     },
     onMoveToGroup: (folder, label) => {
       writeLabel([folder.id], label)

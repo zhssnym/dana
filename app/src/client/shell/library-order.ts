@@ -260,15 +260,24 @@ export function arrangeColumn(
  * rank and jump up the column behind it. The person moved one row and two
  * things moved, which is the sort of surprise a drag exists to remove.
  *
- * A folder joining a group lands at the foot of it, and one leaving lands
- * immediately after the group it left. Both are choices rather than
- * deductions, and they are the predictable ones: the row appears where the
- * gesture ended and stays put until somebody moves it again.
+ * A folder leaving a group lands immediately after the group it left, which
+ * is a choice rather than a deduction and is the predictable one: the row
+ * appears where the gesture ended and stays put until somebody moves it again.
+ *
+ * **`at` is where inside the group it lands, and it exists because the
+ * Library draws a line saying so (S24).** This used to append, and appending
+ * was honest while nothing on screen claimed otherwise. The prototype's
+ * directory draws an insert line under the pointer while a folder is carried
+ * over an open shelf, and a line promising a slot that the drop does not
+ * honour is worse than no line at all, which is the class of fault this
+ * repository keeps finding rather than a fine distinction. Omitted, it still
+ * appends, so every caller that has no line to keep honest is unchanged.
  */
 export function moveFolderTo(
   entries: readonly DirectoryEntry[],
   folderId: string,
   label: string | null,
+  at?: number,
 ): DirectoryEntry[] {
   let carried: Folder | null = null
   let leftAt = entries.length
@@ -305,11 +314,16 @@ export function moveFolderTo(
   const next: DirectoryEntry[] =
     label === null
       ? emptied
-      : emptied.map((entry) =>
-          entry.kind === 'group' && entry.label === label
-            ? { ...entry, folders: [...entry.folders, landed] }
-            : entry,
-        )
+      : emptied.map((entry) => {
+          if (entry.kind !== 'group' || entry.label !== label) return entry
+          const folders = [...entry.folders]
+          folders.splice(
+            at === undefined ? folders.length : Math.max(0, Math.min(at, folders.length)),
+            0,
+            landed,
+          )
+          return { ...entry, folders }
+        })
   if (label === null) {
     next.splice(Math.min(leftAt, next.length), 0, {
       kind: 'folder',

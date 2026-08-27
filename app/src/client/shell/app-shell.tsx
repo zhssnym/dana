@@ -75,7 +75,12 @@ import {
 } from '../lib/icons.js'
 
 import { ApiError, mutateApi } from '../api/http.js'
-import { useCreateFolder, useImportWorkflow, usePatchBundle } from '../api/mutations.js'
+import {
+  useCreateFolder,
+  useImportWorkflow,
+  usePatchBundle,
+  useUpdateMyMembership,
+} from '../api/mutations.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 import {
   useBundle,
@@ -372,6 +377,9 @@ export function AppShell(): React.JSX.Element {
      chrome reads them here beside the pin list rather than in a page. */
   const savedViews = useSavedViews()
   const createFolder = useCreateFolder()
+  /* 4.4 makes a folder's shelf placement a membership fact, so filing a new
+     folder onto a shelf is a second write after the create. */
+  const relabelFolder = useUpdateMyMembership()
   const update = useUpdateAffordance()
   /* What an open right-edge panel has reserved (DES-154, DES-186). Zero when
      nothing is open, which is almost always. */
@@ -400,7 +408,14 @@ export function AppShell(): React.JSX.Element {
      reads the store rather than a page's answer to it, and floatingDefaults
      resolves it against the page it is actually on. */
   const [remembered] = useViewMode(ALL_VIEWS)
-  const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS, shelves.data ?? NO_SHELVES)
+  const groups = useFolderGroupActions(
+    folders.data ?? NO_FOLDERS,
+    shelves.data ?? NO_SHELVES,
+    (label) => {
+      setNewFolderIn(label)
+      setNewFolderOpen(true)
+    },
+  )
 
   /*
   9.1's "Import (a workflow file)", the footer's third act, wired here because
@@ -437,6 +452,16 @@ export function AppShell(): React.JSX.Element {
   const [railOpen, setRailOpen] = useState(() => !readSidebarCollapsed())
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(readSidebarWidth)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
+  /*
+  Which shelf a new folder is being made on, if any.
+
+  Null for 9.1's footer act, which is made from no shelf at all, and a label
+  for the prototype's "Add folder to {shelf}" on a shelf heading. One dialog
+  either way: the label is what the folder is filed under once it exists,
+  which is two writes because 4.4 makes the placement a membership fact rather
+  than a column on the folder.
+  */
+  const [newFolderIn, setNewFolderIn] = useState<string | null>(null)
 
   /*
   The viewer's arrangement of the Library (DES-171, built at S11).
@@ -578,7 +603,8 @@ export function AppShell(): React.JSX.Element {
       <>
         <OfflineBanner />
         <InviteGate invites={invites.data ?? []} />
-        <ToastRegion />
+        {/* No capture button on the gate, so the toast keeps the corner. */}
+        <ToastRegion clearsCapture={false} />
       </>
     )
   }
@@ -701,7 +727,10 @@ export function AppShell(): React.JSX.Element {
             onOpenSettings={() => {
               void navigate(paths.settings)
             }}
-            onNewFolder={() => setNewFolderOpen(true)}
+            onNewFolder={() => {
+              setNewFolderIn(null)
+              setNewFolderOpen(true)
+            }}
             /* 9.1's second act of making. A shelf is made by naming it, 4.18
                giving it a stable id the name can then move over, so the dialog
                the group flow already owns is the one surface for it: this
@@ -798,9 +827,30 @@ export function AppShell(): React.JSX.Element {
               refetch its own write causes. */}
           <NewFolderDialog
             open={newFolderOpen}
-            onOpenChange={setNewFolderOpen}
+            groupLabel={newFolderIn ?? undefined}
+            onOpenChange={(next) => {
+              setNewFolderOpen(next)
+              /* The label belongs to one opening of the dialog and not to the
+                 control that opened it, so the next New folder from the footer
+                 does not inherit the last shelf somebody added to. */
+              if (!next) setNewFolderIn(null)
+            }}
             onCreate={(name) => {
-              createFolder.mutate({ name })
+              const label = newFolderIn
+              createFolder.mutate(
+                { name },
+                label === null
+                  ? undefined
+                  : {
+                      /* Filed after it exists rather than in the same call:
+                         7.4 creates a folder and 7.4's my-membership places
+                         it, and widening the create to carry a label would be
+                         a frozen section 7 change for a client convenience. */
+                      onSuccess: (made) => {
+                        relabelFolder.mutate({ id: made.id, body: { label } })
+                      },
+                    },
+              )
             }}
           />
           {groups.dialogs}
@@ -810,7 +860,12 @@ export function AppShell(): React.JSX.Element {
           sidebar provider so it is not clipped by the shell's own layout and
           so there is exactly one of it however many pages mount. */}
       <UndoBar />
-      <ToastRegion />
+      {/* Up by the capture button's height where one is drawn, and on the
+          corner where none is (9.1: the floating button appears only on Today,
+          Important and Assignments). A notice landing on the control people
+          press most is the fault the undo bar's own placement avoids, and this
+          is the same rule for the other corner. */}
+      <ToastRegion clearsCapture={defaults !== null} />
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}

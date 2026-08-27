@@ -45,7 +45,6 @@ click onto whichever tab is under the cursor, which in a strip means selecting
 a tab somebody was only moving. `swallowNextClick` is the sidebar's fix and
 the same one here.
 */
-import { Button } from '../components/ui/button.js'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -207,20 +206,28 @@ export function TabStrip({
       </div>
 
       <DropdownMenu>
+        {/* The trigger is the prototype's own markup since S24, a plain
+            button rather than the primitive: its resting colour, its
+            open-popup state and the wash it takes on hover are written into
+            the class, and the primitive's own ghost variant was answering for
+            them. The name is still 9.1's "New tab". */}
         <DropdownMenuTrigger
           render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
+            <button
+              type="button"
               aria-label={NEW_TAB}
               title={NEW_TAB}
-              className="mb-0.5 size-6 shrink-0"
+              className="ml-1 flex size-6 shrink-0 items-center justify-center self-center rounded-md text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] data-popup-open:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))]"
             />
           }
         >
-          <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        {/* The alignment and the scroll cap are the prototype's: the menu
+            lists every folder and every shelf, so it needs a ceiling and a
+            width, and it hangs from the control's left where the strip
+            runs. */}
+        <DropdownMenuContent align="start" className="max-h-96 w-56 overflow-y-auto">
           {/* Each entry wears its folder's own mark since S17a (DES-130,
               AC-243). It drew one literal folder in a personal colour for
               every entry, so the one control whose job is choosing between
