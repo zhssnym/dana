@@ -18,7 +18,7 @@ Due panel has no clock in it.
 import { Ban, CalendarDays, Repeat2, type LucideIcon } from "../lib/icons.js"
 import { ConfirmDialog } from "./ui/ConfirmDialog.js"
 import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
-import { useState, type ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { Check as CheckIcon } from "../lib/icons.js"
 
 import { Calendar, TimeRow, sameDay } from "./ui/calendar.js"
@@ -51,6 +51,37 @@ import {
   type ConceptTask,
 } from "../lib/task-model.js"
 import { cn } from "./ui/utils.js"
+
+/*
+**Seam, S23: a picker closes once its question is answered.**
+
+9.3: "The pickers open on the answer, not the instrument: resolved presets
+first, a calendar or list behind them." AC-092 reads the second half of that
+as a state rather than a layout, "the picker closes once the day is answered,
+which is what 'opens on the answer' means", and the prototype's panels leave
+the popover standing: they commit on choosing, DES-109, and then wait to be
+dismissed.
+
+**A context rather than a prop, because the answer is given three levels
+down.** `PickerChip` owns the popover; the panels inside it own the question;
+the options inside those are what a person presses. Threading a close through
+all three would put a callback on every panel's signature for a fact only one
+of them uses, and the panels are lifted files.
+
+**And it is per option rather than per press**, which is the distinction
+AC-092 turns on twice. A due preset answers the whole question and closes; a
+repeat preset does not, its operands living behind it, and that case says so
+in as many words: "The repeat picker stays open on purpose, its operands
+living behind the preset." So an option asks to close only where choosing it
+finishes the field.
+*/
+const PickerClose = createContext<(() => void) | null>(null)
+
+/** Closes the picker this control sits in, where there is one. */
+export function usePickerClose(): () => void {
+  const close = useContext(PickerClose)
+  return () => close?.()
+}
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
@@ -132,8 +163,9 @@ export function PickerChip({
   disabled?: boolean
   children: ReactNode
 }) {
+  const [open, setOpen] = useState(false)
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <button
@@ -167,7 +199,7 @@ export function PickerChip({
         }
       />
       <PopoverContent align="start" className="w-auto p-2">
-        {children}
+        <PickerClose value={() => setOpen(false)}>{children}</PickerClose>
       </PopoverContent>
     </Popover>
   )
@@ -216,21 +248,29 @@ export function PickerOption({
   active,
   onSelect,
   menu = false,
+  finishes = false,
 }: {
   icon?: LucideIcon
   label: string
   hint?: string
   active: boolean
   onSelect: () => void
+  /* Choosing this answers the whole field, so the picker closes. See the
+     context above; a repeat preset deliberately does not set it. */
+  finishes?: boolean
   /* One of a list of named rules rather than a value the field takes. Only
      the repeat panel passes it; see the header above. */
   menu?: boolean
 }) {
+  const close = usePickerClose()
   return (
     <button
       type="button"
       {...(menu ? { role: "menuitem" } : { "aria-pressed": active })}
-      onClick={onSelect}
+      onClick={() => {
+        onSelect()
+        if (finishes) close()
+      }}
       className={cn(
         "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors",
         T_FAST,
@@ -411,7 +451,13 @@ export function DuePanel({ task, patch }: PanelProps) {
   const selected = task.due ? parseDueLabel(task.due.label) : null
   const [custom, setCustom] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const set = (date: Date) => patch(task.id, { due: dueLabelFor(date) })
+  const close = usePickerClose()
+  /* Choosing a day answers the field, from the grid exactly as from a preset,
+     so both close. Seam, S23; see `PickerClose`. */
+  const set = (date: Date) => {
+    patch(task.id, { due: dueLabelFor(date) })
+    close()
+  }
   /* 8.4's own cascade, which is what the sentence describes. */
   const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
   const clear = () =>
@@ -455,6 +501,7 @@ export function DuePanel({ task, patch }: PanelProps) {
       <div role="group" aria-label="Due date" className="flex flex-col">
         {presets.map((preset) => (
           <PickerOption
+            finishes
             key={preset.label}
             label={preset.label}
             hint={shortDate(preset.date)}
@@ -463,6 +510,7 @@ export function DuePanel({ task, patch }: PanelProps) {
           />
         ))}
         <PickerOption
+            finishes
           icon={Ban}
           label={task.due ? DATE_CLEAR : "No date"}
           active={!task.due}
@@ -487,6 +535,7 @@ export function DuePanel({ task, patch }: PanelProps) {
       <PickerDivider />
 
       <PickerOption
+            finishes
         icon={CalendarDays}
         label="Custom date…"
         hint={custom || !selected ? undefined : shortDate(selected)}
@@ -541,6 +590,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
         */}
         {task.reminder ? (
           <PickerOption
+            finishes
             icon={Ban}
             label={DATE_CLEAR}
             active={false}
@@ -549,6 +599,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
         ) : null}
         {presets.map((preset) => (
           <PickerOption
+            finishes
             key={preset.label}
             label={preset.label}
             hint={preset.hint}
@@ -557,6 +608,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
           />
         ))}
         <PickerOption
+            finishes
           icon={Ban}
           label="No reminder"
           active={!task.reminder}
@@ -571,6 +623,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
           the calendar rather than beside it, because you pick the day first
           and the time is the refinement. */}
       <PickerOption
+            finishes
         icon={CalendarDays}
         label="Custom date & time…"
         active={custom}

@@ -89,6 +89,13 @@ import {
 } from "./task-card-copy.js"
 import { DATE_DEPENDENT_HELPER } from "./task-copy.js"
 import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
+import { TaskAssigneeInvite } from "./task-assignee-invite.js"
+import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
+/* 10.3's cap for the field. Restated rather than imported because
+   `shared/tasks.ts` spends it inline in a zod `max`, and a second constant
+   over there is a change to the contract file this row does not own. Named
+   here so the notice and the guard read one number. */
+const STEP_CAP = 50
 import {
   commentCount,
   dueChipValue,
@@ -1157,8 +1164,24 @@ function StepList({
         )
       })}
 
-      {/* Always at the foot of the list, never only when it is empty. */}
-      {selecting ? null : (
+      {/*
+      **Seam, S23: 10.3's cap, said once the list is at it.**
+
+      9.3's steps row ends "cap notice \"Limit 50 steps\"", and AC-161 reads
+      the string rather than a number on the page, "which a step titled 50
+      would also have satisfied". The prototype has no cap at all, 7.7 being
+      what refuses the fifty-first and its fixtures never reaching one.
+
+      The control goes with the notice rather than standing beside it disabled,
+      which is 9.3's own "hidden" read the way AC-094 reads it one field over
+      and is DES-144 besides: what a person needs at the cap is the reason,
+      not a button that will refuse them.
+      */}
+      {steps.length >= STEP_CAP ? (
+        <p className="px-2 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          {STEP_CAP_NOTICE}
+        </p>
+      ) : selecting ? null : (
         <EmptyAction label="Add a step" onSelect={() => addStep(task.id)} />
       )}
 
@@ -1735,6 +1758,9 @@ export function TaskCard({
   and the seam it crosses.
   */
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
+  /* 9.3's "Invite by email" on the assignee row, which the menu opens and
+     `components/task-assignee-invite.tsx` performs. Seam, S23. */
+  const [inviting, setInviting] = useState(false)
   const counts = stepCount(task)
   const [order, setOrder] = useState<BlockKey[]>([
     "steps",
@@ -1958,6 +1984,11 @@ export function TaskCard({
             */
             [
               {
+                key: "__invite",
+                label: <span>{INVITE_BY_EMAIL}</span>,
+                onSelect: () => setInviting(true),
+              },
+              {
                 key: "__unassigned",
                 label: <span>{UNASSIGNED}</span>,
                 onSelect: () => patch(task.id, { assignee: undefined }),
@@ -2026,6 +2057,14 @@ export function TaskCard({
         <p className="px-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
           {DATE_DEPENDENT_HELPER}
         </p>
+      ) : null}
+
+      {inviting && task.folder?.id !== undefined ? (
+        <TaskAssigneeInvite
+          folderId={task.folder.id}
+          folderName={task.folder.name}
+          onDone={() => setInviting(false)}
+        />
       ) : null}
 
       <TaskMoveGuard
