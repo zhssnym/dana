@@ -30,7 +30,6 @@ import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults, surfaceDefaults } from './place-pages.js'
 import type { ColumnValue, PlaceSpine } from './place-pages.js'
-import { PageCover } from '../components/page-cover.js'
 import { PageHead } from '../components/page-head.js'
 import { ViewStrip } from '../components/view-strip.js'
 import type { ViewStripOption } from '../components/view-strip.js'
@@ -92,8 +91,17 @@ function peopleIn(
   const byId = new Map<string, string>()
   if (viewerId !== null) byId.set(viewerId, viewerName)
   for (const task of rows) {
-    if (task.assignee === null) continue
-    byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
+    if (task.assignee !== null) {
+      byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
+    }
+    /* The makers as well as the carriers, since S25: the filter's created-by
+       axis offers this same list, and a page can hold a task somebody made
+       and nobody was given, which would otherwise be a person the axis could
+       not name. 4.5 makes `created_by` NOT NULL, so this adds a person per
+       row rather than sometimes. */
+    if (task.created_by !== null) {
+      byId.set(task.created_by.id, task.created_by.display_name ?? DELETED_USER)
+    }
   }
   return [...byId].map(([id, name]) => ({ id, name }))
 }
@@ -304,26 +312,23 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
 }
 
 /**
- * A place-page's head: the lifted `PageHead` of `prototype-v2`, with the
- * cover band above it (RFC 0005 change control item 44's B1, S25).
+ * A place-page's head: the lifted `PageHead` of `prototype-v2`, given this
+ * page's spine (RFC 0005 change control item 44's B1, S25).
  *
- * **It is one composition here rather than eight in the pages**, which is
+ * **It is one call here rather than eight in the pages**, which is
  * `PlaceChrome`'s own reason one function up and DES-154's rule: a settled
- * behaviour belongs to the mechanism. The prototype puts the band in its
- * shell because its shell is what knows which page is showing; this client's
- * pages each know their own spine, so the pair sits with the spine.
+ * behaviour belongs to the mechanism, and eight pages spelling out the same
+ * four props is eight chances for one of them to key its cover by the page's
+ * display name instead of by 4.20's place.
  *
- * **The bleed undoes the shell's measure and nothing else.** `app-shell.tsx`
- * wraps every page in `max-w px-10 py-6`, and a cover is a band across the
- * page rather than a picture inside its column, so it steps back out of that
- * padding exactly. The head's own mark then rides up over the band on the
- * negative margin `PageMark` carries for the purpose, which only works while
- * the two are siblings in one flow.
+ * The cover band is not here: it is inside `PageHead`, at the seam that file
+ * records, because the mark rides up over the band on a negative margin and
+ * that only works while the two are adjacent in one flow.
  *
  * **The description is Dana's sentence and not a field**, `descriptionEditable`
- * being false here for the reason `page-head.tsx` states at that prop: 9.4
- * asks for an editable description, 4.20 stores no wording, and a rewrite
- * that is accepted and silently discarded is worse than a sentence.
+ * being false for the reason `page-head.tsx` states at that prop: 9.4 asks for
+ * an editable description, 4.20 stores no wording, and a rewrite that is
+ * accepted and silently discarded is worse than a sentence.
  */
 export function PlaceHead({
   place,
@@ -334,10 +339,6 @@ export function PlaceHead({
   readonly fact?: string
 }): React.JSX.Element {
   return (
-    <>
-      <div className="-mx-10 -mt-6">
-        <PageCover storageName={place.spine.key} />
-      </div>
       <PageHead
         storageName={place.spine.key}
         icon={place.spine.icon}
@@ -346,6 +347,5 @@ export function PlaceHead({
         descriptionEditable={false}
         {...(fact === undefined ? {} : { fact })}
       />
-    </>
   )
 }

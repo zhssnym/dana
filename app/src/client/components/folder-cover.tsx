@@ -1,20 +1,20 @@
 /*
-Covers for a folder page — rebuilt 2026-08-18 to Imran's direction against
+Covers for a folder page, rebuilt 2026-08-18 to Imran's direction against
 the Notion picker: a gallery in sections, upload, link, and a free photo
 source, with reposition on the cover itself.
 
 Four tiers, each honest about what it is:
 
-- **Colour & gradient** — nine gradients built exclusively from the token
+- **Colour & gradient**, nine gradients built exclusively from the token
   palette's own hexes. No colour enters the product here that the tokens do
   not already own, which is what makes them brand rather than decoration.
-- **The mark** — six covers drawn from Dana's own ribbon geometry (DES-126's
+- **The mark**, six covers drawn from Dana's own ribbon geometry (DES-126's
   drawing), oversized and bled off the band's edges in folder-tint gradients.
   This is the cover tier no other product can have.
-- **Photos** — Lorem Picsum, a free image source, loaded over the network in
+- **Photos**, Lorem Picsum, a free image source, loaded over the network in
   the dev prototype and honestly absent in the flattened share build (which
   refuses all external requests). The tab says so instead of pretending.
-- **Upload** — a real file into an object URL, alive for the session, gone on
+- **Upload**, a real file into an object URL, alive for the session, gone on
   reload, said so in the tab.
 
 Repositioning stores a vertical position per folder for photographic covers;
@@ -82,7 +82,7 @@ const GRADIENTS: { key: string; name: string; css: string }[] = [
 
 /* --------------------------------------------------------- the mark tier -- */
 
-/* The ribbon path from `public/dana-mark.svg`, verbatim — the same geometry
+/* The ribbon path from `public/dana-mark.svg`, verbatim, the same geometry
    DES-126 measured for the logo reveal. Kept in one constant so the day the
    mark changes, the covers change with it. */
 const RIBBON =
@@ -162,7 +162,7 @@ const MARKS: { key: string; name: string; css: string }[] = [
 
 /* ------------------------------------------------------------ photos tier -- */
 
-/* Openverse — the openly licensed image search run by the Openverse project
+/* Openverse, the openly licensed image search run by the Openverse project
    (api.openverse.org), standing where the reference design had Unsplash.
    Real search over a real free-source platform; the tab says plainly that it
    needs the network, which the flattened share build refuses on purpose.
@@ -213,13 +213,13 @@ export function rememberUploadedCover(folderName: string, url: string) {
   uploadedCovers.set(folderName, url)
 }
 
-/* Whether a stored cover has a crop worth moving — photographic tiers only. */
+/* Whether a stored cover has a crop worth moving, photographic tiers only. */
 export function coverRepositions(key: string | undefined): boolean {
   if (!key) return false
   return key === "upload" || key.startsWith("photo:") || key.startsWith("link:")
 }
 
-/* The style for a stored cover key, or null when there is nothing to draw —
+/* The style for a stored cover key, or null when there is nothing to draw ,
    including an upload key whose object URL did not survive the reload. */
 /* The first picker spoke `pattern:*` and `stock:*`; covers chosen then keep
    working rather than silently vanishing. */
@@ -361,7 +361,7 @@ export function FolderCoverPicker({
       if (results.length === 0) setPhotoError(`Nothing found for “${query}”.`)
     } catch {
       setPhotoError(
-        "Openverse could not be reached — photo search needs the network.",
+        "Openverse could not be reached, photo search needs the network.",
       )
     } finally {
       setPhotoLoading(false)
@@ -380,7 +380,7 @@ export function FolderCoverPicker({
        PopoverContent is w-80, so a 440px picker used to overflow its panel
        and put Remove outside the white (Imran caught it). */
     <div className="w-[440px] max-w-full" onClick={(e) => e.stopPropagation()}>
-      {/* The tab row, with Remove at its far end — the Notion arrangement,
+      {/* The tab row, with Remove at its far end, the Notion arrangement,
           in Dana's chrome: a hairline under the row, the active tab marked
           by ink rather than a pill. */}
       <div className="flex items-center gap-0.5 border-b border-[var(--color-graphite-100)] px-2 pt-1.5">
@@ -587,7 +587,7 @@ export function FolderCoverPicker({
                     type="button"
                     role="option"
                     aria-selected={value === `link:${photo.url}`}
-                    title={`${photo.title} — ${photo.creator}`}
+                    title={`${photo.title}, ${photo.creator}`}
                     aria-label={`${photo.title} by ${photo.creator}`}
                     onClick={() => onPick(`link:${photo.url}`)}
                     className={cn(
@@ -604,7 +604,7 @@ export function FolderCoverPicker({
               </div>
             ) : !photoSearched && !photoError ? (
               <p className="px-0.5 py-4 text-center text-[12px] leading-4 text-[var(--color-graphite-400)]">
-                Search Openverse for an openly licensed cover —
+                Search Openverse for an openly licensed cover ,
                 “mountains”, “linen”, “night sky”…
               </p>
             ) : null}

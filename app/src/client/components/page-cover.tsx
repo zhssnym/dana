@@ -2,12 +2,12 @@
 The page cover: a band any page can wear.
 
 Imran's direction, 2026-08-18 (DES-141): a cover is native to every page
-except a task's — My Day, Tasks, Planned, Important, All, Done and every
+except a task's, My Day, Tasks, Planned, Important, All, Done and every
 folder can carry one, because a cover is how a *place* announces itself and
 those are all places. A task is not; it is a thing inside one.
 
 Extracted from the folder page, which had it first. What travels with it is
-the whole affordance — the picker, the reposition drag, the foot scrim — so
+the whole affordance, the picker, the reposition drag, the foot scrim, so
 no page grows a second, slightly different cover.
 
 The controls stay minimal, at Imran's word: a joined Change·Reposition group
@@ -42,7 +42,7 @@ const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
 
 /* The band, drawn only when the page has a cover. `storageName` is the key
-   the cover is remembered under — a folder's real name, or the page's. */
+   the cover is remembered under, a folder's real name, or the page's. */
 export function PageCover({ storageName }: { storageName: string }) {
   const identity = useFolderIdentity(storageName)
   const coverPos = identity.coverPos ?? 50
@@ -201,8 +201,8 @@ The way in, and it is always there until it has been used.
 Imran, 2026-08-22: "Each of the folder page (native and non native) can get a
 cover photo. Home is not getting it." Home was not, and neither was any folder
 somebody had already dressed: this took a `visible` flag, the folder page
-passed it `pristine` — true only while the folder had *no glyph, no cover and
-no description* — and every other page passed it `false` outright. So the
+passed it `pristine`, true only while the folder had *no glyph, no cover and
+no description*, and every other page passed it `false` outright. So the
 moment you gave a folder an icon, the only route to a cover dropped to opacity
 zero with nothing to suggest it was still there. Home ships with a house.
 

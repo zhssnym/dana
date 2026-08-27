@@ -2077,6 +2077,9 @@ export interface TaskRowProps {
   */
   unassigned?: boolean
   invitePending?: string
+  /* **Seam, S25: 9.5's from half.** The person who made this task, drawn only
+     where the page asks. See the chip at the foot of `rowChips`. */
+  createdBy?: string
   /* What a release would do, drawn on the row being carried. Seam, S23; see
      `ExpandShell`. */
   proposal?: string
@@ -2711,6 +2714,41 @@ export function TaskRow(props: TaskRowProps) {
 
         <DetailChip interactive={false}>
           <DetailWord icon={UserRound}>Unassigned</DetailWord>
+        </DetailChip>
+      ),
+    },
+    /*
+    **Seam, S25: Assignments' from half, the third adornment the prototype
+    dropped and section 9 keeps.**
+
+    9.5 is normative and in terms: "the 'from' half of a row names the
+    creator, Dana recording no assigner." The prototype's own screen weighs
+    the same fact and lands elsewhere, that "the assignee is this page's spine
+    and creator belongs in the filter", which is a reading of the same honesty
+    problem rather than a contradiction of it. This client does both: the chip
+    is here and the created-by axis landed in `views/filter.ts` beside it.
+    Ledger L-224 and L-254 are this chip, and both read *no* with S25 named.
+
+    11.13 governs the difference and the section wins, which is the ruling F1
+    and F2 took and the one the two chips above took at S23: the lift owes the
+    adornment at a named seam.
+
+    **A chip of this strip rather than a badge beside it**, DES-113's rule for
+    the two densities being that the details may differ in where they sit "and
+    in nothing else". **And drawn only where a page asks for it**, because a
+    creator on every row of every page is the row repeating what nobody asked;
+    `parts/presenters.ts` fills it from `context.showCreator`, and Assignments
+    is the one page that passes it, which is the same per-list decision
+    `given` is and for DES-154's reason.
+    */
+    {
+      key: "created-by",
+      shown: Boolean(props.createdBy),
+      body: () =>
+        !props.createdBy ? null : (
+
+        <DetailChip interactive={false}>
+          <DetailWord icon={UserRound}>From {props.createdBy}</DetailWord>
         </DetailChip>
       ),
     },
