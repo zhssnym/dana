@@ -1044,22 +1044,47 @@ export function TaskTitle({
         "relative -mx-1 cursor-text rounded-[4px] px-1 text-left transition-colors hover:bg-[var(--color-graphite-200)]",
         T_FAST,
         FOCUS,
+        /*
+        **Seam, S23: the strike is the text's own, and it is a third finding
+        of F1 and F2's class that the criteria triage did not carry.**
+
+        9.5 renders a completed row "faded and checked" and an abandoned one
+        "faded and struck", and AC-097 reads the second from the browser, off
+        the title's computed `textDecorationLine`, with its own note that
+        "any CSS that produces a strike-through satisfies it". The prototype
+        draws the line instead: an absolutely positioned 1px span across the
+        button, scaled from zero so the strike sweeps across as a task is
+        abandoned. It is a real strike and a nicer one, and it leaves
+        `textDecorationLine` reading `none`, so nothing about the row's
+        appearance tells a reader, a screen reader included, that the text is
+        struck. Three cases read it and every abandoned row in the product is
+        drawn by this line.
+
+        **The motion is kept and the mechanism is not**, which is the choice
+        with the least given up. `text-decoration-color` animates, so the
+        line still arrives rather than appearing: transparent at rest, the
+        current colour when struck, over the same duration token the span
+        used. What goes is the *sweep*, left to right, in favour of a fade,
+        and that is a real loss against DES-097's motion scale recorded rather
+        than quietly taken, the same shape `Reveal` records for its own
+        collapse. Two mechanisms for one line was the alternative, and a line
+        drawn to the button's padding beside a line drawn under the text is
+        two strikes of different lengths on one title.
+
+        The screen reader gains nothing from a decoration either way, which is
+        why the Abandoned chip beside it is the non-colour cue section 9 asks
+        for and stays exactly where the prototype put it.
+        */
         struck
-          ? "text-[var(--color-graphite-500)]"
-          : "text-[var(--color-graphite-800)]",
+          ? "text-[var(--color-graphite-500)] line-through decoration-current"
+          : "text-[var(--color-graphite-800)] line-through decoration-transparent",
+        "transition-[color,background-color,text-decoration-color]",
+        T_BASE,
       )}
     >
       {task.title || (
         <span className="text-[var(--color-graphite-400)]">Untitled task</span>
       )}
-      <span
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute top-1/2 left-1 h-px w-[calc(100%-8px)] origin-left bg-current transition-transform",
-          T_BASE,
-        )}
-        style={{ transform: struck ? "scaleX(1)" : "scaleX(0)" }}
-      />
     </button>
   )
 
@@ -1168,6 +1193,7 @@ export function Actions({
   onCopyLink,
   onDuplicate,
   extra,
+  importantTooltip,
   quietStar = false,
   /* A page shows its controls; a row reveals them on hover. */
   persistent = false,
@@ -1189,6 +1215,10 @@ export function Actions({
   it is also the only way a task leaves that page; what it drops is the fill.
   */
   quietStar?: boolean
+  /* 6 Q4's outward tooltip, which replaces the tooltip alone and never the
+     accessible name. Supplied by the page layer on Important and nowhere else;
+     see the star below. Seam, S23. */
+  importantTooltip?: string
   onOpenIn?: (mode: TaskOpenMode) => void
   onMoveToFolder?: (folder: { name: string; color: string }) => void
   onAbandon?: () => void
@@ -1241,7 +1271,37 @@ export function Actions({
           onStar()
         }}
         aria-pressed={Boolean(task.important)}
-        aria-label={task.important ? "Remove from Important" : "Mark as Important"}
+        /*
+        **Seam, S23: 9.1's two names, and the tooltip comes apart from them.**
+
+        Three things are wrong here against the sections and each was settled
+        once already, at P8 and P8R, on this client's v1 row.
+
+        **The names are 9.5's and 9.1's**, "Important" when on and "Mark as
+        important" when off, where the prototype writes "Remove from Important"
+        and "Mark as Important". Change control item 44's A2 ruled the table
+        stands on all seven of the strings the criteria triage's F3 measured,
+        so the lift transcribes them; AC-055's un-star and AC-099 both address
+        this control by 9.1's exact string.
+
+        **The name is content and never an `aria-label`.** The whole argument
+        is `ui/StarButton.tsx`'s, closed at P8: a label is a *label*, and the
+        suite's `formField` helper addresses 9.3's fields by label, so a page
+        holding a starred row with the surface open had two elements answering
+        to one name. The accessible name is unchanged either way and the glyph
+        stays `aria-hidden`, so a glyph swap is still never a rename.
+
+        **And the tooltip is a separate string**, which 6 Q4 requires: on
+        Important it turns outward, "Also in Planned, due 3 Sep", while the
+        name has to keep saying what pressing the control does. The prototype
+        drives no tooltip at all here and leaves `importantTooltip` declared
+        and unread; driving both attributes off one string, which the v1 row
+        did before P8R, renames the control the moment the tooltip points
+        outward. It is a `title` as well as a styled tooltip because "a tooltip
+        that exists only while it is open cannot be read", the harness reading
+        the attribute immediately after a hover.
+        */
+        title={importantTooltip}
         className={cn(
           "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] active:scale-90",
           T_FAST,
@@ -1264,6 +1324,9 @@ export function Actions({
         graphite (W1). So the star is graphite in both states and the fill is
         the whole difference.
         */}
+        <span className="sr-only">
+          {task.important ? "Important" : "Mark as important"}
+        </span>
         <Star
           className={cn(
             "size-[18px] transition-[transform,color]",
@@ -2540,6 +2603,7 @@ export function TaskRow(props: TaskRowProps) {
       }}
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
       quietStar={given.important}
+      importantTooltip={props.importantTooltip}
       onOpenIn={props.onOpen ? openIn : undefined}
       onMoveToFolder={(folder) => patch(task.id, { folder })}
       onNewFolderFor={props.onNewFolder}
