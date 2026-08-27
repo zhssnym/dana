@@ -5450,7 +5450,10 @@ fold, the way P7's mid-package change control ratified the pass callable:
     records, whole files reported failed with every test skipped and a fifth
     worker that never started; all five pass alone in 43 seconds, and the
     run-suite guard refused that run rather than letting 258 of 262 read as
-    green, which is what it exists for.
+    green, which is what it exists for. **CI answered green on lint,
+    typecheck, both database legs and build**, the Postgres leg being CI's
+    alone on this machine, and red on one browser case that is not this one.
+    That case is (n).
 
     **That nothing else moved is the finding, and it is worth stating rather
     than passed over**, because the three rows before this one each found the
@@ -5503,6 +5506,90 @@ fold, the way P7's mid-package change control ratified the pass callable:
     reading was four numbers wrong at S25 for the same reason and the second
     reading is what caught it, so the reading is made at both ends whether or
     not the first one turns out to have been right.
+
+    **(n) CI's one browser red is AC-182's resize case, it is not this row's,
+    and the way it was nearly attributed to this row is worth more than the
+    case.** CI on the merge commit `ba1e365` answered 228 passed and one
+    failed: `ac-182-view-preferences-persist.spec.ts:227`, "a resized task
+    surface survives a reload". Two facts were established independently by
+    this row and by S29 within minutes of each other, and both pointed the same
+    way: the case **reproduces when run alone**, on a quiet machine, on an
+    owned port, from a dot-free worktree; and Playwright was green on
+    `8fe7041` and on `2a7bf52`, both S25's, and red on `ba1e365`. Read
+    together those two say S26 broke it. **They are both true and the
+    conclusion is wrong.**
+
+    **The third measurement is the one that settles it.** A detached worktree
+    at `5e0179f`, the commit immediately before this row's merge, with its own
+    `npm ci` and its own port, running that one case alone: **three runs,
+    three failures.** So "reproduces in isolation" does not separate the two
+    commits, because the case fails in isolation on both.
+
+    **S29 then found the stronger form of it, which needs no second
+    environment at all**, and it is recorded here with the measurement rather
+    than only in that row's retraction: `git diff --stat 8fe7041 5e0179f --
+    app/` is **empty**, checked in both worktrees. `8fe7041` is the commit CI
+    was last green on and `5e0179f` is the one those three runs were made
+    from, so they are one `app/` tree, green in CI and red alone. A
+    correlation across two CI runs was being controlled with a run in a
+    different environment, and that is not a control.
+
+    **What is actually varying is the criterion's own reading and never the
+    client's stored value.** The case opens the dialog, which starts at
+    `DIALOG_DEFAULT` 680, drags its handle 90 pixels left in twelve
+    interpolated steps, reads the width as `after`, reloads, reopens and
+    asserts the same number.
+    `components/task-surface.tsx`'s `PanelResizeHandle` computes
+    `startWidth + delta` for a left-side handle, so the width is 590, which is
+    what `onCommit` stores and what `readDialogWidth` restores. **Every run
+    restores 590 and the assertion's expected value is what wanders**: 591 on
+    this row's tree, 591, 592 and 593 on the base's three runs. Those numbers sit among
+    the widths of the drag's last interpolation steps, step 11 being 680 minus
+    90 times 11 over 12, or 597.5, and the read happens immediately after
+    `mouse.up()` with nothing waiting on it. **That the read races the
+    interface's own update is a reading of the arithmetic rather than
+    something this row instrumented**, and it is written as one deliberately:
+    what was measured is that the case fails alone on both commits and that
+    the restored number is the specified one every time.
+
+    **The direction is the finding, and it is the inverse of the flake CLAUDE.md
+    records.** Running this case alone makes it fail *more* often, because a
+    quiet machine shortens the gap between the release and the measurement, so
+    the read catches the element still catching up. **The tell is that the
+    error is one-sided**: every reading was larger than the restored value and
+    never smaller, because the drag shrinks the dialog and every stale frame is
+    an earlier and wider step of it. A race against an interface update gives
+    back a value the interface was passing through, so the wrong number always
+    sits on the side the change came from, which is what separates it from an
+    ordinary off-by-one. Every other browser red
+    this arm has seen behaves the other way, which is why the file's standing
+    advice is to re-run a case alone before believing it, and why that advice
+    produced a **false confirmation** here for two sessions at once. **The
+    lesson is one sentence and it belongs beside that advice**: re-running
+    alone tells you a red is real, and it does not tell you the red is yours;
+    only running it on the commit before yours does that. **Look at the diff
+    before building the worktree**: where `app/` is unchanged between the last
+    green run and the red one, as it was here, the question is answered for
+    nothing, and where it is not, a detached worktree at that commit costs one
+    `npm ci`.
+
+    **The re-run settles it: CI is green on `ba1e365`.** The same job, the
+    same commit, no code changed between: PGlite 263 of 263 files, Postgres 18
+    263 of 263, and **Playwright 229 of 229 in 18.7 minutes**. So the case is
+    intermittent in CI on this commit exactly as it is intermittent alone on
+    the commit before it, and the green-to-red step that started all of this
+    was two samples of one distribution rather than a change in the code.
+    **That is the whole of the correction and it cost two sessions an evening
+    between them**, which is why the lesson above is written as a rule rather
+    than as an anecdote.
+
+    **It is offered to persona 11 and not touched.** Protocol section 8 puts a
+    criterion's text in that role's hands and this row owns no rework, so the
+    measurement is recorded and the case is left as it stands. What it appears
+    to want is a settle before `after` is read, an `expect.poll` on the width
+    or a read of the stored preference rather than of the box, which would
+    assert the thing 9.3 actually fixes, "the width is persisted client-side",
+    rather than the frame the browser happened to be showing.
 
 ## Implementation plan
 
