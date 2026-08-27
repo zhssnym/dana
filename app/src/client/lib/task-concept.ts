@@ -135,6 +135,36 @@ export function toConceptTask(
       : {
           steps: detail.steps.map((step) => ({ title: step.title, done: step.done })),
           ...(detail.notes === null ? {} : { notes: detail.notes }),
+          /*
+          **Seam, S23: a stored reminder comes back as the words its chip
+          says.**
+
+          This file left `reminder` out on purpose and said why: the four
+          prose fields "are the words a chip says, not values a wire
+          carries", and "the rest belong with the pickers that say them, at
+          S23". The picker arrived and writes 4.8's `time_of_day` through
+          7.9; what was missing is the way back, so a reload showed "No
+          reminder" on a task that had one. AC-170 reads exactly that and
+          says what the difference is: "a reload shows what was stored
+          rather than what was typed, which is the difference between a
+          value that was written and a value that was held."
+
+          The words are the picker's own, "27 Aug at 09:00", and the clock
+          inside them is re-read for the viewer by `reminderChipValue`, so
+          the format the person set is not the format they are shown. The
+          offset mode is not worded here and that is 9.3's doing rather
+          than an omission: its v2 row is "one picker, a time on that day",
+          so nothing in this client can write one, and a v1 row that still
+          carries one shows its day and no time, which is true.
+          */
+          ...(detail.reminder === null || detail.reminder.time_of_day === null
+            ? {}
+            : {
+                reminder:
+                  detail.due_date === null
+                    ? `at ${detail.reminder.time_of_day.slice(0, 5)}`
+                    : `${dueDisplay(detail, today, clock)?.label ?? ""} at ${detail.reminder.time_of_day.slice(0, 5)}`,
+              }),
         }),
   }
 }
