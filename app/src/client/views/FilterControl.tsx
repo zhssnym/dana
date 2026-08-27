@@ -64,6 +64,9 @@ resting open.**
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { isoDay, parseIsoDate } from '../lib/task-model.js'
+
+import { Calendar } from '../components/ui/calendar.js'
 import { Input } from '../components/ui/input.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
 import { Switch } from '../components/ui/switch.js'
@@ -109,6 +112,18 @@ export interface FilterPerson {
 export interface SavedViewEntry {
   readonly id: string
   readonly name: string
+}
+
+/*
+What the panel says a half-built range means, which is the prototype's own
+reading: an open range is "from this day onward" rather than nothing, and
+`views/filter.ts` already honours it that way.
+*/
+function rangeSentence(from: string | null, to: string | null): string {
+  if (from !== null && to !== null) return from === to ? from : `${from} to ${to}`
+  if (from !== null) return `From ${from}`
+  if (to !== null) return `Until ${to}`
+  return 'Pick the first day, then the last.'
 }
 
 const CHIP_ICON: Record<string, LucideIcon> = {
@@ -571,28 +586,50 @@ export function FilterControl({
             }}
           />
           {filter.due === 'custom' ? (
+            /*
+            **Ledger L-216 closes properly here, and it read closed before.**
+
+            That entry is "one calendar, shared by the due picker, the reminder
+            picker and the filter's custom range", and this client had it for
+            two of the three: `components/ui/calendar.tsx` answers the pickers
+            of `components/task-pickers.tsx` and drew nothing here, where a
+            pair of native `type="date"` inputs stood instead. Two date fields
+            and a month grid are two ways to answer one question in one
+            product, which is the fault DES-154 exists to name, and no
+            criterion addressed either, so nothing would have found it.
+
+            The gesture is the prototype's own: the first press opens a range
+            and the second closes it. An open range is a real state rather than
+            a half-finished one, "from with no to" meaning on or after that
+            day, which `views/filter.ts` already honours; and closing it sorts
+            the two days, because the 20th back to the 14th is a range somebody
+            meant rather than a mistake to refuse.
+            */
             <div className="px-1 pt-1.5">
               <p className="pb-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-                Pick the first day, then the last.
+                {filter.from === null && filter.to === null
+                  ? 'Pick the first day, then the last.'
+                  : rangeSentence(filter.from, filter.to)}
               </p>
-              <div className="flex items-center gap-1 px-1 pb-1">
-                <Input
-                  type="date"
-                  aria-label="From"
-                  value={filter.from ?? ''}
-                  onChange={(event) => {
-                    onChange({ ...filter, from: event.target.value || null })
-                  }}
-                />
-                <Input
-                  type="date"
-                  aria-label="To"
-                  value={filter.to ?? ''}
-                  onChange={(event) => {
-                    onChange({ ...filter, to: event.target.value || null })
-                  }}
-                />
-              </div>
+              <Calendar
+                selected={null}
+                range={{
+                  from: filter.from === null ? null : parseIsoDate(filter.from),
+                  to: filter.to === null ? null : parseIsoDate(filter.to),
+                }}
+                onSelect={(date) => {
+                  const key = isoDay(date)
+                  const opening = filter.from !== null && filter.to === null
+                  if (!opening) {
+                    onChange({ ...filter, from: key, to: null })
+                    return
+                  }
+                  const first = filter.from ?? key
+                  const [from, to] = first <= key ? [first, key] : [key, first]
+                  onChange({ ...filter, from, to })
+                }}
+                className="w-full"
+              />
             </div>
           ) : null}
         </Axis>
