@@ -16,6 +16,8 @@ Due panel has no clock in it.
 */
 
 import { Ban, CalendarDays, Repeat2, type LucideIcon } from "../lib/icons.js"
+import { ConfirmDialog } from "./ui/ConfirmDialog.js"
+import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
 import { useState, type ReactNode } from "react"
 import { Check as CheckIcon } from "../lib/icons.js"
 
@@ -97,6 +99,7 @@ export function PickerChip({
   field,
   muted = false,
   color,
+  disabled = false,
   children,
 }: {
   icon: LucideIcon
@@ -109,6 +112,24 @@ export function PickerChip({
   field?: string
   muted?: boolean
   color?: string
+  /*
+  **Seam, S23: 9.3's two date-dependent rows are visible and inoperable.**
+
+  The prototype's chip is always pressable and its reminder panel explains
+  itself once opened, "This task has no due date yet. These are measured from
+  one." 9.3's field table asks for the state one step earlier: reminder and
+  repeat each "requires a due date", and the disable column carries a helper,
+  "Set a due date first". AC-092 reads exactly that pair, the chip visible and
+  `toBeDisabled()`, "disabled means visible but inoperable, so it is still on
+  the strip", and "a disabled control with no helper is what that column
+  exists to forbid".
+
+  The helper is not drawn here, and that is the second half of the same
+  criterion: it asserts one helper on the surface while either chip is
+  disabled, so a chip that carried its own would put two on a strip that has
+  two disabled chips. `components/task-card.tsx` draws it once beside them.
+  */
+  disabled?: boolean
   children: ReactNode
 }) {
   return (
@@ -118,8 +139,9 @@ export function PickerChip({
           <button
             type="button"
             title={tooltip}
+            disabled={disabled}
             onClick={(event) => event.stopPropagation()}
-            className={cn("rounded-md", FOCUS)}
+            className={cn("rounded-md disabled:pointer-events-none", FOCUS)}
           >
             <span
               className={cn(
@@ -129,6 +151,7 @@ export function PickerChip({
                 muted
                   ? "text-[var(--color-graphite-500)]"
                   : "text-[var(--color-graphite-800)]",
+                disabled && "opacity-50",
               )}
             >
               <Icon
@@ -307,10 +330,49 @@ The version before this stood a calendar and two sixty-row time columns open
 at all times. Every panel was the same size as the worst case.
 */
 
+/*
+**Seam, S23: the field has a Clear, and 8.4's warning stands in front of it.**
+
+The prototype offers "No date" as one option among the presets and empties the
+field on the press. Two sentences of section 9 change that here and neither is
+about wording.
+
+**9.3 keeps 8.4's warning verbatim and keeps it before the cascade**:
+"Clearing the date also ends the repeat and removes the reminder." AC-092 is
+explicit that this is a gate and not a notice, because "a warning the person
+declines must leave the date, the repeat and the reminder exactly as they
+were", and "a dialog that clears first and explains afterwards passes the
+criterion's own sentence, since the copy did show and the fields did clear".
+So the confirm runs first and only a Continue writes.
+
+**And the control is named "Clear"**, which is the retired chip strip's own
+constant and its reason: 9.3 "fixes that the form carries an inline quick-set
+for the due date and spells no control, so these are the design's and are
+adopted with it. Clear is offered only while a date is set, which is his
+behaviour, and it runs the same 8.4 warning any other way of emptying the
+field runs." The harness reaches it by that name in both this picker and the
+reminder's, so the two are one control seen twice.
+
+**The warning is skipped where there is nothing to cascade**, which is 8.4
+read rather than softened: a task with no repeat and no reminder loses nothing
+by being undated, and a confirmation whose consequence is empty is the dead
+control DES-144 removes. AC-092 always arms both before it clears.
+*/
 export function DuePanel({ task, patch }: PanelProps) {
   const selected = task.due ? parseDueLabel(task.due.label) : null
   const [custom, setCustom] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const set = (date: Date) => patch(task.id, { due: dueLabelFor(date) })
+  /* 8.4's own cascade, which is what the sentence describes. */
+  const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
+  const clear = () =>
+    patch(task.id, {
+      due: undefined,
+      /* The client says what it believes so the strip is right in the same
+         render; 8.4 is the server's and runs whatever this sends. */
+      recurrence: false,
+      reminder: undefined,
+    })
 
   const presets = [
     { label: "Today", date: today() },
@@ -337,11 +399,25 @@ export function DuePanel({ task, patch }: PanelProps) {
         ))}
         <PickerOption
           icon={Ban}
-          label="No date"
+          label={task.due ? DATE_CLEAR : "No date"}
           active={!task.due}
-          onSelect={() => patch(task.id, { due: undefined })}
+          onSelect={() => {
+            if (!task.due) return
+            if (cascades) setConfirming(true)
+            else clear()
+          }}
         />
       </div>
+      {confirming ? (
+        <ConfirmDialog
+          message={CLEAR_DATE_WARNING}
+          onContinue={() => {
+            setConfirming(false)
+            clear()
+          }}
+          onCancel={() => setConfirming(false)}
+        />
+      ) : null}
 
       <PickerDivider />
 
@@ -388,6 +464,23 @@ export function ReminderPanel({ task, patch }: PanelProps) {
       ) : null}
 
       <div role="menu" aria-label="Reminder" className="flex flex-col">
+        {/*
+        **Seam, S23: the field has a Clear.** 9.3's reminder row is "one
+        picker, a time on that day", and a field with no way back out is the
+        closed set `lib/people-library.ts` names one axis over. Frozen 7.9
+        makes the write behind it `DELETE /tasks/:id/reminder`, "no task body
+        expressing a removal", and nothing cascades from it, so unlike the due
+        date's it needs no confirmation. Offered only while a reminder is set,
+        the same rule as the due picker's.
+        */}
+        {task.reminder ? (
+          <PickerOption
+            icon={Ban}
+            label={DATE_CLEAR}
+            active={false}
+            onSelect={() => patch(task.id, { reminder: undefined })}
+          />
+        ) : null}
         {presets.map((preset) => (
           <PickerOption
             key={preset.label}

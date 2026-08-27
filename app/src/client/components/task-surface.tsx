@@ -24,6 +24,11 @@ import { InlineInput } from "./ui/inline-field.js"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { ChevronRight, X } from "../lib/icons.js"
+import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
+/* 10.3's number for the field, from the shared contract rather than restated:
+   a limit written twice is a limit the client and the server can disagree on,
+   which is the one thing this message must never do. */
+import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
 import { FolderMark, folderNameOf } from "./folder-mark.js"
 import { TaskCard } from "./task-card.js"
 import {
@@ -168,6 +173,41 @@ function PageTitle({
      landed on an unwritable page). */
   const [editing, setEditing] = useState(value.trim() === "")
   const [draft, setDraft] = useState(value)
+  /*
+  **Seam, S23: 9.3's title row refuses and says why.**
+
+  The row is "1 to 300; empty commits are refused with 'Give it a title'", and
+  10.3 is where the 300 comes from; over-limit fields take "Too long: limit N
+  characters", which AC-161 reads with the number in it because "a surface
+  saying only Too long leaves the person to find out how much to delete by
+  deleting". The prototype refuses the empty case silently, falling back to the
+  value it had, which satisfies the rule and tells nobody.
+
+  **It is a client message about a server rule and never a rule of its own.**
+  7.6 and 10.3 enforce both bounds and answer 422 naming the field; this is the
+  convenience 9.3 asks for in front of them, which is persona 09's own hard
+  boundary read straight, "never implement a validation the server does not
+  also enforce".
+
+  Held here rather than raised, because the control that has to change is this
+  one and a message somewhere else would be a message beside the wrong field.
+  */
+  const [refusal, setRefusal] = useState<string | null>(null)
+
+  function commit(next: string): void {
+    const trimmed = next.trim()
+    if (trimmed === "") {
+      setRefusal(TITLE_REQUIRED)
+      return
+    }
+    if (trimmed.length > TASK_TITLE_LIMIT) {
+      setRefusal(tooLong(TASK_TITLE_LIMIT))
+      return
+    }
+    setRefusal(null)
+    onRename(trimmed)
+    setEditing(false)
+  }
 
   const metrics = cn(
     "min-w-0 flex-1 text-left font-semibold",
@@ -211,40 +251,51 @@ function PageTitle({
   field."
   */
   return (
-    <InlineInput
-      autoFocus={editing}
-      value={editing ? draft : value}
-      aria-label="title"
-      onFocus={(event) => {
-        setDraft(value)
-        setEditing(true)
-        event.currentTarget.select()
-      }}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        onRename(draft.trim() || value)
-        setEditing(false)
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault()
-          onRename(draft.trim() || value)
-          setEditing(false)
-        }
-        if (event.key === "Escape") {
-          event.preventDefault()
-          event.stopPropagation()
+    <>
+      <InlineInput
+        autoFocus={editing}
+        value={editing ? draft : value}
+        aria-label="title"
+        aria-invalid={refusal !== null}
+        onFocus={(event) => {
           setDraft(value)
-          setEditing(false)
-        }
-      }}
-      className={cn(
-        metrics,
-        "-mx-1 rounded-md px-1",
-        editing &&
-          "bg-background outline-none ring-2 ring-[var(--color-dana-accent-600)]",
+          setEditing(true)
+          event.currentTarget.select()
+        }}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          if (refusal !== null) setRefusal(null)
+        }}
+        onBlur={() => commit(draft)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit(draft)
+          }
+          if (event.key === "Escape") {
+            event.preventDefault()
+            event.stopPropagation()
+            setDraft(value)
+            setRefusal(null)
+            setEditing(false)
+          }
+        }}
+        className={cn(
+          metrics,
+          "-mx-1 rounded-md px-1",
+          editing &&
+            "bg-background outline-none ring-2 ring-[var(--color-dana-accent-600)]",
+        )}
+      />
+      {refusal === null ? null : (
+        <p
+          role="status"
+          className="text-[12px] leading-4 text-[var(--color-danger-700)]"
+        >
+          {refusal}
+        </p>
       )}
-    />
+    </>
   )
 }
 
@@ -486,7 +537,22 @@ export function TaskSurface({
      than carrying transient state across layouts. */
   const page = (
     <TaskPage
-      key={`-`}
+      /*
+      **Seam, S23, and it is a defect rather than a decision.** The comment
+      above is the prototype's own and states the intent: "keyed by task and
+      mode so a switch remounts the page cleanly rather than carrying
+      transient state across layouts". The key it wrote is the constant
+      `` `-` ``, checked in the original at `b316785` rather than introduced by
+      the lift, so the remount it describes has never happened and a switch
+      from the dialog to the panel carries the title's draft and its refusal
+      across with it. A file whose comment and code disagree is repaired
+      towards the comment, that being the statement of what was meant; the
+      alternative reading, that the constant is deliberate and the paragraph
+      is stale, would make this the one place in the prototype where a
+      paragraph describes a mechanism that was never built. Recorded in the
+      session report so the designer can overturn it.
+      */
+      key={`${task.id}-${mode}`}
       task={task}
       compact={mode === "right"}
     />

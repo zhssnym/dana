@@ -2098,7 +2098,9 @@ export function useCardWiring(props: TaskRowProps) {
       if (moved) next.splice(to, 0, moved)
       patchSteps(next)
     },
-    moveStepsTo: () => {},
+    /* Seam, S23: not supplied. See `moveStepsTo` on `TaskCard`, whose
+       header carries B9 and the package that performs it. A no-op here would
+       draw the control and do nothing, which is the fault DES-144 removes. */
     duplicateSteps: (_id: string, indices: number[]) =>
       patchSteps([
         ...steps,

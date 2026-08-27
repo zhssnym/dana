@@ -109,6 +109,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
      which the `seq` key below makes a remount rather than a reset. */
   const [draft, setDraft] = useState<ConceptTask | null>(null)
   const [created, setCreated] = useState<string | null>(null)
+  const making = useRef(false)
 
   const preference = useTaskSurfacePreference()
   const [mode, setMode] = useState<TaskSurfaceMode | null>(null)
@@ -129,6 +130,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       setDraft(null)
       setCreated(null)
       setMode(null)
+      making.current = false
       setOpen({ seq: seq.current, taskId: null, defaults, upcoming: false })
     })
     const offTask = onOpenTask((taskId, options) => {
@@ -136,6 +138,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       setDraft(null)
       setCreated(null)
       setMode(null)
+      making.current = false
       setOpen({
         seq: seq.current,
         taskId,
@@ -153,7 +156,18 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
 
   const rows = folders.data
   if (rows === undefined) return null
-  if (editing !== null && task.data === undefined) return null
+  /*
+  An *opened* task waits for its detail and a *made* one does not.
+
+  The wait is the retired overlay's rule and it is right for the edit path: a
+  surface that rendered first and filled itself afterwards shows an empty
+  title for as long as the request takes, which is a first observable state
+  that is wrong. It would be wrong for the create path, where the draft
+  already holds everything the surface is showing: waiting there would blank
+  the dialog for a round trip immediately after the person named the task,
+  which is the same fault seen from the other side.
+  */
+  if (open.taskId !== null && task.data === undefined) return null
 
   const context = { today: presenterToday(), folders: rows, clock }
 
@@ -192,11 +206,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     }
   }
 
-  const held = editing === null ? (draft ?? seed()) : null
+  /* The server's answer the moment there is one, and the draft until then. */
   const concept =
-    task.data === undefined
-      ? (held ?? seed())
-      : toConceptTask(task.data, context)
+    task.data === undefined ? (draft ?? seed()) : toConceptTask(task.data, context)
   const id = editing ?? 'new'
 
   /*
@@ -215,10 +227,16 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       return
     }
     const next: ConceptTask = { ...(draft ?? seed()), ...fields }
-    if (next.title.trim() === '') {
-      setDraft(next)
-      return
-    }
+    setDraft(next)
+    /* 9.3: the title is required, 1 to 300, and frozen 7.6 refuses a create
+       without one. So an unnamed capture holds its answers and makes nothing,
+       which is also what a person means by opening a capture and changing
+       their mind. */
+    if (next.title.trim() === '') return
+    /* One create per capture, whatever a fast blur does. `create.isPending`
+       is not enough on its own: two blurs inside one tick both read false. */
+    if (making.current) return
+    making.current = true
     const body = conceptPatchToBody(next)
     create.mutate(
       {
@@ -230,9 +248,15 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
           ? {}
           : { due_date: open.defaults.due_date }),
       },
-      { onSuccess: (detail) => setCreated(detail.id) },
+      {
+        onSuccess: (detail) => setCreated(detail.id),
+        onError: () => {
+          /* The capture keeps its draft and may be named again. A surface that
+             swallowed the refusal would look like a task that had been made. */
+          making.current = false
+        },
+      },
     )
-    setDraft(next)
   }
 
   function close(): void {
