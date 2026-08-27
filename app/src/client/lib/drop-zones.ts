@@ -42,6 +42,15 @@ export interface DropZones {
   /** A ref callback registering one container's element under its key. */
   readonly registerZone: (key: string) => (element: HTMLElement | null) => void
   /**
+   * The element a key names, for a surface that has to measure inside it.
+   *
+   * `containerAt` answers *which* container, which is enough for a surface
+   * whose drop appends. The Library's does not: it draws an insert line under
+   * the pointer, so it has to read the rows of the container it is over, and
+   * the map that already holds them is here.
+   */
+  readonly zoneElement: (key: string) => HTMLElement | null
+  /**
    * Which container a point is inside, `self` excluded, or null for none.
    *
    * The innermost container a point is inside is the one it is in, so an
@@ -85,5 +94,10 @@ export function useDropZones(outerKey?: string): DropZones {
     [outerKey],
   )
 
-  return { registerZone, containerAt }
+  const zoneElement = useCallback(
+    (key: string): HTMLElement | null => zones.current.get(key) ?? null,
+    [],
+  )
+
+  return { registerZone, containerAt, zoneElement }
 }

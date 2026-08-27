@@ -219,7 +219,12 @@ export function FolderRow({
           transition:
             dragState.isActive && !dragState.isSettling
               ? 'none'
-              : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
+              : /* The prototype's own tokens since S24, where this wrote 180ms
+                   and a literal curve. Two raw values standing in for two
+                   tokens is the drift 11.4's single-file rule exists to stop,
+                   and a row that eases differently from the shelf above it is
+                   the drift a person can see. */
+                'transform var(--duration-base) var(--ease-enter), background-color var(--duration-base) var(--ease-enter), box-shadow var(--duration-base) var(--ease-enter)',
           zIndex: dragState.isActive ? 30 : undefined,
           position: dragState.isActive ? 'relative' : undefined,
           /* The carried row must not catch the point it is following: the
@@ -273,8 +278,21 @@ export function FolderRow({
             mark (its icon in its colour, 4.3)". The glyph arrives as a prop,
             resolved once by `parts/presenters.ts`, so the row, the task chip
             and the tab strip cannot answer the question differently. */}
+        {/*
+        The two opacities are the prototype's and its header carries the
+        arithmetic: a folder's mark rests at 0.62 and comes to full on the row
+        you are standing on, which puts a graphite folder on the same footing
+        as the nav rows above it rather than a shade lighter than all of them.
+        This drew 0.90 flat, so the active row said nothing the others did not.
+        The hover step is deliberately absent: a nav row lights its background
+        and leaves its glyph alone, and the background hover is on the row,
+        where it is shared.
+        */}
         <Mark
-          className="!size-4 shrink-0 opacity-90"
+          className={cn(
+            '!size-4 shrink-0 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)]',
+            active ? 'opacity-100' : 'opacity-[0.62]',
+          )}
           style={{ color }}
           strokeWidth={1.75}
           aria-hidden="true"
@@ -304,7 +322,11 @@ export function FolderRow({
           // (`shell/library-drag.ts`), and a press on a control belongs to
           // that control, so the row's own actions say they are not the grip.
           data-no-drag
-          className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100"
+          /* `pointer-events` is the prototype's and it is a correction, not
+             a flourish: a strip at zero opacity still answers a click, so a
+             row that has not been hovered was catching presses meant for the
+             row itself along its right end. */
+          className="pointer-events-none absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:pointer-events-auto group-hover/folder-row:opacity-100 group-focus-within/folder-row:pointer-events-auto group-focus-within/folder-row:opacity-100"
         >
           {onAddTask ? (
             <Button
