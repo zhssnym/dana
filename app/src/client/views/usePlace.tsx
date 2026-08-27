@@ -22,7 +22,7 @@ import { useMe, useSavedViews } from '../api/queries.js'
 import { DELETED_USER } from '../parts/presenters.js'
 import { presenterToday } from '../parts/presenters.js'
 import { openTaskForm } from '../shell/overlays.js'
-import { WindowBarActions } from '../shell/WindowBar.js'
+import { WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { FilterChips, FilterControl } from './FilterControl.js'
 import type { FilterPerson } from './FilterControl.js'
 import { applyFilter, filterFromDefinition, viewDefinition } from './filter.js'
@@ -241,15 +241,19 @@ export function usePlace(
  * Rendered by the page rather than by the shell, and the reason is DES-139's:
  * the controls belong to what the tab is showing, so the screen keeps their
  * state and only the placement is the shell's. `WindowBarActions` is the
- * portal that makes that true.
+ * portal that makes that true, and `WindowBarLead` is the bar's other end:
+ * one slot for the breadcrumb Dana does not have yet and the filter's chips,
+ * which is the lifted bar's arrangement and DES-153's reason for it, both
+ * answering "what am I looking at" and reading left to right in the order a
+ * person would say it out loud.
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
   return (
     <>
-      <WindowBarActions slot="chips">
+      <WindowBarLead>
         <FilterChips filter={place.filter} onChange={place.setFilter} people={place.people} />
-      </WindowBarActions>
+      </WindowBarLead>
       <WindowBarActions>
         {/* DES-150's arrangement, written down: views, then the filter. */}
         {/*

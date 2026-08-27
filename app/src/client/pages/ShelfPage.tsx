@@ -82,7 +82,7 @@ import { useSubjectEvents } from '../api/queries.js'
 import { shelfLink } from '../lib/nav-links.js'
 import { paths } from '../routes.js'
 import { openInNewTab } from '../shell/tabs.js'
-import { WindowBarActions } from '../shell/WindowBar.js'
+import { WindowBarActions } from '../components/window-bar.js'
 import { PageBody } from '../states/PageStates.js'
 import type { Folder } from '../../shared/folders.js'
 import type { PageBlock, PageBlockWrite } from '../../shared/pages.js'
@@ -259,7 +259,9 @@ export function ShelfPage(): React.JSX.Element {
   return (
     <div className="space-y-4">
       <PageBody query={shelf} isEmpty={false} emptyCopy="">
-        <WindowBarActions>
+        {/* Order 2, the object's overflow menu, which 9.1 puts last at the
+            bar's right end. */}
+        <WindowBarActions order={2}>
           {/*
           From the contract since S17b, where this was a menu of its own.
 

@@ -65,6 +65,7 @@ import {
   Folder as FolderIcon,
   LampDesk,
   Layers3,
+  RefreshCw,
   Settings,
   Star,
   SunMedium,
@@ -93,7 +94,9 @@ import { TaskSurfaceHost } from '../components/task-surface-host.js'
    and a publisher with several writers is one whose value depends on unmount
    order. `lib/folder-library.ts` carries the reasoning. */
 import { FolderLibraryMemory } from '../lib/folder-library.js'
+import { useHistory } from '../lib/history.js'
 import { TaskWriter, useApiTaskPatch } from '../lib/task-writer.js'
+import { Button } from '../components/ui/button.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { folderMark } from '../parts/presenters.js'
@@ -108,14 +111,12 @@ import { AppSidebar } from './app-sidebar.js'
 import { FloatingAddButton } from './FloatingAddButton.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
-import { undoLast, undoShortcutApplies } from './undo.js'
-import { UndoBar } from './UndoBar.js'
+import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
 import { openSearch } from './overlays.js'
-import { useRightEdge } from './right-edge.js'
-import { useModalOpen } from '../components/right-edge.js'
+import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 import { TabStrip } from './TabStrip.js'
-import { WindowBar } from './WindowBar.js'
+import { WindowActivity, WindowBar, WindowBarActions } from '../components/window-bar.js'
 import { retarget } from './tabs.js'
 import {
   clampSidebarWidth,
@@ -258,6 +259,73 @@ function currentPage(
     return { title: 'Task', icon: undefined, iconColor: undefined }
   }
   return { title: '', icon: undefined, iconColor: undefined }
+}
+
+/*
+What the shell puts in the window bar, as opposed to what a page puts there.
+
+9.1 orders the bar's right end in one sentence: "the view strip, the filter
+control, the Activity line, and the object's overflow menu". The first two are
+a place page's own and portal in at the default order, the last is the folder
+and shelf pages' at order 2, and these two sit between them at order 1. The
+lifted bar's `order` prop exists for exactly this, portals landing in mount
+order otherwise, which is not an arrangement anybody chose.
+
+**The Activity line reads the path rather than taking a subject**, because the
+bar belongs to the window and the window's subject is wherever it is pointed.
+Only a folder and a task have events worth a line; a place page is a view over
+other people's things and has no history of its own, which is why the line is
+absent there rather than empty.
+
+10.6's update affordance is the one thing on the retired v1 page strip that was
+not the page's title, and it stays here rather than moving into the lifted
+component: that component is the prototype's, and the prototype has no service
+worker to offer an update from.
+*/
+function shellSubjectOf(pathname: string): { kind: 'folder' | 'task'; id: string } | null {
+  const folder = /^\/app\/folders\/([0-9a-f-]{36})$/.exec(pathname)
+  if (folder?.[1] !== undefined) return { kind: 'folder', id: folder[1] }
+  const task = /^\/app\/tasks\/([0-9a-f-]{36})$/.exec(pathname)
+  if (task?.[1] !== undefined) return { kind: 'task', id: task[1] }
+  return null
+}
+
+/** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
+const UPDATE_AVAILABLE = 'Update available, reload'
+
+function WindowBarChrome({
+  pathname,
+  showUpdate,
+  onUpdate,
+}: {
+  readonly pathname: string
+  readonly showUpdate: boolean
+  readonly onUpdate?: () => void
+}): React.JSX.Element | null {
+  const subject = shellSubjectOf(pathname)
+  /* Hooks before the branch, and the disabled read is `useHistory`'s own
+     contract: a subject that is not a uuid is a thing with no history rather
+     than a wrong question, so nothing is sent. */
+  const events = useHistory(subject?.kind ?? 'task', subject?.id ?? '', subject !== null)
+  if (subject === null && !showUpdate) return null
+  return (
+    <WindowBarActions order={1}>
+      {subject === null ? null : <WindowActivity events={events} />}
+      {showUpdate ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-[var(--color-graphite-700)]"
+          /* 10.6's non-forcing update: the waiting worker is applied on a
+             click and never without one. */
+          onClick={onUpdate ?? (() => globalThis.location.reload())}
+        >
+          <RefreshCw className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          {UPDATE_AVAILABLE}
+        </Button>
+      ) : null}
+    </WindowBarActions>
+  )
 }
 
 export function AppShell(): React.JSX.Element {
@@ -422,18 +490,13 @@ export function AppShell(): React.JSX.Element {
     retarget(location.pathname)
   }, [location.pathname])
 
-  useEffect(() => {
-    function onUndo(event: KeyboardEvent): void {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
-      if (!undoShortcutApplies(event.target)) return
-      event.preventDefault()
-      undoLast()
-    }
-    document.addEventListener('keydown', onUndo)
-    return () => {
-      document.removeEventListener('keydown', onUndo)
-    }
-  }, [])
+  /*
+  9.1's Ctrl+Z used to be listened for here and is the lifted bar's own since
+  S24. The prototype's reason is the right one and is quoted in that file: the
+  bar and the keystroke are one feature, the bar being the discoverable half,
+  and a shell that owns one while a component owns the other is how one of them
+  ends up wired and the other forgotten.
+  */
 
   /*
   The one line that fights the distribution, and the reason is in
@@ -655,7 +718,10 @@ export function AppShell(): React.JSX.Element {
 
           **The right edge is a margin on this element** (DES-154, DES-186,
           S17b). A panel on the right publishes its width to
-          `shell/right-edge.ts` and this reads it back as plain pixels, so the
+          `components/right-edge.tsx` and this reads it back as plain pixels,
+          which is one store since S24 and was two before it: the task
+          surface published into the lifted module while this read the shell's
+          own copy, so a task opened in the panel covered the page. So the
           page narrows rather than being covered and the number that lays it
           out is one a person can print.
 
@@ -693,11 +759,19 @@ export function AppShell(): React.JSX.Element {
             The window bar of 9.1 and DES-139, replacing the v1 page strip.
 
             The strip it replaces repeated the page's title, which 9.1 now
-            forbids in as many words because the tab above says it. The one
-            thing on it that was not the title, 10.6's update affordance,
-            came across with the bar.
+            forbids in as many words because the tab above says it.
+
+            **This is the lifted bar since S24, and the client had two.** S23
+            brought `components/window-bar.tsx` across because the task surface
+            needs three of its exports, and its own header says "the shell that
+            renders it is S24's". Until this line changed, nothing rendered it:
+            the surface's `WindowBarLead` and `WindowBarActions` portalled into
+            slots no component mounted, so a task opened as a tab drew its
+            folder, its section and its controls into a bar that was not there.
+            The shell's own copy is retired with the store behind it.
             */}
-            <WindowBar
+            <WindowBar />
+            <WindowBarChrome
               pathname={location.pathname}
               showUpdate={update.showUpdate}
               onUpdate={update.applyUpdate}
