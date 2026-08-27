@@ -507,7 +507,7 @@ export function DuePanel({ task, patch }: PanelProps) {
   }
   /* 8.4's own cascade, which is what the sentence describes. */
   const cascades = Boolean(task.recurrence) || Boolean(task.reminder)
-  const clear = () =>
+  const clear = () => {
     patch(task.id, {
       due: undefined,
       /* The client says what it believes so the strip is right in the same
@@ -519,6 +519,7 @@ export function DuePanel({ task, patch }: PanelProps) {
        ends the repeat and removes the reminder inside 7.6's own transaction,
        which is what the warning above this promised. */
     update.mutate({ id: task.id, body: { due_date: null } })
+  }
 
   const presets = [
     { label: "Today", date: today() },
