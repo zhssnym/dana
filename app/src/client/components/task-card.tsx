@@ -78,6 +78,7 @@ import {
 } from "./task-pickers.js"
 import { CommentsThread } from "./comments.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
+import { useMultiMemberFolderIds } from "../api/queries.js"
 /* 9.3's five field names, transcribed once. See `components/task-card-copy.ts`. */
 import {
   CHIP_ASSIGNEE,
@@ -1709,6 +1710,22 @@ export function TaskCard({
      the chip strip. */
   const undated = !task.due
   /*
+  **Seam, S23: INV-5 hides the assignee chip rather than disabling it.**
+
+  9.3's field table: the assignee is "hidden in single-member folders
+  (INV-5)", and AC-094 reads the v1 table's own definition of hidden, which v2
+  "does not restate and does not revoke": absent rather than visible and
+  inoperable. Its own words: "a greyed chip is the wrong state, not a softer
+  version of the right one."
+
+  The prototype draws the chip always, its fixtures having no membership to
+  hide it by. The set is `useMultiMemberFolderIds`, which the row layer has
+  used for Q3's unassigned chip since P8, so this is one read the chrome has
+  already made rather than a second source.
+  */
+  const shared = useMultiMemberFolderIds()
+  const assignable = task.folder?.id !== undefined && shared.has(task.folder.id)
+  /*
   **Seam, S23: 9.3's move warning, which the folder chip has to ask.**
 
   "Moving keeps the unassign warning: 'Moving will unassign Sara; she isn't a
@@ -1901,6 +1918,7 @@ export function TaskCard({
         word `lib/people-library.ts` records as "a member of the set, not the
         absence of one" (ledger L-094).
         */}
+        {!assignable ? null : (
         <PropChip
           icon={UserRound}
           field={CHIP_ASSIGNEE}
@@ -1927,6 +1945,7 @@ export function TaskCard({
             onSelect: () => {},
           })}
         />
+        )}
 
         {/* The three pickers that answer a question about time. Each opens on
             the handful of answers that cover most tasks and keeps its exact

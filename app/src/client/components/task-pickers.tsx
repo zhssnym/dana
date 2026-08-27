@@ -387,7 +387,23 @@ export function DuePanel({ task, patch }: PanelProps) {
      and Dana already has somewhere to say that. */
   return (
     <div className="w-[268px]">
-      <div role="menu" aria-label="Due date" className="flex flex-col">
+      {/*
+      **Seam, S23: the panel is the picker, and it carries one role.**
+
+      The prototype wraps its preset list in `role="menu"` inside a popover
+      that already carries `role="dialog"`, so a press on a chip answers with
+      two things that are both "the picker". The harness admits either shape
+      and says why in its own comment: "A picker asking for a day or a time is
+      a small modal surface and carries the dialog role; one offering a list
+      of named choices is a menu." Both at once is neither, and it died of
+      strict mode against a client doing exactly what 9.3 asks.
+
+      The dialog is the one that stays, because that is what this is: three of
+      these panels put a calendar or a clock below their presets, so none of
+      them is a list of named choices. The list keeps its label as a group, so
+      the presets are still announced as belonging to the field.
+      */}
+      <div role="group" aria-label="Due date" className="flex flex-col">
         {presets.map((preset) => (
           <PickerOption
             key={preset.label}
@@ -463,7 +479,8 @@ export function ReminderPanel({ task, patch }: PanelProps) {
         </p>
       ) : null}
 
-      <div role="menu" aria-label="Reminder" className="flex flex-col">
+      {/* Seam, S23: one role per picker. See the due panel above. */}
+      <div role="group" aria-label="Reminder" className="flex flex-col">
         {/*
         **Seam, S23: the field has a Clear.** 9.3's reminder row is "one
         picker, a time on that day", and a field with no way back out is the
@@ -604,7 +621,8 @@ export function RepeatPanel({ task, patch }: PanelProps) {
 
   return (
     <div className="w-[268px]">
-      <div role="menu" aria-label="Repeat" className="flex flex-col">
+      {/* Seam, S23: one role per picker. See the due panel above. */}
+      <div role="group" aria-label="Repeat" className="flex flex-col">
         <PickerOption
           icon={Ban}
           label="Does not repeat"

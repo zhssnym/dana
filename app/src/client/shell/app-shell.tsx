@@ -88,6 +88,11 @@ import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskSurfaceHost } from '../components/task-surface-host.js'
+/* The folder table published for the lifted pickers' bare `folderLibrary()`.
+   Mounted once, here, because this component is what every /app path renders
+   and a publisher with several writers is one whose value depends on unmount
+   order. `lib/folder-library.ts` carries the reasoning. */
+import { FolderLibraryMemory } from '../lib/folder-library.js'
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { folderMark } from '../parts/presenters.js'
@@ -692,6 +697,7 @@ export function AppShell(): React.JSX.Element {
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}
+      <FolderLibraryMemory />
       <div className="relative z-50">
         <TaskSurfaceHost />
       </div>
