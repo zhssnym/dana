@@ -90,6 +90,7 @@ import {
 import { DATE_DEPENDENT_HELPER } from "./task-copy.js"
 import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
+import { TaskHistoryBlock } from "./task-history-block.js"
 import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
 /* 10.3's cap for the field. Restated rather than imported because
    `shared/tasks.ts` spends it inline in a zod `max`, and a second constant
@@ -577,6 +578,14 @@ function CardFooter({
       something and its second job is to open. Same component here, so a
       task's history and a page's are one control rather than two that will
       drift.
+      */}
+      {/*
+      **Seam, S23: 9.3's history is a block on the card, not only a line that
+      opens.** `components/task-history-block.tsx` carries the whole of the
+      reasoning. The Activity line stays beside it, because it is the window
+      bar's own control and DES-139's pattern, "the line's resting job is to
+      *tell* you something and its second job is to open"; what changes is that
+      the telling no longer has to be pressed to be read.
       */}
       <TaskActivity taskId={taskId} />
       <span className="flex shrink-0 items-center gap-0.5">
@@ -2105,6 +2114,8 @@ export function TaskCard({
           onChange={(next) => patch(task.id, { comments: next })}
         />
       </Disclosure>
+
+      <TaskHistoryBlock taskId={task.id} />
 
       <CardFooter taskId={task.id} onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
     </div>
