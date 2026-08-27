@@ -5708,6 +5708,61 @@ fold, the way P7's mid-package change control ratified the pass callable:
     assert the thing 9.3 actually fixes, "the width is persisted client-side",
     rather than the frame the browser happened to be showing.
 
+    **(o) Looking at the page found a fifth thing, and it is item 50(i)'s class
+    exactly: two mechanisms that each read an absence correctly and disagree
+    about what the absence means.** The leg was green and the markup measure
+    was done, so this row did the one check neither instrument is, which is to
+    open the folder page and read what is on it. **Every task row on it carries
+    a folder chip naming a folder the account does not have.**
+
+    The seed's four Groceries tasks each draw a chip reading **"Desk"**, and
+    that account's default folder is called "Inbox", so the word is not a
+    mislabel, it is a fabrication. The chip is not decoration either: it is a
+    `ChipMenu` labelled "Folder" whose items move the task, so a person
+    correcting what it says would move work out of the folder they were
+    standing in.
+
+    **The two halves are each right on their own.** `pages/FolderPage.tsx`
+    passes `showFolder: false`, which is correct and is 9.6's own reasoning, a
+    page that has pinned the folder does not repeat it on every row, and
+    `parts/presenters.ts` answers that by leaving `folder` undefined on the row.
+    `components/task-row.tsx:2394` then reads
+    `folderNameOf(task.folder?.name)`, and `components/folder-mark.tsx` answers
+    an absent name with `DEFAULT_FOLDER_NAME`, which is `'Desk'`, for a reason
+    its own header states and which is sound: "a task with no folder is in
+    Desk", written so that one fallback is not spelled twice. **Neither module
+    is wrong and the composition is**: one says "not shown here" and the other
+    hears "not filed anywhere", and there is nothing in an `undefined` to tell
+    them apart. The row already has the right signal for this and the list has
+    no way to send it, `given.folder`, which `views/TaskBoard.tsx` sets on the
+    folder axis so a card in a folder column drops its folder chip.
+
+    **Where it shows is both pages that suppress the column**: the folder page
+    on every row, and `pages/AllPage.tsx`'s second half, where the two halves
+    can be seen disagreeing on one screen, three rows reading "Groceries" and
+    two reading "Desk" for tasks in the same account.
+
+    **It is recorded and not fixed, and the reason is the state rather than the
+    size.** The fix is small, either `RowContext`'s suppression reaching the
+    row as `given.folder` or `taskRowDisplay` distinguishing hidden from
+    absent, but this row's branch is merged and CI is green on it, and a change
+    to the row every page draws is not one to make after the last leg has run.
+    **Offered with a recommendation**, which is the first of the two: `given`
+    is the vocabulary the prototype already has for "the surface says this
+    already", the board proves it works, and it leaves `folderNameOf`'s
+    fallback intact for the case it was actually written for.
+
+    **Why neither instrument could see it, which is the part worth keeping.**
+    The ledger compares this client to `prototype-v2` decision by decision, and
+    the prototype has no concept of a page suppressing a column, so there is no
+    entry to disagree with. The criteria address the folder chip where it is
+    shown and nowhere assert its absence, and AC-176 and AC-259 read the folder
+    page without reading a row's chip. And the markup measure counts class
+    strings, which are identical in both readings. **It took looking at the
+    page**, which is what item 50(i) said of `states/PageStates.tsx` and what
+    S30's walkthrough exists for; this row offers it as the second instance of
+    the same lesson rather than as a defect it happened to trip over.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
