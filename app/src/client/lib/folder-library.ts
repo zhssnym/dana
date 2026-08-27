@@ -41,7 +41,7 @@ not a folder would also make every caller filter it back out. This module
 answers what the person has; offering "none of these" is the picker's.
 */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import type { Folder } from '../../shared/folders.js'
 import { useFolders } from '../api/queries.js'
@@ -64,13 +64,66 @@ export interface FolderChoice {
  * ordered response, not only about view rows. A sort here would be this
  * client's own opinion of an order the server already fixed.
  */
-export function folderLibrary(folders: readonly Folder[]): FolderChoice[] {
-  return folders.map((folder) => ({
+export function folderLibrary(folders?: readonly Folder[]): FolderChoice[] {
+  return (folders ?? published).map((folder) => ({
     id: folder.id,
     name: folder.name,
     color: folderMark(folder).color,
     isDefault: folder.is_default,
   }))
+}
+
+/*
+The argument became optional at S23, and the reason is the designer's own.
+
+Every surface that row lifts calls `folderLibrary()` bare, five times across
+`components/task-row.tsx` and `components/task-card.tsx`, and each call sits
+inside a menu rather than at the top of a component: one is in a `.map` over a
+list, one in a ternary's true branch, one in a chip's render callback. A hook
+cannot be called from any of those, and hoisting five of them would be
+rewriting the bodies of two lifted files, which is the thing the lift strategy
+exists to avoid.
+
+So the list is published into this module by the bridge below, and the bare
+call reads the snapshot. This is the arrangement `components/folder-mark.tsx`
+argues for one question over, and the argument carries whole: "it reads the
+store directly, so it does not re-render when the identity changes; every
+current caller is inside a menu that is mounted fresh each time it opens,
+which is why that is acceptable here and would not be on a row." Every bare
+caller is exactly that, a menu or a picker built as it opens.
+
+**Nothing about the pure form moves**, which is why the parameter is optional
+rather than gone: `useFolderLibrary` still passes the rows it read, the unit
+tests still pin the ordering rule against a list they hand in, and a caller
+holding a list never depends on what some bridge last published.
+
+**And there is still one record.** The snapshot is `useFolders()`'s own data,
+not a second fetch and not a cache of a cache: the bridge subscribes to the
+same query entry every hook reader subscribes to, so what is published is what
+the subscribed readers are already rendering, one 8.3 refetch at a time.
+*/
+let published: readonly Folder[] = []
+
+/** The rows behind the bare call, for the one other module that needs them
+    without a hook. See `components/folder-mark.tsx`'s `folderMarkFor`. */
+export function publishedFolders(): readonly Folder[] {
+  return published
+}
+
+/**
+ * The bridge, mounted once by the shell. Renders nothing.
+ *
+ * A component rather than an effect inside `useFolderLibrary`, because that
+ * hook has many callers and a publisher with many writers is a publisher whose
+ * value depends on unmount order.
+ */
+export function FolderLibraryMemory(): null {
+  const folders = useFolders()
+  const rows = folders.data
+  useEffect(() => {
+    published = rows ?? []
+  }, [rows])
+  return null
 }
 
 /**

@@ -79,7 +79,7 @@ import { openTaskForm } from '../../shell/overlays.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
-import { openTask } from '../task-form/index.js'
+import { openTask } from '../task-open.js'
 import {
   WEEKDAY_LABELS,
   datesFor,

@@ -367,10 +367,30 @@ export function folderDisplay(
 ): FolderDisplay {
   const folder = folders.find((candidate) => candidate.id === stub.id)
   const mark = folderMark(folder)
+  /*
+  **Seam, S23: the mark leaves this trio and the id joins it.**
+
+  The v2 row resolves a folder's glyph itself, through
+  `components/folder-mark.tsx`, which is the designer's own arrangement and
+  his own reason for it: "the call sites need the two values separately, the
+  row's chip takes `icon` and `color` as props, the card takes them somewhere
+  else, and a component that could only be rendered whole would have forced
+  each of them to be rewritten around it." A mark passed in here would be a
+  second answer to a question that surface already asks, which is the fault
+  DES-130 names and this module's own header repeats.
+
+  What the row cannot resolve for itself is the id, because 7.0's folder stub
+  carries one and `TaskRowProps['folder']` did not until this row widened it.
+  Two things on the surface need it: the assignee menu, whose roster is 4.4's
+  members of that folder, and every write that moves a task.
+
+  `folderMark` stays exported and unchanged. The sidebar, the tab face and the
+  shelf row all still ask it, and none of them is a lifted surface.
+  */
   return {
+    id: stub.id,
     name: folder?.name ?? stub.name,
     color: mark.color,
-    icon: mark.icon,
   }
 }
 

@@ -22,7 +22,7 @@ surface.
 import { useParams } from 'react-router'
 
 import { useTask } from '../api/queries.js'
-import { openTask } from '../components/task-form/index.js'
+import { openTask } from '../components/task-open.js'
 import { Button } from '../components/ui/button.js'
 import { formatDayHeading } from '../parts/format-dates.js'
 import { useRowBasis } from './task-rows.js'

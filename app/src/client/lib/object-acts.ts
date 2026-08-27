@@ -99,6 +99,34 @@ export type ActKey =
   | 'history'
   | 'rename'
   | 'move'
+  /*
+  The seventh ellipsis of change control item 44's A1, and the one act it
+  measured as absent from this client: "'Make this a folder…', an act the
+  client does not yet carry ... the seventh arrives with its act."
+
+  **It arrives declared and unsupplied at S23**, which is this file's own
+  safety property working as designed: "an act with no handler does not
+  appear", so no menu offers it until the package that performs it lands.
+  That package is RFC 0004's S23a, the hand order and the bulk acts, because
+  the gesture behind it is item 44's B4, "two or more tasks held together
+  become a folder", which is a composition of `POST /folders` and
+  `PATCH /tasks/:id` and belongs with the selection it needs.
+
+  It is declared now rather than then because `components/task-row.tsx` names
+  the key in its act map, and a lifted file edited to drop a line is a lifted
+  file that has left the strategy. The precedent is `duplicate` beside it,
+  declared at S17a and unsupplied ever since for section 13 item 46's reason.
+
+  **Its label carries the ellipsis and its five neighbours do not, yet**, and
+  that is deliberate rather than an inconsistency left lying. A1's other five
+  labels are a change to acts the client already draws, and AC-246 and AC-217
+  enumerate those by label; the triage puts both cases in S24's rework pile.
+  Landing half of A1 here would turn a green case red in a package that does
+  not own its rework, which is what "nothing is weakened silently" forbids.
+  This one is safe because an act nothing supplies is an act no menu renders,
+  so its label is asserted by nothing until it is offered.
+  */
+  | 'make-folder'
   | 'copy-link'
   | 'duplicate'
   | 'workflow'
@@ -136,6 +164,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'open', label: 'Open in…', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'move', label: 'Move to folder', icon: FolderInput, group: 2 },
+    { key: 'make-folder', label: 'Make this a folder…', icon: Folders, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },

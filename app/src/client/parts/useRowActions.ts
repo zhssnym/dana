@@ -52,7 +52,7 @@ import {
   useTransitionTask,
   useUpdateTask,
 } from '../api/mutations.js'
-import { openTask } from '../components/task-form/index.js'
+import { openTask } from '../components/task-open.js'
 import { paths } from '../routes.js'
 import type { ColumnValue } from '../views/place-pages.js'
 import type { StarTooltipMode } from './presenters.js'
