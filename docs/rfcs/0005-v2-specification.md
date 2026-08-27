@@ -4972,8 +4972,8 @@ fold, the way P7's mid-package change control ratified the pass callable:
     does not appear in any file this row lifts**, so the floor section 13 item
     32 forbids was not declined a fifth time; it was simply not there.
 
-    **(i) The leg found three things the measure could not, and one of them
-    was a green criterion about to go red.** Item 48(k)'s sentence is stronger
+    **(i) The leg found three things the measure could not, one of them a green
+    criterion about to go red, and reading the arrangement found a fourth.** Item 48(k)'s sentence is stronger
     than 48(j)'s method and was followed: a markup measurement finds what is
     missing, only the leg finds what the missing thing was holding up, so the
     leg ran after the last class string moved.
@@ -5000,6 +5000,20 @@ fold, the way P7's mid-package change control ratified the pass callable:
       section 9 fixes nothing about the surface staying open. And the Due axis
       rests open where the prototype rests every axis closed, because AC-176
       reaches a due value in one press and 9.6 states that question in terms.
+
+    **A fourth thing neither instrument could have found, because it is a
+    composition rather than a string or a control.** `states/PageStates.tsx`
+    answers pending, error and empty by rendering *instead of* its children,
+    and every place page survives that because its head is outside the
+    wrapper. The lifted screen carries its own head, so wrapping it took the
+    head off Important in all three of those states, including the one a new
+    account sees first: a page with nothing on it and no name. The screen owns
+    its states now, drawing them from the same `state-patterns.tsx` the
+    wrapper does, and the page supplies section 6's cap notice and 9.1's retry
+    handler. **The class is worth carrying to S26 and S27**, both of which lift
+    screens into pages that use the same wrapper: a lifted screen and a shared
+    page-state wrapper each believe they own the whole page, and where they
+    disagree the loser is silent.
 
     **(j) Nine ledger entries close and one that read *closed* was closed in
     two of its three clauses.** The eight this row owed all close: `L-046` and
