@@ -617,6 +617,13 @@ export interface RowContext {
   /** 9.4's pulled marker and un-pull control are My Day's alone. */
   readonly showPullMarker?: boolean
   /**
+   * 9.5's from half: "the 'from' half of a row names the creator, Dana
+   * recording no assigner". Assignments is the page that sentence is written
+   * about and the only caller that passes this, because a creator on every
+   * row of every page is the row repeating what nobody asked about.
+   */
+  readonly showCreator?: boolean
+  /**
    * 9.5's v2 Done bullet: rows there "drop the spent due-date echo under
    * headings that already group by completion". Every other page shows one,
    * so the default is true, and Done is the only caller that passes false.
@@ -657,6 +664,7 @@ export type TaskRowDisplay = Pick<
   | 'importantTooltip'
   | 'assignee'
   | 'unassigned'
+  | 'createdBy'
   | 'pulled'
   | 'invitePending'
   | 'steps'
@@ -722,6 +730,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     showFolder = true,
     showPullMarker = false,
     showDue = true,
+    showCreator = false,
     clock = '12',
   } = context
 
@@ -760,6 +769,20 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
       task.pulled &&
       !qualifiesAutomatically(task, viewerId, today),
     invitePending: task.pending_invite_email ?? undefined,
+    /*
+    9.5's from half, drawn where the page asks for it.
+
+    The name is the creator's own and never a fallback to the viewer: 4.5
+    makes `created_by` NOT NULL, so a card with no creator on the wire is a
+    response older than RFC 0005 unit 12a rather than a task nobody made, and
+    the honest drawing of that is no chip. `DELETED_USER` covers the other
+    case, an account that has since gone, which 7.4 already answers with a
+    stub carrying a null display name.
+    */
+    createdBy:
+      showCreator && task.created_by !== null
+        ? (task.created_by.display_name ?? DELETED_USER)
+        : undefined,
     // 4.6's counts, and no adornment when a task has no steps.
     steps:
       task.steps_total === 0

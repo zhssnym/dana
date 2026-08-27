@@ -32,6 +32,7 @@ import { cn } from '../components/ui/utils.js'
 import { Bookmark, Filter as FilterIcon, X } from '../lib/icons.js'
 import {
   ABANDONED_HIDDEN,
+  CREATED_BY,
   IMPORTANT_ONLY,
   REPEATING_ONLY,
   UNASSIGNED,
@@ -176,6 +177,14 @@ export function FilterControl({
     onChange({ ...filter, assignees: chosen })
   }
 
+  function toggleCreator(id: string): void {
+    const chosen = filter.creators.includes(id)
+      ? filter.creators.filter((entry) => entry !== id)
+      : [...filter.creators, id]
+    // Multi-value too, so it stays open for the same reason.
+    onChange({ ...filter, creators: chosen })
+  }
+
   return (
     <Popover
       open={open}
@@ -247,6 +256,42 @@ export function FilterControl({
                   checked={filter.assignees.includes(person.id)}
                   onCheckedChange={() => {
                     toggleAssignee(person.id)
+                  }}
+                />
+                {person.name}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/*
+        9.1's created-by axis, landed at S25 and closing ledger L-177 and
+        L-255.
+
+        **Beside the assignee axis rather than instead of it**, which is
+        `task-filters.tsx`'s own arrangement and its stated reason: Dana
+        records a creator and never an assigner, so "who made this" and "who
+        is carrying it" are two questions, and Assignments answers only the
+        second. Multi-value and therefore leaving the panel open, the same
+        exception DES-156 makes for the assignee list and for the same reason.
+
+        No "Unassigned" counterpart, and that is not an omission: 4.5 makes
+        `created_by` NOT NULL, so there is no task nobody made.
+        */}
+        <div className="space-y-1">
+          <p className="px-1 text-[11px] font-semibold tracking-wide text-[var(--color-graphite-500)] uppercase">
+            {CREATED_BY}
+          </p>
+          <div className="max-h-40 space-y-0.5 overflow-y-auto">
+            {people.map((person) => (
+              <label
+                key={person.id}
+                className="flex h-7 cursor-pointer items-center gap-2 rounded-md px-1 text-[13px] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-50)]"
+              >
+                <Checkbox
+                  checked={filter.creators.includes(person.id)}
+                  onCheckedChange={() => {
+                    toggleCreator(person.id)
                   }}
                 />
                 {person.name}
