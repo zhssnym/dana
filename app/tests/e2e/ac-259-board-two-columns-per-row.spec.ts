@@ -58,6 +58,7 @@ import type { Locator, Page } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
+  chooseView,
   clickControl,
   createFolder,
   createTask,
@@ -68,6 +69,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
+  viewStrip,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -131,8 +133,10 @@ async function board(page: Page, axis: RegExp): Promise<void> {
       .first(),
     'the axis this case needs, which is what gives the board its columns',
   )
-  await clickControl(
-    page.getByRole('button', { name: /^Board$/i }).first(),
+  // 9.1's strip is a radiogroup of zero-width options since S24.
+  await chooseView(
+    page,
+    'Board',
     'spec 9.1: the view strip offers board wherever the page has a grouping',
   )
 }
@@ -237,18 +241,35 @@ test.describe('AC-259: the board is two columns per row', () => {
   test('AC-259: the folder page carries the view strip', async ({ page }) => {
     await page.goto(routesV2.folder(fixture.hostId))
 
+    const strip = viewStrip(page).first()
     await expect(
-      page.getByRole('button', { name: /^List$/i }).first(),
-      'spec 9.1: "one control per place-page offering the views the page can honestly draw". ' +
-        'views/ViewStrip.tsx is S10\'s and pages/FolderPage.tsx reaches it through nothing, ' +
-        'so the folder page is one click from six pages that have a strip and has none',
+      strip,
+      'spec 9.1: "one control per place-page offering the views the page can honestly draw", ' +
+        'and its roles table makes a view option "a radio within a radiogroup, checked when ' +
+        'current", so the strip itself is the radiogroup and the folder page carries one',
+    ).toBeVisible()
+
+    // Widened before the options are read, because 9.1 rests the strip
+    // collapsed and its unchosen options carry no width. They stay in the DOM
+    // at every width, which the last assertion of this case reads.
+    await strip.hover()
+    await expect(
+      strip.getByRole('radio', { name: 'List', exact: true }),
+      'spec 9.1: list is the view every page can draw, so the folder page offers it',
     ).toBeVisible()
 
     await expect(
-      page.getByRole('button', { name: /^Board$/i }).first(),
+      strip.getByRole('radio', { name: 'Board', exact: true }),
       'DES-132: the folder page is where the board was designed, and the audit calls its ' +
         'absence "the board view entirely: no view strip, no window-bar filter"',
     ).toBeVisible()
+
+    await expect(
+      strip.getByRole('radio'),
+      'spec 9.1: the options a collapsed strip does not draw are "present and reachable, at ' +
+        'no width rather than removed", so a screen reader meets the whole group and a ' +
+        'client that unmounted them would answer with one option here',
+    ).toHaveCount(2)
 
     await expect(
       page.getByRole('button', { name: 'Filter', exact: true }),
