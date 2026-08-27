@@ -4414,6 +4414,51 @@ fold, the way P7's mid-package change control ratified the pass callable:
     owing a verbatim `app-shell.tsx`**, and the same measurement is worth
     making before S25 and S27 read their own rows that way.
 
+    **(j) The shell's markup fidelity is measured for the first time, on
+    Imran's question of 2026-08-27 mid-row: "I want the exact prototype v2
+    shell in Dana v2.0."** Pixel fidelity has been one ledger entry, L-284, for
+    the whole product since S20, and no row has ever been handed it. This is
+    the first number anybody has put against it, and the method is cheap enough
+    that S25 to S27 should each repeat it for their own surfaces: **count the
+    prototype file's class strings that appear verbatim anywhere in
+    `app/src/client`.**
+
+    | Prototype file | Verbatim in the client, after this row |
+    | - | - |
+    | `window-bar.tsx` | 9 of 9 |
+    | `view-strip.tsx` | 13 of 13 |
+    | `undo-bar.tsx` | 6 of 7 |
+    | `app-sidebar.tsx` | 22 of 26 |
+    | `folder-row.tsx` | 18 of 22 |
+    | `folder-directory.tsx` | 8 of 14 |
+    | `app-shell.tsx` | 3 of 13 |
+    | Whole shell family | **79 of 104, 76%**, against 73% at the row's opening |
+
+    **The shape of that table is the finding, not the total.** Every file that
+    was lifted is at or near 100%; the whole of the gap sits in the three files
+    (i) records as unliftable. **A lift is exact and a port is not, measured
+    rather than asserted**, which is item 37's own argument arriving with a
+    number attached.
+
+    **What the row took, and what it declined with a sentence behind it.** It
+    took the sidebar's absent right border, the footer action's `w-full` and
+    its two rail overrides, the Library's own "Library options" overflow, the
+    inset's motion tokens in place of two raw values, and three smaller
+    corrections. It declined `min-w-[1180px]` on the shell root, which is a
+    viewport floor section 13 item 32 forbids and **the fourth time that floor
+    has been declined**; `transition-none` on the sidebar, which AC-182 needs;
+    the page narrowing by a padding rather than a margin, which S17b measured;
+    and hiding the folder rows in the icon rail, which 9.1 keeps reachable.
+
+    **What remains is two named things rather than a percentage**, and neither
+    is a class swap: **`folder-directory`'s drag affordances**, its drop line,
+    the accent wash on a shelf held over and where the "Into" word sits, and
+    **`app-shell`'s tab-strip overflow and system-toast placement**. Both have
+    a component behind them. **They are owed and are recorded here rather than
+    quietly carried**, because the alternative, a session reporting the shell
+    lift done with them outstanding, is the shape item 20 and item 37 both
+    exist to stop.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
