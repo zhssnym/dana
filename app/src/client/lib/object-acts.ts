@@ -39,11 +39,21 @@ destroy it. Destructive last and behind a separator, everywhere, because a
 menu whose dangerous item moves is a menu you cannot use without reading.
 AC-246 asserts the order and not only the set.
 
-**Three of the designer's labels are Dana's instead, and each has a numbered
-section behind it.** 9.1's names table fixes the member exit as "Leave folder"
-exactly, where his reads "Leave folder…", and AC-217 asserts that string
-exact; the ellipsis goes from "Delete folder" with it, two destructive acts
-differing only in punctuation being a difference with no meaning. And the
+**The ellipses are the designer's after all, and 9.1 now says so.** This
+paragraph used to read that three of his labels were Dana's instead, and the
+first two of the three are overturned by RFC 0005 change control item 44's A1,
+on Imran's ruling of 2026-08-26. The old reasoning was that 9.1's names table
+fixed the member exit as "Leave folder" exactly and that "two destructive acts
+differing only in punctuation" was a difference with no meaning. Both halves
+were wrong in the same way: the section said "Leave folder" because nobody had
+ever asked it the question, and the punctuation is not decoration. **An
+ellipsis promises a further step**, so a label carrying one is a claim about
+what the press does, and each of these five opens a confirmation or a picker
+rather than acting. 9.1 carries the rule now, beneath its names table, and the
+one label the table itself fixes moved with it. AC-217, AC-246, AC-180 and
+AC-183 read them, reworked red first at S24 under persona 11.
+
+The third of the three stands and is unrelated: the
 folder's move was "Move to group" rather than his "Move to shelf" until S17b,
 because that was what AC-180 asserted on the surface that had it and because
 shelves reaching the Library was that row rather than S17a's. **That row has
@@ -68,6 +78,7 @@ import {
   Copy,
   FolderInput,
   Folders,
+  Fullscreen,
   History,
   Link2,
   LogOut,
@@ -117,14 +128,11 @@ export type ActKey =
   file that has left the strategy. The precedent is `duplicate` beside it,
   declared at S17a and unsupplied ever since for section 13 item 46's reason.
 
-  **Its label carries the ellipsis and its five neighbours do not, yet**, and
-  that is deliberate rather than an inconsistency left lying. A1's other five
-  labels are a change to acts the client already draws, and AC-246 and AC-217
-  enumerate those by label; the triage puts both cases in S24's rework pile.
-  Landing half of A1 here would turn a green case red in a package that does
-  not own its rework, which is what "nothing is weakened silently" forbids.
-  This one is safe because an act nothing supplies is an act no menu renders,
-  so its label is asserted by nothing until it is offered.
+  **Its five neighbours carry the ellipsis too, since S24.** They were left
+  without one at S23 deliberately: A1's other five are a change to acts the
+  client already draws, AC-246 and AC-217 enumerate those by label, and landing
+  half of A1 there would have turned a green case red in a package that did not
+  own its rework. S24 owns it and landed them with their criteria.
   */
   | 'make-folder'
   | 'copy-link'
@@ -161,15 +169,23 @@ export interface ActSpec {
    person should never have to guess the object of. */
 const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   task: [
-    { key: 'open', label: 'Open in…', icon: OpenInNewTab, group: 1 },
+    /*
+    `Fullscreen` and not `OpenInNewTab`, which is the third of the four
+    disagreements RFC 0005 change control item 39 measured in this file and
+    the last of them to close. A task offers four ways in and this act is the
+    choosing of one, so the glyph is the one that means "somewhere larger";
+    `OpenInNewTab` is the glyph for the folder's act one list down, which
+    offers exactly one destination and is a different thing.
+    */
+    { key: 'open', label: 'Open in…', icon: Fullscreen, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
-    { key: 'move', label: 'Move to folder', icon: FolderInput, group: 2 },
+    { key: 'move', label: 'Move to folder…', icon: FolderInput, group: 2 },
     { key: 'make-folder', label: 'Make this a folder…', icon: Folders, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },
     { key: 'restore', label: 'Restore', icon: RotateCcw, group: 4 },
-    { key: 'delete', label: 'Delete task', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete task…', icon: Trash2, group: 5, destructive: true },
   ],
   folder: [
     { key: 'open', label: 'Open in a new tab', icon: OpenInNewTab, group: 1 },
@@ -182,8 +198,8 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
-    { key: 'leave', label: 'Leave folder', icon: LogOut, group: 4 },
-    { key: 'delete', label: 'Delete folder', icon: Trash2, group: 5, destructive: true },
+    { key: 'leave', label: 'Leave folder…', icon: LogOut, group: 4 },
+    { key: 'delete', label: 'Delete folder…', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
     { key: 'open', label: 'Open shelf', icon: OpenInNewTab, group: 1 },
@@ -196,7 +212,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
-    { key: 'delete', label: 'Delete shelf', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete shelf…', icon: Trash2, group: 5, destructive: true },
   ],
 }
 
