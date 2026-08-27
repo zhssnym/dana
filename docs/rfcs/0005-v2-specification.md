@@ -4862,6 +4862,123 @@ fold, the way P7's mid-package change control ratified the pass callable:
     which is items 13 and 25's check doing exactly what the evening of S18 and
     DES-034 created it for. Two sessions merged into one branch within the hour
     and not one number collided.
+
+    **Then it happened a second time, to the same row, and the pair is worth
+    more than either instance.** The follow-up merge carrying Imran's
+    re-acceptance landed at `5e0179f` with the branch clear and no run in
+    flight, checked immediately before merging; **S26 then merged and cancelled
+    that run too**. So this row lost both of its merge verdicts, to two
+    different sessions, inside about two hours. **The guidance the plan carries
+    is now too weak and this item corrects it rather than restating it.** RFC
+    0004's closing note reads as a risk to check for, and checking is exactly
+    what was done both times and did not help: the gap between reading
+    `git ls-remote`, merging, and pushing is enough. On a day when several lift
+    rows are closing, a cancelled merge verdict is the **expected** outcome
+    rather than a hazard, and the honest planning assumption is that a merge
+    into `v2-build` gets its own verdict only when it is the last one of the
+    cycle. **What follows for a row that touches code**, which is every row but
+    this one and S29a: do not treat the merge push as the gate. Run the legs the
+    row owes before merging and report those numbers, and read the merge run as
+    a bonus that may never arrive. This row could absorb the loss because no
+    file under `app/` changed; **the next row cannot**, and the failure mode is
+    a package reporting done on a verdict that was cancelled rather than green,
+    which is the false green protocol section 4 calls the worst failure
+    available.
+
+    **One thing this row did at the close that was not its work, and got wrong
+    before S26 corrected it. The correction is the useful half and is recorded
+    ahead of the finding.** S26's merge run went red on the browser leg, 228
+    passed and one failed, `ac-182-view-preferences-persist.spec.ts:227`, the
+    task surface's width not surviving a reload. This role re-ran that case
+    alone, saw it fail in 45 seconds on a quiet machine on an owned port 3131,
+    and concluded two things: that it was **not** the one-case flake CLAUDE.md
+    records, and that **S26's merge had introduced it**, the Playwright step
+    being green on runs 33085173548 and 33093786376 and red on `ba1e365`. **The
+    first conclusion was unfounded and the second is withdrawn.**
+
+    **What S26 measured, verified here before accepting it.** The case fails in
+    isolation on `5e0179f` as well, three runs of three, from its own detached
+    worktree and its own port. `app/` is **byte-identical between `8fe7041` and
+    `5e0179f`**, checked with `git diff --stat 8fe7041 5e0179f -- app/`, which
+    answers empty. So one tree is green in CI and red in isolation, and the
+    isolation run this role treated as a confirmation was comparing two
+    environments rather than two commits. The measurement behind it is S26's and
+    is recorded at item 51: the restored width is **590 on every run**, which is
+    exactly right, `DIALOG_DEFAULT` being 680 at `components/task-surface.tsx:80`
+    and the case dragging the handle 90px left. What wanders is `after`, read
+    immediately after `mouse.up()` with no settle, landing on 591, 592 or 593.
+    **Every wrong reading is larger than the restored value and none is
+    smaller**, which is S26's sharpening of the tell and is worth more than the
+    size of the error: the drag shrinks the dialog, so the values it passes
+    through are all earlier and wider, and a race against a UI update hands back
+    a number on the side the change came from. **Neither session instrumented
+    the mechanism and this item does not assert one**, at S26's own request
+    against its own text: what is measured is that the case fails alone on both
+    commits, that the restored number is always the specified one, and that the
+    error is one-directional. Which frame the read lands on is arithmetic that
+    fits rather than an observation, and 11.15's own discipline about wrong
+    causes applies to a change control item as much as to a hazard list.
+
+    **The general lesson inverts a machine note and is the reason this paragraph
+    is long.** CLAUDE.md says to re-run a failing browser case alone before
+    believing it, which is right for the flake it was written about and **wrong
+    for a case whose assertion races a UI transition**: a quiet machine shortens
+    the gap between the gesture and the read, so isolation makes this class fail
+    *more*, and running it alone produces a false confirmation rather than a
+    check. That bullet is corrected in CLAUDE.md by this row, on the precedent
+    its own "capping the workers is not certainty" bullet sets, which is the
+    same file correcting the same kind of overconfident advice against
+    measurement.
+
+    **What the boundary looks like once the facts are right.** The likely owner
+    is **persona 11** and the likely defect is the criterion's, the `after`
+    reading needing a settle before the reload; that is protocol section 8's and
+    neither this role's nor S26's, and S26 recorded it rather than editing the
+    test. Whether `ba1e365`'s CI red was that same marginal read or something of
+    S26's is answered in the paragraph below, and answered against this role.
+    **Establishing whether a red on the shared branch is real is the Steward's;
+    the code under it is its row owner's** and the criterion over it is persona
+    11's, which is item 49(b)'s line drawn twice more. What this role actually
+    demonstrated is the narrower and more embarrassing thing: **a green-to-red
+    step across two CI runs is a correlation, and one re-run in a different
+    environment is not the control that turns it into a cause.**
+
+    **Settled the same evening, and the answer is the one this role had argued
+    against.** S26 re-ran the CI job on `ba1e365` unchanged, and the browser leg
+    answered **229 of 229 green in 18.7 minutes**, against 228 of 229 on the
+    first run of the same commit. So the red was the marginal read and nothing
+    of S26's, and the attribution is not merely withdrawn for want of evidence
+    but **disproved**. **This adds the fact neither session had**: the case is
+    marginal **in CI too**, not only in isolation, which means a whole-leg red
+    of this one case carries no information at all about the commit under it.
+    The four CI runs on two byte-identical `app/` trees now read green, green,
+    red, green.
+
+    **How far this evidence goes, because a green re-run is weaker than the red
+    it answers and S26 flagged that against its own conclusion.** A pass says
+    the case *can* pass on this commit, not how often it does. Five samples in
+    all, three isolation failures on the base commit and one CI failure and one
+    CI pass on the merge, are enough to call the case marginal and nowhere near
+    enough to put a rate on it. **"Sometimes" is as far as either text should
+    go**, and neither does.
+
+    **The order in which the two of us got here is worth keeping, in S26's
+    correction of this role's first phrasing of it rather than in the original.**
+    This item said suspicion pointed at the other party both times and was wrong
+    both times, which is a claim about motive and is not what happened.
+    **Each session reached for the instrument that was cheap from where it
+    stood.** This role had two CI runs and no worktree, so it controlled with an
+    isolation run; S26 had the code and a spare worktree, so it controlled with
+    the commit before. Neither was carelessness, and the rule that comes out of
+    it is about instruments rather than about motives, which is also what makes
+    it teachable to a session with no counterpart to be suspicious of. **The
+    sharp form of the rule is S26's and is that the two controls answer
+    different questions**: re-running the case locally asks whether the case can
+    fail, and for a marginal case the answer is yes on every commit, which is
+    why it confirmed a false attribution for both of us; re-running the CI job
+    asks whether *this commit* fails, which is the question actually in front of
+    you. It is the cheaper move and it is the only one of the two pointed at the
+    thing you want to know.
 50. **S25's places lift: the owner column wrong a seventh time, the cover
     landed and half of it unreachable, the markup measure going the other way
     from S24's, and a ledger entry that read closed being closed in two of its
