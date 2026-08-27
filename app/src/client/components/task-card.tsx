@@ -86,6 +86,8 @@ import {
   CHIP_REMINDER,
   CHIP_REPEAT,
 } from "./task-card-copy.js"
+import { DATE_DEPENDENT_HELPER } from "./task-copy.js"
+import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
 import {
   commentCount,
   dueChipValue,
@@ -877,7 +879,8 @@ function StepList({
   duplicateSteps: (id: string, indices: number[]) => void
   removeSteps: (id: string, indices: number[]) => void
   setStepsDone: (id: string, indices: number[], done: boolean) => void
-  moveStepsTo: (
+  /* Optional for the reason the same prop gives on `TaskCard`: B9, S23. */
+  moveStepsTo?: (
     id: string,
     indices: number[],
     destination:
@@ -966,8 +969,11 @@ function StepList({
     setSelected([])
   }
 
-  const move = (destination: Parameters<typeof moveStepsTo>[2]) =>
-    moveStepsTo(task.id, [...selected].sort((a, b) => a - b), destination)
+  const move = (
+    destination:
+      | { kind: "new-task" }
+      | { kind: "folder"; name: string; color: string },
+  ) => moveStepsTo?.(task.id, [...selected].sort((a, b) => a - b), destination)
 
   return (
     <div className="flex flex-col">
@@ -1191,6 +1197,7 @@ function StepList({
               exit()
             }}
           />
+          {moveStepsTo === undefined ? null : (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -1275,6 +1282,7 @@ function StepList({
                 </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </Reveal>
     </div>
@@ -1643,7 +1651,36 @@ export function TaskCard({
   patch: (id: string, fields: Partial<ConceptTask>) => void
   toggleStep: (id: string, index: number) => void
   moveStep: (id: string, from: number, to: number) => void
-  moveStepsTo: (
+  /*
+  **Seam, S23: optional, and change control item 44's B9 is why it can be.**
+
+  B9 ruled the asymmetry: "A step promotes to a task; a task never demotes to
+  a step. Promotion has one obvious destination, the step's own folder, and
+  the promoted task is editable at once; demotion has none, because nothing
+  says which task should become its parent." The menu this handler draws is
+  already one-way in that sense, both of its destinations being a step
+  becoming or joining a task, and nothing anywhere offers a task a way down.
+  **So B9 costs this file no markup**, which is worth recording because the
+  ruling reads as though it should.
+
+  What it costs is this handler. It is `() => {}` in `useCardWiring`, in the
+  prototype's own file and deliberately: that file's header says the step
+  machinery "is drawn in the concept lab, which is where it is being judged.
+  Wiring them into screens would make the prototype look as though it had
+  shipped something with no endpoint behind it." Which is the false green
+  change control item 45 measured on `people-screen.tsx` and refused, and
+  Imran reviews this surface at dana.so the day it lands.
+
+  Wiring it is a composition of `POST /tasks` and 7.7's step routes carrying
+  a partial-failure question of its own, which is the shape item 44 gave the
+  folder-making gesture and put with the selection machinery it shares. That
+  is RFC 0004's S23a. Until then nothing supplies it and the control is not
+  drawn, which is this repository's own rule rather than a workaround:
+  `lib/object-acts.ts`'s "an act with no handler does not appear", and
+  `TaskRowProps.onNewFolder`'s "the chip then simply does not offer it, a dead
+  menu item is the fault DES-144 removed".
+  */
+  moveStepsTo?: (
     id: string,
     indices: number[],
     destination:
@@ -1668,6 +1705,19 @@ export function TaskCard({
   /* Seam, S23: the roster is the folder's members, see the assignee chip
      below and `components/task-row.tsx`'s own hoist of the same hook. */
   const roster = usePeopleLibrary(task.folder?.id ?? null)
+  /* 9.3: reminder and repeat each "requires a due date". See the helper below
+     the chip strip. */
+  const undated = !task.due
+  /*
+  **Seam, S23: 9.3's move warning, which the folder chip has to ask.**
+
+  "Moving keeps the unassign warning: 'Moving will unassign Sara; she isn't a
+  member of Home.'" The chip below chose a folder and wrote it straight
+  through; here the choice is held until the destination's membership is
+  known. `components/task-move-guard.tsx` carries the whole of the reasoning
+  and the seam it crosses.
+  */
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
   const counts = stepCount(task)
   const [order, setOrder] = useState<BlockKey[]>([
     "steps",
@@ -1826,7 +1876,7 @@ export function TaskCard({
                 {f.name}
               </span>
             ),
-            onSelect: () => patch(task.id, { folder: f }),
+            onSelect: () => setPendingMove(f),
           })).concat(newFolderChoice(() => onNewFolder([task.id])))}
         />
         {/*
@@ -1899,6 +1949,7 @@ export function TaskCard({
           field={CHIP_REMINDER}
           value={reminderChipValue(task, timeFormat)}
           muted={!task.reminder}
+          disabled={undated}
         >
           <ReminderPanel task={task} patch={patch} />
         </PickerChip>
@@ -1909,10 +1960,50 @@ export function TaskCard({
           field={CHIP_REPEAT}
           muted={!task.recurrence}
           value={repeatSummary(task)}
+          disabled={undated}
         >
           <RepeatPanel task={task} patch={patch} />
         </PickerChip>
       </div>
+
+      {/*
+      **Seam, S23: 9.3's helper for the two date-dependent rows.**
+
+      The section's field table gives reminder and repeat the same "requires a
+      due date" and the same "On disable, helper" text, and AC-092 reads it as
+      a property of the surface rather than of either chip: visible while the
+      two are disabled, gone the moment they are not. Drawn once, beside them,
+      because two disabled chips each carrying their own would put two of one
+      sentence on one strip.
+
+      **Enablement is on the value and never on the write.** `undated` is read
+      off the task the surface is holding, which is the draft on a capture and
+      the answered row afterwards, so a date answered on the due chip enables
+      these two in the same render. The criterion is explicit that the other
+      reading fails: "a strip that enables on the response renders a chip a
+      person cannot press while the answer sits beside it."
+      */}
+      {undated ? (
+        <p className="px-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          {DATE_DEPENDENT_HELPER}
+        </p>
+      ) : null}
+
+      <TaskMoveGuard
+        pending={pendingMove}
+        assignee={task.assignee}
+        onProceed={(folder, stranded) => {
+          setPendingMove(null)
+          patch(task.id, {
+            folder,
+            /* 7.6 unassigns on a move that strands the assignee (4.4, INV-5),
+               so the card says so rather than letting the row learn it from
+               the next read. */
+            ...(stranded ? { assignee: undefined } : {}),
+          })
+        }}
+        onCancel={() => setPendingMove(null)}
+      />
 
       {order.map((key) => blocks[key])}
 
