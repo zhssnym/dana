@@ -21,7 +21,13 @@ import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import { Check as CheckIcon } from "../lib/icons.js"
 
-import { Calendar, TimeRow, sameDay } from "./ui/calendar.js"
+/* Seam, S23: `TimeRow` no longer crosses. It is the prototype's two-spinner
+   clock, built for a reminder measured as an offset from a due date; 9.3's v2
+   row is "one picker, a time on that day", so what the panel asks for is a
+   time and the plainest control that takes one is the platform's. The
+   primitive stays exactly as lifted in `ui/calendar.tsx` for whatever asks it
+   next. */
+import { Calendar, sameDay } from "./ui/calendar.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 /*
@@ -632,14 +638,19 @@ export function ReminderPanel({ task, patch }: PanelProps) {
       arrangement and is AC-169's own requirement: the picker is opened and
       the time is answered, with nothing to unfold first.
       */}
-      <div className="pt-1">
-        <TimeRow
-          label="Reminder time"
-          value={at}
-          onSelect={(time) => {
-            patch(task.id, { reminder: wordsFor(time) })
+      <div className="px-2 pt-1.5">
+        <input
+          type="time"
+          aria-label="Reminder time"
+          value={at ?? ""}
+          onChange={(event) => {
+            const time = event.target.value
+            patch(
+              task.id,
+              time === "" ? { reminder: undefined } : { reminder: wordsFor(time) },
+            )
           }}
-          onClear={() => patch(task.id, { reminder: undefined })}
+          className="h-8 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
         />
       </div>
     </div>
