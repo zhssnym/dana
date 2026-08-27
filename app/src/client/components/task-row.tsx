@@ -89,7 +89,12 @@ import {
 import { ObjectMenu } from "./object-menu.js"
 import { HistorySheet } from "./history-sheet.js"
 import { copyTaskLink } from "../lib/task-acts.js"
-import { COMPLETE_TASK, MARK_AS_NOT_DONE, REMOVE_FROM_TODAY } from "./ui/copy.js"
+import {
+  COMPLETE_TASK,
+  MARK_AS_NOT_DONE,
+  REMOVE_FROM_TODAY,
+  RESTORE,
+} from "./ui/copy.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
 import { ActionStrip, type ViewStripOption } from "./view-strip.js"
@@ -1290,7 +1295,28 @@ export function Actions({
                   e.stopPropagation()
                   onRestore()
                 }}
-                aria-label={`Restore ${task.title}`}
+                /*
+                **Seam, S23: 9.5's name, which is the word and not the task.**
+
+                The prototype names this "Restore {title}", and the client
+                this replaces settled the same point at P8R in the other
+                direction: "the restore control's accessible name is 9.5's
+                Restore, which is the text it already showed; his aria-label
+                of Restore task was overriding that text with a different
+                string, so it is gone rather than reworded." Change control
+                item 44's A2 ruled 9.1's names table stands.
+
+                **Its cost was measured rather than argued.** A row-scoped
+                locator matches a name by substring, so a control carrying
+                the task's own title answers to every word in it. AC-097
+                asked a row for a button named "Restore" and got this one
+                plus a task called "ac-097 restore returns to my day", dying
+                of strict mode; AC-220 asked for one named /assignee|assign/
+                and got this one, the task being called "ac-097 overdue and
+                assigned to the viewer". Two criteria, two different words,
+                one cause, and neither is about restoring anything.
+                */
+                aria-label={RESTORE}
                 className={cn(
                   "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
                   T_FAST,
@@ -2184,7 +2210,37 @@ export function useCardWiring(props: TaskRowProps) {
 
   function patch(_id: string, fields: Partial<ConceptTask>) {
     setEdits((current) => ({ ...current, ...fields }))
-    report(fields)
+    /*
+    **Seam, S23: a status the screen owns is told to the screen and not
+    also written from here.**
+
+    The prototype reports every field and then tells the screen about the
+    completion separately, which costs nothing where both ends are local
+    state. Over this seam both ends are the API: `report` reaches
+    `lib/task-writer.tsx`, which turns `done` into 7.6's transition, and
+    `onToggleComplete` reaches the page's own action, which does the same.
+    So one press sent two transitions, and the second answered 409.
+
+    **Worse than the duplicate is which one wins.** 9.5 puts a confirmation
+    in front of un-completing a task that generated a successor, and the
+    page is where that confirmation lives, because the page is what knows
+    it is Done. The writer's transition does not wait for it, so the
+    G-SERIES confirm was being asked after the act it gates. AC-162 reads
+    exactly that: the declined un-complete "left the completed row
+    completed", and it had not.
+
+    So where a screen supplies the handler, the screen owns the act, which
+    is the prototype's own sentence, "completion is the screen's fact
+    rather than the row's", read as a rule about who writes rather than
+    only about who is told. A surface supplies none of these, so the
+    writer carries them there and nothing changes for the card.
+    */
+    const owned = { ...fields }
+    if (props.onToggleComplete !== undefined) delete owned.done
+    /* Abandon and Restore are one slot seen from two states and a screen
+       supplies whichever its rows can perform, so one prop settles both. */
+    if (props.onAbandon !== undefined) delete owned.abandoned
+    if (Object.keys(owned).length > 0) report(owned)
     /* Completion is the screen's fact rather than the row's, so it is told. */
     if (fields.done !== undefined) props.onToggleComplete?.(fields.done)
   }
