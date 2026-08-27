@@ -4262,6 +4262,158 @@ fold, the way P7's mid-package change control ratified the pass callable:
     with a recommendation and not a change, which is the shape item 45 took
     for the same reason.
 
+48. **S24's shell lift: the owner column wrong a sixth time, three shell
+    modules that existed in two copies each with two of them broken by it, and
+    the criteria triage's blind spot found a second way (S24, 2026-08-27).**
+    RFC 0004's S24 row is the shell lift, and this item carries what the row
+    decided and what it measured. It opens no question that is not routed
+    here.
+
+    **(a) The owner column of S24 is wrong, and this is items 12, 34, 46 and
+    47(c) a sixth time.** The row names `07-frontend-architect.md` alone with
+    criteria from `11-adversarial-test.md`. Role 07 is genuinely an owner and
+    the largest one: `shell/`, `views/`, `pages/` and `lib/` are its
+    `app/src/client/**` "except what is named elsewhere", and that is where
+    `app-shell.tsx`, the place chrome and the object contract sit. But
+    `08-component-and-design-system.md` owns
+    `app/src/client/components/**` "excluding the calendar, task-form, and
+    search directories", which is where `folder-row`, `undo-bar`,
+    `window-bar`, `right-edge`, `view-strip`, the three folder dialogs and
+    `state-patterns` sit, and every one of those is a file this row edits or
+    creates. Persona 11 owns `app/tests/**` and section 12, which the row's own
+    acceptance column already names. **Three roles, not one**, the same three
+    S23 found and for the same reason. Settled at the opening and recorded
+    here rather than discovered at the merge, which is what item 46 asked for
+    when this first happened.
+
+    **(b) Three shell mechanisms existed in two copies each, and two of the
+    three were not merely duplicated but silently broken.** This is the row's
+    largest finding and it was not on the ledger, the triage or the audit,
+    because none of those three instruments can see it: the ledger compares the
+    client to the prototype decision by decision, and both copies matched the
+    prototype.
+
+    - **The right edge.** `components/right-edge.tsx`, lifted at S23, and
+      `shell/right-edge.ts`, ported from the same original at S17b, each hold a
+      module-scoped `reserved`. `components/task-surface.tsx` published its
+      width into the first; `app-shell.tsx` read the second and laid out the
+      page's margin from it. **So a task opened in the side panel covered the
+      page instead of narrowing it**, which is DES-186's exact fault and the
+      whole reason that module exists. AC-260 could not see it: that criterion
+      reads the folder page's conversation panel, which was on the store the
+      shell read.
+    - **The window bar.** Same shape. `components/window-bar.tsx` keeps its two
+      slots in a module store, and nothing mounted the bar that sets them
+      because `app-shell.tsx` rendered `shell/WindowBar.tsx` instead. 9.3 gives
+      a task opened as a tab its own window-bar controls and puts its folder
+      and section at the bar's left, and `components/task-surface.tsx` portals
+      both; **both landed in `null`**, so a task tab drew no chrome at all.
+    - **The undo bar**, which was the one honest duplicate: two components over
+      one store, with no fault beyond the duplication.
+
+    **The class is worth naming because three more rows lift surfaces the same
+    way.** S23 crossed each of these files early and correctly, for the reason
+    protocol section 3 gives in the same breath as the boundary: writing a
+    second window bar for the task surface would have been the duplicate
+    implementation. What it could not do was retire the shell's copy, that
+    being this row. **A module store lifted ahead of its consumer is a store
+    with no writer or no reader for as long as the gap lasts, and neither half
+    fails loudly.** The window bar rendered nothing where nothing was expected;
+    the right edge laid out a zero where zero is the usual answer. Both
+    passed lint, typecheck, the whole vitest suite and the whole browser leg.
+    **S25, S26 and S27 each lift surfaces whose components S23 or S24 has
+    already crossed**, so each should open by asking which of its lifted
+    modules currently has a reader and a writer in the same copy.
+
+    **(c) F4 lands whole and it is fifteen of the triage's nineteen cases.**
+    Item 39 ruled the view strip becomes the prototype's collapsing icon
+    radiogroup and named the client's plain buttons as "a recorded, reasoned
+    departure, not a slip". The departure's own argument was from AC-093 and
+    from 9.1's roles table not naming the strip; **9.1 names it now**, so the
+    premise is gone with the conclusion. Ledger entries L-028 to L-032 close
+    together, and the component needed no work at all: S23's lifted
+    `components/view-strip.tsx` already implemented all five. What was missing
+    was a consumer, which is `views/usePlace.tsx` and therefore all seven place
+    pages at once.
+
+    **(d) A1 lands its five labels, and item 39's fourth disagreement with
+    them.** 9.1's names table takes the ellipsis on "Leave folder", and the
+    section states the convention beneath the table rather than five times
+    inside it. The task's `open` act also takes `Fullscreen`, which item 39
+    measured and no package had claimed since; it sits in the same list as the
+    labels and would have been a second visit to one file.
+
+    **(e) The criteria triage's blind spot has a second shape, and AC-180 is
+    it.** Item 47(e) recorded the first: a locator sweep cannot see a
+    disagreement that is a default, a computed style, a role the prototype adds
+    rather than omits, or a context nobody provides. This row found a simpler
+    one. The triage put A1's rework on AC-217 and AC-246, the two files that
+    enumerate **a folder's** acts by label, and missed
+    `ac-180-folder-groups.spec.ts:397`, which asserts `'Delete shelf'` exact.
+    **The sweep found the surface and not the object**: "Delete shelf…" is one
+    of A1's five, the file it lives in is named for folder groups, and nothing
+    in its name or its subject says shelf. It was reworked with the other four
+    rather than left to go red at the merge. **The lesson for S25 to S27 is one
+    sentence**: when a ruling changes a *string*, grep the string across
+    `app/tests/` and trust that over any pile sorted by surface.
+
+    **(f) Three ledger entries close by measurement rather than by edit, and
+    one was already closed by the row before.** L-083, the undo bar's expiry
+    rule, is true and was already true: `shell/undo.ts` carries no timer, an
+    entry's `at` is stamped once, and the clock lives in the component. L-248
+    and L-250, the tab strip's fidelity and the sidebar's three drag gestures,
+    read closed in the ledger and were verified against the files rather than
+    trusted; nothing was rebuilt. **L-259 is closed by S23 rather than by this
+    row**, the ledger having been written before it: the folder picker's "New
+    folder…" entry is present in both lifted files, `task-card.tsx:1932` and
+    `task-row.tsx:2487`, and the row's own `PendingPanel` supplies it. Only
+    L-128, the hold's closing ring, needed building.
+
+    **(g) Section 12's AC-246 carried a clause that its own test has
+    contradicted since S17b.** The criterion reads "Move to group"; the test
+    asserts "Move to shelf"; and section 12's own paragraph below the criterion
+    records that the word moved at S17b and says why. The paragraph was written
+    and the sentence was not. Corrected here rather than raised, the ruling
+    already existing and this row editing the same sentence for A1. **It is
+    offered to S29**, whose row collects exactly this class and which item 40
+    already stocked with six unfolded Replace units.
+
+    **(h) Five files leave `foundation.test.ts`'s lucide exemption, on that
+    list's own instruction.** Its comment says each entry "leaves with the
+    package that replaces the surface it draws" and names "the three folder
+    dialogs, the folder row ... and the state patterns with the shell". This is
+    the shell. What remains is the calendar, the search overlay and the
+    quick-add, whose surfaces are other rows'.
+
+    **(i) Three files RFC 0004's S24 row names did not cross verbatim, and the
+    reason is measured rather than argued.** `app-shell.tsx`, `app-sidebar.tsx`
+    and `folder-directory.tsx` are 834, 866 and 942 lines in the prototype, and
+    each imports `@/fixtures`. Two of the three import fixture **data** and not
+    only a type: `app-shell.tsx` takes `shellFolderGroups` and
+    `shellUnlabelledFolders`, `app-sidebar.tsx` takes those two and
+    `shellInbox`. RFC 0004's close is unamended on exactly this and item 37
+    restates it, "no fixture data, no name-keyed store, and nothing of
+    `fixtures.ts` crosses". They also carry the prototype's own
+    `localStorage`-backed stores, six in `app-shell.tsx` (`folder-acts`,
+    `folder-membership`, `folder-ownership`, `folder-presentation`,
+    `shelf-acts`, `undo`) and three in each of the others.
+
+    **So these three are the prototype's wiring rather than its markup**, which
+    is the distinction change control item 45 drew for the screens generally.
+    The lift strategy's own sentence is that "the markup, classes, pickers,
+    drags and animations touch no data directly" and that the seam is the named
+    lib modules; these files are the other side of that sentence.
+    `folder-directory.tsx` is the closest to liftable, its fixture coupling
+    being a type alone, and its four decisions are ledger L-124 to L-127, all
+    of which read **closed** against `shell/library-order.ts` and
+    `shell/library-drag.ts`.
+
+    **What crossed instead is what the strategy actually asks for**: the shell
+    composes lifted components, and this row's work was making it compose them
+    rather than their duplicates. **No session should read the S24 row as
+    owing a verbatim `app-shell.tsx`**, and the same measurement is worth
+    making before S25 and S27 read their own rows that way.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
