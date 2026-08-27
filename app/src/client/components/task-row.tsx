@@ -2974,6 +2974,18 @@ export interface TaskListWiring {
     isSettling: boolean
     offset: number
   }
+  /*
+  **Seam, S25: what a release would do, for a list that drags into a
+  container.**
+
+  S23 gave the row the slot and the words, DES-171's "a container takes the
+  drop and says so", and left the list with no way to fill it: the engine's
+  `overKey` was never asked for and never handed on, so the only surface that
+  drags into a container, the board, could not draw one. AC-228 reads "Into
+  {column}" while the pointer is still down, which is the one moment it
+  exists. Undefined on every row that is not the carried one.
+  */
+  proposal?: string
   isSelected: boolean
   selecting: boolean
 }
@@ -3010,6 +3022,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   tasks,
   onReorder,
   onDropAt,
+  onOver,
   onDragStateChange,
   onMerge,
   onBulk,
@@ -3037,6 +3050,12 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   means the page took it and this list should leave its own order alone.
   */
   onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
+  /* **Seam, S25.** What a release at this point would do, asked while the
+     drag is still in the air, so the carried row can say it. It returns the
+     words rather than a key, because the words are the only thing the row
+     draws and a key would need a second prop to translate. See `proposal` on
+     `TaskListWiring`. */
+  onOver?: (taskId: string, point: { x: number; y: number }) => string | null
   /* Whether a row in this list is currently being carried. A page with
      sections needs it: the place to drop a task that belongs to none of them
      only has to exist while something is in the air. Pass a stable setter. */
@@ -3107,6 +3126,12 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
       ? (from, point) => {
           const task = ordered[from]
           return task ? onDropAt(task.id, point) : false
+        }
+      : undefined,
+    onOver: onOver
+      ? (from, point) => {
+          const task = ordered[from]
+          return task ? onOver(task.id, point) : null
         }
       : undefined,
     onReorder: (from, to) => {
@@ -3223,6 +3248,13 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
             else openers.current.delete(task.id)
           },
           dragState: drag.itemState(index),
+          /* Seam, S25: the words only the carried row draws, and only while
+             a container has been proposed. `overKey` is the label because
+             `onOver` returns one; see that prop. */
+          proposal:
+            drag.itemState(index).isActive && drag.overKey !== null
+              ? drag.overKey
+              : undefined,
           isSelected: selection.selected.includes(task.id),
           selecting: selection.selecting,
         }
