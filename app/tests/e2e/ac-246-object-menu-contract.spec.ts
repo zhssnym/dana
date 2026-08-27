@@ -2,12 +2,12 @@
 AC-246: given one folder the viewer owns, then the acts its menu offers in the
 sidebar's Library and the acts its own page's menu offers come from one
 declared contract: both menus offer History, Rename, Move to shelf, Copy link,
-Duplicate, Save as workflow and Delete folder, those acts stand in the same
+Duplicate, Save as workflow and "Delete folder…", those acts stand in the same
 relative order in both, and every other item either menu carries is one of the
 four that belong to a surface rather than to the folder, the sidebar's "Add
 task", "New folder group" and "Open in a new tab" and the page's "Transfer
 ownership"; and given a folder the viewer is only a member of, then both menus
-offer "Leave folder" in Delete folder's place and neither offers Rename or
+offer "Leave folder…" in Delete folder's place and neither offers Rename or
 Delete folder.
 
 **The proof of the fault is two menus for one folder, and it is measurable
@@ -66,8 +66,14 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
  * out of the code under test asserts that the code equals itself.
  *
  * The exit is the last entry and is the one that differs by role, "Leave
- * folder" where "Delete folder" would be, which 9.6 makes a rule about the
+ * folder…" where "Delete folder…" would be, which 9.6 makes a rule about the
  * object rather than about either surface.
+ *
+ * **Both carry an ellipsis since S24**, which 9.1 now states beneath its names
+ * table: a label ending in one promises a further step, and both of these open
+ * a confirmation. RFC 0005 change control item 44's A1 ruled the five, and this
+ * criterion is where two of them are read (item 44's own sequencing, red first
+ * in the package that lifts the surface).
  */
 const CONTRACT = [
   'History',
@@ -142,7 +148,7 @@ test.describe('AC-246: one folder, one menu', () => {
     await openLibraryMenu(page, 'Groceries')
     const inLibrary = await itemNames(page)
 
-    const contract = [...CONTRACT, 'Delete folder']
+    const contract = [...CONTRACT, 'Delete folder…']
     for (const act of contract) {
       expect(
         onPage,
@@ -193,9 +199,9 @@ test.describe('AC-246: one folder, one menu', () => {
     ] as const) {
       expect(
         names,
-        `spec 9.1's names table puts "Leave folder" on a folder's member surface, and 9.6 ` +
+        `spec 9.1's names table puts "Leave folder…" on a folder's member surface, and 9.6 ` +
           `makes that a fact about the folder rather than about ${where}`,
-      ).toContain('Leave folder')
+      ).toContain('Leave folder…')
       expect(
         names.some((name) => name.startsWith('Rename')),
         `DES-225: the name is the owner's, so ${where} must not offer Rename where the ` +

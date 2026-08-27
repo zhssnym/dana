@@ -114,6 +114,7 @@ import type { Locator, Page } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
+  chooseView,
   clickControl,
   findTaskId,
   firstOfMonth,
@@ -299,11 +300,15 @@ test.describe('AC-093: the entry table of 9.3', () => {
   test("AC-093: a calendar cell captures with that cell's date", async ({ page }) => {
     const title = caseTitle('ac-093 from a calendar cell')
     await page.goto(routesV2.scheduled)
-    // 9.5's mode toggle. The mode is persisted per user client-side, so this
-    // click may be a no-op on a later run and the assertion below is what
-    // makes the state definite either way.
-    await clickControl(
-      page.getByRole('button', { name: /^calendar$/i }),
+    // 9.5's mode toggle, reached through the strip 9.1 amended at S24: the
+    // options are radios in a radiogroup and only the current one has any
+    // width, so `chooseView` widens the strip the way a person does before
+    // pressing. The mode is persisted per user client-side, so this may be a
+    // no-op on a later run and the assertion below is what makes the state
+    // definite either way.
+    await chooseView(
+      page,
+      'Calendar',
       'spec 9.5: Scheduled is the one page that offers the calendar, because having a date ' +
         'is what puts a task on it',
     )

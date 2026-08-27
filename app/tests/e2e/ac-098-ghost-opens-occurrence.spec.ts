@@ -56,6 +56,7 @@ import type { Page } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
+  chooseView,
   clickControl,
   computedStyle,
   chipValue,
@@ -106,10 +107,13 @@ async function dueDayShown(page: Page): Promise<string> {
 
 async function openNextMonthCalendar(page: Page): Promise<void> {
   await page.goto(routes.planned)
-  // 9.5's mode toggle. The mode persists per user client-side, so this is
-  // asserted into a known state rather than assumed to start in one.
-  await clickControl(
-    page.getByRole('button', { name: /^calendar$/i }),
+  // 9.5's mode toggle, reached through 9.1's radiogroup strip since S24: an
+  // option that is not the current view has no width until the strip widens,
+  // which is what `chooseView` does. The mode persists per user client-side,
+  // so this is asserted into a known state rather than assumed to start in one.
+  await chooseView(
+    page,
+    'Calendar',
     'spec 9.5: Planned carries a mode toggle between list and calendar',
   )
   await expect(
