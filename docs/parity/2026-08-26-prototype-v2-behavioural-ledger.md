@@ -77,8 +77,17 @@ where the decision is not section 9's.
    being absent from the source, which is a claim about the tree rather than
    about a running screen.
 2. **A verdict of *yes* is a verdict about behaviour, never about pixels.**
-   Pixel fidelity is entry L-284 and is deliberately one entry rather than a
+   Pixel fidelity is entry L-253 and is deliberately one entry rather than a
    column: it cannot be measured by reading and needs Imran's eye at S30.
+   (This sentence read "L-284" until the S29 fold of 2026-08-27. The file
+   holds 260 entries and stops at L-259, so no L-284 has ever existed: the
+   number was a slip in this prose and the table's own row was always right.
+   It was copied out of here twice before anybody checked it, into RFC 0005
+   change control item 48(j) and SESSION-LOG row 39, and both citations are
+   corrected with it under change control item 49. The correction is the
+   Steward's rather than role 07's because this file is ratified at item 40,
+   which makes its numbering change control; that is the same reason item
+   41(a) raised a wrong ledger entry instead of editing one.)
 3. **Counts are of entries, not of work.** One entry can be an afternoon
    (L-021) or a package (L-101). The count at the foot is a measure of
    coverage, not of effort.
