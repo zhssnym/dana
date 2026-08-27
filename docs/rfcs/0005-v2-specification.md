@@ -5573,6 +5573,16 @@ fold, the way P7's mid-package change control ratified the pass callable:
     nothing, and where it is not, a detached worktree at that commit costs one
     `npm ci`.
 
+    **The re-run settles it: CI is green on `ba1e365`.** The same job, the
+    same commit, no code changed between: PGlite 263 of 263 files, Postgres 18
+    263 of 263, and **Playwright 229 of 229 in 18.7 minutes**. So the case is
+    intermittent in CI on this commit exactly as it is intermittent alone on
+    the commit before it, and the green-to-red step that started all of this
+    was two samples of one distribution rather than a change in the code.
+    **That is the whole of the correction and it cost two sessions an evening
+    between them**, which is why the lesson above is written as a rule rather
+    than as an anecdote.
+
     **It is offered to persona 11 and not touched.** Protocol section 8 puts a
     criterion's text in that role's hands and this row owns no rework, so the
     measurement is recorded and the case is left as it stands. What it appears
