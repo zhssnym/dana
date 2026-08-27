@@ -199,6 +199,26 @@ protocol points here rather than repeating them.
   load, corrected above, and `run-suite.mjs` fails a run that loses files.
   Separate worktrees make vitest legs genuinely independent, having no port and
   no shared database; only the browser leg has a single hardcoded one.
+- **Killing a browser leg's server does not kill the leg, and the next run
+  then collides with the survivor.** Measured at S23 on 2026-08-27, and it is
+  the collision two bullets above caused by one session rather than two.
+  `playwright.config.ts` starts `npm run e2e:app` per run, so a session that
+  wants a fresh run against new code kills the process listening on the port
+  and starts again. That kills the *server*. The parent `playwright test`
+  process survives it, keeps its workers, and goes on writing into the same
+  `test-results/` the new run is writing into; the new run then starts a
+  second server on the same port. What it looks like from the report is not a
+  port error: it is `apiRequestContext.post: connect ECONNREFUSED` and
+  `page.goto: net::ERR_CONNECTION_REFUSED` on a scattering of files, mixed in
+  with real failures, and stale artifacts from the dying run sitting beside
+  fresh ones with indistinguishable timestamps. That session read contaminated
+  counts for about an hour before finding two `playwright test` processes
+  alive at once. **Kill by command line rather than by port**, every `node.exe`
+  whose command line matches `playwright` or `e2e:app`, then poll until
+  nothing at all answers on the port, `until ! netstat -ano | grep -q ":<port>"`,
+  because a listening socket in TIME_WAIT is enough for the next run's
+  readiness probe. And **delete `test-results/` between runs**, so that no
+  artifact you are about to read belongs to a run that is already dead.
 - **A lone browser leg on its own port still loses about one case a run when
   commit charge is short, and the port-collision bullet above does not cover
   it.** Measured 2026-08-26 at S22, three whole runs of one commit on an owned
