@@ -187,6 +187,17 @@ export interface Attachment {
   /* Where the link goes. Set only on `kind: "link"`; a file has no address
      that outlives the session. */
   url?: string
+  /*
+  **The one widening this type makes, added at S26 and a named seam.**
+
+  The prototype's composer turns a chosen file into this record and lets the
+  `File` go, which is right for a lab whose store is an object URL. Dana's
+  conversation posts a real file through 7.15 and then names its id on the
+  comment (7.14), so the bytes have to survive the trip from the picker to
+  `lib/thread.ts`'s `applyThreadChange`. Optional, so every lifted surface
+  that never had one still typechecks and still behaves.
+  */
+  file?: File
 }
 
 /*
@@ -217,6 +228,18 @@ export interface ConceptComment {
   files?: Attachment[]
   /* Mine, so a surface knows which comments offer Delete. */
   mine?: boolean
+  /*
+  **The second widening this file makes, added at S26 and a named seam.**
+
+  The lab has no permission system, so the prototype offers Edit and Delete
+  on `mine` alone. 4.15 gives a comment's deletion to its author **or** the
+  folder's owner, and `domain/comments.ts` resolves exactly those two. This
+  carries that answer per comment rather than per thread, so that the card
+  mount and the folder page cannot disagree about the same comment, which is
+  what ledger L-201 asks of one surface drawn twice. Absent falls back to
+  `mine`, so a surface that has no role in hand behaves as the lab does.
+  */
+  deletable?: boolean
   replies?: ConceptComment[]
 }
 
