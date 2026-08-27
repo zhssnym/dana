@@ -87,6 +87,16 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   is. The primitives may reach for a step because they are where a role is
   defined, and `tokens.css` is where both are written. Everything else asks
   for the role.
+
+  **The list below is two kinds of file now, and its name no longer says so.**
+  It began as v1 markup awaiting the package that replaces it. Since S23 it
+  also holds files lifted verbatim from `prototype-v2`, which spell the ramp
+  because the original does and because RFC 0004's lift discipline is that a
+  lifted file diffs empty against its original: rewriting its class strings to
+  reach for roles would be the rewrite that strategy forbids. So a lift adds an
+  entry here rather than removing one, which is what `view-strip.tsx` and
+  `window-bar.tsx` did at S23 and `undo-bar.tsx` does at S24. Whether the
+  prototype should be asking for roles is a question for the design record.
   */
   const RAMP = /var\(--color-(graphite|dana-accent|folder|success|warning|danger|info)-/
 
@@ -110,6 +120,7 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/task-row.tsx',
     'components/task-section.tsx',
     'components/task-surface.tsx',
+    'components/undo-bar.tsx',
     'components/view-strip.tsx',
     'components/window-bar.tsx',
   ]
