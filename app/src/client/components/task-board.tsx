@@ -368,6 +368,22 @@ function BoardCard({
           ) : null}
         </span>
       ) : null}
+      {/*
+      **Seam, S25: what a release would do, said in words.**
+
+      DES-171 makes the rule the same at both ends of a drag, "a container
+      takes the drop and says so", words rather than an outline, and AC-228
+      reads "Into {column}" while the pointer is still down, which is the one
+      moment it exists. The row has drawn this since S23 and the card could
+      not, because nothing handed the list the engine's answer; `TaskList`
+      does now. Same slot and same treatment as the row's, so a card and a row
+      say the same thing the same way.
+      */}
+      {wiring.proposal === undefined ? null : (
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+          {wiring.proposal}
+        </span>
+      )}
     </div>
   )
 }
@@ -475,6 +491,19 @@ export function TaskBoard({
               const landing = columnAt(point)
               if (landing === null || landing === column.key) return false
               return onDropIn(taskId, landing)
+            }}
+            /*
+            Seam, S25: the words the carried card wears, from this board's own
+            geometry. It is the same hit test the drop uses, asked one moment
+            earlier, so what the card promises and what the release does
+            cannot come apart. A column the page has nothing to write into is
+            not proposed, which is `onDropIn` answering false for it.
+            */
+            onOver={(_taskId, point) => {
+              const landing = columnAt(point)
+              if (landing === null || landing === column.key) return null
+              const named = columns.find((entry) => entry.key === landing)
+              return named ? `Into ${named.label}` : null
             }}
             renderRow={(task, wiring) => {
               const done = column.done || task.status === "completed"
