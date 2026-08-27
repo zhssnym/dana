@@ -24,7 +24,8 @@ import { InlineInput } from "./ui/inline-field.js"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { ChevronRight, X } from "../lib/icons.js"
-import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
+import { TITLE_REQUIRED, UNCOMPLETE_SERIES_CONFIRM, tooLong } from "./task-copy.js"
+import { ConfirmDialog } from "./ui/ConfirmDialog.js"
 /* 10.3's number for the field, from the shared contract rather than restated:
    a limit written twice is a limit the client and the server can disagree on,
    which is the one thing this message must never do. */
@@ -369,6 +370,7 @@ export function TaskPage({
   inWindow?: boolean
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
+  const [uncompleting, setUncompleting] = useState(false)
 
   const actions = (
     <Actions
@@ -391,6 +393,16 @@ export function TaskPage({
 
   return (
     <div>
+      {!uncompleting ? null : (
+        <ConfirmDialog
+          message={UNCOMPLETE_SERIES_CONFIRM}
+          onContinue={() => {
+            setUncompleting(false)
+            patch(task.id, { done: false })
+          }}
+          onCancel={() => setUncompleting(false)}
+        />
+      )}
       {inWindow ? (
         <>
           <WindowBarLead>
@@ -437,7 +449,37 @@ export function TaskPage({
             compact ? "h-7" : "h-8",
           )}
         >
-          <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
+          {/*
+          **Seam, S23: 9.5's confirmation, at the control rather than in
+          the write path.**
+
+          9.3 gives the card's completion control 9.5's rule "unchanged":
+          an un-complete that takes a G-SERIES successor confirms first,
+          because 5.1 deletes that successor in the same transaction and
+          the parenthesis is the part the person cannot see, "any edits
+          already made to the next occurrence go with it". A row gets
+          this from its page, where the confirm has lived since P8; a
+          surface has no page behind it.
+
+          **It sits on the control and not on the write**, which is where
+          it was first put and is one indirection too many: a writer sees
+          a `Partial<ConceptTask>` and has to work out from the task what
+          the press meant, while this component holds both the press and
+          the task. The rule is the task's own `recurrence`, which
+          survives a completion, the successor existing because the rule
+          did.
+
+          Only on the branch that has a successor: a task with no rule
+          generates none, and a confirmation with an empty consequence is
+          the dead control DES-144 removes.
+          */}
+          <Check
+            task={task}
+            onToggle={() => {
+              if (task.done && task.recurrence) setUncompleting(true)
+              else patch(task.id, { done: !task.done })
+            }}
+          />
         </span>
         <PageTitle
           compact={compact}
