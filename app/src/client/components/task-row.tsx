@@ -1031,19 +1031,47 @@ export function TaskTitle({
     )
   }
 
+  /*
+  **Seam, S23: the row's title is text, not a control, and 9.4 is why.**
+
+  The prototype makes it a `<button>` that swaps itself for a field, which is
+  DES-095, "renaming happens in the row". Two sentences of section 9 are
+  against it and 11.13 makes them win.
+
+  **9.4: "a click on any row opens that task."** The title is the largest
+  target in a row and the one a person aims at, and in the prototype clicking
+  it starts a rename instead. AC-178 performs the section's sentence literally,
+  `page.getByText(title)` then expects the surface; against a title that
+  renames, the click lands in a text field and no task opens.
+
+  **And 9.3 already says where a title is edited**: "the title (editable in
+  place, required)", in the card's field table. The row expands into that card
+  by DES-093, so renaming in the row is still one gesture away and is done on
+  the artifact the section puts the field on. Section 9 asks for no
+  row-rename control anywhere, and 9.1's roles table, which fixes roles for
+  eight things, does not list one.
+
+  **The second cost it was carrying is an addressing one and it is worth
+  naming**, because it is F1 and F2's class again and the criteria triage
+  could not have seen it. A button whose accessible name is the task's own
+  title makes every loose locator inside a row ambiguous: AC-097 asks a row
+  for `getByRole('button', { name: 'Restore' })`, and against a seeded task
+  called "ac-097 restore returns to my day" that matched the title button as
+  well as the Restore control, dying of strict mode. The v1 row never had the
+  problem because its title was not a control. Any row-scoped locator whose
+  name happens to appear in a task's title has the same fault, so this is a
+  class rather than one case.
+
+  What is given up is a click's worth of convenience, and it is recorded
+  rather than taken quietly: renaming is now the chevron then the card's
+  title, where the section puts it.
+  */
   const button = (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        setDraft(task.title)
-        setEditing(true)
-      }}
+    <span
       className={cn(
         metrics,
-        "relative -mx-1 cursor-text rounded-[4px] px-1 text-left transition-colors hover:bg-[var(--color-graphite-200)]",
+        "relative -mx-1 rounded-[4px] px-1 text-left transition-colors",
         T_FAST,
-        FOCUS,
         /*
         **Seam, S23: the strike is the text's own, and it is a third finding
         of F1 and F2's class that the criteria triage did not carry.**
@@ -1085,7 +1113,7 @@ export function TaskTitle({
       {task.title || (
         <span className="text-[var(--color-graphite-400)]">Untitled task</span>
       )}
-    </button>
+    </span>
   )
 
   /* A truncated title is unreadable, and every concept but J truncates. The
@@ -1301,7 +1329,11 @@ export function Actions({
         that exists only while it is open cannot be read", the harness reading
         the attribute immediately after a hover.
         */
-        title={importantTooltip}
+        /* Off Important the tooltip is the name, 9.5: "the star's two names
+           are 9.1's", and a control with no tooltip at all is what the
+           prototype leaves here. On Important it turns outward, which is the
+           page layer's decision and arrives as this prop. */
+        title={importantTooltip ?? (task.important ? "Important" : "Mark as important")}
         className={cn(
           "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] active:scale-90",
           T_FAST,
