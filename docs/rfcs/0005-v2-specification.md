@@ -5490,8 +5490,19 @@ fold, the way P7's mid-package change control ratified the pass callable:
     also at item 53. Not this row's: `L-045`, offered at (g), and `L-249`'s
     list half, which is S23a's.
 
-    **(m) The numbers were read from the files and from the remote at the
-    merge, which is item 50(m)'s lesson rather than item 13's.**
+    **(m) The remote moved during this row too, and reading it at the merge
+    is what kept the numbers, which is item 50(m)'s lesson rather than item
+    13's.** `git ls-remote --heads origin v2-build` answered `8fe7041` at this
+    row's opening and `5e0179f` at its merge: RFC 0005's re-acceptance landed
+    in between, taking a status line, a paragraph of item 49 and one line each
+    of SESSION-LOG and RFC 0004. **It cost this row nothing**, that push having
+    claimed no change control item, no section 13 item, no log row and no
+    acceptance number, so this item is 51, its two section 13 items are 53 and
+    54, and the log row is 42, exactly as they were read at the opening. **That
+    is the check working rather than the check being unnecessary**: the first
+    reading was four numbers wrong at S25 for the same reason and the second
+    reading is what caught it, so the reading is made at both ends whether or
+    not the first one turns out to have been right.
 
 ## Implementation plan
 
