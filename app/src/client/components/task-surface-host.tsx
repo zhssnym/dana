@@ -52,11 +52,19 @@ task passes AC-098 as written and tells the person something false every time
 they open a repeat from its own day."
 */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { useCreateTask } from '../api/mutations.js'
-import { useFolders, useMe, useTask } from '../api/queries.js'
+import {
+  useCreateTask,
+  useDeleteComment,
+  usePatchComment,
+  usePostComment,
+  useSetCommentLike,
+} from '../api/mutations.js'
+import { useConnections, useFolders, useMe, useTask, useThread } from '../api/queries.js'
+import { uploadFile } from '../api/http.js'
+import { applyThreadChange, toConceptComments } from '../lib/thread.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import { presenterToday } from '../parts/presenters.js'
 import { conceptPatchToBody, toConceptTask } from '../lib/task-concept.js'
@@ -142,6 +150,58 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const editing = open?.taskId ?? created
   const task = useTask(editing)
 
+  /*
+  **S26: the thread inside a task, which had no mount at all.**
+
+  Ledger L-246 and L-258, and the owner's own list from the 2026-08-26 review.
+  9.3 puts Comments on the card after the content blocks and applies 9.6's
+  rules to them (L-158), `components/task-card.tsx` has drawn the disclosure
+  since S23, and the server has answered `?task=` since S5. What was missing
+  was one query and one write path, and this is the only component that holds
+  both a task's identity and its folder's.
+
+  It reads only while a surface is open, which is the whole of what the host's
+  own lifetime already says: nothing renders until `open` is set.
+  */
+  const threadFolderId = task.data?.folder.id ?? null
+  const thread = useThread(
+    threadFolderId ?? '',
+    editing,
+    threadFolderId !== null && editing !== null,
+  )
+  const connections = useConnections()
+  const postComment = usePostComment()
+  const patchComment = usePatchComment()
+  const deleteComment = useDeleteComment()
+  const setLike = useSetCommentLike()
+
+  /* Who an author is, off the roster the People screen and the sharing panel
+     already read; an id this client cannot resolve says "Someone" rather than
+     being shown. */
+  const authorNames = useMemo(() => {
+    const names = new Map<string, string>()
+    const viewer = me.data?.user
+    if (viewer?.display_name != null) names.set(viewer.id, viewer.display_name)
+    for (const connection of connections.data ?? []) {
+      const name = connection.user.display_name
+      if (name !== null) names.set(connection.user.id, name)
+    }
+    return names
+  }, [connections.data, me.data?.user])
+
+  const conversation = useMemo(
+    () =>
+      toConceptComments(
+        thread.data?.comments ?? [],
+        me.data?.user.id ?? null,
+        (authorId) => authorNames.get(authorId) ?? 'Someone',
+        Date.now(),
+        /* 4.15's other half, off the library row every page already holds. */
+        folders.data?.find((row) => row.id === threadFolderId)?.is_owner ?? false,
+      ),
+    [thread.data?.comments, me.data?.user.id, authorNames, folders.data, threadFolderId],
+  )
+
   useEffect(() => {
     const offForm = onOpenTaskForm((defaults) => {
       seq.current += 1
@@ -226,7 +286,13 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
 
   /* The server's answer the moment there is one, and the draft until then. */
   const concept =
-    task.data === undefined ? (draft ?? seed()) : toConceptTask(task.data, context)
+    task.data === undefined
+      ? (draft ?? seed())
+      : /* S26: the conversation rides the concept, which is where
+           `components/task-card.tsx` reads it (9.3's Comments block). A capture
+           has no task yet and therefore no thread, which is the same reason
+           `lib/task-concept.ts` left the field undefined until now. */
+        { ...toConceptTask(task.data, context), comments: conversation }
   const id = editing ?? 'new'
 
   /*
@@ -240,6 +306,39 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   takes the first path.
   */
   function write(_taskId: string, fields: Partial<ConceptTask>): void {
+    /*
+    **S26's seam: the conversation is 7.14's and never 7.6's.**
+
+    `writtenElsewhere` has carried `comments` since S22 precisely so that a
+    thread change never rides a task PATCH; what it had nowhere to go to is
+    what this answers. `lib/thread.ts` turns the array the lifted thread wants
+    into the routes that would produce it, and the folder is the task's own,
+    which is also where 7.15 scopes an attachment.
+    */
+    if (fields.comments !== undefined) {
+      const folderId = threadFolderId
+      if (folderId === null || editing === null) return
+      applyThreadChange(conversation, fields.comments, {
+        post: (body) => {
+          postComment.mutate({
+            folderId,
+            body,
+            taskId: editing,
+          })
+        },
+        edit: (commentId, body) => {
+          patchComment.mutate({ id: commentId, body: { body } })
+        },
+        remove: (commentId) => {
+          deleteComment.mutate(commentId)
+        },
+        like: (commentId, liked) => {
+          setLike.mutate({ id: commentId, liked })
+        },
+        upload: (file) => uploadFile('image', folderId, file).then((stored) => stored.id),
+      })
+      return
+    }
     if (editing !== null) {
       /*
       **Seam, S23: 9.5's confirmation, on the branch that has a

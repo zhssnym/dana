@@ -96,7 +96,10 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   reach for roles would be the rewrite that strategy forbids. So a lift adds an
   entry here rather than removing one, which is what `view-strip.tsx` and
   `window-bar.tsx` did at S23, `undo-bar.tsx` did at S24, and `folder-cover`,
-  `page-cover` and `page-head` do at S25. Whether the prototype should be
+  `page-cover` and `page-head` did at S25, and `page-image` does at S26. The
+  bell is the same entry for the opposite reason: it was always the prototype's
+  class strings and it moved into this directory at S26, where the rule reaches
+  it for the first time. Whether the prototype should be
   asking for roles is a question for the design record.
   */
   const RAMP = /var\(--color-(graphite|dana-accent|folder|success|warning|danger|info)-/
@@ -111,8 +114,10 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/history-sheet.tsx',
     'components/icon-action.tsx',
     'components/new-folder-dialog.tsx',
+    'components/notifications-bell.tsx',
     'components/page-cover.tsx',
     'components/page-head.tsx',
+    'components/page-image.tsx',
     'components/quick-add.tsx',
     'components/search/SearchOverlay.tsx',
     'components/state-patterns.tsx',

@@ -58,6 +58,15 @@ export interface TaskGroup {
   readonly rows: readonly TaskCard[]
 }
 
+/**
+ * The column a task under no section sits in, and the one a task naming a
+ * section this page no longer has falls back to.
+ *
+ * 9.6 calls them "the loose open tasks", which is what the list view draws
+ * above the blocks, so the board says the same word for the same rows.
+ */
+export const LOOSE = 'loose'
+
 interface Slot {
   readonly key: string
   readonly name: string
@@ -106,6 +115,19 @@ function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string 
         mark: null,
       }
     }
+    case 'section': {
+      /* The name is the seeded column's, because a section's name is a block
+         of the folder's page and no task carries it (4.5 carries the id
+         alone). `groupRows` reads it off `extra`, which is the page's own
+         block order and therefore the column order too. */
+      const at = task.section_block_id
+      return {
+        key: at ?? LOOSE,
+        name: at ?? LOOSE,
+        capture: { section_block_id: at },
+        mark: null,
+      }
+    }
     case 'none':
       return { key: 'all', name: 'All', capture: null, mark: null }
   }
@@ -137,7 +159,15 @@ export function groupRows(
     })
   }
   for (const task of rows) {
-    const slot = slotFor(task, axis, today, viewerId)
+    let slot = slotFor(task, axis, today, viewerId)
+    /* A task naming a section the page no longer has is loose, which is the
+       list view's own rule (4.17 deletes a block without touching the tasks
+       that named it). The seeded columns are the authority on which sections
+       exist, so this is the one axis where an unseeded key is a fallback
+       rather than a new column. */
+    if (axis === 'section' && !groups.has(slot.key)) {
+      slot = { key: LOOSE, name: LOOSE, capture: { section_block_id: null }, mark: null }
+    }
     const existing = groups.get(slot.key)
     if (existing === undefined) {
       order.push(slot.key)

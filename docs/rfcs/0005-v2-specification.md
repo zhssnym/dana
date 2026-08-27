@@ -5148,6 +5148,361 @@ fold, the way P7's mid-package change control ratified the pass callable:
     amendment plus a criterion under persona 11, and neither is a client
     package's. The recommendation stands as S29 wrote it and the answer is
     Imran's.
+51. **S26's folder page and conversation: the owner column wrong an eighth
+    time, a seam built at S25 that nothing ever passed and three dead tabs
+    that followed from it, the conversation mounted on a task for the first
+    time, and the two cover tables asking the same frozen question in opposite
+    directions (S26, 2026-08-27).** RFC 0004's S26 row is the folder page and
+    the conversation, and this item carries what the row decided and what it
+    measured. It opens two questions and both are routed to section 13 rather
+    than answered here.
+
+    **(a) The owner column of S26 is wrong in both directions, and this is
+    items 12, 34, 46, 47(c), 48(a) and 50(a) an eighth time.** The row names
+    `07-frontend-architect.md` and `09-complex-interaction.md` "by surface",
+    with criteria from `11-adversarial-test.md`. Role 07 is genuinely an owner:
+    `pages/`, `views/`, `lib/` and the route table are its `app/src/client/**`
+    "except what is named elsewhere", which is `FolderPage.tsx`, the two new
+    seam modules and the board's axis. Role 11 owns `app/tests/**` and section
+    12. What the row omits is **`08-component-and-design-system.md`**, which
+    owns `app/src/client/components/**` excluding the calendar, task-form and
+    search directories, and **every file this row lifted, moved or created
+    lands there**: `comments`, `page-image`, `notifications-bell`, `page-cover`,
+    `folder-cover`, `history-sheet` and `page/BlocksEditor`. And role 09 owns
+    **none of this row's files**: its directories are `components/calendar/**`,
+    `components/task-form/**` and `components/search/**`, and no surface here
+    sits in one. It is an owner of **spec 9.3**, which is the section the
+    task's own thread lands under, and that is worth saying precisely rather
+    than carrying "by surface" forward. **Four roles, and the fourth owns a
+    section rather than a directory.** Settled at the opening and recorded here
+    rather than discovered at the merge, which is what item 46 asked for the
+    first time this happened.
+
+    **(b) Item 48(b)'s question, asked and answered, and this row is the first
+    of the three to find the dangerous kind.** That item asks S25, S26 and S27
+    each to open by finding which of its lifted modules has a reader and a
+    writer in the same copy. The sweep found four things and they sort into
+    two classes.
+
+    Three are honest duplicates, the undo bar's kind, and none carries a module
+    store. **`components/comments.tsx` was a 75-line stub** whose one reader was
+    `components/task-card.tsx`, while `components/page/ConversationThread.tsx`
+    served the folder page: two conversation surfaces for the one thing ledger
+    L-201 says must be one. **`components/history-sheet.tsx`** had its reader in
+    `components/task-row.tsx` while `pages/FolderPage.tsx:1019-1034` drew its
+    own flat list, which is L-199 and L-200. And **`components/page/IdentityHead.tsx`**
+    was a second copy of the head S25 lifted, drawing its own cover band, its
+    own 44px mark tile and its own description field beside `page-cover.tsx`,
+    `page-head.tsx` and `folder-cover.tsx`. All three are closed below.
+
+    **The fourth is item 48(b)'s own class and it was live on eight pages.**
+    S25 gave `components/folder-cover.tsx` a `tiers` prop for exactly the reason
+    item 52 records, that Upload, Link and Photos have nothing behind them on a
+    place page, and recorded in three places that those tiers are "absent
+    rather than drawn dead". **Nothing ever passed the prop.**
+    `components/page-cover.tsx` renders the picker at both of its call sites and
+    passes no `tiers` at either, so the default of all four stood and every
+    place page has been drawing three tabs that cannot store anything: Link and
+    Photos produce a key `keyToPreset` cannot spell and the write is dropped
+    without a word, and Upload stores the preset `upload`, whose object URL does
+    not survive a reload, so the row exists in `user_page_covers` and the page
+    shows nothing. That is DES-144's dead control and protocol section 4's
+    false green, and it is exactly the shape item 48(b) named: **a capability
+    lifted ahead of its consumer fails in neither half loudly.** The seam was
+    built correctly, the consumer was the next row's, and nothing failed in
+    between. `coverTiersFor` in `lib/page-identity.ts` is the consumer.
+
+    **(c) Item 48(i)'s measurement, made before the row read itself as owing a
+    verbatim anything, and it points the way S25's did.** None of
+    `folder-page-v2.tsx`, `comments.tsx`, `page-image.tsx`, `history-sheet.tsx`,
+    `sharing-panel.tsx`, `notifications-bell.tsx`, `page-bar.tsx`,
+    `folder-icon-picker.tsx`, `page-cover.tsx` or `folder-cover.tsx` imports
+    `@/fixtures`, and none of the ten touches `localStorage` in its own body.
+    What carries the prototype's wiring is the lib modules those files import,
+    `folder-layout`, `page-filters`, `page-images`, `folder-threads` and
+    `notifications`, three of which hold `localStorage` stores and one of which
+    is a fixture thread. So item 45's finding holds here too, the screens are
+    presentational and the wiring is in the modules, and the components cross
+    while `pages/FolderPage.tsx`'s query layer stays exactly where it was.
+
+    **(d) The conversation, which is the row's largest subject and the first
+    time a task in Dana has had one.** `components/comments.tsx` is the
+    prototype's 1,099-line file lifted whole over a new seam at `lib/thread.ts`,
+    and it is mounted twice: on the folder page in both of 9.6's homes, and on
+    the task card's Comments disclosure through `components/task-surface-host.tsx`,
+    which is ledger L-246 and L-258 and the owner's own list from the
+    2026-08-26 review. L-158 needed nothing, the card having pinned the
+    disclosure after its content blocks since S23.
+
+    **The seam is the array rather than four callbacks, and that is what makes
+    the lift possible.** The retired `ConversationThread.tsx` took
+    `{onPost, onEdit, onDelete, onLike}`; the prototype threads its own
+    `onChange(next)` through the row, the reply composer and `toggleReaction`,
+    so a component taking callbacks has to be rewritten at each of those, which
+    is the rewriting the lift discipline forbids. `applyThreadChange` compares
+    the array the thread wants against the one the query answered and issues the
+    one mutation that explains the difference: an id that appeared is a POST, an
+    id that vanished a DELETE, a body that moved a PATCH, a like that flipped
+    the like pair. Thirty lines in the seam, nothing in the lifted file.
+
+    **Five seams, each named in the file's own header.** The writer stays the
+    array. `ME` is the session rather than `PEOPLE[0]`, RFC 0004's close
+    forbidding a fixture in any form. **Voice is behind a prop defaulting to
+    off and nothing is deleted**, which is item 44's B5 deferring it, so the
+    package that lands voice flips one default rather than restoring a hundred
+    lines of `MediaRecorder`. The composer takes one file and offers images.
+    And **a folder's owner deletes**, which is 4.15 and not the prototype: the
+    lab offers Edit and Delete on `mine` alone, `domain/comments.ts` resolves
+    author-or-owner, and the answer rides the comment rather than the thread so
+    that the card's mount and the page's cannot disagree about the same
+    comment, which is what L-201 asks of one surface drawn twice.
+
+    **What the contract will not carry is measured and routed.** 7.14 answers
+    `file_ids: string[]`, bare uuids, and `GET /files/:id` answers the bytes,
+    so a file's name, type and size are on the wire nowhere and the prototype's
+    tile-name-meta row cannot be drawn for a file this client did not itself
+    just choose. What is honest is the bytes, which describe themselves when
+    they are a picture, so the composer offers images and an attachment draws
+    as the picture. And `postCommentBody` takes one `file_id` where 10.3 caps
+    files per comment at ten and change control item 1 added `comment_files`
+    for that binding, which is a disagreement inside the contract rather than a
+    gap in the client. **Both are recorded at section 13 item 54** with a
+    recommendation, and neither is taken here, both being frozen section 7.
+
+    **(e) B8 lands the half a folder page can reach, and the other half is the
+    exact mirror of item 52.** A folder's cover is `folders.cover_file_id` and
+    nothing else: no preset column, no `focal_y`. A place page's is 4.20's
+    preset-or-file with a crop, and item 52 records that its file tier cannot
+    be reached. So **the two tables are complementary and no page in Dana can
+    offer all four of B8's tiers**: a folder can wear an upload and no gradient,
+    a place can wear a gradient and no picture. The Upload tier is built, the
+    picker gaining an `onUpload` seam that stores the bytes through 7.15 and
+    names them on 4.3's column, and its own tab copy stops saying "kept for
+    this session only" where that is no longer true. The Reposition control is
+    drawn where the crop can be kept and absent where it cannot, which is
+    **ledger L-068 answered by measurement**: a folder has no column, so the
+    drag ships not at all rather than snapping back. **Recorded at section 13
+    item 53** with a recommendation, one pair of columns on `folders` mirroring
+    4.20's own, which closes L-068 and B8's gallery half in one amendment.
+
+    **B8's provider work is untouched and no secret was spent**, which is the
+    caution item 44 attached to it. The correction item 50(f) left for this row
+    was honoured before it could cost anything: the prototype's photo tier is
+    **Openverse**, `folder-cover.tsx` already calls `api.openverse.org`, and the
+    tier needs no key at all, so the "new third-party dependency and new
+    secret" B8 priced has not been incurred and would only be incurred by
+    choosing Unsplash over what the prototype already does. That is offered to
+    the owner rather than decided.
+
+    **(f) The image block is B7 and B11 whole, and it met section 13 item 47
+    exactly where that item said it would.** `components/page-image.tsx` is
+    lifted over a rewritten `lib/page-images.ts`: the width handle writes
+    S22a's `width_pct` (L-193, L-194), the caption is 4.17's `text` and is
+    absent rather than a placeholder (L-195), and choose, drop **and paste** all
+    land in one place (L-197), which is the change the block's shape makes. An
+    image block is now inserted empty and fills itself, where the client
+    uploaded first and inserted a filled block, so two of L-197's three
+    gestures had nowhere to happen. B11's downscale runs before the upload,
+    1600px at 0.72, PNG kept as PNG, which is a different pass from AC-231's
+    server re-encode and does not replace it. **The reservation is the half
+    item 47 predicted**: `files` carries no dimensions and `page_blocks` no
+    ratio, so it is exact for whoever chose the picture and 16 by 9 for every
+    other reader, and that item is where the pair of columns lives. It was read
+    before the block was treated as a styling problem, which is what its own
+    revisit trigger asked of this row. **One repair rode with it**:
+    `BlocksEditor`'s `carry` did not carry `width_pct`, so any page write would
+    have silently unset a width the moment one existed.
+
+    **(g) B2's section axis is taken and the Done column is not.** The folder
+    board's columns are the page's sections, seeded from the blocks in page
+    order rather than discovered from the rows, so a section nobody has filed
+    anything under is still a column with its own capture, exactly as it is a
+    heading with its own quick-add in the list. That is L-044 closed and item
+    44's B2 read as it was ruled: sections are the first and unfiltered
+    arrangement and the filter changes the grouping, the date board surviving as
+    one of the filter's values. `section` is deliberately **not** offered in the
+    group-by menu, which enumerates its axes on every page: offering it on Today
+    would ask eight pages' worth of tasks which of one folder page's blocks they
+    sit under. Dropping a card into a section column writes `section_block_id`
+    and the undo puts it back, so L-231's board half closes with it; its list
+    half and everything L-249 assigns to S23a are still S23a's.
+
+    **L-045's Done column is not built and the reason is a question rather than
+    a cost.** A folder board is built from Q7's open rows, so a Done column
+    drawn from them is always empty, and drawing it from the completed read
+    raises three things neither 9.6 nor the ledger settles: which completions it
+    shows, how it paginates against the Completed section that already shows
+    them, and what `onMoveToColumn` does when a card is dragged *out* of it,
+    which is an un-complete and therefore 9.5's successor confirmation. **It is
+    offered rather than improvised**, and the recommendation is that it belongs
+    with S23a's drag work, where the completion transition is already the
+    subject.
+
+    **(h) B10 is checked against `domain/` as item 44 required, and the same
+    read found that section 13 item 46 is wrong about the state of the world.**
+    B10 holds and is owed nothing: all three insert paths in
+    `server/domain/acts.ts` write `assignee_id = viewerId`, the folder
+    duplicate at 124, the task duplicate at 214 and the workflow import at 316,
+    so a duplicate's tasks are the duplicator's already.
+
+    **What the same file shows is that `POST /api/v1/tasks/:id/duplicate`
+    exists.** It is specified in RFC 0005's own 7.16 unit, accepted 2026-08-24;
+    it is implemented at `domain/acts.ts:192` and registered at
+    `routes/workshop.ts:350`; it landed at `5763f70` on 2026-08-24. Section 13
+    item 46, recorded two days later, says "9.3 gives a task a Duplicate act and
+    section 7 gives it no endpoint", and item 47(b) prices the deferred build as
+    "one frozen section 7 addition shaped exactly like 7.16's
+    `POST /folders/:id/duplicate`, one domain function under
+    `app/src/server/domain/**`, and its criteria". **Both halves exist.** The
+    mechanism is item 20's, one section over and for the third time: section 7's
+    file ends at 7.11 and carries none of the accepted units, which its own
+    opening paragraph says in terms, so a session reading `docs/spec/07-api.md`
+    for the duplicate finds nothing and concludes there is none. **What is
+    actually outstanding is a client handler**, `lib/task-acts.ts` deliberately
+    carrying none so that `object-acts.ts` keeps the act out of every menu.
+    **This row did not build it**, S28a being its home and this row's brief
+    saying so; what changes is the price, from a server package to a handler.
+
+    **(i) Three surfaces were not lifted, and each has a measurement behind
+    it rather than a preference.** `components/page/IconPicker.tsx` stays and
+    the prototype's `folder-icon-picker.tsx` does not cross: 4.3's `icon` is a
+    stored key and `components/page/icon-manifest.ts` is the one place this
+    client maps a key to a glyph, read by the sidebar, the folder marks and the
+    search results, so lifting would put a second glyph alphabet beside it,
+    which is the duplicate implementation protocol section 3 names in the same
+    breath as the boundary. `page-bar.tsx` does not cross because this client's
+    page chrome is the window bar, which S24 lifted and which 9.1 puts the
+    object's overflow, the view strip and the filter into; two page bars would
+    be that same duplicate one level up. And `pages/FolderSharingPanel.tsx`
+    stays: measured at 25 of 27 class strings before this row began, it is a
+    port already sitting at a lift's fidelity, and what it holds that the
+    prototype's 288 lines do not is the invite, resend and 5.4 matrix wiring
+    plus the named region AC-162 and AC-183 address. That is item 48(i)'s
+    distinction, a file whose value here is its wiring.
+
+    **The notifications bell is the same measurement with the opposite
+    answer.** It read eleven of twelve at the opening, S12 having transcribed
+    the composition rather than approximated it, so there was nothing to lift
+    and two things to correct: the twelfth string is **the actor's face**,
+    which the prototype puts at the head of every row and which this drew
+    nowhere, so a feed about what people did to you named them and never showed
+    them; and the file sat at `shell/NotificationsBell.tsx`, in role 07's
+    directory, where the prototype's own path is `components/notifications-bell.tsx`
+    and role 08 owns it. Both are done. **A component in the wrong owner's
+    directory is not a duplicate yet; it is the state a duplicate is made
+    from**, because the next session looking under `components/` finds nothing
+    there.
+
+    **(j) The markup measure, by item 48(j)'s own method, over the ten
+    prototype files RFC 0004's S26 row names.** Counting the file's class
+    strings that appear verbatim anywhere in `app/src/client`:
+
+    | Prototype file | At the row's opening | After it |
+    | - | - | - |
+    | `comments.tsx` | 34 of 69 | 69 of 69 |
+    | `page-image.tsx` | 5 of 18 | 18 of 18 |
+    | `notifications-bell.tsx` | 17 of 18 | 18 of 18 |
+    | `history-sheet.tsx` | 9 of 9 | 9 of 9 |
+    | `folder-cover.tsx` | 32 of 32 | 32 of 32 |
+    | `page-cover.tsx` | 19 of 19 | 19 of 19 |
+    | `sharing-panel.tsx` | 25 of 27 | 25 of 27 |
+    | `folder-icon-picker.tsx` | 11 of 14 | 11 of 14 |
+    | `page-bar.tsx` | 10 of 20 | 10 of 20 |
+    | `folder-page-v2.tsx` | 40 of 73 | 41 of 73 |
+    | Whole family | **202 of 299, 68%** | **252 of 299, 84%** |
+
+    **The instrument is this row's own and its totals are larger than the
+    brief's**, which measured 84 of 176 at the opening over eight of these ten
+    files; it counts every quoted string carrying a Tailwind token, including
+    the ones inside `cn()` calls and variant maps, where the brief's counted
+    fewer. **The two are not comparable and the movement inside one of them
+    is**, which is why both columns above are measured the same way. Item
+    50(h)'s recorded limit holds here too and was watched for: the measure
+    counts a string's presence in the tree rather than on a page, so a lifted
+    file nothing renders would score 100%; every file at 100% above is
+    rendered by `pages/FolderPage.tsx`, `components/task-card.tsx` or
+    `shell/app-sidebar.tsx`.
+
+    **The shape is item 48(j)'s finding again and it is sharper here.** Every
+    file that was lifted is at 100%. The whole of the remaining gap sits in
+    three files that were deliberately not lifted and in `folder-page-v2.tsx`
+    itself, which is 2,434 lines of screen this row composed from lifted parts
+    rather than crossing whole, on the same measurement item 48(i) made of
+    `app-shell.tsx`: what the prototype's folder screen holds that this client
+    does not is its wiring, `readFolderLayout`, `readPageFilters`,
+    `FOLDER_THREADS` and their kin, three `localStorage` stores and a fixture
+    thread, against a page whose query layer is the whole point of it. **No
+    session should read the S26 row as owing a verbatim `folder-page-v2.tsx`**,
+    and `page-bar.tsx`'s own missing strings prove the reading: ten of its
+    twenty are the **tab strip**, which is `shell/TabStrip.tsx` and S24's.
+
+    **(k) The leg, run after the last class string moved, which is item 48(k)'s
+    instruction rather than 48(j)'s method, and it found nothing.** The browser
+    leg read **228 of 229** on an owned port 3128 with nothing on 3100 and no
+    stale `npx playwright` alive. **The one red is unmeasured rather than
+    broken**, on the S22 precedent CLAUDE.md records: it is
+    `rendered-halves.spec.ts:214`, AC-141's People-screen arm, which is on no
+    surface this row touched; it consumed **20.9 minutes** against a five second
+    locator timeout inside it, which is a hang rather than an assertion; and it
+    passes **alone in 2.3 seconds**, its whole file green in 42.8. The vitest
+    leg read **263 files and 1,841 tests, all passing, with every file accounted
+    for**. One run between the two lost four files to the fork flake CLAUDE.md
+    records, whole files reported failed with every test skipped and a fifth
+    worker that never started; all five pass alone in 43 seconds, and the
+    run-suite guard refused that run rather than letting 258 of 262 read as
+    green, which is what it exists for.
+
+    **That nothing else moved is the finding, and it is worth stating rather
+    than passed over**, because the three rows before this one each found the
+    leg saying something the reading could not. S23 predicted two addressing
+    seams and found thirteen; S24's last pass cost five criteria before it cost
+    none; S25's leg found a board that had stopped saying what a release would
+    do. This row replaced the folder page's head, its history sheet, its
+    conversation, its image block and its board axis, and the leg's opinion of
+    all five is unchanged. **The reason is visible in what each row's surfaces
+    are asserted by**: AC-247 addresses the folder mark by an accessible name
+    that item 44's A2 already fixed and this row kept rather than taking the
+    prototype's "Change folder icon and color"; AC-226 and AC-217 address the
+    title as a heading and as an absent textbox, which the composed head keeps
+    for the reason S12 wrote down; AC-260 reads the conversation panel's
+    reservation, which is `useReserveRightEdge` and was untouched. **Where a
+    string moved, it was grepped across `app/tests/` first**, item 48(e)'s
+    lesson: the folder's completion figure became "N of M done", 9.4's own
+    words and the prototype's, and the only criterion addressing that shape is
+    AC-247's Today arm, which reads `/\d+ of \d+ done/` and was already green.
+
+    **(l) Fourteen ledger entries close, four close in part with their reasons
+    recorded, and two are another row's.** Closed: `L-024` (per-message actions
+    as an icon row, which arrives with the lifted file), `L-158` (comments
+    pinned after the content blocks, which was already true and was verified
+    rather than trusted), `L-199` and `L-200` (the sheet groups by day, and
+    both readers now draw through one `lineFor`), `L-201` (one conversation
+    surface, two mounts), `L-246` and `L-258` (the thread inside a task),
+    `L-185` (the cover's joined Change and Reposition group, verified against
+    the lifted band), `L-193`, `L-194`, `L-195` and `L-197` (width and only
+    width, a drag stored as a percentage, an optional caption, and all three
+    ways in), `L-044` (the board's columns are the page's sections), and
+    `L-231`'s board half. In part: `L-202` and `L-256`, the files half built
+    and voice deferred by B5, with the read-shape limit at section 13 item 54;
+    `L-186`, the Upload tier built and the other three at section 13 item 53;
+    `L-196`, the reservation exact for the author and section 13 item 47 for
+    everybody else; and `L-068`, answered by measurement rather than built,
+    also at item 53. Not this row's: `L-045`, offered at (g), and `L-249`'s
+    list half, which is S23a's.
+
+    **(m) The remote moved during this row too, and reading it at the merge
+    is what kept the numbers, which is item 50(m)'s lesson rather than item
+    13's.** `git ls-remote --heads origin v2-build` answered `8fe7041` at this
+    row's opening and `5e0179f` at its merge: RFC 0005's re-acceptance landed
+    in between, taking a status line, a paragraph of item 49 and one line each
+    of SESSION-LOG and RFC 0004. **It cost this row nothing**, that push having
+    claimed no change control item, no section 13 item, no log row and no
+    acceptance number, so this item is 51, its two section 13 items are 53 and
+    54, and the log row is 42, exactly as they were read at the opening. **That
+    is the check working rather than the check being unnecessary**: the first
+    reading was four numbers wrong at S25 for the same reason and the second
+    reading is what caught it, so the reading is made at both ends whether or
+    not the first one turns out to have been right.
 
 ## Implementation plan
 

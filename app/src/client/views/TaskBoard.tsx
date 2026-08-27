@@ -55,6 +55,9 @@ const GIVEN_BY_AXIS: Record<GroupBy, BoardGiven> = {
   folder: { folder: true },
   person: { assignee: true },
   date: { due: true },
+  /* A section says nothing about a task's folder, its person or its date, so
+     a card in a section column keeps every chip it would carry in a list. */
+  section: undefined,
 }
 
 export function TaskBoard({
