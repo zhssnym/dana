@@ -942,6 +942,38 @@ export function regionOf(page: Page, name: string): Locator {
 }
 
 /**
+ * The view strip of 9.1, and the one way this leg reaches a view.
+ *
+ * **Its options are radios and all but the current one have no width**, which
+ * is 9.1 as amended at S24 and is why eight sites in this leg used to say
+ * `getByRole('button', { name: /^Calendar$/i })` and now say nothing of
+ * the kind. The section fixes three things a locator has to respect: the role is a
+ * radio within a radiogroup, the name is the view's own word carried by the
+ * control rather than written beside it, and the strip rests collapsed with
+ * only the view the page is in drawn.
+ *
+ * **The hover is the person's gesture, not an accommodation.** A collapsed
+ * option is present, reachable and zero-width, so it fails `toBeVisible`
+ * for the reason the section gives it: nothing is there to press until the strip
+ * is asked to widen. Hovering the group is what widens it on screen and is
+ * what widens it here; the keyboard route is the radiogroup's own, and a case
+ * asserting that route addresses the option directly without this helper.
+ *
+ * Named exact, because the collapsed options stay in the DOM and a substring
+ * match across three views is a match against whichever comes first.
+ */
+export function viewStrip(page: Page): Locator {
+  return page.getByRole('radiogroup', { name: 'View', exact: true })
+}
+
+export async function chooseView(page: Page, name: string, why: string): Promise<void> {
+  const strip = viewStrip(page).first()
+  await expect(strip, why).toBeVisible()
+  await strip.hover()
+  await clickControl(strip.getByRole('radio', { name, exact: true }), why)
+}
+
+/**
  * One task row, addressed by the accessible grouping role a list of rows
  * carries and by the title it shows.
  *

@@ -70,7 +70,7 @@ v2 names table of `docs/spec/09-ui.md` names neither, and its regions clause
 reads "the sidebar, one region per shelf named by it", so the section no longer
 describes a bare label group at all. What it does describe is 9.10's shelf
 contract, and DES-201 declares that contract's words: "Rename shelf" and
-"Delete shelf", a bare verb being the one label a person should never have to
+"Delete shelf…", a bare verb being the one label a person should never have to
 guess the object of. So these two locators were asserting v1 strings that the
 fold of item 28 retired and nobody re-read, which is change control item 16's
 own shape one table over. This criterion's sentence is untouched: what it
@@ -394,9 +394,11 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: a group is deleted, so the group carries a control that deletes it',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Delete shelf', exact: true }),
+      page.getByRole('menuitem', { name: 'Delete shelf…', exact: true }),
       'spec 9.10: the shelf\'s overflow carries its contract, whose destructive act is ' +
-        '"Delete shelf". 9.1 v2 names no "Delete group" at all, and its regions clause reads ' +
+        '"Delete shelf…", the ellipsis being 9.1\'s own since S24 because the act opens a ' +
+        'confirmation (RFC 0005 change control item 44, A1). 9.1 v2 names no "Delete group" ' +
+        'at all, and its regions clause reads ' +
         '"the sidebar, one region per shelf named by it", so a bare label group is not a ' +
         'thing that section still describes',
     )

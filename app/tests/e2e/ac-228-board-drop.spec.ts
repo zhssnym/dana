@@ -63,6 +63,7 @@ import type { Locator, Page } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
+  chooseView,
   clickControl,
   createTask,
   csrfToken,
@@ -145,8 +146,11 @@ async function board(page: Page, axis: RegExp): Promise<void> {
     page.getByRole('menuitem', { name: axis }).or(page.getByRole('option', { name: axis })).first(),
     'the axis this case needs, which is what gives the board its columns',
   )
-  await clickControl(
-    page.getByRole('button', { name: /Board/i }).first(),
+  // 9.1's strip is a radiogroup of zero-width options since S24; `chooseView`
+  // widens it before pressing, which is the gesture the section describes.
+  await chooseView(
+    page,
+    'Board',
     'spec 9.1: the view strip offers board wherever the page has a grouping',
   )
 }

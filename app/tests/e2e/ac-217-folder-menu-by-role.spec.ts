@@ -19,7 +19,7 @@ The v2 folder page renders its title as an inline field for the owner and as
 plain text for a member; what a criterion can hold is that no textbox
 carrying the folder's name is offered to the member, and one is to the owner.
 
-Spec: 9.1 (the window bar's overflow, "More actions"; "Leave folder" in the
+Spec: 9.1 (the window bar's overflow, "More actions"; "Leave folder…" in the
 names table), 9.6 (the folder page, the identity split), 8.2/DES-225 (the
 member matrix), AC-193 (the server half).
 */
@@ -55,9 +55,11 @@ test.describe('AC-217: the folder menu follows the role', () => {
     await openFolderMenu(page)
 
     await expect(
-      page.getByRole('menuitem', { name: 'Leave folder', exact: true }),
-      'spec 9.1\'s names table: a folder\'s member exit is "Leave folder", and DES-225 ' +
-        'puts it on every member surface',
+      page.getByRole('menuitem', { name: 'Leave folder…', exact: true }),
+      'spec 9.1\'s names table: a folder\'s member exit is "Leave folder…", and DES-225 ' +
+        'puts it on every member surface. The ellipsis is the section\'s own since S24 and ' +
+        'is normative: leaving opens a confirmation, so the label promises the step that ' +
+        'follows (RFC 0005 change control item 44, A1)',
     ).toBeVisible()
     await expect(
       page.getByRole('menuitem', { name: /Rename/ }),
@@ -94,7 +96,7 @@ test.describe('AC-217: the folder menu follows the role', () => {
       'spec 8.2: the owner deletes, so the owner\'s menu offers it',
     ).toBeVisible()
     await expect(
-      page.getByRole('menuitem', { name: 'Leave folder', exact: true }),
+      page.getByRole('menuitem', { name: 'Leave folder…', exact: true }),
       'spec 5.3: an owner does not leave without transferring first, so the owner\'s ' +
         'menu does not offer the member exit',
     ).toHaveCount(0)
