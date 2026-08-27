@@ -391,30 +391,14 @@ function NumberGrid({
   )
 }
 
-/*
-**Seam, S23: the row takes the field's name.**
-
-9.3's reminder row is "one picker, a time on that day", and the harness reads
-that control as `getByLabel(/^reminder time$/i)` inside the picker, which is
-the name the retired chip strip carried as `REMINDER_TIME`. The prototype
-labels the two halves "Hour" and "Minute", which says what each spinner is and
-not what the pair is for; the group's own name is what a person needs before
-either half means anything, and it is what a criterion can address.
-
-Defaulted rather than required, because this row is also the due picker's in
-the prototype's lab and a caller with no field to name should not have to
-invent one.
-*/
 export function TimeRow({
   value,
   onSelect,
   onClear,
-  label = "Time",
 }: {
   value: string | null
   onSelect: (time: string) => void
   onClear: () => void
-  label?: string
 }) {
   const format = useTimeFormat()
   const twelve = format === "12"
@@ -458,8 +442,6 @@ export function TimeRow({
         </span>
 
         <div
-          role="group"
-          aria-label={label}
           className={cn(
             "flex items-center gap-0.5 rounded-md border px-1 py-0.5",
             clock

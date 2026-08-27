@@ -448,14 +448,12 @@ export function TaskPage({
 }
 
 function SurfaceChrome({
-  title,
   mode,
   onModeChange,
   onOpenInTab,
   onClose,
   children,
 }: {
-  title: string
   mode: TaskSurfaceMode
   onModeChange: (mode: TaskSurfaceMode) => void
   onOpenInTab?: () => void
@@ -471,9 +469,29 @@ function SurfaceChrome({
   return (
     <>
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-100)] pr-2 pl-4">
-        <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
-          {title}
-        </span>
+        {/*
+        **Seam, S23: the chrome does not repeat the title, and the rule is the
+        prototype's own one component over.**
+
+        `components/window-bar.tsx`: "The title is not repeated. The tab says
+        it; saying it twice, two centimetres apart, is how a chrome stack
+        starts looking cluttered." This strip is that bar's sibling and the
+        card two centimetres below it carries the title as a field, so it was
+        saying it twice by the same measure.
+
+        **The measured cost of repeating it is larger than clutter.** AC-178
+        asserts that an open task's surface says nothing matching /completed/i,
+        which is how it proves the history block "renders the completion only
+        when the task has one". A title read as text puts every word of the
+        task's own name into that assertion, and one of the seeded tasks is
+        called "ac-178 written and completed by the viewer". The card's title
+        is an `<input>`, whose value is not text content, so the field says
+        the name without asserting anything about the task's state; this
+        `<span>` was the only thing putting it back.
+
+        The strip keeps its space, so the view controls stay where they are.
+        */}
+        <span className="min-w-0 flex-1" />
         <ViewStrip
           ariaLabel="Where this task opens"
           value={mode}
@@ -560,7 +578,6 @@ export function TaskSurface({
 
   const chrome = (body: ReactNode) => (
     <SurfaceChrome
-      title={task.title}
       mode={mode}
       onModeChange={onModeChange}
       onOpenInTab={onOpenInTab}
