@@ -219,11 +219,15 @@ export function PageHead({
 
       The negative inset undoes the shell's own measure and nothing else.
       `app-shell.tsx` wraps every page in `px-10 py-6`, and a cover is a band
-      across the page rather than a picture inside its column.
+      across the page rather than a picture inside its column, so the wrapper
+      is drawn only when there is one: an empty box carrying a negative margin
+      would pull every uncovered page's mark up by the shell's own padding.
       */}
-      <div className="-mx-10 -mt-6">
-        <PageCover storageName={storageName} />
-      </div>
+      {hasCover ? (
+        <div className="-mx-10 -mt-6">
+          <PageCover storageName={storageName} />
+        </div>
+      ) : null}
       {/* Not pickable, and therefore not a button: My Day's sun is Dana's,
           not the person's, and a popover on it would promise a choice that
           does not exist. Same mark, same geometry, see PageMark. */}
