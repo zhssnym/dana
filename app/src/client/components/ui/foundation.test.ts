@@ -61,20 +61,17 @@ const files = Object.keys(sources).sort()
 describe('the icon family is one decision in one file (DES-125)', () => {
   /*
   The v1 markup still importing lucide per icon. Each leaves with the package
-  that replaces the surface it draws: the three folder dialogs, the folder
-  row, the page bar and the state patterns with the shell and the folder
-  surfaces (S9, S12), the row and the quick-add with S11's row work, and the
-  calendar, search and task-form directories with S11 and S12.
+  that replaces the surface it draws, which this list has said since S8.
+
+  **Five left at S24, which is the shell**: the three folder dialogs, the
+  folder row and the state patterns, exactly the set this comment named as
+  going "with the shell". What remains are the calendar, the search overlay and
+  the quick-add, whose surfaces are S25's, S27's and the row work's.
   */
   const V1_LUCIDE = [
     'components/calendar/PlannedCalendar.tsx',
-    'components/folder-group-dialog.tsx',
-    'components/folder-label-dialog.tsx',
-    'components/folder-row.tsx',
-    'components/new-folder-dialog.tsx',
     'components/quick-add.tsx',
     'components/search/SearchOverlay.tsx',
-    'components/state-patterns.tsx',
   ]
 
   test('only the icon module imports lucide-react, beside a named v1 list', () => {
