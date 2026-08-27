@@ -4797,6 +4797,292 @@ fold, the way P7's mid-package change control ratified the pass callable:
     produced when two sessions wrote "item 32" eight minutes apart: `s25-places`
     was checked at both readings and had spent no criterion, no log row and no
     change control item.
+50. **S25's places lift: the owner column wrong a seventh time, the cover
+    landed and half of it unreachable, the markup measure going the other way
+    from S24's, and a ledger entry that read closed being closed in two of its
+    three clauses (S25, 2026-08-27).** RFC 0004's S25 row is the places lift,
+    and this item carries what the row decided and what it measured. It opens
+    two questions and both are routed to section 13 rather than answered here.
+
+    **(a) The owner column of S25 is wrong, and this is items 12, 34, 46, 47(c)
+    and 48(a) a seventh time.** The row names `07-frontend-architect.md`, the
+    calendar under `09-complex-interaction.md`, and criteria from
+    `11-adversarial-test.md`. Three of those are genuine and the list is short
+    by one. Role 07 owns `app/src/client/**` "except what is named elsewhere",
+    which is `pages/`, `views/`, `lib/`, `screens/` and the route table, and is
+    the largest part of this row. Role 09 owns the calendar behaviour of 9.5.
+    Role 11 owns `app/tests/**` and section 12. What the row omits is
+    **`08-component-and-design-system.md`**, which owns
+    `app/src/client/components/**` excluding the calendar, task-form and search
+    directories, and that is where `page-head`, `page-cover`, `folder-cover`,
+    `task-board`, `task-row`, `task-section`, `quick-add` and `state-patterns`
+    sit, which is every file this row lifted. **Four roles, not one**, settled
+    at the opening and recorded here rather than discovered at the merge, which
+    is what item 46 asked for the first time this happened. Item 46's reasoning
+    holds unchanged: writing a lifted component into another owner's directory
+    to stay inside a boundary is the duplicate-implementation escape protocol
+    section 3 names in the same breath as the boundary.
+
+    **(b) Desk is named in the row and was not this row's to draw, which the
+    row's own dependency chain already says.** `pages/DeskPage.tsx` is 68 lines
+    and renders `FolderPage` pointed at the account's default folder, on 9.1's
+    sentence and its own recorded reason, "Desk is not a seventh kind of page";
+    `pages/FolderPage.tsx` is 1,089 lines and is S26's. So Desk's appearance
+    lands when the folder page lifts, and what this row owed it is that its
+    wrapper still composes, its 9.13 onboarding seam still fires, and nothing
+    retired underneath it broke. All three hold: the only line of `FolderPage`
+    this row touched is the shared board's `onAsk` prop, removed because the
+    lifted card has no overflow menu to put a confirmation behind. **Said here
+    so the plan does not read as though a package skipped a page.**
+
+    **(c) Item 48(b)'s question, asked and answered: two of this row's lifted
+    modules had no consumer, and neither was the dangerous kind.** That item
+    asks S25, S26 and S27 each to open by finding which of its lifted modules
+    has a reader and a writer in the same copy. The sweep found
+    `components/task-board.tsx`, lifted at S23 with nothing importing it while
+    `views/TaskBoard.tsx` served eight pages, and `components/task-section.tsx`,
+    in the same state against `states/PageSection.tsx`. **Both are the undo
+    bar's kind rather than the window bar's**, and the distinguishing property
+    is the one item 48(b) named: neither carries a module store, so neither
+    half could be silently broken by the gap. Every module store under
+    `components/` was checked for the split that broke the right edge and the
+    window bar, and after S24 each has its reader and its writer in one copy.
+    **What the honest duplicate cost instead was fidelity**, which (h) below
+    puts a number on: the ported board was 31 of 31 on the class-string measure
+    only because the lifted file sat unused in the same tree, which is a limit
+    of that method and is recorded with it.
+
+    **(d) Item 48(i)'s measurement, made before the row read itself as owing a
+    verbatim anything, and it points the other way from S24's.** That item
+    found `app-shell.tsx` and its two neighbours to be the prototype's wiring
+    rather than its markup, each importing `@/fixtures` and carrying
+    `localStorage` stores, and asked S25 and S27 to make the same measurement
+    before reading their rows the same way. Made here: **none of the eight
+    screens RFC 0004's S25 row names imports `@/fixtures` at all**, and only
+    two files in the row touch `localStorage`, `planned-screen.tsx` for the
+    view mode this client already keeps in `views/view-mode.ts` and
+    `task-filters.tsx` for saved views its own comment forbids porting. So
+    item 45's architecture finding holds exactly, "the prototype's screens are
+    presentational and its wiring is in its shell", and the screens cross while
+    the wiring stays: `views/usePlace.tsx`, `place-pages.ts`, `filter.ts`,
+    `filter-store.ts`, `view-mode.ts`, `saved-views.ts` and `grouping.ts` are
+    untouched in substance and are what the lifted components are wired to.
+
+    **(e) Item 45's proof screen is produced, and it is offered rather than
+    closed.** `screens/important-screen.tsx` is lifted whole into a new
+    `app/src/client/screens/` and diffs empty against its original except at
+    six named seams, with `pages/ImportantPage.tsx` as the wiring beside it.
+    Item 45 recommended exactly this file and item 47(l) declined it for one
+    reason, that it imports `@/components/page-head`, which is the first line
+    of this row; the head landed above it and the screen landed under it.
+    **Item 45 was closed by S29 on the plan side while this row was building
+    it**, that row having moved the proof into S25 and written the move into
+    RFC 0004's own S25 acceptance column, "the proof screen's lifted files diff
+    empty against their prototype originals except at named seams". So the
+    item and the artefact met from two directions in one day, and what the
+    item asked for is checkable against the seven seams at the head of that
+    file. Six were written with it; the seventh, 9.1's "Try again", was found
+    by asking what `PageBody` does when a read fails.
+
+    **(f) B1 lands its preset half and its file half cannot be reached at all,
+    which is measured against the route rather than inferred.** Item 44's B1 is
+    the one new capability this row carries and S22a built its server side
+    whole: 4.20's `user_page_covers`, 7.19's three routes and
+    `domain/covers.ts`, with no client consumer anywhere. The client half is
+    now `lib/page-identity.ts`, which is the S22-shaped adapter, plus
+    `page-cover.tsx`, `page-head.tsx` and `folder-cover.tsx` crossing with
+    their bodies untouched over it. Two translations are worth naming because a
+    later session will otherwise re-derive them: **the preset alphabet**, the
+    prototype writing `gradient:cobalt` where 4.20's CHECK is
+    `^[a-z0-9-]{1,40}$` and admits no colon, so a colon crosses as a hyphen and
+    the first hyphen splits the tier back off; and **the description**, which
+    4.20 does not store and which (g) routes.
+
+    **What cannot be reached is the file tier.** 4.20 admits a `file_id`, 7.19
+    takes one, and `POST /api/v1/files` requires `folder_id` as a uuid at
+    `app/src/server/routes/files.ts:48-52`, so no file exists that is not some
+    folder's and a place page is not a folder. The gallery tier, gradients and
+    the ribbon marks, is presets and lands whole; Upload, Link and Photos are
+    absent rather than drawn dead, which is DES-144's rule and which
+    `components/folder-cover.tsx` records at the `tiers` prop it gains for the
+    purpose. The trap is that the read path works, so a session that writes a
+    row by hand will see it render and conclude the tier is built. **Recorded
+    at section 13 item 52 with three answers and deliberately no
+    recommendation**, because which is right turns on whether B1's "searchable
+    free stock library" and B8's four tiers were rulings about folders or about
+    every page, and that is the owner's reading of his own words. **B8's
+    provider work is untouched**, as this row's brief required.
+
+    One correction for whoever builds it: **the prototype's photo tier is
+    Openverse and not Lorem Picsum.** `folder-cover.tsx`'s own module comment
+    still says Picsum and its code has called `api.openverse.org` since the
+    picker was rebuilt; only the legacy `photo:` keys resolve through Picsum.
+    A session writing B8 against "the prototype's photo tier" would otherwise
+    build the wrong one.
+
+    **(g) The description gap is the live half of item 9 and is escalated
+    rather than improvised.** 9.4 writes the head as carrying an "editable
+    description"; item 9 measured in 2026-08-25 that "what is missing is a
+    table, not a component" and named a cover and a description together; item
+    44's B1 ruled the cover and S22a built 4.20, which carries no wording. So
+    half of item 9 is closed and half is not, and a person can now give Today a
+    cover and cannot give it a sentence. **What ships is the page's DES-152
+    question as prose**, `components/page-head.tsx` taking a
+    `descriptionEditable` flag that the place pages pass false, because a
+    rewrite that is accepted, blurs and comes back unchanged tells a person
+    their wording was saved. **Recorded at section 13 item 51** with three
+    answers and a recommendation, the recommendation being one nullable column
+    on the table 4.20 already is.
+
+    **(h) The markup measure, by item 48(j)'s own method, and it moved further
+    than the shell's did.** Counting the prototype file's class strings that
+    appear verbatim anywhere in `app/src/client`, over the thirteen files RFC
+    0004's S25 row names:
+
+    | Prototype file | At the row's opening | After it |
+    | - | - | - |
+    | `page-head.tsx` | 4 of 16 | 16 of 16 |
+    | `page-cover.tsx` | 2 of 16 | 16 of 16 |
+    | `folder-cover.tsx` | 7 of 33 | 33 of 33 |
+    | `task-filters.tsx` | 18 of 41 | 41 of 41 |
+    | `task-board.tsx` | 31 of 31 | 31 of 31 |
+    | `planned-screen.tsx` | 20 of 26 | 22 of 26 |
+    | `all-screen.tsx` | 2 of 4 | 2 of 4 |
+    | the other six screens | 8 of 10 | 10 of 10 |
+    | Whole places family | **92 of 177, 52%** | **171 of 177, 97%** |
+
+    **Two things about the shape of that table are worth more than the total.**
+    The first is the same finding item 48(j) made: the files that were lifted
+    are at 100% and the gap is entirely in files that were ported. The second
+    is a **limit of the method itself**, found here and not there:
+    `task-board.tsx` reads 31 of 31 at the opening, when nothing in the client
+    rendered it, because the measure counts a string's presence in the tree
+    rather than on a page. It is a good instrument for what a lift has taken
+    and a poor one for what a person sees, which is why (i) follows it.
+
+    **What remains is six strings and each has a reason.** Four are the
+    calendar's, whose header arrangement, its title's padding and its month
+    cell's floor are departures `components/calendar/PlannedCalendar.tsx`
+    already records with measurements behind them, the cell's height being the
+    number of rows a day can show before "+N more" and AC-177 reading that
+    control. Two are `all-screen.tsx`'s third-level folder heading, which the
+    prototype draws as a quiet `h3` inside its Tasks band where this client
+    draws a full named region, and 9.1's regions rule plus the criteria that
+    address those regions by name are what stand in the way. **`min-w-[1180px]`
+    does not appear in any file this row lifts**, so the floor section 13 item
+    32 forbids was not declined a fifth time; it was simply not there.
+
+    **(i) The leg found three things the measure could not, one of them a green
+    criterion about to go red, and reading the arrangement found a fourth.** Item 48(k)'s sentence is stronger
+    than 48(j)'s method and was followed: a markup measurement finds what is
+    missing, only the leg finds what the missing thing was holding up, so the
+    leg ran after the last class string moved.
+
+    - **The board stopped saying what a release would do.** The retired
+      `views/TaskBoard.tsx` computed "Into {column}" from the drag engine's
+      `overKey`; the lifted board asked the engine for nothing, so the carried
+      card promised nothing, and AC-228 reads that promise while the pointer is
+      still down. The engine has supported it since S23 and no lifted file
+      asked; `TaskList` gains `onOver`, the board supplies it from the same hit
+      test its drop uses, and the card draws it in the slot S23 gave the row.
+    - **Three axis labels and a chip's name.** AC-176 addresses two due values
+      exactly, AC-228 and AC-259 address the group-by value as the one word
+      "Date", and `getByRole('button', { name: /filter/i })` resolved to two
+      elements once a chip said "Remove filter:". Section 9 fixes none of the
+      four, so the criterion is the only artefact with an opinion, and taking
+      the prototype's words would turn five green cases red in a package the
+      triage gave no rework to. **Offered to persona 11 and to S29**, which is
+      the row item 48(g) already stocked with this class.
+    - **Two interactions, invisible in both files.** The prototype's panel
+      stays open after a switch and this client's closes, which is DES-156's
+      rule as the client records it and which AC-167 depends on, that case
+      pressing "Filter" before each toggle and saying in its own comment that
+      section 9 fixes nothing about the surface staying open. And the Due axis
+      rests open where the prototype rests every axis closed, because AC-176
+      reaches a due value in one press and 9.6 states that question in terms.
+
+    **A fourth thing neither instrument could have found, because it is a
+    composition rather than a string or a control.** `states/PageStates.tsx`
+    answers pending, error and empty by rendering *instead of* its children,
+    and every place page survives that because its head is outside the
+    wrapper. The lifted screen carries its own head, so wrapping it took the
+    head off Important in all three of those states, including the one a new
+    account sees first: a page with nothing on it and no name. The screen owns
+    its states now, drawing them from the same `state-patterns.tsx` the
+    wrapper does, and the page supplies section 6's cap notice and 9.1's retry
+    handler. **The class is worth carrying to S26 and S27**, both of which lift
+    screens into pages that use the same wrapper: a lifted screen and a shared
+    page-state wrapper each believe they own the whole page, and where they
+    disagree the loser is silent.
+
+    **(j) Nine ledger entries close and one that read *closed* was closed in
+    two of its three clauses.** The eight this row owed all close: `L-046` and
+    `L-098`, the whose-assignments scope control and the rule behind it;
+    `L-224` and `L-254`, Assignments' from half, which 9.5 states in terms and
+    which is a chip of the row's detail strip, the third adornment the
+    prototype dropped and section 9 keeps; `L-177` and `L-255`, the created-by
+    filter axis, a gap against 9.1 as well as against the prototype; and
+    `L-181` and `L-184`, the cover band and "Add cover", whose ruling was B1.
+
+    The tenth is `L-216`, "one calendar, shared by the due picker, the reminder
+    picker and the filter's custom range", which reads **closed** in the ledger
+    and was closed for two of the three: `components/ui/calendar.tsx` answered
+    both pickers and drew nothing in the filter, where two native `type="date"`
+    inputs stood. **The class is worth more than the fix.** The ledger's
+    *closed* is a verdict that a decision is honoured, and a decision with
+    three clauses can be honoured in two of them; no criterion addressed either
+    control, so nothing would have found it by running. It is the same shape
+    as item 48(b)'s duplicate stores one level down, and it is the reason item
+    37 asks for something stricter than the ledger. The other nine entries this
+    row's brief listed as reading closed were each verified against the file
+    rather than trusted, and all nine hold; `L-168` to `L-170` and `L-219` hold
+    more firmly than before, the board now being the prototype's own file.
+
+    **(k) The pixel-fidelity entry is `L-253` and never was `L-284`, and S29
+    corrected it before this row could offer it.** This session found the same
+    thing at its opening and by the same route: the ledger's table row is
+    L-253, its prose at line 80 said L-284, and the file holds 260 entries
+    ending at L-259, so no L-284 has ever existed. Item 48(j) and SESSION-LOG
+    row 39 both took the number from that sentence. **Recorded here anyway
+    rather than dropped**, because the two rows found it independently within a
+    day, which is the useful part: a wrong cross-reference in a ratified file
+    is copied by everything that reads it, and the correction had to come from
+    a role that may edit `docs/parity/`.
+
+    **(l) The triage's empty pile was followed, and that is the third row
+    running that the triage has been right about.** It puts no rework case on
+    this surface: its nineteen were eighteen of S24's and one of S28's, and S24
+    landed fifteen with F4. Item 47(d) settled the reading, that the triage is
+    the measurement and the row is the plan, so an empty pile is followed
+    rather than filled. **No acceptance criterion was written, edited, moved or
+    weakened by this package.** Every disagreement the leg found between the
+    prototype and a criterion was resolved in the criterion's favour and
+    recorded, which is the only direction protocol section 8 leaves open to a
+    package that owns no rework.
+    **(m) S29 landed while this row was building, and it costs this item two
+    numbers and hands it one finding.** `git ls-remote --heads origin v2-build`
+    answered `a08d1f0` at this row's opening and `069f3b6` at its merge: S29
+    pushed the spec fold in between and took change control item 49, section 13
+    items 49 and 50, and SESSION-LOG row 40, every one of which this row had
+    written locally. **It is items 13 and 25 a third time and it resolved the
+    way those two ask**, by reading the remote at the merge rather than
+    trusting the numbers read at the opening; this item is 50, its two section
+    13 items are 51 and 52, and the log row is 41. S29 checked `s25-places`
+    at both of its own readings and found it had spent nothing, which was true
+    of what was pushed and not of what existed, so the lesson the pair of us
+    leave is narrower than the rule: **an unpushed branch is invisible to
+    `ls-remote`, so the check has to be made at the merge and not only at the
+    opening.**
+
+    **What S29 hands this row is its own section 13 item 50**, which names
+    RFC 0004's S25 as the revisit trigger for `parts/presenters.ts`: 6 Q4
+    fixes the outward star tooltip as "Also in Planned, due ..." and "Also in
+    Tasks, in Work", and Dana has neither page any more. **This row opened
+    that file and did not take it**, which that item's own reasoning requires:
+    the strings are 6 Q4's and AC-099 asserts them, so moving them is an
+    amendment plus a criterion under persona 11, and neither is a client
+    package's. The recommendation stands as S29 wrote it and the answer is
+    Imran's.
 
 ## Implementation plan
 

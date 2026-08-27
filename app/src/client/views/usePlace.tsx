@@ -25,11 +25,17 @@ import { openTaskForm } from '../shell/overlays.js'
 import { WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { FilterChips, FilterControl } from './FilterControl.js'
 import type { FilterPerson } from './FilterControl.js'
-import { applyFilter, filterFromDefinition, viewDefinition } from './filter.js'
+import {
+  applyFilter,
+  definitionPage,
+  filterFromDefinition,
+  viewDefinition,
+} from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults, surfaceDefaults } from './place-pages.js'
 import type { ColumnValue, PlaceSpine } from './place-pages.js'
+import { PageHead } from '../components/page-head.js'
 import { ViewStrip } from '../components/view-strip.js'
 import type { ViewStripOption } from '../components/view-strip.js'
 import { CalendarDays, LayoutGrid, List } from '../lib/icons.js'
@@ -90,8 +96,17 @@ function peopleIn(
   const byId = new Map<string, string>()
   if (viewerId !== null) byId.set(viewerId, viewerName)
   for (const task of rows) {
-    if (task.assignee === null) continue
-    byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
+    if (task.assignee !== null) {
+      byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
+    }
+    /* The makers as well as the carriers, since S25: the filter's created-by
+       axis offers this same list, and a page can hold a task somebody made
+       and nobody was given, which would otherwise be a person the axis could
+       not name. 4.5 makes `created_by` NOT NULL, so this adds a person per
+       row rather than sometimes. */
+    if (task.created_by !== null) {
+      byId.set(task.created_by.id, task.created_by.display_name ?? DELETED_USER)
+    }
   }
   return [...byId].map(([id, name]) => ({ id, name }))
 }
@@ -249,6 +264,20 @@ export function usePlace(
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
+  const savedViews = useSavedViews()
+  /*
+  The views saved on this page, listed at the panel's head, which is the
+  prototype's own arrangement and the third seam `FilterControl` records.
+
+  Scoped to this page rather than to the account, on 9.1's sentence that a
+  filter belongs to the page: `viewDefinition` writes the spine's key into
+  every definition precisely so a view made on Today opens on Today, and
+  offering Today's saved views inside Done's filter would be the panel
+  proposing a narrowing the page cannot honour.
+  */
+  const listed = (savedViews.data ?? [])
+    .filter((view) => definitionPage(view.definition) === place.spine.key)
+    .map((view) => ({ id: view.id, name: view.name }))
   return (
     <>
       <WindowBarLead>
@@ -279,6 +308,7 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
           filter={place.filter}
           onChange={place.setFilter}
           people={place.people}
+          savedViews={listed}
           onSaveView={(name) => {
             /*
             Pinned on arrival, and it is DES-189 rather than a shortcut: "a
@@ -298,5 +328,44 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
         />
       </WindowBarActions>
     </>
+  )
+}
+
+/**
+ * A place-page's head: the lifted `PageHead` of `prototype-v2`, given this
+ * page's spine (RFC 0005 change control item 44's B1, S25).
+ *
+ * **It is one call here rather than eight in the pages**, which is
+ * `PlaceChrome`'s own reason one function up and DES-154's rule: a settled
+ * behaviour belongs to the mechanism, and eight pages spelling out the same
+ * four props is eight chances for one of them to key its cover by the page's
+ * display name instead of by 4.20's place.
+ *
+ * The cover band is not here: it is inside `PageHead`, at the seam that file
+ * records, because the mark rides up over the band on a negative margin and
+ * that only works while the two are adjacent in one flow.
+ *
+ * **The description is Dana's sentence and not a field**, `descriptionEditable`
+ * being false for the reason `page-head.tsx` states at that prop: 9.4 asks for
+ * an editable description, 4.20 stores no wording, and a rewrite that is
+ * accepted and silently discarded is worse than a sentence.
+ */
+export function PlaceHead({
+  place,
+  fact,
+}: {
+  readonly place: Place
+  /** 9.4's "N of M done". Only a page with a completion has one. */
+  readonly fact?: string
+}): React.JSX.Element {
+  return (
+      <PageHead
+        storageName={place.spine.key}
+        icon={place.spine.icon}
+        title={place.spine.name}
+        description={place.spine.question}
+        descriptionEditable={false}
+        {...(fact === undefined ? {} : { fact })}
+      />
   )
 }

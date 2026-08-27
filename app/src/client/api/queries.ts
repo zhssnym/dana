@@ -23,6 +23,8 @@ import { getEventsResponse, getNotificationsResponse } from '../../shared/events
 import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
 import { getThreadResponse } from '../../shared/comments.js'
 import type { GetThreadResponse } from '../../shared/comments.js'
+import { getPlaceCoversResponse } from '../../shared/covers.js'
+import type { GetPlaceCoversResponse } from '../../shared/covers.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -505,5 +507,24 @@ export function useThread(
       ),
     enabled: open,
     refetchInterval: open ? 30_000 : false,
+  })
+}
+
+/**
+ * GET /place-covers (7.19): the covers this viewer has given Dana's own
+ * place pages, one entry per place they chose one for.
+ *
+ * One query for the whole set, and it is 4.20's own shape rather than a
+ * convenience: the table's primary key is `(user_id, place)` and its only
+ * read is one viewer's covers, so the page that wants Today's cover reads
+ * the same response as the page that wants Done's. It is unconditional
+ * because every place page mounts the head that draws one, and a cover the
+ * head has to wait a request for is a band that appears after the page has
+ * already settled.
+ */
+export function usePlaceCovers(): UseQueryResult<GetPlaceCoversResponse> {
+  return useQuery({
+    queryKey: queryKeys.placeCovers(),
+    queryFn: () => getPlain(getPlaceCoversResponse, '/place-covers'),
   })
 }

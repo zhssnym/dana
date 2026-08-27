@@ -44,12 +44,17 @@ import { ApiError, OfflineError } from './http.js'
 /**
  * Which of 9.1's two toasts a failed write earns, decided once.
  *
+ * Exported since S25 for `lib/page-identity.ts`, whose write is a plain
+ * function rather than a `useMutation` and therefore never reaches the
+ * mutation cache's own `onError`. It calls this rather than deciding again,
+ * so a failed cover write says what every other failed write says.
+ *
  * 9.1 gives offline writes their own copy, so the general toast is not what an
  * offline write shows; AC-091 asserts that separation directly. A 409 shows
  * the state machine copy of 5.1 verbatim, which the server carries and this
  * function passes through rather than restates.
  */
-function writeFailureMessage(error: unknown): string {
+export function writeFailureMessage(error: unknown): string {
   if (error instanceof OfflineError) return OFFLINE_WRITE_TOAST
   if (error instanceof ApiError && error.status === 409) return error.message
   return ERROR_TOAST
@@ -106,4 +111,18 @@ let queryClientRef: QueryClient | undefined
 
 export function setQueryClient(client: QueryClient): void {
   queryClientRef = client
+}
+
+/**
+ * The same instance, for code that writes from outside a component.
+ *
+ * Added at S25 for `lib/page-identity.ts`, which is the adapter seam a lifted
+ * `page-cover.tsx` crosses. The prototype's store is a plain function called
+ * from an `onClick`, so making the client's counterpart a hook would mean
+ * editing a lifted body, which is the one thing the lift discipline forbids.
+ * It answers `undefined` only before `main.tsx` constructs the client, which
+ * is a state no rendered surface can be in.
+ */
+export function queryClient(): QueryClient | undefined {
+  return queryClientRef
 }

@@ -47,7 +47,17 @@ export function groupHeadingMedia(
     */
     return (
       <span aria-hidden="true" className="flex shrink-0 items-center">
-        <PersonFace name={mark.name} initials={initialsOf(mark.name)} dense />
+        {/* The prototype's own heading face, 20px: `assignments-screen.tsx`
+            and `grouped-screen.tsx` both draw a section's avatar at
+            `size-5 shrink-0 data-[size=sm]:size-5`, one step above the row's
+            dense disc, because a heading's mark is read before the rows under
+            it. Taken at S25 with the rest of the row's markup. */}
+        <PersonFace
+          name={mark.name}
+          initials={initialsOf(mark.name)}
+          dense
+          className="size-5 shrink-0 data-[size=sm]:size-5"
+        />
       </span>
     )
   }

@@ -35,13 +35,12 @@ import { CalendarCheck2 } from '../lib/icons.js'
 import { useMyDayView } from '../api/queries.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { TaskBoard } from '../views/TaskBoard.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import { MY_DAY_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { groupHeadingMedia } from '../views/group-mark.js'
 
@@ -72,11 +71,9 @@ export function TodayPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading
-        icon={SPINE.icon}
-        title={SPINE.name}
-        subtitle={SPINE.question}
-        fact={total === 0 ? undefined : `${String(done)} of ${String(total)} done`}
+      <PlaceHead
+        place={place}
+        {...(total === 0 ? {} : { fact: `${String(done)} of ${String(total)} done` })}
       />
 
       <PageBody
@@ -99,7 +96,6 @@ export function TodayPage(): React.JSX.Element {
               columns={columns}
               context={context}
               actions={actions}
-              onAsk={confirm.ask}
             />
           ) : place.groupBy !== 'none' ? (
             columns.map((column) => (

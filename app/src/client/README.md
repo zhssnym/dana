@@ -20,8 +20,9 @@ provisional.
 | `state/` | Connectivity, the toast bus, the toast region | Frontend Architect |
 | `states/` | The shared loading, empty, error states and the named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
-| `pages/` | One file per surface of 9.2 and 9.4 to 9.8 | Frontend Architect |
-| `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the board, the Scheduled ladder, and the spine table 9.3's entry defaults are read from | Frontend Architect |
+| `pages/` | One file per surface of 9.2 and 9.4 to 9.8, and since S25 the wiring rather than the markup wherever a screen has been lifted | Frontend Architect |
+| `screens/` | **Lifted `prototype-v2` screens**, added at S25 with `important-screen.tsx`, which is RFC 0005 change control item 45's proof. A screen here is presentational and takes rows and callbacks, which is the architecture item 45 measured in the prototype and this client already had; its page beside it is the wiring. Each carries the named seams it crosses at the head of its own file | Frontend Architect |
+| `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the Scheduled ladder, and the spine table 9.3's entry defaults are read from. `TaskBoard.tsx` is the board's *meaning* since S25, the geometry having moved to the lifted `components/task-board.tsx` | Frontend Architect |
 | `views/group-mark.tsx` | The mark a group heading draws, since S17a: `grouping.ts` says which kind the axis produced and this draws it, through the same two resolvers every other surface uses | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |

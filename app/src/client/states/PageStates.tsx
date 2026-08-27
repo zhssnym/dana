@@ -203,7 +203,7 @@ export function PageBody({
 const TRUNCATION_NOTICE =
   'This list is long, so only the first part is shown. Narrow it down to see the rest.'
 
-function TruncationNotice(): React.JSX.Element {
+export function TruncationNotice(): React.JSX.Element {
   // The quiet metadata register, because it is a fact about the list rather
   // than a warning about it. The design draws no such notice, this string
   // being section 6's requirement and nobody's words yet, so it takes the

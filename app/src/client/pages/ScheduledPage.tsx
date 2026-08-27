@@ -35,13 +35,12 @@ import { groupRows } from '../views/grouping.js'
 import { ladderRungs } from '../views/ladder.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
 import { CompletedFoot } from '../states/CompletedFoot.js'
 import { PageBody } from '../states/PageStates.js'
 import { PLANNED_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { groupHeadingMedia } from '../views/group-mark.js'
 
@@ -65,7 +64,7 @@ export function ScheduledPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
+      <PlaceHead place={place} />
 
       {place.mode === 'calendar' ? (
         /* Everything about the calendar, its range request included, is inside
@@ -87,7 +86,6 @@ export function ScheduledPage(): React.JSX.Element {
                 columns={columns}
                 context={context}
                 actions={actions}
-                onAsk={confirm.ask}
               />
             ) : place.groupBy !== 'none' ? (
               /* A grouping replaces the ladder rather than nesting inside it
