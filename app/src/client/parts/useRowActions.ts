@@ -186,6 +186,11 @@ export function useRowActions(): RowActions {
           ? {}
           : { assignee_id: task.assignee?.id ?? null }),
         ...(value.due_date === undefined ? {} : { due_date: task.due_date }),
+        /* S26, item 44's B2: where a card came from, so the undo puts it
+           back under the section it was dragged out of. */
+        ...(value.section_block_id === undefined
+          ? {}
+          : { section_block_id: task.section_block_id }),
       }
       update.mutate({ id: task.id, body: value })
       pushUndo(undoLabel('Moved', task.title), () => {

@@ -83,7 +83,7 @@ a closed section at the page's foot, or the side panel, the choice a
 client-side preference. The thread fetches only while its surface is open
 and polls politely while it stays open, which is the whole of D3.
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
@@ -109,13 +109,26 @@ import {
   useFolderCompletedTasks,
   useFolderOpenTasks,
   useFolderPage,
-  useSubjectEvents,
   useThread,
 } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
 import { BlocksEditor } from '../components/page/BlocksEditor.js'
-import { ConversationThread } from '../components/page/ConversationThread.js'
-import { IdentityHead } from '../components/page/IdentityHead.js'
+/* S26: the head is the prototype's own composition rather than this page's
+   second one. `components/page/IdentityHead.tsx` stays in the tree for the
+   shelf page, which is S27's; nothing here reads it any more. */
+import { AddCoverAction, PageCover } from '../components/page-cover.js'
+import { PageDescription, PageMark, usePageHasCover } from '../components/page-head.js'
+import { IconPicker } from '../components/page/IconPicker.js'
+import { markIcon } from '../components/page/icon-manifest.js'
+import { FOLDER_PREFIX } from '../lib/page-identity.js'
+import { IDENTITY_COLOR_FALLBACK } from '../parts/identity-colors.js'
+import { InlineInput } from '../components/ui/inline-field.js'
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
+/* S26: the prototype's own thread, one component wherever a conversation
+   happens (ledger L-201). `components/page/ConversationThread.tsx` was this
+   page's own second one and retires with this line. */
+import { CommentsThread } from '../components/comments.js'
+import { HistorySheet } from '../components/history-sheet.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { PersonFace } from '../components/person-face.js'
 import { QuickAdd } from '../components/quick-add.js'
@@ -153,11 +166,12 @@ import {
   Share2,
   UserRoundCheck,
 } from '../lib/icons.js'
-import { formatAgo, formatDayHeading } from '../parts/format-dates.js'
+import { formatDayHeading } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { folderLink } from '../lib/nav-links.js'
+import { applyThreadChange, useConceptThread } from '../lib/thread.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
@@ -165,7 +179,7 @@ import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { WindowBarActions } from '../components/window-bar.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
-import { groupRows } from '../views/grouping.js'
+import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, usePlace } from '../views/usePlace.js'
@@ -285,13 +299,16 @@ export function FolderPage({
   const [transferOpen, setTransferOpen] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
+  /* Controlled, and the prototype's own reason: "Label and colour" in the
+     overflow has to open the same picker the mark opens, and an uncontrolled
+     popover can only be opened by pressing it. */
+  const [markOpen, setMarkOpen] = useState(false)
   const [conversationHome, setConversationHome] =
     useState<ConversationHome>(readConversationHome)
   const [footThreadOpen, setFootThreadOpen] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const completed = useFolderCompletedTasks(id, completedOpen)
   const connections = useConnections()
-  const events = useSubjectEvents(historyOpen ? `folder:${id}` : null)
   const threadOpen =
     conversationHome === 'foot' ? footThreadOpen : panelOpen
 
@@ -311,9 +328,6 @@ export function FolderPage({
   useReserveRightEdge(CONVERSATION_PANEL_WIDTH, conversationPanelOpen)
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
   const thread = useThread(id, null, threadOpen)
-
-  const imageInput = useRef<HTMLInputElement>(null)
-  const imageAt = useRef<number>(0)
 
   const detail = folder.data
   const scheduled = open.data?.scheduled ?? []
@@ -355,7 +369,44 @@ export function FolderPage({
     },
   })
   const visible = place.narrow(openRows)
-  const boardColumns = groupRows(visible, place.groupBy, place.today, place.viewerId)
+  /*
+  **The board's columns are the page's sections** (item 44's B2, ledger
+  L-044), seeded from the blocks rather than discovered from the rows, and in
+  the page's own order.
+
+  Seeding is what makes them the page's arrangement rather than a summary of
+  it: a section nobody has filed anything under is still a column, with its own
+  capture, exactly as it is a heading with its own quick-add in the list. The
+  loose column comes first, which is where the list draws the same rows.
+
+  The other axes seed nothing and are unchanged, so the filter changing the
+  grouping is one value moving and no second board.
+  */
+  const sectionColumns = useMemo(
+    () =>
+      place.groupBy === 'section'
+        ? [
+            { key: LOOSE, name: 'No section', mark: null, capture: { section_block_id: null }, rows: [] },
+            ...(page.data?.blocks ?? [])
+              .filter((block) => block.kind === 'section')
+              .map((block) => ({
+                key: block.id,
+                name: block.text ?? '',
+                mark: null,
+                capture: { section_block_id: block.id },
+                rows: [],
+              })),
+          ]
+        : [],
+    [place.groupBy, page.data?.blocks],
+  )
+  const boardColumns = groupRows(
+    visible,
+    place.groupBy,
+    place.today,
+    place.viewerId,
+    sectionColumns,
+  )
   const completedDays = mergeCompletedDays(completed.data?.pages)
 
   /*
@@ -438,9 +489,26 @@ export function FolderPage({
     starTooltip: actions.starTooltipMode,
   }
 
+  /*
+  The folder's own storage name for the lifted head, which is
+  `lib/page-identity.ts`'s folder half: a place page's cover is 4.20's, per
+  viewer, and a folder's is 4.3's `cover_file_id`, shared by every member.
+  */
+  const coverKey = `${FOLDER_PREFIX}${id}`
+  const hasCover = usePageHasCover(coverKey)
+
   const isOwner = detail?.is_owner ?? false
   const isDefault = detail?.is_default ?? false
   const members = detail?.members ?? []
+  const completionTotal =
+    (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
+  /* The prototype's rule for offering the description at rest: a folder
+     nobody has dressed, where a hidden affordance is one nobody discovers. */
+  const pristine =
+    detail !== undefined &&
+    detail.icon === null &&
+    detail.cover_file_id === null &&
+    detail.description === null
 
   /** Who a comment's author is, off the members already read; a face the
    * roster cannot resolve says "Someone" rather than leaking an id. */
@@ -593,33 +661,55 @@ export function FolderPage({
     </button>
   )
 
+  /*
+  Who a comment's author is, for the lifted thread, and stable so the mapping
+  memoises. A face the roster cannot resolve says "Someone" rather than leaking
+  an id, which is the rule the history sheet and the bell both keep.
+  */
+  const nameOf = useCallback(
+    (authorId: string) => authorNames.get(authorId) ?? 'Someone',
+    [authorNames],
+  )
+  const conversation = useConceptThread(
+    thread.data?.comments,
+    basis.viewerId,
+    nameOf,
+    isOwner,
+  )
+
+  /*
+  S26's seam, and the whole of the write path in this file: the lifted thread
+  announces a change as the array it wants to exist, and `lib/thread.ts` turns
+  that into 7.14's routes. Its header carries the argument for the shape.
+
+  The upload is here rather than in the seam because a comment's file is
+  7.15's, scoped to this folder like every other file in it, and this page is
+  the one thing that knows which folder that is.
+  */
   const threadSurface = (
     <div>
       <div className="flex justify-end pb-1">{conversationSwitch}</div>
-      <ConversationThread
-        comments={thread.data?.comments ?? []}
-        viewerId={basis.viewerId}
-        isOwner={isOwner}
-        authorName={(authorId) => authorNames.get(authorId) ?? 'Someone'}
-        actions={{
-          onPost: (body, parentId) => {
-            postComment.mutate({
-              folderId: id,
-              body: {
-                body,
-                ...(parentId === null ? {} : { parent_id: parentId }),
-              },
-            })
-          },
-          onEdit: (commentId, body) => {
-            patchComment.mutate({ id: commentId, body: { body } })
-          },
-          onDelete: (commentId) => {
-            deleteComment.mutate(commentId)
-          },
-          onLike: (commentId, liked) => {
-            setLike.mutate({ id: commentId, liked })
-          },
+      <CommentsThread
+        comments={conversation}
+        emptyWord={conversationHome === 'panel' ? 'message' : 'comment'}
+        layout={conversationHome === 'panel' ? 'pinned' : 'block'}
+        onChange={(next) => {
+          applyThreadChange(conversation, next, {
+            post: (body) => {
+              postComment.mutate({ folderId: id, body })
+            },
+            edit: (commentId, body) => {
+              patchComment.mutate({ id: commentId, body: { body } })
+            },
+            remove: (commentId) => {
+              deleteComment.mutate(commentId)
+            },
+            like: (commentId, liked) => {
+              setLike.mutate({ id: commentId, liked })
+            },
+            upload: (file) =>
+              uploadFile('image', id, file).then((stored) => stored.id),
+          })
         }}
       />
     </div>
@@ -627,6 +717,10 @@ export function FolderPage({
 
   return (
     <div className="space-y-7">
+      {/* The band any page can wear (DES-141), drawn only when there is one.
+          Ledger L-185: the controls stay minimal, a joined Change and
+          Reposition group in the corner, on hover, never a toolbar. */}
+      <PageCover storageName={coverKey} />
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
@@ -751,50 +845,125 @@ export function FolderPage({
         </WindowBarActions>
 
         <PageSection name="Folder header">
-          <header className="flex items-start justify-between gap-6">
+          {/*
+          **S26: the head is the prototype's own composition, not this page's
+          second one.**
+
+          `components/page/IdentityHead.tsx` was a port of the same drawing
+          written at S12, and once S25 lifted `page-cover`, `page-head` and
+          `folder-cover` for the place pages, the folder page next door was the
+          one page still wearing a copy: a 44px rounded tile where `PageMark`
+          has the scrim and the 32-to-40 growth, a "Remove cover" chip where
+          the band has the joined Change and Reposition group, an upload where
+          the picker has tiers, and its own description field beside
+          `PageDescription`. That is DES-154's fault exactly, a treatment
+          settled once and left in each screen's keeping, and it is what
+          ledger L-185 and L-186 name.
+
+          **The name is 9.1's and not the prototype's** (item 44's A2 read one
+          level down): the prototype writes "Change folder icon and color" and
+          AC-243 and AC-247 both address this control as "Icon and colour for
+          {name}". Section 9 fixes no name here, so the criterion is the only
+          artefact with an opinion and it keeps it.
+
+          **The picker is this client's `IconPicker` rather than the
+          prototype's `folder-icon-picker.tsx`, and that is a decision rather
+          than an omission.** 4.3's `icon` is a stored key checked against
+          `^[a-z0-9-]{1,40}$`, and `components/page/icon-manifest.ts` is the one
+          place this client maps a stored key to a glyph, read by the sidebar,
+          the folder marks and the search results as well as by this popover.
+          Lifting the prototype's picker would put a second glyph alphabet
+          beside it, which is the duplicate implementation protocol section 3
+          names in the same breath as the boundary. The measure at this row's
+          close records the three class strings that costs.
+          */}
+          <header className="group/head flex items-start justify-between gap-6">
             <div className="min-w-0 flex-1">
-              <IdentityHead
-                kind="folder"
-                identity={{
-                  name: detail?.name ?? '',
-                  icon: detail?.icon ?? null,
-                  color: detail?.color ?? null,
-                  coverFileId: detail?.cover_file_id ?? null,
-                  description: detail?.description ?? null,
-                }}
-                canRename={isOwner}
-                canCover
-                renaming={renaming}
-                onStartRename={() => {
-                  setRenaming(true)
-                }}
-                onEndRename={() => {
-                  setRenaming(false)
-                }}
-                onIdentity={(next) => {
-                  patch.mutate({ id, body: next })
-                }}
-                onRename={(next) => {
-                  patch.mutate({ id, body: { name: next } })
-                }}
-                onDescription={(next) => {
-                  patch.mutate({ id, body: { description: next } })
-                }}
-                onCover={(file) => {
-                  if (file === null) {
-                    patch.mutate({ id, body: { cover_file_id: null } })
-                    return
+              <Popover open={markOpen} onOpenChange={setMarkOpen}>
+                <PopoverTrigger
+                  render={
+                    <PageMark
+                      icon={markIcon(detail?.icon ?? null)}
+                      hasCover={hasCover}
+                      color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
+                      interactive
+                      aria-label={`Icon and colour for ${detail?.name ?? ''}`}
+                    />
                   }
-                  void uploadFile('cover', id, file).then((stored) => {
-                    patch.mutate({ id, body: { cover_file_id: stored.id } })
-                  })
-                }}
+                />
+                <PopoverContent align="start" className="w-auto p-0">
+                  <IconPicker
+                    icon={detail?.icon ?? null}
+                    color={detail?.color ?? null}
+                    onPick={(next) => {
+                      patch.mutate({ id, body: next })
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <div className="mt-1">
+                <AddCoverAction storageName={coverKey} />
+              </div>
+
+              {/* The count rides the title's own line rather than stacking a
+                  third block under it, which is 9.4's "the fact 'N of M done'"
+                  and DES-149's "the fact rides the title's line; prose sits
+                  under it". */}
+              <div className="mt-1.5 flex items-baseline gap-3">
+                {isOwner && renaming ? (
+                  <InlineInput
+                    key={detail?.name ?? ''}
+                    defaultValue={detail?.name ?? ''}
+                    aria-label="Folder name"
+                    maxLength={100}
+                    autoFocus
+                    onBlur={(event) => {
+                      const next = event.target.value.trim()
+                      setRenaming(false)
+                      if (next !== '' && next !== detail?.name) {
+                        patch.mutate({ id, body: { name: next } })
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur()
+                      if (event.key === 'Escape') {
+                        event.currentTarget.value = detail?.name ?? ''
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    className="min-w-0 text-2xl leading-8 font-semibold text-foreground"
+                  />
+                ) : (
+                  /* A heading, always: it is what a reader lands on and what
+                     AC-226 asks the imported starter's page for, and a member
+                     is offered no textbox at all (AC-217). */
+                  <h1
+                    onClick={isOwner ? () => { setRenaming(true) } : undefined}
+                    className={`min-w-0 truncate text-2xl leading-8 font-semibold text-foreground${
+                      isOwner ? ' cursor-text' : ''
+                    }`}
+                  >
+                    {detail?.name ?? ''}
+                  </h1>
+                )}
+                {completionTotal > 0 ? (
+                  <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
+                    {detail?.counts.completed ?? 0} of {completionTotal} done
+                  </span>
+                ) : null}
+              </div>
+
+              {/* 9.6's editable description, any member's (the matrix: "the
+                  page: blocks, cover, icon, colour, description, yes for both
+                  roles; the event log says who"). It reads and writes 4.3's
+                  column through `lib/page-identity.ts`'s folder half, which is
+                  why the lifted field needs nothing of its own here. */}
+              <PageDescription
+                storageName={coverKey}
+                label="Folder description"
+                offer={pristine}
               />
-              {/* 9.6's completion ratio, which 8.11 computes for us. */}
-              <p className="mt-1 text-xs text-muted-foreground">
-                {detail?.counts.completed ?? 0} /{' '}
-                {(detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)}
-              </p>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -888,42 +1057,13 @@ export function FolderPage({
               blocks={page.data?.blocks ?? []}
               onPut={putBlocks}
               sectionExtras={sectionExtras}
-              onInsertImage={(index) => {
-                imageAt.current = index
-                imageInput.current?.click()
-              }}
+              /* S26: an image block is inserted empty and fills itself, three
+                 ways (L-197). The hidden input this replaces uploaded before
+                 the block existed, so choosing was the only gesture that
+                 could land anywhere. */
+              folderId={id}
             />
           </PageBody>
-          <input
-            ref={imageInput}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              event.target.value = ''
-              if (file === undefined) return
-              void uploadFile('image', id, file).then((stored) => {
-                const body = (page.data?.blocks ?? []).map((block, index) => ({
-                  id: block.id,
-                  kind: block.kind,
-                  position: index,
-                  text: block.text,
-                  file_id: block.file_id,
-                  ref_folder_id: block.ref_folder_id,
-                  updated_at: block.updated_at,
-                }))
-                body.splice(Math.min(imageAt.current, body.length), 0, {
-                  kind: 'image',
-                  position: imageAt.current,
-                  file_id: stored.id,
-                } as (typeof body)[number])
-                putBlocks(
-                  body.map((entry, position) => ({ ...entry, position })),
-                )
-              })
-            }}
-          />
 
           {/* Q7 hides the third section while it is empty; the control is
               rendered on the folder's own completed count. */}
@@ -1015,37 +1155,25 @@ export function FolderPage({
         </SheetContent>
       </Sheet>
 
-      {/* 9.6's History, the object's recent events. */}
-      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
-        <SheetContent side="right" className="w-[380px]">
-          <SheetHeader>
-            <SheetTitle>History</SheetTitle>
-            <SheetDescription>What happened in {detail?.name}.</SheetDescription>
-          </SheetHeader>
-          <div className="space-y-2 overflow-y-auto px-4 pb-4">
-            {(events.data?.events ?? []).map((event) => (
-              <p
-                key={event.id}
-                className="text-[13px] leading-5 text-[var(--color-graphite-700)]"
-              >
-                <span className="font-medium">
-                  {authorNames.get(event.actor_id) ?? 'Someone'}
-                </span>{' '}
-                {event.verb} {event.subject_name}
-                {event.detail === null ? '' : `, ${event.detail}`}
-                <span className="block text-[11px] leading-4 text-[var(--color-graphite-400)]">
-                  {formatAgo(event.created_at, Date.now())}
-                </span>
-              </p>
-            ))}
-            {(events.data?.events.length ?? 0) === 0 ? (
-              <p className="text-[13px] leading-5 text-[var(--color-graphite-500)]">
-                Nothing yet.
-              </p>
-            ) : null}
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/*
+      9.6's History, and since S26 the prototype's own sheet rather than this
+      page's flat list (ledger L-199, L-200).
+
+      What the list could not do is the whole of why the entry exists: it drew
+      one line per event with a relative time under it, where the sheet groups
+      by day and puts the actor on every line, "a record you are reading to
+      settle a question should not make you look upwards". And both readers of
+      an event now draw it through `lib/history.ts`'s `lineFor`, so the window
+      bar's Activity sentence and this one are one string rather than two
+      formatters that will one day disagree.
+      */}
+      <HistorySheet
+        kind="folder"
+        subject={id}
+        name={detail?.name ?? ''}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
 
       {/* 9.6: an owner with other members leaves only by transferring
           first; the default successor is the longest-standing member. */}

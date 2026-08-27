@@ -631,6 +631,17 @@ export function useMarkAllNotificationsRead(): UseMutationResult<
 export interface PostCommentVariables {
   readonly folderId: string
   readonly body: PostCommentBody
+  /*
+  Which task's thread this joins, added at S26 for the mount ledger L-246
+  names.
+
+  It is a query parameter rather than a body field because that is where 7.14
+  puts it: `routes/conversation.ts` parses `threadQuery` off `req.query` on
+  both the read and the write, and `postCommentBody` carries no task at all.
+  The read half has taken one since S5 (`useThread`'s second argument); this
+  is the write half catching up, and nothing about the frozen contract moves.
+  */
+  readonly taskId?: string
 }
 
 export function usePostComment(): UseMutationResult<
@@ -639,10 +650,13 @@ export function usePostComment(): UseMutationResult<
   PostCommentVariables
 > {
   return useMutation({
-    mutationFn: ({ folderId, body }: PostCommentVariables) =>
+    mutationFn: ({ folderId, body, taskId }: PostCommentVariables) =>
       mutateApi(commentLine, {
         method: 'POST',
-        path: `/folders/${folderId}/comments`,
+        path:
+          taskId === undefined
+            ? `/folders/${folderId}/comments`
+            : `/folders/${folderId}/comments?task=${encodeURIComponent(taskId)}`,
         body,
       }),
   })
