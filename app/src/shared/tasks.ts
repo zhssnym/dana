@@ -626,6 +626,32 @@ export function carriesStatus(body: unknown): boolean {
 }
 
 /* ------------------------------------------------------------------ *
+ * 7.6's order endpoint (RFC 0005 change control item 44, B4)
+ * ------------------------------------------------------------------ */
+
+/*
+POST /tasks/:id/order. The two rows the task was dropped between in its
+folder's unscheduled list, either null where the drop had no neighbour on
+that side.
+
+The body carries no key and no index, and both absences are deliberate. A
+key would put this contract's own arithmetic on the client's side of it. An
+index would be a claim about a list the client may have read a minute ago,
+where two ids are a claim about two rows that either are still peers or are
+not, which the server can check and answer 422 about.
+
+Both null is the one-row list, which has one place to be. Nothing further is
+validated here: whether the two ids name rows of the same list, and in the
+order the body claims, is a question about rows, so it is the domain
+module's and answers 422 naming the field it was asked about.
+*/
+export const postTaskOrderBody = z.object({
+  after_id: z.uuid().nullable(),
+  before_id: z.uuid().nullable(),
+})
+export type PostTaskOrderBody = z.infer<typeof postTaskOrderBody>
+
+/* ------------------------------------------------------------------ *
  * 7.7 request bodies
  * ------------------------------------------------------------------ */
 

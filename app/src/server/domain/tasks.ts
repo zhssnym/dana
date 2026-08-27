@@ -535,7 +535,7 @@ R-CLEAN. 8.5's copy onto a generated successor keeps its source's created_by
 and is untouched by this: that is one reminder reproduced onto a new row, not
 a second actor replacing one.
 */
-async function upsertReminder(
+export async function upsertReminder(
   tx: Executor,
   taskId: string,
   mode: ReminderMode,

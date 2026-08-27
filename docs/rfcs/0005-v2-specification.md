@@ -964,6 +964,338 @@ untouched; the new criteria extend them rather than restate them.*
   schema change.
 ```
 
+### The four frozen changes of change control item 44, written at S22a
+
+*Nine units, added 2026-08-26 by RFC 0004's S22a row. Item 44 ruled B1, B3,
+B4 and B7 with their frozen cost stated, and closed by naming what the
+Steward owes: "the frozen section 4 and 7 amendments for B1, B3, B4 and B7,
+packaged for the record rather than for a further decision". This block is
+that package. It is written **before** the migration and the endpoints it
+describes, which is item 37's rule and this row's own acceptance line, and
+it is written here rather than into `docs/spec/` for the same reason unit
+12a was: the section 4 and section 7 folds are S29's, and a second copy of a
+frozen amendment is the disagreement this repository keeps warning itself
+about. Every unit below is additive. No column changes shape, no response
+field is removed, no existing value changes meaning, and exactly one of
+section 6's eleven orders moves, which is the one item 44 permits.*
+
+### Append a row to the table in section 4.5 (the task's hand order)
+
+*B4 of change control item 44, and the first of that item's four frozen
+changes. Frozen section 4 moves here for `tasks`, and it moves by one
+additive nullable column; no existing column changes shape and no existing
+value changes meaning.*
+
+```markdown
+| position | text | yes | none | COLLATE "C"; the hand order of a folder's unscheduled list; null until that folder is first arranged by hand; gaps and ties allowed; ordered by (position, id) |
+```
+
+Four readings, so no implementing session has to guess and no later one has
+to re-derive them.
+
+**A fractional index, not an integer**, which is item 44's own word for it:
+"a plain integer renumbers every row below a drop; the shape to use is a
+fractional index, which is what Notion, Linear and Figma do". The stored
+value is a string of base-62 digits, ASCII order, and a key strictly between
+any two keys can always be computed, so a drop writes one row rather than the
+tail of a list. The key carries its own integer part, whose first character
+encodes its length, because the plain midpoint alone fails on the least
+exotic gesture there is: a drag to the bottom of a list appends after the
+last key and grows it by a digit every time. The column CHECK encodes the
+alphabet and the length bounds, 2 to 255, and no more than that: the deeper
+invariant, that a key never ends in the least digit, is a property of the
+integer part and the fractional part together and is enforced in the module
+that computes them.
+
+**`COLLATE "C"` is part of the contract and not a local optimisation.** The
+order of a text column is the order its collation gives it, and Dana runs
+its suite on two engines under a locale agreement 11.10 spends a section on.
+A hand order that reads one way on PGlite and another on a cluster that
+inherited a different default would break section 6's byte-identical
+guarantee in the one query this row touches, and would break it invisibly.
+Pinning the column to `"C"` makes the guarantee structural: byte order is
+byte order in every database that exists, whatever the cluster was created
+with, so the two test legs and production agree by construction rather than
+by configuration.
+
+**Null means "never arranged", and it is what keeps every folder that
+nobody has dragged in reading exactly as it reads today.** The column ships
+null on every existing row and there is no backfill, which is why this
+migration touches no data at all. The order the column takes part in is
+section 6's Q7 second section and only that one; the amendment to it is
+below.
+
+**No index ships with the column**, and the omission is deliberate rather
+than forgotten. Section 4.12's rule is that an index with no named consumer
+in section 6 does not ship. The one query that reads this column already
+has `tasks (folder_id, status, due_date)` for its predicate and sorts a
+single folder's undated open rows, which section 6 caps at 1000; there is no
+scan an index would save. `steps.position` has carried the same shape since
+4.6 with no index of its own.
+
+### Append a row to the table in section 4.17 (the page block's width)
+
+*B7 of change control item 44, and the second of its four frozen changes.
+4.17 arrives in this RFC's own delta above, so this appends one row to that
+table rather than replacing it.*
+
+```markdown
+| width_pct | integer | yes | none | CHECK (width_pct IS NULL OR width_pct BETWEEN 25 AND 100); CHECK (width_pct IS NULL OR kind = 'image'); the person's dragged width as a percentage of the column |
+```
+
+Three readings.
+
+**A percentage, because the prototype stores one and because the reason it
+does is sound.** Ledger entry L-194: a drag rather than a menu of sizes,
+"clamped at a quarter of the column and at full width, stored as a
+percentage so a picture keeps its proportion of the page at any window". The
+two bounds in the CHECK are that clamp, written where it cannot be edited
+out.
+
+**Null is full width and is not a default value in disguise.** A block that
+nobody has dragged carries no width, which is a different fact from a block
+somebody dragged to 100, and only one of the two is a decision the person
+made. A stored 100 would make every existing block look arranged.
+
+**Width belongs to an image alone**, which is the second CHECK. B7 is about
+the image block, item 44 ruled it there, and a constraint is cheaper to
+relax later than to add to a column that already carries values nobody
+meant.
+
+### Insert new section 4.20 after 4.19 (place covers)
+
+*B1 of change control item 44, and the third of its four frozen changes.
+This is the table the ruling says has to exist: `folders.cover_file_id` and
+`shelves.cover_file_id` already carry a cover for the two objects that have
+a row, and a place page has no row anywhere to hang one on.*
+
+```markdown
+### 4.20 user_page_covers
+
+| Column | Type | Null | Default | Constraint |
+| - | - | - | - | - |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
+| place | text | no | none | CHECK (place IN ('today','scheduled','assignments','important','all','done','abandoned','anytime')) |
+| file_id | uuid | yes | none | FK files(id) ON DELETE CASCADE |
+| preset | text | yes | none | CHECK matches '^[a-z0-9-]{1,40}$'; a built-in cover named by the design system |
+| focal_y | integer | no | 50 | CHECK (focal_y BETWEEN 0 AND 100); the vertical reposition, as a percentage |
+| updated_at | timestamptz | no | now() | none |
+
+PK (user_id, place). CHECK ((file_id IS NULL) <> (preset IS NULL)): a cover
+is either a stored file or a built-in, never both and never neither, so a
+row exists exactly when a cover was chosen and removal is the row's
+deletion. The place set is 4.19's native-view vocabulary minus `desk`, which
+is a folder and carries 4.3's own cover column. No index: the primary key
+serves the only read this table has, which is one viewer's covers.
+```
+
+Four readings.
+
+**Per viewer, which is what makes this a table rather than six columns.**
+Item 44's words are "a place page has no row anywhere to hang a cover on, so
+Today, Scheduled, Important, All, Done and Anytime need a table of their own,
+per viewer". A folder's cover is the folder's and every member sees it; a
+place page is Dana's own furniture and each person's cover on it is theirs.
+
+**Eight places, where the ruling names six**, and the widening is recorded
+rather than made quietly. The ruling's six are Today, Scheduled, Important,
+All, Done and Anytime; Assignments and Abandoned are place pages by the same
+definition and appear beside the other six in RFC 0004's own S25 row, so
+leaving them out would have shipped a table that blocks the package it
+exists for. The set is taken from 4.19's `pinned_views` vocabulary so that a
+place's cover key and its pin key are one string rather than two spellings
+of one page.
+
+**The preset is checked for shape and not against a list**, and the reason
+is 11.13's. The built-in covers are the design system's gradients and
+ribbon marks, and freezing nine names into section 4 would put a design
+vocabulary inside a frozen section where a later swatch could not reach it.
+4.3 and 4.18 already carry a format check on `color` and no check at all on
+`icon`, which is the same distinction.
+
+**The file reference cascades where a folder's sets null**, deliberately.
+`folders.cover_file_id` may go null and leave a folder that simply has no
+cover; here a null `file_id` with a null `preset` is a row the one-source
+CHECK forbids, so deleting the file has to delete the row. That is also the
+honest reading: a cover whose picture is gone is not a half-set cover, it is
+no cover.
+
+### Replace the Unscheduled line of section 6's Q7
+
+*The one ordering change B4 permits, and the only one. Item 44: the ruling
+"keeps every one of section 6's eleven queries and their byte-identical
+ordering guarantee untouched except the one that reads a folder's
+unscheduled list".*
+
+```markdown
+2. Unscheduled: Q2 row order, folder_id = F (no folder grouping), preceded by the hand order of 4.5: `position` ascending with nulls first, then Q2's own keys. A folder nobody has arranged by hand carries no positions and therefore reads exactly as Q2 orders it; once arranged, a task created since the last arrangement carries no position and leads, which is where Q2's newest-first order already puts it. Ties in `position` are possible by design (two people may place into one gap at once) and are broken by Q2's keys and finally by id, so the preamble's byte-identical guarantee holds unchanged.
+```
+
+Two readings.
+
+**Nulls first is what keeps this change invisible until somebody drags.**
+Q2 orders a folder's undated rows newest first, so a new task appears at the
+top of that list today. Placed rows sort after the unplaced ones, and a
+newly created task therefore lands where it has always landed. The
+alternative, nulls last, would have moved every new task to the bottom of
+every arranged folder and would have been a second product decision nobody
+made.
+
+**status_rank stops leading for placed rows, and that is the change.** A
+folder that has been arranged by hand holds its arrangement when a task is
+abandoned rather than re-sorting it below the pending ones. That is what a
+hand order means, it is confined to this one section of this one query, and
+every other query, Q2's own page included, is untouched.
+
+### Append to section 7.6 (the order endpoint)
+
+*B4's second half, and the fourth frozen change of item 44: "the order
+itself needs a column on `tasks` ... and an endpoint to write it". Frozen
+section 7 gains one route and no response shape changes.*
+
+```markdown
+- POST /tasks/:id/order. Any member. Body { after_id: uuid or null, before_id: uuid or null }: the two rows the task was dropped between in the folder's unscheduled list, either being null where the drop had no neighbour on that side. Guards: the task is accessible (404); the task is in that list, meaning undated and not completed (409, a hand order being the unscheduled list's alone); each named neighbour is a different task in the same list (422 naming the field); after_id must precede before_id in the list as it stands (422). The call writes the task's 4.5 `position` between its neighbours' and assigns positions to the rest of the list where they have none, in the order the list already reads, so nothing else moves. 200 TaskDetail.
+```
+
+Four readings.
+
+**Neighbours rather than an index or a key.** The client names the two rows
+it dropped between, and the server computes the key. A client that sent an
+index would be sending a claim about a list it may have read a minute ago;
+a client that sent a key would be an implementation of this contract living
+on the wrong side of it.
+
+**Placing the whole list on the first drag is what makes the top of the
+list reachable.** Until a folder is arranged, every row's position is null,
+and a null leads. If the endpoint wrote only the dragged row, a task
+dropped at the top would land below every unplaced row and the gesture would
+visibly fail. So the call assigns keys to the rows that have none, in the
+order the list already reads, before it places the dragged one. That pass
+changes no row's place, so nothing a reader can see moves with it.
+
+**No `updated_at` moves, the moved task's included, which is a deviation
+from 4.5's "touched on every mutation" and is recorded as one.** That column
+has two documented consumers, the field-level last-write-wins tiebreak and
+Q8's search recency key, and a row's place in one list is evidence for
+neither. Touching it would mean that rearranging a folder pushed every task
+in it to the top of that person's search results, which is a visible defect
+produced by a bookkeeping habit. The order is not a field of the task in the
+sense 4.5's sentence is about; it is the folder's arrangement, which is also
+why the event this call writes takes the folder as its subject.
+
+**`position` does not join TaskCard, and this is a saving rather than an
+omission.** Section 6's preamble says every view returns rows already
+ordered and clients never re-sort, and the drag names its neighbours by id,
+so no client has any use for the key. Frozen 7.0 keeps the shape unit 12a
+left it with.
+
+**Concurrency was raised at the ruling and is answered by the shape rather
+than by a lock on the read path.** Two people placing into one gap compute
+the same key and produce a tie, which section 6's final id tie-break
+resolves into one sequence both of them read. The transaction locks the
+folder so that two first drags cannot both seed the list.
+
+### Replace the workflow-import sentence of section 7.16
+
+*B3 of change control item 44. Frozen section 7 moves for 7.16's import,
+and this replaces the sentence that begins "POST /api/v1/workflows/import"
+entire.*
+
+```markdown
+POST /api/v1/workflows/import?tz — zod-validated structure file, caps per section 10. It creates folders, their page blocks (sections and paragraphs), and their tasks, and a task carries its title, notes, star, repeat, reminder and step titles; never ids, people, due dates or states, a step's tick included. Where a task carries a repeat or a reminder, the imported task is anchored on the import day in the zone tz names, 4.5 and 8.6 admitting neither without a date; tz is refused as 422 when present and invalid, and required as 422 exactly when the file carries such a task.
+```
+
+Four readings.
+
+**What was added and what was not.** Item 44's list is "the folder's page
+blocks, its sections and paragraphs, beside each task's title, notes, star,
+repeat, reminder and steps". Blocks were already in the shipped schema, so
+what this widens is the task: notes, `important`, `recurrence_rule`, the
+reminder and the step titles. The three exclusions are the ruling's own and
+each has its reason recorded there: a due date is a moment in one run of the
+work and a template has no run, a person is an account that may not exist
+wherever the file is opened, and a conversation is a record of what was said
+rather than of what to do.
+
+**A state is still excluded, and a step's tick is a state.** The prototype's
+own `workflow.ts` carries each task's state and whether each step is ticked;
+item 44's list carries neither, and ledger entry L-115 records the
+prototype contradicting itself on exactly this point and the schema settling
+it by carrying no completion. So the sentence keeps "never ... states" and
+names the step's tick inside it, because that is the half a reader would
+otherwise have to infer.
+
+**The anchor is a reading of B3 rather than a ruling of it, and it is
+flagged here rather than made quietly.** Frozen 4.5 checks that a
+`recurrence_rule` implies a `due_date`, and 8.6 computes a reminder's
+instant from `datetime(task.due_date, ...)`, so a repeat and a reminder are
+both unstorable on a dateless task. B3 asks for both and excludes dates, and
+those two sentences cannot both be satisfied literally. Anchoring the
+imported task on the import day satisfies the ruling's own reason, which is
+that a template holds no moment: the file still carries no date, and the
+date the task gets is the day its run began. The alternative readings were
+to drop the repeat and the reminder, which contradicts the ruling, or to
+relax 4.5's check, which would leave 8.5's generator with no anchor to
+compute a successor from. The owner may overturn this reading; nothing else
+in the amendment depends on it.
+
+**tz follows 7.6's own precedent rather than 7.0's view-endpoint rule.**
+A present value that fails IANA validation answers 422 naming tz always, and
+an absent one answers 422 exactly when a date would be evaluated, which is
+the shape the owner entered for the two generating transitions on
+2026-08-10. Every workflow file that imports today evaluates no date and is
+untouched.
+
+### Append to section 7.16's page contract (the block width)
+
+*B7's wire half. The block objects of GET and PUT /folders/:id/page and
+the two shelf routes gain one optional field; nothing else about the
+PUT-whole contract or its 409 moves.*
+
+```markdown
+A block object carries `width_pct: integer or null` beside its position: the person's dragged width as a percentage of the column, 25 to 100, null where nobody has dragged it, and 422 naming the field where it is out of those bounds or set on a block that is not an image (4.17).
+```
+
+### Insert new section 7.19 after 7.18 (place covers)
+
+*B1's wire half, the endpoints 4.20 needs. Additive: no existing route or
+response changes.*
+
+```markdown
+### 7.19 Place covers
+
+GET /api/v1/place-covers — the caller's own covers, one entry per place they
+have chosen one for, each carrying place, file_id, preset and focal_y.
+PUT /api/v1/place-covers/:place — body { file_id } or { preset }, exactly one
+of the two (422 naming the pair otherwise), plus an optional focal_y of 0 to
+100 defaulting to 50; a named file must be one the caller can read (404 by
+10.2's rule, never 403). Idempotent, 200 with the entry.
+DELETE /api/v1/place-covers/:place — removal, 204, idempotent.
+`:place` is 4.20's set and anything else is 404, a place page being furniture
+rather than a resource that might exist elsewhere. Covers are the caller's
+own throughout: no route reads or writes another person's, and a folder's or
+a shelf's cover stays where 7.4 and 7.16 already put it.
+```
+
+### Amend three rows of the table in section 10.3
+
+*The limits the three additive changes above introduce or move. The workflow
+row is replaced; the other two are new rows.*
+
+```markdown
+| Workflow import | up to 50 folders, 500 blocks and 1000 tasks per file; structure, titles and each task's notes, star, repeat, reminder and step titles, never ids, people, due dates or states |
+| Page image width | 25 to 100 percent of the column |
+| Cover reposition | 0 to 100 percent |
+```
+
+The values a widened import file carries are bounded by the rows this table
+already holds and gains no rows of its own: a task's notes by "Notes", its
+repeat by "Recurrence rule string" and the 4.11 subset behind it, its
+reminder offset by "Reminder offset", and its steps by "Task title, step
+title" and "Steps per task". That is the point of listing them rather than
+inventing a second set: an imported task is refused by exactly the limits a
+typed one is.
+
 ## Compatibility and migration
 
 Expand-and-contract per 11.5, expand-only in this RFC: every new column is
@@ -3589,6 +3921,108 @@ fold, the way P7's mid-package change control ratified the pass callable:
     finding with a recommendation, and moving the row is the Steward's edit.
     Until it is made, S22's row reads as unmet on its proof clause and met
     on everything else, and that is the honest state rather than a green one.
+
+46. **The four frozen changes of item 44 are written as nine amendment
+    units, and five readings item 44 did not carry are recorded with them
+    (S22a, 2026-08-26).** RFC 0004's S22a row owes "the frozen 4 and 7
+    amendments ... written before the code, item 37's rule", and item 44
+    itself closed by listing "the frozen section 4 and 7 amendments for B1,
+    B3, B4 and B7, packaged for the record rather than for a further
+    decision" among what the Steward owes. The delta above now carries them,
+    under one heading, written before the migration and before any endpoint.
+    The five readings below are what the ruling left open once the sentences
+    met the schema, and each is recorded here rather than settled quietly,
+    because each is a place a later session would otherwise re-derive a
+    different answer.
+
+    **(a) A repeat and a reminder cannot ride a dateless task, so an
+    imported task that carries either is anchored on the import day.** This
+    is the one reading that could go the other way and it is flagged in its
+    own unit as well. B3 asks the workflow file to carry each task's repeat
+    and reminder and excludes due dates. Frozen 4.5 checks
+    `recurrence_rule IS NULL OR due_date IS NOT NULL`, and 8.6 computes a
+    reminder's instant from `datetime(task.due_date, ...)` on both of its
+    arms, so neither value is storable without a date and the ruling's two
+    halves cannot both be taken literally. The anchor satisfies the reason
+    the ruling gives for the exclusion, which is that "a due date is a moment
+    in one run of the work and a template has no run": the file still carries
+    no date, and the date the task gets is the day its run began. The two
+    alternatives were to drop the repeat and the reminder, which contradicts
+    the ruling, and to relax 4.5's check, which would leave 8.5's generator
+    computing a successor from no anchor at all. It costs the import
+    endpoint a `tz` parameter, on 7.6's own precedent of 2026-08-10 rather
+    than on 7.0's view-endpoint rule: refused when present and invalid,
+    required only when a date is actually evaluated, so every workflow file
+    that imports today is untouched.
+
+    **(b) The cover table carries eight places where B1 names six.**
+    Assignments and Abandoned are place pages by the ruling's own definition,
+    they stand beside the other six in RFC 0004's S25 row, and a table
+    without them would have blocked the package it exists for. The set is
+    4.19's `pinned_views` vocabulary minus `desk`, which is a folder and
+    already carries 4.3's cover column, so a place's cover key and its pin
+    key are one string.
+
+    **(c) `position` does not join TaskCard, and frozen 7.0 does not move
+    for B4.** Section 6's preamble says every view returns rows already
+    ordered and clients never re-sort, and the drag names the two rows it
+    dropped between by id, so no client has any use for the key. The
+    endpoint answers TaskDetail, which is what every other task mutation
+    answers. This is worth recording because the obvious shape, a
+    client-computed key on a widened card, is both more work and a worse
+    contract, and only the second half of that is obvious.
+
+    **(d) A reorder writes one `edited` event against the folder, notifies
+    nobody, and touches no `updated_at` at all.** 4.13's verb list is a CHECK
+    constraint and `moved` already means a move between folders, so the
+    convention `domain/events.ts` states for an act with no verb of its own
+    applies: `edited` with the rest in `detail`. The subject is the folder
+    rather than the task, because what changed is the folder's arrangement,
+    and a task history line reading "edited" for a row whose fields are
+    untouched would be a falsehood in the one place a person goes to find out
+    what happened. The event carries no recipients, 4.14's notifications
+    being for acts that concern a person. And no row's `updated_at` moves,
+    which is a recorded deviation from 4.5's "touched on every mutation":
+    that column exists for the last-write-wins tiebreak and for Q8's recency
+    key, so touching it would make one drag push a whole folder to the top of
+    that person's search results. AC-269 pins all of it by comparing whole
+    response bodies before and after an arrangement.
+
+    **(e) No index ships for `tasks.position` and none for
+    `user_page_covers`.** 4.12's rule is that an index needs a named
+    consumer in section 6. The hand order's one reader already has
+    `tasks (folder_id, status, due_date)` for its predicate and sorts one
+    folder's undated open rows under section 6's 1000-row cap; the cover
+    table's one reader is its own primary key. `steps.position` has carried
+    the same shape since 4.6.
+
+    **The owner column of S22a is corrected at the row's opening, the
+    persona files being RFC 0004's own authority, and this is items 12 and 34
+    a third time.** That row names `01-data-and-invariants.md`,
+    `04-api-and-contract.md` and `11-adversarial-test.md`, and the brief that
+    opened the session said the three had been checked. Two of the three
+    hold: the migration is role 01's by its `app/db/**` claim, and section 7,
+    `app/src/shared/**` and the review of every new endpoint are role 04's.
+    The third file the work needs belongs to neither.
+    `03-collaboration-and-permissions.md` owns `app/src/server/domain/**`
+    "(folders, invites, tasks, accountDeletion modules) and the routes for
+    folders, members, invites, connections, tasks, steps, my-day", and the
+    order endpoint is a task route whose decision is a task-domain function.
+    Role 04's own hard boundary forbids it the SQL that function is made of.
+    So the row is four roles in sequence and not three, and the addition is
+    recorded rather than worked around: putting a task's order endpoint in
+    another owner's file to stay inside a boundary would have been the
+    duplicate-implementation escape protocol section 3 names in the same
+    breath as the boundary itself.
+
+    **What this item does not do.** It closes nothing of item 45, which is
+    the Steward's and is about S22's proof screen. It adds no fifth ruling to
+    item 44's four: section 13 item 46's Duplicate act was met again while
+    widening 7.16 for B3 and was deliberately left where it is. And it
+    records one thing B7 needs that B7 did not rule, at section 13 item 47:
+    the aspect-ratio reservation the same ruling took has nothing in 4.16 to
+    read a ratio from, which is S26's problem and another frozen section 4
+    change if it is taken.
 
 ## Implementation plan
 
