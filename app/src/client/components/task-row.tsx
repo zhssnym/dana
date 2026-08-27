@@ -2237,9 +2237,16 @@ export function useCardWiring(props: TaskRowProps) {
     */
     const owned = { ...fields }
     if (props.onToggleComplete !== undefined) delete owned.done
-    /* Abandon and Restore are one slot seen from two states and a screen
-       supplies whichever its rows can perform, so one prop settles both. */
-    if (props.onAbandon !== undefined) delete owned.abandoned
+    /*
+    **Abandon is not stripped, and the asymmetry is the point.** A screen is
+    *told* about a completion, `onToggleComplete` above, so a screen that
+    supplies that handler writes the transition itself and this must not.
+    Nothing tells a screen about an abandon: `onAbandon` is the overflow
+    menu's own item, raised from the menu and never from this patch, and
+    `onRestore` is the trailing control's, which reaches the server only
+    through here. Stripping it left the Restore control drawing, pressing and
+    doing nothing, which AC-097 caught within one run.
+    */
     if (Object.keys(owned).length > 0) report(owned)
     /* Completion is the screen's fact rather than the row's, so it is told. */
     if (fields.done !== undefined) props.onToggleComplete?.(fields.done)
