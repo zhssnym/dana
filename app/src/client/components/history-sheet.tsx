@@ -76,7 +76,10 @@ export function HistorySheet({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const events = useHistory(kind, subject)
+  /* Seam, S23: read while it is open and not before. `lib/history.ts`
+     carries the measurement, which is one `GET /events` per row on a page of
+     closed sheets. */
+  const events = useHistory(kind, subject, open)
 
   /* Grouped in render order rather than sorted into a map, because the events
      already arrive newest-first and a heading is simply the point where the

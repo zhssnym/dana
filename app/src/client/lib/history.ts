@@ -199,15 +199,40 @@ function toHistoryEvent(
 const EMPTY: HistoryEvent[] = []
 
 /**
+ * Whether a subject is one 7.12 will answer about.
+ *
+ * 4.13's subject reference is `kind:uuid` and `shared/events.ts` refuses
+ * anything else with a 422. Two callers can hold something that is not one: a
+ * capture, whose surface exists before its task does, and a card drawn while a
+ * detail is in flight. Both are asking about a thing with no history rather
+ * than asking wrongly, so the read is disabled instead of sent and refused.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+/**
  * One thing's history, newest first, which is the order 7.12 answers in.
  *
- * An empty `subject` disables the read rather than sending a placeholder: a
- * card drawn without a task id, which the surface does while a detail is in
- * flight, has no history to ask for and asking would be a 404 the control then
- * has to ignore.
+ * **`enabled` is not an optimisation and the measurement is why it is here.**
+ * The prototype's `useHistory` reads a `localStorage` array, so calling it on
+ * every row of a page costs nothing and `components/task-row.tsx` does exactly
+ * that: it mounts a `HistorySheet` per row, closed, and the sheet reads its
+ * subject at the top of its body. Over this client's seam that is one `GET
+ * /events` per row, measured at eleven on a first load of Today, for a panel
+ * nobody has opened. So the caller says when it is looking, and the sheet
+ * passes its own open state.
+ *
+ * Default `true`, because the other caller is the card's footer line, which is
+ * drawn only inside an open card and is showing the answer rather than waiting
+ * to be asked.
  */
-export function useHistory(kind: HistorySubjectKind, subject: string): HistoryEvent[] {
-  const events = useSubjectEvents(subject === '' ? null : `${kind}:${subject}`)
+export function useHistory(
+  kind: HistorySubjectKind,
+  subject: string,
+  enabled = true,
+): HistoryEvent[] {
+  const events = useSubjectEvents(
+    !enabled || !UUID.test(subject) ? null : `${kind}:${subject}`,
+  )
   const me = useMe()
   const connections = useConnections()
 
