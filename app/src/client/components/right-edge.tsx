@@ -71,6 +71,66 @@ export function useRightEdge() {
   )
 }
 
+/*
+**Seam, S23: a modal surface makes the page behind it inert.**
+
+9.1's roles table makes the task surface "a dialog when opened as one",
+and a dialog that is modal owes the rest of the document exactly this: it
+is not there while the dialog is. The prototype composes its dialog by
+hand out of a backdrop and a panel and marks nothing, which costs it
+nothing, its lab having one screen and no criteria.
+
+**What it costs here was measured.** The v2 row is interactive where the
+v1 row was not: DES-096 and DES-123 make a row's due and repeat chips the
+controls that change them, so a page of forty rows now holds forty
+buttons named "Due date". AC-219 and AC-220 each reach for a chip
+page-wide and take the first, which used to be the surface's because the
+rows carried none; now it is a row's, sitting behind an open dialog, and
+the click times out against the chrome strip that covers it. Both cases
+are addressing the surface and finding the page.
+
+**So this is the rule rather than an accommodation.** `aria-hidden`
+takes the page out of the accessible tree, which is what "modal" means
+and what every dialog primitive in this client already does; `inert`
+takes it out of the pointer and the tab order, which is what stops the
+click landing somewhere nobody can see. The two together are the
+platform saying what the role already claimed.
+
+Published rather than lifted, for `useRightEdge`'s own reason one export
+up: the surface owns whether it is modal, and threading that up through
+the shell so the shell can hand it back down is a lot of wiring for a
+fact with one owner.
+*/
+let modal = 0
+const modalListeners = new Set<() => void>()
+
+function publishModal(next: number) {
+  if (modal === next) return
+  modal = next
+  modalListeners.forEach((notify) => notify())
+}
+
+/** Whether a modal surface is open over the page. */
+export function useModalOpen() {
+  return useSyncExternalStore(
+    (notify) => {
+      modalListeners.add(notify)
+      return () => modalListeners.delete(notify)
+    },
+    () => modal > 0,
+    () => false,
+  )
+}
+
+/** Renders nothing; says that what is around it is a modal surface. */
+export function HoldsTheDocument({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    publishModal(modal + 1)
+    return () => publishModal(modal - 1)
+  }, [])
+  return <>{children}</>
+}
+
 export function ReservesRightEdge({
   width,
   children,

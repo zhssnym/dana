@@ -242,7 +242,15 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   function write(_taskId: string, fields: Partial<ConceptTask>): void {
     if (editing !== null) {
       const id = editing
-      if (fields.done === false && concept.recurrence === true) {
+      /*
+      The rule rather than the flag: 7.0's `is_recurring` is a card's
+      summary and a completed occurrence may no longer carry it, while
+      `recurrence_rule` is the column 5.1's G-SERIES branch reads. The
+      successor exists because the rule did.
+      */
+      const repeats =
+        task.data?.recurrence_rule !== null && task.data?.recurrence_rule !== undefined
+      if (fields.done === false && repeats) {
         setUncompleting(() => () => {
           patch(id, fields)
         })

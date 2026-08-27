@@ -40,7 +40,7 @@ import {
   type TaskRowProps,
 } from "./task-row.js"
 import { ViewStrip } from "./view-strip.js"
-import { ReservesRightEdge } from "./right-edge.js"
+import { HoldsTheDocument, ReservesRightEdge } from "./right-edge.js"
 import { WindowBarActions, WindowBarLead } from "./window-bar.js"
 import { setTaskSurfacePreference } from "../lib/task-surface-preference.js"
 import { cn } from "./ui/utils.js"
@@ -59,6 +59,36 @@ const PANEL_MIN = 360
 const PANEL_MAX = 720
 const PANEL_DEFAULT = 440
 
+/*
+**Seam, S23: the dialog is resizable too, and 9.3 is why.**
+
+The prototype fixes the dialog at 680px and puts a handle only on the side
+panel, whose width its own header calls "resizable and remembered". 9.3
+makes the width a property of the surface rather than of one of its shapes:
+"The form's width is the viewer's, persisted client-side, on the sidebar's
+rule in 9.1", and AC-182 reads that on the dialog, drags its handle and
+reloads. So the dialog carries one, remembered under its own key, on the
+same rule and with the same clamp as the panel's.
+
+Wider bounds than the panel's, because a dialog is centred rather than
+pinned to an edge: 680 is the prototype's own figure and stays the default,
+so nothing about the surface changes until somebody drags it.
+*/
+const DIALOG_KEY = "dana.taskDialogWidth"
+const DIALOG_MIN = 420
+const DIALOG_MAX = 960
+const DIALOG_DEFAULT = 680
+
+function readDialogWidth() {
+  try {
+    const stored = Number(localStorage.getItem(DIALOG_KEY))
+    if (!Number.isFinite(stored) || stored <= 0) return DIALOG_DEFAULT
+    return Math.min(DIALOG_MAX, Math.max(DIALOG_MIN, stored))
+  } catch {
+    return DIALOG_DEFAULT
+  }
+}
+
 function readPanelWidth() {
   try {
     const stored = Number(localStorage.getItem(PANEL_KEY))
@@ -74,12 +104,16 @@ function readPanelWidth() {
    resizing comes along, as it does on the app sidebar. */
 function PanelResizeHandle({
   side,
+  min = PANEL_MIN,
+  max = PANEL_MAX,
   width,
   onChange,
   onCommit,
   onReset,
 }: {
   side: "left" | "right"
+  min?: number
+  max?: number
   width: number
   onChange: (next: number) => void
   onCommit: (next: number) => void
@@ -87,8 +121,9 @@ function PanelResizeHandle({
 }) {
   const drag = useRef<{ pointerId: number; startX: number; startWidth: number; current: number } | null>(null)
 
-  const clamp = (value: number) =>
-    Math.min(PANEL_MAX, Math.max(PANEL_MIN, value))
+  /* Seam, S23: the bounds are the surface's rather than the panel's, a
+     centred dialog affording more room than an edge does. */
+  const clamp = (value: number) => Math.min(max, Math.max(min, value))
 
   return (
     <div
@@ -98,8 +133,8 @@ function PanelResizeHandle({
          of the names F3 measured, so the lift transcribes them. */
       aria-label="Resize panel"
       aria-orientation="vertical"
-      aria-valuemin={PANEL_MIN}
-      aria-valuemax={PANEL_MAX}
+      aria-valuemin={min}
+      aria-valuemax={max}
       aria-valuenow={Math.round(width)}
       tabIndex={0}
       onDoubleClick={onReset}
@@ -542,6 +577,7 @@ export function TaskSurface({
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const [panelWidth, setPanelWidth] = useState(readPanelWidth)
+  const [dialogWidth, setDialogWidth] = useState(readDialogWidth)
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -589,6 +625,7 @@ export function TaskSurface({
 
   if (mode === "dialog") {
     return (
+      <HoldsTheDocument>
       <div className="fixed inset-0 z-50 duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0">
         <button
           type="button"
@@ -597,6 +634,7 @@ export function TaskSurface({
           className="absolute inset-0 cursor-default bg-[var(--color-graphite-950)]/30"
         />
         <div
+          style={{ width: dialogWidth }}
           /*
           **Seam, S23: the dialog says so.** 9.1's roles table fixes "The task
           surface: a dialog when opened as one; a page when opened as a tab or
@@ -611,13 +649,30 @@ export function TaskSurface({
           role="dialog"
           aria-modal="true"
           aria-label={task.title}
-          className="absolute inset-x-0 top-[8vh] mx-auto flex max-h-[84vh] w-full max-w-[680px] flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2"
+          className="absolute inset-x-0 top-[8vh] mx-auto flex max-h-[84vh] w-full flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2"
         >
+          <PanelResizeHandle
+            side="left"
+            min={DIALOG_MIN}
+            max={DIALOG_MAX}
+            width={dialogWidth}
+            onChange={setDialogWidth}
+            onCommit={(next) => {
+              setDialogWidth(next)
+              try {
+                localStorage.setItem(DIALOG_KEY, String(Math.round(next)))
+              } catch {
+                /* Remembered for this session only, the honest fallback. */
+              }
+            }}
+            onReset={() => setDialogWidth(DIALOG_DEFAULT)}
+          />
           {chrome(
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{page}</div>,
           )}
         </div>
       </div>
+      </HoldsTheDocument>
     )
   }
 

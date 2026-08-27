@@ -113,6 +113,7 @@ import { UndoBar } from './UndoBar.js'
 import { useAppearance } from './appearance.js'
 import { openSearch } from './overlays.js'
 import { useRightEdge } from './right-edge.js'
+import { useModalOpen } from '../components/right-edge.js'
 import { TabStrip } from './TabStrip.js'
 import { WindowBar } from './WindowBar.js'
 import { retarget } from './tabs.js'
@@ -307,6 +308,9 @@ export function AppShell(): React.JSX.Element {
   /* What an open right-edge panel has reserved (DES-154, DES-186). Zero when
      nothing is open, which is almost always. */
   const rightEdge = useRightEdge()
+  /* Whether a modal task surface is open over the page. Seam, S23; see the
+     wrapper below. */
+  const modalOpen = useModalOpen()
   /*
   9.7's Appearance, applied to the document (RFC 0005 change control item 30).
   4.19's own defaults stand in while the bundle read is in flight, so the first
@@ -562,7 +566,20 @@ export function AppShell(): React.JSX.Element {
       <div className="relative z-50">
         <SearchOverlay />
       </div>
-      <div className="flex h-svh flex-col overflow-hidden bg-background">
+      {/*
+      **Seam, S23: a modal task surface takes the page out of the document.**
+
+      9.1's roles table makes that surface "a dialog when opened as one", and
+      `components/right-edge.tsx`'s `HoldsTheDocument` carries the whole of
+      the reasoning and the measurement. What lands here is the other half:
+      `aria-hidden` takes this subtree out of the accessible tree, which is
+      what modal means, and `inert` takes it out of the pointer and the tab
+      order, which is what stops a click reaching a control nobody can see.
+      */}
+      <div
+        {...(modalOpen ? { "aria-hidden": true, inert: true } : {})}
+        className="flex h-svh flex-col overflow-hidden bg-background"
+      >
         <SidebarProvider
           className="h-svh min-h-0"
           open={railOpen}
