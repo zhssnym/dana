@@ -241,6 +241,39 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   */
   function write(_taskId: string, fields: Partial<ConceptTask>): void {
     if (editing !== null) {
+      /*
+      **Seam, S23: 9.5's confirmation, on the branch that has a
+      successor, and the condition is `pages/DonePage.tsx`'s own.**
+
+      9.3 gives the card's completion control 9.5's rule "unchanged": an
+      un-complete that takes a G-SERIES successor confirms first, because
+      5.1 deletes that successor in the same transaction and the
+      parenthesis is the part the person cannot see, "any edits already
+      made to the next occurrence go with it". A row gets this from its
+      page; a surface has no page behind it, so it is here.
+
+      **The condition is not "does it repeat", which is the reading that
+      cost this row two runs.** Completing a rule-carrying task moves the
+      rule to the successor, so the completed occurrence carries a
+      `series_id` and no rule at all: a client asking whether the task
+      repeats gets "no" from the one row where the confirm is owed. That
+      is written down already, in `pages/DonePage.tsx`, and recorded as a
+      reading in `src/client/README.md` with its own escalation, the
+      transition endpoints answering `deleted_successor_id` so the server
+      knows this before it acts while the client infers it beforehand.
+      One condition, two surfaces, and this is the second.
+      */
+      const takesSuccessor =
+        fields.done === false &&
+        task.data?.series_id != null &&
+        task.data.recurrence_rule === null
+      if (takesSuccessor) {
+        const id = editing
+        setUncompleting(() => () => {
+          patch(id, fields)
+        })
+        return
+      }
       patch(editing, fields)
       return
     }
