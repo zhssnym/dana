@@ -2,6 +2,12 @@
 
 Reference dialect: Postgres 16. All primary keys are uuid with default gen_random_uuid() unless stated. All timestamps are timestamptz stored in UTC. There is deliberately no workspace table: the workspace is fully derived from users, connections, and memberships, and a table would hold nothing.
 
+**Two annotations covering the whole section, added by the S29 fold on 2026-08-27. Neither is an edit: section 4 is frozen, and RFC 0004's S29 row is annotate rather than rewrite.**
+
+**First, this section is not the whole schema Dana runs.** RFC 0005 was accepted on 2026-08-24 with additive units inserting sections 4.13 to 4.19, replacing 4.3 and 4.5, and later adding 4.20 (RFC 0005 change control item 46), and those units are **not folded here yet**. Events, notifications, comments, files, page blocks, shelves, user views and place covers, and the `deleted_at`, identity, section and position columns that carry Trash, folder identity and the hand order, all live in RFC 0005's specification delta and are built and shipping. Until they are folded, a reader of this file sees v1's twelve tables and would conclude that Dana has no Trash and no attachments. **The fold is owed and is scoped as its own package**, for the reason given at RFC 0005 change control item 49: this row's acceptance line is annotation, and pasting nine hundred lines of accepted amendment into a frozen section is a different act from correcting a stale word in it.
+
+**Second, the page names in this section's justification prose are v1's.** "My Day recap" at 4.5's rationale line and "Q1 My Day automatic inclusion" in 4.12's index table both name a page now called Today; 4.7's own annotation states the rule that governs both, which is that the queries and the tables kept their names while the pages were renamed. Every such name in this section is a citation of a query or a table and none of them is a claim about what Dana's pages are called.
+
 ### 4.1 users
 
 | Column | Type | Null | Default | Constraint |
@@ -36,6 +42,8 @@ PK (user_a_id, user_b_id). CHECK (user_a_id < user_b_id): canonical ordering mak
 | name | text | no | none | length 1 to 100 |
 | is_default | boolean | no | false | none |
 | created_at | timestamptz | no | now() | none |
+
+**Annotation, S29 fold, 2026-08-27. "Inbox" below is v1's name for this row and the row is unchanged.** RFC 0005 renamed the default folder to Desk, and the migration renames only defaults still carrying the old name; a v1 account keeps whatever it was called. Nothing in this table moves for that: `is_default` is the record, the unique index is the constraint, and the name is a value in the `name` column. Section 4 is frozen and this is an annotation rather than an edit, which is RFC 0004's S29 acceptance line. See section 2 for both names and the migration's rule.
 
 UNIQUE INDEX ON (owner_id) WHERE is_default: one Inbox per account (INV-2). ON DELETE RESTRICT on owner_id is a tripwire: the account deletion transaction must transfer or delete owned folders first; if it fails to, the database refuses rather than corrupting. Ownership is read from owner_id only; the role column below never encodes it (one source of truth).
 
@@ -98,6 +106,8 @@ Cap: 50 steps per task, enforced by API guard, not constraint. No coupling with 
 | user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
 | added_on | date | no | none | the adder's local date at pull time |
 
+**Annotation, S29 fold, 2026-08-27. This table keeps its name and its rows are called Today entries.** RFC 0005 renamed the page from My Day to Today and deliberately did not rename the table, section 2 stating the rule that a stored identifier is not display copy. So `my_day_entries` is correct wherever it appears in sections 4, 6 and 7, and "My Day entry" is not: the glossary's term is **Today entry**. Section 4 is frozen and this is an annotation rather than an edit.
+
 PK (task_id, user_id) (INV-12). Index on (user_id) for Q1. Rows are additionally deleted by the member-removal and leave transactions for tasks the user loses access to; the task-deletion cascade covers the rest.
 
 ### 4.8 reminders
@@ -142,6 +152,8 @@ Partial unique index enforcing INV-11: UNIQUE ON (inviter_id, email, COALESCE(fo
 | updated_at | timestamptz | no | now() | none |
 
 My Day, Tasks, and Planned have no toggles: they cannot be hidden. Session storage is stack-dependent and out of the core model; its requirements live in section 10.1.
+
+**Annotation, S29 fold, 2026-08-27. The sentence above is v1's page-visibility model and v2 does not use it, though every column in the table is untouched and still written.** RFC 0005 replaced three fixed flags with a pin list: which places appear in the sidebar is 9.7's pin list, stored as `pinned_views` on 4.19, and Done, Abandoned and Anytime ship unpinned. These three columns stay stored, frozen 7.2's `/me/settings` keeps them untouched, and the pins **derive** from them until the person first writes pins, after which the new column is the record for the v2 surface. That derivation is RFC 0005 change control item 6, which took it precisely so that two records of one fact are never both authoritative for one reader. So: the three columns are not dead and are not the answer to "can this page be hidden"; 4.19 is. Section 4 is frozen and this is an annotation rather than an edit.
 
 ### 4.11 Storage formats, each against a standard
 
