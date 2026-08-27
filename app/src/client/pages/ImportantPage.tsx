@@ -8,7 +8,7 @@ item 47(l) measured that it still owed the head. Item 45's deeper finding is
 why the split reads the way it does: "the prototype's screens are
 presentational and its wiring is in its shell", which is the same architecture
 this client has. So the screen takes rows and callbacks and touches nothing
-else, and this supplies both. The screen's own header names its six seams.
+else, and this supplies both. The screen's own header names its seven seams.
 
 **The board and a grouping are this file's branch rather than the screen's**,
 because the screen is the prototype's list arrangement and a board is a
@@ -55,7 +55,7 @@ import { taskRowDisplay } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
 import { CompletedFoot } from '../states/CompletedFoot.js'
-import { PageBody } from '../states/PageStates.js'
+import { PageBody, TruncationNotice } from '../states/PageStates.js'
 import { ImportantScreen } from '../screens/important-screen.js'
 import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM } from '../components/ui/copy.js'
 import { IMPORTANT_EMPTY } from './empty-states.js'
@@ -85,37 +85,65 @@ export function ImportantPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      {arranged ? <PlaceHead place={place} /> : null}
-      <PageBody
-        query={view}
-        isEmpty={rows.length === 0}
-        emptyCopy={IMPORTANT_EMPTY}
-        emptyIcon={Star}
-        truncated={view.data?.truncated ?? false}
-      >
-        {place.mode === 'board' ? (
-          <TaskBoard place={place} columns={columns} context={context} actions={actions} />
-        ) : place.groupBy !== 'none' ? (
-          <div className="space-y-6">
-            {columns.map((column) => (
-              <PageSection
-                key={column.key}
-                name={column.name}
-                heading={column.name}
-                headingMedia={groupHeadingMedia(column.mark, basis.folders)}
-                count={column.rows.length}
-              >
-                <TaskRows
-                  tasks={column.rows}
-                  context={context}
-                  actions={actions}
-                  onAsk={confirm.ask}
-                />
-              </PageSection>
-            ))}
-          </div>
-        ) : (
+      {arranged ? (
+        <>
+          <PlaceHead place={place} />
+          <PageBody
+            query={view}
+            isEmpty={rows.length === 0}
+            emptyCopy={IMPORTANT_EMPTY}
+            emptyIcon={Star}
+            truncated={view.data?.truncated ?? false}
+          >
+            {place.mode === 'board' ? (
+              <TaskBoard place={place} columns={columns} context={context} actions={actions} />
+            ) : (
+              <div className="space-y-6">
+                {columns.map((column) => (
+                  <PageSection
+                    key={column.key}
+                    name={column.name}
+                    heading={column.name}
+                    headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                    count={column.rows.length}
+                  >
+                    <TaskRows
+                      tasks={column.rows}
+                      context={context}
+                      actions={actions}
+                      onAsk={confirm.ask}
+                    />
+                  </PageSection>
+                ))}
+              </div>
+            )}
+          </PageBody>
+        </>
+      ) : (
+        /*
+        **The screen owns its own states, which `PageBody` cannot do for it.**
+
+        Every other place page renders its head outside `PageBody` and its body
+        inside, because that component answers pending, error and empty by
+        rendering *instead of* its children. The head is inside the screen
+        here, so wrapping the screen would take the head off the page in all
+        three of those states, which is a page with nothing on it and no name.
+
+        The prototype's own screen already draws the three, from
+        `components/state-patterns.tsx`, which is the same shared vocabulary
+        `PageBody` wraps and the reason nothing is given up by letting it. What
+        the screen has no idea about is section 6's cap, so the notice sits
+        above it, and 9.1's retry, which is the screen's seventh seam.
+        */
+        <>
+          {view.data?.truncated === true ? <TruncationNotice /> : null}
           <ImportantScreen
+            previewState={
+              view.status === 'pending' ? 'loading' : view.status === 'error' ? 'error' : null
+            }
+            onRetry={() => {
+              void view.refetch()
+            }}
             tasks={narrowed.map((task) => {
               const display = taskRowDisplay(task, context)
               return {
@@ -158,19 +186,20 @@ export function ImportantPage(): React.JSX.Element {
               })
             }}
           />
-        )}
+        </>
+      )}
 
-        {/* The owner's ruling of 2026-08-22: every page that lists tasks ends
-            the same way. The predicate is Q4's, this page's own spine, so the
-            foot is this page's work finished rather than every finished
-            thing. */}
-        <CompletedFoot
-          keep={(task) => task.important}
-          context={context}
-          actions={actions}
-          onAsk={confirm.ask}
-        />
-      </PageBody>
+      {/* The owner's ruling of 2026-08-22: every page that lists tasks ends
+          the same way. The predicate is Q4's, this page's own spine, so the
+          foot is this page's work finished rather than every finished thing.
+          Outside both branches, because it is the page's close and not the
+          list's, and because it reads Q6 rather than Q4's own query. */}
+      <CompletedFoot
+        keep={(task) => task.important}
+        context={context}
+        actions={actions}
+        onAsk={confirm.ask}
+      />
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>
   )

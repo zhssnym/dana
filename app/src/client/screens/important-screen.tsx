@@ -22,7 +22,7 @@ anything: none of the eight screens this row names imports `@/fixtures` at
 all, where `app-shell.tsx` and its two neighbours did, so the answer here
 points the other way from S24's.
 
-**The seams, and there are six.**
+**The seams, and there are seven.**
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4), the
    mechanical seam every lifted file takes.
@@ -51,6 +51,11 @@ points the other way from S24's.
    everything the viewer has ever finished in order to draw a collapsed
    heading. `states/CompletedFoot.tsx` draws the same section with the read
    the client already had, and `pages/ImportantPage.tsx` says so too.
+7. **The failed-read line gets a retry.** 9.1 gives that line a "Try again"
+   control and the prototype's lab has nothing to retry, so it renders one
+   with no handler, which is DES-144's dead control. The page supplies the
+   query's own refetch. The page also keeps section 6's cap notice above this
+   screen, the prototype having no idea a list can be truncated.
 
 Nothing else moves. The empty copy is byte-identical to Q4's, which
 `pages/empty-states.ts` also carries as `IMPORTANT_EMPTY`.
@@ -81,6 +86,8 @@ interface ImportantScreenProps {
      you are. */
   completed?: (TaskRowProps & { id: string })[]
   previewState?: string | null
+  /** Seam 7: what 9.1's "Try again" does. See the InlineError below. */
+  onRetry?: () => void
   onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
   onToggleImportant: (taskId: string) => void
@@ -93,6 +100,7 @@ export function ImportantScreen({
   tasks,
   completed = [],
   previewState,
+  onRetry,
   onOpenTask,
   onToggleComplete,
   onToggleImportant,
@@ -116,7 +124,10 @@ export function ImportantScreen({
         {previewState === "loading" ? (
           <SkeletonList />
         ) : previewState === "error" ? (
-          <InlineError />
+          /* Seam 7: 9.1 gives the inline failed-read line a "Try again"
+             control, and a control with no handler is DES-144's dead one.
+             The prototype's lab has nothing to retry. */
+          <InlineError onRetry={onRetry} />
         ) : isEmpty ? (
           <Empty className="min-h-72">
             <EmptyMedia className="text-[var(--color-graphite-400)]">
