@@ -34,6 +34,13 @@ the store this file used to sit over was never inside it; the store was the
 call site's, which is `page-cover.tsx`. That is the whole reason this file
 crosses as nearly as it does.
 
+**`onUpload` is new at S26, and it is the second half of `tiers`.** The
+prototype's Upload tab makes an object URL that lives for the session, which
+its own tab says in words; a folder page has 7.15 and 4.3's `cover_file_id`,
+so the bytes are stored and the cover survives a reload. The prop is optional
+and its absence is the prototype's behaviour unchanged, which is what keeps
+every other call site as it was.
+
 **`tiers` is new, and it is a measurement rather than a preference.** 4.20
 holds a cover as a `preset` or a `file_id`, and a file has to exist for the
 second: `POST /api/v1/files` requires `folder_id` as a uuid
@@ -333,12 +340,15 @@ export function FolderCoverPicker({
   onPick,
   onRemove,
   tiers = ALL_COVER_TIERS,
+  onUpload,
 }: {
   value: string | undefined
   folderName: string
   onPick: (key: string) => void
   onRemove: () => void
   tiers?: readonly CoverTier[]
+  /* The S26 seam: where the caller can store the bytes, it takes them. */
+  onUpload?: (file: File) => void
 }) {
   const [tab, setTab] = useState<CoverTier>(tiers[0] ?? "gallery")
   const [linkUrl, setLinkUrl] = useState("")
@@ -371,6 +381,12 @@ export function FolderCoverPicker({
   function takeFile(list: FileList | null) {
     const file = list?.[0]
     if (!file || !file.type.startsWith("image/")) return
+    /* The S26 seam. Without one this is the prototype's session-only URL,
+       which is what the tab below still says where that is the truth. */
+    if (onUpload) {
+      onUpload(file)
+      return
+    }
     rememberUploadedCover(folderName, URL.createObjectURL(file))
     onPick("upload")
   }
@@ -491,7 +507,9 @@ export function FolderCoverPicker({
               Choose an image
             </button>
             <p className="text-[11px] leading-4 text-[var(--color-graphite-400)]">
-              or drop one here · kept for this session only
+              {/* The tab says what is true of this caller, which is the whole
+                  of the S26 seam reaching the copy. */}
+              {onUpload ? "or drop one here" : "or drop one here · kept for this session only"}
             </p>
           </div>
         ) : null}

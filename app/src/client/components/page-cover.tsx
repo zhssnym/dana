@@ -34,6 +34,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import {
   savePageIdentity as savePrototypeFolderIdentity,
   usePageIdentity as useFolderIdentity,
+  /* The S26 seam, and the whole of it in this file: which tiers this page can
+     honestly supply, whether it has anywhere to keep a crop, and where it can
+     store an upload. All three are properties of the table behind the page
+     rather than of the band, so the module that owns the storage owns them. */
+  coverStoresPosition,
+  coverTiersFor,
+  coverUploader,
 } from "../lib/page-identity.js"
 import { cn } from "./ui/utils.js"
 
@@ -158,6 +165,8 @@ export function PageCover({ storageName }: { storageName: string }) {
                 <FolderCoverPicker
                   value={identity.cover}
                   folderName={storageName}
+                  tiers={coverTiersFor(storageName)}
+                  onUpload={coverUploader(storageName)}
                   onPick={(key) =>
                     savePrototypeFolderIdentity(storageName, {
                       cover: key,
@@ -170,7 +179,7 @@ export function PageCover({ storageName }: { storageName: string }) {
                 />
               </PopoverContent>
             </Popover>
-            {coverRepositions(identity.cover) ? (
+            {coverRepositions(identity.cover) && coverStoresPosition(storageName) ? (
               <button
                 type="button"
                 onClick={() => {
@@ -238,6 +247,8 @@ export function AddCoverAction({ storageName }: { storageName: string }) {
         <FolderCoverPicker
           value={identity.cover}
           folderName={storageName}
+          tiers={coverTiersFor(storageName)}
+          onUpload={coverUploader(storageName)}
           onPick={(key) =>
             savePrototypeFolderIdentity(storageName, { cover: key, coverPos: 50 })
           }

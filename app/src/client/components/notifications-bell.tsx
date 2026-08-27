@@ -37,6 +37,27 @@ white-on-white in his own first gate run.
 D3's liveness: the list refetches on focus like every read, and polls only
 while the popover is open (`useNotifications(open)`), which is the polite
 poll the pricing session bought and nothing more.
+
+**Moved here from `shell/` and given its last missing element at S26**, and
+both halves are the same finding. Measured at this row's opening on item
+48(j)'s method, this file already carried eleven of the prototype's twelve
+class strings, which is a port sitting at a lift's fidelity: S12 transcribed
+his composition rather than approximating it. So there was nothing to lift and
+two things to correct.
+
+The twelfth string was **the actor's face**, which the prototype draws at the
+head of every row and this drew nowhere, so a feed about what people did to
+you named them and never showed them. The roster this file already reads for
+the name is the same one that supplies the initials, so it costs a component
+and no request.
+
+And the file was in `shell/`, which is `07-frontend-architect.md`'s, while
+`components/**` is `08-component-and-design-system.md`'s and the prototype's
+own path is `components/notifications-bell.tsx`. A component in the wrong
+owner's directory is the fault RFC 0005 change control item 46 names, one
+level below the one it names it at: not a duplicate yet, but the state a
+duplicate is made from, because the next session looking for the bell under
+`components/` finds nothing there.
 */
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -46,15 +67,17 @@ import {
   useMarkNotificationRead,
 } from '../api/mutations.js'
 import { useConnections, useMe, useNotifications } from '../api/queries.js'
-import { Button } from '../components/ui/button.js'
+import { Button } from './ui/button.js'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '../components/ui/popover.js'
+} from './ui/popover.js'
 import { Bell } from '../lib/icons.js'
 import { formatAgo } from '../parts/format-dates.js'
-import { cn } from '../components/ui/utils.js'
+import { initialsOf } from '../parts/presenters.js'
+import { PersonFace } from './person-face.js'
+import { cn } from './ui/utils.js'
 import type { NotificationLine } from '../../shared/events.js'
 import { paths } from '../routes.js'
 
@@ -184,6 +207,15 @@ export function NotificationsBell(): React.JSX.Element {
                 }}
                 className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors outline-none hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
               >
+                {/* The face the prototype puts at the head of every row: a
+                    feed about what people did to you says who, and a name
+                    without a face is the one thing this composition was
+                    missing. */}
+                <PersonFace
+                  className="mt-0.5 shrink-0"
+                  name={actor}
+                  initials={initialsOf(actor)}
+                />
                 <span className="min-w-0 flex-1">
                   <span
                     className={cn(
