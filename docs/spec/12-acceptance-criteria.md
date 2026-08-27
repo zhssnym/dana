@@ -9,7 +9,7 @@ Given/when/then, one behavior each, numbered to match the build order ranges. An
 - AC-004 Given a connection row with user_a_id greater than user_b_id, when inserted, then rejected (INV-9).
 
 **Auth and provisioning (P1)**
-- AC-005 Given a first Google sign-in, when the callback completes, then one user, one Inbox folder with owner membership, and one settings row exist, created atomically (INV-14).
+- AC-005 Given a first Google sign-in, when the callback completes, then one user, one folder named Desk with owner membership, and one settings row exist, created atomically (INV-14).
 - AC-006 Given two concurrent first sign-ins with the same google_sub, when both finish, then exactly one user row exists and both sessions reference it.
 - AC-007 Given a returning login from a device in a different timezone, when the session starts, then users.timezone equals the new zone.
 - AC-008 Given Google reports the email unverified, when the callback runs, then sign-in is refused with the explanation page and no rows are created.
@@ -20,7 +20,7 @@ Given/when/then, one behavior each, numbered to match the build order ranges. An
 - AC-011 Given a non-owner member, when renaming the folder, then 403.
 - AC-012 Given the owner, when renaming, then 200 and every member reads the new name.
 - AC-013 Given the owner of a default folder, when deleting it, then 409.
-- AC-014 Given the owner deletes a custom folder, when the transaction ends, then the folder, its tasks of all statuses, steps, My Day entries, reminders, and pending folder invites are gone, and the response counts match what was deleted.
+- AC-014 Given the owner deletes a custom folder, then the response carries 7.4's exact counts, the folder leaves every list and view, and it waits in Trash with its memberships, tasks of all statuses, steps, My Day entries, reminders, and pending invites held; when the 30 day window lapses and the pass runs, then the folder, all of those rows, and the folder's invites are gone, bare invites and other folders untouched.
 - AC-015 Given a non-owner member, when deleting the folder, then 403.
 - AC-016 Given the owner removes a member holding assigned tasks, then those tasks are unassigned, the member's My Day entries for the folder's tasks are deleted, and their access ends.
 - AC-017 Given a removal leaves exactly one member, then every unassigned task in the folder is assigned to the remaining member (INV-5).
@@ -33,7 +33,7 @@ Given/when/then, one behavior each, numbered to match the build order ranges. An
 - AC-024 Given any member adds from their roster, then 201 and one share-grant email is sent to the target.
 
 **Tasks core (P3)**
-- AC-025 Given creation with only a title, then the task lands in the caller's Inbox, assigned to the caller, pending, undated.
+- AC-025 Given creation with only a title, then the task lands in the caller's Desk, assigned to the caller, pending, undated.
 - AC-026 Given creation in a single-member folder with assignee_id null in the body, then the stored assignee is that member.
 - AC-027 Given creation with due_time and no due_date, then 422.
 - AC-028 Given a PATCH clearing due_date on a task with due_time, a rule, and a reminder, then all three are cleared or deleted in the same transaction.
@@ -50,7 +50,7 @@ Given/when/then, one behavior each, numbered to match the build order ranges. An
 - AC-039 Given abandon on a pending task, then it leaves My Day, appears faded in its home, and never appears in Done.
 - AC-040 Given restore on an abandoned non-recurring task, then it is pending with every date and the reminder configuration untouched.
 - AC-041 Given uncomplete on a completed non-recurring task, then it is pending and completed_at and completed_by are null.
-- AC-042 Given a task deletion, then its steps, My Day entries, and reminder are gone and any invite task_id pointing at it is null.
+- AC-042 Given a task deletion, then the task leaves every list and view and waits in Trash with its steps, My Day entries, and reminder held for restore, any invite keeping its task_id; when the 30 day window lapses and the pass runs, then the row and those dependents are gone and the invite survives with task_id null.
 - AC-043 Given a 51st step, then 422.
 - AC-044 Given POST my-day twice then DELETE my-day twice, then one entry existed with its original added_on, and every call returned 200 (INV-12).
 
@@ -80,7 +80,7 @@ Two of these are asserted by their content rather than at the instant they name,
 - AC-063 Given a bare invite accepted, then one connection row exists serving both rosters and no membership was granted.
 - AC-064 Given a folder invite, when a Google account with the exact lowercased email signs in, then the invite is waiting and acceptance grants connection plus membership; a different account's pending list is empty.
 - AC-065 Given an invite carrying task_id accepted while the task is still in the folder and unassigned, then the acceptor becomes the assignee.
-- AC-066 Given an invite carrying task_id accepted after the task was moved or assigned, then the assignment is skipped and the membership is still granted.
+- AC-066 Given an invite carrying task_id accepted after the task was moved or assigned, then the assignment is skipped and the membership is still granted; given the task was deleted before acceptance, then the invite keeps its parked task_id, the acceptance grants the folder and skips the assignment, and the task waits in Trash unassigned.
 - AC-067 Given a decline, then the invite is terminal, the inviter sees declined, and a fresh invite to the same email is allowed.
 - AC-068 Given a cancel by the inviter or folder owner, then the recipient's pending list no longer contains it; given a resend within 24 hours, then 429, and after 24 hours the email is sent again.
 - AC-069 Given a connection removal by either side, then both rosters drop the pair, existing shared memberships stay intact, and a new share to that person requires a fresh email invite.
@@ -117,8 +117,8 @@ AC-072 to AC-075 are asserted by their content rather than at the dates they nam
 **Client and PWA (P8)**
 - AC-091 Given one prior online load, when the installed app opens offline, then the shell renders with the offline banner and a write attempt shows the failure toast with nothing queued.
 - AC-092 Given the form holds a rule and reminder, when the date is cleared, then the warning copy shows and, on confirm, the three dependents are disabled and empty.
-- AC-093 Given the task form opened from each of My Day, the Planned list, a Planned calendar cell, Important, a folder page and the bare add button, then its due date, important and folder fields hold exactly the values 9.3's entry-point table gives that row, the calendar cell contributing its own date and the folder page contributing that folder with an empty due date whether the form was opened from its quick-add or from the floating button.
-- AC-094 Given a single-member folder selected, then no assignee field renders; given a multi-member folder, then the dropdown lists exactly its members plus the invite option.
+- AC-093 Given the capture points of 9.3's entry table, when a task is created from each, then it carries exactly that row's defaults: Desk and undated from Desk, All, or the bare control; a Today membership and today's date from Today; today's date from the Scheduled list; the cell's date from a calendar cell; important from Important; assigned to the viewer from Assignments; the folder from a folder page's loose block; the folder and section from a section's capture; and the column's value from any board column.
+- AC-094 Given the assignee control in a multi-member folder, then its choices are that folder's members, Invite by email, and Unassigned; given a single-member folder, then the control is hidden and the server still enforces INV-5.
 - AC-095 Given Important, All, and Done toggled hidden, then the sidebar omits them while their URLs still render the pages (visibility is navigation preference only).
 - AC-096 Given the Done page, then no floating add button and no quick-add row exist on it.
 - AC-097 Given an abandoned row, then it renders faded and struck with a Restore control, and restoring an overdue assigned task returns it to My Day immediately.
@@ -380,7 +380,7 @@ The criterion asserts the dot as identification rather than as a colour value, f
 **Four more criteria above named an apparatus 9.3's v2 replacement retires, and the four sentences above are the amended ones (S15, 2026-08-25, under RFC 0005 change control items 15 and 19).** AC-161, AC-170, AC-178 and AC-179 each addressed "the task form", and 9.3's v2 opening is "There is no task form. A task is its row, its card, and its page". Nothing any of the four asserts moved: the words "the form" became "the task surface", which is the name 9.1's v2 roles table gives the thing ("The task surface: a dialog when opened as one; a page when opened as a tab or by its URL"), and every clause after them is verbatim. That is item 8's shape and item 14's, a criterion whose sentence the section moved under, and it is the whole of what item 19 authorised this package to take: two further criteria that the same replacement falsified in substance rather than in wording, AC-169 and AC-182, are recommended as Replace units in RFC 0005 change control item 25 and are the owner's, not this session's. Until they are ruled, AC-169's file records exactly what its sentence no longer discriminates and AC-182's records what its fourth case has left behind it.
 
 
-**RFC 0005's forty-two criteria (transcribed at the S9 kickoff on 2026-08-24; authored and numbered by S1 at that RFC's acceptance on 2026-08-24).** The RFC's own split at its Append unit: AC-184 to AC-213 run in the API legs, AC-214 to AC-225 in the browser leg. The three criteria that RFC replaces rather than appends (AC-014, AC-093, AC-094) keep their v1 texts above until the delta folds wholesale, the reworked tests already asserting the RFC's texts; a reader comparing the two reads the RFC as the authority, which is what change control means.
+**RFC 0005's forty-two criteria (transcribed at the S9 kickoff on 2026-08-24; authored and numbered by S1 at that RFC's acceptance on 2026-08-24).** The RFC's own split at its Append unit: AC-184 to AC-213 run in the API legs, AC-214 to AC-225 in the browser leg. **That RFC's Replace units are folded, and this paragraph used to be the record of their deferral (S29, 2026-08-27).** It read: "The three criteria that RFC replaces rather than appends (AC-014, AC-093, AC-094) keep their v1 texts above until the delta folds wholesale, the reworked tests already asserting the RFC's texts; a reader comparing the two reads the RFC as the authority, which is what change control means." The delta has now folded for those units and the sentence goes with the reason for it. **Seven criteria moved rather than three**: AC-005 and AC-025 for the default folder's name, AC-014 and AC-042 for the split of a delete into a mark and a purge, AC-066's deleted-in-the-meantime arm for the same split, and AC-093 and AC-094 for 9.3's v2 entry table and assignee control. The tests have asserted these texts since they were reworked, `ac-014-delete-cascade.test.ts` opening "AC-014 (as replaced by RFC 0005)", so nothing in `app/tests/` moves and no criterion is weakened; what closes is a specification and a suite disagreeing in writing, which the browser criteria triage's T1 and RFC 0005 change control item 40(d) both found independently. The count differs from those two because they say "six units, seven numbers": AC-005 and AC-025 are one unit.
 - AC-184 Given any authenticated mutation that changes a task, folder, shelf, or comment, when it succeeds, then exactly one events row records it, carrying the actor, the verb, and the subject.
 - AC-185 Given a folder member, when they list the folder's events, then events return newest first; given a non-member, then the 10.2 not-found shape.
 - AC-186 Given an event whose subject the viewer cannot read, when they read events by subject, then the 10.2 not-found shape.

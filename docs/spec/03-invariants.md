@@ -15,6 +15,6 @@ Properties that must hold at all times, phrased as testable assertions. "Constra
 | INV-9 | At most one connection row per unordered user pair, and user_a_id < user_b_id on every row | PK plus CHECK |
 | INV-10 | At most one membership per (folder, user); the folder owner always holds a membership | PK; transactions on create, transfer, removal |
 | INV-11 | At most one pending invite per (inviter, email, folder), counting the no-folder case as one folder value | Partial unique index |
-| INV-12 | At most one My Day entry per (task, user); added_on is not after today in the adder's timezone at insert time | PK; guard |
+| INV-12 | At most one Today entry per (task, user); added_on is not after today in the adder's timezone at insert time | PK; guard |
 | INV-13 | recurrence_rule set implies series_id set | CHECK constraint |
 | INV-14 | Every non-deleted user has exactly one user_settings row and a valid IANA timezone | Provisioning transaction; timezone validation |

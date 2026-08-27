@@ -4416,8 +4416,11 @@ fold, the way P7's mid-package change control ratified the pass callable:
 
     **(j) The shell's markup fidelity is measured for the first time, on
     Imran's question of 2026-08-27 mid-row: "I want the exact prototype v2
-    shell in Dana v2.0."** Pixel fidelity has been one ledger entry, L-284, for
-    the whole product since S20, and no row has ever been handed it. This is
+    shell in Dana v2.0."** Pixel fidelity has been one ledger entry, **L-253**, for
+    the whole product since S20, and no row has ever been handed it. (This
+    read L-284 until item 49 corrected it on 2026-08-27; the ledger's own
+    prose carried that number, the ledger stops at L-259, and this item and
+    SESSION-LOG row 39 each copied it once.) This is
     the first number anybody has put against it, and the method is cheap enough
     that S25 to S27 should each repeat it for their own surfaces: **count the
     prototype file's class strings that appear verbatim anywhere in
@@ -4534,6 +4537,266 @@ fold, the way P7's mid-package change control ratified the pass callable:
     first of the ten is the owner's to overturn**: item 32 is his own ruling
     standing against his own restatement, and a session may not choose between
     two of his rulings.
+
+49. **The spec fold to v2: the owner's ruling stated a third time, four sections
+    that still described the product Dana is replacing, and a fold debt far
+    larger than this row's four pieces (S29, 2026-08-27).** RFC 0004's S29 row
+    is the fold, and this item carries what the row folded, what it found, what
+    it declined and the one question it puts to Imran. It writes no code and
+    moves no acceptance criterion's number.
+
+    **(a) "I want prototype v2 as Dana v2.0", restated to this session on
+    2026-08-27, and recorded here because nothing in the repository carried
+    it.** It is his third statement of the same thing: item 37 rules it for the
+    whole product, item 48(k) took the shell to exact on it, and this one is
+    unqualified. It bears on a fold in one specific way and this item does not
+    stretch it further: **where a numbered section still describes the client
+    Dana is replacing, the section is the stale thing.** That sentence is what
+    let this row change 8.8's prose without waiting for a ruling on 8.8, and it
+    is also what it did *not* use as a licence to rewrite anything the prototype
+    happens to do differently from a section, 11.13 being unmoved.
+
+    **(b) The line between folding and authoring, written down at this row's
+    opening because six owner columns in a row have been wrong and this row's
+    seam is the same shape.** `11-adversarial-test.md` owns "Spec section 12 in
+    full: every acceptance criterion it carries". This role owns "change
+    control: amendments to the specification", and the template's fold ritual is
+    this role's act by name. **The test is whether the words being written were
+    already accepted.** Copying an accepted Replace unit's text over a criterion
+    is the fold and is this role's; choosing what a criterion should say is
+    authorship and is persona 11's, even when the change is one word and
+    obviously right. Every criterion this item moved is named in (e) and every
+    one of them has an accepted unit behind it. Four criteria a fold would have
+    been tempted by are named in (i) and were left alone.
+
+    **(c) 8.8 contradicted 7.13, and so did 5.2, which nobody had found.** 8.8
+    ended "Nothing is recoverable; the dialog said so with counts", which is
+    v1's hard delete. 7.13 retired it for the soft delete and the 30 day purge
+    when this RFC was accepted on 2026-08-24; the mechanism moved and the
+    section's prose did not, and item 38 named the contradiction and handed it
+    here. 8.8 now describes the mark, the restore window and the purge's cascade
+    in that order, and says plainly what it still does not carry, which is item
+    36's permanent control and item 38's leave-or-delete question, those being
+    S28a's and S28b's. **The one nobody had found is 5.2's own delete row**,
+    which read "row removed" with the cascades hung on it: the same v1 hard
+    delete written as a state transition, one section earlier, in the section
+    that says which transitions are forbidden. It is now three rows, delete
+    marks, restore clears, purge removes, and none of them is new behaviour.
+    **Two consequences travelled with it.** 8.10's account deletion said "delete
+    folder (cascades per 8.8)", which after the fold would have named the soft
+    delete; it names the purge's cascade instead, which is what
+    `domain/folders.ts` has always done through `deleteFolderRow` and what the
+    act requires, an account that no longer exists having no Trash to wait in.
+    And 5.2's invite row now fires at the purge rather than at the delete, which
+    opens a gap nobody had specified and which is recorded as **section 13 item
+    49** rather than decided: an invite parked against a folder sitting in Trash
+    has no stated outcome, and the recommendation is to refuse the acceptance
+    while it is trashed.
+
+    **(d) Section 1 rewritten whole, and the half of it that is not a rename.**
+    1.1 and 1.2's three bullets are this RFC's unit 1 verbatim, which had never
+    been folded. Two bullets were added beyond it, for Activity and
+    notifications and for Files, and they introduce no rule: 4.13, 4.14, 7.12,
+    9.12, 4.16, 7.15 and 10.3 carry those systems already, and a section 1
+    bullet is a summary of the sections that hold the rules. Without them 1.2
+    said Dana has no activity, no bell and no attachments while all three ship.
+    **1.3's table is the part worth reading twice.** Three rows left it because
+    Dana now does the thing, Attachments, Activity log and Drag reordering, and
+    each is named in place rather than deleted, since a reader who knew the old
+    table will look for them. **Dana AI chat stayed and its date did not**: it
+    read "earliest return v2", and v2 is the release that table now describes,
+    so the cell was a promise the product had already broken. That is the
+    opposite shape of mistake from the three above, and both shapes are what
+    this table has to be audited for at every release. Every remaining "v1" and
+    "v1.1" in the last column became "Deferred, no date" rather than a version
+    this role picked, because re-dating a deferral is a product decision and one
+    sentence from Imran closes as many rows as he likes.
+
+    **(e) The v1-name debt, audited across all thirteen sections, and the audit
+    is three piles rather than one.** 74 occurrences were counted across 11 of
+    the 13 files at this row's opening. **Folded**, where the name is a page's
+    and the page was renamed: section 1 whole, section 2 whole, section 6's five
+    query headings and its cap list, 8.2's heading and four of its uses,
+    00-index's map row, INV-12, and 5.4's pull row. **Annotated rather than
+    rewritten**, which is this row's own acceptance line: sections 4 and 7,
+    whose twelve occurrences are `my_day_entries`, `/views/my-day`,
+    `/views/planned`, `/views/planned/calendar`, `/views/tasks`, `POST` and
+    `DELETE /tasks/:id/my-day`, 7.8's heading and four response keys. **Every
+    one of those is an address or an identifier and none of them is a page
+    name**, so renaming one would be a breaking change wearing a tidy-up's
+    clothes; each section gained one annotation at its head saying so, and 4.3,
+    4.7 and 4.10 gained one each at the point of use. **Left alone**: every
+    occurrence that is an explicitly historical account of a superseded ruling,
+    of which 9.4, 9.5 and 9.7 hold four between them and all four already say
+    so.
+
+    **Section 6's headings deserve their own sentence** because they are the one
+    place both names are kept. Unit 3's own note gives the reason and it is
+    right: criteria and older RFCs cite Q1 to Q3C by their original titles, so a
+    heading dropping the old name would break those citations silently while a
+    heading keeping only the old name would go on saying Dana has a page called
+    Planned. Both names, one heading, and the section's preamble now states the
+    rule so that the next reader does not tidy it away.
+
+    **The seven section 12 numbers this RFC replaces are folded**, which is
+    finding 40(d) and the triage's T1, found independently from two sides.
+    AC-005 and AC-025 take the default folder's name, AC-014 and AC-042 take the
+    split of a delete into a mark and a purge, AC-066 gains its
+    deleted-in-the-meantime arm, and AC-093 and AC-094 take 9.3's v2 entry table
+    and assignee control. `app/tests/` has asserted these texts since the tests
+    were reworked, so **nothing in the suite moves and nothing is weakened**;
+    what closes is a specification and a suite disagreeing in writing. The
+    paragraph at section 12's line 383 that recorded the deferral in terms is
+    replaced by one recording the fold, a deferral note outliving its deferral
+    being the next reader's confusion. **Item 48(g)'s own instance was already
+    closed** by S24, in the same commit that offered it here: AC-246 reads "Move
+    to shelf" today. What it offered was the class, and the class is (i).
+
+    **(f) T3's sentence is in 9.5, and it is an amendment rather than a fold.**
+    The triage found that AC-099 asserts an outward star tooltip no folded
+    section carries: the criterion is right, the client passes it, and the
+    tooltip traces to 6 Q4 rather than to section 9, so a lifting session
+    reading 9.5 would not know it was required. 9.5's Important bullet now says
+    the tooltip turns outward and names the task's home with the fact that home
+    would show. **It is written as a new normative statement and recorded as one
+    here**, exactly because it did not ride the fold: no accepted unit carries
+    it, and the difference between the specification catching up with a decision
+    and the specification acquiring a new one is worth more than the sentence
+    is. It deliberately does not quote the tooltip's own words, which are 6 Q4's
+    and are the subject of section 13 item 50.
+
+    **(g) The fold debt is far larger than this row's four pieces, and that is
+    this row's largest finding.** Item 35 found half of it in passing and named
+    the Steward: 7.12 to 7.18 and the 10.3 replacement are unfolded, so
+    `docs/spec/07-api.md` ends at 7.11 and mentions Trash, shelves, comments and
+    files nowhere. **The truth is bigger.** Unfolded, all of it accepted: **units
+    10 and 11** (sections 4.13 to 4.19, and the 4.3 and 4.5 replacements),
+    **unit 12 and unit 12a** (7.12 to 7.17 and the `TaskCard` line of 7.0),
+    **units 13 and 13a** (the 10.3 replacement and 10.8), **unit 14** (11.7's
+    five duties), **unit 16** (three 11.15 hazards), **unit 18** (two section 13
+    appends), and **all nine units of item 46**. So section 4 today describes
+    twelve tables and no `deleted_at`, and a session reading it would conclude
+    Dana has no Trash and no attachments, both of which shipped weeks ago. **It
+    was deliberately not taken in this row and the reason is not schedule.**
+    This row's acceptance line is *annotate* frozen 4 and 7 rather than rewrite
+    them, and pasting hundreds of lines of accepted amendment into those two
+    files is a different act from correcting a stale word in one. **It is
+    scheduled instead**, as RFC 0004's new **S29a**, whose acceptance forbids
+    setting this RFC to `Implemented` and forbids inventing anything; item 46's
+    own preamble already said the section 4 and 7 folds are S29's, which is why
+    S29a is lettered off this row rather than parked. Sections 4 and 7 each
+    gained an annotation at the head naming the debt, so that no reader of
+    either mistakes it for the whole contract meanwhile. **One unit is already
+    known malformed** and S29a should fix the writing rather than interpret it,
+    which is the template's own rule: the 7.12 to 7.17 fence encloses the 7.17b
+    meta-unit, a unit description sitting inside what a fold would paste.
+
+    **(h) Three plan gaps closed and one row added, all four in RFC 0004.** Each
+    was sitting in change control as a recommendation from a role that owns no
+    file in `docs/rfcs/`, which was the correct thing for each of those roles to
+    do and is exactly why nothing happened.
+    **S23a now exists.** Item 47(k) split B4's task drag, the hold that makes a
+    folder of two tasks, and selection with the bulk bar out of S23, with the
+    prototype's own header as the argument; item 44 priced them at about three
+    and a half sessions and SESSION-LOG row 38 named S23a; the table carried no
+    such row. Item 44's list of what this role owed said "new RFC 0004 rows for
+    the drag package and the covers package", and only the covers half had
+    landed.
+    **Item 45 is closed.** Its proof screen moves to S25, which is where item
+    47(l)'s measurement puts it: `important-screen.tsx` needs `page-head`, the
+    first line of S25's row. S22's acceptance becomes its adapters and their
+    seam comments, which is the rest of that row as written, and item 45's own
+    recommendation is followed one row later than it aimed, because it had
+    measured one unmet dependency and there were two.
+    **S28 is split**, taking item 47(m)'s recommendation. S28a is the server
+    half, item 36's frozen 7.13 Replace unit, the deletion transaction and the
+    purge's object collection, and it depends on nothing in the client arm, so
+    it is the one genuinely parallel-safe build package left in the table. S28b
+    is the Trash control and item 38's dialog and waits on S27 as before.
+    **Section 13 item 46's deferred Duplicate lands in S28a**, on item 47(b)'s
+    ruling that it be delayed and made part of the close if possible: it is one
+    frozen section 7 addition plus a domain function plus criteria, which is
+    S28a's exact shape, and S30 is the close with no build in it at all.
+    **And the owner column gains a sentence rather than a seventh correction.**
+    Items 12, 34, 46, 47(c) and 48(a) are one finding five times, item 46 asked
+    for it to be settled at the opening rather than discovered at the merge, and
+    the table now says in one place that the owner column names the roles known
+    when the row was written and that the persona files are the authority. The
+    three columns change control had already settled, S22a, S23 and S24, are
+    corrected in the table itself so the record is one document rather than two.
+
+    **(i) What was found and deliberately not taken, each with whose it is.**
+    **Twelve section 12 criteria carry a v1 page name and none has an accepted
+    unit behind it**, so all twelve are `11-adversarial-test.md`'s and are
+    offered rather than moved. Counted at this merge: **AC-039**, **AC-047**,
+    **AC-048** and **AC-053** name My Day; **AC-051** names the Inbox and the
+    Tasks page in one sentence; **AC-052** and **AC-070** name Planned;
+    **AC-177** names "the Planned calendar"; **AC-155** pins "Inbox" first in
+    the sidebar where the folder is Desk; **AC-158** names "the My Day recap";
+    and **AC-180** and **AC-246** call a shelf a "folder group". Four further
+    mentions were checked and are right as they stand: AC-123 and AC-137 name
+    `my_day_entries` rows, AC-215 names the two retired addresses it exists to
+    prove redirect, and AC-211 is the rename migration's own criterion. **Every
+    one of the twelve is green today and none asserts a retired behaviour**;
+    each is a name-only change of exactly the shape the AC-005 and AC-025 unit
+    took, which is both the argument for moving them and the argument for whose
+    they are. **One of the twelve is worse than the rest and should go first**:
+    AC-070's sentence is the partition proof's own wording, and 6.1 was folded
+    to name Q2, Q3 and Q5 rather than three page names, so a criterion and the
+    section it proves now spell one claim two ways. **Two of the twelve are more
+    than a document.**
+    `components/folder-group-dialog.tsx` draws "New folder group" and "Rename
+    folder group" on a surface 9.1, 9.6, 9.10 and section 2 all call a shelf,
+    and 6 Q4's outward star tooltip is rendered to a person as "Also in Planned"
+    and "Also in Tasks", two pages Dana does not have. **The prototype carries
+    both**, `shell-page.tsx:3032` for the tooltip, so item 37 settles neither
+    and neither is a lift defect. Both are user-visible copy, both cost a
+    criterion, and they are **section 13 item 50** with one recommendation
+    covering both.
+
+    **(j) One correction to a ratified file, and two citations with it.** The
+    behavioural ledger's prose said "Pixel fidelity is entry L-284"; its table's
+    row is **L-253** and the file stops at L-259, so no L-284 has ever existed.
+    The number was copied out of that sentence twice before anybody checked it,
+    into item 48(j) and into SESSION-LOG row 39, and all three are corrected
+    here. **It is change control rather than another role's edit** because that
+    file is role 07's *ratified by this one* at item 40, which is precisely why
+    item 41(a) raised a wrong ledger entry instead of fixing it: an entry's
+    verdict is its author's, and the file's own numbering is the ratifier's.
+
+    **(k) One question for Imran, with the recommendation attached, and the
+    substance is not in doubt.** **This RFC reads `Accepted` and its delta has
+    grown since acceptance.** He accepted it on 2026-08-24 ("accepted, start
+    S1"). Items 44 and 46 then wrote nine further amendment units into the
+    delta, five of which reach frozen sections 4 and 7. The template's own rule
+    is that "after acceptance, a change to the specification delta returns the
+    RFC to `Draft` for re-acceptance", and the status field never moved. **What
+    is missing is the ritual's bookkeeping and not a decision**: item 44 records
+    that each frozen change was "ruled with its cost stated" and that they were
+    "packaged for the record rather than for a further decision", so his rulings
+    are on the record and S22a built them. **Recommendation: he says the word,
+    and the status is set to `Accepted` again with the date of that word and a
+    line naming item 46's nine units as what it re-accepts.** The alternative,
+    amending the template so that additive units the owner has ruled do not
+    return an RFC to `Draft`, is a change to the change process itself and a
+    worse thing to do to close one gap. **It matters now rather than later**
+    because S29a folds those nine units into frozen sections, and folding an
+    amendment while the RFC carrying it has unresolved bookkeeping is the wrong
+    order; that is why S29a's dependency column names this question. **And
+    `Implemented` is not the answer to any of it.** That status means the whole
+    delta is folded, units of this RFC were still being written at S22a, and
+    this row folded what it names.
+
+    **Numbers, read at this package's opening and again at this merge**, the
+    check items 13 and 25 exist for. Next free acceptance number **AC-274** both
+    times and **none spent**, this row writing no criterion; next SESSION-LOG
+    row **40**; next section 13 item **49**, and **two spent, 49 and 50**; and
+    this item **49**. `git ls-remote --heads origin v2-build` answered `a08d1f0`
+    at both readings. **The live branch was read rather than only the merged
+    ones**, which is the reproducible resolution the evening of S18 and DES-034
+    produced when two sessions wrote "item 32" eight minutes apart: `s25-places`
+    was checked at both readings and had spent no criterion, no log row and no
+    change control item.
 
 ## Implementation plan
 
