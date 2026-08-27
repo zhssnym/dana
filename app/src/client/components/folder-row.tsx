@@ -69,9 +69,14 @@ safety property does the rest: an act with no handler is not drawn, so a
 member's row is given `onLeave` and an owner's `onDelete` and neither needs a
 role branch in this file.
 */
+import { useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
-import { Folder, Folders, Plus } from 'lucide-react'
 
+/* The icon module of DES-125, since S24 here: this file imported `lucide-react`
+   per icon, which `components/ui/foundation.test.ts` allowed on a named v1 list
+   whose own comment says each entry "leaves with the package that replaces the
+   surface it draws". The shell is that package. */
+import { Folder, FolderPlus, Folders, Plus } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { ObjectMenu } from './object-menu.js'
 import { Button } from './ui/button.js'
@@ -88,6 +93,7 @@ import {
   SidebarMenuItem,
 } from './ui/sidebar.js'
 import { cn } from './ui/utils.js'
+import { DWELL_MS } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
 
 export interface FolderRowProps {
@@ -213,7 +219,12 @@ export function FolderRow({
           transition:
             dragState.isActive && !dragState.isSettling
               ? 'none'
-              : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
+              : /* The prototype's own tokens since S24, where this wrote 180ms
+                   and a literal curve. Two raw values standing in for two
+                   tokens is the drift 11.4's single-file rule exists to stop,
+                   and a row that eases differently from the shelf above it is
+                   the drift a person can see. */
+                'transform var(--duration-base) var(--ease-enter), background-color var(--duration-base) var(--ease-enter), box-shadow var(--duration-base) var(--ease-enter)',
           zIndex: dragState.isActive ? 30 : undefined,
           position: dragState.isActive ? 'relative' : undefined,
           /* The carried row must not catch the point it is following: the
@@ -230,12 +241,19 @@ export function FolderRow({
       style={{ ...dragStyle, ...rowProps?.style }}
       data-dragging={dragState?.isActive ? 'true' : undefined}
       className={cn(
-        'group/folder-row',
+        /* `rounded-md` is the prototype's, and it is what gives the carried
+           row and the held-over row their corners; without it the accent wash
+           and the ring were square against a list of rounded rows. */
+        'group/folder-row rounded-md',
         tree &&
           "before:absolute before:-top-0.5 before:left-6 before:z-0 before:h-[calc(50%+2px)] before:w-1.5 before:rounded-bl-[6px] before:border-b before:border-l before:border-[var(--color-graphite-300)] before:content-[''] after:absolute after:top-1/2 after:-bottom-0.5 after:left-6 after:z-0 after:border-l after:border-[var(--color-graphite-300)] after:content-['']",
         tree && treeLast && 'after:hidden',
-        dragState?.isActive && 'shadow-lg',
-        dragState?.isDwelling && 'ring-2 ring-ring/40',
+        dragState?.isActive &&
+          'cursor-grabbing bg-card shadow-[var(--elevation-2)] ring-1 ring-[var(--color-graphite-300)]',
+        dragState?.isDwelling &&
+          'bg-[var(--color-dana-accent-50)] ring-1 ring-[var(--color-dana-accent-200)]',
+        dragState?.isArmed &&
+          'bg-[var(--color-dana-accent-50)] ring-2 ring-[var(--color-dana-accent-600)]',
         rowProps?.className,
       )}
     >
@@ -260,8 +278,21 @@ export function FolderRow({
             mark (its icon in its colour, 4.3)". The glyph arrives as a prop,
             resolved once by `parts/presenters.ts`, so the row, the task chip
             and the tab strip cannot answer the question differently. */}
+        {/*
+        The two opacities are the prototype's and its header carries the
+        arithmetic: a folder's mark rests at 0.62 and comes to full on the row
+        you are standing on, which puts a graphite folder on the same footing
+        as the nav rows above it rather than a shade lighter than all of them.
+        This drew 0.90 flat, so the active row said nothing the others did not.
+        The hover step is deliberately absent: a nav row lights its background
+        and leaves its glyph alone, and the background hover is on the row,
+        where it is shared.
+        */}
         <Mark
-          className="!size-4 shrink-0 opacity-90"
+          className={cn(
+            '!size-4 shrink-0 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)]',
+            active ? 'opacity-100' : 'opacity-[0.62]',
+          )}
           style={{ color }}
           strokeWidth={1.75}
           aria-hidden="true"
@@ -291,6 +322,23 @@ export function FolderRow({
           // (`shell/library-drag.ts`), and a press on a control belongs to
           // that control, so the row's own actions say they are not the grip.
           data-no-drag
+          /*
+          **The prototype's `pointer-events-none` is not taken, and it was
+          taken once and measured.** Its reasoning is sound on its own terms, a
+          strip at zero opacity still answering a click, and it costs the
+          prototype nothing. It costs this client four browser criteria:
+          AC-180's two cases and AC-223's both address "More actions" on a
+          sidebar row, and a control that receives no pointer events until its
+          row is hovered cannot be clicked by anything that hit-tests before it
+          moves the pointer. Measured at S24, whole leg: the click resolved the
+          right button, then retried for fifteen seconds against the row's own
+          link underneath it.
+
+          This file's own rule already covers the case and 9.1 is behind it:
+          "a control with an empty bounding box is not visible to anything that
+          addresses it by role and name", and a control that answers no pointer
+          is not operable by it either. 11.13 gives the section the win.
+          */
           className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100"
         >
           {onAddTask ? (
@@ -394,10 +442,127 @@ export function FolderRow({
       which is equally a promise about the release.
       */}
       {proposal === null ? null : (
-        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
-          {proposal}
-        </span>
+        <Proposal
+          text={proposal}
+          holding={dragState?.isDwelling ?? false}
+          armed={dragState?.isArmed ?? false}
+        />
       )}
     </SidebarMenuItem>
+  )
+}
+
+/*
+What a release would do, in words, riding the row being carried.
+
+Lifted from `docs/design/prototype-v2/src/components/folder-row.tsx` at S24,
+read on `v2-build` at `102e855`. Ledger entry L-128 asked this row to be
+verified rather than assumed, and the verdict is that the client drew its own
+affordance: a graphite pill with the words in it, and `ring-2 ring-ring/40` on
+the row while a hold was filling. The words were right and the countdown was
+missing, so a person holding a folder over another had nothing telling them how
+long to hold or that anything was happening.
+
+The designer's own reasoning, kept intact as the design record: the task list
+says this in a pill wide enough for a sentence. A sidebar is 224 pixels at its
+narrowest and cannot, so the words are short, the pill truncates, and the
+countdown that explains a hold is the same closing ring the task row uses,
+shrunk to the size of a folder's own mark.
+
+It rides the carried row rather than the row underneath, which is the lesson
+the task row learned the expensive way: the carried row sits directly under the
+pointer, so a badge drawn on the target is painted and then covered by the very
+row that caused it. That half was already ported and is ledger entry L-127.
+
+**One seam**: `holding` and `armed` are `SortableItemState`'s `isDwelling` and
+`isArmed`, which is the same pair under this client's own names, so the row
+passes them through rather than the engine being changed.
+*/
+function Proposal({
+  text,
+  holding,
+  armed,
+}: {
+  readonly text: string
+  readonly holding: boolean
+  readonly armed: boolean
+}): React.JSX.Element {
+  return (
+    <span
+      className={cn(
+        'pointer-events-none absolute top-1/2 right-2 z-20 flex max-w-[70%] -translate-y-1/2 items-center gap-1 rounded-full py-0.5 pr-2 pl-1 text-[11px] leading-4 font-medium shadow-[var(--elevation-1)] transition-[background-color,color] duration-[var(--duration-fast)] ease-[var(--ease-standard)]',
+        armed
+          ? 'bg-[var(--color-dana-accent-600)] text-white'
+          : 'bg-card text-[var(--color-dana-accent-800)] ring-1 ring-[var(--color-dana-accent-200)]',
+      )}
+    >
+      <span className="relative flex size-4 shrink-0 items-center justify-center">
+        {holding ? <DwellRing /> : null}
+        <FolderPlus
+          className={cn(
+            'size-3',
+            armed ? 'text-white' : 'text-[var(--color-dana-accent-600)]',
+          )}
+          strokeWidth={2}
+          aria-hidden="true"
+        />
+      </span>
+      <span className="truncate">{text}</span>
+    </span>
+  )
+}
+
+/* The hold, drawn. Mounted only while one is running, so the ring starts from
+   empty every time rather than from wherever the last one stopped. That is
+   L-128's sentence exactly, and it is a property of the mount rather than of
+   the animation: a ring kept mounted and reset by a prop would show the last
+   hold's tail on the first frame of the next one. */
+function DwellRing(): React.JSX.Element {
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setGrown(true)
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  const radius = 7
+  const circumference = 2 * Math.PI * radius
+
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      /* Rotated so the ring closes from twelve o'clock, where every progress
+         ring anybody has seen starts. */
+      className="absolute inset-0 size-4 -rotate-90"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r={radius}
+        fill="none"
+        strokeWidth="1.5"
+        className="stroke-[var(--color-dana-accent-100)]"
+      />
+      <circle
+        cx="8"
+        cy="8"
+        r={radius}
+        fill="none"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        className="stroke-[var(--color-dana-accent-600)]"
+        style={{
+          strokeDasharray: circumference,
+          strokeDashoffset: grown ? 0 : circumference,
+          /* The engine's own dwell, so the ring closes when the hold fires
+             rather than at a number written twice. */
+          transition: `stroke-dashoffset ${String(DWELL_MS)}ms linear`,
+        }}
+      />
+    </svg>
   )
 }

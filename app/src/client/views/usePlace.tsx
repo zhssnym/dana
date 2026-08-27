@@ -22,7 +22,7 @@ import { useMe, useSavedViews } from '../api/queries.js'
 import { DELETED_USER } from '../parts/presenters.js'
 import { presenterToday } from '../parts/presenters.js'
 import { openTaskForm } from '../shell/overlays.js'
-import { WindowBarActions } from '../shell/WindowBar.js'
+import { WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { FilterChips, FilterControl } from './FilterControl.js'
 import type { FilterPerson } from './FilterControl.js'
 import { applyFilter, filterFromDefinition, viewDefinition } from './filter.js'
@@ -30,9 +30,33 @@ import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults, surfaceDefaults } from './place-pages.js'
 import type { ColumnValue, PlaceSpine } from './place-pages.js'
-import { ViewStrip } from './ViewStrip.js'
+import { ViewStrip } from '../components/view-strip.js'
+import type { ViewStripOption } from '../components/view-strip.js'
+import { CalendarDays, LayoutGrid, List } from '../lib/icons.js'
 import { modeFromSearch, useViewMode, writeViewMode } from './view-mode.js'
 import type { ViewMode } from './view-mode.js'
+
+/*
+The place page's own option set, which is the half of a view strip that does
+not live in the strip (RFC 0005 change control item 39: "the view types are
+`components/view-strip.tsx` plus each surface's option set").
+
+**Icons and no written labels**, DES-137 and Imran's direction of 2026-08-18.
+The word is the control's accessible name rather than text beside it, so it is
+what a screen reader announces and what a criterion addresses; the tooltip
+shows the same word to a pointer. 9.1's roles table names the shape since S24:
+"a radio within a radiogroup, checked when current".
+
+Which of the three a page offers is `place-pages.ts`'s table and never this
+map's guess, which is why the map is keyed rather than ordered: a page that
+cannot honestly draw a calendar has no calendar option, not a disabled one
+(DES-144).
+*/
+const VIEW_FACES: Record<ViewMode, { label: string; icon: typeof List }> = {
+  list: { label: 'List', icon: List },
+  board: { label: 'Board', icon: LayoutGrid },
+  calendar: { label: 'Calendar', icon: CalendarDays },
+}
 
 export interface Place {
   readonly spine: PlaceSpine
@@ -217,18 +241,40 @@ export function usePlace(
  * Rendered by the page rather than by the shell, and the reason is DES-139's:
  * the controls belong to what the tab is showing, so the screen keeps their
  * state and only the placement is the shell's. `WindowBarActions` is the
- * portal that makes that true.
+ * portal that makes that true, and `WindowBarLead` is the bar's other end:
+ * one slot for the breadcrumb Dana does not have yet and the filter's chips,
+ * which is the lifted bar's arrangement and DES-153's reason for it, both
+ * answering "what am I looking at" and reading left to right in the order a
+ * person would say it out loud.
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
   return (
     <>
-      <WindowBarActions slot="chips">
+      <WindowBarLead>
         <FilterChips filter={place.filter} onChange={place.setFilter} people={place.people} />
-      </WindowBarActions>
+      </WindowBarLead>
       <WindowBarActions>
         {/* DES-150's arrangement, written down: views, then the filter. */}
-        <ViewStrip offered={place.spine.views} mode={place.mode} onSelect={place.setMode} />
+        {/*
+        `collapse` is 9.1's resting behaviour since S24 and the reason the
+        strip costs a place page almost no width: only the view the page is in
+        is drawn, and the rest widen on hover or focus. The options it does not
+        draw stay in the DOM at no width, which is the clause that keeps a
+        collapsing control from hiding two of its three choices from the
+        keyboard, and AC-259 reads it.
+        */}
+        <ViewStrip
+          ariaLabel="View"
+          value={place.mode}
+          options={place.spine.views.map((view) => ({
+            key: view,
+            label: VIEW_FACES[view].label,
+            icon: VIEW_FACES[view].icon,
+          })) satisfies ViewStripOption<ViewMode>[]}
+          onSelect={place.setMode}
+          collapse
+        />
         <FilterControl
           filter={place.filter}
           onChange={place.setFilter}

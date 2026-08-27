@@ -20,7 +20,7 @@ the same split `new-folder-dialog.tsx` records.
 Nothing here reads. The folder list arrives as a prop and `onSubmit` writes.
 */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Folder, Folders } from 'lucide-react'
+import { Folder, Folders } from '../lib/icons.js'
 
 import { Button } from './ui/button.js'
 import { Checkbox } from './ui/checkbox.js'

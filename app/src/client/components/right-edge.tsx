@@ -7,9 +7,11 @@ prototype-lift section applies: this file diffs empty against that original
 except at the seams named at the foot of this header. The designer's own
 reasoning below is kept intact, being the design record for what this does.
 
-**The seams are the two mechanical ones every lifted file takes and no
-other**: the `@/` specifiers become this client's relative ESM paths (11.4),
-and the em dashes leave under protocol section 7's writing convention.
+**The seams are the two mechanical ones every lifted file takes**: the `@/`
+specifiers become this client's relative ESM paths (11.4), and the em dashes
+leave under protocol section 7's writing convention. **Two others are named at
+the foot of this header**, `HoldsTheDocument` at S23 and `useReserveRightEdge`
+at S24, each with its own paragraph where it stands.
 
 [[DES-186]] settled this for the task surface: a panel sitting *over* the page
 hides the row the task came from, which is the one thing a side-by-side view
@@ -131,6 +133,35 @@ export function HoldsTheDocument({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+/*
+**Seam, S24: the same effect as a hook, and the reason this file has both.**
+
+The client had two of this module: this one, lifted at S23 for the task
+surface, and `shell/right-edge.ts`, ported from the same original at S17b for
+the folder page's two panels. Two module stores of one number is not a
+duplicated file, it is a **broken feature**: the task surface published its
+width into this store and the shell read the other one, so a task opened in the
+side panel covered the page it was supposed to narrow. AC-260 did not see it,
+reading the conversation panel, which was on the store the shell read.
+
+Retiring one of them is what S24's row is for. This one survives because it is
+the lifted file and because `HoldsTheDocument` lives here; what came across
+from the other is the shape its callers use. `pages/FolderPage.tsx` reserves
+from inside the page that owns the panels rather than wrapping them, and
+turning that into two wrappers is a rewrite of a page this row does not own.
+
+So the effect is written once and offered twice. `open` is the difference
+between the two shapes: a component reserves while it is mounted, a hook
+reserves while a flag says the panel is showing.
+*/
+export function useReserveRightEdge(width: number, open: boolean) {
+  useEffect(() => {
+    if (!open) return undefined
+    publish(Math.round(width))
+    return () => publish(0)
+  }, [width, open])
+}
+
 export function ReservesRightEdge({
   width,
   children,
@@ -138,9 +169,6 @@ export function ReservesRightEdge({
   width: number
   children: ReactNode
 }) {
-  useEffect(() => {
-    publish(Math.round(width))
-    return () => publish(0)
-  }, [width])
+  useReserveRightEdge(width, true)
   return <>{children}</>
 }

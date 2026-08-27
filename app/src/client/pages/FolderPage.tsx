@@ -161,9 +161,9 @@ import { folderLink } from '../lib/nav-links.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
-import { useReserveRightEdge } from '../shell/right-edge.js'
+import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { WindowBarActions } from '../shell/WindowBar.js'
+import { WindowBarActions } from '../components/window-bar.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
@@ -298,7 +298,7 @@ export function FolderPage({
   /*
   9.6's two right-edge panels take room rather than covering (DES-154,
   DES-186). Each publishes its own width while it is open and the shell pads
-  the page body by whatever is reserved; `shell/right-edge.ts` carries one
+  the page body by whatever is reserved; `components/right-edge.tsx` carries one
   number for both, because they share one edge and two open at once would
   overlap each other long before the page noticed.
 
@@ -636,7 +636,11 @@ export function FolderPage({
             by the same component every place page uses, which is what makes
             this one filter rather than a ninth. */}
         <PlaceChrome place={place} />
-        <WindowBarActions>
+        {/* Order 2, which is 9.1's own sentence for the bar's right end:
+            "the view strip, the filter control, the Activity line, and the
+            object's overflow menu". The first two are `PlaceChrome`'s at the
+            default order and the third is the shell's at 1. */}
+        <WindowBarActions order={2}>
           {/* The conversation's opener when its home is the panel; the foot
               section is its own opener otherwise. */}
           {conversationHome === 'panel' ? (
@@ -978,7 +982,7 @@ export function FolderPage({
       The conversation's panel home, which takes room from the page rather
       than covering it since S17b (DES-154, DES-186).
 
-      It publishes its width to `shell/right-edge.ts` and the shell pads the
+      It publishes its width to `components/right-edge.tsx` and the shell pads the
       page body by it, which is the whole mechanism. What Imran reported on
       2026-08-23 was this panel exactly: "the page is not adjusting when chat
       is appear as a right sidebar." The sheet is still a sheet, so the escape
