@@ -170,6 +170,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'tasks_completed_by_check', columns: ['completed_by', 'status'] },
       { name: 'tasks_due_time_requires_date_check', columns: ['due_date', 'due_time'] },
       { name: 'tasks_notes_length_check', columns: ['notes'] },
+      { name: 'tasks_position_format_check', columns: ['position'] },
       { name: 'tasks_recurrence_requires_date_check', columns: ['due_date', 'recurrence_rule'] },
       { name: 'tasks_recurrence_requires_series_check', columns: ['recurrence_rule', 'series_id'] },
       { name: 'tasks_recurrence_rule_length_check', columns: ['recurrence_rule'] },
@@ -558,6 +559,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'page_blocks_kind_check', columns: ['kind'] },
       { name: 'page_blocks_one_home_check', columns: ['folder_id', 'shelf_id'] },
       { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
+      { name: 'page_blocks_width_pct_kind_check', columns: ['kind', 'width_pct'] },
+      { name: 'page_blocks_width_pct_range_check', columns: ['width_pct'] },
     ],
     foreignKeys: [
       {
@@ -649,5 +652,30 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     indexes: [
       { name: 'user_views_user_id_idx', unique: false, columns: ['user_id'], partial: false },
     ],
+  },
+  user_page_covers: {
+    primaryKey: { name: 'user_page_covers_pkey', columns: ['user_id', 'place'] },
+    uniques: [],
+    checks: [
+      { name: 'user_page_covers_focal_y_range_check', columns: ['focal_y'] },
+      { name: 'user_page_covers_one_source_check', columns: ['file_id', 'preset'] },
+      { name: 'user_page_covers_place_check', columns: ['place'] },
+      { name: 'user_page_covers_preset_format_check', columns: ['preset'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'user_page_covers_file_id_fkey',
+        columns: ['file_id'],
+        references: { table: 'files', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'user_page_covers_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
   },
 }
