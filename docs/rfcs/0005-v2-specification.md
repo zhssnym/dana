@@ -4024,6 +4024,220 @@ fold, the way P7's mid-package change control ratified the pass callable:
     read a ratio from, which is S26's problem and another frozen section 4
     change if it is taken.
 
+47. **S23's two rulings by Imran, the seven addressing seams the lift owes
+    section 9, and the owner column wrong a fifth time (S23, 2026-08-26).**
+    RFC 0004's S23 row is the task surface lift, and this item carries what
+    the row decided, what it escalated and what it measured. It closes
+    **section 13 item 46** on Imran's ruling below and opens no question of
+    its own that is not routed here.
+
+    **(a) Where a task opens, ruled by Imran on 2026-08-26**, in his own
+    words: *"A task row has inline expansion, which is good, but when a task
+    body is clicked so by default it opens as a dialog, when user change the
+    view to the sidebar so the default is changing to the sidebar, but when it
+    re changes to the dialog, then dialog become default."* That is 9.3's
+    "Where a task opens (dialog, panel, or tab) is a client-side preference; a
+    row offers the choice and remembers it" with the one thing 9.3 never
+    supplied: the **initial value is the dialog**. No amendment is needed, the
+    section already carrying the rule and this being its unstated half.
+
+    **The ruling arrived because reading 4.19 turned forty-two cases red, and
+    the measurement is worth keeping.** `user_settings.task_open` defaults to
+    `'panel'` (`0003_v2_expand.sql:210`), typed at S12 when nothing consumed
+    it; ledger entry L-038 records the state that left, the column "written by
+    9.7's Appearance control since S17b and read by nothing". This row is the
+    first thing that could read it, and reading it opens every seeded
+    viewer's tasks in the side panel, which is an `<aside>` and therefore
+    `complementary`, where the acceptance harness addresses the surface as
+    `getByRole('dialog')` and says why in its own comment: "this addresses the
+    dialog shape, **which is what every case in this leg opens**". Measured on
+    the whole browser leg at 186 of 228, every red resolving to that sentence.
+
+    **What ships is the browser's store**, which is 9.3's own word,
+    "client-side", and is the prototype's module lifted with its store intact,
+    so the ruled behaviour holds with no amendment anywhere. **What that
+    leaves is named rather than hidden and is the owner's**: 9.7's Appearance
+    control goes on writing a column nothing reads, which is the dead control
+    DES-144 removes everywhere else, and the preference does not follow a
+    person between devices, where row density and the clock both do. Two
+    answers exist and both are frozen section 4's: the column's default
+    becomes `dialog` and the column becomes the record, which is the road Dana
+    took twice already; or 9.7's control is an account-level *initial* value
+    this store adopts once. **Recorded at section 13 item 48** rather than
+    decided, because a default in a frozen table is not a session's to change.
+
+    **(b) A task has a Duplicate, ruled by Imran on 2026-08-26, and its build
+    deferred by him in the same exchange, so section 13 item 46 is answered
+    rather than closed.** His words: *"A task can be duplicated ... make
+    duplication just with steps, notes and images, and maybe due dates and
+    repetitions. but chats between users inside a task is never to be part of
+    duplication."* So the copy carries **the title, the steps, the notes and
+    the attachments**, and **never the conversation**, which is the one
+    exclusion he stated absolutely and is the same reasoning B3 gave for
+    leaving a chat out of the workflow file: "a conversation is a record of
+    what was said rather than of what to do."
+
+    **Two readings are recorded with it, both of which make the endpoint
+    smaller rather than larger, and both are flagged as readings.** The
+    ruling's "maybe" on dates is answered by 9.6, which already fixes the rule
+    for duplicating a folder, "spent due dates re-anchor on today and future
+    ones keep"; applying it to one task is one behaviour rather than two, and
+    the repeat rides the date it is anchored on. And the assignee, which he
+    offered to drop if it were difficult, is not difficult and is already
+    ruled one level up: item 44's B10 says a duplicate's tasks are assigned to
+    whoever made the copy, so the copy is the duplicator's.
+
+    **And the build is deferred by the same ruling, an hour later**: *"we'll
+    defer from duplication right now, but make it part of s30 if possible.
+    Just delay it."* So **section 13 item 46 stays open rather than closing**,
+    and the difference between the state it was in and the state it is in now
+    is the whole value of the exchange: what was missing was a decision, and
+    what is missing now is only a package.
+
+    **What is owed when it lands, and none of it was this row's**, S23 being a
+    client package that owns no server path: one frozen section 7 addition
+    shaped exactly like 7.16's `POST /folders/:id/duplicate`, one domain
+    function under `03-collaboration-and-permissions.md`'s
+    `app/src/server/domain/**`, and its criteria under persona 11. **In the
+    client the act stays declared and unsupplied**, so `lib/object-acts.ts`'s
+    safety property keeps it out of every menu, which now means "waiting on
+    its package" rather than "nobody knows".
+
+    **Where it lands is the Steward's, and one constraint bears on it that the
+    ruling could not have known.** RFC 0004's S30 is the close: a fresh
+    walkthrough against S20's ledger, Imran's visual review, and the release
+    act. There is no build in it, so a row adding an endpoint cannot be S30
+    without changing what S30 is. **S28 is the recommendation**: it is the
+    last build row before the close, so it honours "just delay it" exactly,
+    and it is already a server row of this precise shape, a frozen section 7
+    Replace unit followed by a domain function and its criteria under four
+    roles in sequence. A duplicate placed there costs the plan no new row and
+    opens no file that row was not already opening.
+
+    **(c) The owner column of S23 is wrong, and this is items 12, 34 and 46 a
+    fifth time.** The row names `09-complex-interaction.md`. That persona owns
+    spec 9.3 and `app/src/client/components/task-form/**`, which this row
+    retires, so it is genuinely one of the owners. It is not the only one and
+    not the largest. `08-component-and-design-system.md` owns
+    `app/src/client/components/**` "excluding the calendar, task-form, and
+    search directories", which is where all six lifted files and all nine
+    modules they need sit. `07-frontend-architect.md` owns
+    `app/src/client/**` "except what is named elsewhere", which is `lib/`,
+    `parts/`, `pages/` and `shell/`, where the adapter seam and the page
+    rewiring land. **Three roles, not one.** Recorded rather than worked
+    around, on item 46's own reasoning: writing a lifted component into
+    another owner's directory to stay inside a boundary would be the
+    duplicate-implementation escape protocol section 3 names in the same
+    breath as the boundary.
+
+    **(d) The triage puts no rework case on this surface, and RFC 0004's S23
+    acceptance column says it does.** That column reads "the triage's rework
+    pile for this surface is red first, then green"; the triage's own sort
+    gives S23 nothing, all nineteen rework cases being S24's calendar and
+    board work, one shared with S26, and the single retire being S28's. **The
+    triage was followed**, it being the measurement and the row being the
+    plan.
+
+    **(e) Seven addressing seams the lift owes section 9, of which the triage
+    named two.** F1 and F2 are the triage's and both worked on the first
+    whole run, visible in every failure's own page snapshot. The other five
+    were found by driving the leg and could not have been found by reading it,
+    which is the finding this paragraph exists for: **the triage swept the
+    harness's locators, and a seam is invisible to that sweep whenever the
+    disagreement is a default, a computed style, or a role the prototype adds
+    rather than omits.**
+
+    - **The row's title is text, not a control.** 9.4: "a click on any row
+      opens that task." The prototype's title is a button that starts a
+      rename, so the click landed in a text field. 9.3 puts the title field on
+      the card, which the row expands into, so the section already says where
+      renaming happens and names no row-rename control anywhere. It carried a
+      second fault: a button whose accessible name is the task's own title
+      makes every row-scoped locator ambiguous, and AC-097 died of strict mode
+      against a seeded task with "Restore" in its title.
+    - **A picker carries one role.** The prototype wraps its presets in
+      `role="menu"` inside a popover already carrying `role="dialog"`, so a
+      chip answered with two things that were both the picker.
+    - **The assignee chip is absent in a single-member folder**, 9.3's
+      "hidden" and INV-5, which AC-094 reads as absent rather than greyed.
+    - **An abandoned row is struck by `text-decoration`.** 9.5 renders it
+      struck and AC-097 reads the browser's own `textDecorationLine`; the
+      prototype draws the line as a scaled span, so the computed value is
+      `none` and nothing about the row tells a reader the text is struck. The
+      motion is kept, `text-decoration-color` being animatable; what is given
+      up is the sweep in favour of a fade.
+    - **The star's names are 9.1's** and its tooltip comes apart from them,
+      which is item 44's A2 and 6 Q4. The prototype writes "Remove from
+      Important" and "Mark as Important" and drives no tooltip at all, leaving
+      `importantTooltip` declared and unread.
+
+    **(f) Two adornments the prototype dropped and section 9 keeps.**
+    `unassigned` and `invitePending` left `TaskRowProps` at the prototype's F6
+    review, correctly for a lab where nothing drove them. Both are real here:
+    9.8's last sentence is normative on one, "rows and the form show 'Invite
+    pending: sara@example.com'", and section 6's Q3 is the other. They return
+    as chips of the detail strip rather than badges beside it, DES-113's rule
+    for the two densities being that details may differ in where they sit "and
+    in nothing else".
+
+    **(g) One repair against the prototype rather than a lift of it.** The
+    task surface's remount key is the constant `` `-` `` in the original at
+    `b316785`, while the comment above it states the intent it was meant to
+    serve, "keyed by task and mode so a switch remounts the page cleanly
+    rather than carrying transient state across layouts". A file whose comment
+    and code disagree is repaired towards the comment; recorded so the
+    designer can overturn it.
+
+    **(h) One performance fault the seam created rather than inherited.** The
+    prototype mounts a closed `HistorySheet` on every row and reads its subject
+    at the top of the sheet's body, which costs nothing over a `localStorage`
+    array and is one `GET /events` per row over 7.12, measured at eleven on a
+    first load of Today. The sheet now says when it is looking. Worth an item
+    of its own because it is the class of fault a lift creates: a call whose
+    cost changes by three orders of magnitude when the thing behind it does.
+
+    **(i) B9 costs the card no markup**, which is worth recording because the
+    ruling reads as though it should. Every destination the prototype's step
+    menu offers is a step becoming or joining a task, and nothing anywhere
+    offers a task a way down, so "a task never demotes to a step" is already
+    true. What B9 costs is a handler, and that handler is `() => {}` in the
+    prototype's own file; wiring it is a composition of `POST /tasks` and
+    7.7's step routes with a partial-failure question of its own, which is the
+    shape item 44 gave the folder-making gesture. **Nothing supplies it and
+    the control is not drawn**, which is `lib/object-acts.ts`'s own rule
+    rather than a workaround.
+
+    **(j) Item 44's A1 lands one label of seven and deliberately not the other
+    five.** "Make this a folder…" arrives declared and unsupplied, its act
+    being S23a's, and an act nothing supplies is an act no menu renders, so
+    its label is asserted by nothing. The other five change acts the client
+    already draws, and AC-246 and AC-217 enumerate those; the triage puts both
+    cases in S24's pile. Landing half of A1 here would turn a green case red
+    in a package that does not own its rework.
+
+    **(k) The row is split, and the line is the prototype's own.** Item 44's
+    B4 drag, the hold that makes a folder of two tasks, and selection with the
+    bulk bar go to **S23a**. `components/task-row.tsx`'s own header says that
+    machinery "is drawn in the concept lab, which is where it is being judged.
+    Wiring them into screens would make the prototype look as though it had
+    shipped something with no endpoint behind it", and its handlers are
+    no-ops in the original. So a verbatim lift ships the machinery and not the
+    wiring, and wiring it is an addition *on top of* a lifted file, which is
+    what item 44 itself called "its own package after them". Item 44 priced
+    the three at about three and a half sessions.
+
+    **(l) Item 45's proof is not taken, and the reason is a second unmet
+    dependency that item did not measure.** It recommends
+    `screens/important-screen.tsx` on the ground that "its only unmet
+    dependency is `task-row.tsx` and `task-section.tsx`, which S23 is lifting
+    anyway". Both are lifted, and the screen also imports
+    `@/components/page-head`, which is 309 lines, is the first line of RFC
+    0004's S25 row, and carries the place-page cover item 44's B1 rules and
+    S22a's `user_page_covers` table exists for. So the proof still costs a
+    package this row does not own, one row later than item 45 measured and for
+    the same class of reason. **Item 45 is not closed by this**, being the
+    Steward's, and the measurement is offered to it.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

@@ -181,24 +181,55 @@ export function PickerChip({
    Every picker in the card now leads with a list of these, because nearly
    every date anybody sets is one of about five, and making the common answer
    one click is worth more than the calendar it sits above. */
+/*
+**Seam, S23: an option's role is the ordinary one, and the repeat list is the
+one exception.**
+
+The prototype gives every option `role="menuitemradio"`, which is what its
+`role="menu"` container asked for. Neither survives: the container is a group
+now, one role per picker, and `menuitemradio` is a role nothing in the suite
+addresses, `getByRole('menuitem')` matching that role exactly rather than its
+subtypes. So an option resting inside a group answered to nothing at all.
+
+9.1's addressing sentence settles what it should be: "a control not named here
+is reached by its role in the ordinary sense", and the ordinary role of a
+control that sets a value is a button. AC-092 reads the due picker's presets
+exactly that way, `getByRole('button', { name: 'Tomorrow', exact: true })`.
+
+**The repeat list is a menu and says so**, which is not an inconsistency but
+the distinction the harness itself draws: "A picker asking for a day or a time
+is a small modal surface and carries the dialog role; one offering a list of
+named choices is a menu." The due and reminder panels put a calendar or a
+clock under their presets and are the first kind; the repeat panel is a list
+of named rules and is the second, and AC-092 reads its presets through
+`chipChoices`, which is `menuitem` or `option`. The client this replaces drew
+the same split, buttons in the due and reminder pickers and menu items in the
+repeat one, and it is recorded here rather than rediscovered.
+
+The chosen option is `aria-pressed` on a button and font weight on a menu
+item, because a menu item takes no pressed state and 9.3 asserts neither.
+*/
 export function PickerOption({
   icon: Icon,
   label,
   hint,
   active,
   onSelect,
+  menu = false,
 }: {
   icon?: LucideIcon
   label: string
   hint?: string
   active: boolean
   onSelect: () => void
+  /* One of a list of named rules rather than a value the field takes. Only
+     the repeat panel passes it; see the header above. */
+  menu?: boolean
 }) {
   return (
     <button
       type="button"
-      role="menuitemradio"
-      aria-checked={active}
+      {...(menu ? { role: "menuitem" } : { "aria-pressed": active })}
       onClick={onSelect}
       className={cn(
         "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors",
@@ -218,8 +249,26 @@ export function PickerOption({
         />
       ) : null}
       <span className="flex-1 truncate">{label}</span>
+      {/*
+      **Seam, S23: the hint is drawn and not announced.**
+
+      It is the day a preset resolves to, "Sat 15 Aug" beside "This weekend",
+      and the prototype puts it in the button's own content, so the control's
+      accessible name is "This weekend Sat 15 Aug". AC-092 asks for the preset
+      by `{ name: 'Tomorrow', exact: true }`, and 9.1's addressing sentence is
+      why exact is the right ask: a control is reached by its name, and a name
+      that carries today's date changes every day.
+
+      `aria-hidden` rather than moving the hint out of the button, because
+      the hint belongs inside the target a person presses, which is DES-120's
+      whole point about resolved answers, and because a screen reader is told
+      the same fact by the calendar the panel opens onto.
+      */}
       {hint ? (
-        <span className="shrink-0 text-[12px] leading-4 tabular-nums text-[var(--color-graphite-400)]">
+        <span
+          aria-hidden="true"
+          className="shrink-0 text-[12px] leading-4 tabular-nums text-[var(--color-graphite-400)]"
+        >
           {hint}
         </span>
       ) : null}
@@ -542,6 +591,8 @@ export function ReminderPanel({ task, patch }: PanelProps) {
             today={today()}
           />
           <TimeRow
+            /* Seam, S23: 9.3's field name on the picker's one control. */
+            label="Reminder time"
             value={customTime}
             onSelect={(time) =>
               patch(task.id, {
@@ -624,6 +675,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
       {/* Seam, S23: one role per picker. See the due panel above. */}
       <div role="group" aria-label="Repeat" className="flex flex-col">
         <PickerOption
+          menu
           icon={Ban}
           label="Does not repeat"
           active={!task.recurrence}
@@ -637,6 +689,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
         />
         {presets.map((preset) => (
           <PickerOption
+          menu
             key={preset.label}
             label={preset.label}
             active={task.recurrence === true && summary === preset.label}
@@ -648,6 +701,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
       <PickerDivider />
 
       <PickerOption
+          menu
         icon={Repeat2}
         label="Custom repeat…"
         active={custom}

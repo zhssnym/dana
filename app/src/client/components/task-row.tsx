@@ -89,6 +89,7 @@ import {
 import { ObjectMenu } from "./object-menu.js"
 import { HistorySheet } from "./history-sheet.js"
 import { copyTaskLink } from "../lib/task-acts.js"
+import { COMPLETE_TASK, MARK_AS_NOT_DONE, REMOVE_FROM_TODAY } from "./ui/copy.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
 import { ActionStrip, type ViewStripOption } from "./view-strip.js"
@@ -884,7 +885,18 @@ export function Check({
       type="button"
       role="checkbox"
       aria-checked={done}
-      aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
+      /*
+      **Seam, S23: 9.1's names table, which gives this control exactly two.**
+
+      "A task's completion control: 'Complete task' when open, 'Mark as not
+      done' when complete." The prototype writes "Complete {title}" and
+      "Reopen {title}", which names the task rather than the act and which
+      AC-179 refuses in as many words: the table "gives it exactly two names,
+      one per state, so exactly one control answers to them". Change control
+      item 44's A2 ruled the table stands. The strings are
+      `ui/copy.ts`'s, transcribed once for the whole client.
+      */
+      aria-label={done ? MARK_AS_NOT_DONE : COMPLETE_TASK}
       onClick={(e) => {
         e.stopPropagation()
         onToggle()
@@ -2535,10 +2547,45 @@ export function TaskRow(props: TaskRowProps) {
     {
       key: "state:today",
       shown: Boolean(task.pulled),
-      body: () => (
+      /*
+      **Seam, S23: the My Day chip is 9.4's un-pull control where a page
+      supplies one.**
+
+      9.4: "a row whose inclusion came from an entry carries the un-pull
+      control", named "Remove from Today" by 9.1's table, and its own
+      parenthesis says the control is "absent when the row also qualifies
+      automatically", which `parts/presenters.ts` already decides and passes
+      as `pulled`. The prototype draws the chip and nothing else, because
+      `onRemoveFromMyDay` is declared on `TaskRowProps` and read by no
+      control in the file: a prop with nowhere to go, which is F6's own fault
+      seen from the other side.
+
+      The chip is the right home rather than a second control beside it. It
+      already says the one fact the act is about, and a chip that says "My
+      Day" next to a button that removes from My Day is the same fact twice,
+      which is what DES-154 keeps being about. Where no handler is supplied
+      the chip stays exactly as the prototype drew it, which is
+      `lib/object-acts.ts`'s rule one component down.
+      */
+      body: () =>
+        !props.onRemoveFromMyDay ? (
 
         <DetailChip interactive={false}>
           <DetailWord icon={SunMedium}>My Day</DetailWord>
+        </DetailChip>
+      ) : (
+        <DetailChip>
+          <button
+            type="button"
+            aria-label={REMOVE_FROM_TODAY}
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onRemoveFromMyDay?.()
+            }}
+            className={cn("flex items-center", FOCUS)}
+          >
+            <DetailWord icon={SunMedium}>My Day</DetailWord>
+          </button>
         </DetailChip>
       ),
     },
