@@ -4238,6 +4238,30 @@ fold, the way P7's mid-package change control ratified the pass callable:
     the same class of reason. **Item 45 is not closed by this**, being the
     Steward's, and the measurement is offered to it.
 
+    **(m) One sequencing observation, routed rather than taken, recorded at
+    the S23 close on Imran's question of 2026-08-27.** He asked whether any of
+    S25 to S28 could run beside S24. The answer from the plan is no, and for
+    S25 and S26 the reason is concrete rather than procedural: S24 replaces
+    `shell/app-shell.tsx`, which is the frame every page mounts inside, and
+    retires `views/ViewStrip.tsx`, which the place pages consume, so a page
+    lift starting first would build against a shell about to be swapped and a
+    control about to be deleted. The machine adds a second reason of its own,
+    both rows owning browser cases and this machine having one hardcoded port.
+
+    **What is worth the Steward's attention is S28's shape.** That row is two
+    halves that share a dependency for one of them: its server half, item 36's
+    frozen 7.13 Replace unit, the deletion transaction and the purge's object
+    collection, touches `app/src/server/**` and the specification and collides
+    with nothing S24 owns; its client half, the Trash control and the owner's
+    leave-or-delete dialog, waits on S27 because S27 draws the page that
+    control lands on. Splitting the row would give a genuinely parallel-safe
+    package to run beside S24, and it would also give **section 13 item 46's
+    deferred Duplicate** somewhere to land, that item being one frozen section
+    7 addition plus a domain function of exactly the same shape. **It is a
+    plan edit and this role owns no file in `docs/rfcs/`**, so it is a finding
+    with a recommendation and not a change, which is the shape item 45 took
+    for the same reason.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
