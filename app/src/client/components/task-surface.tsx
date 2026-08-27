@@ -24,8 +24,7 @@ import { InlineInput } from "./ui/inline-field.js"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { ChevronRight, X } from "../lib/icons.js"
-import { TITLE_REQUIRED, UNCOMPLETE_SERIES_CONFIRM, tooLong } from "./task-copy.js"
-import { ConfirmDialog } from "./ui/ConfirmDialog.js"
+import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated:
    a limit written twice is a limit the client and the server can disagree on,
    which is the one thing this message must never do. */
@@ -370,7 +369,6 @@ export function TaskPage({
   inWindow?: boolean
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
-  const [uncompleting, setUncompleting] = useState(false)
 
   const actions = (
     <Actions
@@ -393,16 +391,6 @@ export function TaskPage({
 
   return (
     <div>
-      {!uncompleting ? null : (
-        <ConfirmDialog
-          message={UNCOMPLETE_SERIES_CONFIRM}
-          onContinue={() => {
-            setUncompleting(false)
-            patch(task.id, { done: false })
-          }}
-          onCancel={() => setUncompleting(false)}
-        />
-      )}
       {inWindow ? (
         <>
           <WindowBarLead>
@@ -473,13 +461,7 @@ export function TaskPage({
           generates none, and a confirmation with an empty consequence is
           the dead control DES-144 removes.
           */}
-          <Check
-            task={task}
-            onToggle={() => {
-              if (task.done && task.recurrence) setUncompleting(true)
-              else patch(task.id, { done: !task.done })
-            }}
-          />
+          <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
         </span>
         <PageTitle
           compact={compact}
