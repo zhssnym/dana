@@ -5525,6 +5525,15 @@ fold, the way P7's mid-package change control ratified the pass callable:
     three failures.** So "reproduces in isolation" does not separate the two
     commits, because the case fails in isolation on both.
 
+    **S29 then found the stronger form of it, which needs no second
+    environment at all**, and it is recorded here with the measurement rather
+    than only in that row's retraction: `git diff --stat 8fe7041 5e0179f --
+    app/` is **empty**, checked in both worktrees. `8fe7041` is the commit CI
+    was last green on and `5e0179f` is the one those three runs were made
+    from, so they are one `app/` tree, green in CI and red alone. A
+    correlation across two CI runs was being controlled with a run in a
+    different environment, and that is not a control.
+
     **What is actually varying is the criterion's own reading and never the
     client's stored value.** The case opens the dialog, which starts at
     `DIALOG_DEFAULT` 680, drags its handle 90 pixels left in twelve
@@ -5534,22 +5543,35 @@ fold, the way P7's mid-package change control ratified the pass callable:
     `startWidth + delta` for a left-side handle, so the width is 590, which is
     what `onCommit` stores and what `readDialogWidth` restores. **Every run
     restores 590 and the assertion's expected value is what wanders**: 591 on
-    this row's tree, 591, 592 and 593 on the base's three runs. Those are the
-    widths of the drag's last one or two interpolation steps before React has
-    flushed them, step 11 being 680 minus 90 times 11 over 12, or 597.5. The
-    read happens immediately after `mouse.up()` with nothing waiting on it.
+    this row's tree, 591, 592 and 593 on the base's three runs. Those numbers sit among
+    the widths of the drag's last interpolation steps, step 11 being 680 minus
+    90 times 11 over 12, or 597.5, and the read happens immediately after
+    `mouse.up()` with nothing waiting on it. **That the read races the
+    interface's own update is a reading of the arithmetic rather than
+    something this row instrumented**, and it is written as one deliberately:
+    what was measured is that the case fails alone on both commits and that
+    the restored number is the specified one every time.
 
     **The direction is the finding, and it is the inverse of the flake CLAUDE.md
     records.** Running this case alone makes it fail *more* often, because a
     quiet machine shortens the gap between the release and the measurement, so
-    the read catches the element still catching up. Every other browser red
+    the read catches the element still catching up. **The tell is that the
+    error is one-sided**: every reading was larger than the restored value and
+    never smaller, because the drag shrinks the dialog and every stale frame is
+    an earlier and wider step of it. A race against an interface update gives
+    back a value the interface was passing through, so the wrong number always
+    sits on the side the change came from, which is what separates it from an
+    ordinary off-by-one. Every other browser red
     this arm has seen behaves the other way, which is why the file's standing
     advice is to re-run a case alone before believing it, and why that advice
     produced a **false confirmation** here for two sessions at once. **The
     lesson is one sentence and it belongs beside that advice**: re-running
     alone tells you a red is real, and it does not tell you the red is yours;
-    only running it on the commit before yours does that, and a worktree at
-    that commit costs one `npm ci`.
+    only running it on the commit before yours does that. **Look at the diff
+    before building the worktree**: where `app/` is unchanged between the last
+    green run and the red one, as it was here, the question is answered for
+    nothing, and where it is not, a detached worktree at that commit costs one
+    `npm ci`.
 
     **It is offered to persona 11 and not touched.** Protocol section 8 puts a
     criterion's text in that role's hands and this row owns no rework, so the
