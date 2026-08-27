@@ -212,7 +212,21 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     icon: Layers3,
     views: LIST_AND_BOARD,
     capture: 'inline',
-    boardAxis: 'date',
+    /*
+    **The folder board's columns are its sections** (item 44's B2, ledger
+    L-044), which is better than either option the rulings sheet offered: it
+    framed the question as sections against date, and the ruling makes sections
+    the unfiltered arrangement and the date board one of the filter's group-by
+    values. So this is the axis the page opens on and `filter.groupBy` still
+    overrides it, exactly as it does on every other place page.
+
+    What this replaces said "the board's axis is the date rather than the
+    folder, and DES-177 is the reason: a folder page has pinned the folder, so
+    grouping by it gives one column". Both halves of that survive, the folder
+    axis is still wrong here and for the same reason; what changed is that
+    there is now a third answer that is the page's own arrangement.
+    */
+    boardAxis: 'section',
   },
 }
 
@@ -234,6 +248,14 @@ export interface ColumnValue {
   readonly folder_id?: string
   readonly assignee_id?: string | null
   readonly due_date?: string | null
+  /**
+   * 4.5's section, added at S26 for item 44's B2.
+   *
+   * Null is the loose list, which is 9.6's own name for the tasks under no
+   * section, and is a value rather than an absence: dropping a card out of a
+   * section has to write something.
+   */
+  readonly section_block_id?: string | null
 }
 
 /** What a capture writes: the POST body fragment, and Today's own extra act. */

@@ -54,7 +54,19 @@ export type DueAxis =
   | 'month'
   | 'custom'
 
-export type GroupBy = 'none' | 'folder' | 'person' | 'date'
+/*
+9.1's group-by axes. `section` arrived at S26 with RFC 0005 change control
+item 44's B2: "sections are the first and unfiltered arrangement; the filter is
+fully involved in changing it, and may group by date, by assignee, or by
+another axis", so the date board is one of the filter's values rather than a
+rival reading. 9.1's own regions table already named it, "that column's value,
+whatever its axis, folder, person, day, or section".
+
+It is a folder page's axis and no other page's: a section is a block of one
+folder's page (4.17), so grouping Today by section would ask eight pages'
+worth of tasks which of one page's blocks they sit under.
+*/
+export type GroupBy = 'none' | 'folder' | 'person' | 'date' | 'section'
 
 export type SortBy = 'manual' | 'due' | 'title' | 'created'
 

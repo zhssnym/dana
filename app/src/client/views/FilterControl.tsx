@@ -186,7 +186,20 @@ const GROUP_LABEL: Record<GroupBy, string> = {
   person: 'Person',
   /* The client's word, and the note above says why. */
   date: 'Date',
+  /* Named for the chip and never offered as a choice; see below. */
+  section: 'Section',
 }
+
+/*
+Which axes the menu offers, which is every one except a section.
+
+Item 44's B2 makes sections a folder page's first and unfiltered arrangement
+and the filter the thing that changes it, so `section` is a value `usePlace`
+falls back to and never one a person picks: offering it on Today would ask
+eight pages worth of tasks which of one folder page's blocks they sit under,
+which is DES-144's dead control with a menu entry.
+*/
+const GROUP_CHOICES: readonly GroupBy[] = ['none', 'folder', 'person', 'date']
 
 const SORT_LABEL: Record<SortBy, string> = {
   manual: 'Manual',
@@ -705,7 +718,7 @@ export function FilterControl({
 
         <div className="mx-1 my-1.5 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
         <Axis icon={Group} label="Group by" value={GROUP_LABEL[filter.groupBy]}>
-          {(Object.keys(GROUP_LABEL) as GroupBy[]).map((key) => (
+          {GROUP_CHOICES.map((key) => (
             <FilterChoice
               key={key}
               label={GROUP_LABEL[key]}

@@ -34,6 +34,18 @@ which is unambiguous because both tier names are single words and only the
 swatch names carry hyphens of their own (`cobalt-deep`). The alternative,
 widening a frozen section 4 CHECK for a punctuation mark, is not one.
 
+**A folder is the other half of this module, added at S26, and the two
+halves are exactly complementary.** A place page's cover is 4.20's, a preset
+or a file with a crop, per viewer; a folder's is 4.3's `cover_file_id` and
+nothing else, one look for every member. So a place can wear a gradient and
+can never wear a picture (section 13 item 52), and a folder can wear a picture
+and can never wear a gradient or a crop (**section 13 item 53**). Neither page
+in Dana can offer all four of item 44's B8 tiers, which is a fact about two
+frozen tables rather than about either picker, and `coverTiersFor` is where
+the two answers are written down. A `storageName` beginning `folder:` names a
+folder by id; anything else is 4.20's own place string, and the endpoint is
+its authority.
+
 **A stored file renders as a link, which is the tier nothing can reach yet.**
 4.20 admits a `file_id` and 7.19 takes one, and `POST /api/v1/files` requires
 `folder_id` as a uuid (`server/routes/files.ts:48-52`), so no file exists
@@ -51,7 +63,9 @@ import { placeCover } from '../../shared/covers.js'
 import { writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
 
-import { usePlaceCovers } from '../api/queries.js'
+import { usePlaceCovers, useFolder } from '../api/queries.js'
+import { uploadFile } from '../api/http.js'
+import type { CoverTier } from '../components/folder-cover.js'
 
 /*
 The place a cover belongs to is taken as a plain string rather than 4.20's
@@ -73,6 +87,72 @@ export interface PageIdentity {
 }
 
 const NO_IDENTITY: PageIdentity = {}
+
+/** The `folder:<id>` form, or null where this name is 4.20's own place. */
+function folderOf(place: string): string | null {
+  return place.startsWith(FOLDER_PREFIX) ? place.slice(FOLDER_PREFIX.length) : null
+}
+
+/** What a folder page passes as its `storageName`; see the module header. */
+export const FOLDER_PREFIX = 'folder:'
+
+/**
+ * Which cover tiers this page can honestly supply, which is the seam
+ * `components/folder-cover.tsx` gained at S25 and which nothing passed until
+ * now.
+ *
+ * **The gap this closes was live on eight pages.** `page-cover.tsx` rendered
+ * the picker with the prop defaulting to all four, so a person on Today could
+ * choose Upload, Link or a photograph; the first stores the preset `upload`,
+ * whose object URL does not survive a reload, and the other two produce a key
+ * `keyToPreset` cannot spell, so the write is dropped without a word. Three
+ * tabs that do nothing is DES-144's dead control and protocol section 4's
+ * false green, and it is the shape RFC 0005 change control item 48(b) named:
+ * a capability lifted ahead of its consumer fails in neither half loudly.
+ */
+export function coverTiersFor(place: string): readonly CoverTier[] {
+  /* A folder holds a file and no preset (4.3), a place holds a preset and can
+     hold no file it has any way of making (item 52). */
+  return folderOf(place) === null ? ['gallery'] : ['upload']
+}
+
+/**
+ * Whether this page has somewhere to keep a cover's vertical crop.
+ *
+ * 4.20 carries `focal_y` and 7.19 writes it; `folders` carries a cover and no
+ * crop at all, which is ledger L-068 read against the schema. So the
+ * Reposition control is drawn where the drag can be kept and is absent where
+ * it cannot, rather than moving a picture that snaps back on the next read.
+ */
+export function coverStoresPosition(place: string): boolean {
+  return folderOf(place) === null
+}
+
+/**
+ * The upload a folder's cover can take and a place page's cannot, which is
+ * item 44's B8 as far as the two tables reach.
+ *
+ * 7.15 scopes a file to a folder, which is exactly what a folder page has, so
+ * the bytes go up as a `cover` and 4.3's column takes the id. The invalidation
+ * is `savePageIdentity`'s own, for its reason.
+ */
+export function coverUploader(place: string): ((file: File) => void) | undefined {
+  const folderId = folderOf(place)
+  if (folderId === null) return undefined
+  return (file: File) => {
+    const client = queryClient()
+    void uploadFile('cover', folderId, file)
+      .then((stored) =>
+        mutateApi(null, {
+          method: 'PATCH',
+          path: `/folders/${folderId}`,
+          body: { cover_file_id: stored.id },
+        }),
+      )
+      .then(() => void client?.invalidateQueries())
+      .catch((error: unknown) => showToast(writeFailureMessage(error)))
+  }
+}
 
 /** `gradient-cobalt-deep` back to `gradient:cobalt-deep`. */
 export function presetToKey(preset: string): string {
@@ -110,6 +190,24 @@ export function coverKeyOf(cover: PlaceCover): string | undefined {
  */
 export function usePageIdentity(place: string): PageIdentity {
   const covers = usePlaceCovers()
+  /*
+  The folder half. Both hooks run on every page because hooks must, and each
+  is off where it has nothing to read: `useFolder` is disabled for a place
+  name, and `usePlaceCovers` is one unconditional request the whole client
+  shares anyway (7.19 answers the caller's own covers whole).
+  */
+  const folderId = folderOf(place)
+  const folder = useFolder(folderId ?? '', folderId !== null)
+  if (folderId !== null) {
+    const detail = folder.data
+    if (detail === undefined) return NO_IDENTITY
+    return {
+      ...(detail.cover_file_id === null
+        ? {}
+        : { cover: `link:/api/v1/files/${detail.cover_file_id}` }),
+      ...(detail.description === null ? {} : { description: detail.description }),
+    }
+  }
   const found = covers.data?.covers.find((cover) => cover.place === place)
   if (found === undefined) return NO_IDENTITY
   const key = coverKeyOf(found)
@@ -146,6 +244,37 @@ export function savePageIdentity(
 ): void {
   const client = queryClient()
   const settle = (): void => void client?.invalidateQueries()
+
+  /*
+  The folder half. 4.3 carries the cover as a file id and the description as
+  text, both shared by every member and both written by 7.4's PATCH, so what
+  crosses is those two and nothing else.
+
+  **`coverPos` is deliberately dropped rather than stored somewhere.** There is
+  no crop column on `folders` (ledger L-068), and `coverStoresPosition` above
+  keeps the control that would produce one off the page, so a patch carrying
+  one can only come from a caller that has not read either. Section 13 item 53
+  is the amendment.
+
+  **A key that is not a stored file is dropped for the same kind of reason**:
+  a folder has no preset column, so a gradient has nowhere to go, and
+  `coverTiersFor` keeps that tier off a folder's picker.
+  */
+  const folderId = folderOf(place)
+  if (folderId !== null) {
+    const body: Record<string, unknown> = {}
+    if ('cover' in patch) {
+      if (patch.cover === undefined) body['cover_file_id'] = null
+      else if (!patch.cover.startsWith('link:/api/v1/files/')) return
+      else body['cover_file_id'] = patch.cover.slice('link:/api/v1/files/'.length)
+    }
+    if ('description' in patch) body['description'] = patch.description ?? null
+    if (Object.keys(body).length === 0) return
+    void mutateApi(null, { method: 'PATCH', path: `/folders/${folderId}`, body })
+      .then(settle)
+      .catch((error: unknown) => showToast(writeFailureMessage(error)))
+    return
+  }
 
   if ('cover' in patch && patch.cover === undefined) {
     void mutateApi(null, { method: 'DELETE', path: `/place-covers/${place}` })
