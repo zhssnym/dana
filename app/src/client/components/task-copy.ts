@@ -1,5 +1,5 @@
 /*
-The strings 9.3 writes word for word and this form renders.
+The strings 9.3 writes word for word and the task surface renders.
 
 Transcribed character for character from the numbered section beside each,
 the same discipline `components/ui/copy.ts` keeps and for the same reason:
