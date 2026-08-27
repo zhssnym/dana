@@ -26,12 +26,11 @@ import { QuickAdd } from '../components/quick-add.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import { TASKS_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { groupHeadingMedia } from '../views/group-mark.js'
 
@@ -56,7 +55,7 @@ export function AnytimePage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
+      <PlaceHead place={place} />
 
       <div>
         <PageBody
@@ -72,7 +71,6 @@ export function AnytimePage(): React.JSX.Element {
               columns={columns}
               context={context}
               actions={actions}
-              onAsk={confirm.ask}
             />
           ) : place.groupBy !== 'none' ? (
             <div className="space-y-6">

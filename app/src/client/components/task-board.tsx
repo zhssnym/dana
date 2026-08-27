@@ -206,7 +206,26 @@ function BoardCard({
     <div
       ref={wiring.itemRef}
       {...wiring.listProps}
-      role="button"
+      /*
+      Seam, S25, and it is F1 one surface further on.
+
+      The prototype writes `role="button"` here, which is true of the gesture
+      and not of the thing: 9.1's roles table fixes "a board column is a named
+      region; its cards, list items or rows", and the card sits inside
+      `TaskList`'s own `role="list"`, so a `button` there is an item of a list
+      announcing itself as a control. AC-228 addresses exactly this,
+      `regionOf(column).getByRole('listitem')`, and 11.13 settles it without a
+      ruling: the role is the section's, so the lift owes it.
+
+      Nothing operable is given up. The `tabIndex` and the Enter/Space handler
+      below are the prototype's own and stay, so the card is still reached and
+      opened from the keyboard; what changes is the word a screen reader says,
+      and the word 9.1 chose is the one that tells a person how many cards the
+      column holds. The row solved the same problem the same way at S23, on
+      this element rather than an inner one and for the same reason: this is
+      what the list holds and what the drag engine moves.
+      */
+      role="listitem"
       tabIndex={0}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -411,8 +430,17 @@ export function TaskBoard({
   return (
     <div className="grid grid-cols-2 items-start gap-3 pb-4">
       {columns.map((column) => (
-        <div
+        /*
+        Seam, S25, and the card's twin: 9.1's regions rule makes a board
+        column "a named region, named by its value", and AC-221, AC-228 and
+        AC-259 all reach a column through `regionOf(page, name)`. A `section`
+        carrying an accessible name is a region, so the element changes and
+        not one class string of it does; the label is the column's own, which
+        is the value the region is named by.
+        */
+        <section
           key={column.key}
+          aria-label={column.label}
           data-board-column={column.key}
           ref={(node) => {
             if (node) zones.current.set(column.key, node)
@@ -466,7 +494,7 @@ export function TaskBoard({
           />
 
           {quickAdd ? <div className="mt-auto pt-1">{quickAdd(column)}</div> : null}
-        </div>
+        </section>
       ))}
       {footer}
     </div>

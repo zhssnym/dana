@@ -41,4 +41,10 @@ export const queryKeys = {
   notifications: () => ['notifications'] as const,
   thread: (folderId: string, taskId: string | null) =>
     ['folders', folderId, 'thread', taskId ?? 'folder'] as const,
+
+  /* 7.19's place covers (RFC 0005 change control item 44, B1). One key for
+     the whole set rather than one per place: 4.20's only read is "one
+     viewer's covers", and eight keys would be eight requests for a response
+     every place page already holds whole. */
+  placeCovers: () => ['place-covers'] as const,
 } as const
