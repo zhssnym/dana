@@ -95,20 +95,24 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   lifted file diffs empty against its original: rewriting its class strings to
   reach for roles would be the rewrite that strategy forbids. So a lift adds an
   entry here rather than removing one, which is what `view-strip.tsx` and
-  `window-bar.tsx` did at S23 and `undo-bar.tsx` does at S24. Whether the
-  prototype should be asking for roles is a question for the design record.
+  `window-bar.tsx` did at S23, `undo-bar.tsx` did at S24, and `folder-cover`,
+  `page-cover` and `page-head` do at S25. Whether the prototype should be
+  asking for roles is a question for the design record.
   */
   const RAMP = /var\(--color-(graphite|dana-accent|folder|success|warning|danger|info)-/
 
   const V1_RAMP = [
     'components/calendar/PlannedCalendar.tsx',
     'components/comments.tsx',
+    'components/folder-cover.tsx',
     'components/folder-group-dialog.tsx',
     'components/folder-label-dialog.tsx',
     'components/folder-row.tsx',
     'components/history-sheet.tsx',
     'components/icon-action.tsx',
     'components/new-folder-dialog.tsx',
+    'components/page-cover.tsx',
+    'components/page-head.tsx',
     'components/quick-add.tsx',
     'components/search/SearchOverlay.tsx',
     'components/state-patterns.tsx',
@@ -132,9 +136,37 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     expect(spellers).toEqual(V1_RAMP)
   })
 
-  test('no literal colour anywhere but the token file', () => {
+  /*
+  One file writes hexes, and it is the first exemption this rule has ever
+  taken (S25).
+
+  `components/folder-cover.tsx` is `prototype-v2`'s cover picker, lifted whole
+  for item 44's B1. Its nine gradients are the token palette's own hexes, which
+  its author says in terms and which was checked stop by stop against
+  `styles/tokens.css` at the lift: "No colour enters the product here that the
+  tokens do not already own, which is what makes them brand rather than
+  decoration."
+
+  **What makes it an exemption rather than a fix is the mark tier.** Six of the
+  covers are built by `markCover`, which assembles an SVG document as a string
+  and hands it to `background-image` as a `data:` URI. A `var(--color-...)` is
+  read from the element it is set on, and there is no element inside a data URI
+  to read one from, so those six stops cannot be anything but literals. Moving
+  the nine gradients alone would leave the rule half kept and the file half
+  rewritten, which is the rewrite the lift discipline forbids for no gain.
+
+  11.4's own recorded reading is the ground: the rule "governs the values the
+  design fixes", and these are that file's transcription of exactly those. The
+  hazard the rule exists to prevent, a design that cannot be changed in one
+  place, is the one thing to watch here, so the entry is named rather than the
+  test loosened, and a second file joining it is a question rather than a
+  precedent.
+  */
+  const LITERAL_HEX = ['components/folder-cover.tsx']
+
+  test('no literal colour anywhere but the token file, beside one named lift', () => {
     const literal = files.filter((path) => /#[0-9a-fA-F]{6}\b/.test(sources[path] ?? ''))
-    expect(literal).toEqual([])
+    expect(literal).toEqual(LITERAL_HEX)
   })
 })
 
