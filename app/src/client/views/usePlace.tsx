@@ -25,7 +25,12 @@ import { openTaskForm } from '../shell/overlays.js'
 import { WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { FilterChips, FilterControl } from './FilterControl.js'
 import type { FilterPerson } from './FilterControl.js'
-import { applyFilter, filterFromDefinition, viewDefinition } from './filter.js'
+import {
+  applyFilter,
+  definitionPage,
+  filterFromDefinition,
+  viewDefinition,
+} from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults, surfaceDefaults } from './place-pages.js'
@@ -259,6 +264,20 @@ export function usePlace(
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
+  const savedViews = useSavedViews()
+  /*
+  The views saved on this page, listed at the panel's head, which is the
+  prototype's own arrangement and the third seam `FilterControl` records.
+
+  Scoped to this page rather than to the account, on 9.1's sentence that a
+  filter belongs to the page: `viewDefinition` writes the spine's key into
+  every definition precisely so a view made on Today opens on Today, and
+  offering Today's saved views inside Done's filter would be the panel
+  proposing a narrowing the page cannot honour.
+  */
+  const listed = (savedViews.data ?? [])
+    .filter((view) => definitionPage(view.definition) === place.spine.key)
+    .map((view) => ({ id: view.id, name: view.name }))
   return (
     <>
       <WindowBarLead>
@@ -289,6 +308,7 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
           filter={place.filter}
           onChange={place.setFilter}
           people={place.people}
+          savedViews={listed}
           onSaveView={(name) => {
             /*
             Pinned on arrival, and it is DES-189 rather than a shortcut: "a
