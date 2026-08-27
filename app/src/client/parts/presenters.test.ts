@@ -564,10 +564,15 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
        chip draws is the folder's own mark and colour, so a car picked for
        Travel is on every row of it (AC-243). */
     const withFolders = context({ folders: [folder({ color: '#0f0f0f', icon: 'car' })] })
+    /* The mark left this trio at S23 and the id took its place: the v2 row
+       resolves its own glyph through `components/folder-mark.tsx`, which is
+       the designer's own arrangement, and what it cannot resolve for itself
+       is the id. `folderMark` is still the one resolver and is asserted
+       above; AC-243 is unaffected either way. */
     expect(taskRowDisplay(card(), withFolders).folder).toEqual({
+      id: WORK,
       name: 'Work',
       color: '#0f0f0f',
-      icon: markIcon('car'),
     })
     expect(
       taskRowDisplay(card(), { ...withFolders, showFolder: false }).folder,
