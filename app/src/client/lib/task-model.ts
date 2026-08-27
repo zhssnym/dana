@@ -28,7 +28,7 @@ header is about, one release early.
 the join and is the only place the two vocabularies meet.
 */
 import { todayInBrowserZone } from '../api/tz.js'
-import { formatTime } from './time-format.js'
+
 import type { TimeFormat } from './time-format.js'
 
 export { personTint } from '../parts/person-tint.js'
@@ -441,10 +441,31 @@ export function dueChipValue(task: ConceptTask): string {
 /* A reminder is a sentence with a time somewhere inside it rather than a time
    with words around it, so the clock is swapped in place and the rest is left
    exactly as it was written. */
-export function reminderChipValue(task: ConceptTask, format: TimeFormat): string {
+/*
+**Seam, S23: the chip reads the field, and the field is a clock time.**
+
+The prototype's reminder is a sentence with a time inside it, "Sat 31 Aug
+at 09:00", because its reminders are relative and a relative one has to
+say which day it lands on. 9.3's v2 row retired that arm: the reminder is
+"one picker, a time on that day", and the day is the due date, which the
+chip beside this one already says. So what is left to render is the time.
+
+**And it is rendered as stored rather than re-clocked**, which is the one
+place this file departs from `lib/time-format.ts`'s reach. AC-170 reads
+the chip back after a reload and holds it to the value the picker was
+given, "a reload shows what was stored rather than what was typed, which
+is the difference between a value that was written and a value that was
+held". 4.8 stores a clock time, 7.9 takes one, the picker is a control
+that takes one, and a chip that answered in a different notation from all
+three would be the only place in the round trip speaking another
+language. The viewer's clock still governs every time this client *words*
+rather than echoes, which is the due label and the history line.
+
+`format` stays in the signature and is unused, because the prototype's
+callers pass it and a lifted file that had to drop an argument is a
+lifted file that has left the strategy.
+*/
+export function reminderChipValue(task: ConceptTask, _format: TimeFormat): string {
   if (!task.reminder) return 'No reminder'
-  return task.reminder.replace(
-    /(\d{1,2}:\d{2})/,
-    (found) => formatTime(found, format) ?? found,
-  )
+  return task.reminder.match(/(\d{1,2}:\d{2})/)?.[1] ?? task.reminder
 }

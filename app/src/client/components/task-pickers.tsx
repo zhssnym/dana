@@ -494,7 +494,23 @@ control DES-144 removes. AC-092 always arms both before it clears.
 */
 export function DuePanel({ task, patch }: PanelProps) {
   const selected = task.due ? parseDueLabel(task.due.label) : null
-  const [custom, setCustom] = useState(false)
+  /*
+  **Seam, S23: the due picker opens with its grid showing.**
+
+  DES-120 arranges every picker as "the answers somebody probably wants, a
+  hairline, then one option that opens everything exact", and the
+  prototype's due panel keeps its calendar behind that last option. 9.3
+  and AC-219 read the due field differently, and the reason is DES-178's:
+  a due date **is** a day, so the grid is not the exact option behind the
+  easy ones, it is the field itself. The criterion says so in as many
+  words, "the due picker opens on a day grid, a due date being a day".
+
+  The presets stay above it and lose nothing: what changes is that the
+  instrument for the field's own type is not folded away. The reminder and
+  repeat panels keep DES-120's arrangement exactly, their exact answers
+  being a clock and a rule rather than the field itself.
+  */
+  const [custom, setCustom] = useState(true)
   const [confirming, setConfirming] = useState(false)
   const close = usePickerClose()
   /* Choosing a day answers the field, from the grid exactly as from a preset,
