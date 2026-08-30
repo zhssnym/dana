@@ -98,7 +98,7 @@ The labels are the viewer's own, from the `my_label` of 7.4's membership row,
 so the same folder is inside a group for one member and among the unlabeled
 for another. AC-155 reads all four clauses.
 */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
 /* The icon module of DES-125, since S8: one file owns the family and
@@ -110,7 +110,6 @@ import {
   CircleQuestionMark,
   FolderPlus,
   Folders,
-  MoreHorizontal,
   Plus,
   LogOut,
 
@@ -124,6 +123,8 @@ import {
 } from '../lib/icons.js'
 
 import { DanaMark } from '../components/dana-mark.js'
+import { useSidebar } from '../components/ui/sidebar.js'
+import { showToast } from '../state/toasts.js'
 import { FolderRow } from '../components/folder-row.js'
 import { useHelpSheet } from '../components/help-sheet.js'
 import { Button } from '../components/ui/button.js'
@@ -562,8 +563,10 @@ function SidebarFolderRow({
       }
       onCopyLink={() => {
         /* `lib/nav-links.ts`, so the sidebar row and the folder page copy
-           one address rather than two spellings of it. */
+           one address rather than two spellings of it. polish: tabstrip F7,
+           the act says it happened. */
         void navigator.clipboard.writeText(folderLink(folder.id))
+        showToast('Link copied')
       }}
       onDuplicate={() => {
         /* DES-198 server-side, and the copy is the duplicator's own private
@@ -782,13 +785,13 @@ function FolderGroupBlock({
             aria-label={`Show the folders on ${group.label}`}
             className="flex h-full shrink-0 items-center rounded-md py-0 pl-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           >
-            <span className="relative size-4 shrink-0" aria-hidden="true">
-              <GroupGlyph
-                shelf={group.shelf}
-                className="absolute inset-0 !size-4 opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
-              />
+            {/* polish: sidebar F6. A shelf's disclosure rests visible at
+                reduced opacity beside its glyph rather than replacing it on
+                hover, so an empty shelf still reads as a container. */}
+            <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
+              <GroupGlyph shelf={group.shelf} className="!size-4 opacity-90" />
               <ChevronDown
-                className={`absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${open ? '' : '-rotate-90'}`}
+                className={`!size-3.5 text-[var(--color-graphite-500)] opacity-50 transition-[opacity,transform] group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${open ? '' : '-rotate-90'}`}
                 strokeWidth={1.75}
               />
             </span>
@@ -868,6 +871,7 @@ function FolderGroupBlock({
                       /* `lib/nav-links.ts`, the same address the shelf page
                          itself copies. */
                       void navigator.clipboard?.writeText(shelfLink(shelfId))
+                      showToast('Link copied')
                     },
               delete: () => { groups.onDeleteGroup(group.label) },
             }}
@@ -1189,6 +1193,10 @@ function SidebarBrandHeader({
 }: {
   readonly onOpenSearch: () => void
 }): React.JSX.Element {
+  /* polish: sidebar F12, search F6. The tooltip opens on hover only, never
+     on the focus the closing search overlay hands back to this control, so
+     it cannot park itself over the bell after Escape. */
+  const [searchHovered, setSearchHovered] = useState(false)
   return (
     <SidebarHeader className="p-2 pb-1">
       <div className="flex min-h-[var(--shell-sidebar-item-height)] items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
@@ -1207,7 +1215,7 @@ function SidebarBrandHeader({
           </span>
         </Link>
         <div className="ml-auto flex items-center gap-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:flex-col">
-          <Tooltip>
+          <Tooltip open={searchHovered} onOpenChange={setSearchHovered}>
             <TooltipTrigger
               render={
                 <Button
@@ -1218,6 +1226,8 @@ function SidebarBrandHeader({
                   // name, which AC-174 matches exactly.
                   aria-label={SEARCH}
                   onClick={onOpenSearch}
+                  onPointerEnter={() => { setSearchHovered(true) }}
+                  onPointerLeave={() => { setSearchHovered(false) }}
                 />
               }
             >
@@ -1257,12 +1267,10 @@ function SidebarBrandHeader({
  */
 function AccountMenu({
   displayName,
-  onOpenSettings,
   onOpenHelp,
   onSignOut,
 }: {
   readonly displayName: string | null
-  readonly onOpenSettings: () => void
   readonly onOpenHelp: () => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
@@ -1286,17 +1294,10 @@ function AccountMenu({
         }
       />
       <DropdownMenuContent side="right" align="end" className="w-44">
-        {/* A menu item that navigates rather than an anchor: 9.1 puts
-            Settings in this menu and also in the list above it, and two
-            links to one path inside one landmark is two controls answering
-            to one name. */}
-        <DropdownMenuItem
-          className="min-h-[var(--control-height)] text-sm"
-          onClick={onOpenSettings}
-        >
-          <SettingsGlyph className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          Settings
-        </DropdownMenuItem>
+        {/* polish: sidebar F3. Settings was here and four rows up as a foot
+            link; the link a newcomer finds first is the survivor, so this
+            menu keeps what is about the person and the application: their
+            name, Help, and the door. */}
         <DropdownMenuItem
           className="min-h-[var(--control-height)] text-sm"
           onClick={onOpenHelp}
@@ -1334,7 +1335,6 @@ export function AppSidebar({
   onSidebarWidthCommit,
   onSidebarWidthReset,
   onOpenSearch,
-  onOpenSettings,
   onNewFolder,
   onNewShelf,
   onImportWorkflow,
@@ -1388,7 +1388,6 @@ export function AppSidebar({
   readonly onSidebarWidthCommit: (width: number) => void
   readonly onSidebarWidthReset: () => void
   readonly onOpenSearch: () => void
-  readonly onOpenSettings: () => void
   readonly onNewFolder: () => void
   /** 9.1's second act of making, which 7.16's POST /shelves is behind. */
   readonly onNewShelf: () => void
@@ -1398,6 +1397,13 @@ export function AppSidebar({
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
   const { setOpen: setHelpOpen, sheet: helpSheet } = useHelpSheet()
+  /* polish: sidebar F1. On a phone the sidebar is a drawer, and a drawer
+     closes on the navigation it was opened to make: the shell's `PhoneBar`
+     opens it, and this effect on the route closes it. */
+  const { isMobile, setOpenMobile } = useSidebar()
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false)
+  }, [currentPath, currentSearch, isMobile, setOpenMobile])
   /* The file input the Import button presses, hidden because a bare file
      control cannot be given the row's shape and a button that opens one can. */
   const workflowInput = useRef<HTMLInputElement>(null)
@@ -1524,49 +1530,9 @@ export function AppSidebar({
                   aria-hidden="true"
                 />
               </CollapsibleTrigger>
-              {/*
-              "Library options", the prototype's own control and absent from
-              this client until S24.
-
-              It offers the two acts of making that the section's footer also
-              offers, and that is the prototype's arrangement rather than a
-              duplication this file invented: the footer's row is where a
-              person goes deliberately, and this is where a person's hand
-              already is when they are looking at the list they want to add
-              to. Both call the same two handlers, so there is one act behind
-              each and two doors to it.
-
-              Named "Library options" and not "More actions": 9.1's names
-              table fixes "More actions" for an object's overflow menu, and
-              the Library is a section of the chrome rather than an object.
-              A control not named in that table is reached by its role in the
-              ordinary sense, which is what this is.
-              */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 shrink-0 rounded-md text-[var(--color-graphite-500)] opacity-0 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] group-hover/folder-directory:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                      aria-label="Library options"
-                    />
-                  }
-                >
-                  <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={onNewFolder}>
-                    <FolderPlus className="size-4" aria-hidden="true" />
-                    New folder
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onNewShelf}>
-                    <Folders className="size-4" aria-hidden="true" />
-                    New shelf
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* polish: sidebar F7. The "Library options" menu that hung
+                  here offered New folder and New shelf, which the foot
+                  already offers eight rows down; one door per act. */}
             </h2>
             <CollapsibleContent>
               {/* Inbox above the column and never in it: 9.1 pins it first,
@@ -1652,14 +1618,18 @@ export function AppSidebar({
         prototype, and 9.1's "all three named by tooltip in every state" is
         satisfied by the name being inside it.
         */}
-        <SidebarMenu className="@container mb-1 flex-row gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-0.5">
-          {/* Content-sized rather than equal thirds: equal shares gave "New
-              shelf" the same room as "Trash" and clipped it while its
-              neighbours sat in slack (Imran, 2026-08-24). */}
+        {/* polish: sidebar F10. The row is two acts of making now, each
+            with its word at every width: Trash was the third, a destination
+            among acts and an unlabelled glyph at the default width, and it
+            has gone to the navigation rows below where the other places
+            are. `title` names both for a pointer at rest, the primitive's
+            own tooltip only speaking in the rail. */}
+        <SidebarMenu className="mb-1 flex-row gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-0.5">
           <SidebarMenuItem className="min-w-0 flex-auto">
             <SidebarMenuButton
               data-sidebar-tier="action"
               aria-label="New shelf"
+              title="New shelf, a group of folders"
               tooltip="New shelf, a group of folders"
               className={ROW_OF_THREE_CLASS}
               onClick={onNewShelf}
@@ -1672,31 +1642,15 @@ export function AppSidebar({
             <SidebarMenuButton
               data-sidebar-tier="action"
               aria-label="Import"
-              tooltip="Import a workflow"
+              title="Import a workflow file"
+              tooltip="Import a workflow file"
               className={ROW_OF_THREE_CLASS}
               onClick={() => {
                 workflowInput.current?.click()
               }}
             >
               <Workflow className="!size-4" strokeWidth={1.75} aria-hidden="true" />
-              <span className="truncate group-data-[collapsible=icon]:hidden @max-[262px]:hidden">
-                Import
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem className="min-w-0 flex-auto">
-            <SidebarMenuButton
-              data-sidebar-tier="action"
-              aria-label="Trash"
-              tooltip="Trash, deleted items, kept 30 days"
-              isActive={currentPath === paths.trash}
-              className={ROW_OF_THREE_CLASS}
-              render={<Link to={paths.trash} />}
-            >
-              <Trash2 className="!size-4" strokeWidth={1.75} aria-hidden="true" />
-              <span className="truncate group-data-[collapsible=icon]:hidden @max-[262px]:hidden">
-                Trash
-              </span>
+              <span className="truncate group-data-[collapsible=icon]:hidden">Import</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -1726,8 +1680,14 @@ export function AppSidebar({
           }}
         />
         <SidebarMenu>
-          {/* 9.1: "then People and Settings as links", after the row of
-              three and before the avatar menu. */}
+          {/* 9.1: "then Trash, People and Settings as links", after the row
+              of two and before the avatar menu (polish: sidebar F10). */}
+          <NavigationRow
+            name="Trash"
+            to={paths.trash}
+            icon={Trash2}
+            active={currentPath === paths.trash}
+          />
           <NavigationRow
             name="People"
             to={paths.people}
@@ -1745,7 +1705,6 @@ export function AppSidebar({
           <SidebarMenuItem>
             <AccountMenu
               displayName={displayName}
-              onOpenSettings={onOpenSettings}
               onOpenHelp={() => {
                 setHelpOpen(true)
               }}

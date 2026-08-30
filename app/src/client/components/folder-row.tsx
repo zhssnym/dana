@@ -69,7 +69,7 @@ safety property does the rest: an act with no handler is not drawn, so a
 member's row is given `onLeave` and an owner's `onDelete` and neither needs a
 role branch in this file.
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 
 /* The icon module of DES-125, since S24 here: this file imported `lucide-react`
@@ -198,6 +198,9 @@ export function FolderRow({
       onDelete,
   )
   const hasActions = Boolean(onAddTask) || hasFolderMenu
+  /* polish: sidebar F11. A right-click on the row opens the same menu the
+     "More actions" button does, by pressing that button. */
+  const menuTrigger = useRef<HTMLButtonElement>(null)
   /*
   Geometry inline rather than in a class, because the offset is a measured
   number of pixels and a class cannot carry one. The tokens file stays the
@@ -240,13 +243,23 @@ export function FolderRow({
       {...rowProps}
       style={{ ...dragStyle, ...rowProps?.style }}
       data-dragging={dragState?.isActive ? 'true' : undefined}
+      onContextMenu={
+        hasFolderMenu
+          ? (event) => {
+              event.preventDefault()
+              menuTrigger.current?.click()
+            }
+          : undefined
+      }
       className={cn(
         /* `rounded-md` is the prototype's, and it is what gives the carried
            row and the held-over row their corners; without it the accent wash
            and the ring were square against a list of rounded rows. */
         'group/folder-row rounded-md',
+        /* polish: sidebar F2. In the icon rail the tree lines have nothing to
+           hang from, so they go with the labels. */
         tree &&
-          "before:absolute before:-top-0.5 before:left-6 before:z-0 before:h-[calc(50%+2px)] before:w-1.5 before:rounded-bl-[6px] before:border-b before:border-l before:border-[var(--color-graphite-300)] before:content-[''] after:absolute after:top-1/2 after:-bottom-0.5 after:left-6 after:z-0 after:border-l after:border-[var(--color-graphite-300)] after:content-['']",
+          "before:absolute before:-top-0.5 before:left-6 before:z-0 before:h-[calc(50%+2px)] before:w-1.5 before:rounded-bl-[6px] before:border-b before:border-l before:border-[var(--color-graphite-300)] before:content-[''] after:absolute after:top-1/2 after:-bottom-0.5 after:left-6 after:z-0 after:border-l after:border-[var(--color-graphite-300)] after:content-[''] group-data-[collapsible=icon]:before:hidden group-data-[collapsible=icon]:after:hidden",
         tree && treeLast && 'after:hidden',
         dragState?.isActive &&
           'cursor-grabbing bg-card shadow-[var(--elevation-2)] ring-1 ring-[var(--color-graphite-300)]',
@@ -271,6 +284,9 @@ export function FolderRow({
           nested && !tree && 'pl-7',
           tree && 'pl-10 before:!left-8',
           (pending > 0 || hasActions) && 'pr-[4.75rem]',
+          /* polish: sidebar F2. One centred glyph per folder in the rail,
+             whatever indent the row has when it is wide. */
+          'group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!px-0 group-data-[collapsible=icon]:before:!inset-x-0',
         )}
       >
         {/* The folder's own mark since S17a, where this drew a literal folder
@@ -303,7 +319,7 @@ export function FolderRow({
       {pending > 0 ? (
         <SidebarMenuBadge
           className={cn(
-            'right-3 h-5 min-w-5 rounded-full bg-[var(--color-graphite-200)] px-1.5 text-[0.625rem] text-[var(--color-graphite-600)] peer-data-active/menu-button:bg-[var(--color-graphite-200)] peer-data-active/menu-button:text-[var(--color-graphite-800)]',
+            'right-3 h-5 min-w-5 rounded-full bg-[var(--color-graphite-200)] px-1.5 text-[0.625rem] text-[var(--color-graphite-600)] peer-data-active/menu-button:bg-[var(--color-graphite-200)] peer-data-active/menu-button:text-[var(--color-graphite-800)] group-data-[collapsible=icon]:hidden',
             hasActions &&
               'transition-opacity group-hover/folder-row:pointer-events-none group-hover/folder-row:opacity-0 group-focus-within/folder-row:pointer-events-none group-focus-within/folder-row:opacity-0',
           )}
@@ -339,7 +355,11 @@ export function FolderRow({
           addresses it by role and name", and a control that answers no pointer
           is not operable by it either. 11.13 gives the section the win.
           */
-          className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100"
+          /* polish: sidebar F2. Hidden in the icon rail, where the strip sat
+             on top of the glyph and a click opened the menu instead of the
+             folder. A touch screen or a narrow window gets the strip at rest
+             rather than on a hover it cannot make. */
+          className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100 group-data-[collapsible=icon]:hidden [@media(hover:none)]:opacity-100"
         >
           {onAddTask ? (
             <Button
@@ -374,6 +394,7 @@ export function FolderRow({
                 type="button"
                 variant="ghost"
                 size="icon"
+                ref={menuTrigger}
                 className="size-6 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)]"
                 // 9.1's names table: a fixed string, the row that names this
                 // folder being what separates it from the other controls
@@ -381,18 +402,11 @@ export function FolderRow({
                 aria-label={MORE_ACTIONS}
               />
             }
-            extra={
-              /* 9.1's names table, added to this menu at P8R session R10:
-                 "creating one is naming it on a folder", so the act that makes
-                 a group is an act on the folder whose label it will be. It
-                 stays a surface item rather than joining the contract because
-                 it acts on the Library's arrangement and not on the folder. */
-              onNewGroup === undefined ? undefined : (
-                <DropdownMenuItem onClick={onNewGroup}>
-                  <Folders className="size-4" aria-hidden="true" />New folder group
-                </DropdownMenuItem>
-              )
-            }
+            /* polish: sidebar F5, F7. "New folder group" stood here at the top
+               of the menu five rows above "Move to shelf": one word for the
+               thing, and one door, so the act of putting this folder on a
+               shelf that does not exist yet lives inside the move submenu as
+               "New shelf…". */
             handlers={{
               open: onOpenInNewTab,
               history: onHistory,
@@ -420,8 +434,17 @@ export function FolderRow({
                           ))}
                           <DropdownMenuSeparator />
                           <DropdownMenuRadioItem value="__none" closeOnClick>
-                            No group
+                            No shelf
                           </DropdownMenuRadioItem>
+                          {onNewGroup === undefined ? null : (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={onNewGroup}>
+                                <Folders className="size-4" aria-hidden="true" />
+                                New shelf…
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuRadioGroup>
                       ),
                     },

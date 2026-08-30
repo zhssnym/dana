@@ -246,17 +246,26 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       folderMenu(page, FOLDER_A).first(),
       "spec 9.1: a folder is moved between groups from its own menu, so the row carries one",
     )
+    /* Polish round, 2026-08-30 (sidebar F5, F7): the act of putting a folder
+       on a shelf that does not exist yet lives inside the row's "Move to
+       shelf" submenu as "New shelf…", rather than as a top-level "New folder
+       group" five rows above it; one word for the thing and one door to it. */
     await clickControl(
-      page.getByRole('menuitem', { name: 'New folder group', exact: true }),
+      page.getByRole('menuitem', { name: 'Move to shelf', exact: true }),
+      'spec 9.1: a folder is moved between shelves from its own menu',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: 'New shelf…', exact: true }),
       'spec 9.1: "a group is created by naming it", which is an action on a folder because a ' +
-        'group is the label of that folder\'s membership and nothing else. The action is named ' +
-        '"New folder group" by that section\'s names table since 2026-08-13',
+        'group is the label of that folder\'s membership and nothing else. Since the polish ' +
+        'round it is "New shelf…" inside the move submenu',
     )
     await fillControl(
-      page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
+      page.getByRole('dialog').getByLabel(/^\s*Shelf name\s*$/i),
       GROUP,
-      'spec 9.1: creating a group is naming it, and that section names the field "Group name". ' +
-        'The dialog names its field and not itself, a dialog being announced by its own title',
+      'spec 9.1: creating a shelf is naming it, and the field is "Shelf name" since the polish ' +
+        'round said shelf everywhere. The dialog names its field and not itself, a dialog ' +
+        'being announced by its own title',
     )
     await clickControl(
       page.getByRole('dialog').getByRole('button', { name: /save|create|continue/i }).first(),
@@ -303,9 +312,9 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'person should never have to guess the object of',
     )
     await fillControl(
-      page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
+      page.getByRole('dialog').getByLabel(/^\s*Shelf name\s*$/i),
       RENAMED,
-      'spec 9.1: renaming a group is naming it again, through the same "Group name" field',
+      'spec 9.1: renaming a shelf is naming it again, through the same "Shelf name" field',
     )
     await clickControl(
       page.getByRole('dialog').getByRole('button', { name: /save|rename|continue/i }).first(),
@@ -403,11 +412,12 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'thing that section still describes',
     )
     await expect(
-      page.getByText(/Delete folder group\? \d+ folders keep their tasks and move to the ungrouped list\./),
-      'spec 9.1: "Deleting a group deletes no folder and no task: confirm \\"Delete folder ' +
-        'group? {N} folders keep their tasks and move to the ungrouped list.\\"" A person ' +
-        'deleting something called a folder group has every reason to fear they are deleting ' +
-        'folders, and this sentence is the only thing that tells them otherwise',
+      page.getByText(/Delete shelf\? \d+ folders keep their tasks and come off it\./),
+      'spec 9.1: deleting a shelf deletes no folder and no task, and the confirm says so in ' +
+        'the one word the polish round settled on: "Delete shelf? {N} folders keep their ' +
+        'tasks and come off it." A person deleting a container has every reason to fear ' +
+        'they are deleting its contents, and this sentence is the only thing that tells ' +
+        'them otherwise',
     ).toBeVisible()
     await clickControl(
       page.getByRole('button', { name: 'Continue', exact: true }),
