@@ -85,7 +85,7 @@ export interface Place {
   /** A capture at this page's entry defaults, optionally inside a column. */
   readonly capture: (title: string, column?: ColumnValue) => void
   /** The same entry point, escalated to the task surface (9.3). */
-  readonly openFull: (column?: ColumnValue) => void
+  readonly openFull: (column?: ColumnValue, title?: string) => void
 }
 
 function peopleIn(
@@ -141,7 +141,7 @@ export interface PlaceOptions {
   /** A capture writing this page's own folder rather than the table's row. */
   readonly capture?: (title: string, column?: ColumnValue) => void
   /** The same entry point escalated to 9.3's surface, with the same folder. */
-  readonly openFull?: (column?: ColumnValue) => void
+  readonly openFull?: (column?: ColumnValue, title?: string) => void
 }
 
 export function usePlace(
@@ -219,10 +219,12 @@ export function usePlace(
     )
   }
 
-  function openFull(column?: ColumnValue): void {
+  function openFull(column?: ColumnValue, title?: string): void {
     const defaults = captureDefaults(spine.key, today, column)
     const surface = surfaceDefaults(spine.key, today)
     openTaskForm({
+      /* polish: taskrow F3. */
+      ...(title === undefined || title === '' ? {} : { title }),
       due_date: defaults.due_date ?? surface.due_date,
       important: defaults.important ?? surface.important,
       ...(defaults.folder_id === undefined ? {} : { folder_id: defaults.folder_id }),

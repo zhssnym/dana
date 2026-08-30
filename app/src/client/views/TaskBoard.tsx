@@ -163,8 +163,8 @@ export function TaskBoard({
             onAdd={(title) => {
               place.capture(title, group.capture ?? undefined)
             }}
-            onOpenFullForm={() => {
-              place.openFull(group.capture ?? undefined)
+            onOpenFullForm={(title) => {
+              place.openFull(group.capture ?? undefined, title)
             }}
           />
         )
