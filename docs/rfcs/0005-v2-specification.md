@@ -1445,6 +1445,26 @@ Consequences the delta above creates, stated so none is met as a surprise:
   0004's S1 and land here as Append/Replace units before acceptance — the
   one remaining opening, and it is S1's by design.
 
+### The frozen change of change control item 57, written at the delegated sitting
+
+*One unit, added 2026-08-30 by the delegated rulings sitting (change control
+item 57, B5), under the owner's full delegation. Section 13 item 54 measured
+that 7.14's thread answers a comment's files as bare uuids, so a client could
+draw an attachment only as its own bytes, and recommended widening the read
+half. The read half is taken here and the write half, one `file_id` per
+comment, is left standing. Additive: no address changes meaning; one response
+field is replaced by a richer one that carries the same id. Folded into
+`docs/spec/07-api.md` the same day, as an annotated paragraph under 7.14,
+because S29a's fold has already made section 7 the place the API is stated.*
+
+### Replace the read shape of section 7.14 — folded 2026-08-30 (item 57)
+
+```markdown
+Read shape: each comment line carries `files: { id, name, mime, bytes }[]`,
+4.16's own columns, ordered as attached; there is no bare-id form. POST's
+create answer carries the same.
+```
+
 ## Change control
 
 S2 mid-package, 2026-08-24, three schema rulings recorded for the section 4
@@ -6163,6 +6183,113 @@ fold, the way P7's mid-package change control ratified the pass callable:
     offering none, which is a wiring row of its own rather than this one's.
     Section 12 gained the one-line entries for AC-274 to AC-280, which S28a
     and S23a wrote as files without them.
+
+57. **The delegated sitting, 2026-08-30: what the tree still owed the rulings
+    sheet, closed by delegation, and nothing re-ruled.** Item 44 answered the
+    sheet in full and items 41, 46 to 48, 50 to 55 built most of what it
+    ruled. This sitting, held under the owner's full delegation on the
+    `rulings-close` branch at `2b77f5c`, read every question on the sheet
+    against the tree rather than against the record, took the documented
+    recommendation wherever one stood, and did what remained. One lettered
+    paragraph per question; a question that needed nothing says so.
+
+    **A1. Nothing owed.** The five labels carry the ellipsis in
+    `lib/object-acts.ts`, 9.1 was amended and AC-217, AC-246 and AC-180
+    reworked at item 48(d). "Make this a folder…" is declared and still
+    unsupplied: `task-row.tsx` takes `onMakeFolder` and no page passes it, so
+    the act is not drawn, which is `object-acts.ts`'s own rule; ledger L-007
+    stays open and names it.
+
+    **A2. 9.1's names stand, and the last two seams are transcribed.** The
+    row, the sidebar, the rail and the search control were transcribed at S23
+    and S24. Two prototype strings had survived on live controls and are now
+    9.1's: the board card's star (`components/task-board.tsx`, "Important" /
+    "Mark as important" for "Remove from Important" / "Mark as Important") and
+    the shelf page's overflow (`screens/shelf-page.tsx`, "More actions" for
+    "More actions for {name}"). Two are ruled not to be seams: the search
+    overlay's dialog and input are "Search Dana", the prototype's own, because
+    9.1's table names the sidebar's *control* "Search" and reaches no further,
+    and 9.9 now says so; and the row's rename input, "Task title", is
+    unreachable since item 47(e) made the row's title text, so its string is
+    asserted by nothing and left verbatim. `task-surface.tsx`'s "title" is
+    9.3's own word and stands. No criterion moved.
+
+    **B5. The read shape is taken; voice stays deferred.** Section 13 item
+    54's first recommendation, ruled at this sitting as a frozen section 7
+    Replace unit (above) and folded into 7.14 the same day: `CommentLine`
+    carries `files: { id, name, mime, bytes }[]` in place of `file_ids`,
+    `domain/comments.ts` selects 4.16's columns in the same aggregate and the
+    create answer carries the same, `lib/thread.ts` draws the tile, the name
+    and the meta line from them, and the composer offers any file 10.3 admits
+    with 7.15's kind chosen by mime (`commentFileKind`). AC-290 asserts it,
+    green on PGlite. The write half, one `file_id` per comment, stands as
+    item 54's real product question. Voice is item 44's B5 and is not
+    touched: `files.kind` admits `'voice'`, the recorder sits behind a prop
+    defaulting to off, and what is owed is a duration, a player and a
+    transcription decision. Section 13 item 54 closes on its read half.
+
+    **B6. Confirmed, and 9.1 corrected.** Item 44 ruled the undo bar's
+    sentence and 4.13's event separately specified and said 9.1 would gain a
+    sentence saying so; 9.1 instead still read "the bar is the same sentence
+    the event log records", the opposite. The sentence is replaced. The code
+    already matched the ruling: `shell/undo.ts`'s `undoLabel` composes
+    `Deleted "{title}"` client-side, 9.1's wording exactly, and AC-225
+    asserts it. Nothing built.
+
+    **B10. Confirmed, and 9.6 gains its clause.** Item 51(h) checked all three
+    insert paths in `domain/acts.ts` write `assignee_id = viewerId` and
+    AC-277 pins it; 9.6 never received the sentence item 44 owed it. It has it
+    now.
+
+    **C2. Confirmed by measurement.** Item 41(c) ruled the current
+    `[data-theme="dark"]` block the ruling. Diffed at this sitting against
+    `docs/design/prototype-v2/src/styles/tokens.css`: the two dark blocks
+    are identical value for value, differing in two punctuation marks inside
+    comments. Nothing built; L-244 and L-252 close.
+
+    **D. The fold is done, at this sitting rather than at S29.** Item 41(d)
+    read Imran's answer as "fold the fifty-two as written"; S29 folded v1's
+    language to v2's and S29a folded the systems units, and neither folded
+    the block. Read against section 9 at `2b77f5c`, only the view strip's
+    five (L-029 to L-033, item 48) and L-055's rule were there. The remaining
+    entries are now sentences: 9.1 gains the mark and icon family (L-117,
+    L-141 to L-145), the object-act contract (L-002 to L-006, L-008, L-014),
+    the chrome's stores (L-034, L-136, L-138, L-139, L-214) and the Library's
+    drag engine (L-090, L-091, L-093, L-127, L-128); 9.3 gains the row and
+    card paragraph (L-037, L-070, L-071, L-074, L-076, L-077, L-148, L-150,
+    L-151, L-153, L-157, L-163, and L-152 exempted per item 47(e)); 9.5
+    gains the scope control (L-046, L-098) and the board and section
+    decisions (L-170, L-172, L-173, L-219); 9.6 gains the History sheet
+    (L-199, L-200) and names L-055's bar; 9.7 gains the pre-mount theme
+    (L-080); 9.8 gains L-096. Every sentence was checked against the file
+    that draws it before it was written, which is the difference between a
+    fold and a wish; the two the tree does not yet draw, L-055's bar and
+    L-007's act, are folded as owed and their ledger rows stay open.
+
+    **A1's seventh label, B1 to B4, B7 to B9, B11, C1, C3: nothing further.**
+    Each stands as ruled at item 44 and built or scheduled at items 46, 48,
+    50 to 54; this sitting re-ruled none of them and found no drift in the
+    sections that carry them.
+
+    **The ledger, re-read against the tree.** 127 rows re-verdicted by
+    reading the file each names, none by assumption: the ledger now reads
+    **241 closed, 9 exempted, 10 open** of 260. The ten open, each with its
+    reason in the row: L-007 (the menu act nobody supplies), L-023 and L-234
+    (S28b's Trash control, in flight in its own worktree), L-045 (the Done
+    column, item 51(g)'s question), L-049 (Done still lists alone), L-055
+    (the re-anchor bar), L-159 (B9's handler still `() => {}`), L-186 (the
+    three cover tiers at section 13 item 53), L-253 (S30 judges), L-257 (the
+    card's Attachments block fed nothing). Of those, four have no row that
+    owns them, L-007, L-049, L-055 and L-257, which S30's walkthrough should
+    read as the honest remainder rather than as a gap in any package. The
+    ledger's L-149, the row expanding in place, was closed by S23 and never
+    marked; marked now.
+
+    **What this item did not do.** It did not touch `screens/trash-screen.tsx`,
+    `lib/trash.ts` or AC-262, which are S28b's; it ran no whole suite,
+    only lint, typecheck, the five comment and file criteria beside AC-290
+    on PGlite, and the two browser files whose surfaces it renamed, on a port
+    of its own. SESSION-LOG row 48 is its record.
 
 ## Implementation plan
 

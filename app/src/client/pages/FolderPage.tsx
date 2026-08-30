@@ -173,7 +173,7 @@ import { initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { folderLink } from '../lib/nav-links.js'
-import { applyThreadChange, useConceptThread } from '../lib/thread.js'
+import { applyThreadChange, commentFileKind, useConceptThread } from '../lib/thread.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
@@ -763,7 +763,7 @@ export function FolderPage({
               setLike.mutate({ id: commentId, liked })
             },
             upload: (file) =>
-              uploadFile('image', id, file).then((stored) => stored.id),
+              uploadFile(commentFileKind(file), id, file).then((stored) => stored.id),
           })
         }}
       />

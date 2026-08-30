@@ -23,6 +23,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type {
+  CommentFile,
   CommentLine,
   PostCommentBody,
   ThreadView,
@@ -96,14 +97,23 @@ export async function createComment(
     }
 
     let fileName: string | null = null
+    let attached: CommentFile[] = []
     if (body.file_id !== undefined) {
       const file = await rowsOf(
         tx,
-        sql`SELECT name FROM files
+        sql`SELECT id, name, mime, bytes FROM files
             WHERE id = ${body.file_id} AND folder_id = ${folderId}`,
       )
       if (file[0] === undefined) return { kind: 'file_not_here' } as const
       fileName = String(file[0].name)
+      attached = [
+        {
+          id: String(file[0].id),
+          name: fileName,
+          mime: String(file[0].mime),
+          bytes: Number(file[0].bytes),
+        },
+      ]
     }
 
     const inserted = await rowsOf(
@@ -152,7 +162,7 @@ export async function createComment(
         body: body.body ?? null,
         likes: 0,
         liked: false,
-        file_ids: body.file_id === undefined ? [] : [body.file_id],
+        files: attached,
         created_at: toIso(inserted[0]?.created_at),
         edited_at: null,
       },
@@ -179,8 +189,11 @@ export async function threadView(
                EXISTS (SELECT 1 FROM comment_likes l
                         WHERE l.comment_id = c.id
                           AND l.user_id = ${viewerId}) AS liked,
-               (SELECT coalesce(json_agg(cf.file_id ORDER BY cf.created_at), '[]'::json)
-                  FROM comment_files cf WHERE cf.comment_id = c.id) AS file_ids
+               (SELECT coalesce(json_agg(json_build_object(
+                          'id', f.id, 'name', f.name, 'mime', f.mime, 'bytes', f.bytes)
+                        ORDER BY cf.created_at), '[]'::json)
+                  FROM comment_files cf JOIN files f ON f.id = cf.file_id
+                  WHERE cf.comment_id = c.id) AS files
         FROM comments c
         WHERE c.folder_id = ${folderId}
           AND c.task_id IS NOT DISTINCT FROM ${taskId}
@@ -196,16 +209,24 @@ export async function threadView(
       body: nullableString(row.body),
       likes: Number(row.likes),
       liked: row.liked === true,
-      file_ids: fileIdsFrom(row.file_ids),
+      files: filesFrom(row.files),
       created_at: toIso(row.created_at),
       edited_at: row.edited_at === null ? null : toIso(row.edited_at),
     })),
   }
 }
 
-function fileIdsFrom(value: unknown): string[] {
-  const parsed = typeof value === 'string' ? JSON.parse(value) : value
-  return Array.isArray(parsed) ? parsed.map((id) => String(id)) : []
+/* 7.14's read shape (item 57 B5): the aggregate is 4.16's columns as JSON,
+   which PGlite hands back parsed and node-postgres as text. */
+function filesFrom(value: unknown): CommentFile[] {
+  const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value
+  if (!Array.isArray(parsed)) return []
+  return parsed.map((entry: Record<string, unknown>) => ({
+    id: String(entry.id),
+    name: String(entry.name),
+    mime: String(entry.mime),
+    bytes: Number(entry.bytes),
+  }))
 }
 
 /* ------------------------------------------------------------------ *
