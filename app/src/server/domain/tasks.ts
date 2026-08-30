@@ -1484,6 +1484,77 @@ export async function deleteStep(
   })
 }
 
+export type PromoteStepResult =
+  | { kind: 'promoted'; task: TaskDetail }
+  | { kind: 'not_found' }
+
+/*
+POST /tasks/:id/steps/:stepId/promote (RFC 0005 change control item 58, B9's
+one-way move given its endpoint).
+
+A step becomes a task of its own in the parent's folder and under the
+parent's section, and the step is gone from the parent in the same
+transaction: one act from the person's side, one transaction from the
+wire's. The new task starts pending whatever the step's box said, because a
+promotion is a person deciding this is work of its own rather than a
+finished line, and it is assigned to nobody. Membership of the parent's
+folder is the access rule (7.7), and a step named under a task it does not
+belong to is 404 rather than 422: the pair is an address, not a body.
+*/
+export async function promoteStep(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  stepId: string,
+): Promise<PromoteStepResult> {
+  return inTransaction(db, async (tx) => {
+    const step = await accessibleStep(tx, viewerId, stepId)
+    if (step === null || step.taskId !== taskId) return { kind: 'not_found' }
+    const parent = (
+      await rowsOf(
+        tx,
+        sql`SELECT t.section_block_id, s.title AS step_title
+            FROM tasks t JOIN steps s ON s.task_id = t.id
+            WHERE t.id = ${taskId}::uuid AND s.id = ${stepId}::uuid
+            FOR UPDATE OF t`,
+      )
+    )[0]
+    if (parent === undefined) return { kind: 'not_found' }
+    const sectionId =
+      parent.section_block_id === null || parent.section_block_id === undefined
+        ? null
+        : String(parent.section_block_id)
+    const inserted = await rowsOf(
+      tx,
+      sql`INSERT INTO tasks (folder_id, title, created_by, section_block_id)
+          VALUES (${step.folderId}::uuid, ${String(parent.step_title)},
+                  ${viewerId}::uuid, ${sectionId})
+          RETURNING id`,
+    )
+    const newId = String(inserted[0]?.id)
+    await tx.execute(sql`DELETE FROM steps WHERE id = ${stepId}::uuid`)
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'created',
+      subjectKind: 'task',
+      subjectId: newId,
+      subjectName: String(parent.step_title),
+      folderId: step.folderId,
+      detail: `from a step of ${step.taskTitle}`,
+    })
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'edited',
+      subjectKind: 'task',
+      subjectId: taskId,
+      subjectName: step.taskTitle,
+      folderId: step.folderId,
+      detail: 'promoted a step to a task',
+    })
+    return { kind: 'promoted', task: await viewOrFail(tx, viewerId, newId) }
+  })
+}
+
 /* ------------------------------------------------------------------ *
  * 7.8 My Day membership
  * ------------------------------------------------------------------ */

@@ -1465,6 +1465,56 @@ Read shape: each comment line carries `files: { id, name, mime, bytes }[]`,
 create answer carries the same.
 ```
 
+### The frozen changes of change control item 58, written at the loose-ends row
+
+*Four units, added 2026-08-30 by the loose-ends row (change control item
+58) under the owner's full delegation, each taking a recommendation the
+documents already carried: section 13 item 53's first answer for the cover
+columns, item 44's B9 for the promotion, 9.6's "the bar says which
+happened" (ledger L-055) for the duplicate's answer. All four are additive:
+no address changes meaning, one new address is added under 7.7, one
+response gains a field, one table gains two nullable-or-defaulted columns.
+Folded into `docs/spec/04-data-model.md` and `docs/spec/07-api.md` the same
+day, as annotated lines, S29a's fold having made the sections the place the
+contract is stated.*
+
+### Append to section 7.7 (steps) — folded 2026-08-30 (item 58)
+
+```markdown
+- POST /tasks/:id/steps/:stepId/promote. The step becomes a pending task
+  titled after it, in the parent's folder and under the parent's section,
+  created by V and assigned to nobody, and the step is removed in the same
+  transaction. 201 with the new TaskDetail. 404 when the step is not the
+  named task's or V is not a member of the folder. A task never demotes:
+  there is no reverse address.
+```
+
+### Append to the duplicate line of section 7.16 — folded 2026-08-30 (item 58)
+
+```markdown
+POST /folders/:id/duplicate answers { id, name, shifted_days }: the number
+of days the plan moved when its earliest date was spent, 0 when every date
+kept. The copy's `duplicated` event carries "dates moved to start today"
+exactly when it is positive.
+```
+
+### Append two rows to the table in section 4.3 (folders) — folded 2026-08-30 (item 58)
+
+```markdown
+| cover_preset | text | yes | none | CHECK matches '^[a-z0-9-]{1,40}$'; CHECK (cover_file_id IS NULL OR cover_preset IS NULL), one source at most |
+| cover_focal_y | integer | no | 50 | CHECK 0 to 100 |
+```
+
+### Amend section 7.4 (the Folder object and PATCH /folders/:id) — folded 2026-08-30 (item 58)
+
+```markdown
+The Folder object carries cover_preset (text or null) and cover_focal_y (0
+to 100) beside cover_file_id. PATCH /folders/:id takes cover_preset
+(nullable) and cover_focal_y beside cover_file_id, any member as for the
+rest of the 4.3 identity; a body naming both a file and a preset is 422, and
+setting either source clears the other.
+```
+
 ## Change control
 
 S2 mid-package, 2026-08-24, three schema rulings recorded for the section 4
@@ -6290,6 +6340,123 @@ fold, the way P7's mid-package change control ratified the pass callable:
     only lint, typecheck, the five comment and file criteria beside AC-290
     on PGlite, and the two browser files whose surfaces it renamed, on a port
     of its own. SESSION-LOG row 48 is its record.
+
+58. **The loose-ends row, 2026-08-30: the ten open ledger lines after item
+    57, built or measured by delegation, one paragraph each.** Held under
+    the owner's full delegation on `loose-ends` from `v2-build` at
+    `3579853`, S28b and item 57 merged, with no human to escalate to. Every
+    decision below takes the recommendation the documents already carried;
+    the four that reach frozen sections are written as units above, in the
+    block "The frozen changes of change control item 58", and folded into
+    `docs/spec/` the same day. Criteria AC-291 to AC-296.
+
+    **(a) Duplicate's client handler, ruled by delegation.** Item 53(e) left
+    it to the close. `lib/task-acts.ts` performs `POST /tasks/:id/duplicate`
+    the way it performs Copy link, from the surface's own id, so the row,
+    the surface and the selection bar supply it without a prop threaded
+    through every list; the notice is the undo bar's own sentence,
+    `Duplicated "{title}"`, and its inverse is 7.6's soft delete of the copy,
+    which is what the prototype's History entry undoes. No navigation: the
+    prototype puts the copy beside the original and this client's refetch
+    does the same. AC-280's "offers no Duplicate" arm is reversed, the
+    prototype's bar having always offered one, and AC-294 reads the row's.
+
+    **(b) "Make this a folder…", ledger L-007.** `POST /folders` named after
+    the task, then `PATCH /tasks/:id` into it, S23a's hold with one task in
+    it; the task is read first for the folder the undo returns it to, a row
+    on a folder page holding no folder id (DES-183). The undo moves the task
+    back and leaves the folder, exactly as the hold's does. The prototype's
+    concept lab also promoted the task's steps to tasks inside the new
+    folder and destroyed the original; that lab was "where it is being
+    judged" and 9.3's sentence promises the act and not the destruction, so
+    the folder is made and nothing is destroyed. AC-294.
+
+    **(c) Step promotion, B9 given an address, ledger L-159.** One new
+    address under 7.7, `POST /tasks/:id/steps/:stepId/promote`, through the
+    10.2 chokepoint (`accessibleStep`), one transaction: a pending task
+    titled after the step in the parent's folder and section, created by
+    the promoter, assigned to nobody, the step deleted, two events. The
+    step's box does not travel, a promotion being a person deciding this is
+    work of its own rather than a finished line. A task never demotes and
+    nothing offers the reverse. The card's step menu performs both of the
+    prototype's destinations through `moveStepsOut`: into a folder, one
+    promotion per step then 7.6's PATCH where the folder differs; into a new
+    task, 7.6's create with the titles then 7.7's delete of the originals,
+    the new task loose in the parent's folder and named "New task" for the
+    prototype's reason. `ConceptStep` carries 7.7's id to make that
+    possible; a step not yet written has none and is skipped. AC-291.
+
+    **(d) The card's Attachments block, ledger L-257.** Fed
+    `threadAttachments(conversation)`, the files 7.14 names since item 57,
+    replies included, because 4.16 scopes a file to a folder and 4.15 hangs
+    it on a comment, so a task's attachments *are* its thread's files and
+    anything else would be a second store. The block's picker, which patched
+    a local array the writer refused, now posts a comment carrying the file
+    and nothing said, the same two calls the composer makes. No criterion:
+    AC-290 asserts the wire and the block draws it.
+
+    **(e) The re-anchor bar, ledger L-055.** 7.16's folder duplicate answers
+    `shifted_days` and its event says "dates moved to start today" exactly
+    when it is positive, the prototype's two sentences; the page's toast
+    reads the field. Put on the answer rather than re-derived from the
+    copy's dates because a client re-deriving it would be a second copy of
+    the rule AC-200 pins. AC-292.
+
+    **(f) Done's board, ledger L-049.** `views/place-pages.ts` gives Done
+    list and board, the comment that kept it to list having dated itself to
+    the two-row era S23 ended. The board is the shared one with a column per
+    completion day, every card finished, no column capturing and no drop
+    landing, `grouping.ts`'s rule for a relation. Verified by running it.
+    AC-295.
+
+    **(g) The folder board's Done column, ledger L-045, item 51(g)'s
+    question.** Under an hour, so built: a Done column after the sections,
+    drawn only on the sections axis as the prototype draws it, never a
+    capture. A drop into it is the page's own completion (9.5's series
+    confirm and the undo bar reach it as they reach the row's box); a
+    completed card carried out is reopened and filed where it landed. A
+    board whose Done column holds work is not an empty page, which the
+    folder page's empty rule now says. `TaskGroup` gains `done`. AC-295.
+
+    **(h) The cover tiers, ledger L-186, section 13 item 53's first answer
+    taken.** Migration `0006_folder_cover_tiers.sql` adds `cover_preset`
+    and `cover_focal_y` to `folders` with three named CHECKs, the one-source
+    rule differing from 4.20's by admitting no cover at all, which 4.3 has
+    always admitted and which the FK's SET NULL produces; AC-001's catalog
+    names them. 7.4's PATCH body and the Folder object are widened; a file
+    arriving clears the preset and a preset the file, server-side, so the
+    client never sends the null it means; a folder's duplicate carries its
+    preset and crop. `coverTiersFor` offers a folder the gallery and the
+    upload, `coverStoresPosition` keeps a folder's crop, ledger L-068 closes
+    with it, and section 13 item 53 closes. The photo tier stays exempted on
+    item 44's B8, a provider key being nobody's to supply by delegation.
+    AC-293.
+
+    **L-023 and L-234** were measured against `2e5c0d9`, S28b's merge, and
+    closed: "Delete for ever" is drawn and AC-262 asserts it. **L-253**
+    stays open for S30's eye.
+
+    **The ledger** now reads 250 closed, 9 exempted, 1 open of 260.
+
+    **(i) The card's steps reach 7.7, found on the way.** `lib/task-writer.tsx`
+    had said since S22 that steps "need a diff against the task's current
+    list rather than a field copy, which is the card's own act and lands
+    with the card"; the card landed at S23 and nothing wrote them, so a step
+    ticked in an open card held until the next refetch and never after. Not
+    on the ledger, because the prototype's own steps were local state, and
+    not a ruling: `writeSteps` reads 7.6's GET and writes the difference as
+    7.7's calls, `ConceptStep` carrying the id it diffs by (C above), and the
+    card drops its local step edits once the server's list changes so the
+    ids arrive. `unwritten()` no longer names `steps`. AC-296.
+
+    **What this item did not do.** It ran no whole suite: lint, typecheck
+    and the build; the thirteen vitest files it added or touched on PGlite
+    (AC-001, AC-200, AC-277, AC-291 to AC-293, the folders contract, five
+    client fixtures); and AC-280, AC-294, AC-295 and AC-296 on port 3130
+    through an untracked config. The card's "A new task" destination lands
+    the new task loose rather than under the parent's section, `ConceptTask`
+    carrying no section; a row owning sections on the card would close it.
+    SESSION-LOG row 49 is its record.
 
 ## Implementation plan
 

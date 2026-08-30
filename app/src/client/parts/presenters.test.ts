@@ -91,6 +91,8 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
     ...overrides,
   }

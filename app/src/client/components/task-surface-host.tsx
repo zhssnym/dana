@@ -64,7 +64,7 @@ import {
 } from '../api/mutations.js'
 import { useConnections, useFolders, useMe, useTask, useThread } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
-import { applyThreadChange, commentFileKind, toConceptComments } from '../lib/thread.js'
+import { applyThreadChange, commentFileKind, threadAttachments, toConceptComments } from '../lib/thread.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import { presenterToday } from '../parts/presenters.js'
 import { conceptPatchToBody, toConceptTask } from '../lib/task-concept.js'
@@ -292,7 +292,13 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
            `components/task-card.tsx` reads it (9.3's Comments block). A capture
            has no task yet and therefore no thread, which is the same reason
            `lib/task-concept.ts` left the field undefined until now. */
-        { ...toConceptTask(task.data, context), comments: conversation }
+        {
+          ...toConceptTask(task.data, context),
+          comments: conversation,
+          /* Item 58 (D): the Attachments block is the conversation's files,
+             which is the only place 4.16 lets a task's file live. */
+          attachments: threadAttachments(conversation),
+        }
   const id = editing ?? 'new'
 
   /*
@@ -338,6 +344,24 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
         upload: (file) =>
           uploadFile(commentFileKind(file), folderId, file).then((stored) => stored.id),
       })
+      return
+    }
+    /*
+    The block's picker, item 58 (D): a file added under Attachments is a
+    comment carrying that file and nothing said, because that is the one
+    way 4.15 lets a file hang on a task. The same two calls the composer
+    makes, 7.15 then 7.14, and the refetch draws it in both places.
+    */
+    if (fields.attachments !== undefined) {
+      const folderId = threadFolderId
+      if (folderId === null || editing === null) return
+      const taskId = editing
+      for (const added of fields.attachments) {
+        if (added.file === undefined) continue
+        void uploadFile(commentFileKind(added.file), folderId, added.file).then((stored) => {
+          postComment.mutate({ folderId, body: { file_id: stored.id }, taskId })
+        })
+      }
       return
     }
     if (editing !== null) {

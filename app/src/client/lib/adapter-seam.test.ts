@@ -86,6 +86,8 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
     ...overrides,
   }
@@ -181,9 +183,10 @@ describe('task-concept: 7.0s task as a lifted card reads it', () => {
       }),
       context(),
     )
+    /* The id rides since item 58 (C): `lib/task-acts.ts` promotes by it. */
     expect(mapped.steps).toEqual([
-      { title: 'Call the venue', done: true },
-      { title: 'Send the transfer', done: false },
+      { id: '00000000-0000-4000-8000-0000000000f1', title: 'Call the venue', done: true },
+      { id: '00000000-0000-4000-8000-000000000002', title: 'Send the transfer', done: false },
     ])
     expect(mapped.notes).toBe('Bank details are in the thread.')
   })
@@ -295,10 +298,8 @@ describe('task-writer: the seam names what it dropped', () => {
   })
 
   test('the fields this client cannot send are listed rather than swallowed', () => {
-    expect(unwritten({ title: 'x', steps: [], reminder: 'in an hour' })).toEqual([
-      'steps',
-      'reminder',
-    ])
+    /* Steps left this list at item 58: `writeSteps` performs them. */
+    expect(unwritten({ title: 'x', steps: [], reminder: 'in an hour' })).toEqual(['reminder'])
   })
 
   test('a folder named without an id counts as unwritten', () => {

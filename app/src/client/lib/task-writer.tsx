@@ -48,9 +48,11 @@ rather than as values, because that is what `ConceptTask` holds; their pickers
 carry the values and their own endpoints (7.6's PATCH, 7.9's PUT), and those
 pickers are `components/task-pickers.tsx`, which lands at S23. The steps are
 7.7's routes and need a diff against the task's current list rather than a
-field copy, which is the card's own act and lands with the card. Comments are
-9.6's and mount at S26. Each is dropped here rather than half-sent, and
-`unwritten()` below names what was dropped so a caller can assert on it.
+field copy; that diff is `lib/task-acts.ts`'s `writeSteps` since the
+loose-ends row (RFC 0005 change control item 58), the card having landed at
+S23 without it. Comments are 9.6's and mount at S26. Each of the rest is
+dropped here rather than half-sent, and `unwritten()` below names what was
+dropped so a caller can assert on it.
 */
 
 import { createContext, useCallback, useContext, useMemo } from 'react'
@@ -63,6 +65,7 @@ import {
   useUpdateTask,
 } from '../api/mutations.js'
 import { useFolders } from '../api/queries.js'
+import { writeSteps } from './task-acts.js'
 import { conceptPatchToBody, writtenElsewhere } from './task-concept.js'
 import type { ConceptTask } from './task-model.js'
 
@@ -94,7 +97,8 @@ export function useTaskWriter(): TaskPatch | null {
  */
 export function unwritten(fields: Partial<ConceptTask>): (keyof ConceptTask)[] {
   const dropped = writtenElsewhere.filter(
-    (key) => key !== 'done' && key !== 'abandoned' && key !== 'pulled' && key in fields,
+    (key) =>
+      key !== 'done' && key !== 'abandoned' && key !== 'pulled' && key !== 'steps' && key in fields,
   )
   if (fields.folder !== undefined && fields.folder.id === undefined) dropped.push('folder')
   return dropped
@@ -146,6 +150,9 @@ export function useApiTaskPatch(): TaskPatch {
       /* 7.8's pull and its DELETE, which 9.4 draws as My Day's own marker. */
       if (fields.pulled === true) pull.mutate(taskId)
       if (fields.pulled === false) unpull.mutate(taskId)
+      /* 7.7's routes, as the diff this file always said they needed
+         (`lib/task-acts.ts`'s `writeSteps`, item 58). */
+      if (fields.steps !== undefined) writeSteps(taskId, fields.steps)
 
       const body = conceptPatchToBody(
         fields.folder === undefined

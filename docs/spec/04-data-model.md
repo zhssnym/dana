@@ -45,8 +45,19 @@ PK (user_a_id, user_b_id). CHECK (user_a_id < user_b_id): canonical ordering mak
 | color | text | yes | none | CHECK matches '#RRGGBB' hex pattern |
 | cover_file_id | uuid | yes | none | FK files(id) ON DELETE SET NULL |
 | description | text | yes | none | length up to 500 |
+| cover_preset | text | yes | none | CHECK matches '^[a-z0-9-]{1,40}$'; CHECK (cover_file_id IS NULL OR cover_preset IS NULL), one source at most (item 58) |
+| cover_focal_y | integer | no | 50 | CHECK 0 to 100 (item 58) |
 | deleted_at | timestamptz | yes | none | set marks Trash; purged by the 11.7 pass at 30 days |
 | created_at | timestamptz | no | now() | none |
+
+**Annotation, loose-ends row, 2026-08-30.** The two cover rows above are the
+Append unit of RFC 0005 change control item 58 (H), ruled by delegation and
+folded here the same day: section 13 item 53's first answer, 4.20's preset
+and crop mirrored onto the folder so that a folder can wear every tier a
+place page can. The one-source rule differs from 4.20's in admitting no
+cover at all, which this table has always admitted and which the FK's SET
+NULL produces. Migration `0006_folder_cover_tiers.sql`; the three CHECKs are
+named in AC-001's catalog.
 
 **Annotation, S29 fold, 2026-08-27. "Inbox" below is v1's name for this row and the row is unchanged.** RFC 0005 renamed the default folder to Desk, and the migration renames only defaults still carrying the old name; a v1 account keeps whatever it was called. Nothing in this table moves for that: `is_default` is the record, the unique index is the constraint, and the name is a value in the `name` column. Section 4 is frozen and this is an annotation rather than an edit, which is RFC 0004's S29 acceptance line. See section 2 for both names and the migration's rule.
 
