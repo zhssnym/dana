@@ -97,7 +97,7 @@ export function FolderGroupDialog({
     const nextName = name.trim()
 
     if (!nextName) {
-      setError('Give the group a name')
+      setError('Give the shelf a name')
       return
     }
     if (nextName.length > 40) {
@@ -111,14 +111,12 @@ export function FolderGroupDialog({
         label.toLocaleLowerCase() !== (currentLabel ?? '').toLocaleLowerCase(),
     )
     if (duplicate) {
-      setError('That group already exists. Move folders into it instead.')
+      setError('That shelf already exists. Move folders onto it instead.')
       return
     }
 
-    if (mode === 'create' && selectedFolders.length === 0) {
-      setError('Select at least one folder')
-      return
-    }
+    /* polish: sidebar F9. An empty shelf is allowed: 4.18 gives it a row of
+       its own, so the folders can arrive later by drag or from its page. */
 
     onSubmit(nextName, selectedFolders)
     onOpenChange(false)
@@ -132,13 +130,15 @@ export function FolderGroupDialog({
             <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-[var(--color-graphite-100)] text-[var(--color-graphite-700)]">
               <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
+            {/* polish: sidebar F5. One word, shelf, from the foot button
+                through this dialog to the row's menu. */}
             <DialogTitle>
-              {mode === 'rename' ? 'Rename folder group' : 'New folder group'}
+              {mode === 'rename' ? 'Rename shelf' : 'New shelf'}
             </DialogTitle>
             <DialogDescription>
               {mode === 'rename'
-                ? 'This changes your personal label on every folder in this group. Other members are unaffected.'
-                : 'Groups are personal labels. Select at least one folder because Dana cannot save an empty group.'}
+                ? 'Shelves are yours alone: renaming one changes nothing for other members.'
+                : 'A shelf holds folders, and is yours alone. Put folders on it now or drag them on later.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -148,7 +148,7 @@ export function FolderGroupDialog({
                 htmlFor="folder-group-name"
                 className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]"
               >
-                Group name
+                Shelf name
               </label>
               <Input
                 ref={inputRef}
@@ -237,7 +237,7 @@ export function FolderGroupDialog({
               type="submit"
               className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]"
             >
-              {mode === 'rename' ? 'Rename group' : 'Create group'}
+              {mode === 'rename' ? 'Rename shelf' : 'Create shelf'}
             </Button>
           </DialogFooter>
         </form>

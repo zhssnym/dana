@@ -240,10 +240,15 @@ export function arrangeColumn(
       folders: stableBy(entry.folders, (folder) => rankOf(stored, folder.id)),
     }
   })
+  /* polish: sidebar F6. A shelf ranks by its own id where the sequence
+     names it, so an empty shelf keeps the place it was given rather than
+     sinking below everything the sequence names the moment anything moves;
+     a shelf the sequence does not name still ranks by its first folder. */
   return stableBy(arranged, (entry) =>
     entry.kind === 'folder'
       ? rankOf(stored, entry.folder.id)
       : Math.min(
+          entry.shelf === null ? Number.MAX_SAFE_INTEGER : rankOf(stored, entry.shelf.id),
           ...entry.folders.map((folder) => rankOf(stored, folder.id)),
           Number.MAX_SAFE_INTEGER,
         ),
@@ -360,7 +365,13 @@ export function encodeColumn(entries: readonly DirectoryEntry[]): string[] {
   const ids: string[] = []
   for (const entry of entries) {
     if (entry.kind === 'folder') ids.push(entry.folder.id)
-    else for (const folder of entry.folders) ids.push(folder.id)
+    else {
+      /* The shelf's own id ahead of its folders (polish, sidebar F6), so a
+         shelf with no folders has a rank at all. A bare label has no id and
+         is held by its folders as before. */
+      if (entry.shelf !== null) ids.push(entry.shelf.id)
+      for (const folder of entry.folders) ids.push(folder.id)
+    }
   }
   return ids
 }
