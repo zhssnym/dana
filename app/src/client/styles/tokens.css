@@ -764,3 +764,33 @@ button:not(:disabled),
   font-weight: 500;
   line-height: 20px;
 }
+
+/* The scrolling region is the page cover's measure (ledger L-186, reopened by
+ * the owner on 2026-08-30: "cover photos do not extend across the full page
+ * width, leaving awkward white space on both sides").
+ *
+ * `app-shell.tsx` centres every page in a column capped at
+ * `--shell-content-max`, and a cover is a band across the window rather than a
+ * picture inside that column: the prototype draws it outside its own measure
+ * (`screens/shell-page.tsx`, `screens/folder-page-v2.tsx`) and this client
+ * draws it from the head, inside one. A negative margin can undo the column's
+ * padding and cannot reach past its cap, which is exactly why the band stopped
+ * at the reading width with the ground showing on both sides.
+ *
+ * Declaring the scroll region a query container gives `page-cover.tsx` the one
+ * number it lacked, `100cqw`: the width the column was laid out in, with the
+ * sidebar, the right edge and the scrollbar already taken off. `100vw` is the
+ * usual full-bleed trick and is wrong here, because it counts the sidebar and
+ * AC-260's panel as page and slides the band under both.
+ *
+ * A declaration rather than a value, in the file 11.4 makes the single home of
+ * both. Nothing above it is touched, and the one side effect worth naming is
+ * that a query container is a containing block for fixed descendants and a
+ * stacking context: the modal task surface and the floating add button are
+ * mounted outside this element (`app-shell.tsx`), and every overlay a page
+ * opens is portalled to the body, so nothing inside it positions against the
+ * viewport.
+ */
+[data-shell-scroll] {
+  container-type: inline-size;
+}
