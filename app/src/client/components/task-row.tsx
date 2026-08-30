@@ -65,6 +65,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react"
@@ -987,6 +988,7 @@ export function TaskTitle({
   className,
   truncate = true,
   heading = false,
+  selecting = false,
 }: {
   task: ConceptTask
   onRename: (title: string) => void
@@ -995,6 +997,18 @@ export function TaskTitle({
   /* An open row is the card's heading and takes the heading step of the type
      scale; closed, it is a list item and stays at body size. */
   heading?: boolean
+  /*
+  Whether the list around this row is choosing rows.
+
+  While it is, the title is text rather than a control, and the reason is the
+  400 ms hold that starts the selection: `useRowSelection`'s `selectProps`
+  arms on the row's pointerdown and does not care what the press landed on,
+  so a hold that begins on the title selects the row and the release would
+  then also open the rename field. The row's own `onTap` guard is the same
+  shape, "a press that became a selection is not a tap"; this is that
+  sentence for the one control the press can land inside.
+  */
+  selecting?: boolean
 }) {
   /*
   **A row never auto-edits**, and the reason is worth keeping.
@@ -1107,21 +1121,31 @@ export function TaskTitle({
   putting a criterion's text with persona 11, and both are raised with the
   round rather than worked around here.
   */
+  /* Text while the list is choosing rows, so the press reaches the row's own
+     selection handler and nothing about that mode changes; see `selecting`. */
+  const Label = selecting ? "span" : "button"
+  const control = selecting
+    ? {}
+    : ({
+        type: "button",
+        /* The press starts the rename and goes no further: the row's opener
+           is resolved on the pointer stream rather than on the click, so what
+           actually keeps the two apart is `surfaceProps`' button check above,
+           and this stops a screen that wired an ordinary click handler. */
+        onClick: (event: ReactMouseEvent) => {
+          event.stopPropagation()
+          setDraft(task.title)
+          setEditing(true)
+        },
+      } as const)
+
   const button = (
-    <button
-      type="button"
-      /* The press starts the rename and goes no further: the row's opener is
-         resolved on the pointer stream rather than on the click, so what
-         actually keeps the two apart is `surfaceProps`' button check above,
-         and this stops a screen that wired an ordinary click handler. */
-      onClick={(event) => {
-        event.stopPropagation()
-        setDraft(task.title)
-        setEditing(true)
-      }}
+    <Label
+      {...control}
       className={cn(
         metrics,
-        "relative -mx-1 cursor-text rounded-[4px] px-1 text-left transition-colors hover:bg-[var(--color-graphite-200)]",
+        "relative -mx-1 rounded-[4px] px-1 text-left transition-colors",
+        selecting || "cursor-text hover:bg-[var(--color-graphite-200)]",
         FOCUS,
         T_FAST,
         /*
@@ -1165,7 +1189,7 @@ export function TaskTitle({
       {task.title || (
         <span className="text-[var(--color-graphite-400)]">Untitled task</span>
       )}
-    </button>
+    </Label>
   )
 
   /* A truncated title is unreadable, and every concept but J truncates. The
@@ -2980,6 +3004,7 @@ export function TaskRow(props: TaskRowProps) {
               onRename={(title) => patch(task.id, { title })}
               truncate
               heading={open}
+              selecting={props.selecting ?? false}
               className={cn(T_BASE, open ? "font-semibold" : "font-medium")}
             />
             <span className="flex items-center gap-1">
@@ -3037,6 +3062,7 @@ export function TaskRow(props: TaskRowProps) {
                 onRename={(title) => patch(task.id, { title })}
                 truncate={false}
                 heading={open}
+                selecting={props.selecting ?? false}
                 className={cn(T_BASE, open ? "font-semibold" : "font-medium")}
               />
               {details}
