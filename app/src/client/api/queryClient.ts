@@ -57,6 +57,12 @@ import { ApiError, OfflineError } from './http.js'
 export function writeFailureMessage(error: unknown): string {
   if (error instanceof OfflineError) return OFFLINE_WRITE_TOAST
   if (error instanceof ApiError && error.status === 409) return error.message
+  /* A 403's sentence is written for a person too ("Only the folder owner can
+     delete permanently."), and 7.13's permanent delete is the one act a
+     person can see the row for and still be refused (RFC 0005 change control
+     item 53(b)); the generic sentence would say nothing was saved about an
+     act the server declined by rule. S28b. */
+  if (error instanceof ApiError && error.status === 403) return error.message
   return ERROR_TOAST
 }
 

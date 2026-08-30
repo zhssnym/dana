@@ -138,8 +138,10 @@ import { Button } from '../components/ui/button.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog.js'
@@ -225,6 +227,22 @@ const SHARING_PANEL_WIDTH = 440
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
  */
+/**
+ * The owner's leave-or-delete question, RFC 0005 change control item 38's
+ * rules in the order he gave them: leave it to the other members, or delete
+ * it for them too. Both consequences are stated because they differ in the
+ * half a person cannot see: leaving passes ownership and writes no Trash
+ * row; deleting reaches every member's Trash for thirty days.
+ */
+function ownerDeleteQuestion(name: string, others: number): string {
+  const who = others === 1 ? '1 other person' : `${others} other people`
+  return (
+    `${name} is shared with ${who}. You can leave it to them, and it passes to ` +
+    'the longest-standing member and leaves your sidebar, or delete it for ' +
+    'everyone, and it waits in Trash for 30 days.'
+  )
+}
+
 function leaveFolderConfirm(name: string): string {
   return (
     `Leave ${name}? You lose access to it, and anything in it assigned to ` +
@@ -298,6 +316,9 @@ export function FolderPage({
   const [sharing, setSharing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  /* RFC 0005 change control item 38: an owner deleting a shared folder is
+     asked one question first. S28b. */
+  const [deleteAsk, setDeleteAsk] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
   /* Controlled, and the prototype's own reason: "Label and colour" in the
@@ -515,6 +536,10 @@ export function FolderPage({
   const isOwner = detail?.is_owner ?? false
   const isDefault = detail?.is_default ?? false
   const members = detail?.members ?? []
+  /* 8.9's default successor: the longest-standing other member. */
+  const successors = members
+    .filter((member) => member.user.id !== basis.viewerId)
+    .sort((a, b) => a.joined_at.localeCompare(b.joined_at))
   const completionTotal =
     (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
   /* The prototype's rule for offering the description at rest: a folder
@@ -569,6 +594,26 @@ export function FolderPage({
     confirm.ask(leaveFolderConfirm(detail?.name ?? ''), () => {
       leave.mutate(id, { onSuccess: () => navigate(paths.desk) })
     })
+  }
+
+  /*
+  Item 38's one question, asked of an owner whose folder has other members:
+  leave it to them, or delete it for them too. The first is 5.3's owner-leave
+  at `DELETE /folders/:id/my-membership`, ownership passing under 8.9 to the
+  longest-standing member with nobody asked to name one; the second is
+  `doDelete` above, 7.13's soft delete for every member with the undo bar.
+  An owner alone in the folder is asked nothing, 9.6's confirm-free delete
+  standing, because there is nobody to leave it to. A non-owner never
+  reaches here: their exit is `askLeave`, which tells them they lose access.
+  */
+  function askDelete(): void {
+    if (successors.length > 0) setDeleteAsk(true)
+    else doDelete()
+  }
+
+  function leaveToMembers(): void {
+    setDeleteAsk(false)
+    leave.mutate(id, { onSuccess: () => navigate(paths.desk) })
   }
 
   /** DES-206: structure and titles only, the import's own keep-set. */
@@ -642,13 +687,8 @@ export function FolderPage({
     else if (action === 'history') setHistoryOpen(true)
     else if (action === 'workflow') saveAsWorkflow()
     else if (action === 'leave' && !isOwner) askLeave()
-    else if (action === 'delete' && isOwner && !isDefault) doDelete()
+    else if (action === 'delete' && isOwner && !isDefault) askDelete()
   })
-
-  /* 8.9's default successor: the longest-standing other member. */
-  const successors = members
-    .filter((member) => member.user.id !== basis.viewerId)
-    .sort((a, b) => a.joined_at.localeCompare(b.joined_at))
 
   const conversationSwitch = (
     <button
@@ -854,7 +894,7 @@ export function FolderPage({
               },
               workflow: saveAsWorkflow,
               leave: isOwner ? undefined : askLeave,
-              delete: isOwner && !isDefault ? doDelete : undefined,
+              delete: isOwner && !isDefault ? askDelete : undefined,
             }}
           />
         </WindowBarActions>
@@ -1223,6 +1263,33 @@ export function FolderPage({
               </Button>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Item 38's question, S28b: see `askDelete`. */}
+      <Dialog open={deleteAsk} onOpenChange={setDeleteAsk}>
+        <DialogContent className="max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Delete {detail?.name}?</DialogTitle>
+            <DialogDescription>
+              {ownerDeleteQuestion(detail?.name ?? '', successors.length)}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost">Cancel</Button>} />
+            <Button variant="outline" onClick={leaveToMembers}>
+              Leave it to the members
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteAsk(false)
+                doDelete()
+              }}
+            >
+              Delete for everyone
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

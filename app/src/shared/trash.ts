@@ -30,6 +30,12 @@ export const trashedTask = z.object({
   /** Where it lived, which 9.11 requires every row to name. */
   folder_name: z.string(),
   deleted_at: z.string(),
+  /** Whether the viewer owns the folder it lived in, which is the one fact
+   * 7.13's permanent delete turns on (RFC 0005 change control items 38 and
+   * 53(b)); the same word the 7.0 Folder object already carries. Added
+   * additively at S28b so the Trash page draws the control only where the
+   * server would answer 204. */
+  is_owner: z.boolean(),
 })
 export type TrashedTask = z.infer<typeof trashedTask>
 
@@ -39,6 +45,8 @@ export const trashedFolder = z.object({
   /** What comes back with it, so a restore is not a surprise. */
   task_count: z.number().int().nonnegative(),
   deleted_at: z.string(),
+  /** As on a task: the viewer owns this folder. */
+  is_owner: z.boolean(),
 })
 export type TrashedFolder = z.infer<typeof trashedFolder>
 
