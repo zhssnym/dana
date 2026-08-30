@@ -74,14 +74,14 @@ import {
   UsersRound,
 } from '../lib/icons.js'
 
-import { ApiError, mutateApi } from '../api/http.js'
+import { ApiError } from '../api/http.js'
 import {
   useCreateFolder,
   useImportWorkflow,
   usePatchBundle,
   useUpdateMyMembership,
 } from '../api/mutations.js'
-import type { ImportWorkflowBody } from '../../shared/workflows.js'
+import { importWorkflowBody } from '../../shared/workflows.js'
 import {
   useBundle,
   useFolders,
@@ -118,7 +118,9 @@ import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
-import { openSearch } from './overlays.js'
+import { signOut } from './session.js'
+import { mirroredTheme } from '../lib/theme.js'
+import { onOpenNewFolder, openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 import { TabStrip } from './TabStrip.js'
 import { WindowActivity, WindowBar, WindowBarActions } from '../components/window-bar.js'
@@ -393,7 +395,14 @@ export function AppShell(): React.JSX.Element {
   paint is the light comfortable one a fresh account has rather than an
   unstyled one that corrects itself a moment later.
   */
-  useAppearance(bundle.data?.theme ?? 'system', bundle.data?.row_density ?? 'comfortable')
+  useAppearance(
+    /* The mirror stands in while the bundle is in flight (item 43): applying
+       4.19's default here repainted the frame the inline script had already
+       painted, which is the flash in the other direction. */
+    bundle.data?.theme ?? mirroredTheme(),
+    bundle.data?.row_density ?? 'comfortable',
+    bundle.data !== undefined,
+  )
   /*
   And the clock, which is read at its call sites rather than off the document:
   `lib/time-format.ts` is the one place a time becomes words, so the account's
@@ -425,8 +434,16 @@ export function AppShell(): React.JSX.Element {
   workflow file's folders, blocks and tasks and the request body itself, and
   7.16 refuses what breaks any of them; nothing here re-implements one of
   those, which would be a rule the server also enforces written twice. What is
-  refused locally is a file that is not JSON at all, because a syntax error is
-  something this page can say plainly and a 400 from the parser is not.
+  refused locally is a file that is not a workflow at all: not JSON, or JSON
+  that is not 7.16's shape, because either is something this page can say
+  plainly and a 400 or a 422 naming a key is not.
+
+  **The shape is the widened 7.16 file S22a landed** (RFC 0005 change control
+  item 44's B3, and this row's item 44 clause): `importWorkflowBody` is the
+  shared schema, so a file carrying notes, a star, a repeat, a reminder and
+  steps passes here as it passes on the server, and the mutation carries the
+  zone such a file needs. Zod strips what the schema does not name, which is
+  AC-201's rule and not a scrubbing pass of this file's own.
   */
   const importWorkflow = useImportWorkflow()
   const importFile = (file: File): void => {
@@ -439,7 +456,12 @@ export function AppShell(): React.JSX.Element {
           showToast(WORKFLOW_UNREADABLE)
           return
         }
-        importWorkflow.mutate(parsed as ImportWorkflowBody)
+        const file = importWorkflowBody.safeParse(parsed)
+        if (!file.success) {
+          showToast(WORKFLOW_UNREADABLE)
+          return
+        }
+        importWorkflow.mutate(file.data)
       },
       () => {
         showToast(WORKFLOW_UNREADABLE)
@@ -462,6 +484,16 @@ export function AppShell(): React.JSX.Element {
   than a column on the folder.
   */
   const [newFolderIn, setNewFolderIn] = useState<string | null>(null)
+  /* A page asking for the dialog (S27): 9.10's shelf page, whose "New
+     folder..." files what it makes on the shelf. */
+  useEffect(
+    () =>
+      onOpenNewFolder((label) => {
+        setNewFolderIn(label)
+        setNewFolderOpen(true)
+      }),
+    [],
+  )
 
   /*
   The viewer's arrangement of the Library (DES-171, built at S11).
@@ -560,14 +592,6 @@ export function AppShell(): React.JSX.Element {
     ? location.pathname.slice(FOLDER_PREFIX.length)
     : null
 
-  function signOut(): void {
-    void mutateApi(null, { method: 'POST', path: '/auth/logout' }).finally(() => {
-      // A full document load rather than a client navigation: the query cache
-      // holds the previous person's rows, and 10.1 destroys their session, so
-      // nothing in it is theirs to keep.
-      window.location.assign(paths.landing)
-    })
-  }
 
   /*
   9.8's invite gate, in place of the application at every /app path while Q12

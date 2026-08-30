@@ -1,6 +1,6 @@
 /*
 AC-262: given a deleted task and a deleted folder in the Trash, then each row
-names the days it has left of 4.3 and 4.5's thirty, says its kind as a glyph
+names the days it has left, in the prototype's "30d left", of 4.3 and 4.5's thirty, says its kind as a glyph
 rather than as a word, and still says where it lived; and given that page, then
 it offers no control that deletes anything permanently, 7.13 assigning the
 purge to the tick and 9.11 naming restore alone.
@@ -38,7 +38,7 @@ ever" behind a confirm and calls it "the only act in Dana with no way back";
 7.13 and 9.11 disagreed with it, and S17b escalated under RFC 0005 change
 control item 20 rather than picking. Imran ruled for the prototype (item 36),
 item 38 made the act the folder owner's, and RFC 0004's S28a amended 7.13
-(item 52) and built `DELETE /api/v1/trash/tasks/:id` and
+(item 53) and built `DELETE /api/v1/trash/tasks/:id` and
 `DELETE /api/v1/trash/folders/:id`. Item 36 says this arm "moves in the
 amendment's own commit, red before the implementation", so it moved with the
 server half and is red until S28b draws the control on the row, which is the
@@ -77,7 +77,10 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** 9.11, transcribed, and verified verbatim in the audit's addendum. */
-const RETENTION_RULE = "Deleted things stay here for 30 days, then they're gone for good."
+/* The prototype's own sentence, to which 9.11 was amended at S27 (RFC 0005
+   change control item 55); it was "Deleted things stay here for 30 days, then
+   they're gone for good." until then. */
+const RETENTION_RULE = 'Deleted items are kept for 30 days, then removed.'
 
 interface Fixture {
   taskId: string
@@ -172,7 +175,7 @@ test.describe('AC-262: a Trash row carries its own facts', () => {
           `banner. Thirty days is per item, so a page-level 'items are deleted after 30 ` +
           `days' would be true and useless." A row deleted today has thirty of them left, ` +
           `and the built row carries no time at all`,
-      ).toContainText(/30 days left|29 days left/)
+      ).toContainText(/(30|29)d left/)
     }
   })
 

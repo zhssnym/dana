@@ -36,6 +36,12 @@ same refusal one preference over.
 
 import { useSyncExternalStore } from "react"
 
+import { mutateApi } from "../api/http.js"
+import { queryKeys } from "../api/keys.js"
+import { queryClient, writeFailureMessage } from "../api/queryClient.js"
+import { getSettingsResponse } from "../../shared/bundle.js"
+import { showToast } from "../state/toasts.js"
+
 export type TimeFormat = "24" | "12"
 
 const KEY = "dana.timeFormat"
@@ -80,6 +86,27 @@ export function setTimeFormat(next: TimeFormat) {
  */
 export function adoptClock(clock: "12h" | "24h"): void {
   setTimeFormat(clock === "24h" ? "24" : "12")
+}
+
+/**
+ * The control's write, at S27: 4.19's column first, and the store adopts the
+ * answer, which is the same path an arriving bundle takes. Added when
+ * `screens/settings-screen.tsx` crossed and 9.7's two extra rows were drawn
+ * in its idiom; the settings page's own mutation used to be the writer.
+ */
+export function setClock(clock: "12h" | "24h"): void {
+  const client = queryClient()
+  void mutateApi(getSettingsResponse, {
+    method: "PATCH",
+    path: "/settings",
+    body: { clock },
+  })
+    .then((bundle) => {
+      adoptClock(bundle.clock)
+      client?.setQueryData(queryKeys.bundle(), bundle)
+      void client?.invalidateQueries()
+    })
+    .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
 export function useTimeFormat(): TimeFormat {

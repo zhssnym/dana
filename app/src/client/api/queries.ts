@@ -444,10 +444,14 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
  * ------------------------------------------------------------------ */
 
 /** One shelf's identity (7.16), which its page's head renders. */
-export function useShelf(id: string): UseQueryResult<Shelf> {
+export function useShelf(id: string, enabled = true): UseQueryResult<Shelf> {
   return useQuery({
     queryKey: queryKeys.shelf(id),
     queryFn: () => getPlain(shelf, `/shelves/${id}`),
+    /* Off where the caller holds no shelf, which `lib/page-identity.ts` does
+       on every page that is not a shelf's, the same arrangement `useFolder`
+       has for the folder half. */
+    enabled,
   })
 }
 
