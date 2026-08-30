@@ -129,6 +129,7 @@ import {
   ChevronDown,
   /* Help's glyph, which S8 exported for this menu and named DES-200 for. */
   CircleQuestionMark,
+  Settings,
   FolderPlus,
   Folders,
   Plus,
@@ -1453,12 +1454,14 @@ function SidebarBrandHeader({
 function AccountMenu({
   displayName,
   image = null,
+  onOpenSettings,
   onOpenHelp,
   onSignOut,
 }: {
   readonly displayName: string | null
   /** polish: settings F7. 7.15's avatar, drawn here as everywhere else. */
   readonly image?: string | null
+  readonly onOpenSettings: () => void
   readonly onOpenHelp: () => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
@@ -1483,10 +1486,19 @@ function AccountMenu({
         }
       />
       <DropdownMenuContent side="right" align="end" className="w-44">
-        {/* polish: sidebar F3. Settings was here and four rows up as a foot
-            link; the link a newcomer finds first is the survivor, so this
-            menu keeps what is about the person and the application: their
-            name, Help, and the door. */}
+        {/* Settings returned at the polish round of 2026-08-30: sidebar F3
+            had removed it as a duplicate of the foot link, but 9.1 names the
+            menu ("Account": Settings, Help, Sign out), AC-242 reads that
+            list, and the owner's direction is for the avatar menu to become
+            Settings' home so the foot link can eventually go, not the other
+            way round. The prototype carries it in both places too. */}
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onOpenSettings}
+        >
+          <Settings className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Settings
+        </DropdownMenuItem>
         <DropdownMenuItem
           className="min-h-[var(--control-height)] text-sm"
           onClick={onOpenHelp}
@@ -1589,6 +1601,9 @@ export function AppSidebar({
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
   const { setOpen: setHelpOpen, sheet: helpSheet } = useHelpSheet()
+  /* For the account menu's Settings item alone; every other navigation in
+     this file happens in the row components, which hold their own. */
+  const navigate = useNavigate()
   /* polish: sidebar F1. On a phone the sidebar is a drawer, and a drawer
      closes on the navigation it was opened to make: the shell's `PhoneBar`
      opens it, and this effect on the route closes it. */
@@ -1965,6 +1980,9 @@ export function AppSidebar({
             <AccountMenu
               displayName={displayName}
               image={avatarUrl}
+              onOpenSettings={() => {
+                navigate(paths.settings)
+              }}
               onOpenHelp={() => {
                 setHelpOpen(true)
               }}

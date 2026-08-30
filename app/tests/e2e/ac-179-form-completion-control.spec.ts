@@ -136,7 +136,7 @@ function completionControl(page: Page): Locator {
 
 async function openTheCard(page: Page, title: string): Promise<void> {
   await clickControl(
-    page.getByText(title),
+    taskRow(page, title).first(),
     'spec 9.4: a click on any row opens that task, and 9.3 makes create and edit one artifact',
   )
   // 9.4's "a task row opens that task, on every page that draws one and

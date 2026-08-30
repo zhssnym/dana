@@ -123,7 +123,7 @@ test.describe('AC-097: the abandoned row and its restore', () => {
         'for a reader who cannot see a fade',
     ).toBeVisible()
     await expect(
-      row.getByRole('button', { name: 'Restore' }),
+      row.getByRole('button', { name: 'Restore', exact: true }),
       'spec 9.5: an abandoned row carries a Restore control, addressed by its role and its ' +
         'normative name per 9.1',
     ).toBeVisible()

@@ -130,9 +130,13 @@ specification being met, not noise to wait out.
  * specification. These two put the sentence back: the assertion is what
  * fails, and it fails saying which rule went unmet.
  */
-export async function clickControl(locator: Locator, why: string): Promise<void> {
+export async function clickControl(
+  locator: Locator,
+  why: string,
+  options?: Parameters<Locator['click']>[0],
+): Promise<void> {
   await expect(locator, why).toBeVisible()
-  await locator.click()
+  await locator.click(options)
 }
 
 export async function fillControl(
@@ -1016,6 +1020,30 @@ export async function chooseView(page: Page, name: string, why: string): Promise
  */
 export function taskRow(page: Page, title: string): Locator {
   return page.getByRole('listitem').or(page.getByRole('row')).filter({ hasText: title })
+}
+
+/**
+ * Opens a task from its row, by pressing the row rather than its title.
+ *
+ * 9.4's sentence is "a click on any row opens that task", and since the
+ * polish round of 2026-08-30 the row's *title* is the one part of the row
+ * that does something else: it is DES-095's rename control, the way the due
+ * chip is the due picker. A case that presses the title text therefore lands
+ * in a rename field, which a dozen cases did before this helper existed.
+ * Pressing the row itself is both what the sentence says and what a hand
+ * does.
+ *
+ * The click lands on the row's own ground: Playwright aims at the element's
+ * centre, and the title (w-fit, left-aligned) ends well before it on every
+ * title this suite writes. If a future case gives a task a title wide enough
+ * to reach the row's centre, shorten the title rather than teaching this
+ * helper to hunt for empty pixels.
+ */
+export async function openTaskRow(page: Page, title: string, why?: string): Promise<void> {
+  await clickControl(
+    taskRow(page, title).first(),
+    why ?? 'spec 9.4: a click on any row opens that task',
+  )
 }
 
 /**

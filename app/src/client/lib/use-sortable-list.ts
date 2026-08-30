@@ -966,11 +966,20 @@ export function useSortableList({
       onPointerDown: (event: ReactPointerEvent): void => {
         if (disabled || event.button !== 0) return
         const target = event.target as HTMLElement | null
-        if (
-          target?.closest(
-            "button, a, input, textarea, select, [contenteditable='true'], [role='menuitem'], [role='menuitemradio'], [data-no-drag]",
-          )
-        ) {
+        const control = target?.closest(
+          "button, a, input, textarea, select, [contenteditable='true'], [role='menuitem'], [role='menuitemradio'], [data-no-drag]",
+        )
+        if (control) {
+          /* A control may opt back into the drag with `data-drag-through`:
+             the lift is armed but the tap stays the control's own click, so
+             a still press reaches the control (the title renames) and only
+             travel becomes the row's drag. Without this, a control spanning
+             the row's middle makes the row's natural grab point the one
+             place it cannot be dragged from — AC-278 measured exactly that
+             when the title became a button again. */
+          if (control.matches("[data-drag-through]")) {
+            watchForLift(index, event.clientX, event.clientY)
+          }
           return
         }
         watchForLift(index, event.clientX, event.clientY, onTap)

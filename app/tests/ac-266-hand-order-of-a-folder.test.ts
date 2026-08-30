@@ -6,11 +6,13 @@ same call changes nothing, and a task placed with no neighbour above it reads
 first.
 
 The last clause is the one that catches the cheap implementation. Until a
-folder is arranged, every row's `position` is null and a null leads, so an
-endpoint that wrote only the dragged row would put a task dropped at the top
-below every unplaced row and the gesture would visibly fail. The amendment
-therefore has the call assign keys to the rest of the list, in the order the
-list already reads, before it places the moved one.
+folder is arranged, every row's `position` is null and a null trails (it led
+until the polish round of 2026-08-30), so an endpoint that wrote only the
+dragged row would put a task dropped at the *bottom* above every unplaced
+row and the gesture would visibly fail. The amendment therefore has the call
+assign keys to the rest of the list, in the order the list already reads,
+before it places the moved one; this file reads the top clause because the
+top is the end a drop must now earn rather than get for free.
 
 The repeat clause is the second guard: placing a task where it already is is
 the drop a person makes by accident, and it must be a no-op rather than a
@@ -79,16 +81,16 @@ describe('AC-266 a folder’s unscheduled list holds a hand order', () => {
 
     expect(
       await unscheduledTitles(owner, folder),
-      'with no hand order the section is Q2’s: newest first (spec 6 Q2, Q7)',
-    ).toEqual([CHARLIE, BRAVO, ALPHA])
+      'with no hand order the section is Q2’s: oldest first since the polish round of 2026-08-30 (spec 6 Q2, Q7)',
+    ).toEqual([ALPHA, BRAVO, CHARLIE])
 
-    // Alpha moves from last to the middle, named by the two rows it landed
+    // Charlie moves from last to the middle, named by the two rows it landed
     // between rather than by an index into a list read a moment ago.
-    await placeTaskOk(owner, alpha, {
-      after_id: charlie,
+    await placeTaskOk(owner, charlie, {
+      after_id: alpha,
       before_id: bravo,
     })
-    const arranged = [CHARLIE, ALPHA, BRAVO]
+    const arranged = [ALPHA, CHARLIE, BRAVO]
     expect(
       await unscheduledTitles(owner, folder),
       'the placed task reads between exactly the two it was dropped between',
@@ -98,8 +100,8 @@ describe('AC-266 a folder’s unscheduled list holds a hand order', () => {
       'the arrangement is stored, not a property of one response',
     ).toEqual(arranged)
 
-    const repeated = await placeTask(owner, alpha, {
-      after_id: charlie,
+    const repeated = await placeTask(owner, charlie, {
+      after_id: alpha,
       before_id: bravo,
     })
     expect(
@@ -113,10 +115,10 @@ describe('AC-266 a folder’s unscheduled list holds a hand order', () => {
 
     // The top of an arranged list is reachable, which is the clause the
     // seeding pass exists for.
-    await placeTaskOk(owner, bravo, { after_id: null, before_id: charlie })
+    await placeTaskOk(owner, bravo, { after_id: null, before_id: alpha })
     expect(
       await unscheduledTitles(owner, folder),
       'a task dropped with nothing above it reads first',
-    ).toEqual([BRAVO, CHARLIE, ALPHA])
+    ).toEqual([BRAVO, ALPHA, CHARLIE])
   })
 })

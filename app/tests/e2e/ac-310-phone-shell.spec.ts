@@ -117,7 +117,16 @@ test.describe('AC-310: the shell is navigable on a phone', () => {
     const title = 'ac-310 a task on a phone'
     await createTask(page, { title })
     await page.goto(routesV2.desk)
-    await clickControl(taskRow(page, title), 'the row opens the task in the preferred surface, the dialog')
+    /* On a 390px viewport the title can reach the row's centre, and since
+       the polish round of 2026-08-30 the title is the rename control
+       (DES-095), so the press lands right of it and left of the row's own
+       trailing controls: row ground, which is what opens the task. */
+    const row = taskRow(page, title).first()
+    const rowBox = await row.boundingBox()
+    expect(rowBox, 'the row has a box').not.toBeNull()
+    await clickControl(row, 'the row opens the task in the preferred surface, the dialog', {
+      position: { x: (rowBox?.width ?? 200) - 72, y: (rowBox?.height ?? 40) / 2 },
+    })
     const close = page.getByRole('button', { name: 'Close task', exact: true }).first()
     await expect(
       close,

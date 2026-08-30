@@ -32,7 +32,7 @@ import {
   TEST_TIMEOUT_MS,
   waitForApiIdle,
   watchWire,
-} from './harness.js'
+ taskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -77,7 +77,7 @@ test.describe('AC-296: a step ticked or removed in the card is written through 7
     const removed = await addStep(page, task.id, caseTitle('AC-296 remove me'))
 
     await page.goto(routesV2.folder(folder.id))
-    await clickControl(page.getByText(title), 'spec 9.4: a click on the row opens the task')
+    await clickControl(taskRow(page, title).first(), 'spec 9.4: a click on the row opens the task')
     await expect(taskSurface(page)).toBeVisible()
     await expect(
       taskSurface(page).getByRole('button', { name: ticked.title, exact: true }),

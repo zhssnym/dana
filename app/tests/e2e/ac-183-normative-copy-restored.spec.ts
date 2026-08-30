@@ -173,7 +173,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
 
     await page.goto(routesV2.anytime)
     await clickControl(
-      page.getByText(title),
+      taskRow(page, title).first(),
       'spec 9.4: a click on any row opens that task, which is how its steps block is reached',
     )
     await expect(
