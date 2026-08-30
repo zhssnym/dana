@@ -48,6 +48,30 @@ const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
 
+/*
+**The band is full-bleed, and the arithmetic is here rather than at the three
+call sites.**
+
+The owner, 2026-08-30: "cover photos do not extend across the full page width,
+leaving awkward white space on both sides." The prototype has no such fault
+because it draws this component *outside* its own reading measure
+(`screens/shell-page.tsx:2483`, `screens/folder-page-v2.tsx:2101`), while this
+client draws it from the head, inside `app-shell.tsx`'s column, which is
+centred and capped at `--shell-content-max`. The head's `-mx-10` undoes the
+column's padding and cannot undo its cap, so a wide window put the band at the
+reading width with the ground showing either side.
+
+`50%` in a margin resolves against the containing block, and `100cqw` is the
+scroll region's own width (`tokens.css` declares it the query container), so
+`calc(50% - 50cqw)` is exactly the distance from this box's edge to the
+window's on each side. It is written once, on the band, because it is true
+whatever the wrapper above it does: an ancestor's own negative margin widens
+the containing block and shrinks the offset by the same amount, so the head,
+the folder page and the shelf page all land on the window's edge without
+agreeing on anything first.
+*/
+const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
+
 /* The band, drawn only when the page has a cover. `storageName` is the key
    the cover is remembered under, a folder's real name, or the page's. */
 export function PageCover({ storageName }: { storageName: string }) {
@@ -62,11 +86,14 @@ export function PageCover({ storageName }: { storageName: string }) {
 
   return (
     <div
-      className={cn("group/cover relative h-32 w-full", repositioning && "cursor-ns-resize select-none")}
+      /* `w-full` is gone with the bleed above it: an auto width fills the
+         containing block minus the margins, which is the whole window, where
+         `width: 100%` would ignore them and sit 80px short. */
+      className={cn("group/cover relative h-32", repositioning && "cursor-ns-resize select-none")}
       style={
         repositioning
-          ? { ...cover, backgroundPosition: `center ${draftPos}%` }
-          : cover
+          ? { ...cover, ...FULL_BLEED, backgroundPosition: `center ${draftPos}%` }
+          : { ...cover, ...FULL_BLEED }
       }
       onPointerDown={
         repositioning
