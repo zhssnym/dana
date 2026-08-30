@@ -224,6 +224,10 @@ export function TaskRows({
         if (task !== undefined) actions.onOpenTask(task)
       }}
       onReorder={acts.onReorder}
+      /* polish: taskrow F6. A page whose order does not persist does not draw
+         a slot for one: the drag lifts and the hold still makes a folder, and
+         the rows it passes stay where they are. */
+      reorderable={arrangement?.arrangeable ?? false}
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}

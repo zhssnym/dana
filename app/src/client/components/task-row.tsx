@@ -112,6 +112,7 @@ import {
   type ConceptTask,
 } from "../lib/task-model.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
+import type { SortableItemState } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
 
 /* --------------------------------------------------------------- state, */
@@ -3087,6 +3088,7 @@ these per section and passes tasks; everything else is here.
 export function TaskList<T extends TaskRowProps & { id: string }>({
   tasks,
   onReorder,
+  reorderable = true,
   onDropAt,
   onOver,
   onDragStateChange,
@@ -3122,6 +3124,24 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   behaviour whole.
   */
   onReorder?: (from: number, to: number, next: string[]) => void | Promise<boolean>
+  /*
+  polish: taskrow F6 (2026-08-30). Whether this list keeps an order at all.
+
+  The seam above answers a drag `false` where item 44's B4 does not persist
+  one, and the list then springs the row back. What the adversarial round
+  found is that the springing back is the second half of a promise the list
+  had already made: on Desk the rows a carried row passed slid open a gap and
+  a slot appeared under it, exactly as in a folder, and on release nothing
+  had moved, before or after a reload. Nothing said the page could not be
+  arranged.
+
+  So a list that cannot keep an order does not offer one. The row still
+  lifts, still follows the pointer, and the 1.5 second dwell still makes a
+  folder, that gesture needing no persisted order; what goes is the
+  displacement of the rows it passes and the reorder itself, so the only
+  thing a drag here offers is the one thing it can do.
+  */
+  reorderable?: boolean
   /*
   Where a row was let go, when it was let go outside this list.
 
@@ -3200,6 +3220,19 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
 
   const cancelPress = useRef<() => void>(() => {})
 
+  /*
+  polish: taskrow F6. The carried row still follows the pointer and the dwell
+  still arms on the row under it; what a list with no order to keep does not
+  do is slide the rows it passes out of the way, which is the list drawing a
+  slot it will not fill. One reading, made here rather than in the engine,
+  because whether an order persists is the page's fact and not the gesture's.
+  */
+  function stateOf(index: number): SortableItemState {
+    const state = drag.itemState(index)
+    if (reorderable || state.isActive) return state
+    return { ...state, offset: 0 }
+  }
+
   const dragging = useRef(false)
   const drag = useSortableList({
     count: ordered.length,
@@ -3217,6 +3250,8 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
         }
       : undefined,
     onReorder: (from, to) => {
+      /* polish: taskrow F6. A list with no order to keep never takes one. */
+      if (!reorderable) return
       const next = ordered.map((task) => task.id)
       const [moved] = next.splice(from, 1)
       if (moved) next.splice(to, 0, moved)
@@ -3354,7 +3389,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
             if (open) openers.current.set(task.id, open)
             else openers.current.delete(task.id)
           },
-          dragState: drag.itemState(index),
+          dragState: stateOf(index),
           /* Seam, S25: the words only the carried row draws, and only while
              a container has been proposed. `overKey` is the label because
              `onOver` returns one; see that prop. */
