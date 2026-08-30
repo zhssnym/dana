@@ -19,10 +19,17 @@ dialog that carries them, in `ConfirmDialog.tsx`, and are exact there.
 
 /** 9.4: abandon from My Day. */
 export const ABANDON_CONFIRM =
-  'Abandon this task? It stops appearing in My Day but stays everywhere else.'
+  'Abandon this task? It stops appearing in Today but stays everywhere else.'
 
-/** 9.3: delete, which 9.4 also puts in a row's overflow menu. */
-export const DELETE_TASK_CONFIRM = "Delete this task? This can't be undone."
+/**
+ * 9.3: delete, which 9.4 also puts in a row's overflow menu.
+ *
+ * polish: taskrow F1 (2026-08-30). The sentence said "This can't be undone"
+ * over an act that has been undoable since 7.13's Trash, and the undo bar
+ * then offered Undo under it. One truth: the task moves to Trash, where it
+ * stays for thirty days. 9.3 carries the new sentence.
+ */
+export const DELETE_TASK_CONFIRM = 'Move this task to Trash? It stays there for 30 days.'
 
 /**
  * The same confirmation for a selection, S23a. 9.3 writes the singular and
@@ -32,7 +39,13 @@ export const DELETE_TASK_CONFIRM = "Delete this task? This can't be undone."
  * 0005 change control item 54.
  */
 export function deleteTasksConfirm(count: number): string {
-  return `Delete these ${count} tasks? This can't be undone.`
+  return `Move ${count} tasks to Trash? They stay there for 30 days.`
+}
+
+/** The two controls of the task's delete confirms, naming what each does. */
+export const DELETE_CONFIRM_LABEL = 'Delete'
+export function keepLabel(count: number): string {
+  return count === 1 ? 'Keep it' : 'Keep them'
 }
 
 /**

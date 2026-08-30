@@ -193,7 +193,7 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
     await expect(taskRow(page, first), 'the moved rows have left this folder').toHaveCount(0)
   })
 
-  test('AC-280: Delete asks once, in the plural, and trashes each selected task on Continue', async ({
+  test('AC-280: Delete asks once, in the plural, and trashes each selected task on Delete', async ({
     page,
   }) => {
     const folder = await createFolder(page, caseTitle('AC-280 delete'))
@@ -212,13 +212,13 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
     )
     const dialog = page.getByRole('alertdialog').or(page.getByRole('dialog'))
     await expect(
-      dialog.getByText("Delete these 2 tasks? This can't be undone.", { exact: true }),
-      'spec 9.3\'s delete confirmation, in the plural the bar needs and 9.3 does not write ' +
-        '(RFC 0005 change control item 54)',
+      dialog.getByText('Move 2 tasks to Trash? They stay there for 30 days.', { exact: true }),
+      'spec 9.3\'s delete confirmation, in the plural the bar needs, telling the truth 7.13 made ' +
+        '(RFC 0005 change control item 54; reworded in the polish round of 2026-08-30, AC-351)',
     ).toBeVisible()
     await clickControl(
-      dialog.getByRole('button', { name: 'Continue', exact: true }),
-      'spec 9.1: every confirmation\'s controls are Continue and Cancel',
+      dialog.getByRole('button', { name: 'Delete', exact: true }),
+      'spec 9.1: the task\'s delete confirm names what the press does',
     )
     await waitForApiIdle(page, 'both deletions have been written')
 

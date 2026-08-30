@@ -88,6 +88,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
   useCreateTask,
+  useOrderTask,
   useDeleteFolder,
   useLeaveFolder,
   useDeleteComment,
@@ -395,13 +396,32 @@ export function FolderPage({
         ...(column?.assignee_id === undefined ? {} : { assignee_id: column.assignee_id }),
       })
     },
-    openFull: (column) => {
+    openFull: (column, title) => {
       openTaskForm({
         folder_id: id,
         ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
+        ...(title === undefined || title === '' ? {} : { title }),
       })
     },
   })
+  /*
+  polish: taskrow F4. A task made from a quick-add lands at the foot of the
+  list it was typed into, in typing order. Q7 puts an unplaced task first,
+  which reads as the newest on top and five typed in a row coming out
+  backwards; placing it after the list's last undated open row, through
+  7.6's order endpoint, is the same act a drag to the bottom performs. Only
+  where the list is arrangeable: a filtered or grouped list carries no hand
+  order to join (item 44's B4), and a dated task never does.
+  */
+  const order = useOrderTask()
+  function placeLast(madeId: string, peers: readonly TaskCard[]): void {
+    if (!arrangement.arrangeable) return
+    const last = [...peers]
+      .reverse()
+      .find((peer) => peer.due_date === null && peer.status === 'pending' && peer.id !== madeId)
+    if (last === undefined) return
+    order.mutate({ id: madeId, body: { after_id: last.id, before_id: null } })
+  }
   /* Read while the foot is open, and while the board is up, whose Done
      column is drawn from the same pages (item 58, G). */
   const completed = useFolderCompletedTasks(id, completedOpen || place.mode === 'board')
@@ -547,10 +567,13 @@ export function FolderPage({
       <QuickAdd
         folderName={detail?.name ?? 'this folder'}
         onAdd={(title) => {
-          create.mutate({ title, folder_id: id, section_block_id: blockId })
+          create.mutate(
+            { title, folder_id: id, section_block_id: blockId },
+            { onSuccess: (made) => placeLast(made.id, bySection.get(blockId) ?? []) },
+          )
         }}
-        onOpenFullForm={() => {
-          openTaskForm({ folder_id: id })
+        onOpenFullForm={(title) => {
+          openTaskForm({ folder_id: id, title })
         }}
       />
     </>
@@ -1148,10 +1171,13 @@ export function FolderPage({
               <QuickAdd
                 folderName={detail?.name ?? 'this folder'}
                 onAdd={(title) => {
-                  create.mutate({ title, folder_id: id })
+                  create.mutate(
+                    { title, folder_id: id },
+                    { onSuccess: (made) => placeLast(made.id, loose) },
+                  )
                 }}
-                onOpenFullForm={() => {
-                  openTaskForm({ folder_id: id })
+                onOpenFullForm={(title) => {
+                  openTaskForm({ folder_id: id, title })
                 }}
               />
             )}

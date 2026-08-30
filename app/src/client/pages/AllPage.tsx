@@ -139,9 +139,10 @@ function UndatedGroups({
               inboxFolderId === undefined ? undefined : { folder_id: inboxFolderId },
             )
           }}
-          onOpenFullForm={() => {
+          onOpenFullForm={(title) => {
             place.openFull(
               inboxFolderId === undefined ? undefined : { folder_id: inboxFolderId },
+              title,
             )
           }}
         />
@@ -163,8 +164,8 @@ function UndatedGroups({
             onAdd={(title) => {
               place.capture(title, { folder_id: group.folder.id })
             }}
-            onOpenFullForm={() => {
-              place.openFull({ folder_id: group.folder.id })
+            onOpenFullForm={(title) => {
+              place.openFull({ folder_id: group.folder.id }, title)
             }}
           />
         </PageSection>

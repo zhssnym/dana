@@ -15,7 +15,7 @@ behaviour: there is no Save and no Done, choosing commits. DES-122 is why the
 Due panel has no clock in it.
 */
 
-import { Ban, CalendarDays, Repeat2, type LucideIcon } from "../lib/icons.js"
+import { Ban, Repeat2, type LucideIcon } from "../lib/icons.js"
 import { ConfirmDialog } from "./ui/ConfirmDialog.js"
 import { CLEAR_DATE_WARNING, DATE_CLEAR } from "./task-copy.js"
 import { createContext, useContext, useState, type ReactNode } from "react"
@@ -492,6 +492,13 @@ read rather than softened: a task with no repeat and no reminder loses nothing
 by being undated, and a confirmation whose consequence is empty is the dead
 control DES-144 removes. AC-092 always arms both before it clears.
 */
+/* polish: taskcard F7. "Next week" is next Monday, the Monday after when
+   next Monday is tomorrow. */
+function nextWeekAfter(from: Date): Date {
+  const monday = nextWeekday(from, 1)
+  return sameDay(monday, addDays(from, 1)) ? addDays(monday, 7) : monday
+}
+
 export function DuePanel({ task, patch }: PanelProps) {
   const selected = task.due ? parseDueLabel(task.due.label) : null
   /*
@@ -510,9 +517,27 @@ export function DuePanel({ task, patch }: PanelProps) {
   repeat panels keep DES-120's arrangement exactly, their exact answers
   being a clock and a rule rather than the field itself.
   */
-  const [custom, setCustom] = useState(true)
   const [confirming, setConfirming] = useState(false)
   const close = usePickerClose()
+  /*
+  polish: taskcard F7. A time under the day, so "next Tuesday at 9" is one
+  picker rather than two chips. A due date stays a day (4.11, Imran's ruling
+  of 2026-08-18): the time is 4.8's reminder on that day, the same value the
+  Reminder chip writes, said here where the person is already choosing when.
+  */
+  const format = useTimeFormat()
+  const put = usePutReminder()
+  const drop = useDeleteReminder()
+  const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
+  const setAt = (time: string) => {
+    const due = task.due ? parseDueLabel(task.due.label) : null
+    patch(task.id, { reminder: due ? `${shortDate(due)} at ${time}` : `at ${time}` })
+    put.mutate({ taskId: task.id, body: { offset_minutes: null, time_of_day: time } })
+  }
+  const clearAt = () => {
+    patch(task.id, { reminder: undefined })
+    drop.mutate(task.id)
+  }
   /* Choosing a day answers the field, from the grid exactly as from a preset,
      so both close. Seam, S23; see `PickerClose`. */
   const update = useUpdateTask()
@@ -541,7 +566,10 @@ export function DuePanel({ task, patch }: PanelProps) {
     { label: "Today", date: today() },
     { label: "Tomorrow", date: addDays(today(), 1) },
     { label: "This weekend", date: nextWeekday(today(), 6) },
-    { label: "Next week", date: nextWeekday(today(), 1) },
+    /* polish: taskcard F7. Next Monday, and never the same day as
+       "Tomorrow": on a Sunday the two presets both read Monday, so the
+       Monday after is what "next week" means there. */
+    { label: "Next week", date: nextWeekAfter(today()) },
   ]
 
   /* A due date is a day and not a moment, ruled by Imran 2026-08-18, so there
@@ -606,18 +634,36 @@ export function DuePanel({ task, patch }: PanelProps) {
 
       <PickerDivider />
 
-      <PickerOption
-        icon={CalendarDays}
-        label="Custom date…"
-        hint={custom || !selected ? undefined : shortDate(selected)}
-        active={custom}
-        onSelect={() => setCustom((open) => !open)}
-      />
+      {/* polish: taskcard F7. The grid stands plainly below the hairline;
+          the "Custom date…" row that toggled it carried a tick and read as a
+          setting rather than a way to show the calendar. */}
+      <div className="pt-1">
+        <Calendar selected={selected} onSelect={set} today={today()} />
+      </div>
 
-      {custom ? (
-        <div className="pt-1">
-          <Calendar selected={selected} onSelect={set} today={today()} />
-        </div>
+      {task.due ? (
+        <>
+          <PickerDivider />
+          <label className="flex items-center gap-2 px-2 pt-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+            <span className="w-10 shrink-0">Time</span>
+            <input
+              type="time"
+              aria-label="Due time"
+              value={at ?? ""}
+              onChange={(event) => {
+                const time = event.target.value
+                if (time === "") clearAt()
+                else setAt(time)
+              }}
+              className="h-8 min-w-0 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+            />
+            {at === null ? null : (
+              <span className="shrink-0 text-[var(--color-graphite-400)]">
+                {formatTime(at, format) ?? at}
+              </span>
+            )}
+          </label>
+        </>
       ) : null}
     </div>
   )
