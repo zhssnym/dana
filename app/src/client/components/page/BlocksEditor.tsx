@@ -18,6 +18,13 @@ with it until the next section, so collapse is computed from order rather
 than stored, and moving a section moves its span's meaning with it. The
 collapse set itself is view state and stays here.
 
+**And the first of those blocks, if it is prose, is the heading's opening
+paragraph** and draws between the heading and the section's first row
+(DES-145; the rule and the one corner it cannot make honest are written out
+at `openingOf` below). It is the same rule read one step further rather than
+a second one, which is what keeps 4.17 as it is: the prototype gives a
+section an `intro` field and the frozen schema has no column for it.
+
 **What the two pages add is theirs.** A folder page hangs tasks and a
 capture under each section (`sectionExtras`); a shelf renders its folder
 rows (`folderRow`) and drops stored rows whose membership is gone. Neither
@@ -68,8 +75,12 @@ export function InsertLine({
   onParagraph,
   onImage,
   resting = false,
+  dense = false,
 }: {
-  readonly onSection: () => void
+  /* Optional, and the prototype's rule for why: the line under a heading
+     omits it, a section inside a section not being a thing Dana has, and a
+     tool that cannot mean anything is worse than a shorter row. */
+  readonly onSection?: (() => void) | undefined
   readonly onParagraph: () => void
   readonly onImage?: (() => void) | undefined
   /*
@@ -79,42 +90,60 @@ export function InsertLine({
   is fully drawn where there is no hover to reveal it.
   */
   readonly resting?: boolean
+  /*
+  polish round 2, folderpage: the prototype's `dense`, DES-148. "An affordance
+  may not charge rent for space it is not using": the full strip is the
+  separation between two blocks, and it is wrong under a heading, where 24px
+  of permanent gap made the section and its first row read as two things, and
+  wrong between two sentences that continue one another. 16px with 4 borrowed
+  back by a negative margin, which is the prototype's 12px of net gap.
+  */
+  readonly dense?: boolean
 }): React.JSX.Element {
+  /* The strip is its own height and its controls are centred inside it
+     rather than laid out in flow: a 20px button row inside a 12px strip
+     overhung the prose above it, which put controls on top of a sentence.
+     So the dense strip shortens its chips too rather than keeping tall ones
+     inside a short strip. */
+  const chip = cn(
+    'flex items-center gap-1 rounded bg-card px-1.5 text-[11px] leading-4 text-muted-foreground ring-1 ring-border transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
+    dense ? 'h-4' : 'h-5',
+  )
   return (
-    /* The strip is its own height and its controls are centred inside it
-       rather than laid out in flow: a 20px button row inside a 12px strip
-       overhung the prose above it, which put controls on top of a
-       sentence. */
-    <div className={cn('group/insert relative', resting ? 'h-7' : 'h-5')} role="presentation">
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100" />
+    <div
+      className={cn(
+        'group/insert relative',
+        resting ? 'h-7' : dense ? '-mb-1 h-4' : 'h-6',
+      )}
+      role="presentation"
+    >
+      {/* The line arrives in Dana's one interaction colour, which is what the
+          prototype draws: `bg-border` drew a divider, and a divider is
+          furniture that happens to be there rather than an answer to the
+          pointer. The prototype spells the ramp step (`--color-dana-accent-200`)
+          and 11.4 does not let this directory do that, so it is the role token
+          at the weight that lands on the same value: 30% of `primary` over the
+          page reads within a step of the prototype's own line in both modes,
+          and follows the role rather than a fixed colour. */}
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-primary/30 opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100" />
       <div
         className={cn(
           'absolute top-1/2 left-0 z-10 flex -translate-y-1/2 items-center gap-1 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100 [@media(hover:none)]:opacity-100',
           resting ? 'opacity-60' : 'opacity-0',
         )}
       >
-        <button
-          type="button"
-          onClick={onSection}
-          className="flex h-5 items-center gap-1 rounded bg-card px-1.5 text-[11px] leading-4 text-muted-foreground ring-1 ring-border transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Heading1 className="size-3" strokeWidth={1.75} aria-hidden="true" />
-          Section
-        </button>
-        <button
-          type="button"
-          onClick={onParagraph}
-          className="flex h-5 items-center gap-1 rounded bg-card px-1.5 text-[11px] leading-4 text-muted-foreground ring-1 ring-border transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        {onSection === undefined ? null : (
+          <button type="button" onClick={onSection} className={chip}>
+            <Heading1 className="size-3" strokeWidth={1.75} aria-hidden="true" />
+            Section
+          </button>
+        )}
+        <button type="button" onClick={onParagraph} className={chip}>
           <AlignLeft className="size-3" strokeWidth={1.75} aria-hidden="true" />
           Paragraph
         </button>
         {onImage === undefined ? null : (
-          <button
-            type="button"
-            onClick={onImage}
-            className="flex h-5 items-center gap-1 rounded bg-card px-1.5 text-[11px] leading-4 text-muted-foreground ring-1 ring-border transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <button type="button" onClick={onImage} className={chip}>
             <ImagePlus className="size-3" strokeWidth={1.75} aria-hidden="true" />
             Image
           </button>
@@ -233,28 +262,103 @@ export function BlocksEditor({
     }
   }, [blocks, claimNewest])
 
-  const inserters = (index: number): React.JSX.Element => (
-    <InsertLine
-      resting={index === blocks.length}
-      onSection={() => {
-        setClaimNewest('section')
-        insertAt(index, { kind: 'section', position: index, text: 'New section' })
-      }}
-      onParagraph={() => {
-        setClaimNewest('paragraph')
-        insertAt(index, { kind: 'paragraph', position: index, text: '' })
-      }}
-      onImage={
-        folderId === undefined
-          ? undefined
-          : () => {
-              /* An empty block, which is then its own way in: choose, drop or
-                 paste (L-197). See the `folderId` prop's own note. */
-              insertAt(index, { kind: 'image', position: index })
-            }
-      }
-    />
-  )
+  const inserters = (
+    index: number,
+    options: { readonly dense?: boolean; readonly proseOnly?: boolean } = {},
+  ): React.JSX.Element => {
+    const paragraph = (): void => {
+      setClaimNewest('paragraph')
+      insertAt(index, { kind: 'paragraph', position: index, text: '' })
+    }
+    /* The line under a heading is never the page's resting one even when it
+       stands at the end of the list: what rests is the row of tools at the
+       page's foot (folderpage F2), and there is exactly one of those. */
+    if (options.proseOnly === true) {
+      return <InsertLine dense={options.dense ?? false} onParagraph={paragraph} />
+    }
+    return (
+      <InsertLine
+        resting={index === blocks.length}
+        dense={options.dense ?? false}
+        onSection={() => {
+          setClaimNewest('section')
+          insertAt(index, { kind: 'section', position: index, text: 'New section' })
+        }}
+        onParagraph={paragraph}
+        onImage={
+          folderId === undefined
+            ? undefined
+            : () => {
+                /* An empty block, which is then its own way in: choose, drop or
+                   paste (L-197). See the `folderId` prop's own note. */
+                insertAt(index, { kind: 'image', position: index })
+              }
+        }
+      />
+    )
+  }
+
+  /*
+  A heading's opening paragraph (DES-145).
+
+  Imran, 2026-08-18: the insertion lines lived between page blocks, so there
+  was nowhere to write between a section's heading and the first task under
+  it, which is the one place a section most wants a sentence. The prototype
+  answers with a field of its own on the section, `intro`; 4.17 is frozen and
+  carries no such column, so the same behaviour is read off the order the
+  blocks already hold, which is the rule this file runs on everywhere else:
+  **the paragraph immediately after a heading is that heading's opening
+  paragraph, and it draws between the heading and the first row.** Every
+  later block in the span keeps drawing after the section's rows, as before,
+  so prose at the end of a section is not lost.
+
+  The one corner this cannot make honest is recorded rather than hidden: a
+  section with nothing in its span has a single free position, so a paragraph
+  made from the line at its foot lands under the heading rather than under
+  the control that made it. It is a 40px move over an empty capture row, and
+  the alternative is a menu that changes shape from section to section.
+  */
+  const openingOf = (index: number): PageBlock | undefined => {
+    const next = blocks[index + 1]
+    return next?.kind === 'paragraph' ? next : undefined
+  }
+
+  /** A paragraph block: prose until it is being written. */
+  const paragraphNode = (block: PageBlock): React.JSX.Element =>
+    editing === block.id ? (
+      <InlineTextarea
+        key={`${block.id}-${block.text ?? ''}`}
+        defaultValue={block.text ?? ''}
+        placeholder="Write something…"
+        aria-label="Paragraph"
+        rows={1}
+        autoFocus
+        onBlur={(event) => {
+          const next = event.target.value.trim()
+          setEditing(null)
+          if (next === (block.text ?? '')) return
+          if (next === '') remove(block.id)
+          else editText(block.id, next)
+        }}
+        className="text-[13px] leading-5 text-muted-foreground"
+      />
+    ) : (
+      /* Rendering every paragraph as a live textarea made a page of writing a
+         page of form fields, which is what a reader and a role-addressed
+         locator both meet first. */
+      <p
+        onClick={() => {
+          setEditing(block.id)
+        }}
+        className="cursor-text text-[13px] leading-5 whitespace-pre-wrap text-muted-foreground"
+      >
+        {block.text === null || block.text === '' ? (
+          <span className="opacity-60">Write something…</span>
+        ) : (
+          block.text
+        )}
+      </p>
+    )
 
   return (
     <div>
@@ -273,6 +377,11 @@ export function BlocksEditor({
         ) {
           return null
         }
+        /* An opening paragraph is drawn by the heading that owns it, above
+           that section's first row, so it is not drawn a second time here. */
+        if (block.kind === 'paragraph' && blocks[index - 1]?.kind === 'section') {
+          return null
+        }
 
         if (block.kind === 'folder_ref') {
           const row = folderRow?.(block)
@@ -284,6 +393,13 @@ export function BlocksEditor({
             </div>
           )
         }
+
+        /* A heading's own opening paragraph, and the position the line at its
+           foot writes into: with an opening paragraph drawn inside the
+           section, that line stands in for the paragraph's own, so a block
+           made there lands after the prose rather than above it. */
+        const opening = block.kind === 'section' ? openingOf(index) : undefined
+        const after = opening === undefined ? index + 1 : index + 2
 
         return (
           <div key={block.id} className="group/item relative">
@@ -403,47 +519,32 @@ export function BlocksEditor({
                 />
               </div>
             ) : (
-              /* Prose until it is being written; committing an empty one
-                 removes it, his rule. Rendering every paragraph as a live
-                 textarea made a page of writing a page of form fields, which
-                 is what a reader and a role-addressed locator both meet
-                 first. */
-              editing === block.id ? (
-                <InlineTextarea
-                  key={`${block.id}-${block.text ?? ''}`}
-                  defaultValue={block.text ?? ''}
-                  placeholder="Write something…"
-                  aria-label="Paragraph"
-                  rows={1}
-                  autoFocus
-                  onBlur={(event) => {
-                    const next = event.target.value.trim()
-                    setEditing(null)
-                    if (next === (block.text ?? '')) return
-                    if (next === '') remove(block.id)
-                    else editText(block.id, next)
-                  }}
-                  className="text-[13px] leading-5 text-muted-foreground"
-                />
-              ) : (
-                <p
-                  onClick={() => {
-                    setEditing(block.id)
-                  }}
-                  className="cursor-text text-[13px] leading-5 whitespace-pre-wrap text-muted-foreground"
-                >
-                  {block.text === null || block.text === '' ? (
-                    <span className="opacity-60">Write something…</span>
-                  ) : (
-                    block.text
-                  )}
-                </p>
-              )
+              /* Committing an empty paragraph removes it, his rule. */
+              paragraphNode(block)
             )}
-            {block.kind === 'section' && !collapsed.has(block.id)
-              ? sectionExtras?.(block.id)
-              : null}
-            {inserters(index + 1)}
+            {block.kind === 'section' && !collapsed.has(block.id) ? (
+              <>
+                {/* The one gap the page-level lines cannot reach: between a
+                    heading and its first row (DES-145). Paragraph alone, and
+                    dense, so the affordance costs the section 12px rather
+                    than pushing its first row 24px from its own title
+                    (DES-148). Once written, the paragraph itself stands
+                    there and is what a second thought clicks into. */}
+                {opening === undefined
+                  ? inserters(index + 1, { dense: true, proseOnly: true })
+                  : paragraphNode(opening)}
+                {sectionExtras?.(block.id)}
+              </>
+            ) : null}
+            {inserters(after, {
+              /* Two sentences that continue one another are not two blocks:
+                 24px between them is a section break drawn by accident
+                 (Imran, 2026-08-23). Never after a heading, where this line
+                 follows the section's rows rather than its prose. */
+              dense:
+                block.kind === 'paragraph' &&
+                blocks[after]?.kind === 'paragraph',
+            })}
           </div>
         )
       })}
