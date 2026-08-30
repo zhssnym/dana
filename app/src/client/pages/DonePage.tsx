@@ -68,6 +68,7 @@ import { MorePages, PageBody } from '../states/PageStates.js'
 import { PageSection } from '../states/PageSection.js'
 import { DONE_EMPTY } from './empty-states.js'
 import { PLACES } from '../views/place-pages.js'
+import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { ConfirmDialog as RowConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 
@@ -181,21 +182,40 @@ export function DonePage(): React.JSX.Element {
         emptyIcon={CircleCheck}
       >
         <div className="space-y-7">
-          {days.map((day) => (
-            <PageSection
-              key={day.date}
-              name={formatDayHeading(day.date, basis.today)}
-              heading={formatDayHeading(day.date, basis.today)}
-              tone="day"
-            >
-              <TaskRows
-                tasks={day.rows}
-                context={context}
-                actions={rowActions}
-                onAsk={confirm.ask}
-              />
-            </PageSection>
-          ))}
+          {place.mode === 'board' ? (
+            /* Item 58 (F), ledger L-049: the shared board, a column per
+               completion day, every card finished. The days are the list's
+               own groups, so the two views draw one arrangement. */
+            <TaskBoard
+              place={place}
+              columns={days.map((day) => ({
+                key: day.date,
+                name: formatDayHeading(day.date, basis.today),
+                mark: null,
+                capture: null,
+                rows: day.rows,
+                done: true,
+              }))}
+              context={context}
+              actions={rowActions}
+            />
+          ) : (
+            days.map((day) => (
+              <PageSection
+                key={day.date}
+                name={formatDayHeading(day.date, basis.today)}
+                heading={formatDayHeading(day.date, basis.today)}
+                tone="day"
+              >
+                <TaskRows
+                  tasks={day.rows}
+                  context={context}
+                  actions={rowActions}
+                  onAsk={confirm.ask}
+                />
+              </PageSection>
+            ))
+          )}
           {/* Outside every region, because it belongs to the list rather than
               to the day at the bottom of it: the next page usually opens a new
               day and sometimes extends the last one. */}

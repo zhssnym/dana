@@ -85,6 +85,8 @@ const FOLDERS: Folder[] = [
     icon: null,
     color: '#4477CC',
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
   },
 ]

@@ -50,6 +50,11 @@ export type PostFoldersBody = z.infer<typeof postFoldersBody>
 // (7.4). The same one-field shape as the create, declared separately so
 // each endpoint's body carries its route's name; the shared primitive keeps
 // the two one rule.
+/** 4.20's preset key shape, shared by a folder's cover since item 58. */
+const coverPreset = z
+  .string()
+  .regex(/^[a-z0-9-]{1,40}$/, 'must be a preset key')
+
 export const patchFolderBody = z.object({
   name: folderName.optional(),
   // The 4.3 identity, folder-owned since RFC 0005 (D1): any member writes
@@ -64,8 +69,17 @@ export const patchFolderBody = z.object({
     .optional(),
   color: hexColor.nullable().optional(),
   cover_file_id: z.uuid().nullable().optional(),
+  /* 4.3 as widened by RFC 0005 change control item 58: the preset and the
+     crop 4.20 gives a place page, so a folder can wear every tier a place
+     can. A file and a preset are one source: setting either clears the
+     other server-side, and a body naming both is refused. */
+  cover_preset: coverPreset.nullable().optional(),
+  cover_focal_y: z.int().min(0).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
-})
+}).refine(
+  (body) => !(body.cover_file_id != null && body.cover_preset != null),
+  { message: 'cover_file_id and cover_preset: a cover is a file or a preset, not both', path: ['cover_preset'] },
+)
 export type PatchFolderBody = z.infer<typeof patchFolderBody>
 
 /*
@@ -128,6 +142,8 @@ export const folder = z.object({
   icon: z.string().nullable(),
   color: hexColor.nullable(),
   cover_file_id: z.uuid().nullable(),
+  cover_preset: z.string().nullable(),
+  cover_focal_y: z.int().min(0).max(100),
   description: z.string().nullable(),
 })
 export type Folder = z.infer<typeof folder>
@@ -217,5 +233,8 @@ modules.
 export const duplicateFolderResponse = z.object({
   id: z.uuid(),
   name: z.string(),
+  /* How many days the plan moved, 0 where every date kept (7.16 as widened
+     by RFC 0005 change control item 58; ledger L-055's bar reads it). */
+  shifted_days: z.int().nonnegative(),
 })
 export type DuplicateFolderResponse = z.infer<typeof duplicateFolderResponse>

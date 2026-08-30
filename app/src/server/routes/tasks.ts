@@ -58,6 +58,7 @@ import {
   deleteTaskReminder,
   dropFromMyDay,
   patchStep,
+  promoteStep,
   patchTask,
   pullIntoMyDay,
   putTaskReminder,
@@ -581,6 +582,28 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         return
       }
       res.status(204).end()
+    },
+  )
+
+  /* RFC 0005 change control item 58: B9's promotion, 7.7's fourth line. */
+  router.post(
+    '/tasks/:id/steps/:stepId/promote',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const stepId = parsedId(res, req.params.stepId)
+      if (stepId === null) return
+      const result = await promoteStep(db, viewer(req), taskId, stepId)
+      if (result.kind === 'not_found') {
+        notFound(res)
+        return
+      }
+      res.status(201).json(result.task)
     },
   )
 

@@ -134,12 +134,14 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
   }
 }
 
-/** The twelve keys of the 7.0 Folder object, and no others; the 4.3
- * identity four joined with RFC 0005. */
+/** The fourteen keys of the 7.0 Folder object, and no others; the 4.3
+ * identity four joined with RFC 0005, and item 58's cover pair. */
 const FOLDER_KEYS = [
   'color',
   'counts',
   'cover_file_id',
+  'cover_focal_y',
+  'cover_preset',
   'description',
   'icon',
   'id',

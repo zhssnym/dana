@@ -91,6 +91,22 @@ function attachmentOf(file: CommentFile): Attachment {
   }
 }
 
+/**
+ * Every file hung on a task's conversation, as the card's Attachments block
+ * draws one (ledger L-257, RFC 0005 change control item 58, D). 4.16 scopes
+ * a file to a folder and 4.15 hangs it on a comment, so a task's attachments
+ * *are* its thread's files, replies included, in the order they were said;
+ * feeding the block anything else would be a second store.
+ */
+export function threadAttachments(comments: readonly ConceptComment[]): Attachment[] {
+  const files: Attachment[] = []
+  for (const comment of comments) {
+    files.push(...(comment.files ?? []))
+    for (const reply of comment.replies ?? []) files.push(...(reply.files ?? []))
+  }
+  return files
+}
+
 /** 7.15's declared kind for a file a comment attaches: an image is
  *  `image` and anything else is `file`, the two kinds 4.16 gives a comment
  *  (item 57 B5; `voice` waits on item 44's B5). */

@@ -343,7 +343,9 @@ export function createWorkshopRouter(
         )
         return
       }
-      res.status(201).json({ id: outcome.id, name: outcome.name })
+      res
+        .status(201)
+        .json({ id: outcome.id, name: outcome.name, shifted_days: outcome.shiftedDays })
     },
   )
 

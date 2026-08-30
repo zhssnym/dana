@@ -38,6 +38,8 @@ function folderOf(id: string, name: string, label: string | null, isDefault = fa
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
   } as Folder
 }

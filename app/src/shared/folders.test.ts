@@ -210,6 +210,8 @@ describe('folder (7.0: the shared Folder object)', () => {
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
   }
 
@@ -273,6 +275,8 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
     members: [member],
     pending_invites: [invite],

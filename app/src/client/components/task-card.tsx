@@ -1704,11 +1704,12 @@ export function TaskCard({
   change control item 45 measured on `people-screen.tsx` and refused, and
   Imran reviews this surface at dana.so the day it lands.
 
-  Wiring it is a composition of `POST /tasks` and 7.7's step routes carrying
-  a partial-failure question of its own, which is the shape item 44 gave the
-  folder-making gesture and put with the selection machinery it shares. That
-  is RFC 0004's S23a. Until then nothing supplies it and the control is not
-  drawn, which is this repository's own rule rather than a workaround:
+  **Supplied since the loose-ends row (RFC 0005 change control item 58, C).**
+  A step into a folder is item 58's `POST /tasks/:id/steps/:stepId/promote`,
+  one transaction per step; steps into a new task are 7.6's create with the
+  titles and 7.7's delete of the originals. `useCardWiring` hands this to
+  `lib/task-acts.ts`'s `moveStepsOut` where the row has an id and a folder,
+  and leaves it undefined in the lab, where the control is then not drawn:
   `lib/object-acts.ts`'s "an act with no handler does not appear", and
   `TaskRowProps.onNewFolder`'s "the chip then simply does not offer it, a dead
   menu item is the fault DES-144 removed".

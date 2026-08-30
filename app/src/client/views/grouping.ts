@@ -56,6 +56,12 @@ export interface TaskGroup {
    */
   readonly capture: ColumnValue | null
   readonly rows: readonly TaskCard[]
+  /**
+   * A column of finished work: Done's days and the folder board's Done
+   * column (item 58, F and G). The lifted board strikes its cards through,
+   * and a drop into one completes rather than moves.
+   */
+  readonly done?: boolean
 }
 
 /**
