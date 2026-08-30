@@ -71,6 +71,7 @@ import { useSortableList } from "../lib/use-sortable-list.js"
 import { ChevronDown, GripVertical } from "../lib/icons.js"
 import { InsertLine } from "../components/page/BlocksEditor.js"
 import { cn } from "../components/ui/utils.js"
+import { MORE_ACTIONS } from "../components/ui/copy.js"
 
 /*
 The blocks a page holds, on a shelf too (DES-210, DES-219).
@@ -338,7 +339,10 @@ export function ShelfPage({
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={`More actions for ${name}`}
+                /* seam: 9.1 names every overflow menu, a shelf's included,
+                   "More actions", where the prototype writes "More actions for
+                   {name}"; item 44's A2, transcribed at item 57 (A2). */
+                aria-label={MORE_ACTIONS}
                 className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
               >
                 <MoreHorizontal className="size-4" strokeWidth={1.75} />
