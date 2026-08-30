@@ -72,6 +72,7 @@ import {
   useUpdateMyMembership,
 } from '../api/mutations.js'
 import { FolderGroupDialog } from '../components/index.js'
+import { pushUndo } from './undo.js'
 import { ConfirmDialog, useConfirm } from '../pages/task-rows.js'
 import {
   folderGroupLabels,
@@ -83,11 +84,15 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
-  /* polish: sidebar F5. The one word, shelf, and what "folders keep their
-     tasks" means to a person: they come off the shelf and stay. */
+  /* polish: sidebar F5 and shelves F1, one sentence found twice. The one
+     word is shelf, and what "folders keep their tasks" means to a person is
+     that they come off the shelf and stay; the shell fixer's ending was "come
+     off it", and the pages fixer's names the shelf rather than leaning on a
+     pronoun, which is the same finding's own rule. Its count agrees with a
+     shelf holding one folder. */
   return (
-    `Delete shelf? ${String(folderCount)} folders keep their tasks and ` +
-    'come off it.'
+    `Delete shelf? ${String(folderCount)} folder${folderCount === 1 ? '' : 's'} keep ` +
+    'their tasks and come off the shelf.'
   )
 }
 
@@ -209,7 +214,25 @@ export function useFolderGroupActions(
       openNewFolderIn(label)
     },
     onMoveToGroup: (folder, label) => {
-      writeLabel([folder.id], label)
+      /* polish: shelves F6. The sidebar's move has the undo bar like the
+         folder page's: a way back that is not three presses in reverse. */
+      const previous = folder.my_label
+      if (previous === label) return
+      relabel.mutate(
+        { id: folder.id, body: { label } },
+        {
+          onSuccess: () => {
+            pushUndo(
+              label === null
+                ? `Took "${folder.name}" off ${previous ?? 'its shelf'}`
+                : `Moved "${folder.name}" to ${label}`,
+              () => {
+                relabel.mutate({ id: folder.id, body: { label: previous } })
+              },
+            )
+          },
+        },
+      )
     },
     onRenameGroup: (label) => {
       setDialog({ mode: 'rename', label })

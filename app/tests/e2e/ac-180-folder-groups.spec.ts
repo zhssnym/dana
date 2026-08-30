@@ -257,8 +257,9 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
     await clickControl(
       page.getByRole('menuitem', { name: 'New shelf…', exact: true }),
       'spec 9.1: "a group is created by naming it", which is an action on a folder because a ' +
-        'group is the label of that folder\'s membership and nothing else. Since the polish ' +
-        'round it is "New shelf…" inside the move submenu',
+        'group is the label of that folder\'s membership and nothing else. Both fixers renamed ' +
+        'the act "New shelf…" (shelves F1); it is asserted inside the move submenu because ' +
+        'sidebar F7 left one door to it',
     )
     await fillControl(
       page.getByRole('dialog').getByLabel(/^\s*Shelf name\s*$/i),
@@ -374,11 +375,12 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: the folder\'s own menu carries the move',
     )
     await clickControl(
-      moveDestination(page, /ungrouped|no shelf|no group|none/i),
+      moveDestination(page, /^Not on a shelf$/),
       'spec 9.1: a folder can move out of every group, the unlabeled folders being a place in ' +
-        'that list rather than the absence of one. The second of the two controls this file ' +
-        'still matches by description: that section names the four group actions and names no ' +
-        'string for the entry that clears the label',
+        'that list rather than the absence of one. This entry was matched by description while ' +
+        'section 9 named no string for it; the polish round settled one, both fixers rewrote ' +
+        'it, and "Not on a shelf" is what survived the merge, so AC-334 and this criterion ' +
+        'now read the same words',
     )
     expect(
       await labelOf(page, FOLDER_B),
@@ -412,12 +414,13 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'thing that section still describes',
     )
     await expect(
-      page.getByText(/Delete shelf\? \d+ folders keep their tasks and come off it\./),
+      page.getByText(/Delete shelf\? \d+ folders? keep their tasks and come off the shelf\./),
       'spec 9.1: deleting a shelf deletes no folder and no task, and the confirm says so in ' +
         'the one word the polish round settled on: "Delete shelf? {N} folders keep their ' +
-        'tasks and come off it." A person deleting a container has every reason to fear ' +
-        'they are deleting its contents, and this sentence is the only thing that tells ' +
-        'them otherwise',
+        'tasks and come off the shelf." A person deleting a container has every reason to ' +
+        'fear they are deleting its contents, and this sentence is the only thing that tells ' +
+        'them otherwise. Both fixers wrote it; the ending that names the shelf rather than ' +
+        'saying "it" is the one that stands',
     ).toBeVisible()
     await clickControl(
       page.getByRole('button', { name: 'Continue', exact: true }),

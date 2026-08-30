@@ -267,6 +267,18 @@ export function usePlace(
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
   const savedViews = useSavedViews()
+  const [search, setSearch] = useSearchParams()
+  /* polish: pagehead F3. Editing the filter by hand leaves the saved view
+     behind, so its id leaves the address too; otherwise "Clear all" cleared
+     the chips while the sidebar went on saying the view was open. */
+  const changeFilter = (next: PageFilter): void => {
+    place.setFilter(next)
+    if (search.has('view')) {
+      const rest = new URLSearchParams(search)
+      rest.delete('view')
+      setSearch(rest, { replace: true })
+    }
+  }
   /*
   The views saved on this page, listed at the panel's head, which is the
   prototype's own arrangement and the third seam `FilterControl` records.
@@ -283,17 +295,16 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
   return (
     <>
       <WindowBarLead>
-        <FilterChips filter={place.filter} onChange={place.setFilter} people={place.people} />
+        <FilterChips filter={place.filter} onChange={changeFilter} people={place.people} />
       </WindowBarLead>
       <WindowBarActions>
         {/* DES-150's arrangement, written down: views, then the filter. */}
         {/*
-        `collapse` is 9.1's resting behaviour since S24 and the reason the
-        strip costs a place page almost no width: only the view the page is in
-        is drawn, and the rest widen on hover or focus. The options it does not
-        draw stay in the DOM at no width, which is the clause that keeps a
-        collapsing control from hiding two of its three choices from the
-        keyboard, and AC-259 reads it.
+        polish: pagehead F1, folderpage F8, places F5. The strip rested
+        collapsed to the current view from S24 and widened on hover, which hid
+        the board and the calendar from anyone who did not hover one small
+        icon, and from every phone. It rests open now, a segmented control;
+        9.1 is amended in the same words.
         */}
         <ViewStrip
           ariaLabel="View"
@@ -304,11 +315,10 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
             icon: VIEW_FACES[view].icon,
           })) satisfies ViewStripOption<ViewMode>[]}
           onSelect={place.setMode}
-          collapse
         />
         <FilterControl
           filter={place.filter}
-          onChange={place.setFilter}
+          onChange={changeFilter}
           people={place.people}
           savedViews={listed}
           onSaveView={(name) => {
@@ -321,10 +331,14 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
             with no address a person can reach. So it lands in the sidebar,
             where the pin list can take it out again the day that page lands.
             */
+            /* polish: pagehead F3. Saved unpinned: a view lives in this
+               page's filter panel, and 9.7's pin list is where a person
+               chooses to put one in the sidebar. Pinned on arrival, it read
+               as a page and followed people to other pages. */
             saveView.mutate({
               name,
               definition: viewDefinition(place.filter, place.spine.key),
-              pinned: true,
+              pinned: false,
             })
           }}
         />

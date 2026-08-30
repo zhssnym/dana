@@ -212,9 +212,10 @@ export function FolderSharingPanel({
       <SheetContent
         side="right"
         className="w-[var(--sharing-panel-width)] sm:max-w-none"
+        /* polish: folderpage F11: never wider than the screen. */
         style={{
-          width: 'var(--sharing-panel-width)',
-          maxWidth: 'var(--sharing-panel-width)',
+          width: 'min(var(--sharing-panel-width), 100vw)',
+          maxWidth: 'min(var(--sharing-panel-width), 100vw)',
         }}
         /* No backdrop at all now that the sheet is non-modal: a dimmed plate
            over a page the panel is meant to sit beside is the covering this

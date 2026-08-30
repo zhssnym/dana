@@ -406,7 +406,9 @@ export function FolderRow({
                of the menu five rows above "Move to shelf": one word for the
                thing, and one door, so the act of putting this folder on a
                shelf that does not exist yet lives inside the move submenu as
-               "New shelf…". */
+               "New shelf…" (below). Both fixers renamed this item; only one
+               of them could keep it here as well, and two doors to one act is
+               what F7 was about. */
             handlers={{
               open: onOpenInNewTab,
               history: onHistory,
@@ -434,7 +436,10 @@ export function FolderRow({
                           ))}
                           <DropdownMenuSeparator />
                           <DropdownMenuRadioItem value="__none" closeOnClick>
-                            No shelf
+                            {/* polish: tabstrip F6 and shelves F1 both named
+                                this row. AC-334 addresses it exactly, so the
+                                pages fixer's wording is the one that stands. */}
+                            Not on a shelf
                           </DropdownMenuRadioItem>
                           {onNewGroup === undefined ? null : (
                             <>

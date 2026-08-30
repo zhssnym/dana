@@ -107,10 +107,13 @@ test.describe('AC-295: the folder board\'s Done column, and Done\'s own board', 
       card(page, 'Done', finished),
       'ledger L-045: the board carries a Done column that is not a section, holding the completed',
     ).toBeVisible()
-    await expect(card(page, 'No section', open), 'the open task sits loose').toBeVisible()
+    /* polish: folderpage F7. A folder with no sections names its one column
+       "Tasks"; "No section" on a page that has none read as something
+       missing. The column is the same column. */
+    await expect(card(page, 'Tasks', open), 'the open task sits loose').toBeVisible()
 
     const wire = watchWire(page)
-    await carryInto(page, card(page, 'No section', open), regionOf(page, 'Done'))
+    await carryInto(page, card(page, 'Tasks', open), regionOf(page, 'Done'))
     await expect(
       page.getByText('Into Done'),
       'DES-171: the carried card names the column a release would land it in',

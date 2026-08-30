@@ -106,7 +106,7 @@ export function PageCover({ storageName }: { storageName: string }) {
           T_FAST,
           repositioning
             ? "opacity-100"
-            : "opacity-0 group-hover/cover:opacity-100 focus-within:opacity-100",
+            : "opacity-0 group-hover/cover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100",
         )}
       >
         {repositioning ? (
@@ -179,6 +179,19 @@ export function PageCover({ storageName }: { storageName: string }) {
                 />
               </PopoverContent>
             </Popover>
+            {/* polish: pagehead F7. Remove sits beside Change rather than
+                three presses deep inside the picker. */}
+            <button
+              type="button"
+              onClick={() => savePrototypeFolderIdentity(storageName, { cover: undefined })}
+              className={cn(
+                "flex items-center px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                T_FAST,
+                "outline-none focus-visible:bg-[var(--color-graphite-100)]",
+              )}
+            >
+              Remove
+            </button>
             {coverRepositions(identity.cover) && coverStoresPosition(storageName) ? (
               <button
                 type="button"

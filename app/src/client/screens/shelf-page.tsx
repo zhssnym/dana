@@ -45,7 +45,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { IconPicker as FolderIconPicker } from "../components/page/IconPicker.js"
 import { markIcon } from "../components/page/icon-manifest.js"
 import { PageCover } from "../components/page-cover.js"
-import { pageBodyClass } from "../components/page-head.js"
 import { ObjectMenu } from "../components/object-menu.js"
 import { HistorySheet } from "../components/history-sheet.js"
 import { FolderPlus, MoreHorizontal, Plus } from "../lib/icons.js"
@@ -114,7 +113,9 @@ function reconcileItems(stored: ShelfItem[], folders: ShelfFolder[]): ShelfItem[
   const missing = folders
     .filter((folder) => !placed.has(folder.id))
     .map((folder): ShelfItem => ({ kind: "folder", folder: { id: folder.id } }))
-  if (!missing.length) return kept
+  /* polish: shelves F2. Unchanged is the same array: a fresh copy of the same
+     items read as a change, and the save effect wrote it. */
+  if (!missing.length) return kept.length === stored.length ? stored : kept
   let lastFolderAt = -1
   kept.forEach((item, index) => {
     if (item.kind === "folder") lastFolderAt = index
@@ -179,6 +180,9 @@ export function ShelfPage({
   useEffect(() => {
     setItems((current) => reconcileItems(current, folders))
   }, [memberNames])
+  /* polish: shelves F11. The section just made is the one whose field opens
+     empty and focused, with "New section" as its placeholder. */
+  const [freshId, setFreshId] = useState<string | null>(null)
   /* Seam 3: the save effect, over 7.16's PUT. The first run is the mount and
      is not a change; a run that adopted the server's ids is not one either. */
   const mounted = useRef(false)
@@ -195,6 +199,20 @@ export function ShelfPage({
     void onLayoutChange(items).then((saved) => {
       if (saved === null) return
       adopting.current = true
+      /* polish: shelves F11. The write hands back the server's own block ids,
+         so the section just made arrives under a new one and the field that
+         was to open empty and focused would close on the adoption. It is
+         found again as the one section the write names that this page did not
+         have a moment ago. */
+      if (freshId !== null) {
+        const before = new Set(
+          items.flatMap((item) => (item.kind === "section" ? [item.section.id] : [])),
+        )
+        const made = saved.flatMap((item) =>
+          item.kind === "section" && !before.has(item.section.id) ? [item.section.id] : [],
+        )
+        setFreshId(made[0] ?? null)
+      }
       setItems(saved)
     })
   }, [items])
@@ -223,6 +241,7 @@ export function ShelfPage({
 
   const insertAt = (index: number, kind: "section" | "paragraph" | "image") => {
     const id = `${key}-${kind}-${items.length}-${Date.now()}`
+    if (kind === "section") setFreshId(id)
     const block: ShelfItem =
       kind === "section"
         ? { kind: "section", section: { id, name: "New section" } }
@@ -304,8 +323,9 @@ export function ShelfPage({
     <div className="flex min-h-full flex-col">
       <PageCover storageName={key} />
 
-      {/* The folder page's own measure, not a second one (DES-216). */}
-      <div className={pageBodyClass("pt-6")}>
+      {/* polish: pagehead F5. The shell already insets the page; a second
+          measure here indented the shelf's title past every other page's. */}
+      <div className="w-full pt-2">
         {/*
         The control row lives in the window bar, exactly where the folder
         page's is (DES-219). It sat inside the page body for one revision,
@@ -380,6 +400,7 @@ export function ShelfPage({
           <PopoverContent align="start" className="w-auto p-0">
             {/* Seam 4. */}
             <FolderIconPicker
+              subject="Shelf"
               icon={identity.glyph ?? null}
               color={identity.color ?? null}
               onPick={(next) =>
@@ -408,9 +429,15 @@ export function ShelfPage({
                page's stores (DES-218). This page only reports it. */
             if (next && next !== name) onRename?.(next)
           }}
-          /* Seam 9. */
+          /* Seam 9. polish: shelves F9: Escape puts the saved name back and
+             leaves, rather than leaving the typing behind for the next blur
+             to save. */
           onKeyDown={(event) => {
             if (event.key === "Enter") event.currentTarget.blur()
+            if (event.key === "Escape") {
+              event.currentTarget.value = name
+              event.currentTarget.blur()
+            }
           }}
           className="mt-1 text-[24px] leading-8 font-semibold text-[var(--color-graphite-900)]"
         />
@@ -586,9 +613,15 @@ export function ShelfPage({
                       />
                     </button>
                     <InlineInput
-                      defaultValue={item.section.name}
+                      defaultValue={item.section.id === freshId ? "" : item.section.name}
+                      placeholder={item.section.id === freshId ? "New section" : undefined}
+                      autoFocus={item.section.id === freshId}
                       aria-label="Section name"
-                      onBlur={(event) =>
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === "Escape") event.currentTarget.blur()
+                      }}
+                      onBlur={(event) => {
+                        if (item.section.id === freshId) setFreshId(null)
                         setItems((current) =>
                           current.map((candidate, i) =>
                             i === index && candidate.kind === "section"
@@ -596,13 +629,13 @@ export function ShelfPage({
                                   kind: "section" as const,
                                   section: {
                                     ...candidate.section,
-                                    name: event.target.value.trim() || "Section",
+                                    name: event.target.value.trim() || candidate.section.name,
                                   },
                                 }
                               : candidate,
                           ),
                         )
-                      }
+                      }}
                       className="text-[16px] leading-6 font-semibold text-[var(--color-graphite-900)]"
                     />
                   </div>
