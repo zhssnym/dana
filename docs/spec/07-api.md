@@ -4,7 +4,7 @@
 
 **First, every v1 page name below is an address rather than a page name, and renaming one would be a breaking change wearing a tidy-up's clothes.** RFC 0005 renamed the pages and renamed no address: `GET /views/my-day` serves the page now called Today, `GET /views/planned` and `/views/planned/calendar` serve Scheduled, `GET /views/tasks` serves the undated rows that Desk groups and Anytime lists, `POST` and `DELETE /tasks/:id/my-day` are the pull and un-pull of Today, and 7.8's heading says "My Day membership" for the same reason. The same holds of the response keys, `inbox`, `planned`, `tasks_inbox` and `tasks_groups`, and of `pulled`'s gloss on the TaskCard line. The client, the acceptance suite and the migrations all address these strings literally; the section that decides what a person sees on screen is section 9, and section 2 carries both names for every term. The one place a v1 name here is a *page* name rather than an address is 7.6's `POST /tasks` default, "folder_id default V's Inbox", which means V's default folder, called Desk since RFC 0005 and Inbox before it, and which is `is_default` in the request path rather than any string.
 
-**Second, this section is not the whole API Dana serves.** RFC 0005 was accepted on 2026-08-24 with additive units inserting 7.12 to 7.18 (events and notifications, Trash, comments, files, pages and shelves and acts, view routes, the search extension), replacing the `TaskCard` line of 7.0, and later adding 7.19 and two widenings of 7.16 (RFC 0005 change control item 46). Those units are **not folded here yet**, so this file ends at 7.11 and mentions Trash, shelves, comments and files nowhere while all four are built and shipping. A session looking for the Trash routes or the shelf routes finds nothing here and has to know to read RFC 0005, which is the failure change control item 20 is named for, one section over. **It is owed and is scoped as its own package**, for the reason at RFC 0005 change control item 49: this row's acceptance line is annotation, and folding hundreds of lines of accepted amendment into a frozen section is a different act from annotating a stale word in it.
+**Second, this section now carries the whole API Dana serves, folded by S29a on 2026-08-30.** RFC 0005's accepted units are folded into this frozen file as text and nothing else: unit 12a replaced the `TaskCard` line of 7.0; unit 12 inserted 7.12 to 7.17 and unit 9a inserted 7.18; change control item 46's units appended the order endpoint to 7.6, widened 7.16's workflow import and page contract, and inserted 7.19. Every one of them was ruled by the owner before it was written (RFC 0005's acceptance of 2026-08-24, re-accepted 2026-08-27; item 19 for the two `TaskCard` widenings; item 44 for the four frozen changes of item 46), so the freeze's rule, that section 7 moves only on a human decision, holds through the fold. 7.13 is folded as RFC 0005 accepted it and is being amended in parallel by RFC 0004's S28a, whose Replace unit lands on it, and item 36's permanent delete; read that row's outcome before relying on 7.13's last sentence.
 
 ### 7.0 Conventions
 
@@ -24,7 +24,7 @@ Timezone: every view endpoint takes tz, an IANA identifier, 422 naming the field
 The absent half of that sentence was escalated at the P4 change control and entered by owner ruling on 2026-08-07; this section had named only the invalid one. A view endpoint called without tz is missing a required parameter rather than accepting a default: 8.1 makes tz an input of every request that evaluates dates, and the only plausible default, UTC, would hand most of the world the wrong day with nothing on the wire to say it had been substituted. 7.1's treatment of the same parameter is the opposite and stays so, an unparseable zone on GET /auth/google being read as absent rather than refused; that section records it as a deliberate deviation so a stale zone database cannot lock anyone out of signing in, and it does not generalize past sign-in.
 
 Shared schemas:
-- TaskCard: { id, title, status, important, due_date, due_time, folder: {id, name, is_default}, assignee: {id, display_name, avatar_url} or null, is_recurring: bool, steps_done: int, steps_total: int, pulled: bool (viewer has a My Day entry), pending_invite_email: string or null (from invites.task_id), created_at, updated_at }.
+- TaskCard: { id, title, status, important, due_date, due_time, folder: {id, name, is_default}, assignee: {id, display_name, avatar_url} or null, is_recurring: bool, steps_done: int, steps_total: int, pulled: bool (viewer has a My Day entry), pending_invite_email: string or null (from invites.task_id), section_block_id: string or null, created_by: {id, display_name, avatar_url} or null, created_at, updated_at }.
 - TaskDetail: TaskCard plus { notes, recurrence_rule, series_id, reminder: {offset_minutes or time_of_day} or null, steps: [{id, title, done, position}], completed_at, completed_by, created_by }.
 - Folder: { id, name, is_default, is_owner: bool, member_count, counts: {pending, completed}, my_label, my_color }.
 
@@ -109,6 +109,7 @@ The folder inside the acceptance response is the full Folder object of 7.0, what
   200 TaskDetail.
 - DELETE /tasks/:id. Any member. 204. Cascades per 5.1 delete row.
 - POST /tasks/:id/complete?tz, /uncomplete, /abandon?tz, /restore. Transitions per 5.1 with its guards and no-ops; complete and abandon run generation when a rule is present; uncomplete and restore apply G-SERIES. Responses: 200 { task: TaskDetail, generated_task: TaskCard or null, deleted_successor_id or null }.
+- POST /tasks/:id/order. Any member. Body { after_id: uuid or null, before_id: uuid or null }: the two rows the task was dropped between in the folder's unscheduled list, either being null where the drop had no neighbour on that side. Guards: the task is accessible (404); the task is in that list, meaning undated and not completed (409, a hand order being the unscheduled list's alone); each named neighbour is a different task in the same list (422 naming the field); after_id must precede before_id in the list as it stands (422). The call writes the task's 4.5 `position` between its neighbours' and assigns positions to the rest of the list where they have none, in the order the list already reads, so nothing else moves. 200 TaskDetail.
 
 Clearing due_time deletes an offset reminder, escalated by the P7 engine session and entered by owner ruling on 2026-08-10. The PATCH bullets above name a consequence for due_date in both directions and none for due_time, and one of those edits has no satisfiable outcome: an offset reminder is computed from the task's due_time (section 8.6), so clearing the time leaves a row 8.6 cannot compute and 4.8 calls an illegal mode pair. Setting due_time to null therefore deletes the reminder, in the same transaction as the edit, and section 8.4 carries the rule beside the clear-date cascade it is the smaller sibling of. The grounds, the owner's and the engine's: 8.4 already deletes the reminder when the date is cleared, so the two read as one policy rather than two; refusing with 422 would block an edit the user is entitled to make over a row they may have forgotten; and converting the mode is the only option that silently changes when a reminder fires, by inventing a time of day nobody chose. A due_time that moves from one time to another invalidates nothing and is the ordinary recompute of 8.6. The mirror edit deletes likewise, ruled by the owner on 2026-08-10 on the P7 change control's recommendation: setting due_time on a date-only task carrying a time_of_day reminder deletes that reminder, for the same reason and in the same transaction, so this section and 8.4 state one policy rather than half of one each; that shape does compute, 8.6's date-only arm reading the reminder's own time_of_day and never the task's, but 4.8 calls the pair illegal and 9.3 switches the reminder control's mode with due_time, so the surviving row would render an offset picker over a wall time, a reminder the interface can neither show nor edit.
 
@@ -181,3 +182,67 @@ One rule covers both that refusal and section: a query parameter this section en
 Server-authoritative, always revalidated regardless of client behavior: every permission cell of 5.4; membership scope on every query; assignee membership and INV-5 forcing; the date-dependency rules and clear-date cascade; status transitions, G-SERIES, and generation; invite validations, matching, throttles, and rate limits; all input limits of 10.3; sort orders of section 6; today evaluation given tz; reminder computation and delivery decisions.
 
 Client conveniences with no authority, each shadowed by a server rule: disabling due_time, reminder, recurrence inputs until a date exists; hiding the assignee field in single-member folders; filtering the assignee dropdown to members; pre-filling defaults per entry point; warning dialogs before destructive calls; disabling double submit. Any rule found only in the client and not in this section's server list is a specification violation. As specified, there are none.
+
+### 7.12 Events and notifications
+
+GET /api/v1/events?folder=… — a folder's activity, newest first, member-only.
+GET /api/v1/events?subject=kind:id — one object's history, access via 10.2.
+GET /api/v1/notifications · POST /api/v1/notifications/:id/read ·
+POST /api/v1/notifications/read-all — the recipient's list and read state.
+Events are never written by clients; the chokepoint writes them.
+
+### 7.13 Trash
+
+GET /api/v1/trash — the caller's reachable deleted tasks and folders inside
+the 30-day window. POST /api/v1/tasks/:id/restore ·
+POST /api/v1/folders/:id/restore — access by folder membership, not by who
+deleted. DELETE of a task or folder sets deleted_at (soft); purge is the
+tick's, at 30 days, permanent.
+
+### 7.14 Comments
+
+GET /api/v1/folders/:id/comments?task=… · POST same (body, parent_id,
+file_id) · PATCH /api/v1/comments/:id · DELETE /api/v1/comments/:id (author
+or folder owner) · PUT/DELETE /api/v1/comments/:id/like. Member-only
+throughout; one reply level enforced.
+
+### 7.15 Files
+
+POST /api/v1/files (multipart; kind; folder scope; quota- and rate-limited;
+images downscaled server-side) · GET /api/v1/files/:id (authenticated
+serving) · DELETE /api/v1/files/:id (uploader or folder owner). Avatar: POST
+/api/v1/me/avatar updates users.avatar_url to the stored object.
+
+### 7.16 Pages, shelves and acts
+
+GET/PUT /api/v1/folders/:id/page — the block list, LWW per block, 409 on
+stale updated_at. CRUD /api/v1/shelves and GET/PUT /api/v1/shelves/:id/page.
+POST /api/v1/tasks/:id/duplicate · POST /api/v1/folders/:id/duplicate — the
+DES-198 copy rules server-side. POST /api/v1/workflows/import?tz — zod-validated structure file, caps per section 10. It creates folders, their page blocks (sections and paragraphs), and their tasks, and a task carries its title, notes, star, repeat, reminder and step titles; never ids, people, due dates or states, a step's tick included. Where a task carries a repeat or a reminder, the imported task is anchored on the import day in the zone tz names, 4.5 and 8.6 admitting neither without a date; tz is refused as 422 when present and invalid, and required as 422 exactly when the file carries such a task. POST /api/v1/folders/:id/transfer-ownership
+{ to: user_id } — owner-only, member target, the DES-225/8.9 flow.
+
+A block object carries `width_pct: integer or null` beside its position: the person's dragged width as a percentage of the column, 25 to 100, null where nobody has dragged it, and 422 naming the field where it is out of those bounds or set on a block that is not an image (4.17).
+
+### 7.17 View routes
+
+Client routes /app/tasks/:id and /app/shelves/:id resolve by the SPA against
+existing reads; the section 10.2 not-found discipline covers both. No new
+server rendering.
+
+### 7.18 Search extension
+
+GET /api/v1/search gains additive result kinds beside Q8's tasks: folders and shelves (matched on name and description) and pages (matched on block text), each entry carrying its kind, id, name, and route. Task matching extends to step titles. The query contract, debounce expectations, the 2-to-100-character limit, and the 1000-row cap are unchanged; a client that ignores the new kinds sees exactly the v1 response.
+
+### 7.19 Place covers
+
+GET /api/v1/place-covers — the caller's own covers, one entry per place they
+have chosen one for, each carrying place, file_id, preset and focal_y.
+PUT /api/v1/place-covers/:place — body { file_id } or { preset }, exactly one
+of the two (422 naming the pair otherwise), plus an optional focal_y of 0 to
+100 defaulting to 50; a named file must be one the caller can read (404 by
+10.2's rule, never 403). Idempotent, 200 with the entry.
+DELETE /api/v1/place-covers/:place — removal, 204, idempotent.
+`:place` is 4.20's set and anything else is 404, a place page being furniture
+rather than a resource that might exist elsewhere. Covers are the caller's
+own throughout: no route reads or writes another person's, and a folder's or
+a shelf's cover stays where 7.4 and 7.16 already put it.
