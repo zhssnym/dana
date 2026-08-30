@@ -181,3 +181,40 @@ One rule covers both that refusal and section: a query parameter this section en
 Server-authoritative, always revalidated regardless of client behavior: every permission cell of 5.4; membership scope on every query; assignee membership and INV-5 forcing; the date-dependency rules and clear-date cascade; status transitions, G-SERIES, and generation; invite validations, matching, throttles, and rate limits; all input limits of 10.3; sort orders of section 6; today evaluation given tz; reminder computation and delivery decisions.
 
 Client conveniences with no authority, each shadowed by a server rule: disabling due_time, reminder, recurrence inputs until a date exists; hiding the assignee field in single-member folders; filtering the assignee dropdown to members; pre-filling defaults per entry point; warning dialogs before destructive calls; disabling double submit. Any rule found only in the client and not in this section's server list is a specification violation. As specified, there are none.
+
+### 7.13 Trash
+
+**Landed here by RFC 0004's S28a on 2026-08-30 ahead of S29's fold, because
+this row amended the section; the wording is RFC 0005's "Replace section
+7.13" unit under the block written at S28a, and that unit wins if the two
+ever differ.**
+
+GET /api/v1/trash — the caller's reachable deleted tasks and folders inside
+the 30-day window. POST /api/v1/tasks/:id/restore ·
+POST /api/v1/folders/:id/restore — access by folder membership, not by who
+deleted. DELETE of a task or folder sets deleted_at (soft); purge is the
+tick's, at 30 days, permanent.
+
+DELETE /api/v1/trash/tasks/:id · DELETE /api/v1/trash/folders/:id — the
+permanent delete (RFC 0005 change control items 36 and 38): destroys a
+trashed row now, exactly as the 11.7 purge would at thirty days, through the
+purge's own collection rather than a delete beside it. Only a row in Trash
+qualifies; a live row is 404, the live delete being the soft one above. The
+act is the folder owner's alone, for a task as for a folder: a member who is
+not the owner is answered 403, the row being visible to them, and a
+non-member 404 (10.2). The cascades fire at once: a folder's tasks,
+conversations, page blocks, memberships, events and files rows; a task's
+steps, reminders, My Day entries, comments, and the files that hung on its
+conversation and on nothing else. Every collected file's bytes leave the
+store after the transaction commits, 7.15's order. 204 with no body; a
+task's destruction is recorded as a `deleted` event against its folder, a
+folder's is not, its events going with it.
+
+**7.16's duplicate line, annotated by the same row.** A task's duplicate
+(`POST /api/v1/tasks/:id/duplicate`) carries the title, the notes, the
+importance, the section, the steps with every step undone, the due date and
+the repeat, and never the conversation, the completion or the assignment;
+the copy is assigned to and created by whoever made it. A spent due date
+re-anchors on today and a future one keeps, 9.6's rule for a folder read
+onto one task. 201 with the new TaskDetail; member access on the source,
+404 otherwise.

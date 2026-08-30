@@ -1322,6 +1322,66 @@ title" and "Steps per task". That is the point of listing them rather than
 inventing a second set: an imported task is refused by exactly the limits a
 typed one is.
 
+### The frozen changes of change control items 36, 38 and 46, written at S28a
+
+*Two units, added 2026-08-30 by RFC 0004's S28a row, ruled by delegation
+(section 13 item 52). Item 36 ruled that Trash gains a permanent delete and
+that it destroys the objects, and named what it obliges: "7.13 gains an
+address, which is a widening of frozen section 7 and therefore a Replace
+unit written by role 04 ... Nothing may be built before that unit exists."
+Item 38 answered the permission question item 36 left open. Item 47(b)
+priced the deferred Duplicate as "one frozen section 7 addition shaped
+exactly like 7.16's"; item 51(h) then found the endpoint already specified
+in 7.16 and built, so the second unit is an annotation of 7.16's existing
+line rather than a new address. Both are written here rather than into
+`docs/spec/` for unit 12a's reason: the section 7 fold is S29's, and a
+second copy of a frozen amendment is the disagreement this repository keeps
+warning itself about. Both units are additive: no address changes meaning,
+no response field is removed.*
+
+### Replace section 7.13
+
+```markdown
+### 7.13 Trash
+
+GET /api/v1/trash — the caller's reachable deleted tasks and folders inside
+the 30-day window. POST /api/v1/tasks/:id/restore ·
+POST /api/v1/folders/:id/restore — access by folder membership, not by who
+deleted. DELETE of a task or folder sets deleted_at (soft); purge is the
+tick's, at 30 days, permanent.
+
+DELETE /api/v1/trash/tasks/:id · DELETE /api/v1/trash/folders/:id — the
+permanent delete (change control items 36 and 38): destroys a trashed row
+now, exactly as the 11.7 purge would at thirty days, through the purge's
+own collection rather than a delete beside it. Only a row in Trash
+qualifies; a live row is 404, the live delete being the soft one above. The
+act is the folder owner's alone, for a task as for a folder: a member who
+is not the owner is answered 403, the row being visible to them, and a
+non-member 404 (10.2). The cascades fire at once: a folder's tasks,
+conversations, page blocks, memberships, events and files rows; a task's
+steps, reminders, My Day entries, comments, and the files that hung on its
+conversation and on nothing else. Every collected file's bytes leave the
+store after the transaction commits, 7.15's order. 204 with no body; a
+task's destruction is recorded as a `deleted` event against its folder,
+a folder's is not, its events going with it.
+```
+
+### Annotate the duplicate line of section 7.16
+
+*Not a Replace: the address `POST /api/v1/tasks/:id/duplicate` already
+stands in 7.16 and this pins what the copy carries, on Imran's ruling at
+item 47(b) and item 44's B10.*
+
+```markdown
+A task's duplicate carries the title, the notes, the importance, the
+section, the steps with every step undone, the due date and the repeat, and
+never the conversation, the completion or the assignment; the copy is
+assigned to and created by whoever made it. The date follows 9.6's rule for
+a folder read onto one task: a spent due date re-anchors on today, a future
+one keeps, and the repeat rides whichever the copy carries. 201 with the
+new TaskDetail. Member access on the source, 404 otherwise (10.2).
+```
+
 ## Compatibility and migration
 
 Expand-and-contract per 11.5, expand-only in this RFC: every new column is
@@ -5762,6 +5822,87 @@ fold, the way P7's mid-package change control ratified the pass callable:
     page**, which is what item 50(i) said of `states/PageStates.tsx` and what
     S30's walkthrough exists for; this row offers it as the second instance of
     the same lesson rather than as a defect it happened to trip over.
+
+52. **S28a: the permanent delete built and the Duplicate closed, four
+    delegated rulings recorded, 2026-08-30.** The owner delegated every
+    decision this row met, and each is recorded here as a ruling by
+    delegation, taking the recommendation the documents already carried.
+
+    **(a) The frozen 7.13 Replace unit and the 7.16 annotation are written
+    above**, in the block "The frozen changes of change control items 36, 38
+    and 46, written at S28a", the way item 44's four were at S22a: before
+    the endpoints, in this RFC rather than in `docs/spec/`, S29's fold owning
+    the section. The address is `DELETE /api/v1/trash/tasks/:id` and
+    `DELETE /api/v1/trash/folders/:id`, under the Trash surface rather than
+    beside the soft deletes, so that `DELETE /tasks/:id` keeps meaning what
+    7.6 says it means and a client cannot reach the permanent act by
+    mistyping the reversible one.
+
+    **(b) Item 38's answer is read onto tasks, ruled by delegation.** Item
+    38 answered item 36's open question for folders: permanent deletion is
+    the owner's. It said nothing of a task in a shared folder, and item 36's
+    hazard, "permanently destroying a co-member's attachments", is exactly a
+    task's conversation, whose files (4.15) go with the task. So the rule is
+    one rule: the folder owner deletes permanently, task or folder; a member
+    who is not the owner is told 403 rather than 10.2's 404, because they can
+    see the row in Trash and hiding the refusal would tell them something
+    untrue; a non-member is 404. Any member may still soft-delete and
+    restore, unchanged. The alternative, any member, was the one item 36
+    named as not obviously the same permission as a reversible delete, and
+    the third, no control on shared folders, would make the act depend on a
+    fact the Trash row does not show. AC-276 pins this.
+
+    **(c) A task's permanent delete takes the files that hung on its
+    conversation and on nothing else, ruled by delegation.** The tick's
+    purge said "tasks carry no files rows, so the task purge needs no
+    collection", which is true of 4.16 and false of 4.15: comment_files
+    hang uploads on comments, the task's cascade takes the comments, and the
+    files rows survive with nothing left that names them, reachable only by
+    an id nobody holds and spending the owner's quota for ever, which is the
+    exact shape item 36 exists to prevent one table over. So `destroyTasks`
+    collects the files referenced by the doomed tasks' comments and by no
+    live thing (no other comment, page block, folder cover, shelf cover or
+    place cover), deletes their rows in the same transaction, and hands the
+    ids to the caller for the store. **The tick's task purge now does the
+    same**, because item 36's requirement is one collection for both
+    callers and a purge that leaked what the endpoint did not would be the
+    disagreement in the other direction. A purge with nothing to collect is
+    still the single statement the scheduler's interval test pins; the
+    second statement runs only when the first collected something.
+
+    **(d) The collection moved from `scheduler/pass.ts` into
+    `domain/trash.ts`**, as `destroyFolders`, `destroyTasks` and
+    `removeObjects`, each taking the caller's selection: the pass hands its
+    age predicate with SKIP LOCKED, the endpoint one id with FOR UPDATE.
+    That is item 36's "call the collection the purge already does rather
+    than write a delete beside it" made literal: there is one statement for
+    each kind and two callers of it. AC-235 stayed green through the move
+    without edit, which is what proves the move changed nothing the tick
+    did. `accountDeletion.ts` keeps its own collection, which predates this
+    and which AC-138 pins; folding it is owed to nobody and was not done.
+
+    **(e) Duplicate: item 46 closes.** Item 51(h) was right that the
+    endpoint exists at `domain/acts.ts` and `routes/workshop.ts`; what it
+    lacked against item 47(b)'s ruling was the date rule, a spent due date
+    copying spent where 9.6 re-anchors it on today, and any criterion
+    pinning the ruling's shape. `duplicateTask` now re-anchors a spent date
+    on the database's current_date, the comparison day 7.16 already uses
+    for a folder, and AC-277 pins assignment to the duplicator (B10), the
+    title, notes and undone steps, the absent conversation, the re-anchored
+    and the kept date, and 404 for a non-member. The "attachments" item
+    47(b) listed have no home on a task: 4.16 scopes files to folders and
+    4.15 to comments, and the conversation is the one thing ruled out
+    absolutely, so a task's copy carries no file and there is nothing to
+    build for it. What remains, as item 51(h) said, is a client handler in
+    `lib/task-acts.ts`, which is S28b's or the close's.
+
+    **(f) AC-262's last arm moved in this commit, red until S28b**, item
+    36's own sequencing: it now asserts that a Trash row offers the folder
+    owner a permanent delete, and the browser leg will be red on that one
+    case until the client half draws it. The vitest legs are unaffected.
+
+    **(g) No migration.** Every cascade the permanent delete relies on is
+    already named in 0000, 0003 and 0005, and AC-001 asserts nothing new.
 
 ## Implementation plan
 
