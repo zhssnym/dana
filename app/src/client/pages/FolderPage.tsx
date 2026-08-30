@@ -84,6 +84,7 @@ client-side preference. The thread fetches only while its surface is open
 and polls politely while it stays open, which is the whole of D3.
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
@@ -113,7 +114,8 @@ import {
   useShelves,
   useThread,
 } from '../api/queries.js'
-import { uploadFile } from '../api/http.js'
+import { getPlain, uploadFile } from '../api/http.js'
+import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 import { BlocksEditor } from '../components/page/BlocksEditor.js'
 /* S26: the head is the prototype's own composition rather than this page's
@@ -194,7 +196,9 @@ import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import type { PageBlock, PageBlockWrite } from '../../shared/pages.js'
-import type { TaskCard } from '../../shared/tasks.js'
+import { getTaskResponse } from '../../shared/tasks.js'
+import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
+import { folderToWorkflowFile } from '../../shared/workflows.js'
 
 /**
  * What the list says when the folder holds open tasks and the filter has
@@ -293,6 +297,9 @@ export function FolderPage({
   const shelves = useShelves()
   const open = useFolderOpenTasks(id)
   const page = useFolderPage(id)
+  /* "Save as workflow" reads each row's 7.6 detail before it writes the
+     file, through the cache the row already stores one in. */
+  const cache = useQueryClient()
   const basis = useRowBasis()
   const actions = useRowActions()
   const confirm = useConfirm()
@@ -687,27 +694,42 @@ export function FolderPage({
     leave.mutate(id, { onSuccess: () => navigate(paths.desk) })
   }
 
-  /** DES-206: structure and titles only, the import's own keep-set. */
-  function saveAsWorkflow(): void {
-    const sections = (page.data?.blocks ?? [])
-      .filter((block) => block.kind === 'section' || block.kind === 'paragraph')
-      .map((block) => ({ kind: block.kind, text: block.text ?? '' }))
-      .filter((block) => block.text !== '')
+  /*
+  DES-206's file, as RFC 0005 change control item 44's B3 widened it: the
+  folder's sections and paragraphs, and per task its notes, star, repeat,
+  reminder and step titles beside the title.
+
+  **The rows are read before the file is written, and that is the fix rather
+  than an optimisation missed.** This page lists 7.10 TaskCards, which carry
+  `steps_done` and `steps_total` and neither the notes nor the step titles,
+  so the object literal that stood here could only ever write `{ title }`.
+  The file therefore never held a note or a step title, and importing one
+  produced a folder that looked as though the import had dropped them; it
+  had not, and `shared/workflows.ts` is where the two halves of the format
+  now sit together. The details are read through the same query key the row
+  cache uses, so an already-open task costs no request.
+  */
+  async function saveAsWorkflow(): Promise<void> {
+    const folderName = detail?.name ?? 'Folder'
+    const pending = [...scheduled, ...unscheduled].filter(
+      (task) => task.status === 'pending',
+    )
+    let tasks: TaskDetail[]
+    try {
+      tasks = await Promise.all(
+        pending.map((task) =>
+          cache.fetchQuery({
+            queryKey: queryKeys.task(task.id),
+            queryFn: () => getPlain(getTaskResponse, `/tasks/${task.id}`),
+          }),
+        ),
+      )
+    } catch {
+      showToast('Could not read this folder’s tasks, so nothing was saved.')
+      return
+    }
     const file = JSON.stringify(
-      {
-        dana: 'workflow',
-        version: 1,
-        name: detail?.name ?? '',
-        folders: [
-          {
-            name: detail?.name ?? 'Folder',
-            tasks: [...scheduled, ...unscheduled]
-              .filter((task) => task.status === 'pending')
-              .map((task) => ({ title: task.title })),
-            ...(sections.length > 0 ? { blocks: sections } : {}),
-          },
-        ],
-      },
+      folderToWorkflowFile(folderName, tasks, page.data?.blocks ?? []),
       null,
       2,
     )
@@ -759,7 +781,7 @@ export function FolderPage({
     )
     if (action === 'rename' && isOwner) setRenaming(true)
     else if (action === 'history') setHistoryOpen(true)
-    else if (action === 'workflow') saveAsWorkflow()
+    else if (action === 'workflow') void saveAsWorkflow()
     else if (action === 'leave' && !isOwner) askLeave()
     else if (action === 'delete' && isOwner && !isDefault) askDelete()
   })
@@ -992,7 +1014,9 @@ export function FolderPage({
                   },
                 })
               },
-              workflow: saveAsWorkflow,
+              workflow: () => {
+                void saveAsWorkflow()
+              },
               leave: isOwner ? undefined : askLeave,
               delete: isOwner && !isDefault ? askDelete : undefined,
             }}
