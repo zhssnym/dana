@@ -179,6 +179,7 @@ import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { WindowBarActions } from '../components/window-bar.js'
 import { CollapsibleSection, PageSection } from '../states/PageSection.js'
+import { isNarrowed } from '../views/filter.js'
 import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
@@ -370,6 +371,19 @@ export function FolderPage({
   })
   const visible = place.narrow(openRows)
   /*
+  Item 44's B4, at S23a: "in a folder, native or user's, with no filter or
+  sort applied, a task may be arranged by hand", and with either applied the
+  drag springs back. Grouping is read with them: a grouped list is drawn as
+  the groups the filter chose, and a hand order under a heading the filter
+  put there would be an order over a list the person did not arrange. The
+  completed lists below pass nothing, a finished task carrying no hand order
+  (7.6's own 409).
+  */
+  const arrangement = {
+    arrangeable:
+      !isNarrowed(place.filter) && place.filter.sort === 'manual' && place.groupBy === 'none',
+  }
+  /*
   **The board's columns are the page's sections** (item 44's B2, ledger
   L-044), seeded from the blocks rather than discovered from the rows, and in
   the page's own order.
@@ -468,6 +482,7 @@ export function FolderPage({
         context={context}
         actions={actions}
         onAsk={confirm.ask}
+        arrangement={arrangement}
       />
       {/* 9.6: "a capture per section". 9.3's entry table gives it this
           folder and this section, the section being what the surface it
@@ -1030,6 +1045,7 @@ export function FolderPage({
                   context={context}
                   actions={actions}
                   onAsk={confirm.ask}
+                  arrangement={arrangement}
                 />
               )}
             </PageBody>
