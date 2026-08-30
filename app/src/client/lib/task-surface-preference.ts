@@ -66,6 +66,13 @@ Both are the state this row inherited rather than one it created.
 
 import { useSyncExternalStore } from 'react'
 
+import { mutateApi } from '../api/http.js'
+import { queryKeys } from '../api/keys.js'
+import { queryClient, writeFailureMessage } from '../api/queryClient.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
+import type { SettingsBundle } from '../../shared/bundle.js'
+import { showToast } from '../state/toasts.js'
+
 /**
  * Where a task opens, in the prototype's spelling, which is what every lifted
  * surface switches on.
@@ -136,4 +143,29 @@ export function useTaskSurfacePreference(): TaskSurfacePreference {
     () => current,
     () => DEFAULT,
   )
+}
+
+/**
+ * 9.7's "where a task opens" control, at S27, and section 13 item 48's
+ * question answered by delegation (RFC 0005 change control item 52).
+ *
+ * The column is written because 9.7 names it as the record and item 48's
+ * first answer makes it one; the browser store is written beside it because
+ * the ruled behaviour is the store's and a control that wrote only the column
+ * would go on being the dead control item 48 describes. `tab` has no store
+ * value, 9.3's surface knowing two homes, so it reaches the column alone.
+ */
+export function setTaskOpen(mode: SettingsBundle['task_open']): void {
+  if (mode !== 'tab') setTaskSurfacePreference(mode === 'panel' ? 'right' : 'dialog')
+  const client = queryClient()
+  void mutateApi(getSettingsResponse, {
+    method: 'PATCH',
+    path: '/settings',
+    body: { task_open: mode },
+  })
+    .then((bundle) => {
+      client?.setQueryData(queryKeys.bundle(), bundle)
+      void client?.invalidateQueries()
+    })
+    .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }

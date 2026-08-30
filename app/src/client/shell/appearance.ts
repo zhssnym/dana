@@ -39,6 +39,7 @@ chose.
 import { useEffect } from 'react'
 
 import type { SettingsBundle } from '../../shared/bundle.js'
+import { mirrorTheme } from '../lib/theme.js'
 
 type Theme = SettingsBundle['theme']
 type Density = SettingsBundle['row_density']
@@ -82,7 +83,7 @@ function resolve(theme: Theme, prefersDark: boolean): 'light' | 'dark' {
  * the first paint is the light comfortable one every account starts on rather
  * than an unstyled one that corrects itself.
  */
-export function useAppearance(theme: Theme, density: Density): void {
+export function useAppearance(theme: Theme, density: Density, settled = true): void {
   useEffect(() => {
     const win = view()
     const media = win.matchMedia?.(DARK_QUERY)
@@ -91,6 +92,13 @@ export function useAppearance(theme: Theme, density: Density): void {
       win.document.documentElement.setAttribute('data-theme', resolve(theme, media?.matches ?? false))
     }
     apply()
+    /* RFC 0005 change control item 43: the bundle's value is mirrored into
+       the browser every time it is applied, so the inline script in
+       `index.html` can paint the first frame from it. Only once the bundle
+       has landed, or the default standing in for it would overwrite the
+       mirror with `system` for the length of one read. `system` mirrors as
+       `system`, never as what it resolved to. */
+    if (settled) mirrorTheme(theme)
 
     /* Watched only while the choice is to follow: a person on Light has said
        what they want and the device's opinion is not an input any more. */
@@ -99,7 +107,7 @@ export function useAppearance(theme: Theme, density: Density): void {
     return () => {
       media.removeEventListener?.('change', apply)
     }
-  }, [theme])
+  }, [theme, settled])
 
   useEffect(() => {
     view().document.documentElement.setAttribute('data-density', density)
