@@ -51,7 +51,9 @@ export function QuickAdd({
   folderName: string
   label?: string
   onAdd: (title: string) => void
-  onOpenFullForm: () => void
+  /* polish: taskrow F3. Carries whatever was typed, so the full form opens
+     on it rather than on a blank title beside the words left behind. */
+  onOpenFullForm: (title: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -109,7 +111,26 @@ export function QuickAdd({
               event.preventDefault()
               submit()
             } else if (event.key === 'Escape') {
+              /* polish: taskrow F7. One rule for Escape and for clicking away:
+                 an empty box collapses, a box with words in it keeps them.
+                 Escape used to throw the words away while a click kept them. */
               event.preventDefault()
+              event.stopPropagation()
+              if (title.trim() === '') {
+                setTitle('')
+                setError('')
+                setOpen(false)
+              } else {
+                event.currentTarget.blur()
+              }
+            }
+          }}
+          onBlur={(event) => {
+            /* Focus moving to "Open full form" beside it is not leaving. */
+            const within = event.currentTarget.parentElement?.contains(
+              event.relatedTarget as Node | null,
+            )
+            if (!within && title.trim() === '') {
               setTitle('')
               setError('')
               setOpen(false)
@@ -136,7 +157,12 @@ export function QuickAdd({
                 // 9.1's names table: a fixed string, the region the quick-add
                 // sits in being what separates two instances of it.
                 aria-label={OPEN_FULL_FORM}
-                onClick={onOpenFullForm}
+                onClick={() => {
+                  onOpenFullForm(title.trim())
+                  setTitle('')
+                  setError('')
+                  setOpen(false)
+                }}
               >
                 <SlidersHorizontal
                   className="size-4"

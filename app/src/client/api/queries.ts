@@ -17,6 +17,8 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
 import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
+import { sampleStatus } from '../../shared/sample.js'
+import type { SampleStatus } from '../../shared/sample.js'
 import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
 import { getEventsResponse, getNotificationsResponse } from '../../shared/events.js'
@@ -387,6 +389,14 @@ export function useBundle(): UseQueryResult<GetSettingsResponse> {
   })
 }
 
+/** Item 60: whether the sample workspace is present, and how big it is. */
+export function useSample(): UseQueryResult<SampleStatus> {
+  return useQuery({
+    queryKey: queryKeys.sample(),
+    queryFn: () => getPlain(sampleStatus, '/sample'),
+  })
+}
+
 /** The viewer's saved views (4.19), which the sidebar pins alongside natives. */
 export function useSavedViews(): UseQueryResult<GetViewsResponse> {
   return useQuery({
@@ -436,6 +446,16 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
     queryKey: queryKeys.events(subject ?? ''),
     queryFn: () => getPlain(getEventsResponse, '/events', { subject: subject ?? '' }),
     enabled: subject !== null,
+  })
+}
+
+/** 7.12's other read: everything that happened inside one folder, newest
+ * first (polish: folderpage F3, the folder's History sheet). */
+export function useFolderEvents(folderId: string | null): UseQueryResult<GetEventsResponse> {
+  return useQuery({
+    queryKey: queryKeys.events(`folder-scope:${folderId ?? ''}`),
+    queryFn: () => getPlain(getEventsResponse, '/events', { folder: folderId ?? '' }),
+    enabled: folderId !== null,
   })
 }
 

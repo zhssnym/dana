@@ -83,6 +83,16 @@ export function useTabs(): TabState {
 export function retarget(path: string): void {
   const active = state.tabs.find((tab) => tab.id === state.activeId)
   if (active === undefined || active.path === path) return
+  /* polish: tabstrip F2. A page that is already open in another tab is
+     that tab: a sidebar click switches to it rather than quietly replacing
+     whatever the active tab held. Only a page open nowhere retargets the
+     active tab, as an address bar does. */
+  const open = state.tabs.find((tab) => tab.path === path)
+  if (open !== undefined) {
+    state = { ...state, activeId: open.id }
+    publish()
+    return
+  }
   state = {
     ...state,
     tabs: state.tabs.map((tab) => (tab.id === state.activeId ? { ...tab, path } : tab)),
@@ -99,6 +109,14 @@ export function retarget(path: string): void {
  * relationship between the two invisible the moment there are four.
  */
 export function openInNewTab(path: string): string {
+  /* polish: tabstrip F4. The plus never opens a second tab for a page that
+     already has one; it goes to the one that exists. */
+  const open = state.tabs.find((tab) => tab.path === path)
+  if (open !== undefined) {
+    state = { ...state, activeId: open.id }
+    publish()
+    return path
+  }
   const tab: Tab = { id: nextId(), path }
   const at = state.tabs.findIndex((candidate) => candidate.id === state.activeId)
   const tabs = [...state.tabs]

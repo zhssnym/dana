@@ -70,7 +70,9 @@ async function openTaskSurface(page: Page, title: string): Promise<void> {
 }
 
 test.describe('AC-219: day-level due, clocked reminder', () => {
-  test('AC-219: the due picker offers no time of day', async ({ page }) => {
+  test('AC-219: the due picker opens on a day grid, and its time is the reminder', async ({
+    page,
+  }) => {
     const title = caseTitle('Dated errand, due half')
     await signIn(page, seedSubs.hassan)
     await createTask(page, {
@@ -91,12 +93,16 @@ test.describe('AC-219: day-level due, clocked reminder', () => {
       picker.getByRole('grid').or(picker.getByRole('gridcell')).first(),
       'spec 9.3: the due picker opens on a day grid, a due date being a day (DES-178)',
     ).toBeVisible()
+    /* Reworked in the polish round of 2026-08-30 (taskcard F7, AC-356): the
+       due picker takes a time under the day, and that time is 4.8's reminder
+       on the day rather than a due_time. A due date stays a day (4.11); what
+       the picker offers is one control, named for what it writes. */
     await expect(
       timeControls(picker),
-      'spec 9.3: "the pickers offer no time of day" on the due chip; a stored v1 ' +
-        'due_time is displayed and clearable, never settable, so no control here takes ' +
-        'a clock time',
-    ).toHaveCount(0)
+      'spec 9.3: one clock in the due picker, the reminder\'s, and no due_time control: a ' +
+        'stored v1 due_time is displayed and clearable, never settable',
+    ).toHaveCount(1)
+    await expect(timeControls(picker)).toHaveAccessibleName('Due time')
   })
 
   test('AC-219: the reminder picker on a dated task offers a time on that day', async ({

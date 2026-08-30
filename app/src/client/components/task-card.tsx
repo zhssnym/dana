@@ -46,6 +46,7 @@ import {
   ListPlus,
   Maximize2,
   MessageSquare,
+  MoreHorizontal,
   Paperclip,
   Play,
   Plus,
@@ -904,12 +905,16 @@ function StepList({
       | { kind: "new-task" }
       | { kind: "folder"; name: string; color: string },
   ) => void
-  addStep: (id: string) => void
+  /* polish: taskcard F1. A step arrives with its title; the list never
+     writes a placeholder. */
+  addStep: (id: string, title: string) => void
   renameStep: (id: string, index: number, title: string) => void
   onStepsToNewFolder: (taskId: string, indices: number[]) => void
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
+  const [adding, setAdding] = useState(false)
+  const [newStep, setNewStep] = useState("")
   /* Steps sort on the same engine as the task list, so the two feel like one
      gesture learned once. No dwell here: two steps do not make a folder, and
      an interaction that arms on stillness in one list and does nothing in the
@@ -1169,6 +1174,58 @@ function StepList({
             >
               <X className="size-3.5" strokeWidth={2} aria-hidden="true" />
             </button>
+            {/* polish: taskcard F6. A step's own menu, on hover beside the
+                cross, so "Make this a task" is found where a person looks for
+                it rather than only behind a press-and-hold that a mouse turns
+                into a rename. Offered only where the act has somewhere to go:
+                a step with no id yet, or a task with no folder, draws none. */}
+            {moveStepsTo !== undefined && task.folder !== undefined && step.id !== undefined ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label={`More actions for ${step.title}`}
+                      onClick={(event) => event.stopPropagation()}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      className={cn(
+                        "flex size-6 shrink-0 items-center justify-center rounded-md text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/step:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
+                        T_FAST,
+                        FOCUS,
+                        "hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-700)]",
+                      )}
+                    >
+                      <MoreHorizontal className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="min-w-[12rem]">
+                  <DropdownMenuItem
+                    label="Make this a task"
+                    onClick={() => {
+                      const folder = task.folder
+                      if (folder === undefined) return
+                      moveStepsTo(task.id, [i], {
+                        kind: "folder",
+                        name: folder.name,
+                        color: folder.color,
+                      })
+                    }}
+                  >
+                    <ListPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    Make this a task
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    label="Remove"
+                    onClick={() => removeSteps(task.id, [i])}
+                  >
+                    <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
           </div>
         )
       })}
@@ -1190,8 +1247,54 @@ function StepList({
         <p className="px-2 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
           {STEP_CAP_NOTICE}
         </p>
-      ) : selecting ? null : (
-        <EmptyAction label="Add a step" onSelect={() => addStep(task.id)} />
+      ) : selecting ? null : adding ? (
+        /* polish: taskcard F1. "Add a step" opens an empty, focused field and
+           nothing is written until it holds text: Enter saves and opens the
+           next, blur saves what is there, Escape leaves. It used to write a
+           step called "New step" on the press and hand focus back to the
+           button, so every Enter meant another blank row on the server. */
+        <div className="flex h-8 items-center gap-2 rounded-md pr-1">
+          <span className="flex size-5 shrink-0 items-center justify-center">
+            <span className="size-4 rounded-[3px] border border-input bg-background" />
+          </span>
+          <InlineInput
+            autoFocus
+            value={newStep}
+            aria-label="New step"
+            placeholder="Type a step"
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            onChange={(event) => setNewStep(event.target.value)}
+            onBlur={() => {
+              const title = newStep.trim()
+              if (title) addStep(task.id, title)
+              setNewStep("")
+              setAdding(false)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === "Escape") {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+              if (event.key === "Enter") {
+                const title = newStep.trim()
+                if (!title) {
+                  setAdding(false)
+                  return
+                }
+                addStep(task.id, title)
+                setNewStep("")
+              }
+              if (event.key === "Escape") {
+                setNewStep("")
+                setAdding(false)
+              }
+            }}
+            className="min-w-0 flex-1 rounded-[4px] bg-background px-1 text-[14px] leading-5 text-[var(--color-graphite-800)] outline-none ring-2 ring-[var(--color-dana-accent-600)]"
+          />
+        </div>
+      ) : (
+        <EmptyAction label="Add a step" onSelect={() => setAdding(true)} />
       )}
 
       <Reveal open={selecting}>
@@ -1836,9 +1939,9 @@ export function TaskCard({
                   ),
                 })
               }
-              addStep={(id) =>
+              addStep={(id, title) =>
                 patch(id, {
-                  steps: [...(task.steps ?? []), { title: "New step", done: false }],
+                  steps: [...(task.steps ?? []), { title, done: false }],
                 })
               }
               onStepsToNewFolder={onStepsToNewFolder}
@@ -1865,6 +1968,16 @@ export function TaskCard({
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               onChange={(event) => patch(task.id, { notes: event.target.value })}
+              /* polish: taskcard F10. Escape while writing leaves the field
+                 and nothing else; a second Escape, with nothing focused,
+                 closes the card the way it always did. */
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  event.currentTarget.blur()
+                }
+              }}
               className={cn(
                 "-mx-1 w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[12px] leading-5 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
                 T_FAST,

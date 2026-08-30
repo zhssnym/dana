@@ -180,6 +180,7 @@ export async function signIn(
   sub: string,
   name?: string,
   email?: string,
+  options: { sample?: boolean } = {},
 ): Promise<void> {
   // The email is named only where a criterion turns on it. 6 Q12 matches a
   // pending invite to the viewer's lowercased address, so an account that is
@@ -190,7 +191,10 @@ export async function signIn(
   // counting since the page's first navigation.
   trackApi(page)
 
-  const body: Record<string, string> = { sub }
+  // Item 60: a fresh account here is the empty one these criteria count on,
+  // so the sample workspace is declined at the door. The one spec that
+  // measures the strip signs in through its own call with sample true.
+  const body: Record<string, string | boolean> = { sub, sample: options.sample ?? false }
   if (name !== undefined) body['name'] = name
   if (email !== undefined) body['email'] = email
   const response = await page.request.post('/api/v1/auth/dev-login', { data: body })
@@ -291,6 +295,33 @@ export async function createTask(page: Page, body: NewTask): Promise<{ id: strin
       `${response.status()}: ${await response.text()}`,
   ).toBe(201)
   return (await response.json()) as { id: string }
+}
+
+/**
+ * POST /tasks/:id/steps, one call per title, in order.
+ *
+ * Added in the polish round of 2026-08-30 (AC-352, AC-354): a fixture that
+ * needs real steps had to write them by hand, `NewTask` carrying none because
+ * 7.6 does not take them. The steps are posted one at a time and awaited in
+ * turn, so the positions 7.7 assigns follow the order given here.
+ */
+export async function createSteps(
+  page: Page,
+  taskId: string,
+  titles: readonly string[],
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  for (const title of titles) {
+    const response = await page.request.post(`/api/v1/tasks/${taskId}/steps`, {
+      data: { title },
+      headers: { 'X-CSRF-Token': token },
+    })
+    expect(
+      response.status(),
+      `POST /tasks/${taskId}/steps for ${JSON.stringify(title)} answered ` +
+        `${response.status()}: ${await response.text()}`,
+    ).toBe(201)
+  }
 }
 
 /** PATCH /tasks/:id. Present fields only, per 7.6. */
@@ -737,10 +768,10 @@ export const copy = {
   /** 9.3, the steps editor's cap notice, spelled at the P8 change control. */
   stepCapNotice: 'Limit 50 steps',
   /** 9.3, the delete confirm in the form's overflow menu. */
-  deleteTaskConfirm: "Delete this task? This can't be undone.",
+  deleteTaskConfirm: 'Move this task to Trash? It stays there for 30 days.',
   /** 9.4, abandon from My Day. */
   abandonConfirm:
-    'Abandon this task? It stops appearing in My Day but stays everywhere else.',
+    'Abandon this task? It stops appearing in Today but stays everywhere else.',
   /**
    * 9.4, the un-pull control's label, as AC-165 reads it since the owner's
    * ruling of 2026-08-24. v1 called it "Remove from My Day" and 9.4 renamed
@@ -1324,6 +1355,31 @@ export async function expectServiceWorkerControl(page: Page): Promise<void> {
  * computed property of the rendered page whatever CSS produced it, where a
  * class name would be the implementer's internals.
  */
+
+/**
+ * The opacity a person sees on an element: its own times every ancestor's.
+ *
+ * Added at the polish round for the resting-affordance rule (a hover-only
+ * control must be drawn at reduced opacity at rest): `toBeVisible` counts an
+ * opacity-zero element as visible, so a control hidden that way passed every
+ * visibility assertion while nobody could see it.
+ */
+export async function effectiveOpacity(locator: Locator): Promise<number> {
+  return locator.evaluate((element) => {
+    const view = globalThis as unknown as {
+      getComputedStyle: (el: unknown) => { opacity: string }
+      document: { body: unknown }
+    }
+    let node = element as unknown as { parentElement: unknown } | null
+    let opacity = 1
+    while (node !== null && node !== view.document.body) {
+      opacity *= Number(view.getComputedStyle(node).opacity)
+      node = node.parentElement as { parentElement: unknown } | null
+    }
+    return opacity
+  })
+}
+
 export async function computedStyle(
   locator: Locator,
   properties: readonly string[],

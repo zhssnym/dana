@@ -1515,6 +1515,75 @@ rest of the 4.3 identity; a body naming both a file and a preset is 422, and
 setting either source clears the other.
 ```
 
+### The frozen changes of change control item 60, written at the sample-workspace row
+
+*Four units, added 2026-08-30 by the sample-workspace row (change control
+item 60), under the owner's full delegation and folded into
+`docs/spec/04-data-model.md` and `docs/spec/07-api.md` the same day, each as
+an annotated paragraph or table. Additive throughout: one table, one
+constraint attribute, three routes, and two sentences on existing lines.*
+
+### Insert new section 4.21 after 4.20 (the sample register) — folded 2026-08-30 (item 60)
+
+```markdown
+### 4.21 sample_objects
+
+| Column | Type | Null | Default | Constraint |
+| - | - | - | - | - |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
+| kind | text | no | none | CHECK (kind IN ('shelf','folder','task','view')) |
+| id | uuid | no | none | the object's own id; no FK, deliberately |
+| created_at | timestamptz | no | now() | none |
+
+PK (user_id, kind, id). The register of what the sample workspace wrote
+into an account at its first sign-in (7.1, 7.20). It carries no foreign
+key to the object because the object keeps its id through every edit the
+person makes and removal must still find it; a row whose object the person
+destroyed themselves names nothing and is dropped by the next removal.
+Objects that ride another's cascade (steps, blocks, comments, reminders,
+pulls, events) are not registered. No index: the primary key serves the
+only reads, one person's register.
+```
+
+### Annotate the task_id row of section 4.15 — folded 2026-08-30 (item 60)
+
+```markdown
+The pair FK comments_task_scope_fkey, (folder_id, task_id) against tasks
+(folder_id, id), is DEFERRABLE INITIALLY IMMEDIATE since migration 0007, so
+that 7.6's move can re-scope a task's conversation in the same transaction;
+its name and shape are unchanged.
+```
+
+### Insert new section 7.20 after 7.19 (the sample workspace) — folded 2026-08-30 (item 60)
+
+```markdown
+### 7.20 Sample workspace
+
+GET /api/v1/sample — { present, counts: { shelves, folders, tasks, views } },
+the registered objects of 4.21 that still exist, the caller's own.
+DELETE /api/v1/sample — removes every registered object still where the
+sample put it, with everything that hangs on it, through the same
+collection 7.13's permanent delete uses; 204. A registered task the caller
+moved into a folder of their own stays as theirs; a registered folder with
+another member stays with its tasks, and the response names such folders,
+newline-separated and URI-encoded, in the X-Dana-Sample-Kept header. The
+register is emptied either way. Idempotent.
+POST /api/v1/sample — writes the workspace again for an account that has
+none; 200 with the GET body, idempotent while it is present; 409 when the
+caller owns a shelf by one of the sample's names.
+The writes are CSRF-checked and under 10.4's general mutation limit.
+```
+
+### Annotate the callback line of section 7.1 and the move line of 7.6 — folded 2026-08-30 (item 60)
+
+```markdown
+7.1: The provisioning transaction also writes the sample workspace of 7.20
+for a brand-new account, in the same transaction, unless the application
+was constructed with it off; the development login's body takes an optional
+`sample` boolean honoured there alone.
+7.6: A move carries the task's conversation (4.15) into the target folder.
+```
+
 ## Change control
 
 S2 mid-package, 2026-08-24, three schema rulings recorded for the section 4
@@ -6527,6 +6596,86 @@ fold, the way P7's mid-package change control ratified the pass callable:
     bare `npm test` in an inherited shell is the Postgres leg again, and
     `env -u` was load-bearing for the PGlite and browser legs here. Recorded
     for the next machine-note edit rather than made in this row.
+
+60. **The sample workspace, 2026-08-30: ruled by delegation.** Held on
+    `demo-workspace` from `ui-polish` at `8dbeb51` under the owner's full
+    delegation, with no human to ask. SESSION-LOG row 51 carries the numbers;
+    this item carries the decisions.
+
+    **(a) The content.** One person's life rather than a tour: three shelves
+    (Life, Work, Studies), seven folders under them, one of them in Trash,
+    43 tasks with four unfiled on Desk, and two saved views, every string in
+    `app/src/server/sample/content.ts` and nowhere else. Between them the
+    tasks carry steps, notes, due dates from a week ago to a month ahead, due
+    times, both reminder modes, weekly and monthly repeats, importance,
+    completions, a trashed row, sections and loose rows, Today pulls, a
+    folder conversation and a thread inside one task. Dates are resolved
+    against today in the person's zone at the moment the account is made.
+    The comments are the person's own notes: 9.13's objection to a starter
+    carrying a comment is that a fabricated colleague is a lie, and a note
+    in one's own voice is not one. No reminder in the sample is dated in the
+    past, so none mails a person who never came back.
+
+    **(b) The mechanism.** `createSampleWorkspace` runs inside 7.1's own
+    provisioning transaction on the executor it is handed, for the Google
+    callback and the development login alike, so the first page a person
+    sees is already full and a fault anywhere leaves no half-made account.
+    Every object it makes is registered in `sample_objects(user_id, kind,
+    id)`, migration 0007, keyed by the object's own id and carrying no
+    foreign key to it. A register was chosen over a nullable column on the
+    owning rows because it survives every edit the person makes (a completed,
+    moved, renamed or trashed task keeps its id), needs no change to the
+    frozen tables, and cascades with the user so 8.10 needs no new step.
+    Steps, blocks, comments, reminders, pulls and events are not registered:
+    they ride their task's or folder's fate by section 4's own cascades.
+    Removal goes through `domain/trash.ts`'s `destroyTasks` and
+    `destroyFolders`, the collection the purge and the permanent delete
+    already share, so files hung on a sample conversation are collected and
+    their bytes removed after the commit; then the sample shelves, the
+    labels that spelled them, the views, and the settings bundle's
+    references (sidebar order, pins, arrangements) to what is gone.
+
+    **(c) The two rules.** A registered task whose folder is still a sample
+    folder or Desk is removed; one the person has moved into a folder of
+    their own has been adopted and stays, its register row dropped. A sample
+    folder with another member is left standing with its tasks, named back
+    to the caller in the `X-Dana-Sample-Kept` header of the 204 so the
+    client can say so, and its register row dropped: the moment it had a
+    second member it stopped being a sample. Both are AC-300 and AC-301.
+
+    **(d) The surface and the opt-out.** 7.20: GET, DELETE and POST
+    /api/v1/sample, the caller's own account only, the writes through 10.2
+    with CSRF and the general mutation limit, POST idempotent while the
+    sample is present and 409 if the person owns a shelf by one of its
+    names. The default is on; `createApp({ sampleWorkspace })` and
+    `DANA_SAMPLE_WORKSPACE=off` turn it off, and the development login's
+    body takes `sample: true | false`, honoured there and nowhere else. The
+    acceptance suite sets it off in `tests/vitest-setup.ts` and the browser
+    harness declines it at the door, so every criterion that counts a fresh
+    account's rows reads unchanged; AC-297's file and AC-303's spec are the
+    two that turn it on.
+
+    **(e) One fault found on the way and fixed.** A task carrying comments
+    could not be moved between folders: 4.15's pair FK
+    `comments_task_scope_fkey` holds (folder_id, task_id) against tasks
+    (folder_id, id) and, checked immediately, neither side's UPDATE could go
+    first, so 7.6's move answered 500. Migration 0007 makes the constraint
+    DEFERRABLE INITIALLY IMMEDIATE, name and shape unchanged for AC-001, and
+    the move defers it for its own transaction and re-scopes the
+    conversation with the task. AC-300 pins it by moving the threaded task.
+
+    **(f) The client.** A strip above Desk and Today while the sample is
+    present: one sentence, Remove sample data, Keep it. Remove confirms once
+    with 9.1's dialog and then offers the undo bar, whose inverse is POST
+    /sample; Keep it is a dismissal local to the device, on the reasoning
+    `StarterOffer.tsx` records for its own, and the Settings row under a
+    "Sample data" heading is the way back, reading Remove or Restore. The
+    starter offer of 9.13 needed no change: its freshness test is false
+    while the sample's folders stand and true again the moment removal
+    empties the account, which is the order the two should come in.
+
+    **(g) The criteria.** AC-297 to AC-302 on vitest, AC-303 in the browser;
+    section 12 carries their lines. Next free acceptance number AC-304.
 
 ## Implementation plan
 

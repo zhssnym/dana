@@ -86,6 +86,7 @@ interface RequestOptions {
   readonly body?: unknown
   /** Mutations only. GETs are safe (7.0) and carry no token. */
   readonly csrf: boolean
+  readonly onHeaders?: (headers: Headers) => void
 }
 
 function urlOf(path: string, params: QueryParams | undefined): string {
@@ -134,6 +135,7 @@ async function send(options: RequestOptions): Promise<unknown> {
   }
   // Any status at all is the server answering, which is a connection.
   reportReachable()
+  options.onHeaders?.(response.headers)
 
   if (response.status === 204) return undefined
   const text = await response.text()
@@ -205,6 +207,9 @@ interface MutateOptions {
   readonly path: string
   readonly params?: QueryParams
   readonly body?: unknown
+  /** The one write whose answer is a header on a 204 (item 60's DELETE
+   * /sample) reads it here; every other caller has no use for this. */
+  readonly onHeaders?: (headers: Headers) => void
 }
 
 /**

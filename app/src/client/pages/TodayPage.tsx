@@ -33,6 +33,8 @@ which AC-158 reads as an absence rather than a heading saying zero.
 import { CalendarCheck2 } from '../lib/icons.js'
 
 import { useMyDayView } from '../api/queries.js'
+import { QuickAdd } from '../components/quick-add.js'
+import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -71,6 +73,7 @@ export function TodayPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
+      <SampleStrip />
       <PlaceHead
         place={place}
         {...(total === 0 ? {} : { fact: `${String(done)} of ${String(total)} done` })}
@@ -146,6 +149,23 @@ export function TodayPage(): React.JSX.Element {
                 </PageSection>
               )}
             </>
+          )}
+
+          {/* polish: taskrow F12. The same inline "Add a task" every other
+              list page has, at the list's foot, capturing with Today's own
+              entry defaults (due today, pulled in). 9.1's floating "Add task"
+              stays beside it, that section naming Today among the pages that
+              carry it and seven criteria addressing it there. */}
+          {place.mode === 'board' ? null : (
+            <QuickAdd
+              folderName="Today"
+              onAdd={(title) => {
+                place.capture(title)
+              }}
+              onOpenFullForm={(title) => {
+                place.openFull(undefined, title)
+              }}
+            />
           )}
 
           {/* Q1R: the section is hidden entirely while empty, so it is absent
