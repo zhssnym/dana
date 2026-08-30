@@ -168,7 +168,7 @@ test.describe('AC-097: the abandoned row and its restore', () => {
 
     await page.goto(routesV2.scheduled)
     await clickControl(
-      taskRow(page, 'ac-097 restore returns to my day').getByRole('button', { name: 'Restore' }),
+      taskRow(page, 'ac-097 restore returns to my day').getByRole('button', { name: 'Restore', exact: true }),
       'spec 9.5: an abandoned row carries a Restore control, which is what the second half of ' +
         'this criterion is performed with',
     )
@@ -216,7 +216,7 @@ test.describe('AC-097: the abandoned row and its restore', () => {
           'and the folder page together',
       ).toBeVisible()
       await expect(
-        row.getByRole('button', { name: 'Restore' }),
+        row.getByRole('button', { name: 'Restore', exact: true }),
         `spec 9.5: the Restore control is on the row in ${where}`,
       ).toBeVisible()
       const struck = await computedStyle(row.getByText('Old idea'), ['textDecorationLine'])

@@ -16,7 +16,6 @@ import { expect, test } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
-  clickControl,
   createSteps,
   createTask,
   patchBundle,
@@ -25,7 +24,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
- taskRow } from './harness.js'
+ openTaskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -38,7 +37,7 @@ test('AC-354: with Tab chosen, a row opens its page, and the page edits', async 
   await patchBundle(page, { task_open: 'tab' })
   try {
     await page.goto(routesV2.folder(seedIds.groceries))
-    await clickControl(taskRow(page, title).first(), 'spec 9.4: a click on the row opens the task')
+    await openTaskRow(page, title, 'spec 9.4: a click on the row opens the task')
     await expect(page, 'spec 9.3: opened as a tab means at its own address').toHaveURL(
       new RegExp(`${routesV2.task(task.id)}$`),
     )

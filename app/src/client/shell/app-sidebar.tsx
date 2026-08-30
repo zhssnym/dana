@@ -149,6 +149,7 @@ import { useSidebar } from '../components/ui/sidebar.js'
 import { showToast } from '../state/toasts.js'
 import { FolderRow } from '../components/folder-row.js'
 import { useHelpSheet } from '../components/help-sheet.js'
+import { onWorkflowImportRequest } from './overlays.js'
 import { Button } from '../components/ui/button.js'
 import {
   Collapsible,
@@ -1620,6 +1621,16 @@ export function AppSidebar({
   /* The file input the Import button presses, hidden because a bare file
      control cannot be given the row's shape and a button that opens one can. */
   const workflowInput = useRef<HTMLInputElement>(null)
+  /* The tab strip's "+" offers Import too (9.1's plus sentence, closed at
+     the polish round of 2026-08-30), and the one file input belongs here; the
+     strip asks through `overlays.ts` and this presses it. */
+  useEffect(
+    () =>
+      onWorkflowImportRequest(() => {
+        workflowInput.current?.click()
+      }),
+    [],
+  )
   const inbox = inboxOf(folders ?? [])
   /* Memoised because `RailLibrary` filters on it: a fresh Set every render
      would rebuild that list whenever any chrome query settled. */

@@ -34,7 +34,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
- taskRow } from './harness.js'
+ openTaskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -48,8 +48,7 @@ test.describe('AC-220: the assignee menu', () => {
     await createTask(page, { title, folder_id: seedIds.groceries })
     await page.goto(`/app/folders/${seedIds.groceries}`)
 
-    await clickControl(
-      taskRow(page, title).first(),
+    await openTaskRow(page, title,
       'spec 9.3: the row opens its task, whose header strip carries the assignee chip',
     )
     await clickControl(

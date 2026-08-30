@@ -1033,17 +1033,30 @@ export function taskRow(page: Page, title: string): Locator {
  * Pressing the row itself is both what the sentence says and what a hand
  * does.
  *
- * The click lands on the row's own ground: Playwright aims at the element's
- * centre, and the title (w-fit, left-aligned) ends well before it on every
- * title this suite writes. If a future case gives a task a title wide enough
- * to reach the row's centre, shorten the title rather than teaching this
- * helper to hunt for empty pixels.
+ * The point is computed from the title's own box rather than assumed:
+ * `caseTitle` appends the testId, so a suite title easily spans past the
+ * row's centre and a centre click would land on the rename control. The
+ * press goes just right of where the title ends, on the title's own line,
+ * capped short of the row's trailing controls; when either box is missing
+ * the row's centre is the fallback.
  */
 export async function openTaskRow(page: Page, title: string, why?: string): Promise<void> {
-  await clickControl(
-    taskRow(page, title).first(),
-    why ?? 'spec 9.4: a click on any row opens that task',
-  )
+  const row = taskRow(page, title).first()
+  const reason = why ?? 'spec 9.4: a click on any row opens that task'
+  await expect(row, reason).toBeVisible()
+  const rowBox = await row.boundingBox()
+  const titleBox = await row
+    .getByRole('button', { name: title, exact: true })
+    .first()
+    .boundingBox()
+    .catch(() => null)
+  if (rowBox === null || titleBox === null) {
+    await row.click()
+    return
+  }
+  const x = Math.min(titleBox.x - rowBox.x + titleBox.width + 24, rowBox.width - 96)
+  const y = titleBox.y - rowBox.y + titleBox.height / 2
+  await row.click({ position: { x: Math.max(x, 8), y } })
 }
 
 /**

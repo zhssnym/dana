@@ -70,7 +70,6 @@ import {
   caseTitle,
   chipValue,
   clearReminder,
-  clickControl,
   createTask,
   routesV2,
   seedDate,
@@ -83,7 +82,7 @@ import {
   taskSurface,
   watchCommit,
   TEST_TIMEOUT_MS,
- taskRow } from './harness.js'
+ openTaskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
@@ -103,8 +102,7 @@ const BASE = 'ac-170 edited for its reminder'
  */
 async function openTheCard(page: Page, title: string): Promise<void> {
   await page.goto(routesV2.scheduled)
-  await clickControl(
-    taskRow(page, title).first(),
+  await openTaskRow(page, title,
     'spec 9.4: a click on any row opens that task, which is how the card is reached',
   )
   await expect(

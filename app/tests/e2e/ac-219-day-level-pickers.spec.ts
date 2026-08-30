@@ -48,7 +48,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
- taskRow } from './harness.js'
+ openTaskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -63,8 +63,7 @@ function timeControls(surface: Locator): Locator {
 }
 
 async function openTaskSurface(page: Page, title: string): Promise<void> {
-  await clickControl(
-    taskRow(page, title).first(),
+  await openTaskRow(page, title,
     'spec 9.3: a row opens its task; the surface under test is the task\'s own',
   )
 }

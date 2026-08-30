@@ -298,7 +298,7 @@ export function PageImage({
         >
           <span
             aria-hidden="true"
-            className="h-10 w-1 rounded-full bg-[var(--color-graphite-0)]/85 shadow-sm"
+            className="h-10 w-1 rounded-full bg-[var(--color-fixed-white)]/85 shadow-sm"
           />
         </button>
       </div>
