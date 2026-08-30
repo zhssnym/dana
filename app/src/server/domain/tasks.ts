@@ -1395,7 +1395,9 @@ export async function addStep(
       subjectId: taskId,
       subjectName: current.title,
       folderId: current.folderId,
-      detail: 'added a step',
+      /* polish: taskcard F4 (2026-08-30). The step is named, so the history
+         reads "Hassan added a step 'Plates'" rather than a bare verb. */
+      detail: `added a step '${stepWord(body.title)}'`,
     })
     return { kind: 'added', task: await viewOrFail(tx, viewerId, taskId) }
   })
@@ -1404,6 +1406,12 @@ export async function addStep(
 export type StepResult =
   | { kind: 'ok'; task: TaskDetail }
   | { kind: 'not_found' }
+
+/** A step named inside 4.13's 200-character detail: whole when short, cut
+ * with an ellipsis when not, so a long step never makes the event refuse. */
+function stepWord(title: string): string {
+  return title.length > 60 ? `${title.slice(0, 59)}…` : title
+}
 
 /** A step is reachable exactly when its parent task's folder is (7.7: 404
  * otherwise), so the resolution carries the same membership join the task
@@ -1414,13 +1422,14 @@ async function accessibleStep(
   stepId: string,
 ): Promise<{
   stepId: string
+  stepTitle: string
   taskId: string
   taskTitle: string
   folderId: string
 } | null> {
   const found = await rowsOf(
     executor,
-    sql`SELECT s.id, s.task_id, t.title, t.folder_id
+    sql`SELECT s.id, s.title AS step_title, s.task_id, t.title, t.folder_id
         FROM steps s
         JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
         JOIN folder_members m
@@ -1433,6 +1442,7 @@ async function accessibleStep(
     ? null
     : {
         stepId: String(row.id),
+        stepTitle: String(row.step_title),
         taskId: String(row.task_id),
         taskTitle: String(row.title),
         folderId: String(row.folder_id),
@@ -1468,7 +1478,16 @@ export async function patchStep(
         subjectId: step.taskId,
         subjectName: step.taskTitle,
         folderId: step.folderId,
-        detail: 'edited a step',
+        /* polish: taskcard F4. The act that happened, named: a rename says
+           the new name, a tick says it was ticked, a move says it moved. */
+        detail:
+          patch.title !== undefined
+            ? `renamed a step to '${stepWord(patch.title)}'`
+            : patch.done === true
+              ? `completed the step '${stepWord(step.stepTitle)}'`
+              : patch.done === false
+                ? `reopened the step '${stepWord(step.stepTitle)}'`
+                : `moved the step '${stepWord(step.stepTitle)}'`,
       })
     }
     return { kind: 'ok', task: await viewOrFail(tx, viewerId, step.taskId) }
@@ -1491,7 +1510,7 @@ export async function deleteStep(
       subjectId: step.taskId,
       subjectName: step.taskTitle,
       folderId: step.folderId,
-      detail: 'removed a step',
+      detail: `removed the step '${stepWord(step.stepTitle)}'`,
     })
     return 'deleted'
   })

@@ -17,7 +17,7 @@ The stack sits above the floating add button's corner (the prototype clears it
 at 76px) so a toast never covers the control a person is most likely to be
 reaching for when a write fails.
 */
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 
 import { AlertCircle, Clock3, WifiOff, X } from 'lucide-react'
 
@@ -27,6 +27,9 @@ import { cn } from '../components/ui/utils.js'
 import { OFFLINE_WRITE_TOAST } from './toasts.js'
 import { dismissToast, subscribeToToasts, toastSnapshot } from './toasts.js'
 import type { Toast } from './toasts.js'
+
+/** Long enough to read twice; short enough not to outlive the page. */
+const TOAST_LIFETIME_MS = 8_000
 
 function toastIcon(message: string): typeof AlertCircle {
   if (message === OFFLINE_WRITE_TOAST) return WifiOff
@@ -52,6 +55,21 @@ export function ToastRegion({
     toastSnapshot,
     toastSnapshot,
   )
+  /* polish: taskcard F1. A toast that nobody dismisses used to stand for
+     minutes and across page changes, so an error from three screens ago was
+     still telling the person nothing was saved. Every toast now leaves on its
+     own after long enough to be read; the dismiss control stays for anyone
+     who wants it gone sooner. */
+  useEffect(() => {
+    const timers = toasts.map((toast) =>
+      window.setTimeout(() => {
+        dismissToast(toast.id)
+      }, TOAST_LIFETIME_MS),
+    )
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [toasts])
   if (toasts.length === 0) return null
   return (
     <div role="status" aria-live="polite">
