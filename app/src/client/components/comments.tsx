@@ -873,7 +873,9 @@ function CommentRow({
               /* Capped, because a quote wider than the thing it introduces
                  reads as the message and pushes the reply into a footnote. */
               "mt-1 flex max-w-[min(22rem,80%)] items-center gap-1.5 border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-500)]",
-              mine ? "flex-row-reverse border-r-2 pr-2" : "border-l-2 pl-2",
+              /* polish: folderpage F13: author, then what they said, on
+                 either side. */
+              mine ? "border-r-2 pr-2" : "border-l-2 pl-2",
             )}
           >
             <span className="shrink-0 font-medium text-[var(--color-graphite-600)]">

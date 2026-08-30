@@ -557,6 +557,15 @@ function SurfaceChrome({
         The strip keeps its space, so the view controls stay where they are.
         */}
         <span className="min-w-0 flex-1" />
+        {/* polish: settings F11: three unlabelled icons beside the close
+            control read as nothing in particular; the word says what they
+            choose, and that choosing one is remembered. */}
+        <span
+          className="text-[11px] leading-4 text-[var(--color-graphite-500)]"
+          title="Where this task opens; Dana remembers the one you pick"
+        >
+          Open in
+        </span>
         <ViewStrip
           ariaLabel="Where this task opens"
           value={mode}

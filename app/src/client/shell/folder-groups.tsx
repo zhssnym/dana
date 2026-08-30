@@ -72,6 +72,7 @@ import {
   useUpdateMyMembership,
 } from '../api/mutations.js'
 import { FolderGroupDialog } from '../components/index.js'
+import { pushUndo } from './undo.js'
 import { ConfirmDialog, useConfirm } from '../pages/task-rows.js'
 import {
   folderGroupLabels,
@@ -83,9 +84,10 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
+  /* polish: shelves F1: "shelf", and the consequence in the shelf's terms. */
   return (
-    `Delete folder group? ${String(folderCount)} folders keep their tasks and ` +
-    'move to the ungrouped list.'
+    `Delete shelf? ${String(folderCount)} folder${folderCount === 1 ? '' : 's'} keep ` +
+    'their tasks and come off the shelf.'
   )
 }
 
@@ -207,7 +209,25 @@ export function useFolderGroupActions(
       openNewFolderIn(label)
     },
     onMoveToGroup: (folder, label) => {
-      writeLabel([folder.id], label)
+      /* polish: shelves F6. The sidebar's move has the undo bar like the
+         folder page's: a way back that is not three presses in reverse. */
+      const previous = folder.my_label
+      if (previous === label) return
+      relabel.mutate(
+        { id: folder.id, body: { label } },
+        {
+          onSuccess: () => {
+            pushUndo(
+              label === null
+                ? `Took "${folder.name}" off ${previous ?? 'its shelf'}`
+                : `Moved "${folder.name}" to ${label}`,
+              () => {
+                relabel.mutate({ id: folder.id, body: { label: previous } })
+              },
+            )
+          },
+        },
+      )
     },
     onRenameGroup: (label) => {
       setDialog({ mode: 'rename', label })

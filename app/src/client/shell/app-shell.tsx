@@ -242,6 +242,10 @@ function currentPage(
   if (pathname === paths.people) {
     return { title: 'People', icon: pageIcons[paths.people], iconColor: undefined }
   }
+  /* polish: places F10. The Trash tab was a blank with an "x". */
+  if (pathname === paths.trash) {
+    return { title: 'Trash', icon: pageIcons[paths.trash], iconColor: undefined }
+  }
   if (pathname.startsWith(FOLDER_PREFIX)) {
     const id = pathname.slice(FOLDER_PREFIX.length)
     const folder = folders?.find((candidate) => candidate.id === id)
@@ -461,7 +465,28 @@ export function AppShell(): React.JSX.Element {
           showToast(WORKFLOW_UNREADABLE)
           return
         }
-        importWorkflow.mutate(file.data)
+        /* polish: settings F3. A folder whose name the Library already has
+           arrives as "Name (imported)" rather than as a second "Desk"; and
+           the import says what it made and opens it. */
+        const taken = new Set((folders.data ?? []).map((folder) => folder.name))
+        const body = {
+          ...file.data,
+          folders: file.data.folders.map((folder) =>
+            taken.has(folder.name) ? { ...folder, name: `${folder.name} (imported)`.slice(0, 100) } : folder,
+          ),
+        }
+        importWorkflow.mutate(body, {
+          onSuccess: (made) => {
+            const tasks = body.folders.reduce((sum, folder) => sum + (folder.tasks?.length ?? 0), 0)
+            const first = made.folders[0]
+            showToast(
+              made.folders.length === 1 && first !== undefined
+                ? `Imported "${first.name}" with ${String(tasks)} task${tasks === 1 ? '' : 's'}`
+                : `Imported ${String(made.folders.length)} folders with ${String(tasks)} task${tasks === 1 ? '' : 's'}`,
+            )
+            if (first !== undefined) void navigate(paths.folder(first.id))
+          },
+        })
       },
       () => {
         showToast(WORKFLOW_UNREADABLE)
@@ -732,6 +757,7 @@ export function AppShell(): React.JSX.Element {
             }}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
+            avatarUrl={me.data?.user.avatar_url ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
             currentSearch={location.search}

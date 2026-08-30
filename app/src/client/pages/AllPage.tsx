@@ -119,7 +119,14 @@ function UndatedGroups({
 
   return (
     <div className="space-y-7">
-      <PageSection name={inboxName}>
+      {/* polish: places F12. Every undated group is a folder and reads as
+          one; Desk's group had no heading and looked like a group called
+          "Anytime" beside groups called by their folders. */}
+      <PageSection
+        name={inboxName}
+        heading={inboxName}
+        headingMedia={<FolderGlyph folder={context.folders.find((entry) => entry.id === inboxFolderId)} />}
+      >
         <PageBody
           query={query}
           isEmpty={false}

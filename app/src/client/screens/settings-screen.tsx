@@ -48,10 +48,8 @@ import {
   Download,
   Globe,
   ListTodo,
-  LogOut,
   Settings,
   Trash2,
-  UsersRound,
   type LucideIcon,
 } from "../lib/icons.js"
 /* Seam 3 and seam 4: the marks the two additions wear. */
@@ -77,7 +75,7 @@ import { NAV_PAGES, pageQuestion } from "../lib/nav-model.js"
 import { isPagePinned, setPagePinned, usePagePins } from "../lib/page-pins.js"
 import { setRowDensity, useRowDensity } from "../lib/row-density.js"
 import { setTheme, useTheme } from "../lib/theme.js"
-import { setViewerImage, squareImageFile, useViewer } from "../lib/viewer.js"
+import { setViewerImage, setViewerTimezone, squareImageFile, useViewer } from "../lib/viewer.js"
 import { cn } from "../components/ui/utils.js"
 /* Seam 4: the two writers 9.7's other two rows need. */
 import { setClock, useTimeFormat } from "../lib/time-format.js"
@@ -144,8 +142,10 @@ function ViewerPictureRow() {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{viewer.name}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {/* Seam 5: the session's address. */}
-          {viewer.email} · Google account
+          {/* Seam 5: the session's address. polish: settings F6: 7.1 has no
+              write for the name, so the line says where it comes from
+              rather than looking like a field that will not open. */}
+          {viewer.email} · name and address from your Google account
         </p>
       </div>
       {/* Seam 5: the prototype's Remove control is not drawn; 7.15 has no
@@ -277,11 +277,11 @@ function Segmented<T extends string>({
 }
 
 export function SettingsScreen({
-  onOpenPeople,
+  onOpenPeople: _onOpenPeople,
   previewState,
   savedViews = [],
   onPinSavedView,
-  onSignOut,
+  onSignOut: _onSignOut,
   onDeleteAccount,
   sample,
   onRemoveSample,
@@ -311,7 +311,8 @@ export function SettingsScreen({
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
+    /* polish: pagehead F5. The shell insets every page; not a second time here. */
+    <div className="w-full">
       <header className="flex min-h-12 items-start gap-3">
         <Settings
           className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
@@ -555,24 +556,25 @@ export function SettingsScreen({
                   />
                 }
               />
+              {/* polish: settings F4. "Tab" was offered and did nothing: a
+                  tab is an action a row offers, never a remembered place
+                  (`lib/task-surface-preference.ts`), so the option goes and a
+                  column holding 'tab' reads as the dialog. */}
               <SettingRow
                 icon={PanelRight}
                 title="Where a task opens"
                 description={
                   taskOpen === "panel"
                     ? "Beside it, at the right edge"
-                    : taskOpen === "tab"
-                      ? "As a tab of its own"
-                      : "Over the page you were on"
+                    : "Over the page you were on"
                 }
                 control={
                   <Segmented
                     label="Where a task opens"
-                    value={taskOpen}
+                    value={taskOpen === "panel" ? "panel" : "dialog"}
                     options={[
                       ["dialog", "Dialog"],
                       ["panel", "Panel"],
-                      ["tab", "Tab"],
                     ]}
                     onSelect={setTaskOpen}
                   />
@@ -595,39 +597,20 @@ export function SettingsScreen({
                     <Globe className="size-5" strokeWidth={1.75} aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    {/* Seam 5: 7.2's detected timezone. */}
-                    <p className="text-sm font-medium text-foreground"><TimezoneLine /></p>
+                    {/* Seam 5: 7.2's detected timezone. polish: settings F6:
+                        7.1's PATCH /me takes a timezone, so it is a choice. */}
+                    <p className="text-sm font-medium text-foreground">Timezone</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Dana follows your device&apos;s timezone automatically
+                      Due dates and reminders are read in this zone
                     </p>
                   </div>
+                  <TimezoneSelect />
                 </div>
-
-                <SettingRow
-                  title="People and connections"
-                  description="Manage people available for quick folder sharing."
-                  control={
-                    <Button
-                      variant="outline"
-                      className="h-8 gap-2 px-3 text-xs"
-                      onClick={onOpenPeople}
-                    >
-                      <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                      Open People
-                    </Button>
-                  }
-                />
-
-                <SettingRow
-                  title="Sign out"
-                  description="End this Dana session on this device."
-                  control={
-                    <Button variant="ghost" className="h-8 gap-2 px-3 text-xs" onClick={onSignOut}>
-                      <LogOut className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                      Sign out
-                    </Button>
-                  }
-                />
+                {/* polish: settings F5. "Open People" and a second "Sign out"
+                    stood here beside the sidebar's People link and the
+                    account menu's Sign out; each lives in one place now, and
+                    that place is the sidebar. `onOpenPeople` and `onSignOut`
+                    stay on the props for the shell's wiring. */}
               </div>
             </SettingsSection>
 
@@ -640,12 +623,11 @@ export function SettingsScreen({
                 <div className="flex size-10 shrink-0 items-center justify-center text-[var(--color-graphite-500)]">
                   <Download className="size-5" strokeWidth={1.75} aria-hidden="true" />
                 </div>
+                {/* polish: settings F8. A "Browser menu" chip styled as a
+                    button did nothing; the sentence is the whole answer. */}
                 <p className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
                   Use the install option in your browser&apos;s address bar or application menu.
                 </p>
-                <span className="shrink-0 rounded-md border border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-graphite-600)]">
-                  Browser menu
-                </span>
               </div>
             </SettingsSection>
 
@@ -771,9 +753,37 @@ export function SettingsScreen({
   )
 }
 
-/* Seam 5: the timezone the session detected, drawn where the prototype wrote
-   a literal. A component rather than a hook call above so the row's markup
-   stays the prototype's. */
-function TimezoneLine() {
-  return <>{useViewer().timezone}</>
+/* Seam 5, reworked at polish (settings F6): the timezone is a choice over
+   7.1's PATCH /me rather than a line. The list is the browser's own; a zone
+   the browser does not list, which 7.2 may still have detected, is offered
+   as the current value so the control never shows a zone the account is not
+   in. */
+function TimezoneSelect() {
+  const viewer = useViewer()
+  const zones = supportedTimezones()
+  const current = viewer.timezone
+  const listed = current === "" || zones.includes(current) ? zones : [current, ...zones]
+  return (
+    <select
+      aria-label="Timezone"
+      value={current}
+      onChange={(event) => setViewerTimezone(event.target.value)}
+      className="h-8 max-w-[14rem] shrink-0 rounded-md border border-[var(--color-graphite-200)] bg-card px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+    >
+      {listed.map((zone) => (
+        <option key={zone} value={zone}>
+          {zone.replace(/_/g, " ")}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function supportedTimezones(): string[] {
+  try {
+    const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+    return intl.supportedValuesOf?.("timeZone") ?? []
+  } catch {
+    return []
+  }
 }

@@ -84,9 +84,27 @@ export function HelpSheet({
         <DialogHeader>
           <DialogTitle>Help</DialogTitle>
           <DialogDescription>
-            The keyboard shortcuts Dana has today.
+            The words Dana uses, and its keyboard shortcuts.
           </DialogDescription>
         </DialogHeader>
+        {/* polish: settings F9, F2. The one question the sheet could not
+            answer was what a workflow file is. */}
+        <div className="flex flex-col gap-2 pt-1 text-[13px] leading-5 text-foreground">
+          <p className="text-[12px] leading-4 font-medium text-muted-foreground">Words Dana uses</p>
+          <p>
+            <span className="font-medium">Workflow file.</span> A folder saved as a small file
+            ("Save as workflow" in a folder's menu): its name, its sections and paragraphs, and
+            its open tasks with their dates, stars, steps and repeats. Import it from the sidebar
+            to get a fresh copy of that folder, here or on another account. Conversations,
+            reminders and who did what stay behind.
+          </p>
+          <p>
+            <span className="font-medium">Desk</span> is where a task lands when you have not said
+            which folder. <span className="font-medium">Anytime</span> lists every task without a
+            date. A <span className="font-medium">shelf</span> is a row of folders you arrange
+            yourself; it is yours alone and changes nothing for other members.
+          </p>
+        </div>
         <div className="flex flex-col gap-1 pt-1">
           <p className="pb-1 text-[12px] leading-4 font-medium text-muted-foreground">Keyboard</p>
           {SHORTCUTS.map((shortcut) => (

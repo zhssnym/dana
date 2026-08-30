@@ -170,6 +170,26 @@ control that opens onto an empty popover is a promise the page cannot keep
 export function WindowActivity({ events }: { events: HistoryEvent[] }) {
   const newest = events[0]
   if (!newest) return null
+  /*
+  polish: pagehead F4, folderpage F3. This was a button opening an "Activity"
+  popover of the same rows the History sheet shows, two doors into one room
+  with the sentences truncated in the smaller one. It is the line it looks
+  like now; "..." > History is the one way to the record.
+  */
+  return (
+    <span
+      className="flex h-7 items-center px-2 text-[12px] leading-4 text-[var(--color-graphite-500)]"
+      title={`${verbFor(newest)} ${whenFor(newest.at).toLowerCase()} by ${newest.actor}`}
+    >
+      {verbFor(newest)} {agoFor(newest.at)}
+    </span>
+  )
+}
+
+/* The popover this replaced, kept beside it and rendered by nothing. */
+export function WindowActivityPopover({ events }: { events: HistoryEvent[] }) {
+  const newest = events[0]
+  if (!newest) return null
   return (
     <Popover>
       <PopoverTrigger

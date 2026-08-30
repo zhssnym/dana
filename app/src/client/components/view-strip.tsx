@@ -71,8 +71,13 @@ export function ViewStrip<T extends string>({
       aria-label={ariaLabel}
       className={cn(
         "flex h-7 items-center gap-0.5 rounded-md",
-        collapse &&
-          "group/views border border-transparent p-0.5 transition-[border-color] hover:border-[var(--color-graphite-200)] focus-within:border-[var(--color-graphite-200)]",
+        collapse
+          ? "group/views border border-transparent p-0.5 transition-[border-color] hover:border-[var(--color-graphite-200)] focus-within:border-[var(--color-graphite-200)]"
+          : /* polish: pagehead F1, places F5. A resting strip is a segmented
+               control: bordered, every option drawn, the current one on the
+               wash. Nothing widens on hover; `collapse` is kept for any
+               surface that still asks for it. */
+            "border border-[var(--color-graphite-200)] bg-card p-0.5",
         T_FAST,
       )}
     >
@@ -97,7 +102,7 @@ export function ViewStrip<T extends string>({
                     "flex items-center justify-center overflow-hidden rounded-[4px] transition-[width,opacity,background-color,color] disabled:pointer-events-none disabled:opacity-35",
                     T_FAST,
                     FOCUS,
-                    collapse ? "h-full" : "size-7",
+                    collapse ? "h-full" : "h-full w-7",
                     collapse
                       ? current
                         ? "w-7 opacity-100 text-[var(--color-graphite-800)] group-hover/views:bg-[var(--color-graphite-100)] group-focus-within/views:bg-[var(--color-graphite-100)]"

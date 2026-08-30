@@ -87,7 +87,7 @@ const CONTRACT = [
 /** What a surface may add of its own, and nothing else may appear. */
 const SURFACE_ONLY = [
   'Add task',
-  'New folder group',
+  'New shelf…',
   'Open in a new tab',
   'Transfer ownership',
 ]

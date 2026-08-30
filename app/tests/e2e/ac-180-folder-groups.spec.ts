@@ -247,13 +247,13 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       "spec 9.1: a folder is moved between groups from its own menu, so the row carries one",
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'New folder group', exact: true }),
+      page.getByRole('menuitem', { name: 'New shelf…', exact: true }),
       'spec 9.1: "a group is created by naming it", which is an action on a folder because a ' +
         'group is the label of that folder\'s membership and nothing else. The action is named ' +
-        '"New folder group" by that section\'s names table since 2026-08-13',
+        '"New shelf…" since the polish round: one word, shelf, on every screen (shelves F1)',
     )
     await fillControl(
-      page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
+      page.getByRole('dialog').getByLabel(/^\s*Shelf name\s*$/i),
       GROUP,
       'spec 9.1: creating a group is naming it, and that section names the field "Group name". ' +
         'The dialog names its field and not itself, a dialog being announced by its own title',
@@ -303,7 +303,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'person should never have to guess the object of',
     )
     await fillControl(
-      page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
+      page.getByRole('dialog').getByLabel(/^\s*Shelf name\s*$/i),
       RENAMED,
       'spec 9.1: renaming a group is naming it again, through the same "Group name" field',
     )
@@ -403,7 +403,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'thing that section still describes',
     )
     await expect(
-      page.getByText(/Delete folder group\? \d+ folders keep their tasks and move to the ungrouped list\./),
+      page.getByText(/Delete shelf\? \d+ folders? keep their tasks and come off the shelf\./),
       'spec 9.1: "Deleting a group deletes no folder and no task: confirm \\"Delete folder ' +
         'group? {N} folders keep their tasks and move to the ungrouped list.\\"" A person ' +
         'deleting something called a folder group has every reason to fear they are deleting ' +

@@ -700,13 +700,14 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
   })
 
   /*
-  The one prop this module cannot fill. His row renders the repeat glyph only
-  when `recurrence` carries the rule as prose, and frozen 7.0 gives a card
-  `is_recurring: boolean` with the rule on TaskDetail alone. Pinned so that the
-  day the component admits a boolean, this test is what says so.
+  polish: places F8. The row carries the one fact 7.0 gives a card about a
+  repeat, that there is one; the rule itself is TaskDetail's and is never
+  invented here. Left unset, the inline card said "Does not repeat" over a
+  task the panel beside it called weekly.
   */
-  test('a recurring card cannot fill his recurrence prop, and none is invented', () => {
-    expect(taskRowDisplay(card({ is_recurring: true }), context()).recurrence).toBeUndefined()
+  test('a recurring card fills his recurrence prop with the fact and not a rule', () => {
+    expect(taskRowDisplay(card({ is_recurring: true }), context()).recurrence).toBe('Repeats')
+    expect(taskRowDisplay(card({ is_recurring: false }), context()).recurrence).toBeUndefined()
   })
 
   test('the same card and the same today give the same props', () => {

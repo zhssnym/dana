@@ -94,13 +94,15 @@ function MessageContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/* Who is speaking. Start-aligned on both sides, deliberately, see above. */
+/* Who is speaking. polish: folderpage F13: on the author's own side, above
+   the bubble it belongs to, so a name and its message are never a page
+   width apart. */
 function MessageHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="message-header"
       className={cn(
-        "flex items-center gap-2 self-start text-[12px] leading-4 text-[var(--color-graphite-400)]",
+        "flex items-center gap-2 self-start text-[12px] leading-4 text-[var(--color-graphite-400)] group-data-[align=end]/message:self-end",
         className,
       )}
       {...props}
