@@ -44,6 +44,8 @@ export interface TrashedTask {
   folder_id: string
   folder_name: string
   deleted_at: string
+  /** The viewer owns the folder: 7.13's permanent delete is theirs (S28b). */
+  is_owner: boolean
 }
 
 export interface TrashedFolder {
@@ -51,6 +53,7 @@ export interface TrashedFolder {
   name: string
   task_count: number
   deleted_at: string
+  is_owner: boolean
 }
 
 export interface TrashView {
@@ -61,7 +64,8 @@ export interface TrashView {
 export async function trashView(db: Db, viewerId: string): Promise<TrashView> {
   const tasks = await rowsOf(
     db,
-    sql`SELECT t.id, t.title, t.folder_id, f.name AS folder_name, t.deleted_at
+    sql`SELECT t.id, t.title, t.folder_id, f.name AS folder_name, t.deleted_at,
+               (f.owner_id = ${viewerId}) AS is_owner
         FROM tasks t
         JOIN folder_members m
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
@@ -72,6 +76,7 @@ export async function trashView(db: Db, viewerId: string): Promise<TrashView> {
   const folders = await rowsOf(
     db,
     sql`SELECT f.id, f.name, f.deleted_at,
+               (f.owner_id = ${viewerId}) AS is_owner,
                (SELECT count(*)::int FROM tasks t
                  WHERE t.folder_id = f.id) AS task_count
         FROM folders f
@@ -87,12 +92,14 @@ export async function trashView(db: Db, viewerId: string): Promise<TrashView> {
       folder_id: String(row.folder_id),
       folder_name: String(row.folder_name),
       deleted_at: toIso(row.deleted_at),
+      is_owner: Boolean(row.is_owner),
     })),
     folders: folders.map((row) => ({
       id: String(row.id),
       name: String(row.name),
       task_count: Number(row.task_count),
       deleted_at: toIso(row.deleted_at),
+      is_owner: Boolean(row.is_owner),
     })),
   }
 }

@@ -6114,6 +6114,56 @@ fold, the way P7's mid-package change control ratified the pass callable:
     the two translations. The title-first rank in search crosses with the
     overlay as the prototype's decision, stable over Q8's status order.
 
+56. **S28b: the permanent-delete client half and item 38's dialog built,
+    three rulings by delegation, 2026-08-30.** The owner delegated full
+    authority for this row and there was no human to escalate to; each ruling
+    below takes the recommendation the documents already carried.
+
+    **(a) 7.13's read gains `is_owner`, additively, ruled by delegation.**
+    Item 38 made the permanent delete the folder owner's and item 53(b) read
+    it onto tasks, so the Trash page must know, per row, whether the viewer
+    owns the folder; 7.13's read carried no such fact, a trashed folder is in
+    no live list the client could look it up in, and drawing the control for
+    everybody and letting the server refuse would draw a control the client
+    knows will be answered 403. `trashedTask` and `trashedFolder` in
+    `shared/trash.ts` and `trashView` in `domain/trash.ts` carry `is_owner`,
+    the word the 7.0 Folder object already uses. No field is removed and no
+    address changes meaning; the S28a Replace unit above stands as written,
+    the field being a row fact and not an address.
+
+    **(b) Item 38's recommendation on the label stands.** A non-owner's
+    control stays "Leave folder…" (9.1's names table, AC-183 and AC-246), and
+    the confirm carries his sentence about losing access, which 9.6's copy
+    already did. The owner's question is one dialog headed "Delete {name}?"
+    with "Leave it to the members", `DELETE /folders/:id/my-membership` with
+    8.9 choosing the successor, and "Delete for everyone", `DELETE
+    /folders/:id`, 7.13's soft one. It is asked only where there is somebody
+    to leave the folder to: an owner alone keeps 9.6's confirm-free delete
+    with the undo bar, a question with one answer being no question. AC-283
+    pins the dialog and both addresses, AC-284 the non-owner's path and the
+    absent control on their Trash row.
+
+    **(c) A 403's sentence reaches the person.** `writeFailureMessage` passed
+    a 409's message through and hid a 403 behind the generic "Nothing was
+    saved"; the server's 403 copy is written for a person ("Only the folder
+    owner can delete permanently.", "Only the folder owner can rename it.")
+    and item 53(b) made 403 the answer a person who can see the row is meant
+    to read. It now passes through like the 409's. The Trash row's control is
+    drawn only where `is_owner` holds, so the toast is the belt to that brace
+    rather than the path anyone takes.
+
+    **Also:** the row's control is named "Delete for ever" (its visible word
+    stays the prototype's "Delete"), so AC-262's last arm, moved red at S28a,
+    is green; "Empty trash" walks the viewer's own rows one address at a time,
+    there being no bulk address and none owed; AC-285 reads both addresses
+    off the wire and the confirm's count. **Left to the close**: the Duplicate
+    handler in `lib/task-acts.ts` that item 53(e) named as "S28b's or the
+    close's", because the row menus reach it through `onDuplicate` props
+    four surfaces do not yet supply and AC-280 pins the selection bar as
+    offering none, which is a wiring row of its own rather than this one's.
+    Section 12 gained the one-line entries for AC-274 to AC-280, which S28a
+    and S23a wrote as files without them.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

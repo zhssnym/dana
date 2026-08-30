@@ -734,6 +734,28 @@ export function useLeaveFolder(): UseMutationResult<void, Error, string> {
   })
 }
 
+/**
+ * DELETE /trash/tasks/:id and DELETE /trash/folders/:id, 7.13's permanent
+ * delete as amended by RFC 0005 change control items 36, 38 and 53. 204; the
+ * folder owner's alone, a non-owner member answered 403 with the server's own
+ * sentence, which `writeFailureMessage` carries; the cache invalidation that
+ * follows every mutation refetches Trash and everything the cascade touched.
+ * Built at S28b over the routes S28a landed.
+ */
+export function useDestroyTrashedTask(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/trash/tasks/${id}` }),
+  })
+}
+
+export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/trash/folders/${id}` }),
+  })
+}
+
 /** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
  * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
 export function useTransferOwnership(): UseMutationResult<

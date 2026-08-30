@@ -5,10 +5,13 @@ original except at the seams named here, each marked `Seam` in the body.
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4),
    and the em dashes leave under protocol section 7.
-2. **`lib/trash.ts` is the adapter** over 7.13's read; `purge` and
-   `emptyTrash` are not imported because they do not exist yet, and every
-   control that would call them stands behind `PERMANENT_DELETE_AVAILABLE`,
-   which is S28b's slot. AC-262's last arm asserts their absence until then.
+2. **`lib/trash.ts` is the adapter** over 7.13's read, and `usePurge` is the
+   prototype's `purge` and `emptyTrash` over the two permanent addresses S28a
+   built (RFC 0005 change control items 36, 38 and 53). The act is the folder
+   owner's, so each row carries `purgeable` and the Delete control, and the
+   header's "Empty trash", are drawn only where the server would answer 204;
+   a refusal is the toast's sentence. Built at S28b; AC-262's last arm and
+   AC-284 and AC-285 read it.
 3. **The row's glyph is `markIcon` rather than the prototype's
    `folderGlyph`**, S26's ruling for the icon picker read one level down:
    4.3's icon is a stored key and `icon-manifest.ts` is the one place this
@@ -39,10 +42,10 @@ import {
 import { markIcon } from "../components/page/icon-manifest.js"
 import { CheckCircle2, Trash2 } from "../lib/icons.js"
 import {
-  PERMANENT_DELETE_AVAILABLE,
   TRASH_DAYS,
   type TrashItem,
   daysLeft,
+  usePurge,
   useTrash,
   useTrashState,
 } from "../lib/trash.js"
@@ -57,6 +60,9 @@ export function TrashScreen({
   const items = useTrash()
   /* Seam 5. */
   const state = useTrashState()
+  /* Seam 2. */
+  const { purge, emptyTrash, pending: purging } = usePurge()
+  const purgeable = items.filter((item) => item.purgeable)
   const [confirming, setConfirming] = useState<TrashItem | "all" | null>(null)
 
   return (
@@ -72,8 +78,8 @@ export function TrashScreen({
               : `Anything you delete waits here for ${TRASH_DAYS} days.`}
           </p>
         </div>
-        {/* Seam 2: TODO(S28b) draws this when the route exists. */}
-        {items.length && PERMANENT_DELETE_AVAILABLE ? (
+        {/* Seam 2: only the rows the viewer owns leave under it. */}
+        {purgeable.length ? (
           <Button
             variant="ghost"
             className="shrink-0 text-[var(--color-graphite-600)]"
@@ -95,7 +101,7 @@ export function TrashScreen({
               key={item.id}
               item={item}
               onRestore={() => onRestore(item)}
-              onPurge={() => setConfirming(item)}
+              onPurge={item.purgeable ? () => setConfirming(item) : undefined}
             />
           ))}
         </ul>
@@ -135,7 +141,7 @@ export function TrashScreen({
             </DialogTitle>
             <DialogDescription>
               {confirming === "all"
-                ? `${items.length} item${items.length === 1 ? "" : "s"} will be removed. This cannot be undone.`
+                ? `${purgeable.length} item${purgeable.length === 1 ? "" : "s"} will be removed. This cannot be undone.`
                 : "This cannot be undone, and it is the only act in Dana that cannot."}
             </DialogDescription>
           </DialogHeader>
@@ -143,11 +149,15 @@ export function TrashScreen({
             <DialogClose
               render={<Button variant="ghost">Keep it</Button>}
             />
-            {/* Seam 2: TODO(S28b) wires `purge` and `emptyTrash` here. */}
+            {/* Seam 2: `purge` and `emptyTrash` over 7.13's addresses. */}
             <Button
               variant="destructive"
+              disabled={purging}
               onClick={() => {
+                const target = confirming
                 setConfirming(null)
+                if (target === "all") void emptyTrash(purgeable)
+                else if (target !== null) void purge(target)
               }}
             >
               Delete for ever
@@ -166,7 +176,9 @@ function TrashRow({
 }: {
   item: TrashItem
   onRestore: () => void
-  onPurge: () => void
+  /* Absent where the viewer is not the folder's owner: the control is not
+     drawn rather than drawn to be refused. */
+  onPurge: (() => void) | undefined
 }) {
   /* A folder wears its own glyph, from the one resolver every other surface
      asks (DES-155); a task wears the check it would wear anywhere. Seam 3. */
@@ -202,12 +214,14 @@ function TrashRow({
         <Button variant="ghost" size="sm" onClick={onRestore}>
           Restore
         </Button>
-        {/* Seam 2: TODO(S28b). */}
-        {PERMANENT_DELETE_AVAILABLE ? (
+        {/* Seam 2. */}
+        {onPurge ? (
           <Button
             variant="ghost"
             size="sm"
             className="text-[var(--color-graphite-500)] hover:text-[var(--color-danger-600)]"
+            aria-label="Delete for ever"
+            title="Delete for ever"
             onClick={onPurge}
           >
             Delete
