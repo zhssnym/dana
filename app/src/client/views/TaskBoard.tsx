@@ -93,6 +93,9 @@ export function TaskBoard({
        board writes that name into the `aria-label` its S25 seam carries. */
     label: column.name,
     mark: groupHeadingMedia(column.mark, context.folders),
+    /* Finished columns strike through and drop their details, the lifted
+       board's own contract for its `done` flag (item 58, F and G). */
+    ...(column.done === true ? { done: true, quiet: true } : {}),
     tasks: column.rows.map(
       (task: TaskCard): BoardTask => ({
         ...taskRowDisplay(task, columnContext),
@@ -130,8 +133,23 @@ export function TaskBoard({
       }}
       onDropIn={(taskId, columnKey) => {
         const task = taskOf(columns, taskId)
-        const landing = byKey.get(columnKey)?.capture
-        if (task === undefined || landing === undefined || landing === null) return false
+        const column = byKey.get(columnKey)
+        if (task === undefined || column === undefined) return false
+        /*
+        The Done column is a status rather than a place (ledger L-045, item
+        58 G), the prototype's own sentence: "dropping on Done completes, and
+        carrying a card back out reopens it and files it wherever it landed."
+        Completion is the page's act so that 9.5's series confirm and the
+        undo bar reach it exactly as they reach the row's box.
+        */
+        if (column.done === true) {
+          if (task.status === 'completed') return false
+          actions.onToggleComplete(task)
+          return true
+        }
+        const landing = column.capture
+        if (landing === undefined || landing === null) return false
+        if (task.status === 'completed') actions.onToggleComplete(task)
         actions.onMoveToColumn(task, landing)
         return true
       }}

@@ -213,6 +213,8 @@ export function createFoldersRouter(
         icon: parsed.data.icon,
         color: parsed.data.color,
         coverFileId: parsed.data.cover_file_id,
+        coverPreset: parsed.data.cover_preset,
+        coverFocalY: parsed.data.cover_focal_y,
         description: parsed.data.description,
       })
       if (outcome === 'cover_not_here') {

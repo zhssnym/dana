@@ -112,6 +112,7 @@ import {
   useThread,
 } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
+import { showToast } from '../state/toasts.js'
 import { BlocksEditor } from '../components/page/BlocksEditor.js'
 /* S26: the head is the prototype's own composition rather than this page's
    second one. `components/page/IdentityHead.tsx` stays in the tree for the
@@ -329,7 +330,7 @@ export function FolderPage({
     useState<ConversationHome>(readConversationHome)
   const [footThreadOpen, setFootThreadOpen] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
-  const completed = useFolderCompletedTasks(id, completedOpen)
+
   const connections = useConnections()
   const threadOpen =
     conversationHome === 'foot' ? footThreadOpen : panelOpen
@@ -390,6 +391,9 @@ export function FolderPage({
       })
     },
   })
+  /* Read while the foot is open, and while the board is up, whose Done
+     column is drawn from the same pages (item 58, G). */
+  const completed = useFolderCompletedTasks(id, completedOpen || place.mode === 'board')
   const visible = place.narrow(openRows)
   /*
   Item 44's B4, at S23a: "in a folder, native or user's, with no filter or
@@ -443,6 +447,27 @@ export function FolderPage({
     sectionColumns,
   )
   const completedDays = mergeCompletedDays(completed.data?.pages)
+  /*
+  The board's Done column (ledger L-045, item 58 G), the prototype's
+  `folder-page-v2.tsx`: "No section and Done are the two columns that are not
+  sections: one is a place, one is a status, and both take drops." Drawn only
+  on the sections axis, as there, and never as a capture: a quick-add under
+  Done would make a finished task, which is not a thing.
+  */
+  const boardWithDone =
+    place.groupBy === 'section'
+      ? [
+          ...boardColumns,
+          {
+            key: '__done',
+            name: 'Done',
+            mark: null,
+            capture: null,
+            rows: completedDays.flatMap((day) => day.rows),
+            done: true,
+          },
+        ]
+      : boardColumns
 
   /*
   9.6's "tasks assigned to sections", buildable since S18 and drawn here.
@@ -888,6 +913,14 @@ export function FolderPage({
                    private folder, and the page goes to it. */
                 duplicate.mutate(id, {
                   onSuccess: (made) => {
+                    /* 9.6: "the bar says which happened" (ledger L-055, RFC
+                       0005 change control item 58, E): the prototype's two
+                       sentences, read off 7.16's `shifted_days`. */
+                    showToast(
+                      made.shifted_days > 0
+                        ? `"${made.name}" made from "${detail?.name ?? ''}", dates moved to start today`
+                        : `"${made.name}" made from "${detail?.name ?? ''}"`,
+                    )
                     navigate(paths.folder(made.id))
                   },
                 })
@@ -1056,7 +1089,10 @@ export function FolderPage({
           <PageSection name="All open tasks">
             <PageBody
               query={open}
-              isEmpty={bothEmpty}
+              /* A board whose Done column holds finished work is not an
+                 empty page (item 58 G): the last open task completed by a
+                 drop must not take the board with it. */
+              isEmpty={bothEmpty && !(place.mode === 'board' && completedDays.length > 0)}
               emptyCopy={FOLDER_EMPTY}
               emptyIcon={FolderIcon}
               truncated={open.data?.truncated ?? false}
@@ -1068,7 +1104,7 @@ export function FolderPage({
                    every place page together (AC-259). */
                 <TaskBoard
                   place={place}
-                  columns={boardColumns}
+                  columns={boardWithDone}
                   context={context}
                   actions={actions}
                 />

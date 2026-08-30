@@ -36,13 +36,13 @@ widening a frozen section 4 CHECK for a punctuation mark, is not one.
 
 **A folder is the other half of this module, added at S26, and the two
 halves are exactly complementary.** A place page's cover is 4.20's, a preset
-or a file with a crop, per viewer; a folder's is 4.3's `cover_file_id` and
-nothing else, one look for every member. So a place can wear a gradient and
-can never wear a picture (section 13 item 52), and a folder can wear a picture
-and can never wear a gradient or a crop (**section 13 item 53**). Neither page
-in Dana can offer all four of item 44's B8 tiers, which is a fact about two
-frozen tables rather than about either picker, and `coverTiersFor` is where
-the two answers are written down. A `storageName` beginning `folder:` names a
+or a file with a crop, per viewer; a folder's is 4.3's `cover_file_id`, or
+since RFC 0005 change control item 58 its `cover_preset` with a
+`cover_focal_y`, one look for every member. So a place can wear a gradient and
+can never wear a picture (section 13 item 52), and a folder can wear either,
+which is section 13 item 53's first answer taken. No page offers B8's link or
+photo tiers, because neither is a file or a preset, and `coverTiersFor` is
+where each page's answer is written down. A `storageName` beginning `folder:` names a
 folder by id; anything else is 4.20's own place string, and the endpoint is
 its authority.
 
@@ -136,23 +136,26 @@ function shelfOf(place: string): string | null {
  * a capability lifted ahead of its consumer fails in neither half loudly.
  */
 export function coverTiersFor(place: string): readonly CoverTier[] {
-  /* A folder holds a file and no preset (4.3), a place holds a preset and can
-     hold no file it has any way of making (item 52), and a shelf holds a file
-     it has no way of making either (section 13 item 57). */
+  /* A folder holds a file and, since RFC 0005 change control item 58 took
+     section 13 item 53's first answer, a preset and a crop as well (4.3), so
+     it offers the gallery a place page offers plus the upload a place page
+     cannot make (item 52); a shelf holds a file it has no way of making
+     (section 13 item 57). */
   if (shelfOf(place) !== null) return []
-  return folderOf(place) === null ? ['gallery'] : ['upload']
+  return folderOf(place) === null ? ['gallery'] : ['gallery', 'upload']
 }
 
 /**
  * Whether this page has somewhere to keep a cover's vertical crop.
  *
- * 4.20 carries `focal_y` and 7.19 writes it; `folders` carries a cover and no
- * crop at all, which is ledger L-068 read against the schema. So the
- * Reposition control is drawn where the drag can be kept and is absent where
- * it cannot, rather than moving a picture that snaps back on the next read.
+ * 4.20 carries `focal_y` and 7.19 writes it, and since item 58 `folders`
+ * carries `cover_focal_y` through 7.4's PATCH (ledger L-068 closes with it).
+ * A shelf still has nowhere to keep one, so the Reposition control is drawn
+ * where the drag can be kept and is absent where it cannot, rather than
+ * moving a picture that snaps back on the next read.
  */
 export function coverStoresPosition(place: string): boolean {
-  return folderOf(place) === null && shelfOf(place) === null
+  return shelfOf(place) === null
 }
 
 /**
@@ -242,10 +245,16 @@ export function usePageIdentity(place: string): PageIdentity {
   if (folderId !== null) {
     const detail = folder.data
     if (detail === undefined) return NO_IDENTITY
+    /* A preset first, a file second, exactly as `coverKeyOf` reads a place's
+       row: 4.3's one-source CHECK means at most one is set. */
+    const cover =
+      detail.cover_preset !== null
+        ? presetToKey(detail.cover_preset)
+        : detail.cover_file_id !== null
+          ? `link:/api/v1/files/${detail.cover_file_id}`
+          : undefined
     return {
-      ...(detail.cover_file_id === null
-        ? {}
-        : { cover: `link:/api/v1/files/${detail.cover_file_id}` }),
+      ...(cover === undefined ? {} : { cover, coverPos: detail.cover_focal_y }),
       ...(detail.description === null ? {} : { description: detail.description }),
     }
   }
@@ -287,19 +296,13 @@ export function savePageIdentity(
   const settle = (): void => void client?.invalidateQueries()
 
   /*
-  The folder half. 4.3 carries the cover as a file id and the description as
-  text, both shared by every member and both written by 7.4's PATCH, so what
-  crosses is those two and nothing else.
-
-  **`coverPos` is deliberately dropped rather than stored somewhere.** There is
-  no crop column on `folders` (ledger L-068), and `coverStoresPosition` above
-  keeps the control that would produce one off the page, so a patch carrying
-  one can only come from a caller that has not read either. Section 13 item 53
-  is the amendment.
-
-  **A key that is not a stored file is dropped for the same kind of reason**:
-  a folder has no preset column, so a gradient has nowhere to go, and
-  `coverTiersFor` keeps that tier off a folder's picker.
+  The folder half. 4.3 carries the cover as a file id or a preset with a crop
+  (since RFC 0005 change control item 58 took section 13 item 53's first
+  answer) and the description as text, all shared by every member and all
+  written by 7.4's PATCH, so what crosses is those and nothing else. The two
+  paragraphs that stood here recorded `coverPos` and a gallery key being
+  dropped for want of a column; the columns exist now, ledger L-068 closes,
+  and the folder page writes exactly what a place page writes.
   */
   /* The shelf half: 4.18's four identity columns through 7.16's PATCH. */
   const shelfId = shelfOf(place)
@@ -325,10 +328,23 @@ export function savePageIdentity(
   if (folderId !== null) {
     const body: Record<string, unknown> = {}
     if ('cover' in patch) {
-      if (patch.cover === undefined) body['cover_file_id'] = null
-      else if (!patch.cover.startsWith('link:/api/v1/files/')) return
-      else body['cover_file_id'] = patch.cover.slice('link:/api/v1/files/'.length)
+      /* Removal clears both sources; a file names 4.3's file column and a
+         gallery key its preset column, the server clearing the other (item
+         58). A fresh cover starts at 4.20's default crop, as a place's does. */
+      if (patch.cover === undefined) {
+        body['cover_file_id'] = null
+        body['cover_preset'] = null
+      } else if (patch.cover.startsWith('link:/api/v1/files/')) {
+        body['cover_file_id'] = patch.cover.slice('link:/api/v1/files/'.length)
+        body['cover_focal_y'] = DEFAULT_FOCAL_Y
+      } else {
+        const preset = keyToPreset(patch.cover)
+        if (preset === null) return
+        body['cover_preset'] = preset
+        body['cover_focal_y'] = DEFAULT_FOCAL_Y
+      }
     }
+    if (patch.coverPos !== undefined) body['cover_focal_y'] = Math.round(patch.coverPos)
     if ('description' in patch) body['description'] = patch.description ?? null
     if (Object.keys(body).length === 0) return
     void mutateApi(null, { method: 'PATCH', path: `/folders/${folderId}`, body })

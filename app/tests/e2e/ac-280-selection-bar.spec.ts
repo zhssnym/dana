@@ -6,7 +6,9 @@ complete" is pressed, then every selected task is completed through 7.6's
 transition and the bar leaves; when "Move to a folder" names a folder, then
 every selected task is moved with `PATCH /tasks/:id`; and when "Delete" is
 pressed, then 9.3's confirmation is asked once, in the plural, and each task
-is deleted through 7.6 on Continue. The bar offers no Duplicate.
+is deleted through 7.6 on Continue; and when "Duplicate" is pressed, then
+every selected task is copied with `POST /tasks/:id/duplicate` and the bar
+leaves.
 
 Authored at S23a by `11-adversarial-test.md`. It is RFC 0005 change control
 item 44's "selection and the bulk bar are client state over endpoints that
@@ -28,9 +30,11 @@ engine would open the row it took for a tap; the case asserts no dialog
 opened, because a hold that selected and opened at once would be two answers
 to one gesture.
 
-**Duplicate is asserted absent.** `lib/task-acts.ts` records that frozen
-section 7 has no task duplicate (section 13 item 46), and a bar that offered
-one would be offering a control with no act behind it.
+**Duplicate is asserted present since the loose-ends row.** This case used
+to assert it absent, `lib/task-acts.ts` recording that frozen section 7 had
+no task duplicate (section 13 item 46); S28a gave it `POST /tasks/:id/duplicate`
+and RFC 0005 change control item 58 (A) wired the bar, which the prototype's
+bar has always offered.
 
 Spec: 7.6 (transition, PATCH, DELETE), 9.3 (the delete confirmation), 9.1
 (the region table), RFC 0005 change control item 44.
@@ -126,8 +130,8 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
     await selectTwo(page, first, second)
     await expect(
       page.getByRole('button', { name: 'Duplicate', exact: true }),
-      'lib/task-acts.ts and section 13 item 46: no task duplicate exists, so the bar offers none',
-    ).toHaveCount(0)
+      'item 58 (A): the bar offers the prototype\'s Duplicate now that 7.16 has a task duplicate',
+    ).toBeVisible()
 
     const wire = watchWire(page)
     await clickControl(
@@ -229,5 +233,39 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
     ).toEqual([`DELETE /api/v1/tasks/${a.id}`, `DELETE /api/v1/tasks/${b.id}`].sort())
     await expect(taskRow(page, first)).toHaveCount(0)
     await expect(taskRow(page, second)).toHaveCount(0)
+  })
+
+  test('AC-280: Duplicate copies each selected task through POST /tasks/:id/duplicate', async ({
+    page,
+  }) => {
+    const folder = await createFolder(page, caseTitle('AC-280 copies'))
+    const first = caseTitle('AC-280 first to copy')
+    const second = caseTitle('AC-280 second to copy')
+    const a = await createTask(page, { title: first, folder_id: folder.id })
+    const b = await createTask(page, { title: second, folder_id: folder.id })
+    await page.goto(routesV2.folder(folder.id))
+    await expect(taskRow(page, second)).toBeVisible()
+
+    await selectTwo(page, first, second)
+    const wire = watchWire(page)
+    await clickControl(
+      page.getByRole('button', { name: 'Duplicate', exact: true }),
+      'the bar\'s Duplicate copies everything selected (item 58 A)',
+    )
+    await waitForApiIdle(page, 'both copies have been written')
+    await expect(selectionBar(page), 'the bar leaves once its act is done').toHaveCount(0)
+    const copies = wire
+      .mutations()
+      .map((call) => `${call.method} ${new URL(call.url).pathname}`)
+      .filter((call) => call.endsWith('/duplicate'))
+      .sort()
+    expect(
+      copies,
+      'spec 7.16: one duplicate per selected task, at the endpoint the row\'s own act uses',
+    ).toEqual(
+      [`POST /api/v1/tasks/${a.id}/duplicate`, `POST /api/v1/tasks/${b.id}/duplicate`].sort(),
+    )
+    await expect(taskRow(page, `${first} (copy)`), 'the copy is on the page').toBeVisible()
+    await expect(taskRow(page, `${second} (copy)`)).toBeVisible()
   })
 })

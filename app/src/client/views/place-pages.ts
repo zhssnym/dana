@@ -153,15 +153,14 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     question: 'Everything you have finished',
     icon: CheckCircle2,
     /*
-    List alone, and the omission is dated rather than a reading of DES-177.
-    Done draws `DoneRow` and every other page draws `TaskRow`, which 11.15
-    records as the duplication to reunify and RFC 0004 assigns to S11 as "one
-    task-row implementation total". A board here would have to pick one of the
-    two now, on a package that owns neither, and whichever it picked would be
-    the second implementation S11 then has to unpick. Board arrives with the
-    reunion; nothing asserts it today.
+    List and board since the loose-ends row (RFC 0005 change control item 58,
+    F; ledger L-049). The comment that stood here dated the omission to the
+    two-row era S23 ended: Done draws the one `TaskRow`, so its board is the
+    shared `views/TaskBoard.tsx` with a column per completion day, every
+    card finished. A day is a relation rather than a value, so no column
+    captures and no drop lands, `grouping.ts`'s own rule for Overdue.
     */
-    views: ['list'],
+    views: LIST_AND_BOARD,
     capture: 'none',
     boardAxis: 'folder',
   },
