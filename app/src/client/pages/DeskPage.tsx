@@ -28,6 +28,7 @@ state vocabulary exists to prevent.
 */
 import { useFolders } from '../api/queries.js'
 import { InlineError, SkeletonList } from '../components/state-patterns.js'
+import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 
 import { FolderPage } from './FolderPage.js'
@@ -61,6 +62,13 @@ export function DeskPage(): React.JSX.Element {
 
   return (
     <>
+      {/* Item 60's strip, above the page while the sample is present. The
+          starter offer below it needs no change: 9.13's freshness test
+          fails while the sample's folders exist, and passes again the
+          moment removal empties the account. */}
+      <div className="px-6">
+        <SampleStrip />
+      </div>
       <FolderPage folderId={desk.id} />
       {mayBeFresh ? <StarterOffer /> : null}
     </>

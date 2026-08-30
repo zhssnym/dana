@@ -43,6 +43,7 @@ const SECTION_4_TABLES = [
   'notifications',
   'page_blocks',
   'reminders',
+  'sample_objects',
   'shelves',
   'steps',
   'tasks',
