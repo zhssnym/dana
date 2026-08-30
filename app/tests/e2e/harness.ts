@@ -297,6 +297,33 @@ export async function createTask(page: Page, body: NewTask): Promise<{ id: strin
   return (await response.json()) as { id: string }
 }
 
+/**
+ * POST /tasks/:id/steps, one call per title, in order.
+ *
+ * Added in the polish round of 2026-08-30 (AC-352, AC-354): a fixture that
+ * needs real steps had to write them by hand, `NewTask` carrying none because
+ * 7.6 does not take them. The steps are posted one at a time and awaited in
+ * turn, so the positions 7.7 assigns follow the order given here.
+ */
+export async function createSteps(
+  page: Page,
+  taskId: string,
+  titles: readonly string[],
+): Promise<void> {
+  const token = await csrfToken(page.context())
+  for (const title of titles) {
+    const response = await page.request.post(`/api/v1/tasks/${taskId}/steps`, {
+      data: { title },
+      headers: { 'X-CSRF-Token': token },
+    })
+    expect(
+      response.status(),
+      `POST /tasks/${taskId}/steps for ${JSON.stringify(title)} answered ` +
+        `${response.status()}: ${await response.text()}`,
+    ).toBe(201)
+  }
+}
+
 /** PATCH /tasks/:id. Present fields only, per 7.6. */
 export async function patchTask(
   page: Page,
@@ -741,10 +768,10 @@ export const copy = {
   /** 9.3, the steps editor's cap notice, spelled at the P8 change control. */
   stepCapNotice: 'Limit 50 steps',
   /** 9.3, the delete confirm in the form's overflow menu. */
-  deleteTaskConfirm: "Delete this task? This can't be undone.",
+  deleteTaskConfirm: 'Move this task to Trash? It stays there for 30 days.',
   /** 9.4, abandon from My Day. */
   abandonConfirm:
-    'Abandon this task? It stops appearing in My Day but stays everywhere else.',
+    'Abandon this task? It stops appearing in Today but stays everywhere else.',
   /**
    * 9.4, the un-pull control's label, as AC-165 reads it since the owner's
    * ruling of 2026-08-24. v1 called it "Remove from My Day" and 9.4 renamed
