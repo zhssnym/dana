@@ -108,7 +108,8 @@ const VERB_SENTENCE: Record<string, string> = {
  * whose thread holds it. A comment with no folder cannot happen (4.15 scopes
  * every comment), but a fallback to Desk beats a dead control.
  */
-function subjectPath(event: NotificationLine['event']): string {
+function subjectPath(row: NotificationLine): string {
+  const event = row.event
   switch (event.subject_kind) {
     case 'task':
       return paths.task(event.subject_id)
@@ -117,11 +118,49 @@ function subjectPath(event: NotificationLine['event']): string {
     case 'shelf':
       return paths.shelf(event.subject_id)
     case 'comment':
-      return event.folder_id === null ? paths.desk : paths.folder(event.folder_id)
+      /* polish: search F3. A comment lands on its thread, opened: the task
+         when it sits on one, the folder page otherwise, each told to expand
+         its conversation by the query the page reads. */
+      if (row.task_id !== null) return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open`
+      return event.folder_id === null
+        ? paths.desk
+        : `${paths.folder(event.folder_id)}?${CONVERSATION_PARAM}=open`
   }
 }
 
-export function NotificationsBell(): React.JSX.Element {
+/** The query a page reads to open its conversation on arrival (polish, search F3). */
+export const CONVERSATION_PARAM = 'conversation'
+
+/**
+ * The row's sentence (9.12: actor, act, thing), polish search F4.
+ *
+ * Two acts are said for the reader rather than for the record: an assignment
+ * reaches only its assignee, so "assigned to X" reads "assigned you"; and a
+ * comment's detail already names its place, so the snippet goes on its own
+ * line, quoted. Everything else keeps the verb and the thing's name.
+ */
+function sentenceOf(row: NotificationLine): { readonly act: string; readonly quote: string | null } {
+  const event = row.event
+  const detail = event.detail ?? ''
+  if (event.subject_kind === 'comment') {
+    return { act: detail.startsWith('commented') ? detail : 'commented', quote: event.subject_name }
+  }
+  if (detail.startsWith('assigned to ')) {
+    return { act: `assigned you "${event.subject_name}"`, quote: null }
+  }
+  const verb = VERB_SENTENCE[event.verb] ?? event.verb
+  return {
+    act: `${verb} "${event.subject_name}"${detail === '' ? '' : `, ${detail}`}`,
+    quote: null,
+  }
+}
+
+export function NotificationsBell({
+  side = 'right',
+}: {
+  /** Where the list opens: right of the sidebar's bell, below the phone bar's. */
+  readonly side?: 'right' | 'bottom'
+} = {}): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const notifications = useNotifications(open)
@@ -146,7 +185,7 @@ export function NotificationsBell(): React.JSX.Element {
   function openRow(row: NotificationLine): void {
     if (row.read_at === null) markRead.mutate(row.id)
     setOpen(false)
-    navigate(subjectPath(row.event))
+    navigate(subjectPath(row))
   }
 
   return (
@@ -170,7 +209,11 @@ export function NotificationsBell(): React.JSX.Element {
           </span>
         ) : null}
       </PopoverTrigger>
-      <PopoverContent align="start" side="right" className="w-[360px] p-1.5">
+      <PopoverContent
+        align={side === 'right' ? 'start' : 'end'}
+        side={side}
+        className="w-[min(360px,calc(100vw-16px))] p-1.5"
+      >
         <div className="flex items-center justify-between px-2 pt-1 pb-1.5">
           <p className="text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
             Notifications
@@ -197,7 +240,7 @@ export function NotificationsBell(): React.JSX.Element {
           rows.map((row) => {
             const read = row.read_at !== null
             const actor = names.get(row.event.actor_id) ?? 'Someone'
-            const act = VERB_SENTENCE[row.event.verb] ?? row.event.verb
+            const { act, quote } = sentenceOf(row)
             return (
               <button
                 key={row.id}
@@ -235,9 +278,13 @@ export function NotificationsBell(): React.JSX.Element {
                     >
                       {actor}
                     </span>{' '}
-                    {act} {row.event.subject_name}
-                    {row.event.detail === null ? '' : `, ${row.event.detail}`}
+                    {act}
                   </span>
+                  {quote === null ? null : (
+                    <span className="mt-0.5 block truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                      “{quote}”
+                    </span>
+                  )}
                   <span className="mt-0.5 block text-[11px] leading-4 text-[var(--color-graphite-400)]">
                     {formatAgo(row.created_at, Date.now())}
                   </span>

@@ -58,6 +58,7 @@ import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 
 import { closeTab, openInNewTab, reorderTabs, selectTab, useTabs } from './tabs.js'
+import { paths } from '../routes.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
 
@@ -105,17 +106,33 @@ export function TabStrip({
     },
   })
 
+  /* polish: tabstrip F9. Middle-click closes, as every strip does; a
+     focused tab closes on Delete or Backspace. Ctrl+W is the browser's own
+     and is not intercepted: a keydown handler cannot stop Chrome closing the
+     window's tab, so wiring it would work only sometimes. */
+  const close = (id: string): void => {
+    const to = closeTab(id)
+    if (to !== null) onNavigate(to)
+  }
+
   return (
-    <div className="flex min-h-[var(--shell-pagebar-height)] items-end gap-1 px-2">
+    /* polish: tabstrip F3, F10. The strip's ground is the sidebar's tint, so
+       the active tab's card colour lifts off it; the plus docks after the
+       last tab rather than at the far edge of the window. */
+    <div className="flex min-h-[var(--shell-pagebar-height)] items-end gap-1 bg-[var(--color-graphite-50)] px-2">
       <div
         role="tablist"
         aria-label="Open tabs"
-        className="flex min-w-0 flex-1 items-end gap-1 overflow-x-auto"
+        className="flex min-w-0 shrink items-end gap-1 overflow-x-auto"
       >
         {tabs.map((tab, index) => {
           const { title, icon: Icon, iconColor } = face(tab.path)
           const active = tab.id === activeId
           const state = drag.itemState(index)
+          /* polish: tabstrip F11. The only tab, pointing at Desk, cannot be
+             closed to anything but itself, so the control that would say
+             otherwise is not drawn. */
+          const closable = !(tabs.length === 1 && tab.path === paths.desk)
           return (
             <div
               key={tab.id}
@@ -142,12 +159,22 @@ export function TabStrip({
               // inside it.
               data-sort-handle
               onClick={() => onNavigate(selectTab(tab.id))}
+              onAuxClick={(event) => {
+                if (event.button !== 1) return
+                event.preventDefault()
+                close(tab.id)
+              }}
               onKeyDown={(event) => {
                 // The engine reads the two arrows that mean "along this list",
                 // which on its `x` axis are Left and Right. It ignores every
                 // other key, so this runs first and falls through.
                 drag.handleProps(index).onKeyDown(event)
                 if (event.defaultPrevented) return
+                if ((event.key === 'Delete' || event.key === 'Backspace') && closable) {
+                  event.preventDefault()
+                  close(tab.id)
+                  return
+                }
                 if (event.key !== 'Enter' && event.key !== ' ') return
                 event.preventDefault()
                 onNavigate(selectTab(tab.id))
@@ -174,7 +201,7 @@ export function TabStrip({
               }}
               className={`relative flex h-7 min-w-0 max-w-56 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/30 ${
                 active
-                  ? 'bg-card font-medium text-foreground'
+                  ? 'bg-card font-medium text-foreground shadow-[0_-1px_0_var(--color-graphite-200),1px_0_0_var(--color-graphite-200),-1px_0_0_var(--color-graphite-200)]'
                   : 'text-muted-foreground hover:bg-[var(--color-graphite-100)]'
               } ${state.isActive ? 'opacity-60 shadow-md' : ''}`}
             >
@@ -187,19 +214,20 @@ export function TabStrip({
                 />
               )}
               <span className="truncate">{title}</span>
-              <button
-                type="button"
-                aria-label={CLOSE_TAB}
-                title={CLOSE_TAB}
-                className="ml-0.5 grid size-4 shrink-0 place-items-center rounded text-muted-foreground hover:bg-[var(--color-graphite-200)] hover:text-foreground"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  const to = closeTab(tab.id)
-                  if (to !== null) onNavigate(to)
-                }}
-              >
-                <X className="size-3" strokeWidth={1.75} aria-hidden="true" />
-              </button>
+              {closable ? (
+                <button
+                  type="button"
+                  aria-label={CLOSE_TAB}
+                  title={CLOSE_TAB}
+                  className="ml-0.5 grid size-4 shrink-0 place-items-center rounded text-muted-foreground hover:bg-[var(--color-graphite-200)] hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    close(tab.id)
+                  }}
+                >
+                  <X className="size-3" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
           )
         })}
@@ -275,6 +303,7 @@ export function TabStrip({
           })}
         </DropdownMenuContent>
       </DropdownMenu>
+      <span className="min-w-0 flex-1" aria-hidden="true" />
     </div>
   )
 }

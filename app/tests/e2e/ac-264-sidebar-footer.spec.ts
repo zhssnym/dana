@@ -61,8 +61,16 @@ import {
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-/** The three of 9.1's row, in that section's own order. */
-const ROW_OF_THREE = ['New shelf', 'Import', 'Trash'] as const
+/**
+ * The row of two, since the polish round of 2026-08-30 (sidebar F10).
+ *
+ * 9.1's row was three, "New shelf", "Import" and "Trash", and the third was
+ * a destination among acts: an unlabelled glyph at the default width that a
+ * newcomer could not tell from Import beside it. Trash is a place, so it
+ * joined the places, a navigation row above People and Settings, and the row
+ * keeps the two acts of making with their words at every width.
+ */
+const ROW_OF_TWO = ['New shelf', 'Import'] as const
 
 function control(page: Page, name: string) {
   return sidebar(page)
@@ -102,36 +110,40 @@ test.describe('AC-264: the sidebar footer is 9.1\'s composition', () => {
     await page.goto(routesV2.desk)
   })
 
-  test('AC-264: New folder, then the row of three', async ({ page }) => {
+  test('AC-264: New folder, then the row of two, then Trash among the places', async ({ page }) => {
     await expect(
       control(page, 'New folder'),
       'spec 9.1: "one primary New folder action"',
     ).toBeVisible()
 
-    for (const name of ROW_OF_THREE) {
+    for (const name of ROW_OF_TWO) {
       await expect(
         control(page, name),
-        `spec 9.1: "then a row of three placed by role: New shelf, Import (a workflow file), ` +
-          `and Trash". The built footer offers New folder and then Trash, People and Settings ` +
-          `as nav rows, its own comment saying the other two "arrive with the surfaces they ` +
-          `make". ${name} is one of the three`,
+        `spec 9.1: "then a row of two acts of making: New shelf and Import (a workflow ` +
+          `file)". ${name} is one of the two`,
       ).toBeVisible()
     }
 
-    /* The order is the section's, and it is order by role: two acts of making
-       and then a destination. Reading the boxes rather than the DOM keeps the
-       assertion about what a person sees. */
+    /* The order is the section's. Reading the boxes rather than the DOM keeps
+       the assertion about what a person sees. */
     const positions: number[] = []
-    for (const name of ROW_OF_THREE) {
+    for (const name of ROW_OF_TWO) {
       const box = await control(page, name).boundingBox()
       expect(box, `${name} has a box`).not.toBeNull()
       if (box !== null) positions.push(Math.round(box.x))
     }
     expect(
       positions,
-      'spec 9.1 orders the three by role, "the first two acts of making and the third a ' +
-        'destination", so they run New shelf, Import, Trash across the row',
+      'spec 9.1 orders the two as it names them, New shelf then Import across the row',
     ).toEqual([...positions].sort((a, b) => a - b))
+
+    const trash = sidebar(page).getByRole('link', { name: 'Trash', exact: true })
+    await expect(
+      trash,
+      'spec 9.1: "then Trash, People and Settings as links". Trash is a destination and ' +
+        'stands with the other places rather than in a row of acts (polish round, sidebar F10)',
+    ).toBeVisible()
+    await expect(trash, 'the link reaches 9.11\'s page').toHaveAttribute('href', /\/app\/trash$/)
 
     const newFolder = await control(page, 'New folder').boundingBox()
     const newShelf = await control(page, 'New shelf').boundingBox()
@@ -153,59 +165,36 @@ test.describe('AC-264: the sidebar footer is 9.1\'s composition', () => {
     }
   })
 
-  test('AC-264: narrowing keeps New shelf\'s label and drops the other two', async ({ page }) => {
+  test('AC-264: both labels survive the narrow end, and both are named by tooltip', async ({ page }) => {
     /*
-    Widened first, and that is the assertion rather than the setup. DES-216
-    is a *transition*, so a case that only read the narrow end could pass
-    against a footer whose labels were never there. The prototype's own note
-    is why the wide end has to be reached by dragging rather than taken as
-    the default: "the three words need 256px and the default row has 240, so
-    at the default width something has to give" (Imran, 2026-08-24). So all
-    three labels exist at the wide end of the range, two of them go as the
-    row narrows, and that pair of readings is what DES-216 promises.
+    Both ends of the range are read, wide first, for the reason the older
+    case gave: a case that only read one end could pass against a footer
+    whose labels were never there. DES-216's asymmetry, New shelf keeping its
+    word while the others dropped to glyphs, was the arithmetic of three words
+    in 240px; with two words there is room at every width, and the polish
+    round's rule is that a control with no word at rest is a control a
+    newcomer has to guess, so both keep theirs at both ends.
+
+    `useInnerText`, because `textContent` includes a node CSS has hidden and
+    a label that had wrongly dropped would still read as present.
     */
-    await drag(page, 'wide')
-    for (const name of ROW_OF_THREE) {
-      await expect(
-        control(page, name),
-        `spec 9.1: the footer's row of three carries labels where there is room for them, ` +
-          `and ${name} is one of them. Without this the assertions below could be satisfied ` +
-          'by a footer that never drew a label at all',
-      ).toContainText(name, { useInnerText: true })
+    for (const end of ['wide', 'narrow'] as const) {
+      await drag(page, end)
+      for (const name of ROW_OF_TWO) {
+        await expect(
+          control(page, name),
+          `spec 9.1: the footer's two acts of making carry their words at every width, and ` +
+            `${name} is one of them (read at the ${end} end)`,
+        ).toContainText(name, { useInnerText: true })
+      }
     }
 
-    await drag(page, 'narrow')
-
-    /*
-    `useInnerText` on all three, and it is the difference between measuring
-    this and measuring nothing. `toContainText` reads `textContent` by
-    default, which includes a node CSS has hidden, and DES-216's whole
-    mechanism is a container query that hides a span. Read that way, a label
-    that has correctly dropped still reads as present and the negative
-    assertions below can never fail. `innerText` is what the browser renders,
-    which is what a person sees and what this criterion is about.
-    */
-    await expect(
-      control(page, 'New shelf'),
-      'spec 9.1 and DES-216: "when the sidebar narrows, New shelf keeps its label and the ' +
-        'other two drop to icons". This is the half an implementation that dropped all three ' +
-        'together would fail',
-    ).toContainText('New shelf', { useInnerText: true })
-
-    for (const name of ['Import', 'Trash']) {
-      await expect(
-        control(page, name),
-        `spec 9.1: ${name} drops to its icon when the rail narrows, which is the asymmetry ` +
-          'DES-216 rules and the reason this is not one rule applied three times',
-      ).not.toContainText(name, { useInnerText: true })
-    }
-
-    for (const name of ROW_OF_THREE) {
+    for (const name of ROW_OF_TWO) {
       expect(
         await tooltipText(
           control(page, name),
-          `spec 9.1: "all three named by tooltip in every state". A narrow footer whose ` +
-            `glyphs are unnamed is unusable, which is why that clause is unconditional`,
+          `spec 9.1: "both named by tooltip in every state". A footer whose glyphs are ` +
+            `unnamed is unusable, which is why that clause is unconditional`,
         ),
       ).toContain(name)
     }

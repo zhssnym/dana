@@ -83,9 +83,11 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
+  /* polish: sidebar F5. The one word, shelf, and what "folders keep their
+     tasks" means to a person: they come off the shelf and stay. */
   return (
-    `Delete folder group? ${String(folderCount)} folders keep their tasks and ` +
-    'move to the ungrouped list.'
+    `Delete shelf? ${String(folderCount)} folders keep their tasks and ` +
+    'come off it.'
   )
 }
 
