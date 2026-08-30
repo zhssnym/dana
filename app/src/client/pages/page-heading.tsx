@@ -23,7 +23,7 @@ its glyph and colour are theirs to choose (DES-130), while Today's sun is
 Dana's, and offering a picker on it would promise a choice that does not exist.
 Same geometry, same optical position, no popover, so the two read as one family
 without either telling a lie. AC-247 asserts both halves, the absence here and
-the presence on `components/page/IdentityHead.tsx`.
+the presence on `components/page/IdentityHead.tsx`, retired at S27.
 
 **The fact rides the title's line; prose sits under it.** The folder page put
 its completion ratio on the baseline and its description below (DES-130 as

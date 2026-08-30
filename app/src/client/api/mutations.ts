@@ -100,6 +100,7 @@ import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
+import { needsImportAnchor } from '../../shared/workflows.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
 import { mutateApi, requestTimezone } from './http.js'
@@ -774,8 +775,21 @@ export function useImportWorkflow(): UseMutationResult<
   ImportWorkflowBody
 > {
   return useMutation({
+    /*
+    tz on frozen 7.6's precedent rather than 7.0's view rule, which is how
+    the route reads it: a file carrying a repeat or a reminder evaluates a
+    date and needs 4.5's anchor, and 7.16 as widened answers 422 naming tz
+    without one. Every file that imported before item 44's B3 still carries
+    none, so the parameter goes only where it is read (RFC 0004's S27, the
+    row's item 44 clause; AC-273 pins the server half).
+    */
     mutationFn: (body: ImportWorkflowBody) =>
-      mutateApi(importWorkflowResponse, { method: 'POST', path: '/workflows/import', body }),
+      mutateApi(importWorkflowResponse, {
+        method: 'POST',
+        path: '/workflows/import',
+        body,
+        ...(needsImportAnchor(body) ? { params: { tz: requestTimezone() } } : {}),
+      }),
   })
 }
 

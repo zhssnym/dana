@@ -65,13 +65,12 @@ describe('the icon family is one decision in one file (DES-125)', () => {
 
   **Five left at S24, which is the shell**: the three folder dialogs, the
   folder row and the state patterns, exactly the set this comment named as
-  going "with the shell". What remains are the calendar, the search overlay and
-  the quick-add, whose surfaces are S25's, S27's and the row work's.
+  going "with the shell". The search overlay left at S27, lifted whole. What
+  remains are the calendar and the quick-add.
   */
   const V1_LUCIDE = [
     'components/calendar/PlannedCalendar.tsx',
     'components/quick-add.tsx',
-    'components/search/SearchOverlay.tsx',
   ]
 
   test('only the icon module imports lucide-react, beside a named v1 list', () => {
@@ -96,7 +95,8 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   reach for roles would be the rewrite that strategy forbids. So a lift adds an
   entry here rather than removing one, which is what `view-strip.tsx` and
   `window-bar.tsx` did at S23, `undo-bar.tsx` did at S24, and `folder-cover`,
-  `page-cover` and `page-head` did at S25, and `page-image` does at S26. The
+  `page-cover` and `page-head` did at S25, `page-image` did at S26, and
+  `search-overlay` does at S27, replacing the port's entry with the lift's. The
   bell is the same entry for the opposite reason: it was always the prototype's
   class strings and it moved into this directory at S26, where the rule reaches
   it for the first time. Whether the prototype should be
@@ -119,7 +119,7 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/page-head.tsx',
     'components/page-image.tsx',
     'components/quick-add.tsx',
-    'components/search/SearchOverlay.tsx',
+    'components/search-overlay.tsx',
     'components/state-patterns.tsx',
     'components/task-assignee-invite.tsx',
     'components/task-board.tsx',
