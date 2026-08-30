@@ -5763,6 +5763,79 @@ fold, the way P7's mid-package change control ratified the pass callable:
     S30's walkthrough exists for; this row offers it as the second instance of
     the same lesson rather than as a defect it happened to trip over.
 
+52. **S23a's task machinery: the drag over 7.6's order endpoint, the hold
+    that makes a folder, selection with its bar, and four readings ruled by
+    delegation (S23a, 2026-08-30).** RFC 0004's S23a row is the three things
+    item 47(k) split out of S23, and this item carries what the row decided.
+    The owner delegated the row in full, so every question below is ruled by
+    delegation on 2026-08-30, taking the recommendation the documents already
+    carry where one exists.
+
+    **(a) Where the wiring lives.** `pages/task-rows.tsx`, the one component
+    every page draws rows through, now renders the lifted `TaskList` rather
+    than a row per task, so the drag, the hold and the selection bar reach
+    every list at once and no page is edited for them. The folder page alone
+    passes an `arrangement`, computed from its own filter: item 44's B4 read
+    literally, "no filter or sort applied" being `!isNarrowed(filter)` and
+    `sort === 'manual'`, with grouping read alongside them because a grouped
+    list is drawn under headings the filter chose. Every other page passes
+    nothing and its drag springs back. **Ruled by delegation, 2026-08-30.**
+
+    **(b) Four seams in `components/task-row.tsx`, each named at the line.**
+    The lifted file diffs against its original at exactly these, and they are
+    the wiring item 47(k) said a verbatim lift could not ship: `onReorder`
+    also receives the ids in their new order and may answer with a promise,
+    the list dropping its own copy of the arrangement once the screen has
+    answered either way, which is what makes "springs back" and "reads back
+    in Q2's order" one mechanism; `onDuplicate` is optional and the bar draws
+    no Duplicate without it, frozen section 7 having no task duplicate
+    (section 13 item 46, `lib/task-acts.ts`); a folder choice carries 7.4's
+    id, which `lib/folder-library.ts` already rode; and a press that became a
+    selection is not a tap, because the engine's release would otherwise open
+    the task the 400 ms hold had just selected, a fault the prototype's lab
+    could not have, passing no opener.
+
+    **(c) A dated row is refused on the client rather than sent to be
+    refused.** 7.6's order endpoint answers 409 for a dated or finished task,
+    and the mutation cache toasts every error. The row already shows its date,
+    so the client answers the list `false` for one and writes nothing; and a
+    dated row a person drags past is skipped when the neighbours are named, so
+    an undated task dropped among the scheduled rows is placed first in the
+    unscheduled list, where Q7 will draw it. **Ruled by delegation.**
+
+    **(d) The hold works on every list, not only in an arrangeable folder.**
+    Item 44's B4 puts "two or more tasks held together become a folder" under
+    the folder bullet, and its own pricing paragraph says why it need not stay
+    there: the hold "needs no backend at all", being `POST /folders` then
+    `PATCH /tasks/:id`, so nothing about it depends on a persisted order. A
+    hold on Today makes a folder of two Today tasks the same way. The
+    acceptance line's "one folder and both tasks in one act" is read on the
+    wire by AC-279. **Ruled by delegation.**
+
+    **(e) The bar's acts are the row's acts repeated, and the bar offers what
+    the row can do.** Mark complete, Mark important and Add to My Day run the
+    same hooks a single row's controls run, so each registers its own inverse
+    per 9.1's undo paragraph and a row already in the asked-for state is left
+    alone. Move goes through `PATCH /tasks/:id`; "New folder..." from the bar
+    and from a row's folder chip land in the same panel the hold opens, and
+    the same composition; Delete asks 9.3's confirmation once and in the
+    plural. **A plural the section does not write is added as
+    `deleteTasksConfirm(n)`**, "Delete these {n} tasks? This can't be undone.",
+    9.3's sentence with only its count changed, because the bar arrived with
+    item 44 rather than with the section and a confirmation that said "this
+    task" over two would be lying. 9.3 is owed the sentence at the fold and is
+    not amended here. **Ruled by delegation.**
+
+    **(f) Criteria.** AC-278 (the drag persists in an unfiltered folder and
+    reads back after a reload; the same gesture in a view and in a filtered
+    folder writes nothing and springs back), AC-279 (the hold proposes, the
+    panel names, one folder plus two moves and no other call) and AC-280
+    (press-and-hold selects, a tap adds, and Mark complete, Move to a folder
+    and Delete each write once per selected task; no Duplicate is offered),
+    all browser criteria, all read on the wire. They were numbered from AC-274
+    at authoring and renumbered at the end of the row when the re-read found
+    S28a had taken AC-274 to AC-277 in a sibling worktree the same day.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
