@@ -259,6 +259,7 @@ function DayCell({
     <div
       role="gridcell"
       data-today={date === today ? 'true' : undefined}
+      data-date={date}
       className={cn(
         'group/calendar-cell relative border-r border-b border-[var(--color-graphite-100)] p-1.5',
         CELL_MIN_HEIGHT[zoom],
