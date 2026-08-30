@@ -227,6 +227,19 @@ export function TaskRows({
           */
           id={row.id}
           /*
+          **A folder page's rows do not say "Desk", found at S30's
+          walkthrough.** `taskRowDisplay` drops the folder when the context
+          says `showFolder: false`, which every folder page and the
+          folder-grouped All page set, and the lifted row reads a missing
+          folder the way DES-155 tells it to: an unfiled task is in Desk, so
+          say so. Both rules are right and together they wrote "Desk" on
+          every row of every folder. The row's own vocabulary for "the page
+          already says this" is `given`, the word the Important screen and
+          the board's axis pass, so the context's silence is handed to the
+          row in that word rather than by a second display flag.
+          */
+          given={context.showFolder === false ? { folder: true } : undefined}
+          /*
           **S23's drag seam is gone at S25, and it went the way its own
           comment said it would.** That seam took `RowDrag`, the interface
           `views/TaskBoard.tsx` published while it was still the v1 board, and
