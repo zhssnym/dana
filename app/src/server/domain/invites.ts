@@ -19,6 +19,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import { accessOf } from './folders.js'
+import type { FolderAccess } from './folders.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
 
@@ -208,15 +209,17 @@ export interface CreateInviteInput {
 
 export type CreateInviteResult =
   /** Parked: 201 { invite }, and one invite email rides it (5.2). */
-  | { kind: 'created'; invite: InviteElement }
+  | { kind: 'created'; invite: InviteElement; inviterName: string | null }
   /** The instant share of 8.7: 200, a membership now, no invite row, and a
    * share-grant email to the target. */
   | {
       kind: 'converted'
       folderId: string
+      folderName: string
       targetId: string
       targetEmail: string | null
       assignedTaskId: string | null
+      inviterName: string | null
     }
   | { kind: 'own_email' }
   | { kind: 'folder_not_found' }
@@ -313,22 +316,33 @@ export async function createInvite(
   const taskId = input.task_id ?? null
 
   return inTransaction(db, async (tx) => {
+    /*
+    The same read that compares addresses now also answers who the email
+    names. Both templates this transaction can produce render the inviter's
+    display_name (RFC 0005 change control item 32), and the row is already
+    being opened, so naming a person costs no statement of its own. Null when
+    8.10 has scrubbed the account; the template resolves the fallback.
+    */
     const inviter = await rowsOf(
       tx,
-      sql`SELECT email FROM users WHERE id = ${inviterId}`,
+      sql`SELECT email, display_name FROM users WHERE id = ${inviterId}`,
     )
     const inviterEmail = nullableString(inviter[0]?.email)
+    const inviterName = nullableString(inviter[0]?.display_name)
     if (inviterEmail !== null && inviterEmail.toLowerCase() === email) {
       return { kind: 'own_email' }
     }
 
+    // Held rather than dropped: the conversion arm below sends a share grant
+    // that names the folder, and this is the read that already has it.
+    let folderAccess: FolderAccess | null = null
     if (folderId !== null) {
-      const access = await accessOf(tx, inviterId, folderId)
+      folderAccess = await accessOf(tx, inviterId, folderId)
       // 10.2: a folder the inviter is not a member of reads as nonexistent,
       // never as a status that confirms it exists.
-      if (access === null) return { kind: 'folder_not_found' }
+      if (folderAccess === null) return { kind: 'folder_not_found' }
       // INV-3: a default folder is never shared, so it refuses every invite.
-      if (access.isDefault) return { kind: 'default_folder' }
+      if (folderAccess.isDefault) return { kind: 'default_folder' }
     }
 
     const target = await activeUserByEmail(tx, email)
@@ -364,6 +378,14 @@ export async function createInvite(
       and nothing else.
       */
       if (folderId === null) return { kind: 'already_connected' }
+      if (folderAccess === null) {
+        // Unreachable: a non-null folderId means the access read ran above
+        // and returned or refused. Loud rather than a blank folder name in
+        // somebody's email, which is what a silent fallback would send.
+        throw new Error(
+          'a folder invite reached the conversion arm without its folder read',
+        )
+      }
 
       // The cap the kickoff ruling put on every 8.7 grant: lock the folder,
       // then count, so the count and the insert are one decision (AC-124's
@@ -401,9 +423,11 @@ export async function createInvite(
       return {
         kind: 'converted',
         folderId,
+        folderName: folderAccess.name,
         targetId: target.id,
         targetEmail: target.email,
         assignedTaskId: taskId,
+        inviterName,
       }
     }
 
@@ -447,6 +471,7 @@ export async function createInvite(
     return {
       kind: 'created',
       invite: await inviteElementById(tx, String(insertedId)),
+      inviterName,
     }
   })
 }
@@ -469,6 +494,10 @@ export interface InviteActorFacts {
   id: string
   status: string
   folderId: string | null
+  /** The caller's own display_name. The read below already joins their row
+   * to decide isRecipient, and resend is a call site whose email names the
+   * inviter, who is the caller (5.2 gives resend one actor). */
+  viewerName: string | null
   isInviter: boolean
   isRecipient: boolean
   isFolderOwner: boolean
@@ -484,6 +513,7 @@ export async function inviteFactsFor(
   const found = await rowsOf(
     executor,
     sql`SELECT i.id, i.status, i.folder_id, i.last_sent_at,
+               me.display_name AS viewer_name,
                (i.inviter_id = ${viewerId}) AS is_inviter,
                (me.deleted_at IS NULL AND i.email = lower(me.email))
                  AS is_recipient,
@@ -502,6 +532,7 @@ export async function inviteFactsFor(
     id: String(row.id),
     status: String(row.status),
     folderId: nullableString(row.folder_id),
+    viewerName: nullableString(row.viewer_name),
     isInviter: row.is_inviter === true,
     isRecipient: row.is_recipient === true,
     isFolderOwner: row.is_folder_owner === true,

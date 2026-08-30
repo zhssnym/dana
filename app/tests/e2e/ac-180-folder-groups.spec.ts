@@ -43,10 +43,53 @@ mid-package change control of 2026-08-13 answered it, on this role's own
 escalation, and the owner re-accepted the same day: the four actions are "New
 folder group", "Rename group", "Delete group" and "Move to group", a folder
 row's menu and a folder group's menu are both "More actions", and a
-folder-group dialog's field is "Group name". Every locator below is those
-strings, exactly. A description matched loosely is a locator that finds the
+folder-group dialog's field is "Group name". Every locator below is a fixed
+string of that kind. A description matched loosely is a locator that finds the
 wrong control on the day a second one resembles it, which is 9.1's own reason
-for naming anything.
+for naming anything. **Three of those four have since moved and the two
+paragraphs below say which, when and on whose authority**; the rule did not
+move with them.
+
+**One of those four moved at S17b, and S17a is where the move was scheduled.**
+The act read "Move to group" until this package, and `lib/object-acts.ts`
+records why in terms: it was "Move to group" rather than 9.6's "Move to shelf"
+"because that is what AC-180 asserts on the surface that has it today and
+because shelves reaching the Library is S17b's row, not this one. When that row
+lands, the word changes here and in one place." This is that row. 9.6 fixes the
+string, "a member's personal shelf placement is 'Move to shelf' on the row",
+and S17b makes the Library's groups the viewer's shelves rather than the bare
+`folder_members.label` strings they were, so the act and the thing it moves a
+folder onto now carry one name. A group is still that label, the four
+operations are still the same four, and every assertion below asserts what it
+asserted.
+
+**Two more of those four strings moved, and the S-fold is what moved them
+rather than S17b.** "Rename group" and "Delete group" came from the P8R change
+control of 2026-08-13, against a 9.1 that has since been replaced whole: the
+v2 names table of `docs/spec/09-ui.md` names neither, and its regions clause
+reads "the sidebar, one region per shelf named by it", so the section no longer
+describes a bare label group at all. What it does describe is 9.10's shelf
+contract, and DES-201 declares that contract's words: "Rename shelf" and
+"Delete shelf…", a bare verb being the one label a person should never have to
+guess the object of. So these two locators were asserting v1 strings that the
+fold of item 28 retired and nobody re-read, which is change control item 16's
+own shape one table over. This criterion's sentence is untouched: what it
+promises is that a group can be renamed and deleted and that the folders and
+their tasks survive, and all three are asserted exactly as before.
+
+**One locator moved with the heading, and the whole leg found it rather than a
+grep.** Two cases addressed the group by `getByRole('button', { name: GROUP })`, on the
+reading that "the label is a control in the sidebar carrying the group's name",
+which was true while the whole heading row was one collapse trigger. DES-207
+splits that row: "the glyph is the disclosure; the name is the way in", because
+a shelf has a page now and the row has to behave like every other row that
+names something you can open. So the name is a link where a shelf backs the
+label and plain text where none does, and the disclosure is its own control
+named for what it does. These two now address that control, which exists in
+both cases and still carries the label, so the clause they assert, that the
+group is in the sidebar, collapsible, and named for itself, is unchanged. The
+S17b port's pre-flight grep looked for the strings it was retiring and this was
+not one of them; the leg is what found it, which is the S11 lesson again.
 
 Two controls are still descriptions and are marked where they are used,
 because that table reaches neither. A dialog's commit control is named nowhere
@@ -176,7 +219,7 @@ function groupMenu(page: Page, label: string): Locator {
 }
 
 /**
- * One destination inside the "Move to group" submenu.
+ * One destination inside the "Move to shelf" submenu.
  *
  * Three roles because a menu-borne single choice is all three in the ordinary
  * sense 9.1's roles table sends an unlisted control to, and because the
@@ -229,7 +272,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'correct until the next reload, and AC-155 reads only the order',
     ).toBe(GROUP)
     await expect(
-      sidebar(page).getByRole('button', { name: GROUP, exact: true }),
+      sidebar(page).getByRole('button', { name: `Show the folders on ${GROUP}`, exact: true }),
       'spec 9.1: per-member label groups are collapsible, so the label is a control in the ' +
         'sidebar carrying the group\'s name',
     ).toBeVisible()
@@ -245,7 +288,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
     await page.goto(routes.myDay)
 
     await expect(
-      sidebar(page).getByRole('button', { name: GROUP, exact: true }),
+      sidebar(page).getByRole('button', { name: `Show the folders on ${GROUP}`, exact: true }),
       'spec 9.1: the group is a collapsible control carrying its own label, and it is in the ' +
         'sidebar before it is renamed',
     ).toBeVisible()
@@ -254,8 +297,10 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: a group is renamed, so the group carries a control that renames it',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Rename group', exact: true }),
-      'spec 9.1: a group is renamed, and that section names the action "Rename group"',
+      page.getByRole('menuitem', { name: 'Rename shelf', exact: true }),
+      'spec 9.10: the shelf\'s overflow carries its contract, whose rename reads "Rename ' +
+        'shelf" in the declaration DES-201 makes of it, a bare verb being the one label a ' +
+        'person should never have to guess the object of',
     )
     await fillControl(
       page.getByRole('dialog').getByLabel(/^\s*Group name\s*$/i),
@@ -295,8 +340,8 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: "a folder is moved between groups from its own menu"',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Move to group', exact: true }),
-      'spec 9.1: the folder\'s own menu carries the move, named "Move to group" by that ' +
+      page.getByRole('menuitem', { name: 'Move to shelf', exact: true }),
+      'spec 9.1: the folder\'s own menu carries the move, named "Move to shelf" by that ' +
         "section's names table",
     )
     await clickControl(
@@ -316,7 +361,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: the folder\'s own menu again, for the move out',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Move to group', exact: true }),
+      page.getByRole('menuitem', { name: 'Move to shelf', exact: true }),
       'spec 9.1: the folder\'s own menu carries the move',
     )
     await clickControl(
@@ -349,8 +394,13 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: a group is deleted, so the group carries a control that deletes it',
     )
     await clickControl(
-      page.getByRole('menuitem', { name: 'Delete group', exact: true }),
-      'spec 9.1: a group is deleted, and that section names the action "Delete group"',
+      page.getByRole('menuitem', { name: 'Delete shelf…', exact: true }),
+      'spec 9.10: the shelf\'s overflow carries its contract, whose destructive act is ' +
+        '"Delete shelf…", the ellipsis being 9.1\'s own since S24 because the act opens a ' +
+        'confirmation (RFC 0005 change control item 44, A1). 9.1 v2 names no "Delete group" ' +
+        'at all, and its regions clause reads ' +
+        '"the sidebar, one region per shelf named by it", so a bare label group is not a ' +
+        'thing that section still describes',
     )
     await expect(
       page.getByText(/Delete folder group\? \d+ folders keep their tasks and move to the ungrouped list\./),

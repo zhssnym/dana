@@ -31,14 +31,21 @@ every confirmation of 9.3 to 9.9 and not a caller's to rename.
 rule read together: an abandoned row draws a "Restore" control in place of the
 box, and his `TaskRow` raises `onToggleComplete(false)` from it.
 */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
+import { useCreateFolder, useOrderTask, usePullIntoMyDay, useUpdateTask } from '../api/mutations.js'
 import { useFolders, useMe } from '../api/queries.js'
-import { TaskRow } from '../components/task-row.js'
+import { TaskList, TaskRow } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM } from '../components/ui/copy.js'
+import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM, deleteTasksConfirm } from '../components/ui/copy.js'
 import { presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
+import { useTimeFormat } from '../lib/time-format.js'
+import type { TimeFormat } from '../lib/time-format.js'
+import { pushUndo, undoLabel } from '../shell/undo.js'
+import { showToast } from '../state/toasts.js'
+import { duplicateTask } from '../lib/task-acts.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -57,13 +64,21 @@ export function useRowBasis(): {
   today: string
   viewerId: string | null
   folders: readonly Folder[]
+  clock: TimeFormat
 } {
   const me = useMe()
   const folders = useFolders()
+  /* 9.7's clock, subscribed here so every row of a page redraws together when
+     the preference moves. The store is the one `lib/time-format.ts` owns, and
+     the shell writes the account's value into it when the 4.19 bundle
+     settles; nothing in `presenters.ts` reads it, that module being pure by
+     its own header's rule. */
+  const clock = useTimeFormat()
   return {
     today: presenterToday(),
     viewerId: me.data?.user.id ?? null,
     folders: folders.data ?? [],
+    clock,
   }
 }
 
@@ -120,20 +135,21 @@ export function useConfirm(): {
 }
 
 /**
- * What a surface that drags its rows attaches to each of them, by index.
+ * What a list may do beyond drawing its rows, decided by the page that draws
+ * it and settled at S23a (RFC 0004's S23a row; RFC 0005 change control item
+ * 44's B4 and item 47(k)).
  *
- * Optional and absent on every list that does not drag, which is all of them
- * but the board today. It is one prop rather than three so that a caller
- * either drags or does not: three optional callbacks are three ways to attach
- * two of them and wonder why the row will not move.
+ * `arrangeable` is item 44's own sentence: "in a folder, native or user's,
+ * with no filter or sort applied, a task may be arranged by hand", and "in a
+ * view, or in a folder with a filter or sort applied, the drag does not
+ * persist". The folder page computes it from its own filter; every other page
+ * passes nothing and its drag springs back. What it gates is the write and
+ * nothing else: the gesture, its feedback, the hold that makes a folder and
+ * the selection bar are the same on every list, because none of them needs a
+ * persisted order.
  */
-export interface RowDrag {
-  readonly rowRef: (index: number) => (element: HTMLElement | null) => void
-  readonly dragProps: (index: number) => {
-    onPointerDown: (event: React.PointerEvent) => void
-  }
-  readonly dragStyle: (index: number) => React.CSSProperties | undefined
-  readonly proposal: (index: number) => string | undefined
+export interface ListArrangement {
+  readonly arrangeable: boolean
 }
 
 export function TaskRows({
@@ -141,50 +157,261 @@ export function TaskRows({
   context,
   actions,
   onAsk,
-  drag,
+  arrangement,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
   readonly actions: RowActions
   /** Raised for the two overflow entries section 9 puts a confirmation on. */
   readonly onAsk: (message: string, run: () => void) => void
-  readonly drag?: RowDrag
+  readonly arrangement?: ListArrangement
 }): React.JSX.Element {
+  const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
+  /*
+  The rows the v2 list holds. `TaskList` sorts, measures and selects by id
+  and describes a row by its title, so each entry is the row's display props
+  plus the id, and the `TaskCard` rides along for the acts above to read
+  without a second lookup.
+  */
+  const rows = useMemo(
+    () => tasks.map((task) => ({ ...taskRowDisplay(task, context), id: task.id, card: task })),
+    [tasks, context],
+  )
   return (
-    <div role="list" className="space-y-0.5">
-      {tasks.map((task, index) => (
+    /*
+    9.7's row density reaching a list, at S17b.
+
+    **This is the narrow half of DES-113, and saying so is the point of the
+    comment.** That decision gives a row two *shapes*, two lines against one,
+    and the row that draws both is the v2 `task-row` S15's log row records as
+    not ported. What 9.7 asks for by name is "row density (comfortable,
+    compact)", which is how close a list stands, and that is what a list can
+    honour today: comfortable keeps the spacing every page has had, compact
+    closes it so more fits on a screen. AC-261 asserts the preference and
+    deliberately not the row shape.
+
+    Driven off the document attribute `shell/appearance.ts` sets rather than by
+    threading the bundle into every page, for that file's own reason: a
+    preference about how the whole document draws belongs on the document.
+
+    **Since S23a the list is the prototype's `TaskList`**, which is where the
+    three behaviours that exist only because rows are a list live: the drag,
+    the 1.5 second hold that makes a folder of two tasks, and press-and-hold
+    selection with its bar. S23 lifted that component with its handlers unwired
+    and this file drew rows without it; the wiring is `useListActs` below, and
+    the list's `role="list"` is the one this element carried before.
+    */
+    <TaskList
+      className="[[data-density=compact]_&]:gap-0"
+      tasks={rows}
+      onTaskOpen={(id) => {
+        const task = tasks.find((entry) => entry.id === id)
+        if (task !== undefined) actions.onOpenTask(task)
+      }}
+      onReorder={acts.onReorder}
+      onMerge={acts.onMerge}
+      onBulk={acts.onBulk}
+      onMove={acts.onMove}
+      onDuplicate={acts.onDuplicate}
+      onDelete={acts.onDelete}
+      renderRow={(row, wiring) => (
         <TaskRow
-          key={task.id}
-          {...taskRowDisplay(task, context)}
-          rowRef={drag?.rowRef(index)}
-          dragProps={drag?.dragProps(index)}
-          dragStyle={drag?.dragStyle(index)}
-          proposal={drag?.proposal(index)}
+          key={row.id}
+          {...row}
+          {...wiring}
+          /*
+          **The v2 row's id, and it is not decoration.** Every act the
+          overflow menu performs needs it, the History sheet reads 7.12 with
+          it, and Copy link builds 9.1's `/app/tasks/:id` from it. The v1 row
+          took none because its menu had three items and each was a callback.
+          */
+          id={row.id}
+          /*
+          **A folder page's rows do not say "Desk", found at S30's
+          walkthrough.** `taskRowDisplay` drops the folder when the context
+          says `showFolder: false`, which every folder page and the
+          folder-grouped All page set, and the lifted row reads a missing
+          folder the way DES-155 tells it to: an unfiled task is in Desk, so
+          say so. Both rules are right and together they wrote "Desk" on
+          every row of every folder. The row's own vocabulary for "the page
+          already says this" is `given`, the word the Important screen and
+          the board's axis pass, so the context's silence is handed to the
+          row in that word rather than by a second display flag.
+          */
+          given={context.showFolder === false ? { folder: true } : undefined}
+          /*
+          **S23's drag seam is gone at S25, and it went the way its own
+          comment said it would.** That seam took `RowDrag`, the interface
+          `views/TaskBoard.tsx` published while it was still the v1 board, and
+          translated it into the v2 row's `dragState` by reading a pixel
+          offset back out of a CSS transform string. Its comment said "when
+          that row lands, this function goes with the interface it
+          translates", and the row has landed: the board is the prototype's
+          own now and drags through `TaskList`, which hands each row its state
+          directly. Since S23a every list this file draws drags through the
+          same component, and `wiring` above is what it hands each row.
+          */
           onOpen={() => {
-            actions.onOpenTask(task)
+            actions.onOpenTask(row.card)
           }}
           onToggleComplete={() => {
-            if (task.status === 'abandoned') actions.onRestore(task)
-            else actions.onToggleComplete(task)
+            if (row.card.status === 'abandoned') actions.onRestore(row.card)
+            else actions.onToggleComplete(row.card)
           }}
           onToggleImportant={() => {
-            actions.onToggleImportant(task)
+            actions.onToggleImportant(row.card)
           }}
           onRemoveFromMyDay={() => {
-            actions.onRemoveFromMyDay(task)
+            actions.onRemoveFromMyDay(row.card)
           }}
           onAbandon={() => {
             onAsk(ABANDON_CONFIRM, () => {
-              actions.onAbandon(task)
+              actions.onAbandon(row.card)
             })
           }}
           onDelete={() => {
             onAsk(DELETE_TASK_CONFIRM, () => {
-              actions.onDelete(task)
+              actions.onDelete(row.card)
             })
           }}
         />
-      ))}
-    </div>
+      )}
+    />
   )
+}
+
+/**
+ * The list's three behaviours, performed over endpoints that exist, which is
+ * RFC 0005 change control item 44's pricing of them: the drag through 7.6's
+ * order endpoint S22a landed, the hold through `POST /folders` then
+ * `PATCH /tasks/:id`, and the bar through the same acts a row performs one
+ * at a time. Nothing here adds an endpoint.
+ */
+function useListActs(
+  tasks: readonly TaskCard[],
+  actions: RowActions,
+  onAsk: (message: string, run: () => void) => void,
+  arrangeable: boolean,
+): {
+  onReorder: (from: number, to: number, next: string[]) => Promise<boolean>
+  onMerge: (ids: string[], name: string) => void
+  onBulk: (ids: string[], fields: { done?: boolean; important?: boolean; pulled?: boolean }) => void
+  onMove: (ids: string[], folder: { id: string; name: string }) => void
+  onDuplicate: (ids: string[]) => void
+  onDelete: (ids: string[]) => void
+} {
+  const order = useOrderTask()
+  const createFolder = useCreateFolder()
+  const update = useUpdateTask()
+  const pull = usePullIntoMyDay()
+  const queryClient = useQueryClient()
+  const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
+  const pick = (ids: readonly string[]): TaskCard[] =>
+    ids.map((id) => byId.get(id)).filter((task): task is TaskCard => task !== undefined)
+
+  return {
+    /*
+    B4's drag. The list has already moved the row; this decides whether the
+    server hears about it, and answers the list once it knows.
+
+    The neighbours are the moved task's nearest undated, unfinished peers in
+    the order the list now shows, because 7.6's body names "the two rows the
+    task was dropped between in its folder's unscheduled list" and the folder
+    page's list is Q7's, Scheduled first then Unscheduled, concatenated. A
+    dated row carries no hand order (the endpoint's own 409), so a drag of one
+    is answered `false` here rather than sent to be refused: the refusal is a
+    state the client can read off the row, and a toast for a rule the row
+    already shows would be noise. A dated row a person drags past is skipped
+    for the same reason, so an undated task dropped among the scheduled rows
+    is placed first in the unscheduled list, which is where it will draw.
+
+    On success the views are read back before the list is told, because the
+    list drops its own copy on the answer and must find the server's order
+    already there (AC-266: the drag reads back in Q2's order). The mutation
+    cache invalidates on every success and this awaits the same refetch.
+    */
+    onReorder: async (from, to, next) => {
+      if (!arrangeable) return false
+      const task = next[to] === undefined ? undefined : byId.get(next[to])
+      if (task === undefined || from === to) return false
+      if (task.due_date !== null || task.status !== 'pending') return false
+      const peers = next.filter((id) => {
+        const peer = byId.get(id)
+        return peer !== undefined && peer.due_date === null && peer.status === 'pending'
+      })
+      const at = peers.indexOf(task.id)
+      const body = { after_id: peers[at - 1] ?? null, before_id: peers[at + 1] ?? null }
+      try {
+        await order.mutateAsync({ id: task.id, body })
+        await queryClient.invalidateQueries()
+        return true
+      } catch {
+        return false
+      }
+    },
+    /*
+    The hold that makes a folder of two or more tasks, and "New folder…" from
+    the bar and from a row's folder chip, which land in the same panel. One
+    folder, then every task moved into it, in one act as the row's acceptance
+    line asks. The moves go in parallel: 7.6 specifies each independently and
+    INV-5 is checked per task, so nothing about one depends on another.
+    */
+    onMerge: (ids, name) => {
+      const moving = pick(ids)
+      if (moving.length === 0) return
+      void createFolder.mutateAsync({ name }).then(async (folder) => {
+        await Promise.all(
+          moving.map((task) => update.mutateAsync({ id: task.id, body: { folder_id: folder.id } })),
+        )
+        showToast(`Moved ${plural(moving.length)} to "${folder.name}"`)
+        pushUndo(undoLabel('Moved', plural(moving.length)), () => {
+          for (const task of moving) {
+            update.mutate({ id: task.id, body: { folder_id: task.folder.id } })
+          }
+        })
+      })
+    },
+    /*
+    The bar's three marks, each the row's own act repeated, so every one
+    registers its own inverse exactly as a single row's would (9.1's undo
+    paragraph) and a row already in the asked-for state is left alone rather
+    than toggled out of it.
+    */
+    onBulk: (ids, fields) => {
+      for (const task of pick(ids)) {
+        if (fields.done === true && task.status !== 'completed') actions.onToggleComplete(task)
+        if (fields.important === true && !task.important) actions.onToggleImportant(task)
+        if (fields.pulled === true && !task.pulled) pull.mutate(task.id)
+      }
+    },
+    onMove: (ids, folder) => {
+      const moving = pick(ids).filter((task) => task.folder.id !== folder.id)
+      for (const task of moving) update.mutate({ id: task.id, body: { folder_id: folder.id } })
+      if (moving.length > 0) {
+        pushUndo(undoLabel('Moved', plural(moving.length)), () => {
+          for (const task of moving) {
+            update.mutate({ id: task.id, body: { folder_id: task.folder.id } })
+          }
+        })
+      }
+    },
+    /* The bar's Duplicate, the row's own act repeated (RFC 0005 change
+       control item 58, A): one 7.16 copy per selected task, each with its
+       toast and its inverse, which is how the prototype's bar does it. */
+    onDuplicate: (ids) => {
+      for (const task of pick(ids)) duplicateTask(task.id, task.title)
+    },
+    /* Behind the same confirmation a row's delete carries, in its plural. */
+    onDelete: (ids) => {
+      const going = pick(ids)
+      if (going.length === 0) return
+      onAsk(going.length === 1 ? DELETE_TASK_CONFIRM : deleteTasksConfirm(going.length), () => {
+        for (const task of going) actions.onDelete(task)
+      })
+    },
+  }
+}
+
+function plural(count: number): string {
+  return `${count} task${count === 1 ? '' : 's'}`
 }

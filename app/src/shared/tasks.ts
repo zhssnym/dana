@@ -626,6 +626,32 @@ export function carriesStatus(body: unknown): boolean {
 }
 
 /* ------------------------------------------------------------------ *
+ * 7.6's order endpoint (RFC 0005 change control item 44, B4)
+ * ------------------------------------------------------------------ */
+
+/*
+POST /tasks/:id/order. The two rows the task was dropped between in its
+folder's unscheduled list, either null where the drop had no neighbour on
+that side.
+
+The body carries no key and no index, and both absences are deliberate. A
+key would put this contract's own arithmetic on the client's side of it. An
+index would be a claim about a list the client may have read a minute ago,
+where two ids are a claim about two rows that either are still peers or are
+not, which the server can check and answer 422 about.
+
+Both null is the one-row list, which has one place to be. Nothing further is
+validated here: whether the two ids name rows of the same list, and in the
+order the body claims, is a question about rows, so it is the domain
+module's and answers 422 naming the field it was asked about.
+*/
+export const postTaskOrderBody = z.object({
+  after_id: z.uuid().nullable(),
+  before_id: z.uuid().nullable(),
+})
+export type PostTaskOrderBody = z.infer<typeof postTaskOrderBody>
+
+/* ------------------------------------------------------------------ *
  * 7.7 request bodies
  * ------------------------------------------------------------------ */
 
@@ -859,6 +885,27 @@ the entry, so it keeps pulled true while 8.2 leaves it off the page;
 pending_invite_email is derived from
 invites.task_id, whose rows arrive with P5, and is null until then;
 created_at and updated_at are NOT NULL in 4.5 and never null here.
+
+The last two keys arrived with RFC 0005 unit 12a, the only unit in that RFC
+that touches frozen section 7, and both are additive: no key above moves,
+changes type or changes meaning.
+
+section_block_id is 4.5's column, the 4.17 section block the task sits under
+on its folder's page, null for a task under none. It rides the card rather
+than a private element of the folder read because GET /folders/:id/tasks
+answers arrays of TaskCards, so section on the folder read is section on
+TaskCard, and a second element shape for one endpoint is the per-endpoint
+variant this file exists to refuse. It moved up out of TaskDetail's extend
+below rather than being added twice.
+
+created_by is the person stub assignee already carries, for the reason 7.4's
+note gives about the members element: a heading that names a person needs
+exactly what a card's person label needs. It is nullable although 4.5 makes
+the column NOT NULL, and there is exactly one door to the null, 8.10's scrub
+of the creator's account, which is what that section's "renders as Deleted
+user" means on the wire. TaskDetail carried a bare uuid here until this unit
+and now carries this same object, so the two shapes agree rather than one
+being an id and the other a person.
 */
 export const taskCard = z.object({
   id: z.uuid(),
@@ -874,15 +921,20 @@ export const taskCard = z.object({
   steps_total: z.int().nonnegative(),
   pulled: z.boolean(),
   pending_invite_email: z.string().min(1).nullable(),
+  section_block_id: z.uuid().nullable(),
+  created_by: folderMemberUser.nullable(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
 export type TaskCard = z.infer<typeof taskCard>
 
 /*
-TaskDetail, TaskCard plus 7.0's eight. Built by extension rather than by
-restatement, because 7.0 defines it that way and because a card that drifts
-from the detail is the per-endpoint variant this role refuses.
+TaskDetail, TaskCard plus 7.0's seven. It was eight until RFC 0005 unit 12a
+moved section_block_id and created_by up onto the card; they are not restated
+here, because a key spelled in both places is a key two shapes can disagree
+about. Built by extension rather than by restatement, because 7.0 defines it
+that way and because a card that drifts from the detail is the per-endpoint
+variant this role refuses.
 
 recurrence_rule and reminder were both here while their request arms were
 not: the keys are frozen 7.0's, and a response that omitted them would be a
@@ -893,8 +945,11 @@ waits for P7 and is read from the 4.8 table meanwhile.
 completed_at and completed_by are INV-8's pair, set exactly when the status
 is completed; the invariant is the row's and the shape does not restate it,
 because a shape that refused a legal row would fail a truth rather than
-report it. created_by is NOT NULL in 4.5. Both people are bare ids, 7.0's own
-notation: it spells the assignee's person shape out and leaves these plain.
+report it. completed_by stays a bare id, 7.0's own notation for it, and is
+now the only one of the two people this object spells that way: unit 12a
+widened created_by to the person stub and left this key alone, so the
+asymmetry is the contract's rather than an oversight, and closing it would be
+a second amendment to a frozen section.
 
 **series_id and recurrence_rule are independent, and a row may carry the first
 without the second.** Settled at the P6 endpoint shape review, because P6 is
@@ -917,12 +972,10 @@ export const taskDetail = taskCard.extend({
   notes: taskNotes.nullable(),
   recurrence_rule: recurrenceRule.nullable(),
   series_id: z.uuid().nullable(),
-  section_block_id: z.uuid().nullable(),
   reminder: taskReminder.nullable(),
   steps: z.array(taskStep),
   completed_at: z.iso.datetime().nullable(),
   completed_by: z.uuid().nullable(),
-  created_by: z.uuid(),
 })
 export type TaskDetail = z.infer<typeof taskDetail>
 

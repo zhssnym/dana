@@ -20,7 +20,11 @@ Actors: any member of the task's folder. All transitions execute as guarded sing
 | abandoned | complete | never | rejected | 409, copy: restore the task first |
 | abandoned | uncomplete | never | rejected | 409 |
 | completed | restore | never | rejected | 409 |
-| any | delete | actor is member | row removed | cascades: steps, my_day_entries, reminder, invites.task_id set null |
+| any | delete | actor is member | deleted_at set | 7.13's soft delete: the row leaves every query but Trash and nothing cascades yet |
+| deleted | restore | anyone with access to the folder | deleted_at cleared | the task returns as one row with its status untouched (9.11) |
+| deleted | purge | system | row removed | at 30 days, 11.7's tick: cascades steps, my_day_entries, reminder, and sets invites.task_id null |
+
+**The delete row read "row removed" with the cascades on it until the S29 fold of 2026-08-27, and restore and purge were not rows at all.** That was v1's hard delete, retired by 7.13 when RFC 0005 was accepted; the three rows above are that endpoint's own contract written as transitions, and nothing about them is new behaviour. The same correction is made to 8.8 and recorded together at RFC 0005 change control item 49. A deleted task is not a status: 5.1's three statuses are untouched, and deleted_at is a column beside them, which is why restore here returns the row to whatever status it held rather than to pending.
 
 G-SERIES guard, applied when the row has a series_id: let S be the pending row with the same series_id other than this row (INV-7 makes it unique or absent).
 - S exists: allowed. In the same transaction, delete S (its steps and reminder cascade), copy S.recurrence_rule back onto this row, and this row becomes the current occurrence. The confirmation dialog warns that the next scheduled occurrence is removed, including any edits made to it.
@@ -37,7 +41,7 @@ G-SERIES guard, applied when the row has a series_id: let S be the pending row w
 | pending | cancel | inviter, or owner of the attached folder | none | canceled | responded_at set |
 | pending | resend | inviter | now() minus last_sent_at at least 24 hours, else 429 | pending | email re-sent; last_sent_at updated |
 | pending | inviter account deleted | system | none | invalidated | part of the account deletion transaction (section 8.10) |
-| pending | folder deleted | system | none | row removed | via FK cascade |
+| pending | folder purged | system | none | row removed | via FK cascade, at the 30-day purge of 8.8 rather than at the delete |
 | any terminal | any event | any | never | rejected | 409 |
 
 Terminal states: accepted, declined, canceled, invalidated. A new invite to the same email and folder may be created after a terminal state; INV-11 only restricts pending duplicates.
@@ -64,7 +68,7 @@ Server-enforced on every endpoint; the client merely hides controls.
 | See folder and every task in it | yes | yes | no (404) |
 | Create, edit, complete, abandon, restore, delete any task | yes | yes | no |
 | Move a task in or out (must be member of both folders) | yes | yes | no |
-| Pull any visible task into own My Day | yes | yes | no |
+| Pull any visible task into own Today | yes | yes | no |
 | Set or clear own label and color on the folder | yes | yes | no |
 | Add members, send folder invites, cancel own invites | yes | yes | no |
 | Cancel any invite for the folder | yes | no (only own) | no |

@@ -225,10 +225,22 @@ test.describe('AC-155: the sidebar folder list', () => {
   test('AC-155: a label group collapses', async ({ page }) => {
     await page.goto(routes.myDay)
 
-    const group = page.getByRole('button', { name: /^Home$/ })
+    /*
+    The disclosure control, which carried the label itself until S17b.
+
+    DES-207 splits that heading row: "the glyph is the disclosure; the name is
+    the way in", because a shelf has a page now (9.10) and the row has to
+    behave like every other row that names something you can open. So the name
+    is a link where a shelf backs the label and the fold is a control of its
+    own. 9.1's clause is unchanged and so is this case: "per-member label
+    groups are collapsible" is about the fold rather than about which element
+    carries it.
+    */
+    const group = page.getByRole('button', { name: 'Show the folders on Home', exact: true })
     await expect(
       group,
-      'spec 9.1: per-member label groups are collapsible, so the label heading is a control',
+      'spec 9.1: per-member label groups are collapsible, so the heading carries a control ' +
+        'that folds the group',
     ).toBeVisible()
     await expect(
       page.getByRole('link', { name: /Groceries/ }),
@@ -268,8 +280,12 @@ test.describe('AC-155: the sidebar folder list', () => {
       page.getByRole('link', { name: /Groceries/ }),
       'the shared folder is in this member\'s sidebar too, membership being what puts it there',
     ).toBeVisible()
+    /* The same control the case above addresses, asserted absent here. It has
+       to be the same locator or this assertion stops discriminating: a name
+       nothing on the page ever carries is absent from every sidebar, and the
+       claim is that this group is not in *this* one. */
     await expect(
-      page.getByRole('button', { name: /^Home$/ }),
+      page.getByRole('button', { name: 'Show the folders on Home', exact: true }),
       'spec 9.1: label groups are per-member and 7.4 stores the label on the membership row, ' +
         'so the other member\'s label is not a group in this sidebar. AC-023 pins the same ' +
         'sentence on the server',

@@ -12,26 +12,39 @@ single-member folder is the wrong state, not a softer version of the right
 one, and it is what an implementation reaches for when it treats every
 dependent field alike.
 
-**RFC 0005 replaces this criterion and the replacement is not asserted here.**
-Its v2 text is "given the assignee control in a multi-member folder, then its
-choices are that folder's members, Invite by email, and Unassigned; given a
-single-member folder, then the control is hidden and the server still
-enforces INV-5." The addition is the way out, which the v1 dropdown has never
-had, and AC-220 is the criterion that asserts it against the v2 assignee menu
-S11 lands. That split is S1's ruling and is recorded in AC-220's own file:
-this number stays on the v1 form until the v2 surface exists, so that the two
-never assert the same control in two states of the port at once.
+**RFC 0005 replaces this criterion and this file now asserts the
+replacement.** Its v2 text is "given the assignee control in a multi-member
+folder, then its choices are that folder's members, Invite by email, and
+Unassigned; given a single-member folder, then the control is hidden and the
+server still enforces INV-5." The addition is the way out, which the v1
+dropdown never had.
 
-**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005).** Every case
-opened the form from the floating add button, on /app/tasks or on the folder
-page, and 9.1's v2 capture rule leaves it on neither: the button appears only
-on Today, Important and Assignments, every other page having a capture point
-of its own. So the form opens from Today, which is where that rule now puts
-the button, and the multi-member arms reach their folder by selecting it.
-Selecting is what this criterion says in its own words, "given a
-single-member folder selected", and 9.3's behavior rule is that folder
-selection re-filters the dropdown, so the two arms are the same act at two
-values rather than two entry points.
+S1 split the two halves deliberately and the split has now expired. Its
+ruling, recorded in AC-220's own file, was that this number stayed on the v1
+form until the v2 surface existed, "so that the two never assert the same
+control in two states of the port at once". S11 built the surface and S15
+retires the v1 control under it, so there is only one state left and only one
+control to assert against; keeping the split would leave this criterion
+addressing a field that is gone. **The two numbers stay distinct and read
+different sentences**: AC-220 reads the order and the clearing, "Unassigned
+last" and what choosing it writes, and this one reads the membership rule,
+which entries the list is derived from and the folder in which the control is
+absent altogether.
+
+**Reworked onto the v2 surfaces on 2026-08-24 (RFC 0005), and onto 9.3's v2
+card at S15 (items 15 and 19).** The first rework moved where the form was
+opened from: every case had used the floating add button on /app/tasks or on
+the folder page, and 9.1's v2 capture rule leaves it on neither, the button
+appearing only on Today, Important and Assignments. The capture point is
+still Today, and the multi-member arms still reach their folder by selecting
+it. Selecting is what this criterion says in its own words, "given a
+single-member folder selected", and the behaviour rule is that folder
+selection re-filters the assignee choices, so the two arms are the same act
+at two values rather than two entry points.
+
+The second rework moved the controls: the folder and the assignee are chips
+on 9.3's header strip, each opening its picker in place, and the expander
+that used to stand between the form and them is gone.
 
 **The field follows the selected folder, not the page it was opened from.**
 The visibility is a property of the current selection inside one open form.
@@ -53,26 +66,30 @@ That third account and its connection outlive this spec, the seeded database
 being shared by every spec in this leg. Both are named for this file, and
 nothing else here reads a roster.
 
-Spec: 9.3 (the dependency table's assignee row, its two words, and the
-re-filtering behavior rule), 9.1 (the v2 capture rule and the v2 routes
-table), INV-5, 7.5 and 8.7 (the bare invite and its acceptance), 7.4,
-AC-220 (the v2 surface and the Unassigned entry).
+Spec: 9.3 (the v2 assignee row, "the target folder's members plus 'Invite
+by email', and, new in v2, 'Unassigned', offered last after a separator;
+hidden in single-member folders (INV-5)", and the v2 header strip), 9.1 (the
+v2 capture rule and the v2 routes table), INV-5, 7.5 and 8.7 (the bare invite
+and its acceptance), 7.4, AC-220 (the order and what choosing the way out
+writes).
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
-  chooseOption,
+  chipChoices,
+  chipOptions,
+  chipValue,
   clickControl,
+  closeChipPicker,
   csrfToken,
-  fieldDisplay,
   floatingAddButton,
-  formField,
-  optionLabels,
   routesV2,
   seedSubs,
   signIn,
+  taskChip,
+  taskSurface,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -86,24 +103,37 @@ const THIRD_EMAIL = `${THIRD_SUB}@dev.local`
 const THIRD_NAME = 'Ac094 Connected Nonmember'
 
 /**
- * The 9.3 form, opened from Today with its seven expandable fields showing.
+ * Captures a task from Today and leaves 9.3's card open on it.
  *
  * Today rather than any other page because 9.1's v2 capture rule leaves the
  * floating add button on three pages and this is the first of them; its
  * entry default is the account's own default folder, which 4.3 gives exactly
- * one member, so the form opens in the state the first arm below is about.
+ * one member, so the card opens in the state the first arm below is about.
  */
-async function openForm(page: Page): Promise<void> {
+async function openTheCard(page: Page): Promise<void> {
   await page.goto(routesV2.today)
   await clickControl(
     floatingAddButton(page),
-    'spec 9.1: the floating add button opens the task form with the entry-point defaults of ' +
-      '9.3, and Today is one of the three pages that section leaves it on',
+    'spec 9.1: the floating add button is a capture point and "every capture creates the ' +
+      'task with the entry defaults of 9.3 for where it stands", and Today is one of the ' +
+      'three pages that section leaves it on',
+  )
+  await expect(
+    taskSurface(page),
+    "spec 9.1's v2 roles table: the captured task opens on its surface, a dialog when opened " +
+      'as one',
+  ).toBeVisible()
+}
+
+/** Answers the folder chip with a named folder, through its picker. */
+async function chooseFolder(page: Page, folder: string): Promise<void> {
+  await clickControl(
+    taskChip(page, 'folder'),
+    'spec 9.3: the folder is a chip on the header strip, opening its picker in place',
   )
   await clickControl(
-    page.getByRole('button', { name: 'More options' }),
-    "spec 9.3: seven of the form's ten fields sit behind one expander, and the section names " +
-      'it "More options"',
+    chipChoices(page).filter({ hasText: folder }).first(),
+    `spec 9.3: the folder picker offers the real folder library, and ${folder} is in it`,
   )
 }
 
@@ -111,96 +141,104 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-094: the assignee field follows the folder', () => {
-  test('AC-094: a single-member folder renders no assignee field at all', async ({
-    page,
-  }) => {
-    await openForm(page)
+test.describe('AC-094: the assignee chip follows the folder', () => {
+  test('AC-094: a single-member folder renders no assignee chip at all', async ({ page }) => {
+    await openTheCard(page)
 
-    // The form opened from Today defaults to the account's default folder
+    // The task captured on Today lands in the account's default folder
     // (9.3's entry table), which is 4.3's Desk and has one member by
     // construction: defaults are never shared, which is the INV-5 case the
-    // hidden field exists for. The seeded row is still named Inbox, the
+    // hidden control exists for. The seeded row is still named Inbox, the
     // Desk rename reaching only defaults that carried that name at the
     // migration.
     expect(
-      await fieldDisplay(formField(page, 'folder')),
-      "spec 9.3 entry-point defaults: the form opened from Today starts in the viewer's " +
-        'default folder',
+      await chipValue(taskChip(page, 'folder'), 'folder'),
+      "spec 9.3 entry-point defaults: a task captured on Today lands in the viewer's default " +
+        'folder, and the strip reads it back',
     ).toContain('Inbox')
 
     await expect(
-      formField(page, 'assignee'),
-      'spec 9.3: the assignee row of the dependency table is hidden in single-member ' +
-        'folders, and that table defines hidden as absent, not as visible and inoperable',
+      taskChip(page, 'assignee'),
+      'spec 9.3: the assignee is "hidden in single-member folders (INV-5)", and the v1 ' +
+        "table's own definition of hidden, which v2 does not restate and does not revoke, is " +
+        'absent rather than visible and inoperable. A greyed chip is the wrong state, not a ' +
+        'softer version of the right one',
     ).toHaveCount(0)
   })
 
-  test('AC-094: a multi-member folder lists exactly its members plus the invite option', async ({
+  test('AC-094: a multi-member folder offers exactly its members, the invite, and the way out', async ({
     page,
   }) => {
-    await openForm(page)
-    await chooseOption(page, formField(page, 'folder'), 'Groceries')
+    await openTheCard(page)
+    await chooseFolder(page, 'Groceries')
 
-    const assignee = formField(page, 'assignee')
     await expect(
-      assignee,
-      'spec 9.3: the assignee field is visible when the target folder has two or more ' +
+      taskChip(page, 'assignee'),
+      'spec 9.3: the assignee control is on the strip when the target folder has two or more ' +
         'members, and the seeded shared folder has two',
     ).toBeVisible()
 
-    const labels = await optionLabels(page, assignee)
+    const labels = await chipOptions(
+      page,
+      'assignee',
+      'spec 9.3: the assignee chip opens its picker in place',
+    )
     expect(
       labels.length,
-      `spec 9.3: the dropdown lists that folder's members plus "Invite by email", which is ` +
-        `three entries for a two-member folder; it offered ${JSON.stringify(labels)}. The ` +
-        'fourth entry RFC 0005 adds, "Unassigned", is AC-220 and arrives with the v2 menu',
-    ).toBe(3)
+      `spec 9.3's v2 assignee row: the choices are that folder's members, "Invite by email", ` +
+        `and "Unassigned", which is four entries for a two-member folder; it offered ` +
+        `${JSON.stringify(labels)}`,
+    ).toBe(4)
     expect(
       labels.filter((label) => label.includes('Hassan')).length,
-      'the folder owner is a member and so is in the dropdown',
+      'the folder owner is a member and so is among the choices',
     ).toBe(1)
     expect(
       labels.filter((label) => label.includes('Imran')).length,
-      'the second member is in the dropdown',
+      'the second member is among the choices',
     ).toBe(1)
     expect(
       labels,
-      'spec 9.3: the dropdown carries "Invite by email", which opens the sharing flow with ' +
+      'spec 9.3: the choices carry "Invite by email", which opens the sharing flow with ' +
         'this folder attached',
     ).toContain('Invite by email')
+    expect(
+      labels,
+      'spec 9.3, new in v2 and closing section 13 item 28: "Unassigned" is offered. Its ' +
+        'position is AC-220\'s sentence; that it is offered at all is this one\'s, because ' +
+        'the count above is what a client still rendering the v1 closed list fails',
+    ).toContain('Unassigned')
+    await closeChipPicker(page)
   })
 
-  test('AC-094: the field appears and disappears with the folder selected', async ({
-    page,
-  }) => {
-    await openForm(page)
+  test('AC-094: the chip appears and disappears with the folder chosen', async ({ page }) => {
+    await openTheCard(page)
 
     await expect(
-      formField(page, 'assignee'),
-      'the form starts in the default folder, where the field is absent',
+      taskChip(page, 'assignee'),
+      'the captured task starts in the default folder, where the control is absent',
     ).toHaveCount(0)
 
-    // 9.3's behavior rule: folder selection re-filters the assignee
-    // dropdown. The same open form, no reopen.
-    const folder = formField(page, 'folder')
-    await chooseOption(page, folder, 'Groceries')
+    // 9.3's behaviour: choosing a folder re-filters the assignee choices, and
+    // the control's presence follows the folder's membership. The same open
+    // card, no reopen.
+    await chooseFolder(page, 'Groceries')
     await expect(
-      formField(page, 'assignee'),
-      'spec 9.3: selecting a folder with two or more members makes the assignee field ' +
-        'visible in the form already open, rather than at the next open',
+      taskChip(page, 'assignee'),
+      'spec 9.3: choosing a folder with two or more members puts the assignee chip on the ' +
+        'strip already open, rather than at the next open',
     ).toBeVisible()
 
-    await chooseOption(page, folder, 'Inbox')
+    await chooseFolder(page, 'Inbox')
     await expect(
-      formField(page, 'assignee'),
-      'spec 9.3: selecting back to a single-member folder hides the field again. An ' +
-        'implementation deciding once when the form opens satisfies the criterion read as ' +
-        'two scenarios and fails this one',
+      taskChip(page, 'assignee'),
+      'spec 9.3: choosing back to a single-member folder hides it again. A client deciding ' +
+        'once when the surface opens satisfies the criterion read as two scenarios and fails ' +
+        'this one',
     ).toHaveCount(0)
   })
 
-  test('AC-094: a connection who is not a member is not in the dropdown', async ({
+  test('AC-094: a connection who is not a member is not among the choices', async ({
     page,
     browser,
   }) => {
@@ -232,19 +270,25 @@ test.describe('AC-094: the assignee field follows the folder', () => {
     ).toBe(200)
     await otherContext.close()
 
-    await openForm(page)
-    await chooseOption(page, formField(page, 'folder'), 'Groceries')
+    await openTheCard(page)
+    await chooseFolder(page, 'Groceries')
 
-    const labels = await optionLabels(page, formField(page, 'assignee'))
+    const labels = await chipOptions(
+      page,
+      'assignee',
+      'spec 9.3: the assignee chip opens its picker in place',
+    )
     expect(
       labels.filter((label) => label.includes(THIRD_NAME)).length,
-      "spec 9.3: the dropdown lists that folder's members, and 8.7 grants a bare invite a " +
+      "spec 9.3: the choices are that folder's members, and 8.7 grants a bare invite a " +
         'connection and no membership, so a roster entry who is in no folder is not offered ' +
-        `as an assignee. The dropdown offered ${JSON.stringify(labels)}`,
+        `as an assignee. The picker offered ${JSON.stringify(labels)}`,
     ).toBe(0)
     expect(
       labels.length,
-      'spec 9.3: still the two members plus the invite option, the roster having grown by one',
-    ).toBe(3)
+      'spec 9.3: still the two members plus the invite and the way out, the roster having ' +
+        'grown by one',
+    ).toBe(4)
+    await closeChipPicker(page)
   })
 })

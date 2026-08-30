@@ -4,12 +4,38 @@ them, held in one place because they are one subject.
 
 "A group is the label of 7.4's my-membership and nothing else, so creating one
 is naming it on a folder, and deleting one clears that label from every folder
-carrying it." Every operation below is therefore PATCH
-/folders/:id/my-membership and nothing else: no endpoint creates a group, none
-deletes one, and a client that reached for DELETE /folders on "Delete group"
-would destroy tasks for every member of every folder in it. AC-180 asserts the
+carrying it." A client that reached for DELETE /folders on "Delete group" would
+destroy tasks for every member of every folder in it, and AC-180 asserts the
 survival of the folders and their tasks through section 7 for exactly that
 reason.
+
+**A group is a shelf as well, since S17b, and that is what this file changed.**
+The sentence above was the whole model until 7.16 landed, and it left this
+client with two disjoint worlds: a group made here wrote `folder_members.label`
+and no `shelves` row, so it had no page, no mark and none of the object
+contract's acts; a shelf made through 7.16 wrote a row and labelled nothing, so
+the Library could not see it. Two ways to make the same thing, each missing
+what the other had. 9.1 names one thing, "the Library holds the viewer's
+shelves and folders as one ordered list", and 4.18 is what lets them be one:
+a shelf's membership *is* that label, and the server holds the shelf's name and
+its folders' labels in step inside one transaction.
+
+So the operations now run through 7.16 where a shelf exists, and the shape of
+each follows from which side of 4.18 owns the write:
+
+- **Creating** writes the shelf row first and the labels after it, because the
+  name has to exist as a shelf before it means anything as a label. A name
+  already taken is not an error here: the shelf is already there and the labels
+  are all that is owed.
+- **Renaming and deleting are one request each, not one per folder**, and that
+  is the real simplification. `PATCH /shelves/:id { name }` rewrites every
+  matching label itself, and `DELETE /shelves/:id` clears them, both in the
+  transaction that moves the shelf. The paragraph this replaces described
+  firing one membership write per folder and accepting the refetch storm; that
+  is now the fallback for a bare label rather than the path.
+- **A label no shelf row names keeps the old behaviour exactly.** Accounts
+  labelled before 7.16 existed carry those, and they rename and delete through
+  the membership writes they always did.
 
 **Where each control lives is 9.1's, not this file's.** That section puts the
 move on the folder's own menu ("a folder is moved between groups from its own
@@ -24,11 +50,11 @@ carries and ours does not: R5 declined that menu because its other entry was a
 second "New folder" inside one region, and 9.1's addressing sentence does not
 admit two controls of one name there.
 
-**Rename and delete write once per folder in the group**, which is what "every
-folder carrying it" means, and each write is the ordinary hook from
-`api/mutations.ts`. They are fired together rather than chained: 8.3 invalidates
-after each own mutation, so a chain would refetch the whole chrome once per
-folder, and no ordering between them exists to preserve.
+**Where a bare label is renamed or deleted, the write is once per folder**,
+which is what "every folder carrying it" means, and each write is the ordinary
+hook from `api/mutations.ts`. They are fired together rather than chained: 8.3
+invalidates after each own mutation, so a chain would refetch the whole chrome
+once per folder, and no ordering between them exists to preserve.
 
 **The delete confirm is 9.1's sentence and the shared `ConfirmDialog`**, which
 carries that section's uniform "Continue" and "Cancel". The designer's
@@ -39,7 +65,12 @@ consequence in the words the specification chose.
 */
 import { useMemo, useState } from 'react'
 
-import { useUpdateMyMembership } from '../api/mutations.js'
+import {
+  useCreateShelf,
+  useDeleteShelf,
+  usePatchShelf,
+  useUpdateMyMembership,
+} from '../api/mutations.js'
 import { FolderGroupDialog } from '../components/index.js'
 import { ConfirmDialog, useConfirm } from '../pages/task-rows.js'
 import {
@@ -48,6 +79,7 @@ import {
   folderIdsForNames,
 } from '../parts/presenters.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
@@ -64,6 +96,15 @@ export interface FolderGroupActions {
   /** "New folder group", from the folder whose label the new group will be. */
   readonly onNewGroup: (folder: Folder) => void
   /**
+   * 9.1's footer act, from no folder at all.
+   *
+   * The same dialog through a third door, which is `onGroupFolders`' own
+   * argument: everything about making a shelf, the name, the validation, the
+   * folders to put on it, stays one surface. What arrives ticked is nothing,
+   * because the act was taken on nothing.
+   */
+  readonly onNewShelf: () => void
+  /**
    * The same dialog, opened by DES-171's hold with a pair already ticked.
    *
    * "The naming panel is the one that already existed": the hold hands its
@@ -74,6 +115,25 @@ export interface FolderGroupActions {
    */
   readonly onGroupFolders: (folders: readonly Folder[]) => void
   /** "Move to group", null being the ungrouped list rather than a group. */
+  /**
+   * "Add folder to {shelf}", the prototype's own control on a shelf heading.
+   *
+   * **Restored at S24 and it had been dropped on purpose**, which is why this
+   * comment exists rather than a line of wiring. P8R's ruling was that a
+   * control no numbered section names is either given the designer's string or
+   * dropped, and it took the third option for this one and for "Add task to
+   * {folder}" beside it. Change control item 37 overturns the premise: Dana
+   * 2.0 is the exact `prototype-v2`, so a control the prototype draws in the
+   * shell is part of the shell rather than an affordance awaiting a section.
+   * Imran restated it at S24 in his own words, "the shell must be exactly as
+   * prototype v2 in Dana 2.0".
+   *
+   * It opens 9.1's New-folder dialog with the shelf already named, so the
+   * folder is created and filed in one act rather than made loose and then
+   * moved. One surface for making a folder, three doors to it, which is
+   * `onGroupFolders`' own argument one entry up.
+   */
+  readonly onAddFolderTo: (label: string) => void
   readonly onMoveToGroup: (folder: Folder, label: string | null) => void
   readonly onRenameGroup: (label: string) => void
   readonly onDeleteGroup: (label: string) => void
@@ -91,18 +151,39 @@ type GroupDialog =
  * rows the sidebar draws and the dialogs belong to the shell: a dialog mounted
  * inside a row would be unmounted by the refetch its own write causes.
  */
-export function useFolderGroupActions(folders: readonly Folder[]): {
+export function useFolderGroupActions(
+  folders: readonly Folder[],
+  /** The viewer's shelves (7.16); a label these do not name is a bare one. */
+  shelves: readonly Shelf[] = [],
+  /**
+   * How to open 9.1's New-folder dialog with a shelf already named.
+   *
+   * Passed in rather than held here, because that dialog is the shell's: it is
+   * mounted outside every row for the reason this file's own return records, a
+   * dialog inside a row being unmounted by the refetch its own write causes.
+   */
+  openNewFolderIn: (label: string) => void = () => {},
+): {
   readonly actions: FolderGroupActions
   readonly dialogs: React.JSX.Element
 } {
   const relabel = useUpdateMyMembership()
+  const createShelf = useCreateShelf()
+  const patchShelf = usePatchShelf()
+  const removeShelf = useDeleteShelf()
   const confirm = useConfirm()
   const [dialog, setDialog] = useState<GroupDialog | null>(null)
 
-  const labels = useMemo(() => folderGroupLabels(folders), [folders])
+  const labels = useMemo(() => folderGroupLabels(folders, shelves), [folders, shelves])
 
   function inGroup(label: string): readonly Folder[] {
     return folders.filter((folder) => folder.my_label === label)
+  }
+
+  /* 4.18 holds a shelf's name and its folders' labels in step, so the name is
+     the join key. Undefined for a label written before 7.16 existed. */
+  function shelfNamed(label: string): Shelf | undefined {
+    return shelves.find((shelf) => shelf.name === label)
   }
 
   function writeLabel(ids: readonly string[], label: string | null): void {
@@ -119,6 +200,12 @@ export function useFolderGroupActions(folders: readonly Folder[]): {
     onGroupFolders: (pair) => {
       setDialog({ mode: 'create', folders: pair })
     },
+    onNewShelf: () => {
+      setDialog({ mode: 'create', folders: [] })
+    },
+    onAddFolderTo: (label) => {
+      openNewFolderIn(label)
+    },
     onMoveToGroup: (folder, label) => {
       writeLabel([folder.id], label)
     },
@@ -127,11 +214,19 @@ export function useFolderGroupActions(folders: readonly Folder[]): {
     },
     onDeleteGroup: (label) => {
       const targets = inGroup(label)
+      const shelf = shelfNamed(label)
       confirm.ask(deleteGroupConfirm(targets.length), () => {
-        writeLabel(
-          targets.map((folder) => folder.id),
-          null,
-        )
+        /* One request where a shelf exists: 7.16's delete drops the row, its
+           page, and the viewer's matching labels in one transaction, so the
+           folders survive by the server's rule rather than by this client
+           remembering to null each one. The membership loop is what a bare
+           label still takes, and 9.1's confirm is unchanged either way. */
+        if (shelf !== undefined) removeShelf.mutate(shelf.id)
+        else
+          writeLabel(
+            targets.map((folder) => folder.id),
+            null,
+          )
       })
     },
   }
@@ -181,7 +276,34 @@ export function useFolderGroupActions(folders: readonly Folder[]): {
           // Names to ids through R4's presenter, which is the one place this
           // client knows that his dialog is keyed by a display name and 7.4 is
           // keyed by an id, and that folder names are not unique.
-          writeLabel(folderIdsForNames(folderNames, subject), label)
+          const ids = folderIdsForNames(folderNames, subject)
+
+          if (dialog?.mode === 'rename') {
+            const shelf = shelfNamed(dialog.label)
+            /* One request where a shelf exists: 7.16's patch rewrites every
+               matching label in the transaction that renames the row, which
+               is 4.18's "held in step" being the server's job rather than
+               this client's. The rename dialog checks the whole group, so
+               what the server relabels and what the dialog offered are the
+               same set. */
+            if (shelf !== undefined) patchShelf.mutate({ id: shelf.id, body: { name: label } })
+            else writeLabel(ids, label)
+            return
+          }
+
+          /* Creating: the shelf row first, the labels after it, because the
+             name has to exist as a shelf before it means anything as a label.
+             A name already taken answers a refusal rather than an error worth
+             raising: the shelf is already there, and what the person asked for
+             is the folders on it, which the labels below do. */
+          createShelf.mutate(
+            { name: label },
+            {
+              onSettled: () => {
+                if (ids.length > 0) writeLabel(ids, label)
+              },
+            },
+          )
         }}
       />
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />

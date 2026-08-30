@@ -47,6 +47,7 @@ import { getSettingsResponse, savedView } from '../../shared/bundle.js'
 import type {
   GetSettingsResponse,
   PatchSettingsBody,
+  PatchViewBody,
   PostViewBody,
   SavedView,
 } from '../../shared/bundle.js'
@@ -76,6 +77,7 @@ import {
 import type {
   PatchStepBody,
   PatchTaskBody,
+  PostTaskOrderBody,
   PostTasksBody,
   PutTaskReminderBody,
   TaskDetail,
@@ -98,6 +100,7 @@ import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
+import { needsImportAnchor } from '../../shared/workflows.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
 import { mutateApi, requestTimezone } from './http.js'
@@ -138,6 +141,24 @@ export function useUpdateTask(): UseMutationResult<TaskDetail, Error, PatchTaskV
 export function useDeleteTask(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) => mutateApi(null, { method: 'DELETE', path: `/tasks/${id}` }),
+  })
+}
+
+export interface OrderTaskVariables {
+  readonly id: string
+  readonly body: PostTaskOrderBody
+}
+
+/**
+ * 7.6's order endpoint (RFC 0005 change control item 44, B4), wired at S23a.
+ * The body names the two neighbours and nothing else; the key is the
+ * server's arithmetic, and the answer is the placed task as a fresh
+ * GET /tasks/:id would give it.
+ */
+export function useOrderTask(): UseMutationResult<TaskDetail, Error, OrderTaskVariables> {
+  return useMutation({
+    mutationFn: ({ id, body }: OrderTaskVariables) =>
+      mutateApi(patchTaskResponse, { method: 'POST', path: `/tasks/${id}/order`, body }),
   })
 }
 
@@ -630,6 +651,17 @@ export function useMarkAllNotificationsRead(): UseMutationResult<
 export interface PostCommentVariables {
   readonly folderId: string
   readonly body: PostCommentBody
+  /*
+  Which task's thread this joins, added at S26 for the mount ledger L-246
+  names.
+
+  It is a query parameter rather than a body field because that is where 7.14
+  puts it: `routes/conversation.ts` parses `threadQuery` off `req.query` on
+  both the read and the write, and `postCommentBody` carries no task at all.
+  The read half has taken one since S5 (`useThread`'s second argument); this
+  is the write half catching up, and nothing about the frozen contract moves.
+  */
+  readonly taskId?: string
 }
 
 export function usePostComment(): UseMutationResult<
@@ -638,10 +670,13 @@ export function usePostComment(): UseMutationResult<
   PostCommentVariables
 > {
   return useMutation({
-    mutationFn: ({ folderId, body }: PostCommentVariables) =>
+    mutationFn: ({ folderId, body, taskId }: PostCommentVariables) =>
       mutateApi(commentLine, {
         method: 'POST',
-        path: `/folders/${folderId}/comments`,
+        path:
+          taskId === undefined
+            ? `/folders/${folderId}/comments`
+            : `/folders/${folderId}/comments?task=${encodeURIComponent(taskId)}`,
         body,
       }),
   })
@@ -699,6 +734,28 @@ export function useLeaveFolder(): UseMutationResult<void, Error, string> {
   })
 }
 
+/**
+ * DELETE /trash/tasks/:id and DELETE /trash/folders/:id, 7.13's permanent
+ * delete as amended by RFC 0005 change control items 36, 38 and 53. 204; the
+ * folder owner's alone, a non-owner member answered 403 with the server's own
+ * sentence, which `writeFailureMessage` carries; the cache invalidation that
+ * follows every mutation refetches Trash and everything the cascade touched.
+ * Built at S28b over the routes S28a landed.
+ */
+export function useDestroyTrashedTask(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/trash/tasks/${id}` }),
+  })
+}
+
+export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/trash/folders/${id}` }),
+  })
+}
+
 /** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
  * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
 export function useTransferOwnership(): UseMutationResult<
@@ -740,8 +797,21 @@ export function useImportWorkflow(): UseMutationResult<
   ImportWorkflowBody
 > {
   return useMutation({
+    /*
+    tz on frozen 7.6's precedent rather than 7.0's view rule, which is how
+    the route reads it: a file carrying a repeat or a reminder evaluates a
+    date and needs 4.5's anchor, and 7.16 as widened answers 422 naming tz
+    without one. Every file that imported before item 44's B3 still carries
+    none, so the parameter goes only where it is read (RFC 0004's S27, the
+    row's item 44 clause; AC-273 pins the server half).
+    */
     mutationFn: (body: ImportWorkflowBody) =>
-      mutateApi(importWorkflowResponse, { method: 'POST', path: '/workflows/import', body }),
+      mutateApi(importWorkflowResponse, {
+        method: 'POST',
+        path: '/workflows/import',
+        body,
+        ...(needsImportAnchor(body) ? { params: { tz: requestTimezone() } } : {}),
+      }),
   })
 }
 
@@ -760,5 +830,27 @@ export function useCreateSavedView(): UseMutationResult<
   return useMutation({
     mutationFn: (body: PostViewBody) =>
       mutateApi(savedView, { method: 'POST', path: '/views', body }),
+  })
+}
+
+/**
+ * PATCH /views/:id, which 9.7's pin list writes when a saved view's switch
+ * moves (S16).
+ *
+ * A saved view's pin lives on its own row rather than in `pinned_views`,
+ * which 4.19 caps at the nine native keys, so the pin list writes two
+ * different addresses for two kinds of row and the page is where they meet.
+ * The whole body is `PatchViewBody`, not a pin flag, because the endpoint
+ * already takes name and definition and a narrower hook here would be a
+ * second, smaller idea of what a saved view is.
+ */
+export function usePatchSavedView(): UseMutationResult<
+  SavedView,
+  Error,
+  { readonly id: string; readonly body: PatchViewBody }
+> {
+  return useMutation({
+    mutationFn: ({ id, body }) =>
+      mutateApi(savedView, { method: 'PATCH', path: `/views/${id}`, body }),
   })
 }

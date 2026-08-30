@@ -24,6 +24,39 @@ Tasks' Inbox block is the case that fixes the shape: a named region with no
 visible heading. A region's name is announced and addressed, not rendered, so
 `heading` is optional and `name` never is.
 
+**Every section with a heading collapses, since S17a**, and the sentence
+behind that is Imran's of 2026-08-22: "Sections have two types: native
+sections and sections added by users, both should be same, only the native
+sections can't be deleted or renamed. Right now native sections are not
+collapsable which is not good, but they can carry an icon or even a profile
+avatar." The folder page's user-made sections had folded since S12 and every
+computed section in the product, Today's two groups, Scheduled's rungs,
+Assignments' people, All's two halves, was a bare heading that could not. Two
+grammars for one idea, which the designer's `task-section.tsx` fixes at the
+level of behaviour: there is one section and the only differences are
+capabilities. A heading you cannot fold is a heading that cannot get out of
+your way.
+
+**A section with no heading still cannot fold, and that is not an exception to
+the ruling.** The control the ruling requires carries the section's name, and
+a region whose name is a datum rather than a heading has nothing to draw that
+control as. Those regions are announced and never rendered, so there is
+nothing on screen for a person to want out of the way.
+
+**The mark is inline in the heading and leaves no hole when it is absent.**
+Imran's constraint, in the designer's transcription: "if a section does not
+carry an icon, the section should not feel like it's lacking something." So
+`headingMedia` sits between the chevron and the name rather than in a reserved
+slot, and a section without one simply starts its name earlier. The chevron is
+the constant left anchor instead, which is honest, because it is the one thing
+every section really does have.
+
+**The count is `aria-hidden` and the control's name stays the section's
+alone.** AC-176's precedent, which this file already carried for
+`CollapsibleSection`: a control named "Completed (2)" is a different string
+from "Completed", and 9.1's names table fixes the second. My Day's recap is
+the exception it always was, 9.4 spelling the count inside the heading itself.
+
 **Restyled at P8R session R6 in the designer's vocabulary**, and restyled only:
 the classes below are his group heading and his collapsible trigger, read off
 `my-day-screen.tsx`, and the elements, the roles and the expanded state are
@@ -49,11 +82,20 @@ import { ChevronRight } from 'lucide-react'
 export type HeadingTone = 'section' | 'page' | 'day'
 
 const HEADING_CLASS: Record<HeadingTone, string> = {
-  section:
-    'mb-1 truncate px-2 text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
-  page: 'text-base leading-6 font-semibold text-foreground',
-  day: 'mb-1 px-2 text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
+  section: 'truncate text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
+  page: 'truncate text-base leading-6 font-semibold text-foreground',
+  day: 'truncate text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
 }
+
+/** The band the heading sits on, the one thing the three tones differ in. */
+const BAND_CLASS: Record<HeadingTone, string> = {
+  section: 'mb-1 flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left',
+  page: 'mb-2 flex h-8 w-full items-center gap-1.5 border-b border-border px-2 text-left',
+  day: 'mb-1 flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left',
+}
+
+const BAND_HOVER =
+  'transition-colors outline-none hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-ring/30'
 
 interface PageSectionProps {
   /** The region's accessible name. 9.1's table decides it. */
@@ -61,8 +103,12 @@ interface PageSectionProps {
   /** The visible heading, where the section gives one. */
   readonly heading?: string
   readonly tone?: HeadingTone
-  /** Drawn beside the heading, which is where the design puts a page glyph. */
+  /** Drawn beside the heading, which is where the design puts a section's mark. */
   readonly headingMedia?: ReactNode
+  /** The quiet figure beside the name, `aria-hidden` so the control keeps its. */
+  readonly count?: number
+  /** Whether the section starts open. Every computed one does. */
+  readonly defaultOpen?: boolean
   readonly children: ReactNode
 }
 
@@ -71,26 +117,57 @@ export function PageSection({
   heading,
   tone = 'section',
   headingMedia,
+  count,
+  defaultOpen = true,
   children,
 }: PageSectionProps): React.JSX.Element {
+  const [open, setOpen] = useState(defaultOpen)
+
+  /* No heading, no control, and the region is all there is: see the header. */
+  if (heading === undefined) {
+    return <section aria-label={name}>{children}</section>
+  }
+
   return (
     <section aria-label={name}>
-      {heading === undefined ? null : tone === 'page' ? (
-        <div className="mb-2 flex h-8 items-center gap-2 border-b border-border px-2">
+      <h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => {
+            setOpen(!open)
+          }}
+          className={`group/section ${BAND_CLASS[tone]} ${BAND_HOVER}`}
+        >
+          {/* `aria-hidden` because `aria-expanded` on the button is what
+              carries the state, the rule this file already applied to
+              `CollapsibleSection`'s chevron: the arrow is the second cue and
+              never the only one. */}
+          <ChevronRight
+            className={
+              open
+                ? 'size-4 shrink-0 rotate-90 text-[var(--color-graphite-400)] transition-transform'
+                : 'size-4 shrink-0 text-[var(--color-graphite-400)] transition-transform'
+            }
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
           {headingMedia}
-          <h2 className={HEADING_CLASS[tone]}>{heading}</h2>
-        </div>
-      ) : headingMedia === undefined ? (
-        <h2 className={HEADING_CLASS[tone]}>{heading}</h2>
-      ) : (
-        <div className="mb-1 flex h-7 items-center gap-2 px-2">
-          {headingMedia}
-          <h2 className="truncate text-[13px] font-semibold text-[var(--color-graphite-700)]">
-            {heading}
-          </h2>
-        </div>
-      )}
-      {children}
+          <span className={HEADING_CLASS[tone]}>{heading}</span>
+          {count === undefined ? null : (
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-[12px] leading-4 font-normal text-[var(--color-graphite-400)] tabular-nums"
+            >
+              {count}
+            </span>
+          )}
+        </button>
+      </h2>
+      {/* Absent rather than hidden while collapsed, 6 Q7's rule and the one
+          `CollapsibleSection` below already runs on: a hidden element is still
+          on the page to everything but a screen reader. */}
+      {open ? children : null}
     </section>
   )
 }
@@ -126,6 +203,11 @@ export function CollapsibleSection({
       collapsed at bottom (heading 'Done today (N)')") and 9.6 asks for by
       naming a section. The element is the heading and the button inside it is
       the control, so both of 9.1's halves are true of one thing.
+
+      It stays its own component rather than folding into `PageSection`, which
+      now collapses too, and the designer keeps the two apart for a stated
+      reason: the quiet section that *closes* a page "is not a peer of the
+      sections that organise it". One is a band, the other is one line.
       */}
       <h2>
         <button

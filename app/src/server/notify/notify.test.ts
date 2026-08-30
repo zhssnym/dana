@@ -7,7 +7,18 @@ import type { NotifyLogger, OutboundMessage } from './index.js'
 
 const RECIPIENT = 'observer@notify.test'
 
-const message: OutboundMessage = { template: 'share_grant', to: RECIPIENT }
+/* A share grant with its payload, since S19 closed the type: a message can
+no longer be constructed without what its own template renders from, which is
+the compiler holding the property the templates used to apologise for. */
+const message: OutboundMessage = {
+  template: 'share_grant',
+  to: RECIPIENT,
+  shareGrant: {
+    inviterName: 'Hassan',
+    folderId: "33333333-3333-4333-8333-333333333333",
+    folderName: 'Travel',
+  },
+}
 
 function capturingLogger(): NotifyLogger & {
   calls: [Record<string, unknown>, string][]

@@ -30,8 +30,11 @@ the page layer, which owns them.
 offline banner that appears while a person is typing announces itself without
 moving focus.
 */
-import type { LucideIcon } from 'lucide-react'
-import { AlertCircle, Clock3, RefreshCw, WifiOff, X } from 'lucide-react'
+import type { LucideIcon } from '../lib/icons.js'
+/* `CircleAlert` rather than `AlertCircle`: the icon module keeps one name for
+   the one drawing, lucide's deprecated alias having drifted onto a second
+   meaning before F5 collapsed the two. */
+import { CircleAlert as AlertCircle, Clock3, RefreshCw, WifiOff, X } from '../lib/icons.js'
 
 import {
   Alert,

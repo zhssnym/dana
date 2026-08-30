@@ -39,6 +39,11 @@ function card(
     steps_total: 0,
     pulled: false,
     pending_invite_email: null,
+    // RFC 0005 unit 12a's two additions to 7.0's TaskCard; nothing here
+    // reads either, so both take the value a task under no section and a
+    // scrubbed creator would.
+    section_block_id: null,
+    created_by: null,
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   }
@@ -101,7 +106,13 @@ describe('the date axis', () => {
 describe('a seeded column survives having no rows', () => {
   test('so a board always offers somewhere to capture', () => {
     const columns = groupRows([], 'folder', TODAY, VIEWER, [
-      { key: groceries.id, name: 'Groceries', capture: { folder_id: groceries.id }, rows: [] },
+      {
+        key: groceries.id,
+        name: 'Groceries',
+        capture: { folder_id: groceries.id },
+        mark: { kind: 'folder', folderId: groceries.id },
+        rows: [],
+      },
     ])
     expect(columns).toHaveLength(1)
     expect(columns[0]?.rows).toEqual([])

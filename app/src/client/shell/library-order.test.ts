@@ -38,6 +38,8 @@ function folderOf(id: string, name: string, label: string | null, isDefault = fa
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
   } as Folder
 }
@@ -224,6 +226,44 @@ describe('moveFolderTo: where a folder lands when it changes container', () => {
   it('puts a loose folder at the foot of the group it was dropped on', () => {
     expect(shape(moveFolderTo(column, 'f-apple', 'Home'))).toEqual([
       'Home[Boiler,Rent,Apple]',
+      'Work[Admin,Specs]',
+      'Zebra',
+    ])
+  })
+
+  /*
+  The slot the insert line promised, added at S24 with the line itself.
+
+  The Library draws a line under the pointer while a folder is carried over an
+  open shelf, and a line naming a slot the drop then ignores is worse than no
+  line: it is the interface saying one thing and doing another, in the one
+  gesture where a person is watching closely. So the drop takes the index the
+  line drew, and these two cases are what keep the pair honest.
+  */
+  it('lands a folder at the slot the insert line named', () => {
+    expect(shape(moveFolderTo(column, 'f-apple', 'Home', 0))).toEqual([
+      'Home[Apple,Boiler,Rent]',
+      'Work[Admin,Specs]',
+      'Zebra',
+    ])
+    expect(shape(moveFolderTo(column, 'f-apple', 'Home', 1))).toEqual([
+      'Home[Boiler,Apple,Rent]',
+      'Work[Admin,Specs]',
+      'Zebra',
+    ])
+  })
+
+  it('clamps a slot past either end rather than dropping the folder', () => {
+    // A measurement taken while the rows were moving can name a slot that no
+    // longer exists by the time the release lands. Losing the folder over it
+    // would be the worst available answer to an off-by-one.
+    expect(shape(moveFolderTo(column, 'f-apple', 'Home', 99))).toEqual([
+      'Home[Boiler,Rent,Apple]',
+      'Work[Admin,Specs]',
+      'Zebra',
+    ])
+    expect(shape(moveFolderTo(column, 'f-apple', 'Home', -3))).toEqual([
+      'Home[Apple,Boiler,Rent]',
       'Work[Admin,Specs]',
       'Zebra',
     ])

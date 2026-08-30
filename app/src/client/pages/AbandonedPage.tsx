@@ -25,13 +25,13 @@ import { useAllView, useMultiMemberFolderIds } from '../api/queries.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import { ABANDONED_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.abandoned
 
@@ -57,7 +57,7 @@ export function AbandonedPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
+      <PlaceHead place={place} />
       <PageBody
         query={view}
         isEmpty={rows.length === 0}
@@ -71,12 +71,17 @@ export function AbandonedPage(): React.JSX.Element {
             columns={columns}
             context={context}
             actions={actions}
-            onAsk={confirm.ask}
           />
         ) : place.groupBy !== 'none' ? (
           <div className="space-y-6">
             {columns.map((column) => (
-              <PageSection key={column.key} name={column.name} heading={column.name}>
+              <PageSection
+                key={column.key}
+                name={column.name}
+                heading={column.name}
+                headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                count={column.rows.length}
+              >
                 <TaskRows
                   tasks={column.rows}
                   context={context}

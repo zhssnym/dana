@@ -21,6 +21,8 @@ import { describe, expect, test } from 'vitest'
 // suffix's string type comes from.
 import presentersSource from './presenters.ts?raw'
 
+import { markIcon } from '../components/page/icon-manifest.js'
+
 import {
   DEFAULT_FOLDER_COLOR,
   DELETED_USER,
@@ -30,6 +32,7 @@ import {
   folderGroupOptions,
   folderIdsForNames,
   folderLabelFields,
+  folderMark,
   folderRowDisplay,
   formatDueDate,
   initialsOf,
@@ -63,6 +66,11 @@ function card(overrides: Partial<TaskCard> = {}): TaskCard {
     steps_total: 0,
     pulled: false,
     pending_invite_email: null,
+    // RFC 0005 unit 12a's two additions to 7.0's TaskCard; nothing here
+    // reads either, so both take the value a task under no section and a
+    // scrubbed creator would.
+    section_block_id: null,
+    created_by: null,
     created_at: '2026-08-01T09:00:00.000Z',
     updated_at: '2026-08-01T09:00:00.000Z',
     ...overrides,
@@ -83,6 +91,8 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     icon: null,
     color: null,
     cover_file_id: null,
+    cover_preset: null,
+    cover_focal_y: 50,
     description: null,
     ...overrides,
   }
@@ -211,20 +221,52 @@ describe('dueDisplay: 8.10\'s three cases and Q3C\'s restriction', () => {
   })
 
   /*
-  Q4: dated rows "show due date and time like a Planned row". 24-hour
-  notation, and the seconds Postgres renders on a TIME column are dropped
-  rather than assumed absent.
+  Q4: dated rows "show due date and time like a Planned row", and the seconds
+  Postgres renders on a TIME column are dropped rather than assumed absent.
+
+  **The notation is the viewer's since S17b, where this test pinned 24-hour.**
+  9.7 gives a person the clock and 4.19 stores it, so `dueDisplay` takes it and
+  a row's `RowContext` carries it. The corpus-wide 24-hour convention this test
+  used to cite is this repository's rule for its own documents and was never a
+  rule about somebody's rows; the default is 12-hour, which is
+  `lib/time-format.ts`'s and Imran's ruling of 2026-08-18.
+
+  Both clocks are asserted rather than only the new default. This function
+  gained an input, and a test reading only the value it happens to pass would
+  not notice the other stopping working, which is exactly how the fixed
+  24-hour formatter survived unnoticed beside a 12-hour picker until S17b.
   */
-  test('a due time rides the label in 24-hour notation, seconds dropped', () => {
+  test("a due time rides the label on the viewer's clock, seconds dropped", () => {
     expect(dueDisplay(card({ due_date: TODAY, due_time: '09:00:00' }), TODAY)).toEqual({
+      label: 'Due today 9:00 AM',
+    })
+    expect(dueDisplay(card({ due_date: TODAY, due_time: '09:00:00' }), TODAY, '24')).toEqual({
       label: 'Due today 09:00',
     })
-    expect(dueDisplay(card({ due_date: '2026-08-18', due_time: '18:30' }), TODAY)).toEqual({
+    expect(dueDisplay(card({ due_date: '2026-08-18', due_time: '18:30' }), TODAY, '24')).toEqual({
       label: 'Due 18 Aug 18:30',
     })
-    expect(dueDisplay(card({ due_date: '2026-08-06', due_time: '23:45:00' }), TODAY)).toEqual({
+    expect(dueDisplay(card({ due_date: '2026-08-18', due_time: '18:30' }), TODAY, '12')).toEqual({
+      label: 'Due 18 Aug 6:30 PM',
+    })
+    expect(dueDisplay(card({ due_date: '2026-08-06', due_time: '23:45:00' }), TODAY, '24')).toEqual({
       label: 'Overdue · 6 Aug 23:45',
       overdue: true,
+    })
+  })
+
+  /*
+  Midnight and noon, the two a 12-hour clock gets wrong when anybody
+  reimplements it: 0 and 12 both read as 12 there, which `to12Hour` handles and
+  a bare remainder does not. Asserted through the label because that is the
+  path a row actually takes to the screen.
+  */
+  test('midnight and noon read correctly on a 12-hour label', () => {
+    expect(dueDisplay(card({ due_date: TODAY, due_time: '00:00:00' }), TODAY, '12')).toEqual({
+      label: 'Due today 12:00 AM',
+    })
+    expect(dueDisplay(card({ due_date: TODAY, due_time: '12:00:00' }), TODAY, '12')).toEqual({
+      label: 'Due today 12:00 PM',
     })
   })
 
@@ -293,35 +335,78 @@ describe('personDisplay: 4.1\'s "Deleted user"', () => {
 })
 
 describe('folderDisplay: the id-keyed to name-keyed bridge', () => {
+  /*
+  **The colour is 4.3's since S17a and no longer 4.4's.** 9.6 retires the
+  per-member column from every v2 surface in terms, so what a chip paints is
+  the folder's own identity, the value its page's mark writes and every member
+  reads. The second case below is the discriminating one and proves the
+  opposite of what the first used to: a folder carrying a personal colour and
+  no identity colour paints the neutral token, because nothing in v2 reads
+  that column.
+  */
   test('resolves the colour by id from the folders useFolders() returns', () => {
+    const resolved = folderDisplay({ id: WORK, name: 'Work' }, [folder({ color: '#3366ff' })])
+    expect(resolved.name).toBe('Work')
+    expect(resolved.color).toBe('#3366ff')
+  })
+
+  test('the personal colour of 4.4 is not read at all', () => {
     expect(
-      folderDisplay({ id: WORK, name: 'Work' }, [folder({ my_color: '#3366ff' })]),
-    ).toEqual({ name: 'Work', color: '#3366ff' })
+      folderDisplay({ id: WORK, name: 'Work' }, [folder({ my_color: '#3366ff' })]).color,
+    ).toBe(DEFAULT_FOLDER_COLOR)
   })
 
   /*
-  4.4 makes my_color nullable, so a folder whose viewer set none needs a
-  value. It is the token the designer's own fixtures give every folder, so no
-  raw colour is written outside tokens.css (11.4).
+  4.3 makes the identity colour nullable, so a folder nobody has dressed needs
+  a value. It is the token the designer's own fixtures give every folder, so
+  no raw colour is written outside tokens.css (11.4).
   */
-  test('a folder with no personal colour takes the design\'s neutral token', () => {
+  test('a folder with no identity colour takes the design\'s neutral token', () => {
     expect(folderDisplay({ id: WORK, name: 'Work' }, [folder()]).color).toBe(
       DEFAULT_FOLDER_COLOR,
     )
     expect(DEFAULT_FOLDER_COLOR.startsWith('var(--')).toBe(true)
   })
 
+  /*
+  The mark travels with the colour, which is the whole of AC-243: one folder
+  wears one glyph on its sidebar row, on a task's chip and in the tab menu
+  because one function answers all three. An unset icon answers the plain
+  folder, which is what makes replacing the literal safe.
+
+  **It is read off `folderMark` rather than off `folderDisplay` since S23**,
+  which is where it always came from and is now the only place it is offered.
+  The lifted task row asks `components/folder-mark.tsx` for its own glyph, so
+  the display trio carries the id the row cannot resolve for itself in place
+  of a mark it can. One resolver either way, which is what this asserts.
+  */
+  test('the glyph is the folder\'s chosen one, and the plain folder where none is', () => {
+    const chosen = folderMark(folder({ icon: 'car' })).icon
+    const unset = folderMark(folder()).icon
+    expect(chosen).toBe(markIcon('car'))
+    expect(unset).toBe(markIcon(null))
+    expect(chosen).not.toBe(unset)
+  })
+
+  /* The id the row needs and cannot resolve, which is what replaced the mark
+     on this trio. It is the stub's own, so a card naming a folder the list
+     has not caught up with still addresses the right one. */
+  test('the folder\'s id rides the display, resolved or not', () => {
+    expect(folderDisplay({ id: WORK, name: 'Work' }, [folder()]).id).toBe(WORK)
+    expect(folderDisplay({ id: WORK, name: 'Work' }, []).id).toBe(WORK)
+  })
+
   test('the id decides, not the name: two folders may share one name', () => {
-    const mine = folder({ id: WORK, name: 'Home', my_color: '#111111' })
-    const shared = folder({ id: INBOX, name: 'Home', my_color: '#222222' })
+    const mine = folder({ id: WORK, name: 'Home', color: '#111111' })
+    const shared = folder({ id: INBOX, name: 'Home', color: '#222222' })
     expect(folderDisplay({ id: INBOX, name: 'Home' }, [mine, shared]).color).toBe('#222222')
   })
 
   test('the card\'s own stub is the fallback before the folder list arrives', () => {
-    expect(folderDisplay({ id: WORK, name: 'Work' }, [])).toEqual({
-      name: 'Work',
-      color: DEFAULT_FOLDER_COLOR,
-    })
+    const resolved = folderDisplay({ id: WORK, name: 'Work' }, [])
+    expect(resolved.name).toBe('Work')
+    expect(resolved.color).toBe(DEFAULT_FOLDER_COLOR)
+    expect(folderMark(undefined).icon).toBe(markIcon(null))
   })
 
   test('a folder renamed since the card was fetched renders its current name', () => {
@@ -333,9 +418,10 @@ describe('folderDisplay: the id-keyed to name-keyed bridge', () => {
 
 describe('folderRowDisplay: the sidebar row', () => {
   test('carries 8.11\'s pending tally and 9.1\'s route', () => {
-    expect(folderRowDisplay(folder({ my_color: '#abcdef' }))).toEqual({
+    expect(folderRowDisplay(folder({ color: '#abcdef' }))).toEqual({
       name: 'Work',
       color: '#abcdef',
+      icon: markIcon(null),
       pending: 3,
       href: `/app/folders/${WORK}`,
     })
@@ -476,8 +562,17 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
   })
 
   test('the folder resolves by id and the page may suppress it (Q2)', () => {
-    const withFolders = context({ folders: [folder({ my_color: '#0f0f0f' })] })
+    /* The identity of 4.3 rather than 4.4's personal pair, since S17a: what a
+       chip draws is the folder's own mark and colour, so a car picked for
+       Travel is on every row of it (AC-243). */
+    const withFolders = context({ folders: [folder({ color: '#0f0f0f', icon: 'car' })] })
+    /* The mark left this trio at S23 and the id took its place: the v2 row
+       resolves its own glyph through `components/folder-mark.tsx`, which is
+       the designer's own arrangement, and what it cannot resolve for itself
+       is the id. `folderMark` is still the one resolver and is asserted
+       above; AC-243 is unaffected either way. */
     expect(taskRowDisplay(card(), withFolders).folder).toEqual({
+      id: WORK,
       name: 'Work',
       color: '#0f0f0f',
     })

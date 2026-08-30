@@ -174,6 +174,8 @@ const FOLDER_KEYS = [
   'color',
   'counts',
   'cover_file_id',
+  'cover_focal_y',
+  'cover_preset',
   'description',
   'icon',
   'id',

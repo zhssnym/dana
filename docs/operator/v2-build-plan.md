@@ -77,3 +77,12 @@ The only hard date is S-inf's September 12.
 - **You**: direct Codex's landing; accept 0005 when it arrives; buy the
   September infrastructure early that month.
 - **Codex**: its four-item lane (`codex-handoff.md`), unchanged.
+
+## Addendum, 2026-08-26
+
+The client arm above is superseded by **the prototype lift, S20 to S30**,
+RFC 0004's new closing section, on your ruling of 2026-08-26 that Dana 2.0
+is the exact prototype-v2. The server arm, the gates and S-inf are
+unchanged. Render deploys `v2-build` during this arm, so every merged
+package is reviewable at dana.so the same day; S30 points it back at
+`main`.

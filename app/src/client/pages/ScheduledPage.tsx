@@ -35,13 +35,14 @@ import { groupRows } from '../views/grouping.js'
 import { ladderRungs } from '../views/ladder.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../states/PageSection.js'
+import { CompletedFoot } from '../states/CompletedFoot.js'
 import { PageBody } from '../states/PageStates.js'
 import { PLANNED_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.scheduled
 
@@ -63,7 +64,7 @@ export function ScheduledPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
+      <PlaceHead place={place} />
 
       {place.mode === 'calendar' ? (
         /* Everything about the calendar, its range request included, is inside
@@ -85,7 +86,6 @@ export function ScheduledPage(): React.JSX.Element {
                 columns={columns}
                 context={context}
                 actions={actions}
-                onAsk={confirm.ask}
               />
             ) : place.groupBy !== 'none' ? (
               /* A grouping replaces the ladder rather than nesting inside it
@@ -93,7 +93,13 @@ export function ScheduledPage(): React.JSX.Element {
                  for, and returning Group by to Nothing gives the ladder back. */
               <div className="space-y-6">
                 {columns.map((column) => (
-                  <PageSection key={column.key} name={column.name} heading={column.name}>
+                  <PageSection
+                    key={column.key}
+                    name={column.name}
+                    heading={column.name}
+                    headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                    count={column.rows.length}
+                  >
                     <TaskRows
                       tasks={column.rows}
                       context={context}
@@ -133,6 +139,19 @@ export function ScheduledPage(): React.JSX.Element {
               }}
             />
           )}
+
+          {/* The owner's ruling of 2026-08-22, and `prototype-v2`'s
+              planned-screen answering the objection to it in its own words:
+              "Spec Q3 keeps completed rows out of the *list*, and this is a
+              section under it rather than rows in it, so the ordering rule is
+              untouched." The predicate is Q3's spine, having a date, so a
+              finished undated task belongs to another page's foot. */}
+          <CompletedFoot
+            keep={(task) => task.due_date !== null}
+            context={context}
+            actions={actions}
+            onAsk={confirm.ask}
+          />
         </div>
       )}
 

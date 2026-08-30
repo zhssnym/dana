@@ -56,8 +56,9 @@ export interface AuthConfig {
 
 /*
 What the notification module (11.8) hands the transport when it would send.
-Spec 11.8 fixes three templates (invite, share grant, reminder) and that in
-tests the module logs instead of sending; it fixes no call shape. The suite
+Spec 11.8 fixes the templates, four of them since the invite split of RFC
+0005 change control item 32, and fixes that in tests the module logs instead
+of sending; it fixes no call shape. The suite
 needs the send observable because AC-024 counts share-grant emails, so the
 harness offers this sink through the same construction seam that carries the
 database handle, and normalizes whatever arrives rather than dictating key

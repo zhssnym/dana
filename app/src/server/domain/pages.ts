@@ -46,6 +46,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     text: nullableString(row.text),
     file_id: nullableString(row.file_id),
     ref_folder_id: nullableString(row.ref_folder_id),
+    width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
   }
 }
@@ -64,7 +65,8 @@ function homeCondition(home: PageHome) {
 export async function pageView(db: Db, home: PageHome): Promise<PageView> {
   const rows = await rowsOf(
     db,
-    sql`SELECT id, kind, position, text, file_id, ref_folder_id, updated_at
+    sql`SELECT id, kind, position, text, file_id, ref_folder_id, width_pct,
+               updated_at
         FROM page_blocks WHERE ${homeCondition(home)}
         ORDER BY position ASC, id ASC`,
   )
@@ -115,11 +117,12 @@ export async function putPage(
         await tx.execute(
           sql`INSERT INTO page_blocks
                 (folder_id, shelf_id, kind, position, text, file_id,
-                 ref_folder_id)
+                 ref_folder_id, width_pct)
               VALUES (${home.folderId}, ${home.shelfId}, ${block.kind},
                       ${block.position}, ${block.text ?? null},
                       ${block.file_id ?? null},
-                      ${block.ref_folder_id ?? null})`,
+                      ${block.ref_folder_id ?? null},
+                      ${block.width_pct ?? null})`,
         )
       } else {
         await tx.execute(
@@ -128,6 +131,7 @@ export async function putPage(
                   text = ${block.text ?? null},
                   file_id = ${block.file_id ?? null},
                   ref_folder_id = ${block.ref_folder_id ?? null},
+                  width_pct = ${block.width_pct ?? null},
                   updated_at = now()
               WHERE id = ${block.id}::uuid`,
         )
@@ -161,7 +165,8 @@ export async function putPage(
 async function pageViewIn(tx: Executor, home: PageHome): Promise<PageView> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT id, kind, position, text, file_id, ref_folder_id, updated_at
+    sql`SELECT id, kind, position, text, file_id, ref_folder_id, width_pct,
+               updated_at
         FROM page_blocks WHERE ${homeCondition(home)}
         ORDER BY position ASC, id ASC`,
   )

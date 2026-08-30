@@ -14,13 +14,20 @@ AC-167 measures it by counting requests; the other axes follow the same rule
 because section 6 offers no parameter for any of them. So every function here
 takes rows and returns rows.
 
-**Created-by is the one axis of that sentence this file does not carry, and
-it is an escalation rather than an omission.** A filter runs over `TaskCard`,
-and frozen 7.0's TaskCard has no `created_by`: the field is TaskDetail's.
-Adding it to the card is a change to frozen section 7, which protocol section
-3 makes a human decision, and reading a detail per row to answer a filter
-would be a request per row on a page that fetched one. Recorded as change
-control in RFC 0005 rather than built around.
+**Created-by lands at S25, and it is the axis this file spent two rows
+recording the absence of.** It was an escalation rather than an omission: a
+filter runs over `TaskCard`, TaskCard had no `created_by`, and adding it to a
+frozen section 7 was a human decision rather than this file's. Imran approved
+it at RFC 0005 change control item 19 and unit 12a wrote it, so the card has
+carried the creator since S18 and the axis needs no request per row. Ledger
+L-177 and L-255 are that gap, and it is a gap against a numbered section as
+well as against the prototype, 9.1 naming the axis in the filter's own list.
+
+**It is a filter and never a spine**, which is `task-filters.tsx`'s own
+reasoning and the reason Assignments has two halves rather than two pages
+(L-224). Dana records a creator and not an assigner, so "from A" is a fact
+about who made a task and "to B" is a fact about who is carrying it; grouping
+by the first would claim an assignment nobody made.
 
 **"Manual" is the resting sort and manual means do not touch it** (DES-156).
 Section 6's preamble already says clients never re-sort, and every page
@@ -47,7 +54,19 @@ export type DueAxis =
   | 'month'
   | 'custom'
 
-export type GroupBy = 'none' | 'folder' | 'person' | 'date'
+/*
+9.1's group-by axes. `section` arrived at S26 with RFC 0005 change control
+item 44's B2: "sections are the first and unfiltered arrangement; the filter is
+fully involved in changing it, and may group by date, by assignee, or by
+another axis", so the date board is one of the filter's values rather than a
+rival reading. 9.1's own regions table already named it, "that column's value,
+whatever its axis, folder, person, day, or section".
+
+It is a folder page's axis and no other page's: a section is a block of one
+folder's page (4.17), so grouping Today by section would ask eight pages'
+worth of tasks which of one page's blocks they sit under.
+*/
+export type GroupBy = 'none' | 'folder' | 'person' | 'date' | 'section'
 
 export type SortBy = 'manual' | 'due' | 'title' | 'created'
 
@@ -58,6 +77,16 @@ export interface PageFilter {
   readonly to: string | null
   /** User ids, plus `UNASSIGNED`. Empty means anyone, never nobody. */
   readonly assignees: readonly string[]
+  /**
+   * 9.1's created-by axis: the ids of the people whose tasks are kept.
+   *
+   * Empty means anyone, the same neutral value the assignee axis uses and for
+   * DES-156's reason. There is no `UNASSIGNED` counterpart and there cannot
+   * be one: 4.5 makes `created_by` NOT NULL, so every task was made by
+   * somebody, and the one degenerate case is 7.4's deleted-user stub, which
+   * still carries an id.
+   */
+  readonly creators: readonly string[]
   readonly important: boolean
   readonly repeating: boolean
   /** False hides abandoned rows on the pages whose query admits them. */
@@ -78,6 +107,7 @@ export const NO_FILTER: PageFilter = {
   from: null,
   to: null,
   assignees: [],
+  creators: [],
   important: false,
   repeating: false,
   showAbandoned: true,
@@ -90,6 +120,7 @@ export function isNarrowed(filter: PageFilter): boolean {
   return (
     filter.due !== 'any' ||
     filter.assignees.length > 0 ||
+    filter.creators.length > 0 ||
     filter.important ||
     filter.repeating ||
     !filter.showAbandoned
@@ -142,6 +173,15 @@ function matchesAssignee(task: TaskCard, filter: PageFilter): boolean {
   return filter.assignees.includes(id)
 }
 
+/* 9.1's created-by axis, over the creator TaskCard has carried since S18. A
+   card whose creator is absent is kept only while the axis is neutral: an
+   unknown maker is not a match for a named one. */
+function matchesCreator(task: TaskCard, filter: PageFilter): boolean {
+  if (filter.creators.length === 0) return true
+  const id = task.created_by?.id
+  return id !== undefined && filter.creators.includes(id)
+}
+
 function sortRows(rows: readonly TaskCard[], sort: SortBy): readonly TaskCard[] {
   if (sort === 'manual') return rows
   const copy = [...rows]
@@ -188,6 +228,7 @@ export function applyFilter(
     (task) =>
       matchesDue(task, filter, today) &&
       matchesAssignee(task, filter) &&
+      matchesCreator(task, filter) &&
       (!filter.important || task.important) &&
       (!filter.repeating || task.is_recurring) &&
       (filter.showAbandoned || task.status !== 'abandoned'),
@@ -243,6 +284,17 @@ export function filterChips(
       cleared: { ...filter, assignees: [] },
     })
   }
+  /* The created-by chip says who made them rather than only naming them, and
+     the reason is the axis beside it: two chips reading "Sara" would be the
+     window bar unable to say which of "assigned to Sara" and "made by Sara"
+     had been asked for. Its own words, on the panel and on the chip. */
+  if (filter.creators.length > 0) {
+    chips.push({
+      key: 'creators',
+      label: `${CREATED_BY} ${filter.creators.map((id) => personName(id)).join(', ')}`,
+      cleared: { ...filter, creators: [] },
+    })
+  }
   /* "Important only" rather than "Important", and the difference is not
      decoration: 9.1's names table spends "Important" on a row's star, so a
      chip answering to that exact string would be a second control wearing a
@@ -272,6 +324,8 @@ export function filterChips(
 }
 
 /** The three switch labels, which are also their chips' words. */
+export const CREATED_BY = 'Created by'
+
 export const IMPORTANT_ONLY = 'Important only'
 export const REPEATING_ONLY = 'Repeating only'
 export const ABANDONED_HIDDEN = 'Abandoned hidden'
@@ -285,7 +339,7 @@ export const ABANDONED_HIDDEN = 'Abandoned hidden'
  * what AC-209 pins on the server side and this is the client half of it.
  */
 export function viewDefinition(filter: PageFilter, page: string): Record<string, unknown> {
-  return { page, ...filter, assignees: [...filter.assignees] }
+  return { page, ...filter, assignees: [...filter.assignees], creators: [...filter.creators] }
 }
 
 /** The inverse, tolerant of a definition written by an older client. */
@@ -303,12 +357,19 @@ export function filterFromDefinition(definition: Record<string, unknown>): PageF
     return typeof value === 'string' ? value : null
   }
   const assignees = definition['assignees']
+  const creators = definition['creators']
   return {
     due: readString<DueAxis>('due', 'any'),
     from: readNullableString('from'),
     to: readNullableString('to'),
     assignees: Array.isArray(assignees)
       ? assignees.filter((entry): entry is string => typeof entry === 'string')
+      : [],
+    /* Absent from every definition written before S25, which is what `tolerant
+       of a definition written by an older client` is for: an older view opens
+       with the axis neutral rather than with nobody's tasks. */
+    creators: Array.isArray(creators)
+      ? creators.filter((entry): entry is string => typeof entry === 'string')
       : [],
     important: readBoolean('important', false),
     repeating: readBoolean('repeating', false),

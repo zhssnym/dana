@@ -1,8 +1,8 @@
 /*
-AC-178: given a saved task opened for edit, then the form renders who created
-it and when, and who completed it and when where it is complete, read-only
-and offering no action; given either of those users deleted, then that name
-renders as "Deleted user".
+AC-178: given a saved task opened for edit, then the surface renders who
+created it and when, and who completed it and when where it is complete,
+read-only and offering no action; given either of those users deleted, then
+that name renders as "Deleted user".
 
 Appended to section 12 by RFC 0002, Accepted 2026-08-13. The sentence above
 is that RFC's Append unit transcribed unchanged, and it becomes section 12's
@@ -49,8 +49,29 @@ criterion asserts moves; where the task is opened from does. The rows this
 file creates are undated, so their home is Q2's page, which is Anytime at
 /app/anytime now that /app/tasks redirects; Done keeps its own path.
 
-Spec: 9.3 (the read-only history block, in edit mode only), 9.1 (the v2
-routes table), frozen 7.2's
+**Reworked onto 9.3's v2 card at S15 (items 15 and 19), and this file was on
+neither of the two greps item 15's enumeration was built from.** It never
+writes "More options" and it uses none of the four harness helpers, so both
+sweeps missed it; what it does is open the form by clicking a row, scope to
+the dialog, and dismiss it by a control named Cancel or Close. All three of
+those are the v1 form's apparatus, and the whole subject of the criterion is
+a block 9.3 puts on the card, so it belongs to this package as squarely as
+any of the seven. The correction is recorded in RFC 0005 change control item
+25 with the other two the enumeration missed.
+
+**What moved and what did not.** The block stays: 9.3's v2 carries it in
+terms, "the completion control and the history read stay: the footer renders
+the task's own events from 4.13, created, completed, and the rest, actor and
+viewer-local time, 'Deleted user' fallback unchanged". So every assertion
+below is the one it made before, against the same two lines and the same
+fallback. What moved is the scope, from "the dialog" to the task surface
+addressed by what 9.3 says is in it, and the dismissal, which is escape now
+that the card's footer offers no close of its own. The criterion's own
+sentence lost the word "form" for 9.1's name for the thing, which section 12
+records.
+
+Spec: 9.3 (the read-only history read the v2 footer renders), 9.1 (the v2
+routes table and the task surface's role), frozen 7.2's
 TaskDetail (created_by, created_at, completed_by, completed_at), 4.1 (the
 display_name note), 8.10 (the deletion and its surviving references), 5.1
 (the completion that fills the second line), section 13 item 27.
@@ -67,6 +88,7 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  taskSurface,
   TEST_TIMEOUT_MS,
   transition,
 } from './harness.js'
@@ -122,17 +144,35 @@ function dayAndYear(instant: string): { day: string; year: string } {
  * in its Done bullet, which is a silence this file reads the general way and
  * has raised with the Integration Steward rather than resolved.
  */
-async function openForEdit(page: Page, title: string): Promise<void> {
+async function openTheCard(page: Page, title: string): Promise<void> {
   await clickControl(
     page.getByText(title),
-    'spec 9.5: a click on any row opens the task, and 9.3 makes create and edit one artifact',
+    'spec 9.4: a click on any row opens that task, and 9.3 makes create and edit one artifact',
   )
   await expect(
-    page.getByRole('dialog'),
-    "spec 9.1's roles table: the task form is a dialog, 9.3 making it one artifact over a " +
-      'page. A completed task is opened from Done, that being where its row is, so a client ' +
-      'whose Done rows do not open has no surface for the completion this block renders',
+    taskSurface(page),
+    "spec 9.1's v2 roles table: the task surface is a dialog when opened as one, 9.3 making " +
+      'it one artifact over a page. A completed task is opened from Done, that being where ' +
+      'its row is, and 9.4 opens a row "whatever the task\'s status", so a client whose Done ' +
+      'rows do not open has no surface for the completion this block renders',
   ).toBeVisible()
+}
+
+/**
+ * Closes the open surface.
+ *
+ * Escape rather than a control: 9.3's v2 card carries a completion control, a
+ * star and "More actions" in its footer and no dismiss of its own, so there
+ * is no named control to press and a criterion may not invent one. Escape
+ * closing a modal surface is the platform behaviour every dialog in this
+ * client already has.
+ */
+async function closeTheCard(page: Page): Promise<void> {
+  await page.keyboard.press('Escape')
+  await expect(
+    taskSurface(page),
+    'the surface closes on escape, so what follows reads the page beneath it',
+  ).toHaveCount(0)
 }
 
 test.describe('AC-178: the task form\'s read-only history block', () => {
@@ -143,9 +183,9 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     const created = dayAndYear(detail.created_at)
 
     await page.goto(routesV2.anytime)
-    await openForEdit(page, MINE)
+    await openTheCard(page, MINE)
 
-    const form = page.getByRole('dialog')
+    const form = taskSurface(page)
     await expect(
       form,
       "spec 9.3: the block renders the task's creation, who and when, from the created_by and " +
@@ -169,23 +209,23 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     const task = await createTask(page, { title, folder_id: seedIds.groceries })
 
     await page.goto(routesV2.anytime)
-    await openForEdit(page, title)
+    await openTheCard(page, title)
     await expect(
-      page.getByRole('dialog'),
+      taskSurface(page),
       "spec 9.3: the block renders the completion only when the task has one, so an open task " +
         'shows no completion line. Without this the assertion below passes against a block that ' +
         'always claims a completion',
     ).not.toContainText(/completed/i)
 
-    await page.getByRole('dialog').getByRole('button', { name: /^cancel|^close/i }).first().click()
+    await closeTheCard(page)
     await transition(page, task.id, 'complete', 'UTC')
     const detail = await detailOf(page, task.id)
     expect(detail.completed_at, 'spec 5.1: completing stamps completed_at').not.toBeNull()
     const done = dayAndYear(detail.completed_at ?? '')
 
     await page.goto(routesV2.done)
-    await openForEdit(page, title)
-    const form = page.getByRole('dialog')
+    await openTheCard(page, title)
+    const form = taskSurface(page)
     await expect(
       form,
       "spec 9.3 and 5.1: the block renders who completed it, from frozen 7.2's completed_by, " +
@@ -278,8 +318,8 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     // The surviving member opens the row the deleted account wrote.
     token = await csrfToken(ownerContext)
     await owner.goto(routesV2.folder(folderId))
-    await openForEdit(owner, BY_DOOMED)
-    const form = owner.getByRole('dialog')
+    await openTheCard(owner, BY_DOOMED)
+    const form = taskSurface(owner)
     await expect(
       form,
       'spec 4.1 and 8.10: an author whose account has been deleted renders "Deleted user". ' +
@@ -301,16 +341,15 @@ test.describe('AC-178: the task form\'s read-only history block', () => {
     await createTask(page, { title, folder_id: seedIds.groceries })
 
     await page.goto(routesV2.anytime)
-    await openForEdit(page, title)
+    await openTheCard(page, title)
 
     // The block is found by the name it renders and read for controls. 9.3
     // says it offers no action, and what would go wrong is a client rendering
     // either name as a link to a person, or the completion line as the
     // completion control AC-179 asserts, which is a different control.
-    const block = page
-      .getByRole('dialog')
+    const block = taskSurface(page)
       .getByRole('listitem')
-      .or(page.getByRole('dialog').getByRole('paragraph'))
+      .or(taskSurface(page).getByRole('paragraph'))
       .filter({ hasText: 'Hassan' })
     await expect(
       block,

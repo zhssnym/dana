@@ -43,7 +43,7 @@ Nothing here reads or writes. `onSubmit` is the page's, which is what keeps the
 7.4 call in one place.
 */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Palette } from 'lucide-react'
+import { Palette } from '../lib/icons.js'
 
 import { Button } from './ui/button.js'
 import {

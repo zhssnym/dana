@@ -213,6 +213,8 @@ export function createFoldersRouter(
         icon: parsed.data.icon,
         color: parsed.data.color,
         coverFileId: parsed.data.cover_file_id,
+        coverPreset: parsed.data.cover_preset,
+        coverFocalY: parsed.data.cover_focal_y,
         description: parsed.data.description,
       })
       if (outcome === 'cover_not_here') {
@@ -362,16 +364,33 @@ export function createFoldersRouter(
           )
           return
         case 'added': {
-          // 5.3: the share-grant email follows the successful add alone,
-          // through Platform's notify module; under test the injected sink
-          // observes it, in production Resend sends it from P7 on.
+          /*
+          5.3: the share-grant email follows the successful add alone, through
+          Platform's notify module; under test the injected sink observes it,
+          in production Resend sends it from P7 on.
+
+          The members read moved ahead of the send at S19 and nothing else
+          about the ordering moved: the add has already committed, and this
+          read is the one the 201 body is built from either way. It is where
+          the actor's own display_name is, which item 32 has the email name,
+          and the actor is necessarily in it, a non-member being unable to
+          reach this line. The folder's name comes from the access read this
+          handler made before it granted. So the ruled copy costs no query.
+          */
+          const members = await membersOf(db, folderId)
           if (result.targetEmail !== null) {
             await notifierOf(req.app).send({
               template: 'share_grant',
               to: result.targetEmail,
+              shareGrant: {
+                inviterName:
+                  members.find((member) => member.user.id === actorId)?.user
+                    .display_name ?? null,
+                folderId,
+                folderName: access.name,
+              },
             })
           }
-          const members = await membersOf(db, folderId)
           const added = members.find(
             (member) => member.user.id === parsed.data.user_id,
           )

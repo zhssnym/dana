@@ -79,8 +79,12 @@ const STILL_PX = 6
 const EDGE_PX = 72
 const MAX_SPEED_PX = 16
 /* How long the dwell holds before it arms. DES-171: making a container is a
-   larger act than using one, so it takes a deliberate hold. */
-const DWELL_MS = 1500
+   larger act than using one, so it takes a deliberate hold.
+
+   Exported since S24, so the ring that draws the countdown closes when the
+   hold actually fires. The prototype writes 1500 twice, once here and once as
+   a CSS transition, which is one number and two places for it to be wrong. */
+export const DWELL_MS = 1500
 /* The settle band: how long the carried row is given to travel to the slot the
    list has been holding open, before the array underneath it is rearranged. */
 const SETTLE_MS = 220

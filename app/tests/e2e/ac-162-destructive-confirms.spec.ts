@@ -9,13 +9,15 @@ transcribed unchanged, the AC-125 to AC-130, AC-133 to AC-140 and AC-142
 precedent for a batch authored on the branch and numbered additively so
 nothing already written moves.
 
-Section 9 writes four confirmations word for word and section 12 asserts
-none of them. They are not decoration. Three of the four describe an effect
+Section 9 wrote four confirmations word for word and section 12 asserted
+none of them. They are not decoration. Three of the four described an effect
 the person cannot see from where they are standing: abandoning removes a
-task from My Day and leaves it everywhere else, deleting a folder deletes
+task from Today and leaves it everywhere else, deleting a folder deletes
 tasks for every member and not only for the owner, and un-completing a
 repeat takes the next occurrence with any edits already made to it. The
-fourth, deleting a task, says the one thing about it that matters.
+fourth, deleting a task, said the one thing about it that matters, and it is
+the one v2 retired: two ways back out of Trash is what made the question
+unnecessary, which is a change to the product rather than to this rule.
 
 **Declining is asserted beside every copy.** A confirm that acts anyway is
 the failure worth catching, and it is invisible to a test that only reads the
@@ -86,26 +88,31 @@ back is why the question left", and 9.6 does the same for a folder,
 bar and no confirmation". AC-225 is the criterion that reads what replaced
 them.
 
-The two cases are not removed now, and the reason is not caution. They pass
-against the v1 surfaces the client still carries, so removing them would buy
-this package nothing and would cost the coverage of every day between now
-and S11 and S12. They go when those packages land, under this criterion's
-own quantifier and without anyone's permission being needed, because a
-confirm section 9 no longer puts anywhere is not a confirm this criterion
-asks for. Written down here so that the session which removes them can read
-why rather than decide it again. AC-183's delete-folder clause is the other
-shape and its own file says so: that criterion names its strings one by one,
-so its list is its text and its text is the owner's to change.
+The two cases were kept while the v1 surfaces stood, so that removing them
+bought nothing and cost the coverage of every day until the packages landed.
+Both packages have now landed and both cases have gone with them, under this
+criterion's own quantifier and without anyone's permission being needed,
+because a confirm section 9 no longer puts anywhere is not a confirm this
+criterion asks for. AC-183's delete-folder clause is the other shape and its
+own file says so: that criterion names its strings one by one, so its list is
+its text and its text is the owner's to change.
 
 **The folder half of that removal happened here, at RFC 0005 change control
-item 14, 2026-08-25.** S12 landed 9.6's surface, so deleting a folder now
+item 14, 2026-08-25, and the task half at S15.** S12 landed 9.6's surface, so deleting a folder now
 moves it to Trash for every member with the undo bar and no confirmation,
 and the case that asserted the counts-carrying confirm went exactly as the
 paragraph above provided: under this criterion's own quantifier, with AC-225
 reading the undo bar that replaced it. Its fixture rule, three different
-counts and none of them one, retires with the copy that carried the counts.
-The task-delete case stays until S11 lands 9.3's surface, on the same
-reasoning. In the same act the leave case stopped reaching the folder's
+counts and none of them one, retired with the copy that carried the counts.
+
+**The task half followed at S15 (RFC 0005 change control items 15 and 19),
+on the same reasoning and by the same route.** 9.3's v2 replacement deletes a
+task to Trash with the undo bar and no confirmation, and S15 is the package
+that retires the v1 form the confirm lived in, so the case went where the
+paragraph above said it would. Four confirmations remain in this file and
+none of them is 9.3's, which is why the describe below no longer counts to
+four: this criterion never named a number and the surfaces it quantifies over
+have changed twice. In the same act the leave case stopped reaching the folder's
 overflow menu inside the "Folder header" region: 9.1's replacement puts the
 object's overflow menu at the window bar's right end and the v2 folder page
 draws it there, so the menu is reached the way AC-217 already reaches it, by
@@ -113,7 +120,8 @@ role and name inside the main landmark, ahead of the task rows' menus that
 share the name. The S9 precedent, a locator corrected inside a criterion
 whose sentence did not move.
 
-Spec: 9.3 (the delete confirm), 9.4 (the abandon confirm), 9.5 (the
+Spec: 9.3 (the v2 delete, to Trash with the undo bar and no confirmation,
+which is why this file no longer reads one there), 9.4 (the abandon confirm), 9.5 (the
 G-SERIES un-complete confirm), 9.6 (the leave and remove confirms, and the
 undo-bar folder delete that retired its confirm), 9.1 (the window bar's
 object menu, the sharing panel region, and the v2 routes table), 5.1, 5.3's
@@ -173,7 +181,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-162: the four confirms of section 9', () => {
+test.describe('AC-162: the confirms section 9 still puts on destructive acts', () => {
   test('AC-162: abandoning from Today carries 9.4\'s copy and declining does nothing', async ({
     page,
   }) => {
@@ -214,51 +222,12 @@ test.describe('AC-162: the four confirms of section 9', () => {
     ).toBe('pending')
   })
 
-  test('AC-162: deleting a task carries 9.3\'s copy and declining leaves it', async ({
-    page,
-  }) => {
-    const title = 'ac-162 delete me from the form'
-    const task = await createTask(page, { title, folder_id: seedIds.groceries })
-
-    await page.goto(routesV2.anytime)
-    await clickControl(
-      page.getByText(title),
-      "spec 9.5: a click on any row opens the task, and 9.3 puts delete in that form's " +
-        'overflow menu',
-    )
-    // 9.3: delete lives in the form's overflow menu. Scoped to the open form
-    // rather than taken as the last match on the page, because 9.1's control
-    // table gives the form's overflow menu and a task row's the same name,
-    // "More actions", deliberately: they do the same thing to different
-    // objects. So position is the wrong way to tell them apart and the
-    // containing dialog is the right one. Reaching for the last match worked
-    // only while the row count happened to leave the form's button last, and
-    // it stopped working the moment this file's neighbours created different
-    // rows: the click landed on a row's menu behind the form's own scrim.
-    await clickControl(
-      page.getByRole('dialog').getByRole('button', { name: 'More actions', exact: true }),
-      'spec 9.3: the task form carries an overflow menu, which is where delete lives',
-    )
-    await clickControl(
-      page.getByRole('menuitem', { name: /delete/i }),
-      'spec 9.3 and 9.6: delete lives in the overflow menu of the form and of the folder header',
-    )
-
-    await expect(
-      page.getByText(copy.deleteTaskConfirm),
-      'spec 9.3: the delete confirm is "Delete this task? This can\'t be undone.", and 5.1 ' +
-        'makes that literally true, the row and its steps, entries and reminder going together',
-    ).toBeVisible()
-
-    await clickControl(
-      page.getByRole('button', { name: 'Cancel', exact: true }),
-      'spec 9.3 and 9.4: a destructive confirm can be declined, so it offers a control that does not proceed',
-    )
-    expect(
-      await statusOf(page, task.id),
-      'spec 5.1: the task is still there after a declined delete',
-    ).toBe('pending')
-  })
+  // The task-delete case stood here until S15 landed 9.3's v2 surface, which
+  // is the package the paragraph above named. 9.3 now deletes a task to Trash
+  // "with the undo bar, and no confirmation: two ways back is why the question
+  // left", so the confirm it asserted is not one section 9 puts anywhere; it
+  // went under this criterion's own quantifier, needing nobody's permission,
+  // and AC-225 reads the undo bar that replaced it.
 
   // The folder-delete case stood here until RFC 0005 change control item 14.
   // 9.6 now deletes to Trash with the undo bar and no confirmation, so the

@@ -53,10 +53,19 @@ import { rows } from './helpers.js'
  * The 7.0 shapes
  * ------------------------------------------------------------------ */
 
-/** TaskCard, spec 7.0, in full. */
+/**
+ * TaskCard, spec 7.0 as RFC 0005 unit 12a replaces its line, in full.
+ *
+ * That unit is the only one in the RFC that touches frozen section 7, and it
+ * widens this list by two: `section_block_id`, the folder page section the
+ * task sits under, and `created_by`, the same person stub `assignee` already
+ * carries. Both were TaskDetail's before it, so the two lists here moved
+ * together and neither key is spelled twice.
+ */
 export const TASK_CARD_KEYS = [
   'assignee',
   'created_at',
+  'created_by',
   'due_date',
   'due_time',
   'folder',
@@ -65,6 +74,7 @@ export const TASK_CARD_KEYS = [
   'is_recurring',
   'pending_invite_email',
   'pulled',
+  'section_block_id',
   'status',
   'steps_done',
   'steps_total',
@@ -72,16 +82,14 @@ export const TASK_CARD_KEYS = [
   'updated_at',
 ] as const
 
-/** What TaskDetail adds to TaskCard, spec 7.0; section_block_id joined the
- * list with RFC 0005's 4.5 amendment. */
+/** What TaskDetail adds to TaskCard, spec 7.0 as unit 12a leaves it: seven
+ * keys, `created_by` and `section_block_id` having moved up onto the card. */
 export const TASK_DETAIL_EXTRA_KEYS = [
   'completed_at',
   'completed_by',
-  'created_by',
   'notes',
   'recurrence_rule',
   'reminder',
-  'section_block_id',
   'series_id',
   'steps',
 ] as const
@@ -225,6 +233,24 @@ export function expectTaskCardShape(value: unknown, source: string): void {
   expectInstantOrNull(card.updated_at, `${source}.updated_at`)
   expect(card.created_at, `${source}.created_at must not be null`).not.toBeNull()
   expect(card.updated_at, `${source}.updated_at must not be null`).not.toBeNull()
+
+  /*
+  The two keys unit 12a moves onto the card, judged here rather than in the
+  detail's half because the card is where they live now.
+
+  created_by is the person shape assignee carries and never a bare id, the
+  unit making the two agree so a heading that names a person gets what a
+  card's person label needs. Null has exactly one door, 8.10's scrub of the
+  creator's account, which is what "renders as Deleted user" means on the
+  wire; AC-250 walks through that door, and this stays a shape judge because
+  a shape judge cannot know whose account was deleted.
+
+  section_block_id is the 4.17 block the task sits under on its folder's
+  page, null for a task placed under none. Which block is AC-248's, for the
+  same reason.
+  */
+  expectPersonOrNull(card.created_by, `${source}.created_by`)
+  expectUuidOrNull(card.section_block_id, `${source}.section_block_id`)
 }
 
 export interface TaskDetailBody extends Record<string, unknown> {
@@ -233,7 +259,8 @@ export interface TaskDetailBody extends Record<string, unknown> {
   title: string
 }
 
-/** The whole of the 7.0 TaskDetail shape: TaskCard plus its eight. */
+/** The whole of the 7.0 TaskDetail shape: TaskCard plus its seven, unit 12a
+ * having moved two of the old eight onto the card. */
 export function expectTaskDetailShape(
   value: unknown,
   source: string,
@@ -251,10 +278,8 @@ export function expectTaskDetailShape(
   expectUuidOrNull(detail.series_id, `${source}.series_id`)
   expectInstantOrNull(detail.completed_at, `${source}.completed_at`)
   expectUuidOrNull(detail.completed_by, `${source}.completed_by`)
-  expect(
-    typeof detail.created_by,
-    `${source}.created_by must be an id string (spec 4.5 makes the column NOT NULL)`,
-  ).toBe('string')
+  // created_by is judged with the card half above since unit 12a moved it
+  // there, and asserting it twice would be two answers about one key.
 
   /*
   This was the one tolerated looseness in the shape, and it is not open any

@@ -177,7 +177,7 @@ describe('the P5 routers, driven through the harness idiom', () => {
       'the 201 body satisfies the shared 7.5 schema, contract and route agreeing',
     ).toBe(true)
     expect(
-      delivered.filter((m) => m.template === 'invite' && m.to === email).length,
+      delivered.filter((m) => /invite/.test(m.template) && m.to === email).length,
       '5.2\'s create row sends exactly one email, through the 11.8 module',
     ).toBe(1)
   })
@@ -294,7 +294,7 @@ describe('the P5 routers, driven through the harness idiom', () => {
     )
     expectStatus(resent, 200, 'beyond the window it goes through (spec 5.2)')
     expect(
-      delivered.filter((m) => m.template === 'invite' && m.to === email).length,
+      delivered.filter((m) => /invite/.test(m.template) && m.to === email).length,
       'sending one more',
     ).toBe(1)
   })

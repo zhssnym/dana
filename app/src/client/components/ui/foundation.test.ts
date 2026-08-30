@@ -61,25 +61,16 @@ const files = Object.keys(sources).sort()
 describe('the icon family is one decision in one file (DES-125)', () => {
   /*
   The v1 markup still importing lucide per icon. Each leaves with the package
-  that replaces the surface it draws: the three folder dialogs, the folder
-  row, the page bar and the state patterns with the shell and the folder
-  surfaces (S9, S12), the row and the quick-add with S11's row work, and the
-  calendar, search and task-form directories with S11 and S12.
+  that replaces the surface it draws, which this list has said since S8.
+
+  **Five left at S24, which is the shell**: the three folder dialogs, the
+  folder row and the state patterns, exactly the set this comment named as
+  going "with the shell". The search overlay left at S27, lifted whole. What
+  remains are the calendar and the quick-add.
   */
   const V1_LUCIDE = [
     'components/calendar/PlannedCalendar.tsx',
-    'components/folder-group-dialog.tsx',
-    'components/folder-label-dialog.tsx',
-    'components/folder-row.tsx',
-    'components/new-folder-dialog.tsx',
-    'components/page-bar.tsx',
     'components/quick-add.tsx',
-    'components/search/SearchOverlay.tsx',
-    'components/state-patterns.tsx',
-    'components/task-form/StepsEditor.tsx',
-    'components/task-form/TaskForm.tsx',
-    'components/task-form/TaskHistory.tsx',
-    'components/task-row.tsx',
   ]
 
   test('only the icon module imports lucide-react, beside a named v1 list', () => {
@@ -95,25 +86,52 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   is. The primitives may reach for a step because they are where a role is
   defined, and `tokens.css` is where both are written. Everything else asks
   for the role.
+
+  **The list below is two kinds of file now, and its name no longer says so.**
+  It began as v1 markup awaiting the package that replaces it. Since S23 it
+  also holds files lifted verbatim from `prototype-v2`, which spell the ramp
+  because the original does and because RFC 0004's lift discipline is that a
+  lifted file diffs empty against its original: rewriting its class strings to
+  reach for roles would be the rewrite that strategy forbids. So a lift adds an
+  entry here rather than removing one, which is what `view-strip.tsx` and
+  `window-bar.tsx` did at S23, `undo-bar.tsx` did at S24, and `folder-cover`,
+  `page-cover` and `page-head` did at S25, `page-image` did at S26, and
+  `search-overlay` does at S27, replacing the port's entry with the lift's. The
+  bell is the same entry for the opposite reason: it was always the prototype's
+  class strings and it moved into this directory at S26, where the rule reaches
+  it for the first time. Whether the prototype should be
+  asking for roles is a question for the design record.
   */
   const RAMP = /var\(--color-(graphite|dana-accent|folder|success|warning|danger|info)-/
 
   const V1_RAMP = [
     'components/calendar/PlannedCalendar.tsx',
+    'components/comments.tsx',
+    'components/folder-cover.tsx',
     'components/folder-group-dialog.tsx',
     'components/folder-label-dialog.tsx',
     'components/folder-row.tsx',
+    'components/history-sheet.tsx',
+    'components/icon-action.tsx',
     'components/new-folder-dialog.tsx',
-    'components/page-bar.tsx',
+    'components/notifications-bell.tsx',
+    'components/page-cover.tsx',
+    'components/page-head.tsx',
+    'components/page-image.tsx',
     'components/quick-add.tsx',
-    'components/search/SearchOverlay.tsx',
+    'components/search-overlay.tsx',
     'components/state-patterns.tsx',
-    'components/task-form/StepsEditor.tsx',
-    'components/task-form/TaskForm.tsx',
-    'components/task-form/TaskFormOverlay.tsx',
-    'components/task-form/TaskFormResizeHandle.tsx',
-    'components/task-form/TaskHistory.tsx',
+    'components/task-assignee-invite.tsx',
+    'components/task-board.tsx',
+    'components/task-card.tsx',
+    'components/task-history-block.tsx',
+    'components/task-pickers.tsx',
     'components/task-row.tsx',
+    'components/task-section.tsx',
+    'components/task-surface.tsx',
+    'components/undo-bar.tsx',
+    'components/view-strip.tsx',
+    'components/window-bar.tsx',
   ]
 
   test('no ramp step outside components/ui, beside a named v1 list', () => {
@@ -123,9 +141,37 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     expect(spellers).toEqual(V1_RAMP)
   })
 
-  test('no literal colour anywhere but the token file', () => {
+  /*
+  One file writes hexes, and it is the first exemption this rule has ever
+  taken (S25).
+
+  `components/folder-cover.tsx` is `prototype-v2`'s cover picker, lifted whole
+  for item 44's B1. Its nine gradients are the token palette's own hexes, which
+  its author says in terms and which was checked stop by stop against
+  `styles/tokens.css` at the lift: "No colour enters the product here that the
+  tokens do not already own, which is what makes them brand rather than
+  decoration."
+
+  **What makes it an exemption rather than a fix is the mark tier.** Six of the
+  covers are built by `markCover`, which assembles an SVG document as a string
+  and hands it to `background-image` as a `data:` URI. A `var(--color-...)` is
+  read from the element it is set on, and there is no element inside a data URI
+  to read one from, so those six stops cannot be anything but literals. Moving
+  the nine gradients alone would leave the rule half kept and the file half
+  rewritten, which is the rewrite the lift discipline forbids for no gain.
+
+  11.4's own recorded reading is the ground: the rule "governs the values the
+  design fixes", and these are that file's transcription of exactly those. The
+  hazard the rule exists to prevent, a design that cannot be changed in one
+  place, is the one thing to watch here, so the entry is named rather than the
+  test loosened, and a second file joining it is a question rather than a
+  precedent.
+  */
+  const LITERAL_HEX = ['components/folder-cover.tsx']
+
+  test('no literal colour anywhere but the token file, beside one named lift', () => {
     const literal = files.filter((path) => /#[0-9a-fA-F]{6}\b/.test(sources[path] ?? ''))
-    expect(literal).toEqual([])
+    expect(literal).toEqual(LITERAL_HEX)
   })
 })
 

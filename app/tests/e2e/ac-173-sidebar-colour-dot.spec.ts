@@ -1,8 +1,21 @@
 /*
-AC-173: given folders in the sidebar with different personal colours and one
-with none, then each folder row shows a colour dot carrying that folder's own
-colour, two folders with different colours do not render the same dot, and a
-folder without a colour still renders its name and pending count.
+AC-173: given folders in the sidebar whose 4.3 identity colours differ and one
+with no colour set, then each row is painted with its own folder's colour and
+not with another's, a row for an uncoloured folder still renders its name and
+its pending count, and two folders carrying different colours do not render
+the same paint.
+
+**Reworked at S17a, and it is the one v1 criterion that package moved.** The
+sentence above read "different personal colours" until 2026-08-26 and the
+fixture wrote 7.4's my-membership, which was the v1 sidebar's source. 9.6
+retires that column from every v2 surface in terms, "4.4's per-member color
+column is no longer written by any v2 surface (existing values are simply
+unused, the column is frozen and stays)", so a criterion pinning the personal
+column pins a surface the contract moved out from under. Every clause keeps
+its shape and its reasoning below still holds word for word; what changed is
+the column the fixture writes, which is now the shared identity the folder
+page's mark commits and every member reads. RFC 0005 change control item 8's
+sequencing, applied a third time.
 
 Numbered by the Integration Steward at the P8 merge review on 2026-08-12, so
 the sentence above is section 12's own text now; it is transcribed unchanged,
@@ -13,7 +26,8 @@ test left to this role.
 colour dot, a name and a pending count, and the built client renders two of
 them. AC-155 is the criterion this package wrote for that sentence and it
 asserts the pinning, the grouping and the two orderings, stopping short of
-the dot; `my_color` appears nowhere under `app/src/client`. So one element of
+the dot; no folder colour appeared anywhere under `app/src/client` when this
+was written. So one element of
 a section 9 sentence was implemented by nothing and asserted by nothing at
 once, which is the class the P4 change control swept for.
 
@@ -38,9 +52,9 @@ pair is not.
 **The colour comes from the wire, not from the palette.** `tokens.css`
 carries ten folder swatches transcribed from the designer's foundation, and
 those are the presets a picker would offer rather than the source of any
-given folder's dot: `my_color` rides the 7.4 Folder object and is per member,
-so two people see different dots on the same folder. The fixtures here are
-therefore set through 7.4's my-membership and the expected colour is the hex
+given folder's dot: 4.3's colour rides the 7.4 Folder object and is the
+folder's own, so every member sees the same paint on it. The fixtures here are
+therefore set through PATCH /folders/:id and the expected colour is the hex
 this file sent, converted to what a browser reports. Two colours are chosen
 that no seed row and no other spec uses, so a row carrying one of them
 carries it because this folder was painted with it.
@@ -66,8 +80,8 @@ today, so a red on any of those would be a different sentence failing and is
 worth reporting rather than repairing.
 
 Spec: 9.1 (the folder list sentence and the sidebar), frozen 7.4 (the Folder
-object's my_color and the my-membership mutation that sets it), 8.11 (the
-sidebar badge is the pending number alone), 4.6.
+object's 4.3 identity colour and the PATCH that sets it), 9.6 (the retirement
+of 4.4's per-member column from every v2 surface), 8.11 (the sidebar badge is the pending number alone), 4.6.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -92,7 +106,7 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /**
  * Two colours no seed row and no other spec uses, so a row painted with one
- * of them was painted from this folder's own `my_color`. The seed's one
+ * of them was painted from this folder's own 4.3 colour. The seed's one
  * colour is #33AA55 and AC-155's is #4477CC.
  */
 const FIRST = { base: 'ac-173 folder in magenta', color: '#FF00AA' }
@@ -128,16 +142,19 @@ async function makeFolder(page: Page, name: string, color: string | null): Promi
   }
 
   if (color !== null) {
-    // 7.4's my-membership, which is where a personal colour is set. Per
-    // member by construction, which is why the dot is a property of this
-    // viewer's row rather than of the folder.
-    const labelled = await page.request.patch(
-      `/api/v1/folders/${folder.id}/my-membership`,
-      { data: { label: null, color }, headers: { 'X-CSRF-Token': token } },
-    )
+    /* 4.3's identity colour, reworked here at S17a. This wrote 7.4's
+       my-membership until then, which was the v1 sidebar's source; 9.6
+       retires that column from every v2 surface in terms, "4.4's per-member
+       color column is no longer written by any v2 surface (existing values
+       are simply unused)", so the colour a v2 row draws is the folder's own,
+       the one its mark writes and every member reads. */
+    const painted = await page.request.patch(`/api/v1/folders/${folder.id}`, {
+      data: { color },
+      headers: { 'X-CSRF-Token': token },
+    })
     expect(
-      labelled.status(),
-      `PATCH my-membership answered ${labelled.status()}: ${await labelled.text()}`,
+      painted.status(),
+      `PATCH /folders/:id answered ${painted.status()}: ${await painted.text()}`,
     ).toBe(200)
   }
   return folder
@@ -188,7 +205,7 @@ test.describe('AC-173: the sidebar colour dot', () => {
     expect(
       firstPaint,
       `spec 9.1: each folder shows a colour dot, and frozen 7.4 carries the colour it shows on ` +
-        `my_color. This folder's is ${FIRST.color}, and nothing inside its row was painted ` +
+        `4.3 colour. This folder's is ${FIRST.color}, and nothing inside its row was painted ` +
         `with it. The row rendered these: ${JSON.stringify(firstPaint)}`,
     ).toContain(hexToRgb(FIRST.color))
 
@@ -278,8 +295,8 @@ test.describe('AC-173: the sidebar colour dot', () => {
     const row = folderRow(page, name)
     await expect(
       row,
-      'spec 9.1: a folder with no personal colour is still a folder in the sidebar. 7.4 makes ' +
-        'my_color nullable, so this is the ordinary case rather than an edge, and a client ' +
+      'spec 9.1: a folder with no colour set is still a folder in the sidebar. 4.3 makes ' +
+        'the identity colour nullable, so this is the ordinary case rather than an edge, and a client ' +
         'keying the row off the colour renders a gap where a folder should be',
     ).toHaveCount(1)
     await expect(

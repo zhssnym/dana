@@ -79,7 +79,7 @@ import { openTaskForm } from '../../shell/overlays.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
-import { openTask } from '../task-form/index.js'
+import { openTask } from '../task-open.js'
 import {
   WEEKDAY_LABELS,
   datesFor,
@@ -453,14 +453,23 @@ export function PlannedCalendar(): React.JSX.Element {
         <div role="grid" aria-label="Planned calendar" className="bg-white">
           <div
             role="row"
-            className="grid border-b border-[var(--color-graphite-200)]"
+            className="grid border-b border-[var(--color-graphite-200)] bg-white"
             style={{ gridTemplateColumns: template }}
           >
             {headers.map((label) => (
               <div
                 key={label}
                 role="columnheader"
-                className="flex h-9 items-center px-2 text-[11px] font-semibold tracking-[0.04em] text-[var(--color-graphite-500)] uppercase"
+                /*
+                The prototype's own correction, taken at S25 with its reason
+                in its words: the weekday heads "read exactly as the date
+                picker's do (`ui/calendar.tsx`): 11px medium in graphite-400,
+                on a 28px row. They were 9px taller, semibold, uppercase and
+                tracked, a second style for the same words, in the same
+                product, two clicks apart." This client was wearing the style
+                that correction replaced.
+                */
+                className="flex h-7 items-center px-2 text-[11px] leading-4 font-medium text-[var(--color-graphite-400)]"
               >
                 {label}
               </div>
