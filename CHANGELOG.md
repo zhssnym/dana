@@ -8,6 +8,48 @@ follow Semantic Versioning.
 
 Nothing yet.
 
+## [2.1.0] - 2026-08-30
+
+The UI polish round and the sample workspace. Ten adversarial "first-time
+user" sessions drove every component of the running app and wrote what did
+not feel right (`docs/ux/2026-08-30-adversarial/`); three fixer sessions
+took the findings, one area each, and a merge sitting reconciled them.
+Nothing was redesigned; what was duplicated, hidden or clunky was tidied.
+
+### Added
+- A sample workspace on every new account: three shelves (Life, Studies,
+  Work), seven folders, forty-three tasks showing steps, dates, repeats,
+  reminders, sections, conversations and a thread inside a task; removable
+  in two clicks from the strip on Desk or from Settings, restorable from
+  there too (`GET/POST/DELETE /api/v1/sample`, RFC 0005 item 60).
+- A phone shell: a top bar with a menu that opens the sidebar as a drawer,
+  search and the bell reachable, the task surface filling the width.
+- A "More" row in the sidebar reaching Done, Anytime and Abandoned; Trash,
+  People and Settings as plain rows in the foot.
+- The row menu offers Add to Today; the card's menu carries Delete, Abandon
+  and History like the row's; the due picker has a time.
+- Notifications for comments on a task you created or are assigned to, in
+  sentences, landing on the open thread.
+- A task opened "in a tab" is now the editor rather than a read-only page.
+- Calendar drag reschedules; a section deletes with undo; folder history
+  reads as sentences; the import toasts its folder count.
+
+### Changed
+- One word, "shelf", everywhere a folder group or label used to be named.
+- Settings offered once; one rule for opening a page from the sidebar or the
+  tab strip's "+", which never opens a duplicate; the active tab is lifted.
+- The list/board/calendar switch and the page tools rest visible instead of
+  appearing on hover; star and "..." are visible at rest on touch.
+- "Add a step" opens an empty field saved on Enter; a step renames in place.
+- Bulk delete says it moves tasks to Trash, and its undo restores all of them.
+- Quick-add carries its title into the full form; new tasks land at the foot.
+- "Move to shelf" lists your shelves; the phantom "someone else changed this
+  block" toast on shelf pages is gone; a saved view lives in the filter panel
+  rather than the Library; a done task is drawn once on a board.
+- Dev only: `POST /auth/dev-login` reads its identity from the query string.
+
+Acceptance criteria AC-297 to AC-357; SESSION-LOG rows 51 to 54.
+
 ## [2.0.0] - 2026-08-30
 
 Dana 2.0 is the v2 prototype, lifted rather than re-derived. Imran ruled on
