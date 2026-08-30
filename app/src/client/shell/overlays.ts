@@ -31,6 +31,31 @@ type SearchListener = () => void
 const taskFormListeners = new Set<TaskFormListener>()
 const searchListeners = new Set<SearchListener>()
 
+/*
+The New folder dialog, asked for from a page (S27).
+
+9.10's shelf page offers "New folder..." on its Add folder row, and the folder
+it makes lands on that shelf; the dialog that does this is the shell's, mounted
+once for the reason its own comment gives (a dialog inside the thing that
+opens it is unmounted by the refetch its own write causes). The same idiom as
+the two above: the page asks, the shell answers, and neither imports the
+other. `label` is the shelf the new folder is filed under, or null for one
+made from nowhere in particular.
+*/
+type NewFolderListener = (label: string | null) => void
+const newFolderListeners = new Set<NewFolderListener>()
+
+export function openNewFolder(label: string | null): void {
+  for (const listener of newFolderListeners) listener(label)
+}
+
+export function onOpenNewFolder(listener: NewFolderListener): () => void {
+  newFolderListeners.add(listener)
+  return () => {
+    newFolderListeners.delete(listener)
+  }
+}
+
 export function openTaskForm(defaults: TaskFormDefaults): void {
   for (const listener of taskFormListeners) listener(defaults)
 }
