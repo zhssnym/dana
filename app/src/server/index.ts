@@ -29,6 +29,7 @@ import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
+import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createTrashRouter } from './routes/trash.js'
 import { createViewsRouter } from './routes/views.js'
@@ -98,6 +99,15 @@ export interface AppOptions {
    * createApp itself performs no I/O (11.10).
    */
   clientDist?: string
+  /**
+   * Whether a brand-new account is written the sample workspace at its
+   * first sign-in (RFC 0005 change control item 60). Defaults to true unless
+   * DANA_SAMPLE_WORKSPACE is 'off', read at createApp() call time; the
+   * acceptance suite sets it off in its setup file so a fresh account is the
+   * empty one its criteria count on, and the one file that measures the
+   * sample passes true here.
+   */
+  sampleWorkspace?: boolean
 }
 
 /** The production store over DANA_FILES_DIR, or the OS temp path when that
@@ -258,7 +268,15 @@ export function createApp(options: AppOptions = {}): express.Express {
       // after its transaction commits, so the auth router holds the same
       // store the files router serves from.
       fileStore,
+      sampleWorkspace: options.sampleWorkspace ?? process.env.DANA_SAMPLE_WORKSPACE !== 'off',
     }),
+  )
+
+  // Item 60's sample workspace: three routes under one path that no earlier
+  // router claims.
+  app.use(
+    '/api/v1',
+    createSampleRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
   // The P2 folders router, mounted by the request recorded in

@@ -44,6 +44,8 @@ import type {
   PostFoldersBody,
 } from '../../shared/folders.js'
 import { getSettingsResponse, savedView } from '../../shared/bundle.js'
+import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
+import type { SampleStatus } from '../../shared/sample.js'
 import type {
   GetSettingsResponse,
   PatchSettingsBody,
@@ -852,5 +854,38 @@ export function usePatchSavedView(): UseMutationResult<
   return useMutation({
     mutationFn: ({ id, body }) =>
       mutateApi(savedView, { method: 'PATCH', path: `/views/${id}`, body }),
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The sample workspace (RFC 0005 change control item 60)
+ * ------------------------------------------------------------------ */
+
+/**
+ * DELETE /sample. Answers the names of the sample folders removal left
+ * standing because someone else is a member, read off the one header the
+ * 204 carries, so the strip can say so.
+ */
+export function useRemoveSample(): UseMutationResult<string[], Error, void> {
+  return useMutation({
+    mutationFn: async () => {
+      let kept: string[] = []
+      await mutateApi(null, {
+        method: 'DELETE',
+        path: '/sample',
+        onHeaders: (headers) => {
+          const raw = headers.get(SAMPLE_KEPT_HEADER)
+          kept = raw === null || raw === '' ? [] : decodeURIComponent(raw).split('\n')
+        },
+      })
+      return kept
+    },
+  })
+}
+
+/** POST /sample: the workspace again, idempotent while it is present. */
+export function useRestoreSample(): UseMutationResult<SampleStatus, Error, void> {
+  return useMutation({
+    mutationFn: () => mutateApi(sampleStatus, { method: 'POST', path: '/sample' }),
   })
 }
