@@ -283,6 +283,9 @@ export function SettingsScreen({
   onPinSavedView,
   onSignOut,
   onDeleteAccount,
+  sample,
+  onRemoveSample,
+  onRestoreSample,
 }: {
   onOpenPeople: () => void
   previewState?: string | null
@@ -292,6 +295,11 @@ export function SettingsScreen({
   /* Seam 6. */
   onSignOut?: () => void
   onDeleteAccount?: () => void
+  /* Seam 8, RFC 0005 change control item 60: the sample workspace's row,
+     drawn only when the page knows whether it is present. */
+  sample?: { present: boolean; busy: boolean; tasks: number; folders: number } | null
+  onRemoveSample?: () => void
+  onRestoreSample?: () => void
 }) {
   const pins = usePagePins()
   const density = useRowDensity()
@@ -661,6 +669,36 @@ export function SettingsScreen({
             confirmation dialog behind the button is unchanged: it is where
             the real check happens.
             */}
+            {/* Seam 8: item 60's sample workspace. One row, one control,
+                which reads Remove while the sample is present and Restore
+                after; Remove confirms once on the page and then offers the
+                undo bar, the same path as the strip on Desk and Today. */}
+            {sample ? (
+              <SettingsSection
+                id="settings-sample"
+                title="Sample data"
+                description={
+                  sample.present
+                    ? `The workspace you were shown around with: ${String(sample.folders)} folders and ${String(sample.tasks)} tasks. Anything you made yourself stays.`
+                    : "Bring back the example folders and tasks a new account starts with."
+                }
+              >
+                <div className="flex min-h-16 items-center gap-3 rounded-lg border border-border bg-white px-3">
+                  <p className="min-w-0 flex-1 text-sm text-[var(--color-graphite-700)]">
+                    {sample.present ? "Sample workspace present" : "Sample workspace removed"}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                    disabled={sample.busy}
+                    onClick={sample.present ? onRemoveSample : onRestoreSample}
+                  >
+                    {sample.present ? "Remove sample data" : "Restore sample data"}
+                  </Button>
+                </div>
+              </SettingsSection>
+            ) : null}
+
             <SettingsSection
               id="settings-danger"
               title="Deleting your account"

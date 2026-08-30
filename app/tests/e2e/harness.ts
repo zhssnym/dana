@@ -180,6 +180,7 @@ export async function signIn(
   sub: string,
   name?: string,
   email?: string,
+  options: { sample?: boolean } = {},
 ): Promise<void> {
   // The email is named only where a criterion turns on it. 6 Q12 matches a
   // pending invite to the viewer's lowercased address, so an account that is
@@ -190,7 +191,10 @@ export async function signIn(
   // counting since the page's first navigation.
   trackApi(page)
 
-  const body: Record<string, string> = { sub }
+  // Item 60: a fresh account here is the empty one these criteria count on,
+  // so the sample workspace is declined at the door. The one spec that
+  // measures the strip signs in through its own call with sample true.
+  const body: Record<string, string | boolean> = { sub, sample: options.sample ?? false }
   if (name !== undefined) body['name'] = name
   if (email !== undefined) body['email'] = email
   const response = await page.request.post('/api/v1/auth/dev-login', { data: body })

@@ -91,6 +91,9 @@ export interface AppOptions {
     get(id: string): Promise<Buffer | null>
     remove(id: string): Promise<void>
   }
+  /** RFC 0005 change control item 60: the sample workspace at first
+   * sign-in, off under this suite by its setup file. */
+  sampleWorkspace?: boolean
 }
 
 type AppFactory = (
@@ -221,7 +224,7 @@ opposite of this suite's job.
 const AUTH_BASE = '/api/v1'
 
 export async function startAuthTestApp(
-  options: { fileStore?: AppOptions['fileStore'] } = {},
+  options: { fileStore?: AppOptions['fileStore']; sampleWorkspace?: boolean } = {},
 ): Promise<AuthTestApp> {
   const dbClient = await createTestDb()
   const stub = await startOidcStub()
@@ -260,6 +263,8 @@ export async function startAuthTestApp(
     auth,
     notifications: emails.sink,
     ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
+    // Item 60: off for every file but the one that measures the sample.
+    ...(options.sampleWorkspace === undefined ? {} : { sampleWorkspace: options.sampleWorkspace }),
   })
   server.on('request', app)
 

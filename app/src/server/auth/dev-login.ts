@@ -31,6 +31,11 @@ interface DevLoginBody {
   sub?: unknown
   name?: unknown
   timezone?: unknown
+  /** Item 60: `false` opts a brand-new account out of the sample workspace
+   * and `true` opts it in, whatever the application's default; the browser
+   * harness sends false so a fresh account is the empty one its criteria
+   * count on. Honoured here and nowhere else. */
+  sample?: unknown
 }
 
 export async function handleDevLogin(
@@ -38,6 +43,7 @@ export async function handleDevLogin(
   req: Request,
   res: Response,
   establish: (res: Response, userId: string) => Promise<void>,
+  sampleDefault = true,
 ): Promise<void> {
   // The query string is read beside the body so a plain HTML form, which
   // cannot post JSON, can still name the account: POST .../dev-login?sub=x.
@@ -58,10 +64,18 @@ export async function handleDevLogin(
       ? body.timezone
       : undefined
 
+  const sample =
+    body.sample === true || body.sample === 'true'
+      ? true
+      : body.sample === false || body.sample === 'false'
+        ? false
+        : sampleDefault
+
   const user = await provisionUser(
     db,
     { sub, email, displayName: name, avatarUrl: null },
     timezone,
+    { sample },
   )
   await syncTimezone(db, user, timezone)
   await establish(res, user.id)

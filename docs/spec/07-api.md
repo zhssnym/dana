@@ -35,7 +35,7 @@ Two readings of the shapes above, settled at the P3 shape review and entered by 
 All 7.1 endpoints mount under the 7.0 base path like the rest of this section: GET /auth/google is GET /api/v1/auth/google, and likewise throughout. Recorded so the short spellings below cannot be read as root-mounted.
 
 - GET /auth/google. Unauthenticated. Takes an optional tz query parameter, an IANA identifier: the client's detected zone, carried to the callback through the pending-authorization state (11.6), never through redirect_uri and never composed into a redirect target. A value that fails the same IANA validation that guards users.timezone writes (section 4) is treated as absent rather than answered 422, a deliberate deviation from the 10.3 rule: sign-in must not fail over a stale zone database. Redirects to Google with scopes openid email profile.
-- GET /auth/google/callback. Establishes the session. First login runs the provisioning transaction: insert user (google_sub, lowercased email, display_name, avatar_url, timezone from the reported tz, UTC when none was reported), insert default folder name "Inbox" with owner membership, insert user_settings row; the whole transaction is idempotent under the google_sub unique constraint (a concurrent duplicate loses and adopts the winner's rows). Every successful login also syncs users.timezone to the reported tz when one was reported and it differs (8.1); a login carrying no tz syncs nothing. Sign-in is rejected with an explanatory page (copy in 9.2) if Google reports the email unverified. Redirects into the app, which immediately surfaces Q12 pending invites.
+- GET /auth/google/callback. Establishes the session. First login runs the provisioning transaction: insert user (google_sub, lowercased email, display_name, avatar_url, timezone from the reported tz, UTC when none was reported), insert default folder name "Inbox" with owner membership, insert user_settings row; the whole transaction is idempotent under the google_sub unique constraint (a concurrent duplicate loses and adopts the winner's rows). Every successful login also syncs users.timezone to the reported tz when one was reported and it differs (8.1); a login carrying no tz syncs nothing. The provisioning transaction also writes the sample workspace of 7.20 for a brand-new account, in the same transaction, unless the application was constructed with it off; the development login's body takes an optional `sample` boolean honoured there alone. (Annotate unit of RFC 0005 change control item 60, ruled by delegation 2026-08-30 and folded here the same day.) Sign-in is rejected with an explanatory page (copy in 9.2) if Google reports the email unverified. Redirects into the app, which immediately surfaces Q12 pending invites.
 - POST /auth/logout. Destroys the session. 204.
 - GET /me. Returns { user: {id, email, display_name, avatar_url, timezone}, settings, pending_invite_count }.
 - PATCH /me. Body { timezone }. 422 if not IANA. Recomputes fire_at for scheduled reminders on tasks assigned to V (section 8.6). 200, returning the GET /me object, so a client that changed the timezone holds the same truth a fresh GET would give it.
@@ -109,7 +109,7 @@ The folder inside the acceptance response is the full Folder object of 7.0, what
 - POST /tasks. Body { title required, folder_id default V's Inbox, notes, important default false, due_date, due_time, recurrence_rule, assignee_id default V, reminder {offset_minutes or time_of_day}, steps [titles] }. Guards: member of folder (404), title 1 to 300 (422), dependency checks (due_time, recurrence_rule, reminder require due_date; 422), recurrence_rule must parse within the 4.11 subset and gets a fresh series_id, assignee must be a member (composite FK, surfaced as 422), single-member folder forces assignee to that member ignoring the input (INV-5), steps at most 50 (422). 201 TaskDetail.
 - GET /tasks/:id. TaskDetail. 404 if folder not accessible.
 - PATCH /tasks/:id. Any member. Partial body; only present fields change (field-level last write wins). Special rules:
-  - folder_id change is a move: V must be member of both source and target (404); if the current assignee is not a member of the target, assignee becomes null; if the target has exactly one member, assignee becomes that member (INV-5).
+  - folder_id change is a move: V must be member of both source and target (404); if the current assignee is not a member of the target, assignee becomes null; if the target has exactly one member, assignee becomes that member (INV-5). A move carries the task's conversation (4.15) into the target folder (item 60).
   - due_date set to null triggers the clear-date cascade (section 8.4): due_time null, recurrence_rule null, reminder row deleted, in the same transaction.
   - due_date changed (non-null): reminder fire_at recomputed; the series anchor moves with it (section 8.5).
   - recurrence_rule set on a task without one: requires due_date (422) and assigns a new series_id; changed on a current occurrence: replaces the rule from now on, past rows untouched; set null: series ends, row stays a normal task.
@@ -303,3 +303,22 @@ DELETE /api/v1/place-covers/:place — removal, 204, idempotent.
 rather than a resource that might exist elsewhere. Covers are the caller's
 own throughout: no route reads or writes another person's, and a folder's or
 a shelf's cover stays where 7.4 and 7.16 already put it.
+
+### 7.20 Sample workspace
+
+*Insert unit of RFC 0005 change control item 60, ruled by delegation
+2026-08-30 and folded here the same day.*
+
+GET /api/v1/sample — { present, counts: { shelves, folders, tasks, views } },
+the registered objects of 4.21 that still exist, the caller's own.
+DELETE /api/v1/sample — removes every registered object still where the
+sample put it, with everything that hangs on it, through the same
+collection 7.13's permanent delete uses; 204. A registered task the caller
+moved into a folder of their own stays as theirs; a registered folder with
+another member stays with its tasks, and the response names such folders,
+newline-separated and URI-encoded, in the X-Dana-Sample-Kept header. The
+register is emptied either way. Idempotent.
+POST /api/v1/sample — writes the workspace again for an account that has
+none; 200 with the GET body, idempotent while it is present; 409 when the
+caller owns a shelf by one of the sample's names.
+The writes are CSRF-checked and under 10.4's general mutation limit.

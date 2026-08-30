@@ -20,6 +20,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import { inTransaction, rowsOf } from '../database.js'
+import { createSampleWorkspace } from '../sample/workspace.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
 export { inTransaction, rowsOf } from '../database.js'
@@ -30,6 +31,16 @@ export interface GoogleIdentity {
   email: string
   displayName: string | null
   avatarUrl: string | null
+}
+
+export interface ProvisionOptions {
+  /**
+   * Whether a brand-new account is written its sample workspace inside this
+   * transaction (RFC 0005 change control item 60). The default is the
+   * application's; the acceptance suite and the browser harness opt out so
+   * that a fresh account is the empty one their criteria count on.
+   */
+  sample?: boolean
 }
 
 export interface ProvisionedUser {
@@ -48,6 +59,7 @@ export async function provisionUser(
   db: Db,
   identity: GoogleIdentity,
   reportedTimezone: string | undefined,
+  options: ProvisionOptions = {},
 ): Promise<ProvisionedUser> {
   return inTransaction(db, async (tx) => {
     const inserted = await rowsOf(
@@ -98,6 +110,13 @@ export async function provisionUser(
       sql`INSERT INTO folder_members (folder_id, user_id) VALUES (${folderId}, ${userId})`,
     )
     await tx.execute(sql`INSERT INTO user_settings (user_id) VALUES (${userId})`)
+
+    // Item 60: the sample workspace, in this same transaction, so the first
+    // page the person sees is already full and a fault anywhere leaves no
+    // half-made account behind.
+    if (options.sample === true) {
+      await createSampleWorkspace(tx, userId, String(winner.timezone))
+    }
 
     return { id: userId, timezone: String(winner.timezone), created: true }
   })
