@@ -1,7 +1,7 @@
 # Dana: what was built before P9, what was built after, and why the pace changed
 
 Written 2026-08-24. Every number here comes from the git history of
-`github.com/dev-dana/dana` (661 commits, 2026-07-29 to 2026-08-24) and from
+`github.com/zhssnym/dana` (661 commits, 2026-07-29 to 2026-08-24) and from
 `SESSION-LOG.md`. Nothing is estimated except the lines marked "should have took".
 
 **Note on method:** the audit clone was shallow and only held history from
