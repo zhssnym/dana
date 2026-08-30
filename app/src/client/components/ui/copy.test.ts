@@ -112,13 +112,21 @@ describe('the confirmations and row copy of 9.3 to 9.5', () => {
     // and is not this copy: a block boundary is where a reader stops hearing
     // one sentence, and this is the only thing that tells the person the task
     // stays everywhere else.
+    /* "My Day" became "Today" when 9.4's page was renamed; 9.1's own line
+       for this page reads "Today" and 9.4's abandon copy reads with it. */
     expect(ABANDON_CONFIRM).toBe(
-      'Abandon this task? It stops appearing in My Day but stays everywhere else.',
+      'Abandon this task? It stops appearing in Today but stays everywhere else.',
     )
   })
 
   test("9.3's delete confirm, which 9.4 also puts in a row's overflow", () => {
-    expect(DELETE_TASK_CONFIRM).toBe("Delete this task? This can't be undone.")
+    /* Both strings above were retired by the polish round of 2026-08-30 and
+       this file was not moved with them, so it asserted two sentences the
+       product had stopped saying and 9.3 had stopped carrying. The sentence
+       here is 9.3's, and AC-357 asserts the same one against the open task's
+       footer: the old one promised "This can't be undone" over an act that
+       has been undoable since 7.13's Trash. */
+    expect(DELETE_TASK_CONFIRM).toBe('Move this task to Trash? It stays there for 30 days.')
   })
 
   test("9.4's un-pull control", () => {
