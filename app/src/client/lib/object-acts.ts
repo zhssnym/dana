@@ -184,7 +184,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     */
     { key: 'open', label: 'Open in…', icon: Fullscreen, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
-    /* polish: taskrow F5 (2026-08-30). Today membership from the row's own
+    /* polish: taskrow F11 (2026-08-30). Today membership from the row's own
        menu, the pair of 7.8's pull and its DELETE, offered one at a time the
        way abandon and restore are. */
     { key: 'pull', label: 'Add to Today', icon: SunMedium, group: 2 },

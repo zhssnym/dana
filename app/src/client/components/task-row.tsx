@@ -1289,7 +1289,7 @@ export function Actions({
      see the star below. Seam, S23. */
   importantTooltip?: string
   onOpenIn?: (mode: TaskOpenMode) => void
-  /* polish: taskrow F5. Today membership, one of the pair at a time. */
+  /* polish: taskrow F11. Today membership, one of the pair at a time. */
   onPull?: () => void
   onUnpull?: () => void
   onMoveToFolder?: (folder: { name: string; color: string }) => void
@@ -2850,7 +2850,7 @@ export function TaskRow(props: TaskRowProps) {
          task where the person last chose, the chevron expands it in place, and
          the expanded card's footer is where the surface is chosen. */
       onOpenIn={undefined}
-      /* polish: taskrow F5. The page's own act where it has one (Today's
+      /* polish: taskrow F11. The page's own act where it has one (Today's
          rows, with its undo), the writer's pull otherwise. Absent without an
          id, the row lab's case. */
       onPull={props.id ? () => patch(task.id, { pulled: true }) : undefined}

@@ -1,7 +1,7 @@
 /*
 AC-355: a row's menu adds the task to Today and takes it out again.
 
-The adversarial round of 2026-08-30 (taskrow F5): the only way onto Today
+The adversarial round of 2026-08-30 (taskrow F11): the only way onto Today
 from a list was the selection bar's sun, which nothing named. The row's own
 menu carries the pair now, one at a time, over 7.8's pull and its DELETE.
 
