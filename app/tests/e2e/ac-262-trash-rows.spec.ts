@@ -32,18 +32,18 @@ built page already honours it, a task naming its folder and a folder naming
 what comes back with it. A row rebuilt around a countdown that dropped it
 would trade one clause of the section for another.
 
-**The last case asserts an absence, and it rests on an escalation this package
-raised rather than settled.** `prototype-v2/src/screens/trash-screen.tsx`
-offers "Delete for ever" behind a confirm and calls it "the only act in Dana
-with no way back". Two numbered sections disagree and neither is silent: 7.13
-says "DELETE of a task or folder sets deleted_at (soft); purge is the tick's,
-at 30 days, permanent", and 9.11 enumerates this page and names restore alone.
-There is no permanent-delete route in `app/src/server/routes/`. RFC 0005
-change control item 20 says a prototype-versus-numbered-section disagreement is
-escalated rather than picked, so this asserts the contract as it stands and is
-the arm to move if the owner rules the prototype's way. What it refuses in the
-meantime is the worse outcome either way: a control drawn with nothing behind
-it.
+**The last case asserted an absence until 2026-08-30, and now asserts the
+control.** `prototype-v2/src/screens/trash-screen.tsx` offers "Delete for
+ever" behind a confirm and calls it "the only act in Dana with no way back";
+7.13 and 9.11 disagreed with it, and S17b escalated under RFC 0005 change
+control item 20 rather than picking. Imran ruled for the prototype (item 36),
+item 38 made the act the folder owner's, and RFC 0004's S28a amended 7.13
+(item 52) and built `DELETE /api/v1/trash/tasks/:id` and
+`DELETE /api/v1/trash/folders/:id`. Item 36 says this arm "moves in the
+amendment's own commit, red before the implementation", so it moved with the
+server half and is red until S28b draws the control on the row, which is the
+sequencing items 8, 14 and 24 hold to. What it asserts is what a folder owner
+sees: a control that deletes permanently, on a row, beside Restore.
 
 **Who deleted it is 9.11's clause and is not asserted here, because the read
 cannot answer it.** `shared/trash.ts` carries `deleted_at` and no actor, and
@@ -200,21 +200,21 @@ test.describe('AC-262: a Trash row carries its own facts', () => {
     ).toContainText(fixture.homeName)
   })
 
-  test('AC-262: the page offers nothing that deletes permanently', async ({ page }) => {
+  test('AC-262: the page offers the owner a way to delete permanently', async ({ page }) => {
     await page.goto(routesV2.trash)
-    await expect(trashRow(page, fixture.taskTitle)).toBeVisible()
+    const row = trashRow(page, fixture.taskTitle)
+    await expect(row).toBeVisible()
 
-    for (const name of [/Delete for ever/i, /Delete forever/i, /Empty Trash/i, /Delete permanently/i]) {
-      await expect(
-        page.getByRole('button', { name }).or(page.getByRole('menuitem', { name })),
-        'spec 7.13: "DELETE of a task or folder sets deleted_at (soft); purge is the tick\'s, ' +
-          'at 30 days, permanent", and 9.11 enumerates this page and names restore alone. ' +
-          'There is no permanent-delete route in app/src/server/routes/, so a control here ' +
-          'would have nothing behind it. The prototype offers "Delete for ever" and that ' +
-          'disagreement is escalated under RFC 0005 change control item 20 rather than ' +
-          'settled by a session; this arm moves if the owner rules the prototype\'s way',
-      ).toHaveCount(0)
-    }
+    await expect(
+      row
+        .getByRole('button', { name: /Delete (for ever|forever|permanently)/i })
+        .or(row.getByRole('menuitem', { name: /Delete (for ever|forever|permanently)/i })),
+      'spec 7.13 as amended by RFC 0005 change control items 36 and 52: Trash offers the ' +
+        'folder owner a permanent delete, behind a confirm, served by ' +
+        'DELETE /api/v1/trash/tasks/:id and DELETE /api/v1/trash/folders/:id. The signed-in ' +
+        'person owns both fixtures. This arm moved with the server half (S28a) and is red ' +
+        'until S28b draws the control, which is item 36\'s own sequencing',
+    ).toHaveCount(1)
 
     await expect(
       page.getByRole('button', { name: 'Restore', exact: true }).first(),

@@ -46,6 +46,7 @@ import { pino } from 'pino'
 import type { DbClient } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
+import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { createNotifier } from '../notify/index.js'
@@ -347,51 +348,31 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     the purge stays the single wrapperless statement this module's own
     interval test pins. The objects leave the store only after the
     statement commits, 7.15's order, so a refused purge cannot have already
-    destroyed bytes whose rows survived. Tasks carry no files rows (4.16
-    scopes files to folders), so the task purge needs no collection.
+    destroyed bytes whose rows survived. The task purge collects the files
+    that hung on the doomed tasks' conversations alone, the same way.
+
+    Since RFC 0004's S28a the statements live in domain/trash.ts, because
+    RFC 0005 change control item 36 requires the permanent-delete endpoint
+    to call the collection the purge does rather than write a delete beside
+    it; the pass hands over its age predicate and its SKIP LOCKED claim and
+    is otherwise unchanged.
     */
-    const folderPurge = await rowsOf(
+    const folderPurge = await destroyFolders(
       db,
-      sql`WITH doomed AS (
-            SELECT id FROM folders
-             WHERE deleted_at < now() - interval '30 days'
-             FOR UPDATE SKIP LOCKED),
-          victims AS (
-            SELECT f.id AS file_id, f.folder_id
-              FROM files f JOIN doomed d ON d.id = f.folder_id),
-          removed AS (
-            DELETE FROM folders WHERE id IN (SELECT id FROM doomed)
-            RETURNING id)
-          SELECT r.id AS folder_id, v.file_id
-            FROM removed r LEFT JOIN victims v ON v.folder_id = r.id`,
+      sql`SELECT id FROM folders
+           WHERE deleted_at < now() - interval '30 days'
+           FOR UPDATE SKIP LOCKED`,
     )
-    const purgedFolderIds = new Set<string>()
-    const orphanedObjects: string[] = []
-    for (const row of folderPurge) {
-      purgedFolderIds.add(String(row.folder_id))
-      if (row.file_id !== null && row.file_id !== undefined) {
-        orphanedObjects.push(String(row.file_id))
-      }
-    }
-    if (deps.fileStore !== undefined) {
-      for (const id of orphanedObjects) {
-        try {
-          await deps.fileStore.remove(id)
-        } catch {
-          // Unreachable bytes: every row that named the object is gone, and
-          // a purge must not fail the pass over one refused rm.
-        }
-      }
-    }
-    const purgedTasks = await rowsOf(
+    await removeObjects(deps.fileStore, folderPurge.fileIds)
+    const taskPurge = await destroyTasks(
       db,
-      sql`DELETE FROM tasks WHERE id IN (
-            SELECT id FROM tasks
-             WHERE deleted_at < now() - interval '30 days'
-             FOR UPDATE SKIP LOCKED)
-          RETURNING id`,
+      sql`SELECT id FROM tasks
+           WHERE deleted_at < now() - interval '30 days'
+           FOR UPDATE SKIP LOCKED`,
     )
-    const purgedTrash = purgedFolderIds.size + purgedTasks.length
+    await removeObjects(deps.fileStore, taskPurge.fileIds)
+    const purgedTrash =
+      folderPurge.folderIds.length + taskPurge.taskIds.length
     const purgedEvents = (
       await rowsOf(
         db,

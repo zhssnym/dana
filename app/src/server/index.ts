@@ -313,7 +313,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   )
   app.use(
     '/api/v1',
-    createTrashRouter({ dbClient: options.dbClient, rateLimits }),
+    createTrashRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
   // The S4 files surface (7.15): uploads, authenticated serving, the
