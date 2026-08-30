@@ -34,7 +34,7 @@ import { upsertReminder } from './tasks.js'
  * ------------------------------------------------------------------ */
 
 export type DuplicateFolderResult =
-  | { kind: 'duplicated'; id: string; name: string }
+  | { kind: 'duplicated'; id: string; name: string; shiftedDays: number }
   | { kind: 'folder_cap' }
 
 /** The caller has resolved member access on the source (10.2). */
@@ -56,16 +56,19 @@ export async function duplicateFolder(
     const source = (
       await rowsOf(
         tx,
-        sql`SELECT name, icon, color, description FROM folders
+        sql`SELECT name, icon, color, description, cover_preset, cover_focal_y FROM folders
             WHERE id = ${sourceFolderId}`,
       )
     )[0]
     const name = `${String(source?.name ?? 'Folder')} (copy)`.slice(0, 100)
     const made = await rowsOf(
       tx,
-      sql`INSERT INTO folders (owner_id, name, icon, color, description)
+      sql`INSERT INTO folders (owner_id, name, icon, color, description,
+                               cover_preset, cover_focal_y)
           VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
-                  ${source?.color ?? null}, ${source?.description ?? null})
+                  ${source?.color ?? null}, ${source?.description ?? null},
+                  ${source?.cover_preset ?? null},
+                  ${Number(source?.cover_focal_y ?? 50)})
           RETURNING id`,
     )
     const copyId = String(made[0]?.id)
@@ -173,9 +176,20 @@ export async function duplicateFolder(
       subjectId: copyId,
       subjectName: name,
       folderId: copyId,
-      detail: `from ${String(source?.name ?? 'a folder')}`,
+      /* The bar and the History line say which of 9.6's two things happened
+         (ledger L-055, RFC 0005 change control item 58): the prototype's own
+         two sentences. */
+      detail:
+        shift > 0
+          ? `from ${String(source?.name ?? 'a folder')}, dates moved to start today`
+          : `from ${String(source?.name ?? 'a folder')}`,
     })
-    return { kind: 'duplicated', id: copyId, name } as const
+    return {
+      kind: 'duplicated',
+      id: copyId,
+      name,
+      shiftedDays: shift > 0 ? shift : 0,
+    } as const
   })
 }
 

@@ -133,7 +133,7 @@ export function toConceptTask(
     ...(detail === null
       ? {}
       : {
-          steps: detail.steps.map((step) => ({ title: step.title, done: step.done })),
+          steps: detail.steps.map((step) => ({ id: step.id, title: step.title, done: step.done })),
           ...(detail.notes === null ? {} : { notes: detail.notes }),
           /*
           **Seam, S23: a stored reminder comes back as the words its chip

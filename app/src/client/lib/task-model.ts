@@ -152,6 +152,10 @@ export function dayRung(date: Date): DayRung {
 export interface ConceptStep {
   title: string
   done: boolean
+  /* 7.7's id, present on a step the server has answered and absent on one
+     typed into the card and not yet written; `lib/task-acts.ts` moves only
+     the former (RFC 0005 change control item 58, C). */
+  id?: string
 }
 
 /*

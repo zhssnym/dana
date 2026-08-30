@@ -114,6 +114,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'folders_color_format_check', columns: ['color'] },
+      { name: 'folders_cover_focal_y_range_check', columns: ['cover_focal_y'] },
+      { name: 'folders_cover_one_source_check', columns: ['cover_file_id', 'cover_preset'] },
+      { name: 'folders_cover_preset_format_check', columns: ['cover_preset'] },
       { name: 'folders_description_length_check', columns: ['description'] },
       { name: 'folders_name_length_check', columns: ['name'] },
     ],

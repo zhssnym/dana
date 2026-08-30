@@ -126,7 +126,9 @@ export type ActKey =
   It is declared now rather than then because `components/task-row.tsx` names
   the key in its act map, and a lifted file edited to drop a line is a lifted
   file that has left the strategy. The precedent is `duplicate` beside it,
-  declared at S17a and unsupplied ever since for section 13 item 46's reason.
+  declared at S17a and unsupplied until the loose-ends row for section 13
+  item 46's reason; both are `lib/task-acts.ts`'s since RFC 0005 change
+  control item 58.
 
   **Its five neighbours carry the ellipsis too, since S24.** They were left
   without one at S23 deliberately: A1's other five are a change to acts the

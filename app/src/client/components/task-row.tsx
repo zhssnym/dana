@@ -88,7 +88,8 @@ import {
 } from "./ui/dropdown-menu.js"
 import { ObjectMenu } from "./object-menu.js"
 import { HistorySheet } from "./history-sheet.js"
-import { copyTaskLink } from "../lib/task-acts.js"
+import { copyTaskLink, duplicateTask, makeFolderOfTask, moveStepsOut } from "../lib/task-acts.js"
+import type { StepDestination } from "../lib/task-acts.js"
 import {
   COMPLETE_TASK,
   MARK_AS_NOT_DONE,
@@ -661,10 +662,10 @@ export function useRowSelection({
   onMove: (ids: string[], folder: { id: string; name: string; color: string }) => void
   onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
-  /* Seam, S23a: optional, and the bar draws no Duplicate when it is absent.
-     Frozen section 7 has no task duplicate (`lib/task-acts.ts` and section 13
-     item 46), and a control with no act behind it is the one thing the bar
-     must not offer, which is `object-acts.ts`'s own rule for a menu. */
+  /* Optional, and the bar draws no Duplicate when it is absent: a control
+     with no act behind it is the one thing the bar must not offer,
+     `object-acts.ts`'s own rule for a menu. Every list in the app supplies it
+     since RFC 0005 change control item 58 (A), through `lib/task-acts.ts`. */
   onDuplicate?: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 }) {
@@ -2182,6 +2183,19 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
    any of this would be a second artifact wearing the first one's clothes. */
 export function useCardWiring(props: TaskRowProps) {
   const [edits, setEdits] = useState<Partial<ConceptTask>>({})
+  /*
+  The server's steps win once they arrive (item 58). Local edits sit over
+  the props for as long as the card is looked at, which is right for a title
+  or a note and wrong for the one field whose server copy carries something
+  the local copy cannot: 7.7's ids, which `writeSteps` diffs by. Keyed on the
+  list's content rather than its identity, because every render hands the
+  card a fresh array and clearing on identity would drop a tick before its
+  write had landed.
+  */
+  const serverSteps = JSON.stringify(props.steps ?? null)
+  useEffect(() => {
+    setEdits(({ steps: _dropped, ...rest }) => rest)
+  }, [serverSteps])
   /* The shell's write path, reaching a row that nobody handed one to, see
      `lib/task-writer`. A row given `onPatch` still wins. */
   const writer = useTaskWriter()
@@ -2281,9 +2295,16 @@ export function useCardWiring(props: TaskRowProps) {
       if (moved) next.splice(to, 0, moved)
       patchSteps(next)
     },
-    /* Seam, S23: not supplied. See `moveStepsTo` on `TaskCard`, whose
-       header carries B9 and the package that performs it. A no-op here would
-       draw the control and do nothing, which is the fault DES-144 removes. */
+    /* Supplied since RFC 0005 change control item 58 (C), over the endpoint
+       B9 was waiting for: `lib/task-acts.ts`'s `moveStepsOut`. Absent
+       without an id or a folder, the lab and the capture, where the control
+       is then not drawn (DES-144). */
+    ...(props.id && task.folder?.id
+      ? {
+          moveStepsTo: (_id: string, indices: number[], destination: StepDestination) =>
+            moveStepsOut(props.id!, task.folder!.id!, steps, indices, destination),
+        }
+      : {}),
     duplicateSteps: (_id: string, indices: number[]) =>
       patchSteps([
         ...steps,
@@ -2816,26 +2837,16 @@ export function TaskRow(props: TaskRowProps) {
       onHistory={props.id ? () => setHistoryOpen(true) : undefined}
       onCopyLink={props.id ? () => copyTaskLink(props.id!, task.title) : undefined}
       /*
-      **Seam, S23: Duplicate stays unsupplied, and section 13 item 46 is why.**
-
-      This row is that item's own revisit trigger and it is met rather than
-      closed here, because what closes it is Imran's: "the change is one
-      frozen-section addition plus a domain function, the same shape 7.16
-      already has, or a ruling that a task has no Duplicate and 9.3's sentence
-      loses the word." Protocol section 1 puts both with the owner.
-
-      The prototype's `duplicateTaskById` dispatches a window event and its
-      shell answers, "because only it can hold the copy". This client has no
-      copy to hold: frozen section 7 carries `POST /folders/:id/duplicate` and
-      nothing for a task. Composing one out of `POST /tasks` plus the step
-      routes would be a rule with no section behind it, and 9.6's duplicate
-      paragraph shows how much rule there is to get wrong.
-
-      So the handler is `undefined` and the act stays declared in
-      `lib/object-acts.ts`, whose safety property keeps it out of every menu:
-      "an act with no handler does not appear". A menu that offered a
-      Duplicate doing nothing is what this costs instead.
+      **Duplicate and "Make this a folder…" are supplied since the loose-ends
+      row (RFC 0005 change control item 58, A and B).** The seam that stood
+      here recorded that frozen section 7 had no task duplicate; S28a gave it
+      `POST /tasks/:id/duplicate` (item 53(e)), and `lib/task-acts.ts` performs
+      both acts the way it performs Copy link, from the row's own id, so no
+      screen threads a prop. Both are absent without an id, which is the row
+      lab and the concept screens: no id, no handler, no menu item.
       */
+      onDuplicate={props.id ? () => duplicateTask(props.id!, task.title) : undefined}
+      onMakeFolder={props.id ? () => makeFolderOfTask(props.id!, task.title) : undefined}
       /* No standalone "Open in…" here any more (Imran, 2026-08-18): the
          card's footer carries it once the row is open, and the overflow
          carries it while the row is shut. Two routes are enough; a third
@@ -3197,8 +3208,8 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     onMove: (ids, folder) => onMove?.(ids, folder),
     onNewFolder: (ids) => setPending({ kind: "folder-for", ids }),
     onBulk: (ids, fields) => onBulk?.(ids, fields),
-    /* Seam, S23a: passed through as given rather than wrapped, so a screen
-       with no duplicate act gets a bar with no Duplicate control. */
+    /* Passed through as given rather than wrapped, so a lab with no
+       duplicate act gets a bar with no Duplicate control. */
     onDuplicate,
     onDelete: (ids) => onDelete?.(ids),
   })

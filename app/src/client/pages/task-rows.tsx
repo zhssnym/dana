@@ -45,6 +45,7 @@ import { useTimeFormat } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
+import { duplicateTask } from '../lib/task-acts.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -211,6 +212,7 @@ export function TaskRows({
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}
+      onDuplicate={acts.onDuplicate}
       onDelete={acts.onDelete}
       renderRow={(row, wiring) => (
         <TaskRow
@@ -282,6 +284,7 @@ function useListActs(
   onMerge: (ids: string[], name: string) => void
   onBulk: (ids: string[], fields: { done?: boolean; important?: boolean; pulled?: boolean }) => void
   onMove: (ids: string[], folder: { id: string; name: string }) => void
+  onDuplicate: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 } {
   const order = useOrderTask()
@@ -378,6 +381,12 @@ function useListActs(
           }
         })
       }
+    },
+    /* The bar's Duplicate, the row's own act repeated (RFC 0005 change
+       control item 58, A): one 7.16 copy per selected task, each with its
+       toast and its inverse, which is how the prototype's bar does it. */
+    onDuplicate: (ids) => {
+      for (const task of pick(ids)) duplicateTask(task.id, task.title)
     },
     /* Behind the same confirmation a row's delete carries, in its plural. */
     onDelete: (ids) => {

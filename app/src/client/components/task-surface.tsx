@@ -43,6 +43,7 @@ import { ViewStrip } from "./view-strip.js"
 import { HoldsTheDocument, ReservesRightEdge } from "./right-edge.js"
 import { WindowBarActions, WindowBarLead } from "./window-bar.js"
 import { setTaskSurfacePreference } from "../lib/task-surface-preference.js"
+import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../lib/task-acts.js"
 import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -386,6 +387,11 @@ export function TaskPage({
       }
       onAbandon={props.onAbandon}
       onDelete={props.onDelete}
+      /* The three acts a surface can perform from its own id, the row's
+         reading (item 58): none is drawn without one. */
+      onCopyLink={props.id ? () => copyTaskLink(props.id!, task.title) : undefined}
+      onDuplicate={props.id ? () => duplicateTask(props.id!, task.title) : undefined}
+      onMakeFolder={props.id ? () => makeFolderOfTask(props.id!, task.title) : undefined}
     />
   )
 
