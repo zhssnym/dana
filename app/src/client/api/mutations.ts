@@ -77,6 +77,7 @@ import {
 import type {
   PatchStepBody,
   PatchTaskBody,
+  PostTaskOrderBody,
   PostTasksBody,
   PutTaskReminderBody,
   TaskDetail,
@@ -139,6 +140,24 @@ export function useUpdateTask(): UseMutationResult<TaskDetail, Error, PatchTaskV
 export function useDeleteTask(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) => mutateApi(null, { method: 'DELETE', path: `/tasks/${id}` }),
+  })
+}
+
+export interface OrderTaskVariables {
+  readonly id: string
+  readonly body: PostTaskOrderBody
+}
+
+/**
+ * 7.6's order endpoint (RFC 0005 change control item 44, B4), wired at S23a.
+ * The body names the two neighbours and nothing else; the key is the
+ * server's arithmetic, and the answer is the placed task as a fresh
+ * GET /tasks/:id would give it.
+ */
+export function useOrderTask(): UseMutationResult<TaskDetail, Error, OrderTaskVariables> {
+  return useMutation({
+    mutationFn: ({ id, body }: OrderTaskVariables) =>
+      mutateApi(patchTaskResponse, { method: 'POST', path: `/tasks/${id}/order`, body }),
   })
 }
 

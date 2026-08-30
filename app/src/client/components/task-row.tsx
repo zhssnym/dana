@@ -655,10 +655,17 @@ export function useRowSelection({
   onDuplicate,
   onDelete,
 }: {
-  onMove: (ids: string[], folder: { name: string; color: string }) => void
+  /* Seam, S23a: the choice carries 7.4's id, which is what a PATCH /tasks/:id
+     body names a folder by; `lib/folder-library.ts` already rides it on every
+     entry the menu below draws, so nothing here changes but the type. */
+  onMove: (ids: string[], folder: { id: string; name: string; color: string }) => void
   onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
-  onDuplicate: (ids: string[]) => void
+  /* Seam, S23a: optional, and the bar draws no Duplicate when it is absent.
+     Frozen section 7 has no task duplicate (`lib/task-acts.ts` and section 13
+     item 46), and a control with no act behind it is the one thing the bar
+     must not offer, which is `object-acts.ts`'s own rule for a menu. */
+  onDuplicate?: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 }) {
   const [selecting, setSelecting] = useState(false)
@@ -842,14 +849,17 @@ export function useRowSelection({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <IconAction
-          icon={Copy}
-          label="Duplicate"
-          onClick={() => {
-            onDuplicate(selected)
-            exit()
-          }}
-        />
+        {/* Seam, S23a: see `onDuplicate` above. */}
+        {onDuplicate ? (
+          <IconAction
+            icon={Copy}
+            label="Duplicate"
+            onClick={() => {
+              onDuplicate(selected)
+              exit()
+            }}
+          />
+        ) : null}
         <span
           aria-hidden="true"
           className="mx-0.5 h-4 w-px bg-[var(--color-dana-accent-200)]"
@@ -3040,7 +3050,22 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   ...perRow
 }: {
   tasks: T[]
-  onReorder?: (from: number, to: number) => void
+  /*
+  **Seam, S23a: the list's arrangement is provisional until the screen says
+  otherwise.** The prototype's `onReorder` is a notification and the list
+  keeps the new order itself, which is right over fixtures and wrong over 7.6:
+  item 44's B4 persists a drag in a folder with no filter or sort applied and
+  springs it back everywhere else, and only the screen knows which list it
+  is. So the callback also receives the ids in their new order and may
+  answer with a promise: `true` once the order endpoint has written and the
+  view has been read back, `false` for a refusal or a list that never
+  persists. Either way the list then drops its own copy and shows the
+  screen's rows, which after a write is the server's order (AC-266's rule
+  that the drag reads back in Q2's order) and after a refusal is the order
+  the sort put there. A screen that returns nothing keeps the prototype's
+  behaviour whole.
+  */
+  onReorder?: (from: number, to: number, next: string[]) => void | Promise<boolean>
   /*
   Where a row was let go, when it was let go outside this list.
 
@@ -3064,7 +3089,8 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   onBulk?: (ids: string[], fields: Partial<ConceptTask>) => void
   onDuplicate?: (ids: string[]) => void
   onDelete?: (ids: string[]) => void
-  onMove?: (ids: string[], folder: { name: string; color: string }) => void
+  /* Seam, S23a: the id rides along; see `useRowSelection`. */
+  onMove?: (ids: string[], folder: { id: string; name: string; color: string }) => void
   /* Per-task callbacks, taking the id, so a screen never has to map rows
      itself just to close over one. */
   /*
@@ -3139,7 +3165,13 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
       const [moved] = next.splice(from, 1)
       if (moved) next.splice(to, 0, moved)
       setOrder(next)
-      onReorder?.(from, to)
+      /* Seam, S23a: see `onReorder` on the props. The list's own copy of
+         the order is held while the screen answers and dropped when it has,
+         whichever way it answered. */
+      const answer = onReorder?.(from, to, next)
+      if (answer !== undefined) {
+        void answer.then(() => setOrder(null))
+      }
     },
     /* Resting on a row proposes a folder of the two. Nothing is destroyed on
        release: it opens the naming panel, which can be cancelled. DES-103. */
@@ -3165,10 +3197,25 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     onMove: (ids, folder) => onMove?.(ids, folder),
     onNewFolder: (ids) => setPending({ kind: "folder-for", ids }),
     onBulk: (ids, fields) => onBulk?.(ids, fields),
-    onDuplicate: (ids) => onDuplicate?.(ids),
+    /* Seam, S23a: passed through as given rather than wrapped, so a screen
+       with no duplicate act gets a bar with no Duplicate control. */
+    onDuplicate,
     onDelete: (ids) => onDelete?.(ids),
   })
   cancelPress.current = selection.clearPress
+  /*
+  Seam, S23a: a press that became a selection is not a tap.
+
+  The engine resolves a still press as a tap on release and asks the row to
+  open (`onTap` in use-sortable-list). In the prototype's lab that press
+  opened nothing, because the lab passed no opener; here every row registers
+  one, so the 400 ms hold that starts selecting would, on release, also open
+  the task it had just selected. The engine's listeners were attached before
+  the hold armed and cannot see it, so the opener the list hands the engine
+  reads the mode at the moment of release rather than at the press.
+  */
+  const selectingNow = useRef(false)
+  selectingNow.current = selection.selecting
 
   /* Reported up rather than only used here, so a page can offer somewhere to
      drop that is worth showing only while something is being carried. */
@@ -3238,7 +3285,11 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
                    knows its own opener, so routing through the row makes the
                    behaviour a property of TaskRow rather than a courtesy each
                    caller extends. */
-                drag.surfaceProps(index, () => openers.current.get(task.id)?.()),
+                drag.surfaceProps(index, () => {
+                  /* Seam, S23a: see `selectingNow` above. */
+                  if (selectingNow.current) return
+                  openers.current.get(task.id)?.()
+                }),
                 selection.selectProps(task.id),
               ),
           /* How a row hands its opener back. Spread with the rest of the
