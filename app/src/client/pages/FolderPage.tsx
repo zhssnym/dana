@@ -1195,82 +1195,96 @@ export function FolderPage({
         </PageSection>
 
         <div className="mt-7 space-y-7">
-          <PageSection name="All open tasks">
-            <PageBody
-              query={open}
-              /* A board whose Done column holds finished work is not an
-                 empty page (item 58 G): the last open task completed by a
-                 drop must not take the board with it. */
-              isEmpty={bothEmpty && !(place.mode === 'board' && completedDays.length > 0)}
-              emptyCopy={FOLDER_EMPTY}
-              emptyIcon={FolderIcon}
-              truncated={open.data?.truncated ?? false}
-            >
-              {place.mode === 'board' ? (
-                /* DES-132's board, on the folder page at last. It is the
-                   shared `views/TaskBoard.tsx` and not a second one, which is
-                   what makes S17b's two-columns-per-row change reach here and
-                   every place page together (AC-259). */
-                <TaskBoard
-                  place={place}
-                  columns={boardWithDone}
-                  context={context}
-                  actions={actions}
-                />
-              ) : loose.length === 0 && visible.length === 0 ? (
-                <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
-                  {FILTER_NARROWED_EMPTY}
-                </p>
-              ) : (
-                /* 9.6: "the loose open tasks", which since S18 means the ones
-                   under no section. The rest are drawn under the section
-                   block they name, below. */
-                <TaskRows
-                  tasks={loose}
-                  context={context}
-                  actions={actions}
-                  onAsk={confirm.ask}
-                  arrangement={arrangement}
+          {/*
+          polish round 2, folderpage: the open list and the page's blocks are
+          one body, not two regions with a hole between them.
+
+          The prototype stacks them at 8px and says why: "the insertion lines
+          carry the separation between blocks now, so the stack's own gap is
+          small, two 24px gaps in a row read as a hole". This column's 28px
+          put 28px plus the strip's own height between the quick-add and the
+          first insertion line, which is what made the line read as belonging
+          to nothing above it. The 28px stays where it is the separation
+          between the body and Done.
+          */}
+          <div className="space-y-2">
+            <PageSection name="All open tasks">
+              <PageBody
+                query={open}
+                /* A board whose Done column holds finished work is not an
+                   empty page (item 58 G): the last open task completed by a
+                   drop must not take the board with it. */
+                isEmpty={bothEmpty && !(place.mode === 'board' && completedDays.length > 0)}
+                emptyCopy={FOLDER_EMPTY}
+                emptyIcon={FolderIcon}
+                truncated={open.data?.truncated ?? false}
+              >
+                {place.mode === 'board' ? (
+                  /* DES-132's board, on the folder page at last. It is the
+                     shared `views/TaskBoard.tsx` and not a second one, which is
+                     what makes S17b's two-columns-per-row change reach here and
+                     every place page together (AC-259). */
+                  <TaskBoard
+                    place={place}
+                    columns={boardWithDone}
+                    context={context}
+                    actions={actions}
+                  />
+                ) : loose.length === 0 && visible.length === 0 ? (
+                  <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
+                    {FILTER_NARROWED_EMPTY}
+                  </p>
+                ) : (
+                  /* 9.6: "the loose open tasks", which since S18 means the ones
+                     under no section. The rest are drawn under the section
+                     block they name, below. */
+                  <TaskRows
+                    tasks={loose}
+                    context={context}
+                    actions={actions}
+                    onAsk={confirm.ask}
+                    arrangement={arrangement}
+                  />
+                )}
+              </PageBody>
+              {/* 9.6: the quick-add at the loose list's foot; 9.3's sixth
+                  entry-point row states its value: this folder, no due date.
+                  Absent in board view, where every column captures with its own
+                  value and a row above them would capture with none (9.1). */}
+              {place.mode === 'board' ? null : (
+                <QuickAdd
+                  folderName={detail?.name ?? 'this folder'}
+                  onAdd={(title) => {
+                    create.mutate(
+                      { title, folder_id: id },
+                      { onSuccess: (made) => placeLast(made.id, loose) },
+                    )
+                  }}
+                  onOpenFullForm={(title) => {
+                    openTaskForm({ folder_id: id, title })
+                  }}
                 />
               )}
-            </PageBody>
-            {/* 9.6: the quick-add at the loose list's foot; 9.3's sixth
-                entry-point row states its value: this folder, no due date.
-                Absent in board view, where every column captures with its own
-                value and a row above them would capture with none (9.1). */}
-            {place.mode === 'board' ? null : (
-              <QuickAdd
-                folderName={detail?.name ?? 'this folder'}
-                onAdd={(title) => {
-                  create.mutate(
-                    { title, folder_id: id },
-                    { onSuccess: (made) => placeLast(made.id, loose) },
-                  )
-                }}
-                onOpenFullForm={(title) => {
-                  openTaskForm({ folder_id: id, title })
-                }}
-              />
-            )}
-          </PageSection>
+            </PageSection>
 
-          {/* The page's blocks (4.17): sections, paragraphs, images, with
-              the insert affordance between them. */}
-          <PageBody query={page} isEmpty={false} emptyCopy="">
-            <BlocksEditor
-              blocks={page.data?.blocks ?? []}
-              onPut={putBlocks}
-              sectionExtras={sectionExtras}
-              onDeleteSection={(block, remove) => {
-                setSectionAsk({ block, remove })
-              }}
-              /* S26: an image block is inserted empty and fills itself, three
-                 ways (L-197). The hidden input this replaces uploaded before
-                 the block existed, so choosing was the only gesture that
-                 could land anywhere. */
-              folderId={id}
-            />
-          </PageBody>
+            {/* The page's blocks (4.17): sections, paragraphs, images, with
+                the insert affordance between them. */}
+            <PageBody query={page} isEmpty={false} emptyCopy="">
+              <BlocksEditor
+                blocks={page.data?.blocks ?? []}
+                onPut={putBlocks}
+                sectionExtras={sectionExtras}
+                onDeleteSection={(block, remove) => {
+                  setSectionAsk({ block, remove })
+                }}
+                /* S26: an image block is inserted empty and fills itself, three
+                   ways (L-197). The hidden input this replaces uploaded before
+                   the block existed, so choosing was the only gesture that
+                   could land anywhere. */
+                folderId={id}
+              />
+            </PageBody>
+          </div>
 
           {/* Q7 hides the third section while it is empty; the control is
               rendered on the folder's own completed count. polish: pagehead
