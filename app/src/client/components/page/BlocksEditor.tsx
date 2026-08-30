@@ -33,7 +33,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import type { PageBlock, PageBlockWrite } from '../../../shared/pages.js'
-import { AlignLeft, ChevronDown, Heading1, ImagePlus, X } from '../../lib/icons.js'
+import { AlignLeft, ChevronDown, Heading1, ImagePlus, Trash2 } from '../../lib/icons.js'
 import { InlineInput, InlineTextarea } from '../ui/inline-field.js'
 import { PageImage } from '../page-image.js'
 import { cn } from '../ui/utils.js'
@@ -67,19 +67,32 @@ export function InsertLine({
   onSection,
   onParagraph,
   onImage,
+  resting = false,
 }: {
   readonly onSection: () => void
   readonly onParagraph: () => void
   readonly onImage?: (() => void) | undefined
+  /*
+  polish: folderpage F2. The chips were opacity zero until hovered, which
+  is a tool nobody finds and, on a touchscreen, a tool nobody can reach. The
+  line at the page's foot rests visible at reduced opacity, and every line
+  is fully drawn where there is no hover to reveal it.
+  */
+  readonly resting?: boolean
 }): React.JSX.Element {
   return (
     /* The strip is its own height and its controls are centred inside it
        rather than laid out in flow: a 20px button row inside a 12px strip
        overhung the prose above it, which put controls on top of a
        sentence. */
-    <div className="group/insert relative h-5" role="presentation">
+    <div className={cn('group/insert relative', resting ? 'h-7' : 'h-5')} role="presentation">
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100" />
-      <div className="absolute top-1/2 left-0 z-10 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100">
+      <div
+        className={cn(
+          'absolute top-1/2 left-0 z-10 flex -translate-y-1/2 items-center gap-1 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100 [@media(hover:none)]:opacity-100',
+          resting ? 'opacity-60' : 'opacity-0',
+        )}
+      >
         <button
           type="button"
           onClick={onSection}
@@ -118,6 +131,7 @@ export function BlocksEditor({
   folderRow,
   folderId,
   writeOf,
+  onDeleteSection,
 }: {
   /** The last read, whole; the evidence every write carries back. */
   readonly blocks: readonly PageBlock[]
@@ -147,10 +161,19 @@ export function BlocksEditor({
       evidence; a shelf overrides it for its render-only folder rows, which
       must arrive as inserts rather than as edits of ids that never were. */
   readonly writeOf?: (block: PageBlock) => PageBlockWrite
+  /** polish: folderpage F5. Asked before a section goes; the page answers
+      with a question and calls `remove` if the person says so. Absent, the
+      section is removed at once. */
+  readonly onDeleteSection?: (block: PageBlock, remove: () => void) => void
 }): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   /** The one block being written, if any; everything else reads as prose. */
   const [editing, setEditing] = useState<string | null>(null)
+  /* polish: folderpage F4. A section just made opens as an empty field with
+     "New section" as its placeholder, rather than as a value typing appends
+     to. The stored text is still "New section" (4.17 wants a name), so this
+     remembers which block is the fresh one until it is named or left. */
+  const [freshId, setFreshId] = useState<string | null>(null)
 
   const all = (): PageBlockWrite[] =>
     blocks.map((block, index) => ({ ...(writeOf ?? carry)(block), position: index }))
@@ -205,12 +228,14 @@ export function BlocksEditor({
     )
     if (fresh !== undefined) {
       setEditing(fresh.id)
+      if (claimNewest === 'section') setFreshId(fresh.id)
       setClaimNewest(null)
     }
   }, [blocks, claimNewest])
 
   const inserters = (index: number): React.JSX.Element => (
     <InsertLine
+      resting={index === blocks.length}
       onSection={() => {
         setClaimNewest('section')
         insertAt(index, { kind: 'section', position: index, text: 'New section' })
@@ -285,14 +310,19 @@ export function BlocksEditor({
                 {editing === block.id ? (
                   <InlineInput
                     key={`${block.id}-${block.text ?? ''}`}
-                    defaultValue={block.text ?? ''}
+                    defaultValue={freshId === block.id ? '' : (block.text ?? '')}
+                    placeholder={freshId === block.id ? 'New section' : undefined}
                     aria-label="Section name"
                     maxLength={120}
                     autoFocus
                     onBlur={(event) => {
                       const next = event.target.value.trim()
+                      const fresh = freshId === block.id
                       setEditing(null)
-                      if (next !== '' && next !== block.text) editText(block.id, next)
+                      setFreshId(null)
+                      /* A fresh section left unnamed is one nobody wanted. */
+                      if (fresh && next === '') remove(block.id)
+                      else if (next !== '' && next !== block.text) editText(block.id, next)
                     }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === 'Escape') {
@@ -317,12 +347,14 @@ export function BlocksEditor({
                 <button
                   type="button"
                   aria-label={`Delete section ${block.text ?? ''}`}
+                  title="Delete section"
                   onClick={() => {
-                    remove(block.id)
+                    if (onDeleteSection === undefined) remove(block.id)
+                    else onDeleteSection(block, () => remove(block.id))
                   }}
-                  className="opacity-0 transition-opacity outline-none group-hover/item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground"
+                  className="opacity-0 transition-opacity outline-none group-hover/item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground [@media(hover:none)]:opacity-60"
                 >
-                  <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  <Trash2 className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </div>
             ) : block.kind === 'image' ? (

@@ -115,10 +115,19 @@ export const NO_FILTER: PageFilter = {
   sort: 'manual',
 }
 
+/**
+ * polish: pagehead F2. "Custom range" chosen with no days picked yet is a
+ * panel waiting for an answer, not a narrowing: nothing is filtered, no chip
+ * is drawn, and a view saved in that state stores no range.
+ */
+export function customRangeOpen(filter: PageFilter): boolean {
+  return filter.due === 'custom' && (filter.from === null || filter.to === null)
+}
+
 /** Whether any axis narrows what the page shows. Grouping and sort do not. */
 export function isNarrowed(filter: PageFilter): boolean {
   return (
-    filter.due !== 'any' ||
+    (filter.due !== 'any' && !customRangeOpen(filter)) ||
     filter.assignees.length > 0 ||
     filter.creators.length > 0 ||
     filter.important ||
@@ -160,6 +169,7 @@ function matchesDue(task: TaskCard, filter: PageFilter, today: string): boolean 
     case 'month':
       return due !== null && due >= today && due <= addDaysLocal(today, 29)
     case 'custom':
+      if (customRangeOpen(filter)) return true
       if (due === null) return false
       if (filter.from !== null && due < filter.from) return false
       if (filter.to !== null && due > filter.to) return false
@@ -267,7 +277,7 @@ export function filterChips(
   personName: (id: string) => string,
 ): readonly FilterChip[] {
   const chips: FilterChip[] = []
-  if (filter.due !== 'any') {
+  if (filter.due !== 'any' && !customRangeOpen(filter)) {
     chips.push({
       key: 'due',
       label:
@@ -339,7 +349,8 @@ export const ABANDONED_HIDDEN = 'Abandoned hidden'
  * what AC-209 pins on the server side and this is the client half of it.
  */
 export function viewDefinition(filter: PageFilter, page: string): Record<string, unknown> {
-  return { page, ...filter, assignees: [...filter.assignees], creators: [...filter.creators] }
+  const settled = customRangeOpen(filter) ? { ...filter, due: 'any', from: null, to: null } : filter
+  return { page, ...settled, assignees: [...filter.assignees], creators: [...filter.creators] }
 }
 
 /** The inverse, tolerant of a definition written by an older client. */

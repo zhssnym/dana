@@ -30,6 +30,7 @@ portrait photograph in un-cropped means the browser decides what to cut,
 which is usually the top of somebody's head".
 */
 import { useMe } from '../api/queries.js'
+import { mutateApi } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { csrfToken } from '../api/csrf.js'
 import { showToast } from '../state/toasts.js'
@@ -89,6 +90,18 @@ export function setViewerImage(image: string): void {
       })
       if (!response.ok) throw new Error(`avatar: ${response.status}`)
     })
+    .then(() => {
+      void client?.invalidateQueries()
+      /* polish: settings F7: an upload says when it has landed. */
+      showToast('Picture updated')
+    })
+    .catch((error: unknown) => showToast(writeFailureMessage(error)))
+}
+
+/** 7.1's PATCH /me, the one field it takes (polish: settings F6). */
+export function setViewerTimezone(timezone: string): void {
+  const client = queryClient()
+  void mutateApi(null, { method: 'PATCH', path: '/me', body: { timezone } })
     .then(() => void client?.invalidateQueries())
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }

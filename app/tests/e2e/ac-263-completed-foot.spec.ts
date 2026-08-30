@@ -104,7 +104,7 @@ async function build(page: Page): Promise<Fixture> {
 
 /** The foot, as AC-245 made every headed section: a control carrying its name. */
 function completedControl(page: Page) {
-  return page.getByRole('button', { name: /^Completed/ }).first()
+  return page.getByRole('button', { name: /^Done/ }).first()
 }
 
 test.describe('AC-263: a completed foot closes Important and Scheduled', () => {

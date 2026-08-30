@@ -169,7 +169,7 @@ test.describe("P8's half of the criteria earlier packages split", () => {
     ).toHaveCount(0)
   })
 
-  test('AC-058 (P8 half): the folder page opens with Completed collapsed', async ({
+  test('AC-058 (P8 half): the folder page opens with Done collapsed', async ({
     page,
   }) => {
     // AC-058's own file: '"Collapsed" is section 9's rendering and arrives
@@ -186,7 +186,10 @@ test.describe("P8's half of the criteria earlier packages split", () => {
       'spec 6 Q7: the Unscheduled section is open too',
     ).toBeVisible()
 
-    const completed = page.getByRole('button', { name: /completed/i })
+    /* polish: places F11. The foot is named "Done" since the polish round of
+       2026-08-30, one word for the finished pile everywhere; 9.1's regions
+       table is amended with it. The assertion is the same one. */
+    const completed = page.getByRole('button', { name: /^done$/i })
     await expect(
       completed,
       'spec 9.6: the folder body carries a Completed section, and a section that collapses is ' +

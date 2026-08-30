@@ -449,6 +449,16 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
   })
 }
 
+/** 7.12's other read: everything that happened inside one folder, newest
+ * first (polish: folderpage F3, the folder's History sheet). */
+export function useFolderEvents(folderId: string | null): UseQueryResult<GetEventsResponse> {
+  return useQuery({
+    queryKey: queryKeys.events(`folder-scope:${folderId ?? ''}`),
+    queryFn: () => getPlain(getEventsResponse, '/events', { folder: folderId ?? '' }),
+    enabled: folderId !== null,
+  })
+}
+
 /* ------------------------------------------------------------------ *
  * The S12 surfaces (RFC 0005): pages, shelves, notifications, threads
  * ------------------------------------------------------------------ */

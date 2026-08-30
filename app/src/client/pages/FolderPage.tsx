@@ -172,7 +172,7 @@ import {
   UserRoundCheck,
 } from '../lib/icons.js'
 import { formatDayHeading } from '../parts/format-dates.js'
-import { initialsOf } from '../parts/presenters.js'
+import { folderGroupLabels, initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { folderLink } from '../lib/nav-links.js'
@@ -193,7 +193,7 @@ import { MorePages, PageBody } from '../states/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
-import type { PageBlockWrite } from '../../shared/pages.js'
+import type { PageBlock, PageBlockWrite } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
 /**
@@ -287,6 +287,10 @@ export function FolderPage({
      labels the move submenu offers, and nothing else. 8.3 answers it from the
      same cache entry the sidebar filled, so it costs no request. */
   const library = useFolders()
+  /* polish: folderpage F1. The move submenu offered the bare membership
+     labels and nothing else, so an account whose shelves were made through
+     7.16 saw "No group" alone; the shelves are the list, as in the sidebar. */
+  const shelves = useShelves()
   const open = useFolderOpenTasks(id)
   const page = useFolderPage(id)
   const basis = useRowBasis()
@@ -303,18 +307,13 @@ export function FolderPage({
   /* Every label in use, which is what the move submenu offers, deduplicated
      and in the order the library holds them. 9.1 makes a group "the label of
      7.4's my-membership and nothing else", so this is the whole of a group. */
-  /* polish: tabstrip F6 (shell edit, minimal). The shelves the viewer has
-     made are offered too, not only the labels already in use: a shelf with
-     nothing on it yet was exactly the one a person wanted to move to. */
-  const shelvesRead = useShelves()
-  const groupLabels = [
-    ...new Set([
-      ...(library.data ?? [])
-        .map((entry) => entry.my_label)
-        .filter((label): label is string => label !== null && label !== ''),
-      ...(shelvesRead.data ?? []).map((shelf) => shelf.name),
-    ]),
-  ].sort((a, b) => a.localeCompare(b))
+  /* polish: tabstrip F6 and folderpage F1, the same blocker from two seats:
+     the shelves the viewer has made are offered too, not only the labels
+     already in use, a shelf with nothing on it yet being exactly the one a
+     person wanted to move to. `folderGroupLabels` is the union the sidebar
+     already draws from, so both surfaces answer from one list rather than
+     from two hand-written ones. */
+  const groupLabels = folderGroupLabels(library.data ?? [], shelves.data ?? [])
   const putPage = usePutFolderPage()
   const postComment = usePostComment()
   const patchComment = usePatchComment()
@@ -327,6 +326,9 @@ export function FolderPage({
   /* RFC 0005 change control item 38: an owner deleting a shared folder is
      asked one question first. S28b. */
   const [deleteAsk, setDeleteAsk] = useState(false)
+  /* polish: folderpage F5. A section's delete was a bare "x" with no question
+     and no way back; it asks now, and says where the tasks go. */
+  const [sectionAsk, setSectionAsk] = useState<{ block: PageBlock; remove: () => void } | null>(null)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
   /* Controlled, and the prototype's own reason: "Label and colour" in the
@@ -456,7 +458,17 @@ export function FolderPage({
     () =>
       place.groupBy === 'section'
         ? [
-            { key: LOOSE, name: 'No section', mark: null, capture: { section_block_id: null }, rows: [] },
+            /* polish: folderpage F7. "No section" on a page with no sections
+               reads as something missing; the one column is the tasks. */
+            {
+              key: LOOSE,
+              name: (page.data?.blocks ?? []).some((block) => block.kind === 'section')
+                ? 'No section'
+                : 'Tasks',
+              mark: null,
+              capture: { section_block_id: null },
+              rows: [],
+            },
             ...(page.data?.blocks ?? [])
               .filter((block) => block.kind === 'section')
               .map((block) => ({
@@ -834,10 +846,6 @@ export function FolderPage({
 
   return (
     <div className="space-y-7">
-      {/* The band any page can wear (DES-141), drawn only when there is one.
-          Ledger L-185: the controls stay minimal, a joined Change and
-          Reposition group in the corner, on hover, never a toolbar. */}
-      <PageCover storageName={coverKey} />
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
@@ -920,10 +928,26 @@ export function FolderPage({
                   <DropdownMenuRadioGroup
                     value={detail?.my_label ?? '__none'}
                     onValueChange={(value) => {
-                      membership.mutate({
-                        id,
-                        body: { label: value === '__none' ? null : value },
-                      })
+                      const previous = detail?.my_label ?? null
+                      const next = value === '__none' ? null : value
+                      if (next === previous) return
+                      membership.mutate(
+                        { id, body: { label: next } },
+                        {
+                          /* polish: shelves F6. A shelf move has a way back
+                             now, the undo bar, like every other move. */
+                          onSuccess: () => {
+                            pushUndo(
+                              next === null
+                                ? `Took "${detail?.name ?? ''}" off ${previous ?? 'its shelf'}`
+                                : `Moved "${detail?.name ?? ''}" to ${next}`,
+                              () => {
+                                membership.mutate({ id, body: { label: previous } })
+                              },
+                            )
+                          },
+                        },
+                      )
                     }}
                   >
                     {groupLabels.map((label) => (
@@ -931,9 +955,11 @@ export function FolderPage({
                         {label}
                       </DropdownMenuRadioItem>
                     ))}
-                    <DropdownMenuSeparator />
+                    {groupLabels.length > 0 ? <DropdownMenuSeparator /> : null}
+                    {/* polish: shelves F1. One word for the thing: the way
+                        off a shelf is not a "group". */}
                     <DropdownMenuRadioItem value="__none" closeOnClick>
-                      No shelf
+                      Not on a shelf
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 ),
@@ -954,10 +980,13 @@ export function FolderPage({
                     /* 9.6: "the bar says which happened" (ledger L-055, RFC
                        0005 change control item 58, E): the prototype's two
                        sentences, read off 7.16's `shifted_days`. */
+                    /* polish: folderpage F9. DES-198's rule, said where it
+                       applies: a duplicate is the structure, so every task
+                       arrives open. */
                     showToast(
                       made.shifted_days > 0
-                        ? `"${made.name}" made from "${detail?.name ?? ''}", dates moved to start today`
-                        : `"${made.name}" made from "${detail?.name ?? ''}"`,
+                        ? `"${made.name}" made from "${detail?.name ?? ''}" with every task open, dates moved to start today`
+                        : `"${made.name}" made from "${detail?.name ?? ''}" with every task open`,
                     )
                     navigate(paths.folder(made.id))
                   },
@@ -1003,7 +1032,19 @@ export function FolderPage({
           names in the same breath as the boundary. The measure at this row's
           close records the three class strings that costs.
           */}
-          <header className="group/head flex items-start justify-between gap-6">
+          {/* polish: pagehead F5. The band sat in the page's column with a
+              gap under it while every place page draws it full-bleed with the
+              mark riding up over it (`page-head.tsx`); the folder page now
+              draws the same geometry, the same wrapper undoing the shell's
+              inset, the same top padding when there is no band. */}
+          {hasCover ? (
+            <div className="-mx-10 -mt-6">
+              <PageCover storageName={coverKey} />
+            </div>
+          ) : null}
+          <header
+            className={`group/head flex items-start justify-between gap-6 ${hasCover ? '' : 'pt-2'}`}
+          >
             <div className="min-w-0 flex-1">
               <Popover open={markOpen} onOpenChange={setMarkOpen}>
                 <PopoverTrigger
@@ -1036,7 +1077,9 @@ export function FolderPage({
                   third block under it, which is 9.4's "the fact 'N of M done'"
                   and DES-149's "the fact rides the title's line; prose sits
                   under it". */}
-              <div className="mt-1.5 flex items-baseline gap-3">
+              {/* polish: pagehead F6. On a phone the counter wraps under the
+                  name rather than cutting it to "Apart...". */}
+              <div className="mt-1.5 flex items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
                 {isOwner && renaming ? (
                   <InlineInput
                     key={detail?.name ?? ''}
@@ -1066,7 +1109,7 @@ export function FolderPage({
                      is offered no textbox at all (AC-217). */
                   <h1
                     onClick={isOwner ? () => { setRenaming(true) } : undefined}
-                    className={`min-w-0 truncate text-2xl leading-8 font-semibold text-foreground${
+                    className={`min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal${
                       isOwner ? ' cursor-text' : ''
                     }`}
                   >
@@ -1096,11 +1139,15 @@ export function FolderPage({
               {/* 9.6's member avatar stack. */}
               <AvatarGroup>
                 {members.map((member) => (
-                  <PersonFace
-                    key={member.user.id}
-                    name={member.user.display_name ?? 'Someone'}
-                    initials={initialsOf(member.user.display_name ?? 'Someone')}
-                  />
+                  /* polish: settings F7, pagehead F9: the uploaded picture,
+                     and the name on hover. */
+                  <span key={member.user.id} title={member.user.display_name ?? 'Someone'}>
+                    <PersonFace
+                      name={member.user.display_name ?? 'Someone'}
+                      initials={initialsOf(member.user.display_name ?? 'Someone')}
+                      image={member.user.avatar_url}
+                    />
+                  </span>
                 ))}
               </AvatarGroup>
 
@@ -1190,6 +1237,9 @@ export function FolderPage({
               blocks={page.data?.blocks ?? []}
               onPut={putBlocks}
               sectionExtras={sectionExtras}
+              onDeleteSection={(block, remove) => {
+                setSectionAsk({ block, remove })
+              }}
               /* S26: an image block is inserted empty and fills itself, three
                  ways (L-197). The hidden input this replaces uploaded before
                  the block existed, so choosing was the only gesture that
@@ -1199,10 +1249,13 @@ export function FolderPage({
           </PageBody>
 
           {/* Q7 hides the third section while it is empty; the control is
-              rendered on the folder's own completed count. */}
-          {(detail?.counts.completed ?? 0) === 0 ? null : (
+              rendered on the folder's own completed count. polish: pagehead
+              F8, folderpage F7: not while the board is up, whose Done column
+              is the same rows. And "Done", not "Completed": places F11, one
+              word for the finished pile everywhere. */}
+          {(detail?.counts.completed ?? 0) === 0 || place.mode === 'board' ? null : (
             <CollapsibleSection
-              name="Completed"
+              name="Done"
               count={detail?.counts.completed ?? 0}
               defaultOpen={false}
               onOpenChange={setCompletedOpen}
@@ -1306,7 +1359,37 @@ export function FolderPage({
         name={detail?.name ?? ''}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+        scope="folder"
       />
+
+      {/* polish: folderpage F5: the section's question, with its consequence. */}
+      <Dialog open={sectionAsk !== null} onOpenChange={(next) => { if (!next) setSectionAsk(null) }}>
+        <DialogContent className="max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete section “{sectionAsk?.block.text ?? ''}”?</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const count = sectionAsk === null ? 0 : (bySection.get(sectionAsk.block.id) ?? []).length
+                return count === 0
+                  ? 'The heading goes; nothing else changes.'
+                  : `The heading goes. ${count === 1 ? 'Its task stays' : `Its ${count} tasks stay`} in the folder and ${count === 1 ? 'moves' : 'move'} to the loose list above the sections.`
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost">Keep it</Button>} />
+            <Button
+              variant="destructive"
+              onClick={() => {
+                sectionAsk?.remove()
+                setSectionAsk(null)
+              }}
+            >
+              Delete section
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 9.6: an owner with other members leaves only by transferring
           first; the default successor is the longest-standing member. */}

@@ -83,7 +83,8 @@ export function CompletedFoot({
     .filter((day) => day.rows.length > 0)
 
   return (
-    <CollapsibleSection name="Completed" defaultOpen={false} onOpenChange={setOpen}>
+    /* polish: places F11: "Done", the page's own word, everywhere the pile is named. */
+    <CollapsibleSection name="Done" defaultOpen={false} onOpenChange={setOpen}>
       <div className="space-y-6">
         {days.map((day) => (
           <PageSection key={day.date} name={day.date}>

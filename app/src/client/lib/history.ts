@@ -50,7 +50,7 @@ which is not a thing a history sheet is opened on.
 
 import { useMemo } from 'react'
 
-import { useConnections, useMe, useSubjectEvents } from '../api/queries.js'
+import { useConnections, useFolderEvents, useMe, useSubjectEvents } from '../api/queries.js'
 import type { EventLine, EventVerb } from '../../shared/events.js'
 import { personDisplay } from '../parts/presenters.js'
 
@@ -156,6 +156,62 @@ export function storyFor(event: Pick<HistoryEvent, 'verb' | 'detail' | 'actor'>)
   return `${event.actor} ${act}`
 }
 
+/*
+polish: pagehead F4, folderpage F3. The history sheet read "Edited edited the
+page", the verb's label and then the server's own predicate, which is not a
+sentence. 4.13 writes `detail` as a lowercase predicate ("edited the page",
+"changed the look", "added Sara", "moved to Trash for 30 days") or as a
+trailing phrase ("from a step of X", "to Work"), and the actor is always
+known, so a sentence is the actor followed by one of those.
+*/
+const VERB_PAST: Record<HistoryVerb, string> = {
+  created: 'created',
+  renamed: 'renamed',
+  edited: 'edited',
+  moved: 'moved',
+  completed: 'completed',
+  reopened: 'reopened',
+  abandoned: 'abandoned',
+  restored: 'restored',
+  duplicated: 'duplicated',
+  removed: 'removed',
+  deleted: 'deleted',
+  left: 'left',
+}
+
+const THING: Record<HistorySubjectKind, string> = {
+  task: 'the task',
+  folder: 'the folder',
+  shelf: 'the shelf',
+}
+
+/**
+ * "Hassan edited the page", "Hassan invited sara@example.com", "Hassan added
+ * “Book the van”": one event as the sentence a person would say.
+ *
+ * `about` is the thing whose history is being read. An event on it names it
+ * by kind ("the folder"); an event on something inside it, a task in a
+ * folder's history, names that thing by its name, and "created" reads as
+ * "added" there because that is what making a task in a folder is.
+ */
+export function sentenceOf(
+  event: Pick<HistoryEvent, 'kind' | 'subject' | 'name' | 'verb' | 'actor' | 'detail'>,
+  about: { readonly kind: HistorySubjectKind; readonly subject: string },
+): string {
+  const own = event.kind === about.kind && event.subject === about.subject
+  const detail = event.detail ?? ''
+  const trailing = /^(from|to|dates) /.test(detail)
+  const predicate = detail !== '' && !trailing && /^[a-z]/.test(detail)
+  if (own) {
+    if (predicate) return `${event.actor} ${detail}`
+    const base = `${event.actor} ${VERB_PAST[event.verb]} ${THING[event.kind]}`
+    return trailing ? `${base} ${detail}` : base
+  }
+  const verb = event.verb === 'created' ? 'added' : VERB_PAST[event.verb]
+  const base = `${event.actor} ${verb} “${event.name}”`
+  return trailing ? `${base} ${detail}` : base
+}
+
 /**
  * The same moment, worded to follow a verb.
  *
@@ -257,14 +313,21 @@ export function useHistory(
   kind: HistorySubjectKind,
   subject: string,
   enabled = true,
+  /* polish: folderpage F3. A folder's history is everything that happened in
+     it, tasks added and people invited included, which is 7.12's folder read
+     rather than the subject read; 'subject' is the default every other
+     caller keeps. */
+  scope: 'subject' | 'folder' = 'subject',
 ): HistoryEvent[] {
+  const wanted = enabled && UUID.test(subject)
   const events = useSubjectEvents(
-    !enabled || !UUID.test(subject) ? null : `${kind}:${subject}`,
+    wanted && scope === 'subject' ? `${kind}:${subject}` : null,
   )
+  const folderEvents = useFolderEvents(wanted && scope === 'folder' ? subject : null)
   const me = useMe()
   const connections = useConnections()
 
-  const lines = events.data?.events
+  const lines = scope === 'folder' ? folderEvents.data?.events : events.data?.events
   const viewer = me.data?.user
   const roster = connections.data
 

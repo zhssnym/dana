@@ -135,6 +135,11 @@ export function FolderGroupDialog({
             <DialogTitle>
               {mode === 'rename' ? 'Rename shelf' : 'New shelf'}
             </DialogTitle>
+            {/* polish: sidebar F5 and shelves F1 found this dialog together.
+                The create sentence is the shell fixer's, because sidebar F9
+                made an empty shelf legal and AC-313 asserts one: a sentence
+                asking for at least one folder would describe a rule this
+                dialog no longer keeps. */}
             <DialogDescription>
               {mode === 'rename'
                 ? 'Shelves are yours alone: renaming one changes nothing for other members.'

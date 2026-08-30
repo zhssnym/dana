@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog.js"
 import { markIcon } from "../components/page/icon-manifest.js"
+import { PageMark } from "../components/page-head.js"
 import { CheckCircle2, Trash2 } from "../lib/icons.js"
 import {
   TRASH_DAYS,
@@ -66,16 +67,20 @@ export function TrashScreen({
   const [confirming, setConfirming] = useState<TrashItem | "all" | null>(null)
 
   return (
-    <div className="mx-auto w-full max-w-[var(--shell-page-max)] px-8 pt-8 pb-16">
-      <header className="flex items-baseline justify-between gap-4 pb-6">
+    /* polish: pagehead F5. The shell already insets every page; a second
+       inset here put Trash's left edge somewhere no other page's is. The
+       mark above the title is every other page's, from `page-head.tsx`. */
+    <div className="w-full pt-2 pb-16">
+      <PageMark icon={Trash2} hasCover={false} />
+      <header className="flex items-baseline justify-between gap-4 pt-1.5 pb-6">
         <div className="min-w-0">
-          <h1 className="text-[24px] leading-8 font-semibold text-[var(--color-graphite-900)]">
+          <h1 className="text-2xl leading-8 font-semibold text-[var(--color-graphite-900)]">
             Trash
           </h1>
+          {/* polish: places F12. One sentence for the rule, whether or not
+              the page holds anything; 9.11 is amended to it. */}
           <p className="pt-1 text-[13px] leading-5 text-[var(--color-graphite-500)]">
-            {items.length
-              ? `Deleted items are kept for ${TRASH_DAYS} days, then removed.`
-              : `Anything you delete waits here for ${TRASH_DAYS} days.`}
+            {`Deleted items are kept for ${TRASH_DAYS} days, then removed.`}
           </p>
         </div>
         {/* Seam 2: only the rows the viewer owns leave under it. */}
@@ -210,7 +215,9 @@ function TrashRow({
       >
         {left}d left
       </span>
-      <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 focus-within:opacity-100">
+      {/* polish: places F10. Restore and Delete are visible at rest; a row
+          whose only controls appear on hover is a row with nothing to press. */}
+      <span className="flex shrink-0 items-center gap-1 opacity-80 transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 focus-within:opacity-100">
         <Button variant="ghost" size="sm" onClick={onRestore}>
           Restore
         </Button>
