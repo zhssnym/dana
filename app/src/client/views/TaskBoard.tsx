@@ -1,240 +1,183 @@
 /*
-The board of 9.1: "a board column is a named region; its cards, list items or
-rows", one column per value of the page's grouping.
+The board of 9.1, as the place pages consume it: the lifted
+`components/task-board.tsx` with this client's meaning attached.
 
-**Every column captures, and with its own value.** DES-182: "capture in a
-column means capture with that column's value. A task typed into the Home
-column is in Home; into Sara's column, Sara's; into a date column, due that
-day, and the page's own entry defaults ride underneath." That last clause is
-why the capture goes through `place.capture`, which layers the column over the
-page's spine rather than replacing it: a task typed into a column on Today is
-in that column *and* on Today.
+**What this file used to be, and why it is not that any more.** It held a
+board of its own, ported from the v1 prototype and reworked twice, while the
+lifted board sat beside it with no consumer at all. That is the class RFC 0005
+change control item 48(b) names and asks S25, S26 and S27 to open by looking
+for: a component lifted ahead of its call site. This one was the honest kind,
+the undo bar's rather than the window bar's, because neither copy carried a
+module store and so neither half could break silently. What it cost instead
+was fidelity, which item 48(j) put a number on: every file that was lifted
+scored at or near 100 percent of the prototype's class strings and every file
+that was ported did not. So the implementation retires and this becomes the
+half the prototype's own header says belongs here.
 
-**So the floating button is absent here**, which 9.1 states and which the
-shell reads off the same view mode this component is drawn in. It is Imran's
-own observation and it is DES-133 arriving at its conclusion: the button is
-the capture point that leaves wherever a capture row already exists, and a
-column says where the task lands better than any row.
+**Geometry there, meaning here**, which is that header's sentence and the
+whole of the split. The board owns the columns' rectangles and reports which
+one a card was released over; what landing there *means* is the page's, and on
+these eight pages it is `actions.onMoveToColumn`, the same value the column's
+quick-add writes through `place.capture`. One `ColumnValue` answers both, so a
+drop and a capture in one column can never come to mean different things.
 
-**Two kinds of column refuse capture rather than pretending.** Overdue is a
-relation to today and not a value, and a month or a week names a range with no
-day in it; `grouping.ts` and `ladder.ts` decide which, and a column with
-nothing to write simply carries no quick-add. DES-182 again: "those boards do
-not offer it at all rather than offering it and refusing."
+**Two kinds of column refuse a drop rather than pretending**, unchanged from
+what this file did before: Overdue is a relation to today rather than a value,
+and a week or a month rung names a range with no day in it. `grouping.ts`
+decides which by handing a group a `capture` of null, and a column with
+nothing to write takes no drop and offers no quick-add. Ledger L-219 is that
+decision and it stays closed.
 
-**Dropping a card in a column writes that column's value**, which is 9.1's own
-sentence for the view strip, and it is the same value the column captures
-with: one `ColumnValue` answers both, so a drop and a quick-add in one column
-can never come to mean different things. A column that refuses capture refuses
-the drop for the reason it refuses the capture, having nothing to write.
-
-Three things about how that is built, each of them the engine's rule rather
-than this file's.
-
-**One drag engine, and this is its third surface.** RFC 0004's acceptance
-column says so, and the sidebar and the tab strip are the other two. What a
-board asks that a single list does not is a release inside a container the
-sorting list cannot see, which is exactly what `onOver` and `onDropAt` are for
-(DES-171); the registry answering them is `lib/drop-zones.ts`, which is there
-rather than here because the Library needed the same hit test first.
-
-**The hit test is the document's, and the carried card stops catching the
-point.** Rectangles lie during a drag, the carried card's transform inflating
-its own column's bounding rect, so the pointer would never read as having left
-the column it started in. That fault was measured at the sidebar and the fix
-is the registry's; what this file owes it is the `pointer-events: none` the
-carried card wears.
-
-**A column does not reorder itself.** Section 6 fixes the order inside every
-column and states that clients never re-sort, so `onReorder` here has nothing
-to write and says so. What a within-column drag still gets is the lift and the
-carry, and the card settles back where the server put it.
+**`pages/task-rows.tsx`'s `dragStateOf` went with this file**, which is what
+its own comment said would happen: it read a pixel offset back out of a CSS
+transform string to translate `RowDrag`, the interface this file used to
+publish, into the v2 row's `dragState`. The lifted board runs its drag through
+`TaskList`, which hands each row its state directly, so there is nothing left
+to translate and no list in this client passes `RowDrag` any more.
 */
 import { QuickAdd } from '../components/quick-add.js'
-import { useDropZones } from '../lib/drop-zones.js'
-import type { DropZones } from '../lib/drop-zones.js'
-import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
-import { TaskRows } from '../pages/task-rows.js'
+import { TaskBoard as PrototypeBoard } from '../components/task-board.js'
+import type { BoardColumn, BoardTask } from '../components/task-board.js'
+import type { TaskRowProps } from '../components/task-row.js'
+import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { TaskCard } from '../../shared/tasks.js'
+import { groupHeadingMedia } from './group-mark.js'
+import type { GroupBy } from './filter.js'
 import type { TaskGroup } from './grouping.js'
-import type { ColumnValue } from './place-pages.js'
 import type { Place } from './usePlace.js'
+
+type BoardGiven = TaskRowProps['given']
+
+const GIVEN_BY_AXIS: Record<GroupBy, BoardGiven> = {
+  none: undefined,
+  folder: { folder: true },
+  person: { assignee: true },
+  date: { due: true },
+  /* A section says nothing about a task's folder, its person or its date, so
+     a card in a section column keeps every chip it would carry in a list. */
+  section: undefined,
+}
 
 export function TaskBoard({
   place,
   columns,
   context,
   actions,
-  onAsk,
 }: {
   readonly place: Place
   readonly columns: readonly TaskGroup[]
   readonly context: RowContext
   readonly actions: RowActions
-  readonly onAsk: (message: string, run: () => void) => void
 }): React.JSX.Element {
   /*
-  A row in a folder column does not repeat the folder, which is Q2's own rule
+  A card in a folder column does not repeat the folder, which is Q2's own rule
   applied one surface further on ("Q2 gives a row no folder label, the group
   heading above it being the folder") and DES-183's, that a row says what its
-  page does not. It is also what makes the row fit: a column is a fraction of
-  a page's width, the row's metadata and controls take their own, and the
-  title is what gives way when the folder chip is drawn beside a heading that
-  already says the same word.
+  page does not. It is also what makes the card fit: a column is a fraction of
+  a page's width, and the title is what gives way when a folder chip is drawn
+  under a heading already saying the same word.
+
+  The lifted board spells the same idea as `given`, so both are set from one
+  condition rather than left to agree by hand.
   */
   const columnContext: RowContext =
     place.groupBy === 'folder' ? { ...context, showFolder: false } : context
 
-  /* One registry for the whole board, so a card lifted in any column can be
-     released into any other. No outer key: a board's columns enclose nothing
-     and the Library's enclosure rule has nothing to do here. */
-  const zones = useDropZones()
+  const byKey = new Map(columns.map((column) => [column.key, column]))
 
-  /** What a release in the column registered under `key` writes, or none. */
-  const valueOf = (key: string): ColumnValue | null =>
-    columns.find((column) => column.key === key)?.capture ?? null
-
-  const nameOf = (key: string): string =>
-    columns.find((column) => column.key === key)?.name ?? key
+  const mapped: BoardColumn[] = columns.map((column) => ({
+    key: column.key,
+    /* 9.1's regions rule: a column is named by its value, and the lifted
+       board writes that name into the `aria-label` its S25 seam carries. */
+    label: column.name,
+    mark: groupHeadingMedia(column.mark, context.folders),
+    /* Finished columns strike through and drop their details, the lifted
+       board's own contract for its `done` flag (item 58, F and G). */
+    ...(column.done === true ? { done: true, quiet: true } : {}),
+    tasks: column.rows.map(
+      (task: TaskCard): BoardTask => ({
+        ...taskRowDisplay(task, columnContext),
+        id: task.id,
+      }),
+    ),
+  }))
 
   return (
-    <div className="flex items-start gap-4 overflow-x-auto pb-2">
-      {columns.map((column) => (
-        <BoardColumn
-          key={column.key}
-          column={column}
-          place={place}
-          context={columnContext}
-          actions={actions}
-          onAsk={onAsk}
-          zones={zones}
-          valueOf={valueOf}
-          nameOf={nameOf}
-        />
-      ))}
-    </div>
+    <PrototypeBoard
+      columns={mapped}
+      /*
+      DES-183's contract, which the lifted card reads and the ported one had
+      no word for: what the column already says, the card does not repeat.
+      The three axes `grouping.ts` produces map one to one, and a card in a
+      date column drops its due chip for the same reason a card in a folder
+      column drops its folder.
+      */
+      given={GIVEN_BY_AXIS[place.groupBy]}
+      onOpenTask={(taskId) => {
+        const task = taskOf(columns, taskId)
+        if (task !== undefined) actions.onOpenTask(task)
+      }}
+      onToggleComplete={(taskId) => {
+        const task = taskOf(columns, taskId)
+        if (task === undefined) return
+        /* An abandoned card's control restores it, which is 9.5's rule and
+           the same reading `pages/task-rows.tsx` gives the row's own box. */
+        if (task.status === 'abandoned') actions.onRestore(task)
+        else actions.onToggleComplete(task)
+      }}
+      onToggleImportant={(taskId) => {
+        const task = taskOf(columns, taskId)
+        if (task !== undefined) actions.onToggleImportant(task)
+      }}
+      onDropIn={(taskId, columnKey) => {
+        const task = taskOf(columns, taskId)
+        const column = byKey.get(columnKey)
+        if (task === undefined || column === undefined) return false
+        /*
+        The Done column is a status rather than a place (ledger L-045, item
+        58 G), the prototype's own sentence: "dropping on Done completes, and
+        carrying a card back out reopens it and files it wherever it landed."
+        Completion is the page's act so that 9.5's series confirm and the
+        undo bar reach it exactly as they reach the row's box.
+        */
+        if (column.done === true) {
+          if (task.status === 'completed') return false
+          actions.onToggleComplete(task)
+          return true
+        }
+        const landing = column.capture
+        if (landing === undefined || landing === null) return false
+        if (task.status === 'completed') actions.onToggleComplete(task)
+        actions.onMoveToColumn(task, landing)
+        return true
+      }}
+      quickAdd={(column) => {
+        const group = byKey.get(column.key)
+        if (group === undefined || group.capture === null) return null
+        if (place.spine.capture === 'none') return null
+        return (
+          <QuickAdd
+            folderName={column.label}
+            onAdd={(title) => {
+              place.capture(title, group.capture ?? undefined)
+            }}
+            onOpenFullForm={() => {
+              place.openFull(group.capture ?? undefined)
+            }}
+          />
+        )
+      }}
+    />
   )
 }
 
-function BoardColumn({
-  column,
-  place,
-  context,
-  actions,
-  onAsk,
-  zones,
-  valueOf,
-  nameOf,
-}: {
-  readonly column: TaskGroup
-  readonly place: Place
-  readonly context: RowContext
-  readonly actions: RowActions
-  readonly onAsk: (message: string, run: () => void) => void
-  readonly zones: DropZones
-  readonly valueOf: (key: string) => ColumnValue | null
-  readonly nameOf: (key: string) => string
-}): React.JSX.Element {
-  const rows: readonly TaskCard[] = column.rows
-
-  const drag = useSortableList({
-    count: rows.length,
-    /*
-    A board is the one surface whose containers are laid out across the axis
-    its lists run on, so the engine follows the pointer on both. Without it
-    the edge-follow scrolls the column the card is already in and never the
-    board, and any column past the right edge is a destination the gesture
-    cannot reach: measured in the whole browser leg, where the folders of a
-    hundred and fifty specs made the board wider than the window and AC-228
-    went red having passed focused. Three columns fit a 1120px page, so this
-    bites a real person at four folders rather than at a hundred and fifty.
-    */
-    crossAxis: true,
-    onLift: swallowNextClick,
-    describe: (index) => rows[index]?.title ?? 'Task',
-    /* What a release would do, asked while the drag is still in the air, so a
-       card on its way into another column stops being drawn as a slot in this
-       one (DES-171). A column with nothing to write is not an answer. */
-    onOver: (_from, point) => {
-      const key = zones.containerAt(point, column.key)
-      if (key === null || valueOf(key) === null) return null
-      return key
-    },
-    onDropAt: (from, point) => {
-      const task = rows[from]
-      if (task === undefined) return false
-      const key = zones.containerAt(point, column.key)
-      if (key === null) return false
-      const value = valueOf(key)
-      if (value === null) return false
-      actions.onMoveToColumn(task, value)
-      return true
-    },
-    onReorder: () => undefined,
-  })
-
-  return (
-    <section
-      // 9.1's roles table: a board column is a named region, named by its
-      // value. AC-221 addresses the Groceries column by exactly this.
-      aria-label={column.name}
-      ref={zones.registerZone(column.key)}
-      className="flex w-80 shrink-0 flex-col gap-1 rounded-lg bg-[var(--color-graphite-25)] p-2"
-    >
-      <h2 className="flex h-7 items-center gap-2 px-1 text-[13px] font-semibold text-[var(--color-graphite-700)]">
-        <span className="truncate">{column.name}</span>
-        <span aria-hidden="true" className="font-normal text-[var(--color-graphite-500)]">
-          {rows.length}
-        </span>
-      </h2>
-      <TaskRows
-        tasks={rows}
-        context={context}
-        actions={actions}
-        onAsk={onAsk}
-        drag={{
-          rowRef: (index) => drag.setItemRef(index),
-          dragProps: (index) => drag.surfaceProps(index),
-          dragStyle: (index) => {
-            const state = drag.itemState(index)
-            if (state.offset === 0 && !state.isActive) return undefined
-            return {
-              transform: `translateY(${String(state.offset)}px)`,
-              transition:
-                state.isActive && !state.isSettling
-                  ? 'none'
-                  : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
-              position: 'relative',
-              zIndex: state.isActive ? 30 : undefined,
-              /* The carried card must not catch the point it follows: the
-                 registry asks the document what is under the pointer. */
-              pointerEvents: state.isActive ? 'none' : undefined,
-            }
-          },
-          proposal: (index) =>
-            drag.itemState(index).isActive && drag.overKey !== null
-              ? `Into ${nameOf(drag.overKey)}`
-              : undefined,
-        }}
-      />
-      {column.capture === null || place.spine.capture === 'none' ? null : (
-        <QuickAdd
-          folderName={column.name}
-          onAdd={(title) => {
-            place.capture(title, column.capture ?? undefined)
-          }}
-          onOpenFullForm={() => {
-            place.openFull(column.capture ?? undefined)
-          }}
-        />
-      )}
-      {/* A keyboard move is heard rather than only seen; the engine writes
-          the sentence and this is the region that announces it. */}
-      <span aria-live="polite" className="sr-only">
-        {drag.announcement}
-      </span>
-    </section>
-  )
+/** The row behind a card's id, which is all the board reports. */
+function taskOf(columns: readonly TaskGroup[], taskId: string): TaskCard | undefined {
+  for (const column of columns) {
+    const found = column.rows.find((task) => task.id === taskId)
+    if (found !== undefined) return found
+  }
+  return undefined
 }

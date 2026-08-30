@@ -25,6 +25,17 @@ export const ABANDON_CONFIRM =
 export const DELETE_TASK_CONFIRM = "Delete this task? This can't be undone."
 
 /**
+ * The same confirmation for a selection, S23a. 9.3 writes the singular and
+ * nothing in section 9 writes a plural, because the bar that deletes several
+ * at once arrived with item 44's ruling rather than with the section; the
+ * sentence keeps 9.3's shape and changes only its count. Recorded at RFC
+ * 0005 change control item 54.
+ */
+export function deleteTasksConfirm(count: number): string {
+  return `Delete these ${count} tasks? This can't be undone.`
+}
+
+/**
  * 9.4: the un-pull control on a row whose inclusion came from an entry.
  *
  * The v2 section renames the page and the control together, "the control

@@ -102,6 +102,7 @@ import {
   seedIds,
   seedSubs,
   signIn,
+  taskSurface,
   taskRow,
   TEST_TIMEOUT_MS,
 } from './harness.js'
@@ -173,13 +174,13 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     await page.goto(routesV2.anytime)
     await clickControl(
       page.getByText(title),
-      'spec 9.5: a click on any row opens the task, which is how its steps editor is reached',
+      'spec 9.4: a click on any row opens that task, which is how its steps block is reached',
     )
-    await clickControl(
-      page.getByRole('button', { name: 'More options' }),
-      "spec 9.3: seven of the form's ten fields sit behind one expander, and the section " +
-        'names it "More options"',
-    )
+    await expect(
+      taskSurface(page),
+      'spec 9.3: the card holds "Steps, Notes, and Attachments as blocks", so the editor is ' +
+        'on the surface with nothing to expand',
+    ).toBeVisible()
     await expectOneTextRun(
       page,
       copy.stepCapNotice,
@@ -257,6 +258,52 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
       'spec 9.1: every confirmation offers Continue and Cancel, and this case leaves the ' +
         'seeded membership alone',
     )
+    await context.close()
+  })
+
+  /*
+  9.1's member exit label, added at S24 on RFC 0005 change control item 44's
+  A1: "9.1's names table changes for 'Leave folder', AC-217 moves and AC-183
+  gains a case."
+
+  **Why it belongs in this file rather than only in AC-217.** This criterion is
+  the regression criterion for the strings a port from the prototype is known
+  to lose, and the ellipsis is one the port lost in the other direction: the
+  prototype writes "Leave folder…", the client dropped it, and 9.1 now carries
+  it with the sentence that makes it normative. A label losing three characters
+  is exactly the class of loss that reads as a typographic detail and is a
+  behavioural claim, because the ellipsis is the only thing on the control that
+  says a confirmation follows.
+
+  **It reads a name rather than a text run, and that is the one departure from
+  this file's shape.** `expectOneTextRun` exists because a sentence delivered
+  across a block boundary is reworded by the reader; a menu item is one control
+  with one accessible name, so the whole of "character for character as its
+  section writes it" is the name itself, matched exact. A substring match would
+  pass against the string this case exists to refuse.
+  */
+  test("AC-183: 9.1's member exit label", async ({ browser }) => {
+    // The member and not the owner, for AC-183's leave case's own reason: 5.4
+    // gives leave to a member and gives the owner a transfer instead.
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await signIn(page, seedSubs.imran)
+    await page.goto(routesV2.folder(seedIds.groceries))
+    await clickControl(
+      page.getByRole('main').getByRole('button', { name: 'More actions', exact: true }).first(),
+      "spec 9.1: the active tab's controls include the object's overflow menu, named " +
+        '"More actions", and for a member who is not the owner it carries the exit',
+    )
+
+    await expect(
+      page.getByRole('menuitem', { name: 'Leave folder…', exact: true }),
+      'spec 9.1\'s names table: a folder\'s member exit is "Leave folder…", character for ' +
+        'character, and the section states beneath the table that an ellipsis promises a ' +
+        'further step. Leaving opens a confirmation, so a label without one tells a person ' +
+        'the press is the act',
+    ).toBeVisible()
+
+    await page.keyboard.press('Escape')
     await context.close()
   })
 

@@ -18,6 +18,8 @@ The import is the same maker's-work rule with a file for a source, and its
 refusals are the schema's shape (shared/workflows.ts): what the caps admit
 is created, and what the file smuggled was never read.
 */
+import { randomUUID } from 'node:crypto'
+
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -25,13 +27,14 @@ import type { ImportWorkflowBody } from '../../shared/workflows.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
 import { recordEvent } from './events.js'
+import { upsertReminder } from './tasks.js'
 
 /* ------------------------------------------------------------------ *
  * POST /folders/:id/duplicate
  * ------------------------------------------------------------------ */
 
 export type DuplicateFolderResult =
-  | { kind: 'duplicated'; id: string; name: string }
+  | { kind: 'duplicated'; id: string; name: string; shiftedDays: number }
   | { kind: 'folder_cap' }
 
 /** The caller has resolved member access on the source (10.2). */
@@ -53,16 +56,19 @@ export async function duplicateFolder(
     const source = (
       await rowsOf(
         tx,
-        sql`SELECT name, icon, color, description FROM folders
+        sql`SELECT name, icon, color, description, cover_preset, cover_focal_y FROM folders
             WHERE id = ${sourceFolderId}`,
       )
     )[0]
     const name = `${String(source?.name ?? 'Folder')} (copy)`.slice(0, 100)
     const made = await rowsOf(
       tx,
-      sql`INSERT INTO folders (owner_id, name, icon, color, description)
+      sql`INSERT INTO folders (owner_id, name, icon, color, description,
+                               cover_preset, cover_focal_y)
           VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
-                  ${source?.color ?? null}, ${source?.description ?? null})
+                  ${source?.color ?? null}, ${source?.description ?? null},
+                  ${source?.cover_preset ?? null},
+                  ${Number(source?.cover_focal_y ?? 50)})
           RETURNING id`,
     )
     const copyId = String(made[0]?.id)
@@ -170,9 +176,20 @@ export async function duplicateFolder(
       subjectId: copyId,
       subjectName: name,
       folderId: copyId,
-      detail: `from ${String(source?.name ?? 'a folder')}`,
+      /* The bar and the History line say which of 9.6's two things happened
+         (ledger L-055, RFC 0005 change control item 58): the prototype's own
+         two sentences. */
+      detail:
+        shift > 0
+          ? `from ${String(source?.name ?? 'a folder')}, dates moved to start today`
+          : `from ${String(source?.name ?? 'a folder')}`,
     })
-    return { kind: 'duplicated', id: copyId, name } as const
+    return {
+      kind: 'duplicated',
+      id: copyId,
+      name,
+      shiftedDays: shift > 0 ? shift : 0,
+    } as const
   })
 }
 
@@ -186,6 +203,15 @@ export interface DuplicableSource {
   title: string
 }
 
+/**
+ * RFC 0005 change control items 46 and 47(b), enacted by RFC 0004's S28a:
+ * the copy carries the title, the notes, the importance, the steps (all
+ * undone), the section, the due date and the repeat, and never the
+ * conversation, the completion, or the assignment, which lands on whoever
+ * made the copy (item 44's B10). The date follows 9.6's one rule for a
+ * folder applied to one task: a spent due date re-anchors on today and a
+ * future one keeps, the repeat riding whichever the copy carries.
+ */
 export async function duplicateTask(
   db: Db,
   viewerId: string,
@@ -196,7 +222,9 @@ export async function duplicateTask(
       await rowsOf(
         tx,
         sql`SELECT title, notes, important,
-                   to_char(due_date, 'YYYY-MM-DD') AS due_date,
+                   to_char(CASE WHEN due_date < current_date
+                                THEN current_date ELSE due_date END,
+                           'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id
             FROM tasks WHERE id = ${source.id}::uuid`,
       )
@@ -260,6 +288,10 @@ export async function importWorkflow(
   db: Db,
   viewerId: string,
   file: ImportWorkflowBody,
+  /** today(V) in the zone the request named, or null where the file asks no
+   * date to be evaluated. The caller resolves it, because 8.1 makes the zone
+   * an input of the request rather than a fact the server holds. */
+  anchor: string | null = null,
 ): Promise<ImportResult> {
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
@@ -293,14 +325,45 @@ export async function importWorkflow(
                       ${block.text})`,
         )
       }
-      // Titles arrive as typed work would: pending, undated, the
-      // importer's (the DES-198 contradiction's one rule).
+      // Work arrives as typed work would: pending, unticked, the
+      // importer's (the DES-198 contradiction's one rule). What travels is
+      // item 44's B3 list and no more, which is the widening; what does not
+      // is still ids, people, due dates and states.
       for (const task of folder.tasks ?? []) {
-        await tx.execute(
-          sql`INSERT INTO tasks (folder_id, title, assignee_id, created_by)
-              VALUES (${folderId}::uuid, ${task.title}, ${viewerId}::uuid,
-                      ${viewerId}::uuid)`,
+        // A repeat needs 4.5's anchor and a reminder needs 8.6's, and the
+        // file carries no date, so the day the run began is the date they
+        // get. A task carrying neither stays undated, which is what the
+        // exclusion is about (change control item 46(a)).
+        const dated =
+          task.recurrence_rule !== undefined || task.reminder !== undefined
+        const madeTask = await rowsOf(
+          tx,
+          sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
+                                 recurrence_rule, series_id, assignee_id,
+                                 created_by)
+              VALUES (${folderId}::uuid, ${task.title},
+                      ${task.notes ?? null}, ${task.important ?? false},
+                      ${dated ? anchor : null}::date,
+                      ${task.recurrence_rule ?? null},
+                      ${task.recurrence_rule === undefined ? null : randomUUID()}::uuid,
+                      ${viewerId}::uuid, ${viewerId}::uuid)
+              RETURNING id`,
         )
+        const taskId = String(madeTask[0]?.id)
+        for (const [index, step] of (task.steps ?? []).entries()) {
+          await tx.execute(
+            sql`INSERT INTO steps (task_id, title, position)
+                VALUES (${taskId}::uuid, ${step.title}, ${index})`,
+          )
+        }
+        if (task.reminder !== undefined) {
+          await upsertReminder(
+            tx,
+            taskId,
+            { offsetMinutes: null, timeOfDay: task.reminder.time_of_day },
+            viewerId,
+          )
+        }
       }
       await recordEvent(tx, {
         actorId: viewerId,

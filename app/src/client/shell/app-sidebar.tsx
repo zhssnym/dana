@@ -98,40 +98,34 @@ The labels are the viewer's own, from the `my_label` of 7.4's membership row,
 so the same folder is inside a group for one member and among the unlabeled
 for another. AC-155 reads all four clauses.
 */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 /* The icon module of DES-125, since S8: one file owns the family and
    nothing imports `lucide-react` directly. */
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  Ban,
-  CalendarDays,
-  CalendarX,
-  CheckCircle2,
   ChevronDown,
+  /* Help's glyph, which S8 exported for this menu and named DES-200 for. */
+  CircleQuestionMark,
   FolderPlus,
   Folders,
-  LampDesk,
-  Layers3,
-  LogOut,
   MoreHorizontal,
-  Pencil,
+  Plus,
+  LogOut,
+
+
   Search,
+  Workflow,
   Settings as SettingsGlyph,
   Bookmark,
-  Star,
-  SunMedium,
   Trash2,
-  UserRoundCheck,
   UsersRound,
 } from '../lib/icons.js'
 
+import { DanaMark } from '../components/dana-mark.js'
 import { FolderRow } from '../components/folder-row.js'
-import {
-  Avatar,
-  AvatarFallback,
-} from '../components/ui/avatar.js'
+import { useHelpSheet } from '../components/help-sheet.js'
 import { Button } from '../components/ui/button.js'
 import {
   Collapsible,
@@ -163,9 +157,14 @@ import {
   TooltipTrigger,
 } from '../components/ui/tooltip.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
-import { folderRowDisplay, initialsOf } from '../parts/presenters.js'
+import { ObjectMenu } from '../components/object-menu.js'
+import { cn } from '../components/ui/utils.js'
+import { useDuplicateFolder } from '../api/mutations.js'
+import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
+import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { paths, pinnedNavPages } from '../routes.js'
-import { NotificationsBell } from './NotificationsBell.js'
+import { NotificationsBell } from '../components/notifications-bell.js'
+import { openInNewTab } from './tabs.js'
 import { savedViewPath } from '../views/saved-views.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
@@ -186,6 +185,100 @@ import {
 import type { DirectoryEntry } from './library-order.js'
 import type { FolderGroupActions } from './folder-groups.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
+
+/*
+Where a folder arriving from another list would land, drawn as a line.
+
+Lifted from `docs/design/prototype-v2/src/components/folder-directory.tsx` at
+S24, with the designer's reasoning: absolutely positioned, so nothing moves
+while it is shown. An indicator that shifted the rows would be changing the
+answer it was describing.
+*/
+function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute right-2 left-2 z-20 h-0.5 rounded-full bg-[var(--color-dana-accent-600)]"
+      style={{ top }}
+    />
+  )
+}
+
+/**
+ * Which slot in a container the pointer is proposing, and where the line goes
+ * to say so.
+ *
+ * The prototype's `proposalIn`, and it measures live rather than reading a
+ * stored geometry, because the rows have been moving: an engine that has been
+ * making space has already changed every box this reads.
+ *
+ * `at` is what the drop writes and `top` is what the line draws, so the two
+ * cannot disagree. A line that promised a slot the drop did not honour would
+ * be the worse half of drawing one at all.
+ */
+function proposalIn(
+  zone: HTMLElement | null,
+  y: number,
+): { readonly at: number; readonly top: number } {
+  if (zone === null) return { at: 0, top: 0 }
+  const origin = zone.getBoundingClientRect().top
+  const rows = [...zone.querySelectorAll<HTMLElement>('[data-drop-row]')]
+  for (const [index, row] of rows.entries()) {
+    const box = row.getBoundingClientRect()
+    if (y < (box.top + box.bottom) / 2) return { at: index, top: box.top - origin }
+  }
+  const last = rows.at(-1)
+  return {
+    at: rows.length,
+    top: last === undefined ? 0 : last.getBoundingClientRect().bottom - origin,
+  }
+}
+
+/* A stable empty list, so a shelves read still in flight does not rebuild the
+   column's memo on every render of the shell above it. */
+const NO_SHELVES: readonly Shelf[] = []
+
+/* One class for the three, because they are one row and a difference between
+   them here would be a difference nobody decided. */
+const ROW_OF_THREE_CLASS =
+  'h-[var(--shell-sidebar-item-height)] w-full justify-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0'
+
+/**
+ * The glyph on a Library group's heading.
+ *
+ * A shelf wears its own mark, 4.18's icon and colour through the one resolver
+ * S17a built for a folder's (DES-130), so a person who put a suitcase on
+ * Travel meets a suitcase in the Library. A label no shelf row names has no
+ * identity to draw and keeps the plain Folders glyph the group always had.
+ */
+function GroupGlyph({
+  shelf,
+  className,
+}: {
+  readonly shelf: Shelf | null
+  readonly className: string
+}): React.JSX.Element {
+  if (shelf === null) {
+    return (
+      <Folders
+        className={`${className} text-[var(--color-graphite-500)]`}
+        strokeWidth={1.75}
+        aria-hidden="true"
+      />
+    )
+  }
+  const mark = shelfMark(shelf)
+  return (
+    <mark.icon
+      className={className}
+      style={{ color: mark.color }}
+      strokeWidth={1.75}
+      aria-hidden="true"
+    />
+  )
+}
+import { PersonFace } from '../components/person-face.js'
 
 /**
  * 9.1's names table, for the two controls this file names rather than a
@@ -194,28 +287,15 @@ import type { Folder } from '../../shared/folders.js'
 const SEARCH = 'Search'
 const ACCOUNT = 'Account'
 
-/**
- * The glyph beside each entry, which is the designer's and belongs to no
- * numbered section. Keyed by path rather than by name so that a rename in
- * 9.1's page set is one edit in `routes.ts` and not two.
- */
-const pageIcons: Record<string, LucideIcon> = {
-  /* Desk wears a desk lamp (DES-181), resolved here beside its siblings
-     rather than inside a folder resolver, because in this list it is a page
-     entry like the eight below it. */
-  [paths.desk]: LampDesk,
-  [paths.today]: SunMedium,
-  [paths.scheduled]: CalendarDays,
-  [paths.assignments]: UserRoundCheck,
-  [paths.important]: Star,
-  [paths.all]: Layers3,
-  [paths.done]: CheckCircle2,
-  [paths.abandoned]: Ban,
-  /* A calendar with an X: the filter's own "No due date", and the other
-     value of the axis Scheduled's calendar carries. It wore All's glyph for
-     one revision and read as a repeated row (DES-152's own note). */
-  [paths.anytime]: CalendarX,
-}
+/*
+The map that stood here moved to `routes.ts` at S16, onto the page it draws.
+
+Its own comment asked for it: "keyed by path rather than by name so that a
+rename in 9.1's page set is one edit in `routes.ts` and not two". The second
+reader arrived with 9.7's pin list, which that section requires to carry "the
+page's own mark", and one mark on the page is the only arrangement in which
+the sidebar and the pin list cannot disagree about what a page looks like.
+*/
 
 /**
  * React Router's `Link` as base-ui's `render` prop takes it.
@@ -355,22 +435,45 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
 
+/*
+The acts a Library row can perform on its folder, since S17a.
+
+**Five of the contract's nine are reached by URL rather than rebuilt here**,
+and that is the prototype's own idiom rather than a shortcut. Rename, History,
+Save as workflow, Leave and Delete each need a surface the folder page already
+has, an inline field, a sheet, a serialiser, a confirmation and an undo bar,
+and `lib/object-acts.ts`'s note on the retired "Label and colour" records the
+mechanism the designer used for exactly this case: "The URL that did it
+survives as ?folder-action=appearance, like every other instrument this plan
+reaches by link." So the row opens the folder and asks its page to run the
+act, which is one implementation of each rather than two, and is what DES-201
+is about in the first place.
+
+The other four are performed in place because they need no surface: opening a
+tab, copying an address, and the duplicate, whose whole behaviour is a server
+call (DES-198).
+
+**An act with no handler is not drawn**, so the role split of 9.6 needs no
+branch in `folder-row.tsx`: the owner's row is given `delete` and the
+member's `leave`, from `folder.is_owner`, which 7.4 puts on the object.
+Desk is the standing exception, INV-2 making the default folder undeletable
+and 9.1 giving it a clause of its own above the label groups.
+*/
+export type FolderAction = 'rename' | 'history' | 'workflow' | 'leave' | 'delete'
+
+/** The query the folder page reads to run an act the Library asked for. */
+export const FOLDER_ACTION_PARAM = 'folder-action'
+
+function folderActionPath(id: string, action: FolderAction): string {
+  return `${paths.folder(id)}?${FOLDER_ACTION_PARAM}=${action}`
+}
+
 /**
  * A folder row on our data.
  *
  * `folderRowDisplay` is R4's mapping and the only thing that knows how a 7.4
- * Folder becomes his four display props; the route and the active mark are
- * this file's, being the router's.
- *
- * **Two of the five entries his row menu carries are wired here and three are
- * not**, added at P8R session R10. 9.1 gives this menu the move ("a folder is
- * moved between groups from its own menu") and the P8R change control gave it
- * "New folder group", creating a group being naming it on a folder. Rename,
- * "Label and color" and delete belong to 9.6's folder header, which builds
- * them, and offering a second route to the same three writes from here would
- * be markup no section asks for. `folder-row.tsx` renders only the entries
- * whose callback it is given, so this is a prop that is absent rather than a
- * control that was removed.
+ * Folder becomes his display props; the route and the active mark are this
+ * file's, being the router's.
  */
 function SidebarFolderRow({
   folder,
@@ -400,14 +503,23 @@ function SidebarFolderRow({
   }
 }): React.JSX.Element {
   const display = folderRowDisplay(folder)
+  const navigate = useNavigate()
+  const duplicate = useDuplicateFolder()
   return (
     <FolderRow
       itemRef={drag?.itemRef}
-      rowProps={drag?.rowProps}
+      /* `data-drop-row` is what `proposalIn` measures, which is the
+         prototype's own attribute and its own reason: the line's slot has to
+         be read off the rows as they actually sit, after the engine has moved
+         them. */
+      rowProps={
+        { ...drag?.rowProps, 'data-drop-row': '' } as React.ComponentProps<'li'>
+      }
       dragState={drag?.state}
       proposal={drag?.proposal ?? null}
       name={display.name}
       color={display.color}
+      icon={display.icon}
       href={display.href}
       // Zero here and the real number inside the link; see `FolderRowLink`.
       pending={0}
@@ -418,11 +530,9 @@ function SidebarFolderRow({
       treeLast={treeLast}
       groupLabels={groups.labels}
       currentLabel={folder.my_label}
-      // Inbox carries neither, so it carries no menu. 9.1 pins it first and
-      // gives it a clause of its own, above the label groups and never inside
-      // one, so a group action on this row would write a label the sidebar
-      // then cannot render. The three entries 9.6 owns are absent here for
-      // every row alike; see this function's header.
+      // Desk is pinned first by 9.1 with a clause of its own, above the label
+      // groups and never inside one, so a group act on this row would write a
+      // label the sidebar then cannot render.
       onNewGroup={
         folder.is_default
           ? undefined
@@ -436,6 +546,50 @@ function SidebarFolderRow({
           : (label) => {
               groups.onMoveToGroup(folder, label)
             }
+      }
+      onOpenInNewTab={() => {
+        navigate(openInNewTab(paths.folder(folder.id)))
+      }}
+      onHistory={() => {
+        navigate(folderActionPath(folder.id, 'history'))
+      }}
+      onRename={
+        folder.is_owner
+          ? () => {
+              navigate(folderActionPath(folder.id, 'rename'))
+            }
+          : undefined
+      }
+      onCopyLink={() => {
+        /* `lib/nav-links.ts`, so the sidebar row and the folder page copy
+           one address rather than two spellings of it. */
+        void navigator.clipboard.writeText(folderLink(folder.id))
+      }}
+      onDuplicate={() => {
+        /* DES-198 server-side, and the copy is the duplicator's own private
+           folder, so the Library goes to it exactly as the page does. */
+        duplicate.mutate(folder.id, {
+          onSuccess: (made) => {
+            navigate(paths.folder(made.id))
+          },
+        })
+      }}
+      onSaveAsWorkflow={() => {
+        navigate(folderActionPath(folder.id, 'workflow'))
+      }}
+      onLeave={
+        folder.is_owner
+          ? undefined
+          : () => {
+              navigate(folderActionPath(folder.id, 'leave'))
+            }
+      }
+      onDelete={
+        folder.is_owner && !folder.is_default
+          ? () => {
+              navigate(folderActionPath(folder.id, 'delete'))
+            }
+          : undefined
       }
     />
   )
@@ -483,6 +637,18 @@ function FolderGroupBlock({
     readonly handleProps: { onPointerDown: (event: React.PointerEvent) => void }
     readonly state: SortableItemState
     readonly proposal: string | null
+    /**
+     * Whether a folder carried from elsewhere is over this shelf, and where
+     * inside it a release would land.
+     *
+     * Two facts and not one because the shelf answers them differently: open
+     * and holding folders, it draws the line; closed or empty, it has nowhere
+     * to draw one and says the words instead. That is the prototype's
+     * arrangement and DES-171's reason for it, a closed shelf never being
+     * sprung open by a drag hovering it.
+     */
+    readonly isDropTarget: boolean
+    readonly dropTop: number | null
   }
   /** A folder leaving this group, for the label the release writes. */
   readonly onMoveOut: (folder: Folder, label: string | null) => void
@@ -490,6 +656,12 @@ function FolderGroupBlock({
 }): React.JSX.Element {
   const [open, setOpen] = useState(true)
   const self = groupKey(group.label)
+  const navigate = useNavigate()
+  /* Null for a label no shelf row names, which is what makes the reaching
+     acts absent rather than broken: 9.10's page is the shelf's, and a label
+     that is not one has no address to open or to copy. */
+  const shelfId = group.shelf?.id ?? null
+  const shelfPath = shelfId === null ? null : paths.shelf(shelfId)
 
   /*
   The group's own folders, on the same engine as everything else.
@@ -534,6 +706,20 @@ function FolderGroupBlock({
     <section
       aria-label={group.label}
       ref={sectionRef}
+      /*
+      The prototype's three states, and they say three different things.
+      Picked up: the whole shelf travels, folders and all, because that is what
+      a person moving one means. About to receive: a container says so **as a
+      whole**, because what is proposed is the shelf and not a line in it, and
+      the line inside it says which slot.
+      */
+      className={cn(
+        'relative rounded-md',
+        drag.state.isActive &&
+          'cursor-grabbing bg-card shadow-[var(--elevation-2)] ring-1 ring-[var(--color-graphite-300)]',
+        drag.isDropTarget &&
+          'bg-[var(--color-dana-accent-50)] ring-1 ring-[var(--color-dana-accent-300)]',
+      )}
       style={
         offset === 0 && !drag.state.isActive
           ? undefined
@@ -555,12 +741,11 @@ function FolderGroupBlock({
       <Collapsible open={open} onOpenChange={setOpen}>
         <div
           {...grip(drag.handleProps)}
-          className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10"
+          className="group/folder-group relative flex h-[var(--shell-sidebar-row-height)] items-center rounded-md bg-transparent text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-600)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:before:bg-[var(--color-graphite-100)] focus-within:before:bg-[var(--color-graphite-100)] group-data-[collapsible=icon]:hidden [&>*]:relative [&>*]:z-10"
         >
-          {/* What a release would do, on the heading being carried. 9.1 fixes
-              the sentence for the container case and DES-171 gives the reason
-              it is words: a closed group is never sprung open by a drag
-              hovering it, so it takes the drop and says so instead. */}
+          {/* What a release would do while **this shelf's own heading** is
+              the thing being carried. The other direction, a folder carried
+              *onto* this shelf, is the line and the "Into" line below. */}
           {drag.proposal === null ? null : (
             <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
               {drag.proposal}
@@ -568,60 +753,141 @@ function FolderGroupBlock({
           )}
           <CollapsibleTrigger
             data-sidebar-tier="group"
-            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-3 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+            /*
+            The glyph is the disclosure and the name is the way in (DES-207),
+            which is the designer's own sentence and the whole of what S17b
+            changes about this row.
+
+            The whole row used to toggle, and that was right while a shelf was
+            only a heading over some folders. It has a page now (9.10), so the
+            row behaves like every other row that names something you can
+            open: the label goes there, and the disclosure keeps the corner it
+            already announced, the Folders glyph having swapped to a chevron
+            on hover since the day it was drawn. Both halves are kept because
+            9.1 asks for both, "a shelf is a collapsible group of folder rows
+            headed by its name", and a heading that became a link and stopped
+            folding would trade one defect for another. AC-214's Library still
+            collapses; AC-257 reads both.
+
+            **The name is a link where the designer draws a button**, and the
+            departure is this client's own consistency rather than a
+            preference: every folder row in this Library is a link, 9.1's
+            roles table makes them one, and a shelf row that navigated on
+            click without being one would be the only row here a middle click
+            could not open in a tab. **Where no shelf row backs the label
+            there is nothing to link to**, so the name stays plain text and
+            the row reads exactly as it did: an account labelled before 7.16
+            existed loses nothing.
+            */
+            aria-label={`Show the folders on ${group.label}`}
+            className="flex h-full shrink-0 items-center rounded-md py-0 pl-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           >
             <span className="relative size-4 shrink-0" aria-hidden="true">
-              <Folders
-                className="absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
-                strokeWidth={1.75}
+              <GroupGlyph
+                shelf={group.shelf}
+                className="absolute inset-0 !size-4 opacity-90 transition-opacity group-hover/folder-group:opacity-0 group-focus-within/folder-group:opacity-0"
               />
               <ChevronDown
                 className={`absolute inset-0 !size-4 text-[var(--color-graphite-500)] opacity-0 transition-opacity group-hover/folder-group:opacity-100 group-focus-within/folder-group:opacity-100 ${open ? '' : '-rotate-90'}`}
                 strokeWidth={1.75}
               />
             </span>
-            <span className="truncate">{group.label}</span>
           </CollapsibleTrigger>
-          {/* Opacity and never a collapsed box, the rule `folder-row.tsx`
-              records: a control with an empty bounding box is not visible to
-              anything that addresses it by role and name. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                  aria-label={MORE_ACTIONS}
-                  // The heading row is the group's grip, so its own controls
-                  // have to say they are not: a press on a control belongs to
-                  // that control (`grip`, in `library-drag.ts`).
-                  data-no-drag
-                />
-              }
+          {group.shelf === null ? (
+            <span className="flex h-full min-w-0 flex-1 items-center gap-2 py-0 pr-1 pl-2 text-left text-[13px] font-semibold">
+              <span className="truncate">{group.label}</span>
+            </span>
+          ) : (
+            <Link
+              to={paths.shelf(group.shelf.id)}
+              data-sidebar-tier="group"
+              data-no-drag
+              className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md py-0 pr-1 pl-2 text-left text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             >
-              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                onClick={() => {
-                  groups.onRenameGroup(group.label)
-                }}
-              >
-                <Pencil className="size-4" aria-hidden="true" />Rename group
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => {
-                  groups.onDeleteGroup(group.label)
-                }}
-              >
-                <Trash2 className="size-4" aria-hidden="true" />Delete group
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <span className="truncate">{group.label}</span>
+            </Link>
+          )}
+          {/*
+          "Add folder to {shelf}", the prototype's own control on a shelf
+          heading, restored at S24.
+
+          It was dropped at P8R on a rule that read correctly at the time: a
+          control no numbered section names is either given the designer's
+          string or dropped, and this took the third option. Change control
+          item 37 overturns the premise rather than the rule, Dana 2.0 being
+          the exact `prototype-v2`, so a control the prototype draws in the
+          shell is part of the shell. Imran restated it at S24: "the shell must
+          be exactly as prototype v2 in Dana 2.0."
+
+          It opens 9.1's New-folder dialog with this shelf already named, so
+          the folder is made and filed in one act rather than made loose and
+          then moved. `data-no-drag` because the whole row is the grip.
+          */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-no-drag
+            className="size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] group-hover/folder-group:opacity-100 focus-visible:opacity-100"
+            aria-label={`Add folder to ${group.label}`}
+            onClick={() => { groups.onAddFolderTo(group.label) }}
+          >
+            <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          {/*
+          From the contract, like every other object's menu, since S17b
+          (DES-201). This used to be two hand-written items, Rename group and
+          Delete group, and the audit's object-menu row names the gap: "the
+          group menu lacks History, Copy link, Duplicate, Save as workflow".
+          Those are not four features, they are four acts a shelf has and this
+          surface was not offering, which is exactly the shape S17a built
+          `lib/object-acts.ts` to end.
+
+          **A group with no shelf row keeps the two items it had**, supplied
+          as the same two acts rather than as a second menu: rename and delete
+          are what a bare label can do, and the contract's own safety property,
+          an act with no handler not drawing, is what expresses that. So the
+          menu narrows for a label and widens for a shelf without either being
+          a special case.
+
+          Opacity and never a collapsed box, the rule `folder-row.tsx`
+          records: a control with an empty bounding box is not visible to
+          anything that addresses it by role and name.
+          */}
+          <ObjectMenu
+            kind="shelf"
+            name={group.label}
+            width="w-44"
+            handlers={{
+              open: shelfPath === null ? undefined : () => { navigate(shelfPath) },
+              rename: () => { groups.onRenameGroup(group.label) },
+              'copy-link':
+                shelfId === null
+                  ? undefined
+                  : () => {
+                      /* `lib/nav-links.ts`, the same address the shelf page
+                         itself copies. */
+                      void navigator.clipboard?.writeText(shelfLink(shelfId))
+                    },
+              delete: () => { groups.onDeleteGroup(group.label) },
+            }}
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                /* The prototype's exactly: no hover text colour on this one,
+                   which is the difference between it and the shelf's other
+                   control one line up. */
+                className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                aria-label={MORE_ACTIONS}
+                // The heading row is the group's grip, so its own controls
+                // have to say they are not: a press on a control belongs to
+                // that control (`grip`, in `library-drag.ts`).
+                data-no-drag
+              />
+            }
+          />
         </div>
         <CollapsibleContent>
           <SidebarMenu className="pb-1">
@@ -640,11 +906,15 @@ function FolderGroupBlock({
                     itemRef: inner.setItemRef(index),
                     rowProps: grip(inner.handleProps(index)),
                     state,
+                    /* "Out of group" only. A release **into** a shelf is
+                       said by that shelf, which draws the line when it is open
+                       and the words when it is closed, and saying it on the
+                       carried row as well put 9.1's one sentence on the page
+                       twice. The ungrouped list has no container to say it, so
+                       that half stays here. */
                     proposal:
-                      state.isActive && inner.overKey !== null
-                        ? inner.overKey === DIRECTORY
-                          ? 'Out of group'
-                          : `Into ${labelOfKey(inner.overKey)}`
+                      state.isActive && inner.overKey === DIRECTORY
+                        ? 'Out of group'
                         : null,
                   }}
                 />
@@ -658,6 +928,27 @@ function FolderGroupBlock({
       <span aria-live="polite" className="sr-only">
         {inner.announcement}
       </span>
+
+      {/*
+      A closed shelf takes drops too and has nowhere inside it to draw a line,
+      so it says the words instead. It is deliberately **not** sprung open by
+      the drag: opening it would move every row below it after the engine had
+      measured where they sit, which is DES-171's own reason and the same fault
+      that retired the folder page's dashed strip.
+
+      9.1 fixes the sentence, "the drop reads 'Into {shelf}'".
+      */}
+      {drag.isDropTarget && drag.dropTop !== null && open && group.folders.length > 0 ? (
+        <InsertLine top={drag.dropTop} />
+      ) : null}
+      {drag.isDropTarget && (!open || group.folders.length === 0) ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 right-3 z-20 -translate-y-1/2 text-[11px] leading-4 font-medium text-[var(--color-dana-accent-700)]"
+        >
+          Into {group.label}
+        </span>
+      ) : null}
     </section>
   )
 }
@@ -692,24 +983,43 @@ function FolderGroupBlock({
  */
 function LibraryColumn({
   folders,
+  shelves,
   order,
   onOrderChange,
   activeId,
   groups,
 }: {
   readonly folders: readonly Folder[]
+  /** The viewer's shelves (7.16), which since S17b are what a group is. */
+  readonly shelves: readonly Shelf[]
   readonly order: readonly string[]
   readonly onOrderChange: (ids: readonly string[]) => void
   readonly activeId: string | null
   readonly groups: FolderGroupActions
 }): React.JSX.Element {
   const zones = useLibraryZones()
-  const entries = useMemo(() => arrangeColumn(folders, order), [folders, order])
+  const entries = useMemo(
+    () => arrangeColumn(folders, order, shelves),
+    [folders, order, shelves],
+  )
 
   /** The column with one entry moved, written back as a folder sequence. */
   function commit(next: readonly DirectoryEntry[]): void {
     onOrderChange(encodeColumn(next))
   }
+
+  /*
+  Which shelf the pointer is over and where inside it a release would land.
+
+  One answer for the whole column, because only one drag runs at a time, and
+  it is set in `onOver` rather than derived at paint: the rows have been
+  moving, so the measurement is only true at the moment it is taken.
+  */
+  const [drop, setDrop] = useState<{
+    readonly key: string
+    readonly at: number
+    readonly top: number
+  } | null>(null)
 
   const outer = useSortableList({
     count: entries.length,
@@ -723,23 +1033,44 @@ function LibraryColumn({
       /* A group cannot be put inside anything. Dana nests one level, and the
          honest answer to dragging a group onto a group is that it moves past
          it (DES-171's first deliberate limit). */
-      if (entry === undefined || entry.kind === 'group') return null
+      if (entry === undefined || entry.kind === 'group') {
+        setDrop(null)
+        return null
+      }
       const container = zones.containerAt(point, null)
-      return container === null || container === DIRECTORY ? null : container
+      if (container === null || container === DIRECTORY) {
+        setDrop(null)
+        return null
+      }
+      const next = { key: container, ...proposalIn(zones.zoneElement(container), point.y) }
+      setDrop((current) =>
+        current !== null &&
+        current.key === next.key &&
+        current.at === next.at &&
+        current.top === next.top
+          ? current
+          : next,
+      )
+      return container
     },
     onDropAt: (from, point) => {
+      setDrop(null)
       const entry = entries[from]
       if (entry === undefined || entry.kind === 'group') return false
       const container = zones.containerAt(point, null)
       if (container === null || container === DIRECTORY) return false
       const label = labelOfKey(container)
+      /* Measured again at the release rather than read off `drop`: the state
+         is a paint-time convenience for the line, and the write must be a
+         fact about where the pointer actually is. */
+      const at = proposalIn(zones.zoneElement(container), point.y).at
       /* Two writes, and they are two different records: the membership is the
          server's, through 7.4's my-membership, and the sequence is this
          viewer's arrangement of a column. Without the second the folder would
          keep the rank it had as a loose row and the group it joined would
          take that rank, so one gesture would move two things. */
       groups.onMoveToGroup(entry.folder, label)
-      commit(moveFolderTo(entries, entry.folder.id, label))
+      commit(moveFolderTo(entries, entry.folder.id, label, at))
       return true
     },
     onReorder: (from, to) => {
@@ -777,15 +1108,16 @@ function LibraryColumn({
           const state = outer.itemState(index)
           const holding = canGroup && state.isDwelling && !state.isArmed
           const armed = canGroup && state.isArmed
-          const proposal = !state.isActive
+          /* The hold's two states, and nothing about containers: a shelf
+             about to receive says so itself, in the prototype's own two forms.
+             AC-227 reads that sentence once and found it twice. */
+          const proposal = !state.isActive || outer.overKey !== null
             ? null
-            : outer.overKey !== null
-              ? `Into ${labelOfKey(outer.overKey)}`
-              : armed
-                ? 'Release to group'
-                : holding
-                  ? 'Hold to group'
-                  : null
+            : armed
+              ? 'Release to group'
+              : holding
+                ? 'Hold to group'
+                : null
 
           if (entry.kind === 'group') {
             return (
@@ -800,6 +1132,8 @@ function LibraryColumn({
                   handleProps: outer.handleProps(index),
                   state,
                   proposal,
+                  isDropTarget: drop?.key === groupKey(entry.label),
+                  dropTop: drop?.key === groupKey(entry.label) ? drop.top : null,
                 }}
                 onMoveOut={(folder, label) => {
                   groups.onMoveToGroup(folder, label)
@@ -862,11 +1196,12 @@ function SidebarBrandHeader({
           to={paths.desk}
           className="flex min-w-0 items-center gap-3 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         >
-          <img
-            src="/dana-mark.svg"
-            alt=""
-            className="size-7 shrink-0 group-data-[collapsible=icon]:size-6"
-          />
+          {/* Drawn rather than fetched at S21 (ledger L-141, AC-265), and the
+              same call `app-sidebar.tsx:157` makes in the prototype. This is
+              the one of the five a person sees all day, and it plays on the
+              hover of the link it sits in rather than of itself, which is why
+              the wordmark beside it triggers the same sweep. */}
+          <DanaMark className="size-7 group-data-[collapsible=icon]:size-6" />
           <span className="truncate text-base font-semibold text-[var(--color-graphite-900)] group-data-[collapsible=icon]:hidden">
             Dana
           </span>
@@ -902,7 +1237,7 @@ function SidebarBrandHeader({
 }
 
 /**
- * 9.1's footer control: the avatar menu, carrying Settings and Sign out.
+ * 9.1's footer control: the avatar menu, ("Account": Settings, Help, Sign out).
  *
  * Named "Account" by 9.1's names table, which took this control at the P8R
  * mid-package change control on 2026-08-13 and gave its reason: what the
@@ -911,14 +1246,24 @@ function SidebarBrandHeader({
  * cannot know before it reads the fixture. The person's name is still
  * rendered inside the control and still read by anyone looking at it; what
  * changed is what the control answers to.
+ *
+ * **Help arrived at S16 and is the third item that section has always named.**
+ * The menu shipped with two, and the sheet behind the third existed in the
+ * prototype and in no package's row, so nobody built it. It goes between the
+ * two rather than under them, because 9.1 spells the contents as a sequence
+ * and because what the menu holds is the things that are about the
+ * application rather than about your work; Sign out is the door, and a door
+ * belongs last.
  */
 function AccountMenu({
   displayName,
   onOpenSettings,
+  onOpenHelp,
   onSignOut,
 }: {
   readonly displayName: string | null
   readonly onOpenSettings: () => void
+  readonly onOpenHelp: () => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
   return (
@@ -929,11 +1274,11 @@ function AccountMenu({
             className="h-[var(--shell-sidebar-item-height)] gap-2 px-2 text-[13px] font-semibold text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]"
             aria-label={ACCOUNT}
           >
-            <Avatar className="size-7 group-data-[collapsible=icon]:size-5">
-              <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
-                {initialsOf(displayName ?? '')}
-              </AvatarFallback>
-            </Avatar>
+            <PersonFace
+              name={displayName ?? ''}
+              initials={initialsOf(displayName ?? '')}
+              className="size-7 group-data-[collapsible=icon]:size-5"
+            />
             <span className="min-w-0 truncate text-[13px] font-semibold group-data-[collapsible=icon]:hidden">
               {displayName ?? ''}
             </span>
@@ -952,6 +1297,13 @@ function AccountMenu({
           <SettingsGlyph className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Settings
         </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onOpenHelp}
+        >
+          <CircleQuestionMark className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Help
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="min-h-[var(--control-height)] text-sm"
@@ -968,6 +1320,7 @@ function AccountMenu({
 export function AppSidebar({
   pinnedViews,
   folders,
+  shelves,
   sidebarOrder,
   onSidebarOrderChange,
   groups: groupActions,
@@ -983,6 +1336,8 @@ export function AppSidebar({
   onOpenSearch,
   onOpenSettings,
   onNewFolder,
+  onNewShelf,
+  onImportWorkflow,
   onSignOut,
 }: {
   /**
@@ -995,6 +1350,18 @@ export function AppSidebar({
    */
   readonly pinnedViews: readonly string[] | undefined
   readonly folders: readonly Folder[] | undefined
+  /**
+   * The viewer's shelves (7.16), and the prop whose absence was the whole of
+   * the audit addendum's finding.
+   *
+   * The shell fetched `useShelves` and passed it nowhere, so 9.1's "holding
+   * the viewer's shelves and folders as one ordered list" was unimplemented
+   * for the shelves half and no work on the heading or a New shelf control
+   * could reach it. Absent while the read is in flight or has failed, and the
+   * Library then draws the label groups it always drew rather than emptying,
+   * which is `pinnedViews`' own rule applied to the column.
+   */
+  readonly shelves: readonly Shelf[] | undefined
   /**
    * The viewer's arrangement of the Library, from the 4.19 bundle.
    *
@@ -1023,9 +1390,17 @@ export function AppSidebar({
   readonly onOpenSearch: () => void
   readonly onOpenSettings: () => void
   readonly onNewFolder: () => void
+  /** 9.1's second act of making, which 7.16's POST /shelves is behind. */
+  readonly onNewShelf: () => void
+  /** 9.1's third: a workflow file, handed to 7.16's import as parsed text. */
+  readonly onImportWorkflow: (file: File) => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
+  const { setOpen: setHelpOpen, sheet: helpSheet } = useHelpSheet()
+  /* The file input the Import button presses, hidden because a bare file
+     control cannot be given the row's shape and a button that opens one can. */
+  const workflowInput = useRef<HTMLInputElement>(null)
   const inbox = inboxOf(folders ?? [])
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
@@ -1051,7 +1426,11 @@ export function AppSidebar({
       lost is the slide, which is flagged for the visual review of section 13
       item 33.
       */
-      className="h-full shrink-0 border-r border-sidebar-border bg-sidebar transition-none"
+      /* No right border. The prototype's sidebar has none, this client's
+         had one that no comment ever argued for, and a rule drawn down the
+         whole window is not a small difference. S24, against
+         `prototype-v2/src/components/app-sidebar.tsx:576`. */
+      className="h-full shrink-0 bg-sidebar transition-none"
     >
       <SidebarBrandHeader onOpenSearch={onOpenSearch} />
 
@@ -1064,7 +1443,7 @@ export function AppSidebar({
                   key={page.path}
                   name={page.name}
                   to={page.path}
-                  icon={pageIcons[page.path] ?? Layers3}
+                  icon={page.icon}
                   active={currentPath === page.path}
                 />
               ))}
@@ -1111,7 +1490,11 @@ export function AppSidebar({
           className="mx-3 my-2 border-t border-[var(--color-graphite-200)] group-data-[collapsible=icon]:mx-2"
         />
 
-        <Collapsible open={foldersOpen} onOpenChange={setFoldersOpen}>
+        {/* `mt-2` is the prototype's: the Library stands off the page block
+            above it. Its `group-data-[collapsible=icon]:hidden` is not taken,
+            9.1 keeping the folder rows reachable in the rail where the
+            prototype hides the whole section. */}
+        <Collapsible className="mt-2" open={foldersOpen} onOpenChange={setFoldersOpen}>
           <SidebarGroup className="py-0">
             {/* The heading is hidden in the rail and the rows below it are
                 not, which is 9.1's "changes nothing about what the sidebar
@@ -1141,6 +1524,49 @@ export function AppSidebar({
                   aria-hidden="true"
                 />
               </CollapsibleTrigger>
+              {/*
+              "Library options", the prototype's own control and absent from
+              this client until S24.
+
+              It offers the two acts of making that the section's footer also
+              offers, and that is the prototype's arrangement rather than a
+              duplication this file invented: the footer's row is where a
+              person goes deliberately, and this is where a person's hand
+              already is when they are looking at the list they want to add
+              to. Both call the same two handlers, so there is one act behind
+              each and two doors to it.
+
+              Named "Library options" and not "More actions": 9.1's names
+              table fixes "More actions" for an object's overflow menu, and
+              the Library is a section of the chrome rather than an object.
+              A control not named in that table is reached by its role in the
+              ordinary sense, which is what this is.
+              */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0 rounded-md text-[var(--color-graphite-500)] opacity-0 hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] group-hover/folder-directory:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                      aria-label="Library options"
+                    />
+                  }
+                >
+                  <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={onNewFolder}>
+                    <FolderPlus className="size-4" aria-hidden="true" />
+                    New folder
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onNewShelf}>
+                    <Folders className="size-4" aria-hidden="true" />
+                    New shelf
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </h2>
             <CollapsibleContent>
               {/* Inbox above the column and never in it: 9.1 pins it first,
@@ -1162,6 +1588,7 @@ export function AppSidebar({
 
               <LibraryColumn
                 folders={folders ?? []}
+                shelves={shelves ?? NO_SHELVES}
                 order={sidebarOrder}
                 onOrderChange={onSidebarOrderChange}
                 activeId={activeFolderId}
@@ -1178,7 +1605,12 @@ export function AppSidebar({
             <SidebarMenuButton
               data-sidebar-tier="action"
               tooltip="New folder"
-              className="h-[var(--shell-sidebar-item-height)] justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)]"
+              /* `w-full` and the two rail overrides are the prototype's and
+                 were dropped in the port: without them 9.1's one primary
+                 footer action is a button the width of its own label, and in
+                 the icon rail it keeps its full height and padding where
+                 every other rail control is a square. */
+              className="h-[var(--shell-sidebar-item-height)] w-full justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0"
               onClick={onNewFolder}
             >
               <FolderPlus className="!size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -1186,21 +1618,116 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        {/*
+        The row of three (DES-209, DES-216), which arrived at S17b with the
+        surfaces that make it. The sentence this replaces said so in the
+        future tense: "the other two acts that row owes, New shelf and
+        Import, arrive with the surfaces they make."
+
+        9.1: "then a row of three placed by role: New shelf, Import (a
+        workflow file), and Trash, the first two acts of making and the third
+        a destination." **Trash keeps the place the older footer already gave
+        it and gains the two neighbours it was waiting for**, so nothing about
+        the reading that put it here has changed: it is a destination, and it
+        ends the row because it is the only one of the three that is somewhere
+        you go rather than something you do. It is still a link where the
+        other two are buttons, which is that distinction made in the markup
+        rather than only in a comment.
+
+        **Whose label survives narrowing is arithmetic and not rank**
+        (DES-216, and Imran on 2026-08-24: "New shelf is not fully visible,
+        the remaining two should be shortened"). The three words need more
+        room than the default row has, and "New shelf" is the label that was
+        clipping and the one that reads worst clipped, so it keeps its word at
+        every width and the other two go to their glyphs until the row
+        genuinely fits all three. A container query asks the row how much room
+        it has, so the answer follows the drag rather than a breakpoint
+        somebody guessed.
+
+        **Each carries an `aria-label` as well as its text**, which is not
+        belt and braces: with the label hidden the button would have no
+        accessible name at all, and 9.1's addressing sentence makes every
+        control it names reachable by role and name in every state. The
+        tooltip says more than the name for the same reason it does in the
+        prototype, and 9.1's "all three named by tooltip in every state" is
+        satisfied by the name being inside it.
+        */}
+        <SidebarMenu className="@container mb-1 flex-row gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-0.5">
+          {/* Content-sized rather than equal thirds: equal shares gave "New
+              shelf" the same room as "Trash" and clipped it while its
+              neighbours sat in slack (Imran, 2026-08-24). */}
+          <SidebarMenuItem className="min-w-0 flex-auto">
+            <SidebarMenuButton
+              data-sidebar-tier="action"
+              aria-label="New shelf"
+              tooltip="New shelf, a group of folders"
+              className={ROW_OF_THREE_CLASS}
+              onClick={onNewShelf}
+            >
+              <Folders className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate group-data-[collapsible=icon]:hidden">New shelf</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className="min-w-0 flex-auto">
+            <SidebarMenuButton
+              data-sidebar-tier="action"
+              aria-label="Import"
+              tooltip="Import a workflow"
+              className={ROW_OF_THREE_CLASS}
+              onClick={() => {
+                workflowInput.current?.click()
+              }}
+            >
+              <Workflow className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate group-data-[collapsible=icon]:hidden @max-[262px]:hidden">
+                Import
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className="min-w-0 flex-auto">
+            <SidebarMenuButton
+              data-sidebar-tier="action"
+              aria-label="Trash"
+              tooltip="Trash, deleted items, kept 30 days"
+              isActive={currentPath === paths.trash}
+              className={ROW_OF_THREE_CLASS}
+              render={<Link to={paths.trash} />}
+            >
+              <Trash2 className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate group-data-[collapsible=icon]:hidden @max-[262px]:hidden">
+                Trash
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {/*
+        The workflow file itself (7.16's POST /workflows/import), read in the
+        browser and handed over as parsed structure.
+
+        The import is client-side only as far as reading the bytes goes: 10.3
+        caps a workflow file's contents and the server is what enforces every
+        one of those caps, so what this does is hand the endpoint a document
+        and let it refuse. A file that is not JSON at all is refused here,
+        because sending a parse failure to the server as a 400 would tell the
+        person less than the sentence the page can write itself.
+        */}
+        <input
+          ref={workflowInput}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file === undefined) return
+            void onImportWorkflow(file)
+          }}
+        />
         <SidebarMenu>
-          {/*
-          Trash is a destination and not an action (9.1), which is why it
-          sits here beside People and Settings rather than in the row
-          above them where New folder lives: a destination is somewhere
-          you go, look around, and come back from. The other two acts
-          that row owes, "New shelf" and "Import", arrive with the
-          surfaces they make.
-          */}
-          <NavigationRow
-            name="Trash"
-            to={paths.trash}
-            icon={Trash2}
-            active={currentPath === paths.trash}
-          />
+          {/* 9.1: "then People and Settings as links", after the row of
+              three and before the avatar menu. */}
           <NavigationRow
             name="People"
             to={paths.people}
@@ -1219,10 +1746,18 @@ export function AppSidebar({
             <AccountMenu
               displayName={displayName}
               onOpenSettings={onOpenSettings}
+              onOpenHelp={() => {
+                setHelpOpen(true)
+              }}
               onSignOut={onSignOut}
             />
           </SidebarMenuItem>
         </SidebarMenu>
+        {/* The sheet the menu item above opens, mounted beside its trigger
+            rather than threaded down from the shell, which is the source
+            file's own arrangement and its reason: nothing else opens it yet.
+            It portals, so where it is mounted is not where it is drawn. */}
+        {helpSheet}
       </SidebarFooter>
 
       <SidebarResizeHandle

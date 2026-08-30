@@ -46,11 +46,12 @@ import { FolderOpen, UserRoundPlus } from 'lucide-react'
 
 import type { PendingInvite } from '../../shared/invites.js'
 import { useAcceptInvite, useDeclineInvite } from '../api/mutations.js'
-import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Badge } from '../components/ui/badge.js'
 import { Button } from '../components/ui/button.js'
 import { inviteRowDisplay } from '../parts/presenters.js'
 import { paths } from '../routes.js'
+import { PersonFace } from '../components/person-face.js'
+import { DanaMark } from '../components/dana-mark.js'
 
 /** His eyebrow above the heading, which names no control and states the rule. */
 const EYEBROW = 'Before you continue'
@@ -70,14 +71,23 @@ export function InviteGate({
       <section className="grid min-h-[520px] w-full max-w-[940px] grid-cols-[280px_minmax(0,1fr)] overflow-hidden rounded-[18px] border border-[var(--color-graphite-200)] bg-white shadow-[0_30px_90px_rgb(24_24_27/12%)]">
         <div className="relative overflow-hidden bg-[var(--color-graphite-950)] p-8 text-white">
           <p className="relative z-10 inline-flex items-center gap-3 text-sm font-semibold">
-            <img src="/dana-mark.svg" alt="" className="size-9" />
+            <DanaMark className="size-9" surface="dark" />
             Dana
           </p>
 
-          <img
-            src="/dana-mark.svg"
-            alt=""
+          {/* The watermark, drawn rather than fetched at S21 (ledger L-141,
+              AC-265). Both marks on this panel say `surface="dark"` because
+              the panel is graphite-950 and the document is not: `surface`
+              names what the mark sits on, which is a fact one can check here,
+              rather than which colourway it is, which is a thing one has to
+              remember. The watermark drops its plate, as
+              `public-auth-screen.tsx:184` does, so it reads as a soft D
+              rather than a soft square. It is `pointer-events-none` and has
+              no interactive ancestor, so it never plays. */}
+          <DanaMark
             className="pointer-events-none absolute top-20 -right-44 size-[440px] opacity-[0.14]"
+            surface="dark"
+            plate={false}
           />
 
           {/* The count and its word, which his panel draws large. It is
@@ -124,11 +134,7 @@ export function InviteGate({
                   key={row.id}
                   className="grid min-h-[116px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 py-5"
                 >
-                  <Avatar>
-                    <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-semibold text-[var(--color-graphite-700)]">
-                      {row.initials}
-                    </AvatarFallback>
-                  </Avatar>
+                  <PersonFace name={row.inviter} initials={row.initials} className="size-8" />
 
                   <div className="min-w-0">
                     {/* 9.8's sentence, one text run, which is what tells a

@@ -17,7 +17,7 @@ One chokepoint: every data query joins folder_members on the viewer, and every m
 | Task title, step title | 1 to 300 characters |
 | Notes | up to 10000 characters |
 | Folder name | 1 to 100 characters |
-| Personal label | 1 to 40 characters |
+| Personal label, shelf name | 1 to 40 characters |
 | Steps per task | 50 |
 | Custom folders per account | 200 |
 | Members per folder | 25 |
@@ -28,8 +28,21 @@ One chokepoint: every data query joins folder_members on the viewer, and every m
 | List responses | capped at 1000 rows with truncated flag |
 | Email address | up to 320 characters, syntactically valid, stored lowercased |
 | Timezone | valid IANA identifier |
+| Comment body | up to 4000 characters |
+| Page paragraph | up to 4000 characters |
+| Page section name | 1 to 120 characters |
+| Folder and shelf description | up to 500 characters |
+| Blocks per page | 500 |
+| One uploaded file | up to 25 MB; a voice note up to 10 minutes |
+| Files per comment | 10 |
+| Storage per account | 1 GB across every kind of 4.16 |
+| Workflow import | up to 50 folders, 500 blocks and 1000 tasks per file; structure, titles and each task's notes, star, repeat, reminder and step titles, never ids, people, due dates or states |
+| Page image width | 25 to 100 percent of the column |
+| Cover reposition | 0 to 100 percent |
+| Saved views per account | 50 |
+| JSON request body | up to 3 MB, sized above the largest legal workflow file so every cap in this table is reachable |
 
-All numbers are server-enforced and returned as 422 with the field named.
+All numbers are server-enforced and returned as 422 with the field named, except the storage quota, which returns 413 with the copy of section 9, and the body ceiling, which the parser refuses as 400 before any field is read. The task cap and the body row were added 2026-08-25 by change control item 18: the parser's undocumented 100 kB default was refusing legal workflow files before this table's own import cap could, and was the only bound on the task array.
 
 ### 10.4 Rate limits
 
@@ -45,4 +58,20 @@ Manifest: name Dana, display standalone, start_url /app, icons 192 and 512, them
 
 ### 10.7 Email deliverability
 
-One transactional provider serves invite, share-grant, and reminder templates. Launch checklist: sending domain with SPF, DKIM, DMARC configured; from-address noreply@ the product domain; plain, short templates with one action link each. This is a named operational setup cost, done once.
+One transactional provider serves invite, share-grant, and reminder templates. Launch checklist: sending domain with SPF, DKIM, DMARC configured; from-address noreply@ the product domain; short templates with one action link each. This is a named operational setup cost, done once.
+
+**Templates are HTML with a required text/plain alternative part**, amended 2026-08-25 on Imran's ruling (RFC 0005 change control item 26; this citation read 25 until S19 corrected it at item 34, item 25 being the 9.3 reunion's acceptance surface), where this sentence previously read "plain, short templates". Both halves are load-bearing and neither is optional: a send that carries HTML alone does not meet this section, and the text part must say the same thing and carry the same one action link rather than being a stub. "Short" and "one action link each" are unchanged and are the halves that do the deliverability work. The reason the plain-text rule was dropped: what decides inbox placement is the authentication this same sentence already requires, plus sender reputation and the text-to-link ratio, and well-formed multipart with a text alternative is what every transactional provider sends, so the rule was buying little and cost the whole of the designed email surface.
+
+### 10.8 Response security headers
+
+Every response carries Content-Security-Policy with default-src 'self' and
+frame-ancestors 'none', sized to what the client actually loads and no wider,
+plus Referrer-Policy: strict-origin-when-cross-origin. HSTS is the edge's,
+set by the host in front of the process, never by the process itself. The
+7.15 serving rules keep their own stricter per-file headers (nosniff on
+everything served, attachment for kind file) and this section does not relax
+them. Added 2026-08-25 by change control item 18: section 10 was silent on
+response headers, the whole posture was one disabled x-powered-by, and the
+upload path's safety rested on a single predicate with no second line behind
+it. One acceptance criterion is owed; its number is the test persona's to
+assign.

@@ -6,10 +6,14 @@ Definitions used by every query:
 - today = today(V), from the request's tz parameter.
 - All orders end in id (ascending unless stated) as the final tie-breaker, so any two agents produce byte-identical result sequences.
 - Every view returns rows already ordered; clients never re-sort.
-- List caps: My Day, Tasks, Planned list, Important, All, and folder open sections return at most 1000 rows and set truncated = true beyond it; the UI shows a notice. Done, folder completed sections, and search are keyset-paginated. Rationale: at v1 scale the caps are unreachable; cursors everywhere would be speculative complexity.
-- The cap is per response, not per array, ruled at P4 mid-package change control on 2026-08-07. Where a response carries several row arrays, My Day's three sections or All's two, the 1000 counts across all of them together. Two grounds: the sentence above enumerates pages rather than arrays, and each capped body of 7.10 carries exactly one truncated flag, which a per-array cap has no way to report. The per-array reading would let All answer three thousand rows under a single flag, which is the notice's whole purpose defeated. The rows kept are the first 1000 taken in the order 7.10 enumerates that response's own sections, so a capped response is a prefix of one determined sequence and two agents still produce byte-identical results.
+- List caps: Q1, Q2, Q3 in list mode, Q4, Q5, and folder open sections return at most 1000 rows and set truncated = true beyond it; the UI shows a notice. Q6, folder completed sections, and search are keyset-paginated. Rationale: at Dana's scale the caps are unreachable; cursors everywhere would be speculative complexity. (This line named the pages by their v1 titles until the S29 fold of 2026-08-27. It names the queries instead, because RFC 0005 renamed the pages and did not rename the queries, and a cap list that has to be re-audited on every rename is a cap list that will one day be wrong.)
+- The cap is per response, not per array, ruled at P4 mid-package change control on 2026-08-07. Where a response carries several row arrays, Q1's three sections or Q5's two, the 1000 counts across all of them together. Two grounds: the sentence above enumerates pages rather than arrays, and each capped body of 7.10 carries exactly one truncated flag, which a per-array cap has no way to report. The per-array reading would let All answer three thousand rows under a single flag, which is the notice's whole purpose defeated. The rows kept are the first 1000 taken in the order 7.10 enumerates that response's own sections, so a capped response is a prefix of one determined sequence and two agents still produce byte-identical results.
 
-### Q1: My Day, open list
+Two v2 notes that touch every query above. First, rows with deleted_at set are excluded everywhere except the Trash surface of 7.13; the guard is implicit in each query rather than restated per query. Second, Assignments is not a query of its own: it is a client-side composition over the open tasks the viewer can already read, grouped by assignee with the unassigned last, which is why it appears in section 9 and not here.
+
+**The five query headings below carry their v1 page name in parentheses and that is deliberate.** RFC 0005 renamed the pages and renamed no query, because acceptance criteria, older RFCs and this section's own cross-references cite Q1 to Q3C by their original titles. A heading that dropped the old name would silently break every one of those citations; a heading that kept only the old name would go on telling a reader that Dana has a page called Planned. Both names, one heading.
+
+### Q1: Today, open list (v1: My Day)
 
 Predicate: folder_id IN ACCESSIBLE(V) AND status = 'pending' AND ((assignee_id = V AND due_date IS NOT NULL AND due_date <= today) OR EXISTS my_day_entries(task_id = t.id, user_id = V)).
 qualify_date per row = least of: due_date when the automatic clause holds; added_on when the entry exists. (At least one exists by the predicate.)
@@ -18,13 +22,13 @@ Sort inside each group: due_date ascending nulls last, due_time ascending nulls 
 Abandoned tasks never match (status filter). The important toggle is a client-side filter to important = true within already-fetched groups; it changes no query.
 Empty state (both groups empty): "Nothing on your day. Tasks assigned to you appear here on their due date, or pull anything in yourself."
 
-### Q1R: My Day, recap section
+### Q1R: Today, recap section (v1: My Day recap)
 
 Predicate: folder_id IN ACCESSIBLE(V) AND status = 'completed' AND completed_at falls on today in V's timezone AND (assignee_id = V OR completed_by = V OR EXISTS my_day_entries(t.id, V)).
 Sort: completed_at descending, id descending. Rendered collapsed with a count; independent of the open list.
 Empty state: section hidden entirely.
 
-### Q2: Tasks
+### Q2: Undated open tasks (v1: Tasks; serves Desk's grouping and the Anytime view)
 
 Predicate: folder_id IN ACCESSIBLE(V) AND due_date IS NULL AND status IN (pending, abandoned).
 Grouping: rows from V's default folder first, ungrouped, no heading; then one group per remaining folder having at least one row, ordered by lower(folder name) ascending, folder id. (The only accessible default folder is V's own: defaults are never shared.)
@@ -32,7 +36,7 @@ Sort inside a group: status_rank, created_at descending, id descending.
 Row adornments: assignee chip except on rows in V's own default folder; star when important.
 Empty state: "No undated tasks. Anything you capture without a date lands here."
 
-### Q3: Planned, list mode
+### Q3: Scheduled, list mode (v1: Planned)
 
 Predicate: folder_id IN ACCESSIBLE(V) AND due_date IS NOT NULL AND status IN (pending, abandoned).
 Sort: due_date ascending, status_rank, timed flag (all-day rows first: due_time IS NOT NULL sorts after IS NULL), due_time ascending, created_at ascending, id. Overdue pending rows appear first naturally by date.
@@ -40,7 +44,7 @@ Completed rows never appear in list mode; the look-back lives in calendar mode o
 Row adornments: folder name label, assignee chip (same default-folder exception), star, "unassigned" chip when assignee_id is null and the folder has more than one member.
 Empty state: "Nothing scheduled. Give any task a due date and it moves here."
 
-### Q3C: Planned, calendar mode
+### Q3C: Scheduled, calendar mode (v1: Planned calendar)
 
 Parameters: start and end dates, inclusive, with end minus start at most 62 days; zoom levels day, week, month. start must not be after end: an inverted range answers 422 naming the pair, ruled at P4 mid-package change control on 2026-08-07. The arithmetic above admits an inverted range by accident, a negative difference being at most 62, and the alternative reading answers it with the bare grid of the empty state. Refusing is chosen because a malformed request would otherwise be indistinguishable from a legitimately empty month, and because 7.0 already gives every endpoint 422 for a validation failure with the field named, so this adds no status to the frozen surface and states which failure it is. Year zoom is cut for v1 because projecting a daily rule at year scale produces hundreds of markers with no designed density rendering. The zoom levels name viewports rather than ranges: this query answers whatever inclusive range the request carries, and what the month zoom asks for is 9.5's, recorded there at the P6 change control of 2026-08-10 because neither section had said it and AC-082 is asserted on the range its request names.
 Real rows: folder_id IN ACCESSIBLE(V) AND due_date BETWEEN start AND end, all three statuses. Pending renders normal (overdue styled on past dates), completed faded and checked, abandoned faded and struck: the calendar is a record.
@@ -59,7 +63,7 @@ Empty state: "Nothing marked important. Star any task and it shows up here."
 ### Q5: All
 
 Predicate: folder_id IN ACCESSIBLE(V) AND status IN (pending, abandoned). No other condition.
-Rendering: two stacked sections in one scroll: "Planned" rendered exactly as Q3 orders it, then "Tasks" rendered exactly as Q2 groups it. No third scheme exists.
+Rendering: two stacked sections in one scroll: "Scheduled" rendered exactly as Q3 orders it, then "Anytime" rendered exactly as Q2 groups it. No third scheme exists. (The two section labels read "Planned" and "Tasks" until the S29 fold of 2026-08-27; RFC 0005 renamed the two pages those halves belong to, 9.1's regions table already said All's halves take their home pages' names, and the client has drawn the v2 names since S10. Only this sentence was left behind.)
 Empty state: "Nothing here yet. Add your first task with the + button."
 
 ### Q6: Done
@@ -74,7 +78,7 @@ Empty state: "Nothing completed yet. Finished tasks build your history here."
 
 Three sections over folder F:
 1. Scheduled: Q3 predicate and order, folder_id = F.
-2. Unscheduled: Q2 row order, folder_id = F (no folder grouping).
+2. Unscheduled: Q2 row order, folder_id = F (no folder grouping), preceded by the hand order of 4.5: `position` ascending with nulls first, then Q2's own keys. A folder nobody has arranged by hand carries no positions and therefore reads exactly as Q2 orders it; once arranged, a task created since the last arrangement carries no position and leads, which is where Q2's newest-first order already puts it. Ties in `position` are possible by design (two people may place into one gap at once) and are broken by Q2's keys and finally by id, so the preamble's byte-identical guarantee holds unchanged.
 3. Completed: Q6 predicate, order, and pagination, folder_id = F, rendered collapsed.
 Header: name, completion count per section 8.11, member avatars, share entry point.
 Empty states: sections 1 and 2 absent when empty with a single line "No tasks yet. Add one below." when both are empty; section 3 hidden while empty.
@@ -94,6 +98,6 @@ Q9 accessible folders and roster: folder_members by user_id; connections by eith
 
 ### 6.1 Partition proof
 
-Claim: Tasks (Q2) and Planned (Q3) partition All (Q5) with no gap and no overlap. Proof: all three share the identical scope predicate, folder_id IN ACCESSIBLE(V) AND status IN (pending, abandoned). Q2 adds due_date IS NULL; Q3 adds due_date IS NOT NULL. For any row in Q5's result, due_date is a single column that is either null or not null, exclusively and exhaustively; therefore the row satisfies exactly one of the two added conjuncts, so it appears in exactly one of Q2 and Q3. Conversely any row in Q2 or Q3 satisfies Q5's predicate by construction. Hence Q5 = Q2 union Q3 and Q2 intersect Q3 is empty. The proof depends only on the three scopes staying textually identical; acceptance test AC-070 pins that with a property check.
+Claim: Q2 and Q3 partition Q5 with no gap and no overlap. Proof: all three share the identical scope predicate, folder_id IN ACCESSIBLE(V) AND status IN (pending, abandoned). Q2 adds due_date IS NULL; Q3 adds due_date IS NOT NULL. For any row in Q5's result, due_date is a single column that is either null or not null, exclusively and exhaustively; therefore the row satisfies exactly one of the two added conjuncts, so it appears in exactly one of Q2 and Q3. Conversely any row in Q2 or Q3 satisfies Q5's predicate by construction. Hence Q5 = Q2 union Q3 and Q2 intersect Q3 is empty. The proof depends only on the three scopes staying textually identical; acceptance test AC-070 pins that with a property check.
 
 Coverage corollary: every task row is visible somewhere. Open rows (pending, abandoned) appear in Q5 and their home (Q2 or Q3); completed rows appear in Q6. No status escapes every page.

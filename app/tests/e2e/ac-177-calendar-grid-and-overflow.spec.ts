@@ -60,6 +60,7 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  chooseView,
   clickControl,
   createTask,
   firstOfMonth,
@@ -97,8 +98,11 @@ async function openMonth(page: Page): Promise<void> {
   await page.goto(routes.planned)
   // The mode is persisted per user client-side (9.5), so this may be a no-op
   // on a later run; the assertions below are what make the state definite.
-  await clickControl(
-    page.getByRole('button', { name: /^calendar$/i }),
+  // The strip is 9.1's radiogroup since S24 and the zoom control below is not:
+  // day, week and month are the calendar's own and stay ordinary buttons.
+  await chooseView(
+    page,
+    'Calendar',
     'spec 9.5: Planned carries a mode toggle between list and calendar',
   )
   await clickControl(

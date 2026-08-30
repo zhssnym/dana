@@ -45,19 +45,21 @@ click onto whichever tab is under the cursor, which in a strip means selecting
 a tab somebody was only moving. `swallowNextClick` is the sidebar's fix and
 the same one here.
 */
-import { Button } from '../components/ui/button.js'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
-import { Folder as FolderIcon, Plus, X } from '../lib/icons.js'
+import { Plus, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
+import { folderMark, shelfMark } from '../parts/presenters.js'
 
 import { closeTab, openInNewTab, reorderTabs, selectTab, useTabs } from './tabs.js'
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1's names table, transcribed. */
 const NEW_TAB = 'New tab'
@@ -72,11 +74,21 @@ export interface TabFace {
 export function TabStrip({
   face,
   folders,
+  shelves,
   onNavigate,
 }: {
   /** What a path looks like as a tab, which the shell already computes. */
   readonly face: (path: string) => TabFace
   readonly folders: readonly Folder[]
+  /**
+   * The viewer's shelves (7.16), so the menu offers 9.1's whole sentence.
+   *
+   * That section gives the plus "any shelf or folder", and this menu mapped
+   * the folder list alone: half a sentence with no control behind it, which
+   * is the audit's shelf-reachability row. The read reaches the shell
+   * unconditionally since S17b, so this costs no request of its own.
+   */
+  readonly shelves: readonly Shelf[]
   readonly onNavigate: (path: string) => void
 }): React.JSX.Element {
   const { tabs, activeId } = useTabs()
@@ -194,34 +206,73 @@ export function TabStrip({
       </div>
 
       <DropdownMenu>
+        {/* The trigger is the prototype's own markup since S24, a plain
+            button rather than the primitive: its resting colour, its
+            open-popup state and the wash it takes on hover are written into
+            the class, and the primitive's own ghost variant was answering for
+            them. The name is still 9.1's "New tab". */}
         <DropdownMenuTrigger
           render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
+            <button
+              type="button"
               aria-label={NEW_TAB}
               title={NEW_TAB}
-              className="mb-0.5 size-6 shrink-0"
+              className="ml-1 flex size-6 shrink-0 items-center justify-center self-center rounded-md text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] data-popup-open:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))]"
             />
           }
         >
-          <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {folders.map((folder) => (
-            <DropdownMenuItem
-              key={folder.id}
-              onClick={() => onNavigate(openInNewTab(`/app/folders/${folder.id}`))}
-            >
-              <FolderIcon
-                className="size-4"
-                strokeWidth={1.75}
-                style={{ color: folder.my_color ?? undefined }}
-                aria-hidden="true"
-              />
-              {folder.name}
-            </DropdownMenuItem>
-          ))}
+        {/* The alignment and the scroll cap are the prototype's: the menu
+            lists every folder and every shelf, so it needs a ceiling and a
+            width, and it hangs from the control's left where the strip
+            runs. */}
+        <DropdownMenuContent align="start" className="max-h-96 w-56 overflow-y-auto">
+          {/* Each entry wears its folder's own mark since S17a (DES-130,
+              AC-243). It drew one literal folder in a personal colour for
+              every entry, so the one control whose job is choosing between
+              folders was the one place they all looked alike. */}
+          {folders.map((folder) => {
+            const mark = folderMark(folder)
+            return (
+              <DropdownMenuItem
+                key={folder.id}
+                onClick={() => onNavigate(openInNewTab(`/app/folders/${folder.id}`))}
+              >
+                <mark.icon
+                  className="size-4"
+                  strokeWidth={1.75}
+                  style={{ color: mark.color }}
+                  aria-hidden="true"
+                />
+                {folder.name}
+              </DropdownMenuItem>
+            )
+          })}
+          {/* The other half of 9.1's "any shelf or folder", since S17b. The
+              shelves follow the folders rather than interleaving with them,
+              which is the Library's own arrangement read across: a shelf
+              holds folders, so offering it beside them and not among them is
+              what says which is which. Each wears its own mark through the
+              same resolver, DES-130 applied to the second kind. */}
+          {shelves.length === 0 ? null : <DropdownMenuSeparator />}
+          {shelves.map((shelf) => {
+            const mark = shelfMark(shelf)
+            return (
+              <DropdownMenuItem
+                key={shelf.id}
+                onClick={() => onNavigate(openInNewTab(`/app/shelves/${shelf.id}`))}
+              >
+                <mark.icon
+                  className="size-4"
+                  strokeWidth={1.75}
+                  style={{ color: mark.color }}
+                  aria-hidden="true"
+                />
+                {shelf.name}
+              </DropdownMenuItem>
+            )
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

@@ -122,6 +122,15 @@ is_recurring reports the rule the row holds, the two step counts are counts
 of 4.6 rows, pulled is the viewer's own My Day entry so one row answers it
 differently for two members, and pending_invite_email comes from
 invites.task_id, whose rows P5 writes and this package only reads.
+
+The last two arrived with RFC 0005 unit 12a. section_block_id is read
+straight off 4.5's column, which is what makes the field the task's rather
+than the endpoint's: this projection serves the folder read and all eight
+section 6 queries alike, so a task placed under a section names it wherever
+it is read, and a task under none is null everywhere. The creator is the
+sixth join of cardSource below and is the person shape assignee carries; its
+one null is 8.10's scrub, which the join's own deleted_at clause is, and
+never a missing column.
 */
 const CARD_COLUMNS = sql`
     t.id, t.title, t.status, t.important,
@@ -136,6 +145,9 @@ const CARD_COLUMNS = sql`
     (SELECT i.email FROM invites i
       WHERE i.task_id = t.id AND i.status = 'pending'
       ORDER BY i.created_at DESC, i.id DESC LIMIT 1) AS pending_invite_email,
+    t.section_block_id,
+    cb.id AS creator_id, cb.display_name AS creator_display_name,
+    cb.avatar_url AS creator_avatar_url,
     t.created_at, t.updated_at`
 
 /**
@@ -168,18 +180,26 @@ export function accessibleTasks(viewerId: string): SQL {
 
 /**
  * The FROM clause of every card query in this package, the chokepoint above
- * plus the four joins a 7.0 card is assembled from.
+ * plus the four joins a 7.0 card is assembled from, five since RFC 0005 unit 12a.
  *
  * The My Day entry is joined rather than probed by EXISTS because two things
  * need it: pulled, which 7.0 makes a field of the card, and added_on, which
  * 8.2 makes half of Q1's qualify_date. One join answers both, and INV-12's
  * primary key makes it at most one row.
+ *
+ * The creator's join is unit 12a's and is LEFT for one reason only: 4.5 makes
+ * created_by NOT NULL, so the row it points at always exists, and the null
+ * this join can produce is 8.10's scrub, spelled here as the deleted_at
+ * clause rather than as a case in the projection. It is a second join on the
+ * users table's primary key per row, which is the same cost the assignee
+ * already pays.
  */
 export function cardSource(viewerId: string): SQL {
   // accessibleTasks carries the folders join (alias f) since the guard
   // moved into the scope; a second join here would read the same row twice.
   return sql`${accessibleTasks(viewerId)}
     LEFT JOIN users a ON a.id = t.assignee_id
+    LEFT JOIN users cb ON cb.id = t.created_by AND cb.deleted_at IS NULL
     LEFT JOIN my_day_entries e
       ON e.task_id = t.id AND e.user_id = ${viewerId}
     LEFT JOIN LATERAL (
@@ -216,6 +236,15 @@ function cardFromRow(row: Record<string, unknown>): TaskCard {
     steps_total: Number(row.steps_total),
     pulled: row.pulled === true,
     pending_invite_email: nullableString(row.pending_invite_email),
+    section_block_id: nullableString(row.section_block_id),
+    created_by:
+      row.creator_id === null || row.creator_id === undefined
+        ? null
+        : {
+            id: String(row.creator_id),
+            display_name: nullableString(row.creator_display_name),
+            avatar_url: nullableString(row.creator_avatar_url),
+          },
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
   }

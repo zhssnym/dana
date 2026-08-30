@@ -21,7 +21,7 @@ one that works until the list is reloaded, which is why that criterion checks
 the server rather than the page.
 */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { FolderPlus } from 'lucide-react'
+import { FolderPlus } from '../lib/icons.js'
 
 import { Button } from './ui/button.js'
 import {

@@ -23,6 +23,8 @@ import { getEventsResponse, getNotificationsResponse } from '../../shared/events
 import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
 import { getThreadResponse } from '../../shared/comments.js'
 import type { GetThreadResponse } from '../../shared/comments.js'
+import { getPlaceCoversResponse } from '../../shared/covers.js'
+import type { GetPlaceCoversResponse } from '../../shared/covers.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -104,10 +106,19 @@ export function useMultiMemberFolderIds(): ReadonlySet<string> {
   )
 }
 
-export function useFolder(id: string): UseQueryResult<GetFolderResponse> {
+export function useFolder(
+  id: string,
+  /* Off where the caller has no folder yet, which is what an assignee picker
+     mounted before its task is known has. Without it the query fires at
+     `/folders/`, and a trailing slash is not a 404 here, it is the list
+     endpoint answering an array this shape refuses. The default keeps every
+     existing call site as it was, which is `useShelves`'s own arrangement. */
+  enabled = true,
+): UseQueryResult<GetFolderResponse> {
   return useQuery({
     queryKey: queryKeys.folder(id),
     queryFn: () => getPlain(getFolderResponse, `/folders/${id}`),
+    enabled,
   })
 }
 
@@ -433,10 +444,14 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
  * ------------------------------------------------------------------ */
 
 /** One shelf's identity (7.16), which its page's head renders. */
-export function useShelf(id: string): UseQueryResult<Shelf> {
+export function useShelf(id: string, enabled = true): UseQueryResult<Shelf> {
   return useQuery({
     queryKey: queryKeys.shelf(id),
     queryFn: () => getPlain(shelf, `/shelves/${id}`),
+    /* Off where the caller holds no shelf, which `lib/page-identity.ts` does
+       on every page that is not a shelf's, the same arrangement `useFolder`
+       has for the folder half. */
+    enabled,
   })
 }
 
@@ -496,5 +511,24 @@ export function useThread(
       ),
     enabled: open,
     refetchInterval: open ? 30_000 : false,
+  })
+}
+
+/**
+ * GET /place-covers (7.19): the covers this viewer has given Dana's own
+ * place pages, one entry per place they chose one for.
+ *
+ * One query for the whole set, and it is 4.20's own shape rather than a
+ * convenience: the table's primary key is `(user_id, place)` and its only
+ * read is one viewer's covers, so the page that wants Today's cover reads
+ * the same response as the page that wants Done's. It is unconditional
+ * because every place page mounts the head that draws one, and a cover the
+ * head has to wait a request for is a band that appears after the page has
+ * already settled.
+ */
+export function usePlaceCovers(): UseQueryResult<GetPlaceCoversResponse> {
+  return useQuery({
+    queryKey: queryKeys.placeCovers(),
+    queryFn: () => getPlain(getPlaceCoversResponse, '/place-covers'),
   })
 }

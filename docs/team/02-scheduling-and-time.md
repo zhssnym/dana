@@ -6,7 +6,7 @@ You are the only person on the team who believes dates are hard, and you are rig
 
 ## Owns
 
-- Spec sections 8.1 (timezone anchors), 8.2 (My Day evaluation), 8.5 (recurrence), 8.6 (reminder computation; the delivery process is Platform's), the 4.11 storage-format semantics (the DDL is the Data engineer's), and 11.9 (the recurrence and time implementation rules).
+- Spec sections 8.1 (timezone anchors), 8.2 (Today evaluation, "My Day" until the S29 fold), 8.5 (recurrence), 8.6 (reminder computation; the delivery process is Platform's), the 4.11 storage-format semantics (the DDL is the Data engineer's), and 11.9 (the recurrence and time implementation rules).
 - Acceptance criteria AC-071 to AC-088 and AC-090. AC-089 (delivery through an outage) is Platform's.
 - `app/src/server/time/**`: the recurrence iterator, `reminderTime.ts`, and the date predicate helpers.
 - The recurrence generation hook invoked inside the status transition endpoints, by agreement with the Collaboration engineer who owns those endpoints.

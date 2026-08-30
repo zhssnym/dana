@@ -30,29 +30,30 @@ page as Q2's rows *ungrouped*. Each is followed where it is the authority.
 sections each in folders. Returning Group by to Nothing gives the two halves
 back untouched.
 */
-import { useState } from 'react'
 
-import { CalendarDays, Folder as FolderIcon, Layers3, ListTodo } from '../lib/icons.js'
+import { CalendarDays, Layers3, ListTodo } from '../lib/icons.js'
 
 import type { GetTasksViewResponse } from '../../shared/views.js'
-import { useAllView, useDoneView, useMultiMemberFolderIds } from '../api/queries.js'
-import { mergeCompletedDays } from '../api/queries.js'
+import { useAllView, useMultiMemberFolderIds } from '../api/queries.js'
+
 import { QuickAdd } from '../components/quick-add.js'
-import { folderDisplay } from '../parts/presenters.js'
+import { folderMark } from '../parts/presenters.js'
+import type { Folder } from '../../shared/folders.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import type { Place } from '../views/usePlace.js'
-import { CollapsibleSection, PageSection } from '../states/PageSection.js'
+import { CompletedFoot } from '../states/CompletedFoot.js'
+import { PageSection } from '../states/PageSection.js'
 import { PageBody } from '../states/PageStates.js'
 import type { PageQueryState } from '../states/PageStates.js'
 import { ALL_EMPTY } from './empty-states.js'
-import { PageHeading } from './page-heading.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { groupHeadingMedia } from '../views/group-mark.js'
 
 const SPINE = PLACES.all
 
@@ -60,11 +61,21 @@ const SPINE = PLACES.all
  * The glyph a folder group heading carries, tinted with that folder's own
  * colour, which is data on the wire rather than a design value (11.4).
  */
-function FolderGlyph({ color }: { readonly color: string }): React.JSX.Element {
+/*
+The mark on a folder group's heading.
+
+It drew a literal folder in the folder's colour until S17a, which is the
+parity audit's "only the heading marks are missing" on a surface it otherwise
+scored PORTED. It draws that folder's own glyph now, through the one resolver
+every other surface asks (`parts/presenters.ts`), so a folder heading here and
+that folder's Library row and its task chips cannot disagree.
+*/
+function FolderGlyph({ folder }: { readonly folder: Folder | undefined }): React.JSX.Element {
+  const mark = folderMark(folder)
   return (
-    <FolderIcon
+    <mark.icon
       className="size-4 shrink-0"
-      style={{ color }}
+      style={{ color: mark.color }}
       strokeWidth={1.75}
       aria-hidden="true"
     />
@@ -141,7 +152,9 @@ function UndatedGroups({
           name={group.folder.name}
           heading={group.folder.name}
           headingMedia={
-            <FolderGlyph color={folderDisplay(group.folder, context.folders).color} />
+            <FolderGlyph
+              folder={context.folders.find((entry) => entry.id === group.folder.id)}
+            />
           }
         >
           <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={onAsk} />
@@ -166,8 +179,6 @@ export function AllPage(): React.JSX.Element {
   const confirm = useConfirm()
   const basis = useRowBasis()
   const multiMemberFolderIds = useMultiMemberFolderIds()
-  const [completedOpen, setCompletedOpen] = useState(false)
-  const completed = useDoneView(completedOpen)
   const data = view.data
 
   const planned = data?.planned ?? []
@@ -198,12 +209,11 @@ export function AllPage(): React.JSX.Element {
           truncated: data.truncated,
         }
 
-  const completedDays = mergeCompletedDays(completed.data?.pages)
 
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
-      <PageHeading icon={SPINE.icon} title={SPINE.name} subtitle={SPINE.question} />
+      <PlaceHead place={place} />
       <PageBody
         query={view}
         isEmpty={planned.length === 0 && undated.length === 0}
@@ -221,12 +231,17 @@ export function AllPage(): React.JSX.Element {
                 columns={columns}
                 context={{ ...basis, multiMemberFolderIds }}
                 actions={actions}
-                onAsk={confirm.ask}
               />
             ) : (
               <div className="space-y-6">
                 {columns.map((column) => (
-                  <PageSection key={column.key} name={column.name} heading={column.name}>
+                  <PageSection
+                    key={column.key}
+                    name={column.name}
+                    heading={column.name}
+                    headingMedia={groupHeadingMedia(column.mark, basis.folders)}
+                    count={column.rows.length}
+                  >
                     <TaskRows
                       tasks={column.rows}
                       context={{ ...basis, multiMemberFolderIds }}
@@ -286,25 +301,19 @@ export function AllPage(): React.JSX.Element {
           )}
 
           {/* 9.5: "with completed work carried in a collapsed section at the
-              foot". Q6's rows, not fetched until the section is opened. */}
-          <CollapsibleSection
-            name="Completed"
-            defaultOpen={false}
-            onOpenChange={setCompletedOpen}
-          >
-            <div className="space-y-6">
-              {completedDays.map((day) => (
-                <PageSection key={day.date} name={day.date}>
-                  <TaskRows
-                    tasks={day.rows}
-                    context={{ ...basis, multiMemberFolderIds }}
-                    actions={actions}
-                    onAsk={confirm.ask}
-                  />
-                </PageSection>
-              ))}
-            </div>
-          </CollapsibleSection>
+              foot". Q6's rows, not fetched until the section is opened.
+
+              Written inline here until S17b, when Important and Scheduled were
+              about to acquire a fourth and a fifth copy of it and the shared
+              one was extracted instead. This page passes no predicate, which
+              is the case `CompletedFoot` records as the reason the predicate
+              is optional at all: Q5's union is the whole account, so All's
+              foot is Q6 unnarrowed and a filter here would remove nothing. */}
+          <CompletedFoot
+            context={{ ...basis, multiMemberFolderIds }}
+            actions={actions}
+            onAsk={confirm.ask}
+          />
         </div>
       </PageBody>
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />

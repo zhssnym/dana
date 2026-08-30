@@ -22,17 +22,47 @@ import { useMe, useSavedViews } from '../api/queries.js'
 import { DELETED_USER } from '../parts/presenters.js'
 import { presenterToday } from '../parts/presenters.js'
 import { openTaskForm } from '../shell/overlays.js'
-import { WindowBarActions } from '../shell/WindowBar.js'
+import { WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { FilterChips, FilterControl } from './FilterControl.js'
 import type { FilterPerson } from './FilterControl.js'
-import { applyFilter, filterFromDefinition, viewDefinition } from './filter.js'
+import {
+  applyFilter,
+  definitionPage,
+  filterFromDefinition,
+  viewDefinition,
+} from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
 import { captureDefaults, surfaceDefaults } from './place-pages.js'
 import type { ColumnValue, PlaceSpine } from './place-pages.js'
-import { ViewStrip } from './ViewStrip.js'
+import { PageHead } from '../components/page-head.js'
+import { ViewStrip } from '../components/view-strip.js'
+import type { ViewStripOption } from '../components/view-strip.js'
+import { CalendarDays, LayoutGrid, List } from '../lib/icons.js'
 import { modeFromSearch, useViewMode, writeViewMode } from './view-mode.js'
 import type { ViewMode } from './view-mode.js'
+
+/*
+The place page's own option set, which is the half of a view strip that does
+not live in the strip (RFC 0005 change control item 39: "the view types are
+`components/view-strip.tsx` plus each surface's option set").
+
+**Icons and no written labels**, DES-137 and Imran's direction of 2026-08-18.
+The word is the control's accessible name rather than text beside it, so it is
+what a screen reader announces and what a criterion addresses; the tooltip
+shows the same word to a pointer. 9.1's roles table names the shape since S24:
+"a radio within a radiogroup, checked when current".
+
+Which of the three a page offers is `place-pages.ts`'s table and never this
+map's guess, which is why the map is keyed rather than ordered: a page that
+cannot honestly draw a calendar has no calendar option, not a disabled one
+(DES-144).
+*/
+const VIEW_FACES: Record<ViewMode, { label: string; icon: typeof List }> = {
+  list: { label: 'List', icon: List },
+  board: { label: 'Board', icon: LayoutGrid },
+  calendar: { label: 'Calendar', icon: CalendarDays },
+}
 
 export interface Place {
   readonly spine: PlaceSpine
@@ -66,8 +96,17 @@ function peopleIn(
   const byId = new Map<string, string>()
   if (viewerId !== null) byId.set(viewerId, viewerName)
   for (const task of rows) {
-    if (task.assignee === null) continue
-    byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
+    if (task.assignee !== null) {
+      byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
+    }
+    /* The makers as well as the carriers, since S25: the filter's created-by
+       axis offers this same list, and a page can hold a task somebody made
+       and nobody was given, which would otherwise be a person the axis could
+       not name. 4.5 makes `created_by` NOT NULL, so this adds a person per
+       row rather than sometimes. */
+    if (task.created_by !== null) {
+      byId.set(task.created_by.id, task.created_by.display_name ?? DELETED_USER)
+    }
   }
   return [...byId].map(([id, name]) => ({ id, name }))
 }
@@ -81,8 +120,36 @@ function peopleIn(
  * is a composition over Q5 that section 6's preamble says is not a query at
  * all.
  */
-export function usePlace(spine: PlaceSpine, rows: readonly TaskCard[]): Place {
-  const [filter, setFilter] = usePageFilter(spine.key)
+/**
+ * What a place-page supplies that its spine cannot carry, added at S17b when
+ * the folder page became one.
+ *
+ * Every field exists because it needs the page's own id, which is the whole of
+ * what separates a folder page from the eight in `PLACES`. A page that passes
+ * none of them behaves exactly as it did.
+ */
+export interface PlaceOptions {
+  /**
+   * Where this page's filter is remembered, if not under its spine's key.
+   *
+   * 9.1: "a filter belongs to the page and to the session: kept on return to
+   * that page, never carried to another." Two folders are two pages, so a
+   * folder page keys by its own id; keying by the kind would make a narrowing
+   * on Work follow a person into Home, which is that sentence read backwards.
+   */
+  readonly filterKey?: string
+  /** A capture writing this page's own folder rather than the table's row. */
+  readonly capture?: (title: string, column?: ColumnValue) => void
+  /** The same entry point escalated to 9.3's surface, with the same folder. */
+  readonly openFull?: (column?: ColumnValue) => void
+}
+
+export function usePlace(
+  spine: PlaceSpine,
+  rows: readonly TaskCard[],
+  options: PlaceOptions = {},
+): Place {
+  const [filter, setFilter] = usePageFilter(options.filterKey ?? spine.key)
   const [mode, setMode] = useViewMode(spine.views)
   const [search] = useSearchParams()
   const me = useMe()
@@ -173,8 +240,12 @@ export function usePlace(spine: PlaceSpine, rows: readonly TaskCard[]): Place {
     groupBy,
     people,
     narrow: (input) => applyFilter(input, filter, today),
-    capture,
-    openFull,
+    /* The page's own where it has one: a folder page's capture writes that
+       folder and nothing in `PLACES` knows which. Everything else about a
+       capture, the column's value riding over the page's defaults included,
+       stays here. */
+    capture: options.capture ?? capture,
+    openFull: options.openFull ?? openFull,
   }
 }
 
@@ -185,22 +256,59 @@ export function usePlace(spine: PlaceSpine, rows: readonly TaskCard[]): Place {
  * Rendered by the page rather than by the shell, and the reason is DES-139's:
  * the controls belong to what the tab is showing, so the screen keeps their
  * state and only the placement is the shell's. `WindowBarActions` is the
- * portal that makes that true.
+ * portal that makes that true, and `WindowBarLead` is the bar's other end:
+ * one slot for the breadcrumb Dana does not have yet and the filter's chips,
+ * which is the lifted bar's arrangement and DES-153's reason for it, both
+ * answering "what am I looking at" and reading left to right in the order a
+ * person would say it out loud.
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
+  const savedViews = useSavedViews()
+  /*
+  The views saved on this page, listed at the panel's head, which is the
+  prototype's own arrangement and the third seam `FilterControl` records.
+
+  Scoped to this page rather than to the account, on 9.1's sentence that a
+  filter belongs to the page: `viewDefinition` writes the spine's key into
+  every definition precisely so a view made on Today opens on Today, and
+  offering Today's saved views inside Done's filter would be the panel
+  proposing a narrowing the page cannot honour.
+  */
+  const listed = (savedViews.data ?? [])
+    .filter((view) => definitionPage(view.definition) === place.spine.key)
+    .map((view) => ({ id: view.id, name: view.name }))
   return (
     <>
-      <WindowBarActions slot="chips">
+      <WindowBarLead>
         <FilterChips filter={place.filter} onChange={place.setFilter} people={place.people} />
-      </WindowBarActions>
+      </WindowBarLead>
       <WindowBarActions>
         {/* DES-150's arrangement, written down: views, then the filter. */}
-        <ViewStrip offered={place.spine.views} mode={place.mode} onSelect={place.setMode} />
+        {/*
+        `collapse` is 9.1's resting behaviour since S24 and the reason the
+        strip costs a place page almost no width: only the view the page is in
+        is drawn, and the rest widen on hover or focus. The options it does not
+        draw stay in the DOM at no width, which is the clause that keeps a
+        collapsing control from hiding two of its three choices from the
+        keyboard, and AC-259 reads it.
+        */}
+        <ViewStrip
+          ariaLabel="View"
+          value={place.mode}
+          options={place.spine.views.map((view) => ({
+            key: view,
+            label: VIEW_FACES[view].label,
+            icon: VIEW_FACES[view].icon,
+          })) satisfies ViewStripOption<ViewMode>[]}
+          onSelect={place.setMode}
+          collapse
+        />
         <FilterControl
           filter={place.filter}
           onChange={place.setFilter}
           people={place.people}
+          savedViews={listed}
           onSaveView={(name) => {
             /*
             Pinned on arrival, and it is DES-189 rather than a shortcut: "a
@@ -220,5 +328,44 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
         />
       </WindowBarActions>
     </>
+  )
+}
+
+/**
+ * A place-page's head: the lifted `PageHead` of `prototype-v2`, given this
+ * page's spine (RFC 0005 change control item 44's B1, S25).
+ *
+ * **It is one call here rather than eight in the pages**, which is
+ * `PlaceChrome`'s own reason one function up and DES-154's rule: a settled
+ * behaviour belongs to the mechanism, and eight pages spelling out the same
+ * four props is eight chances for one of them to key its cover by the page's
+ * display name instead of by 4.20's place.
+ *
+ * The cover band is not here: it is inside `PageHead`, at the seam that file
+ * records, because the mark rides up over the band on a negative margin and
+ * that only works while the two are adjacent in one flow.
+ *
+ * **The description is Dana's sentence and not a field**, `descriptionEditable`
+ * being false for the reason `page-head.tsx` states at that prop: 9.4 asks for
+ * an editable description, 4.20 stores no wording, and a rewrite that is
+ * accepted and silently discarded is worse than a sentence.
+ */
+export function PlaceHead({
+  place,
+  fact,
+}: {
+  readonly place: Place
+  /** 9.4's "N of M done". Only a page with a completion has one. */
+  readonly fact?: string
+}): React.JSX.Element {
+  return (
+      <PageHead
+        storageName={place.spine.key}
+        icon={place.spine.icon}
+        title={place.spine.name}
+        description={place.spine.question}
+        descriptionEditable={false}
+        {...(fact === undefined ? {} : { fact })}
+      />
   )
 }

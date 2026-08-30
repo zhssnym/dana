@@ -69,6 +69,23 @@ protocol points here rather than repeating them.
   forks emitted error" or whole files failed with their tests skipped, and
   both read as broken code and are not. Rerun the affected files alone before
   believing any of those failures.
+- **A local `app/.data` can reach a state where every query throws and the
+  application looks comprehensively broken while the code is fine.** Seen once,
+  2026-08-26, at S17b. Every request answers 500, `resolveSession` included,
+  and the throw is at `PglitePreparedQuery.queryWithCache`. **The tell is that
+  the 500s come from session resolution rather than from the handler under
+  test**, so a package that changed one route appears to have broken every
+  route it never touched. `rm -rf app/.data` fixes it and costs nothing, that
+  directory being a local scratch database that is never committed. **The cause
+  is unknown and is deliberately not guessed at here.** The session that hit it
+  had no dev server on that worktree, had run roughly twenty focused Playwright
+  runs against the directory over one evening, and had not captured the first
+  failing run; whether the fault was two of those overlapping, accumulated
+  state across their seed-and-truncate cycles, or something else is not known.
+  A wrong cause in this file is worse than none, and the corrected
+  "capping the workers is not certainty" bullet below is that mistake already
+  made once: it named load, was measured wrong, and until it was corrected it
+  was teaching sessions to serialise runs that never needed serialising.
 - **Capping the workers is not certainty, corrected 2026-08-24 against
   measurement.** This bullet used to say "cap the workers (`--maxWorkers=2`,
   or 1 for certainty)" and named load as the cause, a dev server or a second
@@ -91,6 +108,27 @@ protocol points here rather than repeating them.
   rather than invented into a failure. It is proven both ways against the two
   real runs of that day. Pass vitest flags after `--`, as in
   `npm test -- --maxWorkers=2 tests/some-file.test.ts`.
+- **A piped `npm test` has no exit code worth reading, whatever the suite did.**
+  This shell runs with `pipefail` off, measured 2026-08-26: `(exit 7) | tail -1`
+  answers 0 while `(exit 7)` answers 7. So `npm test 2>&1 | tail -N`, which is
+  how a session usually runs it, yields tail's status and the run-suite guard's
+  non-zero can never reach the caller. This is a **second and independent
+  reason** for the instruction above to read the file count rather than the exit
+  code, and it bites earlier than the worker-fork one: piped, there is no
+  meaningful code to read at all, and no fork has to die for that to be true.
+  Run the leg unpiped when the code is what you intend to trust.
+- **`git fetch origin <branch>` does not update `refs/remotes/origin/<branch>`
+  here, and the stale ref reads as other people's work being unpushed.** It
+  caught two sessions independently on the evening of 2026-08-26. One fetched,
+  read `origin/v2-build` three merges behind its true head, and was composing a
+  message to the owner saying three packages had never been pushed; the other
+  told a peer a branch head that was already stale when it said it. The failure
+  is alarming in the direction that makes a session act, which is what makes it
+  worth a bullet. Two commands settle it: `git ls-remote --heads origin <branch>`
+  reads the remote itself and is the authority, and
+  `git fetch origin <branch>:refs/remotes/origin/<branch>` updates the local ref
+  so `git merge --ff-only origin/<branch>` is then safe. Read the remote before
+  believing anything about what is or is not published.
 - Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
   arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
@@ -161,6 +199,103 @@ protocol points here rather than repeating them.
   load, corrected above, and `run-suite.mjs` fails a run that loses files.
   Separate worktrees make vitest legs genuinely independent, having no port and
   no shared database; only the browser leg has a single hardcoded one.
+- **Killing a browser leg's server does not kill the leg, and the next run
+  then collides with the survivor.** Measured at S23 on 2026-08-27, and it is
+  the collision two bullets above caused by one session rather than two.
+  `playwright.config.ts` starts `npm run e2e:app` per run, so a session that
+  wants a fresh run against new code kills the process listening on the port
+  and starts again. That kills the *server*. The parent `playwright test`
+  process survives it, keeps its workers, and goes on writing into the same
+  `test-results/` the new run is writing into; the new run then starts a
+  second server on the same port. What it looks like from the report is not a
+  port error: it is `apiRequestContext.post: connect ECONNREFUSED` and
+  `page.goto: net::ERR_CONNECTION_REFUSED` on a scattering of files, mixed in
+  with real failures, and stale artifacts from the dying run sitting beside
+  fresh ones with indistinguishable timestamps. That session read contaminated
+  counts for about an hour before finding two `playwright test` processes
+  alive at once. **Kill by command line rather than by port**, every `node.exe`
+  whose command line matches `playwright` or `e2e:app`, then poll until
+  nothing at all answers on the port, `until ! netstat -ano | grep -q ":<port>"`,
+  because a listening socket in TIME_WAIT is enough for the next run's
+  readiness probe. And **delete `test-results/` between runs**, so that no
+  artifact you are about to read belongs to a run that is already dead.
+- **A lone browser leg on its own port still loses about one case a run when
+  commit charge is short, and the port-collision bullet above does not cover
+  it.** Measured 2026-08-26 at S22, three whole runs of one commit on an owned
+  port 3122 with nothing listening on 3100 and no stale `npx playwright`:
+  **227 of 228, then 227 of 228, then 228 of 228.** The two reds were
+  different cases (`session-path.spec.ts:133`, then
+  `ac-217-folder-menu-by-role.spec.ts:83`), each hit the 120-second test
+  timeout, and each passed alone in under 7 seconds against a 2.2-minute
+  failure in the leg. **The presenting shape is the same as the collision
+  above and the cause cannot be it**, which is the whole reason for this
+  bullet: a session that reads the S10 note, checks the port, finds it clear
+  and therefore believes the red, believes a defect that is not there. What
+  was true instead was `FreeVirtualMemory` around 3.5 GB of 33.9 with two
+  Chrome processes holding 4.4 GB of private bytes each, the same commit-charge
+  ceiling the vitest bullets record, and the leg ran 14.4 and 20.3 minutes
+  against 17.2 for the clean one. **The cause is not asserted further than
+  that**, on the corrected-bullet lesson above: memory pressure is what was
+  measured alongside it, not what was proven to produce it. What to do is
+  cheap and does not depend on the cause. **Re-run a failing case alone before
+  believing it, and read a whole-leg red of one or two cases as unmeasured
+  rather than as broken**, exactly as the vitest fork-flake bullet says for its
+  own leg. Where a green whole leg is what you owe, freeing commit charge
+  first is worth more than re-running: closing the two browsers was worth
+  8.8 GB, more than every test process on the machine put together.
+- **"Re-run a failing case alone before believing it" is wrong for a case whose
+  assertion races a UI transition, and there it manufactures a false
+  confirmation rather than a check. Measured 2026-08-27 at S26 and S29, and
+  scoped rather than added to the bullet above, which stands for the flake it
+  was written about.** Two sessions independently re-ran
+  `ac-182-view-preferences-persist.spec.ts:227` alone, each on a quiet machine
+  on its own port from a dot-free worktree, each saw it fail, and each read that
+  as proof the red was real; one of them went on to attribute it to the other's
+  merge. It was neither. The case drags a resize handle and reads the width
+  **immediately after `mouse.up()` with no settle**, so it can read a value the
+  interface is still passing through: the stored and restored width is 590 on
+  every run, which is exactly `DIALOG_DEFAULT` 680 minus the 90px drag, while
+  the value the case compares against reads 591, 592 or 593. **The direction is
+  the whole point and it is the opposite of the flake above: a quiet machine
+  shortens the gap between the gesture and the read, so isolation makes this
+  class fail sometimes where the flake above fails less.** That is a direction
+  and **not a rate**: five samples in all, and nothing here supports a
+  frequency. **Two tells, and the second is the one that
+  separates this from an ordinary off-by-one.** The assertion compares two
+  measurements the test took itself rather than one measurement against a
+  constant. And the wrong readings are all **on one side**: every one was larger
+  than the restored value and none smaller, because the drag shrinks the dialog
+  and the values it passes through are all earlier and wider. A race against a
+  UI update hands you a number the interface was on its way through, so the
+  error always sits on the side the change came from. **What to do**: before
+  believing either verdict, check whether the expected value is a number the
+  test measured or a number the spec fixes; if it measured it, the case needs a
+  settle and the red is a criterion defect rather than a client one, which is
+  persona 11's under protocol section 8. **The cause is deliberately not
+  asserted past "it races the UI update"**, on the same rule the `.data` bullet
+  above keeps: what was measured is that the case fails alone on both commits,
+  that the restored number is always the specified one, and that every wrong
+  reading is larger. Which frame the read lands on is arithmetic that fits, not
+  something either session instrumented, and a wrong cause here is worse than
+  none. The measurement is RFC 0005 change control item 51(n).
+  **And the case is marginal in CI too, which settles it: the same job re-run
+  on the same commit answered 229 of 229 green against 228 of 229 an hour
+  earlier.** Across two byte-identical `app/` trees the four CI runs read green,
+  green, red, green. So **a whole-leg red of this one case carries no
+  information about the commit under it**, and the cheapest move when a browser
+  leg loses exactly one case is to re-run the CI job on the unchanged commit
+  before doing anything else at all: it costs one job and needs no worktree.
+  **And it is not merely cheaper, it is the only one of the two aimed at the
+  question you have.** Re-running the case locally asks whether the case *can*
+  fail, and for a marginal case the answer is yes on every commit, which is how
+  it confirmed a false attribution for two sessions independently on the same
+  evening. Re-running the CI job asks whether *this commit* fails. **A green
+  re-run is also weaker evidence than the red it answers**: it says the case can
+  pass here, not how often, so read it as settling the attribution and not as
+  measuring the case. **And never attribute a red to a commit by comparing
+  a CI run against an isolation run**: `app/` was byte-identical across the two
+  commits compared that day, so one tree was green in CI and red alone, and the
+  comparison measured the environment rather than the code.
 - The cluster's own locale is French_France.1252 under libc, which is not what the
   suite runs on and must never become it. The `dana_test` database is created with
   the builtin C.UTF-8 locale so that it orders text exactly as PGlite does; spec

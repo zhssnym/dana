@@ -43,6 +43,11 @@ function card(overrides: Partial<TaskCard> & { id: string }): TaskCard {
     steps_total: 0,
     pulled: false,
     pending_invite_email: null,
+    // RFC 0005 unit 12a's two additions to 7.0's TaskCard. created_by takes
+    // the override because it is the axis this file's own header records as
+    // missing and the widening is what unblocks it.
+    section_block_id: overrides.section_block_id ?? null,
+    created_by: overrides.created_by ?? null,
     created_at: overrides.created_at ?? '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   }

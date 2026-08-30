@@ -30,12 +30,48 @@ and a frozen-adjacent contract this package has no business widening.
 It does not need to. A group is drawn as a block, so its folders are always
 adjacent in the column, and a column whose groups are contiguous runs is
 losslessly encoded by the flat folder sequence alone: a group's position is
-the position of its first folder, and the folders inside it are the run. The
-one thing the encoding cannot hold is a group with no folders in it, and no
-such thing exists, a group being the label its folders carry and nothing else
-(9.1). So the arrangement round trips through the column the settings bundle
-already has, and the finding raised at S11 is that the two models look
-different rather than that either is short.
+the position of its first folder, and the folders inside it are the run. So
+the arrangement round trips through the column the settings bundle already
+has, and the finding raised at S11 is that the two models look different
+rather than that either is short.
+
+**A group is a shelf, since S17b, and the sentence this replaces was true when
+it was written and is not now.** It read: "the one thing the encoding cannot
+hold is a group with no folders in it, and no such thing exists, a group being
+the label its folders carry and nothing else (9.1)." 7.16 falsified the second
+half. `POST /shelves` writes a `shelves` row and labels no folder, so a shelf
+holding nothing is now an ordinary thing to have, and the audit's addendum
+demonstrated the consequence live: a shelf created through 7.16 renders its own
+page and **is absent from the Library after a full reload**. 9.1 is what the
+model owed all along, "the Library holds the viewer's shelves and folders as
+one ordered list", and 4.18 is what makes the join possible: a shelf's
+membership *is* `folder_members.label`, held in step with the shelf's own name
+by the server in one transaction, so a label and a shelf name are two views of
+one string rather than two facts to reconcile.
+
+Three consequences, each a decision rather than a deduction:
+
+- **Every shelf is a group, whether or not a folder carries its label**, so
+  the Library draws the shelves a person has rather than the labels their
+  folders happen to spell. `seedColumn` takes the shelves beside the folders
+  and unions the two.
+- **A label with no shelf row is still a group.** Accounts labelled before
+  7.16 existed carry labels no `shelves` row names, and dropping those rows
+  from the column would empty a person's Library to fix a model. Such a group
+  has no page and no mark; it is a shelf that has not been made yet, and it
+  behaves exactly as it did.
+- **An empty group is no longer filtered out of a move.** `moveFolderTo` used
+  to drop a group its last folder left, on the sentence above. Now a shelf
+  outlives its folders, because the shelf is the thing and the label is its
+  membership, so only a *labelless* group, one no shelf row names, disappears
+  when it empties.
+
+**The stored sequence still cannot rank an empty shelf and does not need to.**
+`arrangeColumn` ranks a group by the first of its folders the sequence names,
+and a group with no folders has no such rank, so it takes `MAX_SAFE_INTEGER`
+and the stable sort leaves it exactly where the seed put it, which is
+alphabetical among the shelves. That is the right answer rather than a
+fallback: nobody has dragged it, so nothing has said where it goes.
 
 **The rank is applied as a stable sort over the seed, never as a sort of its
 own.** Every entry the stored sequence does not name ranks last, and what
@@ -46,6 +82,7 @@ anything, which is a seeded order quietly becoming an arrangement.
 */
 
 import type { Folder } from '../../shared/folders.js'
+import type { Shelf } from '../../shared/shelves.js'
 
 /**
  * One entry in the column: a group with its folders, or a loose folder.
@@ -60,6 +97,16 @@ export type DirectoryEntry =
       readonly key: string
       readonly label: string
       readonly folders: readonly Folder[]
+      /**
+       * The shelf this group is, where one exists.
+       *
+       * Null for a label no `shelves` row names, which is what an account
+       * labelled before 7.16 carries. What hangs off it is everything a shelf
+       * has that a label does not: a page to link the heading to (9.10), a
+       * mark of its own (4.18), and the object contract's acts. A group with
+       * none of those is drawn exactly as it was.
+       */
+      readonly shelf: Shelf | null
     }
   | { readonly kind: 'folder'; readonly key: string; readonly folder: Folder }
 
@@ -100,7 +147,18 @@ function byName(a: Folder, b: Folder): number {
  * own, above the label groups and never inside one, so it is chrome the
  * column sits under rather than an entry the column holds.
  */
-export function seedColumn(folders: readonly Folder[]): DirectoryEntry[] {
+export function seedColumn(
+  folders: readonly Folder[],
+  /**
+   * The viewer's shelves (7.16).
+   *
+   * Defaulted so that a caller with none, and the unit cases written before
+   * shelves reached this column, read the label-only Library they always did.
+   * A shelf here contributes a group whether or not any folder carries its
+   * name, which is the half 9.1 asks for and the label model could not give.
+   */
+  shelves: readonly Shelf[] = [],
+): DirectoryEntry[] {
   const rest = folders.filter((folder) => !folder.is_default)
   const byLabel = new Map<string, Folder[]>()
   const loose: Folder[] = []
@@ -115,6 +173,15 @@ export function seedColumn(folders: readonly Folder[]): DirectoryEntry[] {
     else bucket.push(folder)
   }
 
+  /* 4.18 holds a shelf's name and its folders' labels in step in one
+     transaction, so the name is the join key and no reconciliation is owed.
+     A shelf with no folders enters the map empty, which is the whole point. */
+  const shelfByName = new Map<string, Shelf>()
+  for (const shelf of shelves) {
+    shelfByName.set(shelf.name, shelf)
+    if (!byLabel.has(shelf.name)) byLabel.set(shelf.name, [])
+  }
+
   const groups: DirectoryEntry[] = [...byLabel.entries()]
     .sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()))
     .map(([label, members]) => ({
@@ -122,6 +189,7 @@ export function seedColumn(folders: readonly Folder[]): DirectoryEntry[] {
       key: groupKey(label),
       label,
       folders: [...members].sort(byName),
+      shelf: shelfByName.get(label) ?? null,
     }))
 
   const singles: DirectoryEntry[] = [...loose]
@@ -162,8 +230,9 @@ function stableBy<T>(items: readonly T[], rank: (item: T) => number): T[] {
 export function arrangeColumn(
   folders: readonly Folder[],
   stored: readonly string[],
+  shelves: readonly Shelf[] = [],
 ): DirectoryEntry[] {
-  const seeded = seedColumn(folders)
+  const seeded = seedColumn(folders, shelves)
   const arranged = seeded.map((entry): DirectoryEntry => {
     if (entry.kind === 'folder') return entry
     return {
@@ -191,15 +260,24 @@ export function arrangeColumn(
  * rank and jump up the column behind it. The person moved one row and two
  * things moved, which is the sort of surprise a drag exists to remove.
  *
- * A folder joining a group lands at the foot of it, and one leaving lands
- * immediately after the group it left. Both are choices rather than
- * deductions, and they are the predictable ones: the row appears where the
- * gesture ended and stays put until somebody moves it again.
+ * A folder leaving a group lands immediately after the group it left, which
+ * is a choice rather than a deduction and is the predictable one: the row
+ * appears where the gesture ended and stays put until somebody moves it again.
+ *
+ * **`at` is where inside the group it lands, and it exists because the
+ * Library draws a line saying so (S24).** This used to append, and appending
+ * was honest while nothing on screen claimed otherwise. The prototype's
+ * directory draws an insert line under the pointer while a folder is carried
+ * over an open shelf, and a line promising a slot that the drop does not
+ * honour is worse than no line at all, which is the class of fault this
+ * repository keeps finding rather than a fine distinction. Omitted, it still
+ * appends, so every caller that has no line to keep honest is unchanged.
  */
 export function moveFolderTo(
   entries: readonly DirectoryEntry[],
   folderId: string,
   label: string | null,
+  at?: number,
 ): DirectoryEntry[] {
   let carried: Folder | null = null
   let leftAt = entries.length
@@ -236,11 +314,16 @@ export function moveFolderTo(
   const next: DirectoryEntry[] =
     label === null
       ? emptied
-      : emptied.map((entry) =>
-          entry.kind === 'group' && entry.label === label
-            ? { ...entry, folders: [...entry.folders, landed] }
-            : entry,
-        )
+      : emptied.map((entry) => {
+          if (entry.kind !== 'group' || entry.label !== label) return entry
+          const folders = [...entry.folders]
+          folders.splice(
+            at === undefined ? folders.length : Math.max(0, Math.min(at, folders.length)),
+            0,
+            landed,
+          )
+          return { ...entry, folders }
+        })
   if (label === null) {
     next.splice(Math.min(leftAt, next.length), 0, {
       kind: 'folder',
@@ -250,10 +333,19 @@ export function moveFolderTo(
   }
 
   /* Emptied last, so that the insertion above could still count against the
-     group it left. A group that holds nothing is not a smaller group, it is
-     not a group: 9.1's rule read forwards, a group being the label its
-     folders carry and nothing else. */
-  return next.filter((entry) => entry.kind === 'folder' || entry.folders.length > 0)
+     group it left.
+
+     **A shelf outlives its folders and a bare label does not**, which is the
+     one place S17b's model change is visible in this function. This used to
+     drop every emptied group, on the sentence that "a group that holds
+     nothing is not a group". That holds for a label, which is nothing but
+     what its folders spell, and it is false for a shelf, which is a row with
+     a page, a mark and a name of its own that 7.16's delete is the only thing
+     that ends. So a group carrying a shelf stays where it is, empty, and the
+     Library keeps saying the shelf exists. */
+  return next.filter(
+    (entry) => entry.kind === 'folder' || entry.folders.length > 0 || entry.shelf !== null,
+  )
 }
 
 /**

@@ -54,7 +54,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
-  clickControl,
+  chooseView,
   emptyState,
   routesV2,
   signIn,
@@ -138,8 +138,12 @@ test.describe('AC-158: the empty state of every page', () => {
     ).toHaveCount(0)
 
     await page.goto(routesV2.scheduled)
-    await clickControl(
-      page.getByRole('button', { name: /^calendar$/i }),
+    // 9.1's strip is a collapsing radiogroup since S24, so the calendar is
+    // reached by widening the strip rather than by pressing a button that
+    // carries its name as text.
+    await chooseView(
+      page,
+      'Calendar',
       'spec 9.5: Scheduled is the one page that offers the calendar, because having a date is ' +
         'what puts a task on it',
     )

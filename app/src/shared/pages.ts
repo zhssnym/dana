@@ -28,6 +28,11 @@ const blockWrite = z
     text: z.string().max(4000).nullable().optional(),
     file_id: z.uuid().nullable().optional(),
     ref_folder_id: z.uuid().nullable().optional(),
+    /** 4.17's width, as RFC 0005 change control item 44 B7 added it: the
+     * person's dragged width as a percentage of the column, clamped at a
+     * quarter and at full width (ledger L-194). Absent and null both mean
+     * nobody has dragged it, which is a different fact from a stored 100. */
+    width_pct: z.number().int().min(25).max(100).nullable().optional(),
     updated_at: z.iso.datetime().optional(),
   })
   .superRefine((block, ctx) => {
@@ -40,6 +45,17 @@ const blockWrite = z
           message: 'a section name is 1 to 120 characters',
         })
       }
+    }
+    if (
+      block.width_pct !== undefined &&
+      block.width_pct !== null &&
+      block.kind !== 'image'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['width_pct'],
+        message: 'a width belongs to an image block (4.17)',
+      })
     }
     if (block.id !== undefined && block.updated_at === undefined) {
       ctx.addIssue({
@@ -65,6 +81,7 @@ export interface PageBlock {
   text: string | null
   file_id: string | null
   ref_folder_id: string | null
+  width_pct: number | null
   updated_at: string
 }
 
@@ -87,6 +104,7 @@ export const pageBlock = z.object({
   text: z.string().nullable(),
   file_id: z.uuid().nullable(),
   ref_folder_id: z.uuid().nullable(),
+  width_pct: z.number().int().nullable(),
   updated_at: z.string(),
 })
 

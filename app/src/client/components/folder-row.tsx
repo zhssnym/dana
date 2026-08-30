@@ -19,12 +19,16 @@ default stays a plain anchor, which is also what makes the row work with
 scripting unavailable. Whichever arrives, it is an anchor with an `href`, and
 that is what the criterion reads.
 
-**The colour is data and not a token.** 11.4's own ruling of 2026-08-12: a
-folder's colour is a person's runtime choice on 7.4's `my_color`, free-form
-under 4.4's hex check, so it arrives as a prop and is written into `style`.
+**The mark is the folder's own since S17a, and the colour is 4.3's.** This
+row drew a literal folder glyph in the viewer's personal `my_color` until
+then, which was correct under v1 and is two faults under v2: 9.1 asks each
+row for "the folder's mark (its icon in its colour, 4.3)", and 9.6 retires
+4.4's per-member column from every v2 surface. Both values arrive as props,
+resolved once by `parts/presenters.ts`, so the row, a task's folder chip and
+the tab strip cannot answer the same question differently (DES-130, AC-243).
 The rule that raw values live only in `tokens.css` governs the values the
-design fixes, and the dot's size and shape are still there. AC-173 reads the
-paint inside the row and would fail a client that painted every dot from one
+design fixes; a folder's colour is data on the wire. AC-173 reads the paint
+inside the row and would fail a client that painted every folder from one
 swatch.
 
 **The menu is "More actions", corrected here.** This file shipped his
@@ -50,38 +54,38 @@ primitive; the Adversarial Test Engineer corrected the locator on 2026-08-13,
 9.1's roles table not reaching this control and sending it to "its role in the
 ordinary sense of the word", which all three are true of. Nothing here changed.
 
-**The menu's entries are wired at R10 and each is a prop that may be absent.**
-9.1 puts "New folder group" and "Move to group" on a folder's own menu and 9.6
-puts rename, "Label and color" and delete in the folder page's header, so the
-sidebar supplies the first two and leaves the rest to that page rather than
-offering two routes to one write. The row renders only the entries whose
-callback it was given.
-*/
-import type { ReactElement } from 'react'
-import {
-  Folder,
-  FolderInput,
-  Folders,
-  MoreHorizontal,
-  Palette,
-  Pencil,
-  Plus,
-  Trash2,
-} from 'lucide-react'
+**The menu is the object contract's since S17a, and that is the change a
+reader will see.** It was a hand-written list of five items, and the folder
+page's was a hand-written list of seven, so where a person stood decided what
+they could do to the same folder: DES-201's own worked example, still true of
+this client on the day it was ported. `lib/object-acts.ts` now owns which acts
+exist, their words, their glyphs and their order, and `object-menu.tsx` draws
+them; what stays here is the one item that belongs to the *surface* rather
+than to the folder, "New folder group", and the contents of the group picker.
+"Label and color" is gone with the dialog 9.6 retired.
 
+Every handler is still a prop that may be absent, and the contract's own
+safety property does the rest: an act with no handler is not drawn, so a
+member's row is given `onLeave` and an owner's `onDelete` and neither needs a
+role branch in this file.
+*/
+import { useEffect, useState } from 'react'
+import type { ReactElement } from 'react'
+
+/* The icon module of DES-125, since S24 here: this file imported `lucide-react`
+   per icon, which `components/ui/foundation.test.ts` allowed on a named v1 list
+   whose own comment says each entry "leaves with the package that replaces the
+   surface it draws". The shell is that package. */
+import { Folder, FolderPlus, Folders, Plus } from '../lib/icons.js'
+import type { LucideIcon } from '../lib/icons.js'
+import { ObjectMenu } from './object-menu.js'
 import { Button } from './ui/button.js'
 import { MORE_ACTIONS } from './ui/copy.js'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
 import {
   SidebarMenuBadge,
@@ -89,11 +93,16 @@ import {
   SidebarMenuItem,
 } from './ui/sidebar.js'
 import { cn } from './ui/utils.js'
+import { DWELL_MS } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
 
 export interface FolderRowProps {
   name: string
   color: string
+  /** The folder's chosen glyph (4.3). Defaults to the plain folder, which is
+      what an unset identity means, so a row given none renders as it always
+      did. */
+  icon?: LucideIcon
   pending: number
   /** 9.1's routes table: `/app/folders/:id`. Asserted by AC-175. */
   href: string
@@ -126,17 +135,30 @@ export interface FolderRowProps {
   proposal?: string | null
   onSelect?: () => void
   onAddTask?: () => void
-  /** 9.1's "New folder group", which is an action on this folder's label. */
+  /** 9.1's "New folder group", which is an act on this folder's label and is
+      therefore the surface's own rather than the contract's. */
   onNewGroup?: () => void
+  /*
+  The contract's acts (`lib/object-acts.ts`). Each is optional and an act with
+  no handler is not drawn, which is how the role split of 9.6 reaches this row
+  without a branch in it: an owner's row is given `onDelete` and a member's
+  `onLeave`, and neither is given both.
+  */
+  onOpenInNewTab?: () => void
+  onHistory?: () => void
   onMoveToLabel?: (label: string | null) => void
   onRename?: () => void
-  onEditAppearance?: () => void
+  onCopyLink?: () => void
+  onDuplicate?: () => void
+  onSaveAsWorkflow?: () => void
+  onLeave?: () => void
   onDelete?: () => void
 }
 
 export function FolderRow({
   name,
   color,
+  icon: Mark = Folder,
   pending,
   href,
   render,
@@ -153,15 +175,29 @@ export function FolderRow({
   onSelect,
   onAddTask,
   onNewGroup,
+  onOpenInNewTab,
+  onHistory,
   onMoveToLabel,
   onRename,
-  onEditAppearance,
+  onCopyLink,
+  onDuplicate,
+  onSaveAsWorkflow,
+  onLeave,
   onDelete,
 }: FolderRowProps) {
   const hasFolderMenu = Boolean(
-    onRename || onEditAppearance || onNewGroup || onMoveToLabel || onDelete,
+    onNewGroup ??
+      onOpenInNewTab ??
+      onHistory ??
+      onMoveToLabel ??
+      onRename ??
+      onCopyLink ??
+      onDuplicate ??
+      onSaveAsWorkflow ??
+      onLeave ??
+      onDelete,
   )
-  const hasActions = Boolean(onAddTask || hasFolderMenu)
+  const hasActions = Boolean(onAddTask) || hasFolderMenu
   /*
   Geometry inline rather than in a class, because the offset is a measured
   number of pixels and a class cannot carry one. The tokens file stays the
@@ -183,7 +219,12 @@ export function FolderRow({
           transition:
             dragState.isActive && !dragState.isSettling
               ? 'none'
-              : 'transform 180ms cubic-bezier(0.2, 0, 0, 1)',
+              : /* The prototype's own tokens since S24, where this wrote 180ms
+                   and a literal curve. Two raw values standing in for two
+                   tokens is the drift 11.4's single-file rule exists to stop,
+                   and a row that eases differently from the shelf above it is
+                   the drift a person can see. */
+                'transform var(--duration-base) var(--ease-enter), background-color var(--duration-base) var(--ease-enter), box-shadow var(--duration-base) var(--ease-enter)',
           zIndex: dragState.isActive ? 30 : undefined,
           position: dragState.isActive ? 'relative' : undefined,
           /* The carried row must not catch the point it is following: the
@@ -200,12 +241,19 @@ export function FolderRow({
       style={{ ...dragStyle, ...rowProps?.style }}
       data-dragging={dragState?.isActive ? 'true' : undefined}
       className={cn(
-        'group/folder-row',
+        /* `rounded-md` is the prototype's, and it is what gives the carried
+           row and the held-over row their corners; without it the accent wash
+           and the ring were square against a list of rounded rows. */
+        'group/folder-row rounded-md',
         tree &&
           "before:absolute before:-top-0.5 before:left-6 before:z-0 before:h-[calc(50%+2px)] before:w-1.5 before:rounded-bl-[6px] before:border-b before:border-l before:border-[var(--color-graphite-300)] before:content-[''] after:absolute after:top-1/2 after:-bottom-0.5 after:left-6 after:z-0 after:border-l after:border-[var(--color-graphite-300)] after:content-['']",
         tree && treeLast && 'after:hidden',
-        dragState?.isActive && 'shadow-lg',
-        dragState?.isDwelling && 'ring-2 ring-ring/40',
+        dragState?.isActive &&
+          'cursor-grabbing bg-card shadow-[var(--elevation-2)] ring-1 ring-[var(--color-graphite-300)]',
+        dragState?.isDwelling &&
+          'bg-[var(--color-dana-accent-50)] ring-1 ring-[var(--color-dana-accent-200)]',
+        dragState?.isArmed &&
+          'bg-[var(--color-dana-accent-50)] ring-2 ring-[var(--color-dana-accent-600)]',
         rowProps?.className,
       )}
     >
@@ -225,8 +273,26 @@ export function FolderRow({
           (pending > 0 || hasActions) && 'pr-[4.75rem]',
         )}
       >
-        <Folder
-          className="!size-4 shrink-0 opacity-90"
+        {/* The folder's own mark since S17a, where this drew a literal folder
+            in the folder's colour. 9.1: "each folder row carries the folder's
+            mark (its icon in its colour, 4.3)". The glyph arrives as a prop,
+            resolved once by `parts/presenters.ts`, so the row, the task chip
+            and the tab strip cannot answer the question differently. */}
+        {/*
+        The two opacities are the prototype's and its header carries the
+        arithmetic: a folder's mark rests at 0.62 and comes to full on the row
+        you are standing on, which puts a graphite folder on the same footing
+        as the nav rows above it rather than a shade lighter than all of them.
+        This drew 0.90 flat, so the active row said nothing the others did not.
+        The hover step is deliberately absent: a nav row lights its background
+        and leaves its glyph alone, and the background hover is on the row,
+        where it is shared.
+        */}
+        <Mark
+          className={cn(
+            '!size-4 shrink-0 transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)]',
+            active ? 'opacity-100' : 'opacity-[0.62]',
+          )}
           style={{ color }}
           strokeWidth={1.75}
           aria-hidden="true"
@@ -256,6 +322,23 @@ export function FolderRow({
           // (`shell/library-drag.ts`), and a press on a control belongs to
           // that control, so the row's own actions say they are not the grip.
           data-no-drag
+          /*
+          **The prototype's `pointer-events-none` is not taken, and it was
+          taken once and measured.** Its reasoning is sound on its own terms, a
+          strip at zero opacity still answering a click, and it costs the
+          prototype nothing. It costs this client four browser criteria:
+          AC-180's two cases and AC-223's both address "More actions" on a
+          sidebar row, and a control that receives no pointer events until its
+          row is hovered cannot be clicked by anything that hit-tests before it
+          moves the pointer. Measured at S24, whole leg: the click resolved the
+          right button, then retried for fifteen seconds against the row's own
+          link underneath it.
+
+          This file's own rule already covers the case and 9.1 is behind it:
+          "a control with an empty bounding box is not visible to anything that
+          addresses it by role and name", and a control that answers no pointer
+          is not operable by it either. 11.13 gives the section the win.
+          */
           className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100"
         >
           {onAddTask ? (
@@ -271,84 +354,79 @@ export function FolderRow({
             </Button>
           ) : null}
 
-          {hasFolderMenu ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)]"
-                    // 9.1's names table: a fixed string, the row that names
-                    // this folder being what separates it from the other
-                    // three controls answering to it.
-                    aria-label={MORE_ACTIONS}
-                  />
-                }
-              >
-                <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {onRename ? (
-                  <DropdownMenuItem onClick={onRename}>
-                    <Pencil className="size-4" aria-hidden="true" />Rename
-                  </DropdownMenuItem>
-                ) : null}
-                {onEditAppearance ? (
-                  <DropdownMenuItem onClick={onEditAppearance}>
-                    <Palette className="size-4" aria-hidden="true" />Label and color
-                  </DropdownMenuItem>
-                ) : null}
-                {/* 9.1's names table, added to this menu at P8R session R10:
-                    "creating one is naming it on a folder", so the action that
-                    makes a group is an action on the folder whose label it
-                    will be. His prototype puts it in a folder-directory menu
-                    the sidebar does not carry; see `shell/folder-groups.tsx`
-                    for why that menu is not here. */}
-                {onNewGroup ? (
-                  <DropdownMenuItem onClick={onNewGroup}>
-                    <Folders className="size-4" aria-hidden="true" />New folder group
-                  </DropdownMenuItem>
-                ) : null}
-                {onMoveToLabel ? (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <FolderInput className="size-4" aria-hidden="true" />Move to group
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-44">
-                      <DropdownMenuRadioGroup
-                        value={currentLabel || '__none'}
-                        onValueChange={(value) =>
-                          onMoveToLabel(value === '__none' ? null : value)
-                        }
-                      >
-                        {groupLabels.map((label) => (
-                          <DropdownMenuRadioItem
-                            key={label}
-                            value={label}
-                            closeOnClick
-                          >
-                            {label}
+          {/*
+          One menu, drawn from `lib/object-acts.ts` since S17a.
+
+          It was a hand-written list of five items until then, and the folder
+          page's was a hand-written list of seven, so where a person stood
+          decided what they could do to the same folder: DES-201's own worked
+          example, still true of this client on the day it was ported. What is
+          left here is the two items that belong to the *surface* rather than
+          to the folder, "New folder group" and the group picker's contents;
+          everything else is the contract's and is the same on both.
+          */}
+          <ObjectMenu
+            kind="folder"
+            name={name}
+            align="end"
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)]"
+                // 9.1's names table: a fixed string, the row that names this
+                // folder being what separates it from the other controls
+                // answering to it.
+                aria-label={MORE_ACTIONS}
+              />
+            }
+            extra={
+              /* 9.1's names table, added to this menu at P8R session R10:
+                 "creating one is naming it on a folder", so the act that makes
+                 a group is an act on the folder whose label it will be. It
+                 stays a surface item rather than joining the contract because
+                 it acts on the Library's arrangement and not on the folder. */
+              onNewGroup === undefined ? undefined : (
+                <DropdownMenuItem onClick={onNewGroup}>
+                  <Folders className="size-4" aria-hidden="true" />New folder group
+                </DropdownMenuItem>
+              )
+            }
+            handlers={{
+              open: onOpenInNewTab,
+              history: onHistory,
+              rename: onRename,
+              'copy-link': onCopyLink,
+              duplicate: onDuplicate,
+              workflow: onSaveAsWorkflow,
+              leave: onLeave,
+              delete: onDelete,
+              move:
+                onMoveToLabel === undefined
+                  ? undefined
+                  : {
+                      choose: (
+                        <DropdownMenuRadioGroup
+                          value={currentLabel ?? '__none'}
+                          onValueChange={(value) => {
+                            onMoveToLabel(value === '__none' ? null : value)
+                          }}
+                        >
+                          {groupLabels.map((label) => (
+                            <DropdownMenuRadioItem key={label} value={label} closeOnClick>
+                              {label}
+                            </DropdownMenuRadioItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuRadioItem value="__none" closeOnClick>
+                            No group
                           </DropdownMenuRadioItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioItem value="__none" closeOnClick>
-                          No group
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ) : null}
-                {onDelete ? <DropdownMenuSeparator /> : null}
-                {onDelete ? (
-                  <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                    <Trash2 className="size-4" aria-hidden="true" />Delete folder…
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+                        </DropdownMenuRadioGroup>
+                      ),
+                    },
+            }}
+          />
         </div>
       ) : null}
 
@@ -364,10 +442,127 @@ export function FolderRow({
       which is equally a promise about the release.
       */}
       {proposal === null ? null : (
-        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
-          {proposal}
-        </span>
+        <Proposal
+          text={proposal}
+          holding={dragState?.isDwelling ?? false}
+          armed={dragState?.isArmed ?? false}
+        />
       )}
     </SidebarMenuItem>
+  )
+}
+
+/*
+What a release would do, in words, riding the row being carried.
+
+Lifted from `docs/design/prototype-v2/src/components/folder-row.tsx` at S24,
+read on `v2-build` at `102e855`. Ledger entry L-128 asked this row to be
+verified rather than assumed, and the verdict is that the client drew its own
+affordance: a graphite pill with the words in it, and `ring-2 ring-ring/40` on
+the row while a hold was filling. The words were right and the countdown was
+missing, so a person holding a folder over another had nothing telling them how
+long to hold or that anything was happening.
+
+The designer's own reasoning, kept intact as the design record: the task list
+says this in a pill wide enough for a sentence. A sidebar is 224 pixels at its
+narrowest and cannot, so the words are short, the pill truncates, and the
+countdown that explains a hold is the same closing ring the task row uses,
+shrunk to the size of a folder's own mark.
+
+It rides the carried row rather than the row underneath, which is the lesson
+the task row learned the expensive way: the carried row sits directly under the
+pointer, so a badge drawn on the target is painted and then covered by the very
+row that caused it. That half was already ported and is ledger entry L-127.
+
+**One seam**: `holding` and `armed` are `SortableItemState`'s `isDwelling` and
+`isArmed`, which is the same pair under this client's own names, so the row
+passes them through rather than the engine being changed.
+*/
+function Proposal({
+  text,
+  holding,
+  armed,
+}: {
+  readonly text: string
+  readonly holding: boolean
+  readonly armed: boolean
+}): React.JSX.Element {
+  return (
+    <span
+      className={cn(
+        'pointer-events-none absolute top-1/2 right-2 z-20 flex max-w-[70%] -translate-y-1/2 items-center gap-1 rounded-full py-0.5 pr-2 pl-1 text-[11px] leading-4 font-medium shadow-[var(--elevation-1)] transition-[background-color,color] duration-[var(--duration-fast)] ease-[var(--ease-standard)]',
+        armed
+          ? 'bg-[var(--color-dana-accent-600)] text-white'
+          : 'bg-card text-[var(--color-dana-accent-800)] ring-1 ring-[var(--color-dana-accent-200)]',
+      )}
+    >
+      <span className="relative flex size-4 shrink-0 items-center justify-center">
+        {holding ? <DwellRing /> : null}
+        <FolderPlus
+          className={cn(
+            'size-3',
+            armed ? 'text-white' : 'text-[var(--color-dana-accent-600)]',
+          )}
+          strokeWidth={2}
+          aria-hidden="true"
+        />
+      </span>
+      <span className="truncate">{text}</span>
+    </span>
+  )
+}
+
+/* The hold, drawn. Mounted only while one is running, so the ring starts from
+   empty every time rather than from wherever the last one stopped. That is
+   L-128's sentence exactly, and it is a property of the mount rather than of
+   the animation: a ring kept mounted and reset by a prop would show the last
+   hold's tail on the first frame of the next one. */
+function DwellRing(): React.JSX.Element {
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setGrown(true)
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  const radius = 7
+  const circumference = 2 * Math.PI * radius
+
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      /* Rotated so the ring closes from twelve o'clock, where every progress
+         ring anybody has seen starts. */
+      className="absolute inset-0 size-4 -rotate-90"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r={radius}
+        fill="none"
+        strokeWidth="1.5"
+        className="stroke-[var(--color-dana-accent-100)]"
+      />
+      <circle
+        cx="8"
+        cy="8"
+        r={radius}
+        fill="none"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        className="stroke-[var(--color-dana-accent-600)]"
+        style={{
+          strokeDasharray: circumference,
+          strokeDashoffset: grown ? 0 : circumference,
+          /* The engine's own dwell, so the ring closes when the hold fires
+             rather than at a number written twice. */
+          transition: `stroke-dashoffset ${String(DWELL_MS)}ms linear`,
+        }}
+      />
+    </svg>
   )
 }

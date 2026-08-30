@@ -35,6 +35,7 @@ import type { ReactNode } from 'react'
 import type { PageBlock, PageBlockWrite } from '../../../shared/pages.js'
 import { AlignLeft, ChevronDown, Heading1, ImagePlus, X } from '../../lib/icons.js'
 import { InlineInput, InlineTextarea } from '../ui/inline-field.js'
+import { PageImage } from '../page-image.js'
 import { cn } from '../ui/utils.js'
 
 /** A stored block, carried back with the evidence it was read with. */
@@ -46,6 +47,9 @@ function carry(block: PageBlock): PageBlockWrite {
     text: block.text,
     file_id: block.file_id,
     ref_folder_id: block.ref_folder_id,
+    /* 4.17's width, S22a's column and item 44's B7. It was dropped here until
+       S26, which is a write that quietly unsets whatever somebody dragged. */
+    width_pct: block.width_pct,
     updated_at: block.updated_at,
   }
 }
@@ -112,7 +116,7 @@ export function BlocksEditor({
   onPut,
   sectionExtras,
   folderRow,
-  onInsertImage,
+  folderId,
   writeOf,
 }: {
   /** The last read, whole; the evidence every write carries back. */
@@ -123,9 +127,22 @@ export function BlocksEditor({
   /** A shelf page's folder row; null drops the block from the render (a
       stored row whose membership is gone, DES-219). */
   readonly folderRow?: (block: PageBlock) => ReactNode
-  /** Asked for a file id when an image is inserted at an index; absent
-      hides the image button (a shelf page has no folder to upload into). */
-  readonly onInsertImage?: ((index: number) => void) | undefined
+  /*
+  Which folder an image on this page is uploaded into (7.15), absent on a
+  shelf page, which has no folder to upload into and therefore draws no image
+  control.
+
+  **It replaced `onInsertImage` at S26 and the change is the block's, not this
+  prop's.** That callback asked the page for a file *before* the block existed,
+  because the block this file drew could only render one that already had a
+  picture: the page opened a hidden file input, uploaded, and inserted a filled
+  block. The lifted `components/page-image.tsx` is the other way round, and it
+  is the way ledger L-197 asks for, "three ways in, because people reach for
+  different ones: choose, drop, or paste". An empty block is inserted and the
+  block itself is the dropzone, so all three gestures land in one place instead
+  of one of them landing on the page and the other two nowhere.
+  */
+  readonly folderId?: string | undefined
   /** How a rendered block becomes a write. The default carries id and
       evidence; a shelf overrides it for its render-only folder rows, which
       must arrive as inserts rather than as edits of ids that never were. */
@@ -203,10 +220,12 @@ export function BlocksEditor({
         insertAt(index, { kind: 'paragraph', position: index, text: '' })
       }}
       onImage={
-        onInsertImage === undefined
+        folderId === undefined
           ? undefined
           : () => {
-              onInsertImage(index)
+              /* An empty block, which is then its own way in: choose, drop or
+                 paste (L-197). See the `folderId` prop's own note. */
+              insertAt(index, { kind: 'image', position: index })
             }
       }
     />
@@ -307,40 +326,50 @@ export function BlocksEditor({
                 </button>
               </div>
             ) : block.kind === 'image' ? (
-              <figure className="pt-2">
-                {block.file_id === null ? null : (
-                  <img
-                    src={`/api/v1/files/${block.file_id}`}
-                    alt={block.text ?? ''}
-                    className="max-h-96 w-full rounded-lg object-cover"
-                  />
-                )}
-                <figcaption className="mt-1 flex items-center gap-2">
-                  <InlineInput
-                    key={`${block.id}-${block.text ?? ''}`}
-                    defaultValue={block.text ?? ''}
-                    placeholder="Add a caption"
-                    aria-label="Image caption"
-                    onBlur={(event) => {
-                      const next = event.target.value.trim()
-                      if (next !== (block.text ?? '')) {
-                        editText(block.id, next)
-                      }
-                    }}
-                    className="text-[12px] leading-4 text-muted-foreground"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Remove image"
-                    onClick={() => {
-                      remove(block.id)
-                    }}
-                    className="opacity-0 transition-opacity outline-none group-hover/item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                  </button>
-                </figcaption>
-              </figure>
+              /*
+              **S26: the prototype's own block** (ledger L-193 to L-197, and
+              item 44's B7 and B11). What this replaces drew a picture, a
+              caption field and a remove control, and had no width handle, no
+              drop, no paste, no ratio reservation and no way to replace the
+              picture; the handle's column landed at S22a with nothing to
+              write it.
+
+              The ratio is the one part that cannot be whole: `files` carries
+              no dimensions and `page_blocks` no ratio, so a reader who did not
+              choose the picture gets the block's own 16 by 9 default. That is
+              **section 13 item 47**, recorded at S22a against this exact
+              surface, and it is a frozen section 4 change rather than a
+              styling one.
+              */
+              <div className="pt-2">
+                <PageImage
+                  folderId={folderId ?? ''}
+                  image={{
+                    id: block.file_id ?? '',
+                    ratio: 16 / 9,
+                    caption: block.text ?? '',
+                    ...(block.width_pct === null ? {} : { width: block.width_pct }),
+                  }}
+                  onChange={(next) => {
+                    onPut(
+                      blocks.map((entry, position) => ({
+                        ...(writeOf ?? carry)(entry),
+                        position,
+                        ...(entry.id === block.id
+                          ? {
+                              file_id: next.id === '' ? null : next.id,
+                              text: next.caption === '' ? null : next.caption,
+                              width_pct: next.width ?? null,
+                            }
+                          : {}),
+                      })),
+                    )
+                  }}
+                  onRemove={() => {
+                    remove(block.id)
+                  }}
+                />
+              </div>
             ) : (
               /* Prose until it is being written; committing an empty one
                  removes it, his rule. Rendering every paragraph as a live

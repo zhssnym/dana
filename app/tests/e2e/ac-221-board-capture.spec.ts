@@ -29,6 +29,7 @@ import { expect, test } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   caseTitle,
+  chooseView,
   clickControl,
   floatingAddButton,
   regionOf,
@@ -62,8 +63,12 @@ async function boardGroupedByFolder(page: import('@playwright/test').Page): Prom
     page.getByRole('menuitem', { name: /Folder/ }).or(page.getByRole('option', { name: /Folder/ })).first(),
     'group Today by folder, which is what gives the board its columns',
   )
-  await clickControl(
-    page.getByRole('button', { name: /Board/i }).first(),
+  // The strip is 9.1's collapsing radiogroup since S24: board is a radio with
+  // no width until the strip is widened, and its name is the control's own
+  // rather than text beside it.
+  await chooseView(
+    page,
+    'Board',
     'spec 9.1: the view strip offers board wherever the page has a grouping',
   )
 }

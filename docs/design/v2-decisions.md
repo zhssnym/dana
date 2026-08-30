@@ -6331,5 +6331,8 @@ is v2 work unless Imran says so.
 And the open owner rulings, which need a decision rather than a backend:
 DES-032 privacy and terms destinations (**closed in v2**: pages drafted and
 approved 2026-08-17, still to be routed in production), DES-033 sent-invite
-placement, DES-034 exact email copy, DES-035 truncation notice copy, DES-084
+placement, DES-034 exact email copy (**closed 2026-08-25**: four templates
+carrying their subjects, bodies, context lines and action destinations, with
+`invite` split into folder and connection; the ruling is RFC 0005 change
+control item 32), DES-035 truncation notice copy, DES-084
 whether an owner gets Leave or ownership transfer.

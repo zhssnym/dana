@@ -88,6 +88,7 @@ import {
 import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
+import { PersonFace } from '../components/person-face.js'
 
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
@@ -184,6 +185,20 @@ export function FolderSharingPanel({
       onOpenChange={(next) => {
         if (!next) onClose()
       }}
+      /*
+      Non-modal since S17b, this being the second of DES-154's two right-edge
+      panels.
+
+      That decision says a settled behaviour belongs to the mechanism rather
+      than to each screen, and these two share one edge, so this panel takes
+      the rule DES-186 fixed for the conversation's. A modal sheet makes the
+      document beneath it inert and hides it behind a backdrop, which would
+      turn the room the shell now reserves on the right into decoration: a
+      page nobody can read or touch is not a page the panel is beside. The
+      escape key, the focus handling and the close control stay the
+      primitive's.
+      */
+      modal={false}
     >
       {/*
       DES-026's 440px sheet. The width lives in `tokens.css` as
@@ -201,7 +216,10 @@ export function FolderSharingPanel({
           width: 'var(--sharing-panel-width)',
           maxWidth: 'var(--sharing-panel-width)',
         }}
-        overlayClassName="bg-black/20 backdrop-blur-none"
+        /* No backdrop at all now that the sheet is non-modal: a dimmed plate
+           over a page the panel is meant to sit beside is the covering this
+           mechanism exists to end. */
+        overlayClassName="hidden"
       >
         {/* The region 9.1's sections table names, inside the dialog rather
             than on it: a dialog is announced by its own title and cannot also
@@ -225,11 +243,7 @@ export function FolderSharingPanel({
                       key={member.user.id}
                       className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-[var(--color-graphite-50)]"
                     >
-                      <Avatar className="size-8">
-                        <AvatarFallback className="text-xs font-medium">
-                          {initialsOf(name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <PersonFace name={name} initials={initialsOf(name)} className="size-8" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-medium text-foreground">{name}</p>

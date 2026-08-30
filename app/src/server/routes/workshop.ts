@@ -17,7 +17,11 @@ import { z } from 'zod'
 import type { Db, DbClient } from '../../../db/client.js'
 import { putPageBody } from '../../shared/pages.js'
 import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
-import { importWorkflowBody } from '../../shared/workflows.js'
+import { viewTz } from '../../shared/views.js'
+import {
+  importWorkflowBody,
+  needsImportAnchor,
+} from '../../shared/workflows.js'
 import {
   attachSession,
   requireCsrf,
@@ -31,6 +35,7 @@ import {
   transferOwnershipTo,
 } from '../domain/acts.js'
 import { accessOf } from '../domain/folders.js'
+import { today } from '../time/today.js'
 import { pageView, putPage } from '../domain/pages.js'
 import {
   createShelf,
@@ -338,7 +343,9 @@ export function createWorkshopRouter(
         )
         return
       }
-      res.status(201).json({ id: outcome.id, name: outcome.name })
+      res
+        .status(201)
+        .json({ id: outcome.id, name: outcome.name, shifted_days: outcome.shiftedDays })
     },
   )
 
@@ -379,7 +386,40 @@ export function createWorkshopRouter(
         sendValidationError(res, parsed.error)
         return
       }
-      const outcome = await importWorkflow(db, viewer(req), parsed.data)
+      /*
+      tz on frozen 7.6's own precedent of 2026-08-10 rather than on 7.0's
+      view-endpoint rule: a present value that fails IANA validation is 422
+      naming tz always, and an absent one is 422 exactly when a date would
+      be evaluated. Since RFC 0005 change control item 44's B3, a file may
+      carry a repeat or a reminder, and 4.5 and 8.6 admit neither without a
+      date, so those are the files that evaluate one. Every file that
+      imported before this widening still needs no zone.
+      */
+      const rawTz = req.query.tz
+      let anchor: string | null = null
+      if (rawTz !== undefined) {
+        const zone = viewTz.safeParse(rawTz)
+        if (!zone.success) {
+          sendError(
+            res,
+            422,
+            'validation_failed',
+            'tz: must be a valid IANA timezone identifier',
+          )
+          return
+        }
+        anchor = today(zone.data)
+      }
+      if (anchor === null && needsImportAnchor(parsed.data)) {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'tz: must be supplied, as an IANA timezone identifier, when a task in the file carries a repeat or a reminder',
+        )
+        return
+      }
+      const outcome = await importWorkflow(db, viewer(req), parsed.data, anchor)
       if (outcome.kind === 'folder_cap') {
         sendError(
           res,

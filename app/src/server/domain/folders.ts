@@ -41,6 +41,11 @@ function nullableString(value: unknown): string | null {
 export interface FolderAccess {
   isOwner: boolean
   isDefault: boolean
+  /** The folder's name, which the share-grant email renders and links a
+   * person to (RFC 0005 change control item 32). It rides this read rather
+   * than a second one because every share-grant call site resolves access
+   * before it grants, and the row is already open in front of it. */
+  name: string
 }
 
 /** Null means the folder does not exist or the viewer is not a member,
@@ -56,7 +61,7 @@ export async function accessOf(
 ): Promise<FolderAccess | null> {
   const found = await rowsOf(
     executor,
-    sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default
+    sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default, f.name
         FROM folders f
         JOIN folder_members m ON m.folder_id = f.id
         WHERE f.id = ${folderId} AND m.user_id = ${viewerId}
@@ -64,7 +69,11 @@ export async function accessOf(
   )
   const row = found[0]
   if (row === undefined) return null
-  return { isOwner: row.is_owner === true, isDefault: row.is_default === true }
+  return {
+    isOwner: row.is_owner === true,
+    isDefault: row.is_default === true,
+    name: String(row.name),
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -87,6 +96,8 @@ function folderFromRow(row: Record<string, unknown>): Folder {
     icon: nullableString(row.icon),
     color: nullableString(row.color),
     cover_file_id: nullableString(row.cover_file_id),
+    cover_preset: nullableString(row.cover_preset),
+    cover_focal_y: Number(row.cover_focal_y ?? 50),
     description: nullableString(row.description),
   }
 }
@@ -100,7 +111,8 @@ function folderSelect(viewerId: string, folderId?: string) {
   return sql`
     SELECT f.id, f.name, f.is_default,
            (f.owner_id = ${viewerId}) AS is_owner,
-           f.icon, f.color, f.cover_file_id, f.description,
+           f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
+           f.description,
            m.label AS my_label, m.color AS my_color,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
@@ -213,6 +225,8 @@ export async function createFolder(
         icon: null,
         color: null,
         cover_file_id: null,
+        cover_preset: null,
+        cover_focal_y: 50,
         description: null,
       },
     }
@@ -228,6 +242,8 @@ export interface FolderProfilePatch {
   icon?: string | null
   color?: string | null
   coverFileId?: string | null
+  coverPreset?: string | null
+  coverFocalY?: number
   description?: string | null
 }
 
@@ -258,8 +274,19 @@ export async function patchFolderProfile(
     if (patch.name !== undefined) sets.push(sql`name = ${patch.name}`)
     if (patch.icon !== undefined) sets.push(sql`icon = ${patch.icon}`)
     if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
+    /* One source (4.3 as widened by item 58): a file arriving clears the
+       preset and a preset arriving clears the file, so the client never has
+       to send the null it means. */
     if (patch.coverFileId !== undefined) {
       sets.push(sql`cover_file_id = ${patch.coverFileId}`)
+      if (patch.coverFileId !== null) sets.push(sql`cover_preset = NULL`)
+    }
+    if (patch.coverPreset !== undefined) {
+      sets.push(sql`cover_preset = ${patch.coverPreset}`)
+      if (patch.coverPreset !== null) sets.push(sql`cover_file_id = NULL`)
+    }
+    if (patch.coverFocalY !== undefined) {
+      sets.push(sql`cover_focal_y = ${patch.coverFocalY}`)
     }
     if (patch.description !== undefined) {
       sets.push(sql`description = ${patch.description}`)

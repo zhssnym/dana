@@ -149,9 +149,23 @@ function folderRow(page: Page, name: string): Locator {
   return sidebar(page).getByRole('listitem').filter({ hasText: name }).first()
 }
 
-/** The collapsible control carrying a group's name, which is what opens it. */
+/**
+ * The disclosure control on a group's heading: what opens and closes it.
+ *
+ * **It carried the group's own name until S17b and names its act now.**
+ * DES-207 splits that heading row, "the glyph is the disclosure; the name is
+ * the way in", because a shelf has a page (9.10) and the row has to behave
+ * like every other row naming something you can open; the name became a link
+ * where a shelf backs the label, and the fold became a control of its own.
+ * Nothing this file asserts moved with it: the group is still a collapsible
+ * block headed by its name, it still refuses to spring open under a drag
+ * hovering it, and this is still the control that proves both.
+ */
 function groupControl(page: Page, label: string): Locator {
-  return sidebar(page).getByRole('button', { name: label, exact: true })
+  return sidebar(page).getByRole('button', {
+    name: `Show the folders on ${label}`,
+    exact: true,
+  })
 }
 
 /**

@@ -20,11 +20,14 @@ provisional.
 | `state/` | Connectivity, the toast bus, the toast region | Frontend Architect |
 | `states/` | The shared loading, empty, error states and the named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
-| `pages/` | One file per surface of 9.2 and 9.4 to 9.8 | Frontend Architect |
-| `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the board, the Scheduled ladder, and the spine table 9.3's entry defaults are read from | Frontend Architect |
+| `pages/` | One file per surface of 9.2 and 9.4 to 9.8, and since S25 the wiring rather than the markup wherever a screen has been lifted | Frontend Architect |
+| `screens/` | **Lifted `prototype-v2` screens**, added at S25 with `important-screen.tsx`, which is RFC 0005 change control item 45's proof. A screen here is presentational and takes rows and callbacks, which is the architecture item 45 measured in the prototype and this client already had; its page beside it is the wiring. Each carries the named seams it crosses at the head of its own file | Frontend Architect |
+| `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the Scheduled ladder, and the spine table 9.3's entry defaults are read from. `TaskBoard.tsx` is the board's *meaning* since S25, the geometry having moved to the lifted `components/task-board.tsx` | Frontend Architect |
+| `views/group-mark.tsx` | The mark a group heading draws, since S17a: `grouping.ts` says which kind the axis produced and this draws it, through the same two resolvers every other surface uses | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |
 | `parts/` | **The page layer.** The row callbacks, and since P8R session R4 the presenters that map our API shapes onto the designer's display props | Frontend Architect |
+| `parts/person-tint.ts`, `parts/identity-colors.ts` | The two palettes that must name swatches, kept out of `components/` for the reason the second records: the S8 foundation test forbids a ramp step or a literal colour there. The first is S17a's, a person's colour as a function of their name | Frontend Architect |
 | `components/ui/` | The component library of 11.4 | Component and Design System |
 | `styles/tokens.css` | The single token file of 11.4 | Component and Design System |
 | the calendar, task form and search overlay directories | 9.3, 9.5's calendar, 9.9 | Complex Interaction |
@@ -252,6 +255,16 @@ as that control within that region. Use `states/PageSection.tsx`:
 - `PageSection` renders `<section aria-label={name}>` with an optional visible
   heading. The name is 9.1's table where the section fixes one, and the datum
   the section is generated from where it does not: a folder name, a day.
+  **Since S17a it collapses whenever it has a heading**, on Imran's ruling of
+  2026-08-22 that native and user-made sections are the same thing and only
+  the capabilities differ; the control carries the section's name and its
+  `aria-expanded` is the state, exactly as `CollapsibleSection`'s does
+  (AC-245). A section with no heading has nothing to draw a control as and
+  stays a region alone. It also takes `headingMedia`, a mark inline before
+  the name, and `count`, the quiet figure after it and `aria-hidden` so the
+  control's name stays the section's; `views/group-mark.tsx` builds the mark
+  from the axis a group came from, so a folder heading draws that folder's
+  glyph and a person heading that person's disc.
 - `CollapsibleSection` is a region plus a control carrying the same name, whose
   `aria-expanded` is what open and collapsed mean. Its children are absent
   while collapsed, not hidden: Q7 asserts the completed row is not on the page
@@ -786,10 +799,12 @@ the global chrome with the designer's, on our router and our data, under RFC
 | `overlays.ts` | Unchanged |
 
 `AppLayout.tsx`, `Sidebar.tsx` and `TopBar.tsx` are gone. So is
-`pwa/UpdatePrompt.tsx`: the offer now renders inside his `page-bar.tsx`, which
-takes `showUpdate` and `onUpdate`, so what the shell needs is state rather
-than a second banner. `pwa/useUpdateAffordance.ts` is that state and
-`registerServiceWorker.ts` is untouched.
+`pwa/UpdatePrompt.tsx`: the offer renders inside the window bar, which takes
+`showUpdate` and `onUpdate`, so what the shell needs is state rather than a
+second banner. `pwa/useUpdateAffordance.ts` is that state and
+`registerServiceWorker.ts` is untouched. `components/page-bar.tsx` held the
+offer between P8R and S9 and was retired at S17a, dead since the window bar
+took it.
 
 **`shell/TopBar.tsx` is retired by a ruling and not by a refactor.** The owner
 ruled on 2026-08-13 that the designer's shell wins here, and 9.1 was amended:
@@ -811,7 +826,6 @@ div.h-svh                        the viewport-height box
 └── SidebarProvider              carries the sidebar width and the rail's
     ├── [role=navigation]        the sidebar: header, pages, folders, footer
     └── SidebarInset             the `main` landmark
-        ├── PageBar              a page's own header, and 10.6's update offer
         ├── the offline banner
         ├── div[data-shell-scroll]   the ONE region that scrolls
         │   └── the measure: capped at --shell-content-max, centred, padded
@@ -874,7 +888,7 @@ because two of the strings changed with them.
 | Floating add button | `Add task` | button | `shell/FloatingAddButton.tsx` |
 | The sidebar's rail control | `Collapse sidebar`, `Expand sidebar` | button | `components/ui/sidebar.tsx` |
 | The sidebar's resize handle | `Resize sidebar` | separator | `shell/SidebarResizeHandle.tsx` |
-| Update affordance | `Update available, reload` | button | `components/page-bar.tsx` |
+| Update affordance | `Update available, reload` | button | `shell/WindowBar.tsx` |
 | A sidebar page | its 9.1 name | link | `shell/app-sidebar.tsx` |
 | A label group | the label alone | button, `aria-expanded` | `shell/app-sidebar.tsx` |
 

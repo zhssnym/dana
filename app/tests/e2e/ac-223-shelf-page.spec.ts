@@ -51,7 +51,10 @@ test.describe('AC-223: the shelf page', () => {
     // Put the folder on the shelf through the page's own control first, so
     // the row being pressed exists; this also serves the second case's act.
     await clickControl(
-      page.getByRole('button', { name: /Add folder/ }).first(),
+      // Inside `main`, for the reason the second case records: the sidebar's
+      // shelf heading carries "Add folder to {shelf}" since S24 and this name
+      // is a substring.
+      page.getByRole('main').getByRole('button', { name: /Add folder/ }).first(),
       'spec 9.10: the shelf page places existing folders. The v1 client has no shelf ' +
         'page at all, which is the red this shows until S12',
     )
@@ -95,7 +98,20 @@ test.describe('AC-223: the shelf page', () => {
     })
 
     await clickControl(
-      page.getByRole('button', { name: /Add folder/ }).first(),
+      /*
+      Inside `main`, which is where 9.10 puts this control, and the scope is
+      the correction rather than the name.
+
+      `/Add folder/` is a substring and the sidebar's shelf heading carries
+      "Add folder to {shelf}" since S24, which the prototype has always drawn
+      and this client had dropped. Two controls answered, `.first()` took the
+      sidebar's because the sidebar precedes `main`, and the case then looked
+      for its folder in the wrong menu. This is RFC 0005 change control item
+      47(e)'s ambiguity read across two surfaces instead of two rows, and it is
+      the same correction item 14 made to AC-183's leave case. Nothing about
+      what the criterion asserts moves.
+      */
+      page.getByRole('main').getByRole('button', { name: /Add folder/ }).first(),
       'spec 9.10: Add folder places an existing folder',
     )
     await clickControl(

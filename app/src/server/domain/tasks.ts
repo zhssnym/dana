@@ -252,6 +252,12 @@ of 4.6 rows; pulled is the viewer's own My Day entry, so one row answers it
 differently for two members; pending_invite_email comes from invites.task_id
 (7.0), whose rows P5 writes and this package only reads; the reminder is the
 4.8 row projected as both its columns with exactly one non-null.
+
+The creator arrived as a person shape with RFC 0005 unit 12a and is joined
+rather than rendered from the column: 4.5 makes created_by NOT NULL, so the
+join is on 4.1's row and its one null is the scrub, which is why the ON
+clause carries deleted_at rather than the projection carrying a case. The
+join is LEFT for that reason alone, never because the column can be null.
 */
 export async function taskView(
   executor: Executor,
@@ -263,7 +269,9 @@ export async function taskView(
     sql`SELECT t.id, t.title, t.status, t.important, t.notes,
                ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
                t.recurrence_rule, t.series_id,
-               t.completed_at, t.completed_by, t.created_by,
+               t.completed_at, t.completed_by,
+               cb.id AS creator_id, cb.display_name AS creator_display_name,
+               cb.avatar_url AS creator_avatar_url,
                t.created_at, t.updated_at,
                f.id AS folder_id, f.name AS folder_name,
                f.is_default AS folder_is_default,
@@ -288,6 +296,7 @@ export async function taskView(
           ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
         JOIN folders f ON f.id = t.folder_id AND f.deleted_at IS NULL
         LEFT JOIN users a ON a.id = t.assignee_id
+        LEFT JOIN users cb ON cb.id = t.created_by AND cb.deleted_at IS NULL
         LEFT JOIN reminders r ON r.task_id = t.id
         WHERE t.id = ${taskId} AND t.deleted_at IS NULL`,
   )
@@ -319,12 +328,20 @@ export async function taskView(
     steps_total: Number(row.steps_total),
     pulled: row.pulled === true,
     pending_invite_email: nullableString(row.pending_invite_email),
+    section_block_id: nullableString(row.section_block_id),
+    created_by:
+      row.creator_id === null || row.creator_id === undefined
+        ? null
+        : {
+            id: String(row.creator_id),
+            display_name: nullableString(row.creator_display_name),
+            avatar_url: nullableString(row.creator_avatar_url),
+          },
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     notes: nullableString(row.notes),
     recurrence_rule: nullableString(row.recurrence_rule),
     series_id: nullableString(row.series_id),
-    section_block_id: nullableString(row.section_block_id),
     reminder:
       row.reminder_task_id === null || row.reminder_task_id === undefined
         ? null
@@ -338,13 +355,14 @@ export async function taskView(
     steps: await stepsOf(executor, taskId),
     completed_at: row.completed_at === null ? null : toIso(row.completed_at),
     completed_by: nullableString(row.completed_by),
-    created_by: String(row.created_by),
   }
 }
 
 /*
-7.0's TaskCard, which is 7.0's TaskDetail less its eight, and the shape frozen
-7.6 gives generated_task. It is derived from the detail rather than read by a
+7.0's TaskCard, which is 7.0's TaskDetail less its seven, and the shape frozen
+7.6 gives generated_task. It was eight until RFC 0005 unit 12a moved
+section_block_id and created_by onto the card, and both therefore come off
+this strip list rather than being restated anywhere. It is derived from the detail rather than read by a
 second query for the reason the detail's own comment gives: one read serves
 every endpoint here, and a card built from its own SELECT is the per-endpoint
 variant the contract exists to prevent. The views module answers cards from
@@ -356,12 +374,10 @@ function cardOf(detail: TaskDetail): TaskCard {
     notes: _notes,
     recurrence_rule: _rule,
     series_id: _seriesId,
-    section_block_id: _sectionBlockId,
     reminder: _reminder,
     steps: _steps,
     completed_at: _completedAt,
     completed_by: _completedBy,
-    created_by: _createdBy,
     ...card
   } = detail
   return card
@@ -519,7 +535,7 @@ R-CLEAN. 8.5's copy onto a generated successor keeps its source's created_by
 and is untouched by this: that is one reminder reproduced onto a new row, not
 a second actor replacing one.
 */
-async function upsertReminder(
+export async function upsertReminder(
   tx: Executor,
   taskId: string,
   mode: ReminderMode,
@@ -1465,6 +1481,77 @@ export async function deleteStep(
       detail: 'removed a step',
     })
     return 'deleted'
+  })
+}
+
+export type PromoteStepResult =
+  | { kind: 'promoted'; task: TaskDetail }
+  | { kind: 'not_found' }
+
+/*
+POST /tasks/:id/steps/:stepId/promote (RFC 0005 change control item 58, B9's
+one-way move given its endpoint).
+
+A step becomes a task of its own in the parent's folder and under the
+parent's section, and the step is gone from the parent in the same
+transaction: one act from the person's side, one transaction from the
+wire's. The new task starts pending whatever the step's box said, because a
+promotion is a person deciding this is work of its own rather than a
+finished line, and it is assigned to nobody. Membership of the parent's
+folder is the access rule (7.7), and a step named under a task it does not
+belong to is 404 rather than 422: the pair is an address, not a body.
+*/
+export async function promoteStep(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  stepId: string,
+): Promise<PromoteStepResult> {
+  return inTransaction(db, async (tx) => {
+    const step = await accessibleStep(tx, viewerId, stepId)
+    if (step === null || step.taskId !== taskId) return { kind: 'not_found' }
+    const parent = (
+      await rowsOf(
+        tx,
+        sql`SELECT t.section_block_id, s.title AS step_title
+            FROM tasks t JOIN steps s ON s.task_id = t.id
+            WHERE t.id = ${taskId}::uuid AND s.id = ${stepId}::uuid
+            FOR UPDATE OF t`,
+      )
+    )[0]
+    if (parent === undefined) return { kind: 'not_found' }
+    const sectionId =
+      parent.section_block_id === null || parent.section_block_id === undefined
+        ? null
+        : String(parent.section_block_id)
+    const inserted = await rowsOf(
+      tx,
+      sql`INSERT INTO tasks (folder_id, title, created_by, section_block_id)
+          VALUES (${step.folderId}::uuid, ${String(parent.step_title)},
+                  ${viewerId}::uuid, ${sectionId})
+          RETURNING id`,
+    )
+    const newId = String(inserted[0]?.id)
+    await tx.execute(sql`DELETE FROM steps WHERE id = ${stepId}::uuid`)
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'created',
+      subjectKind: 'task',
+      subjectId: newId,
+      subjectName: String(parent.step_title),
+      folderId: step.folderId,
+      detail: `from a step of ${step.taskTitle}`,
+    })
+    await recordEvent(tx, {
+      actorId: viewerId,
+      verb: 'edited',
+      subjectKind: 'task',
+      subjectId: taskId,
+      subjectName: step.taskTitle,
+      folderId: step.folderId,
+      detail: 'promoted a step to a task',
+    })
+    return { kind: 'promoted', task: await viewOrFail(tx, viewerId, newId) }
   })
 }
 
