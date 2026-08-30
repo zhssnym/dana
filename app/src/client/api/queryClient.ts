@@ -78,6 +78,13 @@ export function createQueryClient(): QueryClient {
         // of 9.1, which is the surface that section gives the condition. The
         // error toast would say "Nothing was saved" about a read.
         if (isOffline(error)) return
+        // A read answered 404 is an answer, not a failure: the page draws
+        // 9.1's inline not-found state for it, and a toast saying nothing was
+        // saved beside a page saying the thing does not exist is the false
+        // sentence 9.1's own read-line rule forbids. Measured at S30's
+        // walkthrough on a folder address that never existed. Every other
+        // failed read still toasts, as 9.1's first sentence asks.
+        if (error instanceof ApiError && error.status === 404) return
         showToast(ERROR_TOAST)
       },
     }),
