@@ -46,6 +46,18 @@ the two answers are written down. A `storageName` beginning `folder:` names a
 folder by id; anything else is 4.20's own place string, and the endpoint is
 its authority.
 
+**A shelf is the third half, added at S27 for the lifted `shelf-page.tsx`,
+and it is the folder half with two more columns.** 4.18 gives a shelf the same
+`cover_file_id`, `description`, `icon` and `color` a folder has, written by
+7.16's PATCH, so a `storageName` beginning `shelf:` reads `useShelf` and
+writes `PATCH /shelves/:id`. The prototype's screen asks its identity for a
+glyph and a colour as well as a cover and a description, which is why
+`PageIdentity` carries `glyph` and `color` now; a folder page takes those from
+its own read and a place page has none. **No cover tier is reachable on a
+shelf**, for item 52's reason one object over: 7.15's upload needs a
+`folder_id`, and a shelf is not a folder, so `coverTiersFor` answers nothing
+and the screen draws no Add cover control (section 13 item 55).
+
 **A stored file renders as a link, which is the tier nothing can reach yet.**
 4.20 admits a `file_id` and 7.19 takes one, and `POST /api/v1/files` requires
 `folder_id` as a uuid (`server/routes/files.ts:48-52`), so no file exists
@@ -63,7 +75,7 @@ import { placeCover } from '../../shared/covers.js'
 import { writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
 
-import { usePlaceCovers, useFolder } from '../api/queries.js'
+import { usePlaceCovers, useFolder, useShelf } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
 import type { CoverTier } from '../components/folder-cover.js'
 
@@ -82,8 +94,13 @@ export interface PageIdentity {
   cover?: string
   /** 4.20's `focal_y`, the vertical crop of a photographic cover, 0 to 100. */
   coverPos?: number
-  /** Always undefined here; see the module header. */
+  /** Undefined for a place (see the module header); 4.3's or 4.18's text
+   *  for a folder or a shelf. */
   description?: string
+  /** The prototype's name for 4.18's `icon` key, a shelf's only today. */
+  glyph?: string
+  /** 4.18's `color`, a shelf's only today. */
+  color?: string
 }
 
 const NO_IDENTITY: PageIdentity = {}
@@ -95,6 +112,14 @@ function folderOf(place: string): string | null {
 
 /** What a folder page passes as its `storageName`; see the module header. */
 export const FOLDER_PREFIX = 'folder:'
+
+/** What a shelf page passes as its `storageName`; see the module header. */
+export const SHELF_PREFIX = 'shelf:'
+
+/** The `shelf:<id>` form, or null. */
+function shelfOf(place: string): string | null {
+  return place.startsWith(SHELF_PREFIX) ? place.slice(SHELF_PREFIX.length) : null
+}
 
 /**
  * Which cover tiers this page can honestly supply, which is the seam
@@ -112,7 +137,9 @@ export const FOLDER_PREFIX = 'folder:'
  */
 export function coverTiersFor(place: string): readonly CoverTier[] {
   /* A folder holds a file and no preset (4.3), a place holds a preset and can
-     hold no file it has any way of making (item 52). */
+     hold no file it has any way of making (item 52), and a shelf holds a file
+     it has no way of making either (section 13 item 55). */
+  if (shelfOf(place) !== null) return []
   return folderOf(place) === null ? ['gallery'] : ['upload']
 }
 
@@ -125,7 +152,7 @@ export function coverTiersFor(place: string): readonly CoverTier[] {
  * it cannot, rather than moving a picture that snaps back on the next read.
  */
 export function coverStoresPosition(place: string): boolean {
-  return folderOf(place) === null
+  return folderOf(place) === null && shelfOf(place) === null
 }
 
 /**
@@ -198,6 +225,20 @@ export function usePageIdentity(place: string): PageIdentity {
   */
   const folderId = folderOf(place)
   const folder = useFolder(folderId ?? '', folderId !== null)
+  const shelfId = shelfOf(place)
+  const shelf = useShelf(shelfId ?? '', shelfId !== null)
+  if (shelfId !== null) {
+    const detail = shelf.data
+    if (detail === undefined) return NO_IDENTITY
+    return {
+      ...(detail.cover_file_id === null
+        ? {}
+        : { cover: `link:/api/v1/files/${detail.cover_file_id}` }),
+      ...(detail.description === null ? {} : { description: detail.description }),
+      ...(detail.icon === null ? {} : { glyph: detail.icon }),
+      ...(detail.color === null ? {} : { color: detail.color }),
+    }
+  }
   if (folderId !== null) {
     const detail = folder.data
     if (detail === undefined) return NO_IDENTITY
@@ -260,6 +301,26 @@ export function savePageIdentity(
   a folder has no preset column, so a gradient has nowhere to go, and
   `coverTiersFor` keeps that tier off a folder's picker.
   */
+  /* The shelf half: 4.18's four identity columns through 7.16's PATCH. */
+  const shelfId = shelfOf(place)
+  if (shelfId !== null) {
+    const body: Record<string, unknown> = {}
+    if ('cover' in patch) {
+      if (patch.cover === undefined) body['cover_file_id'] = null
+      else if (patch.cover.startsWith('link:/api/v1/files/')) {
+        body['cover_file_id'] = patch.cover.slice('link:/api/v1/files/'.length)
+      }
+    }
+    if ('description' in patch) body['description'] = patch.description ?? null
+    if ('glyph' in patch) body['icon'] = patch.glyph ?? null
+    if ('color' in patch) body['color'] = patch.color ?? null
+    if (Object.keys(body).length === 0) return
+    void mutateApi(null, { method: 'PATCH', path: `/shelves/${shelfId}`, body })
+      .then(settle)
+      .catch((error: unknown) => showToast(writeFailureMessage(error)))
+    return
+  }
+
   const folderId = folderOf(place)
   if (folderId !== null) {
     const body: Record<string, unknown> = {}
