@@ -113,15 +113,15 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     await expect(taskRow(page, third)).toBeVisible()
     expect(
       await listedTitles(page, [first, second, third]),
-      'spec 6 Q2: a folder nobody has arranged lists its unscheduled tasks newest first',
-    ).toEqual([third, second, first])
+      'spec 6 Q2: a folder nobody has arranged lists its unscheduled tasks oldest first, since the polish round of 2026-08-30',
+    ).toEqual([first, second, third])
 
     const written = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        response.url().includes(`/api/v1/tasks/${c.id}/order`),
+        response.url().includes(`/api/v1/tasks/${a.id}/order`),
     )
-    await carryBelow(page, taskRow(page, third), taskRow(page, second))
+    await carryBelow(page, taskRow(page, first), taskRow(page, second))
     const response = await written
     expect(
       response.status(),
@@ -130,20 +130,20 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     expect(
       response.request().postDataJSON(),
       'spec 7.6: the body names the two rows the task was dropped between, by id',
-    ).toEqual({ after_id: b.id, before_id: a.id })
+    ).toEqual({ after_id: b.id, before_id: c.id })
 
     await waitForApiIdle(page, 'the placement has been read back before the list is believed')
     expect(
       await listedTitles(page, [first, second, third]),
       'RFC 0005 item 44 B4: the row stays where it was put once the server has answered',
-    ).toEqual([second, third, first])
+    ).toEqual([second, first, third])
 
     await page.reload()
     await expect(taskRow(page, third)).toBeVisible()
     expect(
       await listedTitles(page, [first, second, third]),
       'AC-266: the arrangement reads back in Q2\'s order after a reload',
-    ).toEqual([second, third, first])
+    ).toEqual([second, first, third])
   })
 
   test('AC-278: the same drag in a view and in a filtered folder writes nothing and springs back', async ({
@@ -165,13 +165,13 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     /* A view: Anytime lists every undated open task, sorted by section 6. */
     await page.goto(routesV2.anytime)
     await expect(taskRow(page, second)).toBeVisible()
-    expect(await listedTitles(page, [first, second])).toEqual([second, first])
-    await carryBelow(page, taskRow(page, second), taskRow(page, first))
+    expect(await listedTitles(page, [first, second])).toEqual([first, second])
+    await carryBelow(page, taskRow(page, first), taskRow(page, second))
     await waitForApiIdle(page, 'the gesture has settled and the page has said all it will')
     expect(
       await listedTitles(page, [first, second]),
       'RFC 0005 item 44 B4: in a view the row returns to where the sort puts it',
-    ).toEqual([second, first])
+    ).toEqual([first, second])
 
     /* The folder with a filter applied: Important only, which both rows
        pass, having been made important, so the list is the same two rows
@@ -189,12 +189,12 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     await page.keyboard.press('Escape')
     await expect(taskRow(page, second)).toBeVisible()
     await expect(taskRow(page, first)).toBeVisible()
-    await carryBelow(page, taskRow(page, second), taskRow(page, first))
+    await carryBelow(page, taskRow(page, first), taskRow(page, second))
     await waitForApiIdle(page, 'the gesture has settled')
     expect(
       await listedTitles(page, [first, second]),
       'RFC 0005 item 44 B4: in a folder with a filter applied the drag does not persist',
-    ).toEqual([second, first])
+    ).toEqual([first, second])
 
     expect(
       orderCalls,

@@ -118,7 +118,7 @@ export function PageCover({ storageName }: { storageName: string }) {
     >
       <span
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--color-graphite-950)]/12 to-transparent"
+        className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/12 to-transparent"
       />
       {repositioning ? (
         <div className="absolute inset-x-0 top-3 flex justify-center">

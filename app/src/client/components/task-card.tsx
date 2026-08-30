@@ -1156,7 +1156,7 @@ function StepList({
                     <path
                       d="M4 10.5 L8.2 14.5 L16 5.8"
                       fill="none"
-                      stroke="white"
+                      className="stroke-[var(--color-graphite-0)]"
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -1723,7 +1723,7 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
                   {file.kind === "video" ? (
                     <span className="absolute inset-0 flex items-center justify-center">
                       <Play
-                        className="size-3.5 fill-white text-white drop-shadow"
+                        className="size-3.5 fill-[var(--color-fixed-white)] text-[var(--color-fixed-white)] drop-shadow"
                         strokeWidth={1.5}
                         aria-hidden="true"
                       />

@@ -691,7 +691,7 @@ export function TaskSurface({
           type="button"
           aria-label="Close task"
           onClick={onClose}
-          className="absolute inset-0 cursor-default bg-[var(--color-graphite-950)]/30"
+          className="absolute inset-0 cursor-default bg-black/30"
         />
         <div
           style={{ width: isMobile ? "100%" : dialogWidth }}

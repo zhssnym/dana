@@ -19,10 +19,10 @@ title into the control's own name. The names table says so in the same words:
 section says it offers: any shelf or folder as a tab, and then the acts of
 making. New folder and New shelf are 9.1's own two and landed at the polish
 round of 2026-08-30, the surfaces that make them having existed since S17b;
-New task joins them at the same round and is recorded in 9.1 with it. Import
-is the one entry still owed, and the note at the menu says why it is owed
-rather than guessed at. The menu grows those entries rather than the strip
-growing a second control.
+New task joins them at the same round and is recorded in 9.1 with it, and
+Import closes the set later the same day through `overlays.ts`'s seam: the
+strip asks, the sidebar presses the one file input it owns. The menu grows
+those entries rather than the strip growing a second control.
 
 **The row's geometry is the prototype's, measured rather than recalled.**
 Serving `docs/design/prototype-v2` and reading the boxes back gives tabs of
@@ -66,12 +66,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
-import { FolderPlus, Folders, ListPlus, Plus, X } from '../lib/icons.js'
+import { FolderPlus, Folders, ListPlus, Plus, Workflow, X } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import { swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 
-import { openNewFolder, openTaskForm } from './overlays.js'
+import { openNewFolder, openTaskForm, requestWorkflowImport } from './overlays.js'
 import { closeTab, openInNewTab, reorderTabs, selectTab, useTabs } from './tabs.js'
 import { paths } from '../routes.js'
 import type { Folder } from '../../shared/folders.js'
@@ -436,13 +436,11 @@ export function TabStrip({
           things you can make are two kinds of answer to one press, and the
           only thing that says which is which is the line between them.
 
-          **Import is still missing and is deliberately not built here.**
-          The one file input the application has belongs to the sidebar, and
-          a second input in this menu would be a second answer to one
-          selector, which is the fault the prototype's own comment records
-          against exactly this control. It needs a seam that does not exist
-          yet, and inventing one across another role's file is the change
-          protocol section 3 routes rather than makes.
+          Import goes through `requestWorkflowImport` rather than an input
+          of its own: the one file input the application has belongs to the
+          sidebar, and a second input in this menu would be a second answer
+          to one selector, which is the fault the prototype's own comment
+          records against exactly this control.
           */}
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -464,6 +462,10 @@ export function TabStrip({
           >
             <ListPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
             {NEW_TASK}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={requestWorkflowImport}>
+            <Workflow className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            Import
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

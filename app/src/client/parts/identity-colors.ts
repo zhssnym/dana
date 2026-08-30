@@ -29,4 +29,4 @@ export const IDENTITY_COLORS: readonly [name: string, hex: string][] = [
 ]
 
 /** What an unset identity colour draws as: the graphite the tokens mean. */
-export const IDENTITY_COLOR_FALLBACK = '#1b1c20'
+export const IDENTITY_COLOR_FALLBACK = 'var(--color-graphite-900)'

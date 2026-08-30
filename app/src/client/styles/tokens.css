@@ -193,17 +193,19 @@ that matches nothing while the attribute reads `light`.
   light surface changes by so much as a channel. Only the dark colourway moves,
   and only in the direction the ramp already committed to.
 
-  **Where it is wrong, and it is wrong in two places**, both outside this
-  file's ownership and both reported rather than edited: a glyph drawn over
-  *imagery* means white absolutely rather than by role, because a photograph
-  does not follow the viewer's colourway. `components/task-card.tsx`'s play
-  badge over a video thumbnail and `pages/LandingPage.tsx`'s disc behind the
-  Google mark are the two, and both want a colour that is fixed rather than a
-  ramp step. `--color-black` is deliberately not moved for the same reason
+  **Where the mapping would be wrong, `--color-fixed-white` below is the
+  answer**: a glyph drawn over *imagery* means white absolutely rather than
+  by role, because a photograph does not follow the viewer's colourway.
+  `components/task-card.tsx`'s play badge over a video thumbnail,
+  `pages/LandingPage.tsx`'s disc behind the Google mark and
+  `components/page-image.tsx`'s resize handle ride it (closed with the
+  round's dark pass, 2026-08-30). `--color-black` is deliberately not moved for the same reason
   read the other way: the three modal scrims are `bg-black/20`, `/25` and
   `/80`, and a scrim darkens what is behind it in both colourways.
   */
   --color-white: var(--color-graphite-0);
+  /* White that stays white in both colourways: only for ink over imagery. */
+  --color-fixed-white: #ffffff;
 }
 
 :root {

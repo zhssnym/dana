@@ -91,7 +91,8 @@ import {
   taskSurface,
   watchCommit,
   TEST_TIMEOUT_MS,
- taskRow } from './harness.js'
+  openTaskRow,
+} from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 // Raised from Playwright's 30 second default so a red names its assertion
@@ -384,8 +385,7 @@ test.describe('AC-092: clearing the date on the task surface', () => {
     })
 
     await page.goto(routesV2.scheduled)
-    await clickControl(
-      taskRow(page, title).first(),
+    await openTaskRow(page, title,
       'spec 9.4: a click on any row opens that task; the row is on Scheduled because 6 Q3 ' +
         'admits dated pending rows',
     )

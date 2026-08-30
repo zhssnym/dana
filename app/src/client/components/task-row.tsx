@@ -948,7 +948,7 @@ export function Check({
           <path
             d="M4 10.5 L8.2 14.5 L16 5.8"
             fill="none"
-            stroke="white"
+            className="stroke-[var(--color-graphite-0)]"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
