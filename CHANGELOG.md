@@ -6,21 +6,72 @@ follow Semantic Versioning.
 
 ## [Unreleased]
 
-Everything below is built and gated on `v2-build` and is **not released**.
-The version stays 1.0.0 until it is.
+Nothing yet.
 
-**What 2.0.0 is waiting for.** Imran ruled at S11's close, on 2026-08-25,
-that 2.0.0 ships only when the client matches the v2 prototype that was
-designed and built (RFC 0005 change control item 19). One surface does not:
-9.3's v2 opening is "There is no task form", and the task card carries the
-v2 chip strip above a surviving v1 form, so five fields have two controls
-and a Save control the section retired is still there. That is now a defect
-with a deadline rather than the accepted interim section 13 item 40 recorded.
-Closing it is its own package, sequenced criteria first (item 15): persona 11
-reworks the seven criteria and four harness helpers that address the v1 form
-onto the v2 card, red, and the implementing session then retires the fields,
-the expander and the Save control together. When that lands, this section
-becomes 2.0.0 with its date.
+## [2.0.0] - 2026-08-30
+
+Dana 2.0 is the v2 prototype, lifted rather than re-derived. Imran ruled on
+2026-08-26 that 2.0 is the exact `prototype-v2`, and RFC 0004's second arm
+(S20 to S30) replaced `app/src/client` with the prototype's own component
+files, verbatim except at named adapter seams, bound to the unchanged API.
+Released under his full delegation: every ruling from S23a onward, the
+rulings sitting included, is recorded in RFC 0005's change control (items 41
+to 59) and none was taken quietly. The behavioural ledger the arm was built
+against, `docs/parity/2026-08-26-prototype-v2-behavioural-ledger.md`, reads
+251 closed and 9 exempted with their reasons, the last line (L-253, pixel
+fidelity) judged by delegation against the running app rather than by the
+owner's eye, which is the one thing the delegation could not supply. That
+walkthrough found two things no criterion had, both fixed here: every folder
+page's rows said "Desk", and a missing folder's address toasted "Nothing was
+saved" beside its not-found state (item 59).
+
+**The release gate, run locally on 2026-08-30 as the verdict.** The
+repository moved and no CI runner is registered against its new home, so
+S30 ran 11.11's seven steps in CI's order from a dot-free worktree: lint and
+typecheck green; the PGlite leg 271 files, 1852 tests; the Postgres 18 leg
+on the builtin C.UTF-8 `dana_test`; the build; and the browser leg on a port
+of its own. The numbers per leg, what the gate found and what was fixed are
+SESSION-LOG row 50. The 11.11 production smoke subset after the deploy is
+health (`GET /api/health`), one Google sign-in round trip, and one CRUD
+cycle: a task created on Desk, edited, completed and deleted to Trash, with
+the undo bar seen once. Render is to be pointed back at `main` after the
+merge, this arm having deployed `v2-build` directly.
+
+**What a person sees that 1.0 did not.** The whole front end is the
+prototype's: its tokens and its dark theme value for value (S21); the
+animated mark; the task row in DES-113's two shapes and the task card with
+its chip strip, its steps written to the wire, its thread and its
+attachments, and no task form at all (S23, S26, the loose ends); a drag that
+persists a hand order in a folder with no filter or sort and springs back
+everywhere else, a hold that makes a folder of two or more tasks, and a
+selection bar that completes, stars, pulls, moves, duplicates or deletes what
+was held (S23a, S28b, the loose ends); the shell with the sidebar's drag, the
+tab strip, the window bar, the Library and the undo bar (S24); every place
+page with its cover, its filter, its saved views and its board, Assignments
+with its from half and the created-by axis, Done with a board and the folder
+board with a Done column (S25, the loose ends); the folder page with blocks,
+covers on all four tiers, images with a dragged width, the sharing panel, the
+history sheet and the conversation with files (S26); the shelf page, the
+search overlay, Settings with Appearance's pre-paint theme mirror, and the
+Trash page (S27); and permanent deletion from Trash, with the owner's
+leave-or-delete question on a shared folder (S28a, S28b).
+
+**What the server gained for it, all additive to the frozen contract.** A
+fractional `position` on tasks with 7.6's order endpoint, a per-viewer cover
+table for the place pages, a width on page blocks, and the 7.16 workflow file
+widened to blocks and each task's title, notes, star, repeat, reminder and
+steps (S22a); `DELETE /trash/tasks/:id` and `DELETE /trash/folders/:id`, the
+purge's own collection called by both the tick and the endpoint, which also
+found and closed a task purge that left its conversation's files as
+unreachable rows (S28a); `POST /tasks/:id/duplicate` given 9.6's date rule;
+step promotion at `POST /tasks/:id/steps/:stepId/promote`; `shifted_days` on
+a folder duplicate; and `cover_preset` with `cover_focal_y` on folders by
+migration 0006. The specification was folded whole to v2 (S29, S29a): no
+section states a v1 behaviour v2 retired, and sections 4 and 7 carry only
+the accepted units' text. Acceptance criteria run AC-001 to AC-296.
+
+**Everything below this line shipped on `v2-build` before the lift**, S0 to
+S14, and is part of this release.
 
 Dana v2 is the whole of RFC 0005's specification delta, built by sessions S0
 to S14. The frozen core contract of sections 4 and 7 did not move: every wire
@@ -46,9 +97,9 @@ opening a picker in place, each committing as it is answered. The due picker
 offers days and no clock; the reminder picker offers the time on the day. One
 drag engine serves the sidebar's folder groups, the tab strip and the board's
 columns, so a card dropped in a column writes the column's value through the
-same mutation a quick-add there would use. The v1 fields still sit under the
-strip while seven green criteria pin them there; their retirement is
-scheduled as its own package (RFC 0005 change control item 15).
+same mutation a quick-add there would use. The v1 fields sat under the strip
+until S23 lifted the prototype's card whole and retired them with the Save
+control, item 15's package done.
 
 **Things that happened are now things Dana can say (S3, S6).** Mutations
 record activity events, a folder and any object can answer "what happened

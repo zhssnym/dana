@@ -76,10 +76,27 @@ function body(page: Page): Locator {
   return page.getByRole('main')
 }
 
+/**
+ * The width once it has stopped moving. The shell's body takes and gives
+ * back the panel's room over the prototype's own margin transition
+ * (`right-edge.tsx`, 320 ms), so a single reading taken the instant the
+ * panel is visible is a number on its way somewhere: measured at S30 as
+ * 939 then 652 then 644 on successive reads, and 1023 then 1024 on the way
+ * back. The criterion is about the resting numbers, so the reading repeats
+ * until two successive ones agree and the assertions below keep their exact
+ * forms.
+ */
 async function widthOf(locator: Locator, why: string): Promise<number> {
-  const box = await locator.boundingBox()
-  expect(box, why).not.toBeNull()
-  return box === null ? 0 : Math.round(box.width)
+  let previous = -1
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const box = await locator.boundingBox()
+    expect(box, why).not.toBeNull()
+    const width = box === null ? 0 : Math.round(box.width)
+    if (width === previous) return width
+    previous = width
+    await locator.page().waitForTimeout(120)
+  }
+  return previous
 }
 
 /**

@@ -1,6 +1,6 @@
 # RFC 0004: The v2 build — implementing RFC 0005 and porting the approved design
 
-- **Status:** Draft
+- **Status:** Implemented 2026-08-30 (S30): every row S0 to S30 built, gated and released as 2.0.0
 - **Created:** 2026-08-24
 - **Target release:** 2.0.0, September 2026; the infrastructure package is
   hard-dated (database expiry 2026-09-12)

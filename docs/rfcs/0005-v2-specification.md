@@ -1,6 +1,6 @@
 # RFC 0005: The v2 specification — navigation, day-level dates, roles, and the six systems
 
-- **Status:** Accepted. **Re-accepted by Imran on 2026-08-27**, in his own
+- **Status:** Accepted; **Implemented 2026-08-30 (S30)**, released as 2.0.0. **Re-accepted by Imran on 2026-08-27**, in his own
   words: "Yeah, I accept all the decisions which is going toward applying
   prototype v2 as Dana v2.0". First accepted by him on 2026-08-24 ("accepted,
   start S1"), recorded the same day. Provisional numbers checked against the
@@ -6457,6 +6457,76 @@ fold, the way P7's mid-package change control ratified the pass callable:
     the new task loose rather than under the parent's section, `ConceptTask`
     carrying no section; a row owning sections on the card would close it.
     SESSION-LOG row 49 is its record.
+
+59. **The close, S30, 2026-08-30: ruled by delegation, and the release.**
+    Held on `s30-close` from `v2-build` at `f6bc90d` under the owner's full
+    delegation, with no human to escalate to and no CI to defer to: the
+    repository's Actions history is empty and no runner is registered against
+    its new home, so the local gate, 11.11's seven steps in CI's order from a
+    dot-free worktree, is the release verdict. SESSION-LOG row 50 carries the
+    numbers per leg; this item carries the decisions.
+
+    **(a) The gate's four reds, three genuine and one flake, and how each was
+    read.** The whole browser leg, the first run of every lifted row's cases
+    together, read 250 of 254; the rows had merged in parallel and each
+    verified its own files. AC-182's dialog width was a transition: the
+    prototype's dialog carries `duration-*` for its entrance and no
+    `transition-*`, leaving transition-property at CSS's initial `all`,
+    harmless at a fixed 680 and wrong once S23's handle let the width move,
+    so every drag animated over 200 ms and the criterion measured a width
+    still travelling. Ruled a defect at the seam, not in the criterion:
+    `transition-none` on the dialog, commented as an S30 seam. AC-260 read
+    the body's width the instant the panel was visible, mid-way through
+    `right-edge`'s own 320 ms margin transition, which is the prototype's
+    motion and stays; the criterion reads until two readings agree and keeps
+    its exact forms. AC-242 addressed the search input as "Search tasks",
+    the v1 label, where item 55 made it "Search Dana"; reworked, and 9.9
+    already carries the words. AC-094 met a Base UI menu leaving through its
+    exit animation, visible and `data-closed`, beside the one opening, and
+    died of strict mode in one whole run of two while passing alone; the
+    harness's picker locator excludes a closing element, and the case read 3
+    of 3 alone after. The PGlite leg lost one test of 1852: item 58 widened
+    7.4's Folder with `cover_preset` and `cover_focal_y` in a sibling
+    worktree, and the invite acceptance's key-exact list had not heard; it
+    has. Nothing was weakened, and no criterion asserted a retired shape.
+
+    **(b) L-253, pixel fidelity, closed by delegation against the running
+    app.** Every surface of the ledger opened from a walkthrough script
+    against the dev server and the built bundle, light and dark, and read
+    against the prototype's screens: no 5xx, no page error, no blank main, no
+    control leading nowhere. The verdict is recorded on the ledger's own row
+    as judged by delegation, and Imran's eye at dana.so is still owed to him
+    after the merge; the delegation supplies a judgment, not his.
+
+    **(c) Two things the walkthrough saw that no criterion had, fixed.**
+    Every folder page's rows said "Desk": `taskRowDisplay` drops the folder
+    where the page already names it (`showFolder: false`), and the lifted row
+    reads a missing folder the way DES-155 tells it to, an unfiled task is in
+    Desk. Both rules are right and together wrote the wrong word on every
+    row of every folder and on the folder-grouped All page. The page's
+    silence now reaches the row in its own vocabulary, `given.folder`, from
+    `pages/task-rows.tsx`, a wiring file; no lifted file moved. And a folder
+    address that never existed drew 9.1's not-found state with the global
+    toast beside it saying nothing was saved, the false sentence 9.1's own
+    read-line rule names; a read answered 404 no longer toasts, every other
+    failed read still does. **This narrows 9.1's first bullet by one case**,
+    "Global error toast for failed requests", and is recorded here rather
+    than written into the section: a 404 read is an answer the page draws,
+    and no criterion asserts the toast on one.
+
+    **(d) The release.** Version 2.0.0 in `package.json` and the lockfile;
+    the CHANGELOG's 2.0.0 entry dated 2026-08-30 summarising S0 to S30 and
+    naming 11.11's smoke subset; RFC 0004 `Implemented`; this RFC's status
+    line gains "Implemented 2026-08-30 (S30)"; `00-index.md`'s range
+    corrected from AC-273 to AC-296, the real last number, none spent here.
+    Render is to be pointed back at `main` after the merge, which is the
+    orchestrator's act and the owner's console.
+
+    **(e) One machine note corrected.** CLAUDE.md says `TEST_DATABASE_URL`
+    is set in no scope; it is set in the user scope of this machine, so a
+    bare `npm test` in an inherited shell is the Postgres leg again, and
+    `env -u` was load-bearing for the PGlite and browser legs here. Recorded
+    for the next machine-note edit rather than made in this row.
 
 ## Implementation plan
 

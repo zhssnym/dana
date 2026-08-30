@@ -679,7 +679,17 @@ export function TaskSurface({
           role="dialog"
           aria-modal="true"
           aria-label={task.title}
-          className="absolute inset-x-0 top-[8vh] mx-auto flex max-h-[84vh] w-full flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2"
+          /*
+          **Seam, S30: `transition-none`, because the handle above made the
+          width move.** The prototype's class list carries `duration-*` for
+          its entrance animation and no `transition-*`, which left
+          transition-property at its initial value, `all`, harmless while
+          the dialog was fixed at 680. With the S23 handle every pointer
+          move animated the width over 200 ms instead of following the
+          hand, and AC-182 measured a width still travelling. The entrance
+          keeps its animation; only the transition is switched off.
+          */
+          className="absolute inset-x-0 top-[8vh] mx-auto flex max-h-[84vh] w-full flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] transition-none duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2"
         >
           <PanelResizeHandle
             side="left"
