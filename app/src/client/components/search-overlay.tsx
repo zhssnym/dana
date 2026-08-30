@@ -120,13 +120,16 @@ function formatDueDate(value: string) {
 }
 
 function StatusBadge({ status }: { status: SearchResultStatus }) {
+  /* polish: search F8. Pending is the ordinary state and a chip saying so on
+     twelve of fourteen rows says nothing; it is announced, not drawn, so the
+     row still reads its status to a screen reader (and to AC-156, AC-258)
+     while only Completed and Abandoned wear a visible chip. */
+  if (status === "pending") return <span className="sr-only">{statusLabels[status]}</span>
   return (
     <Badge
       variant="secondary"
       className={cn(
         "h-5 rounded-full border px-2 text-[0.625rem] font-medium",
-        status === "pending" &&
-          "border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)]",
         status === "abandoned" &&
           "border-[var(--color-warning-200)] bg-[var(--color-warning-100)] text-[var(--color-warning-700)]",
         status === "completed" &&
@@ -289,9 +292,9 @@ export function SearchOverlay({
             }
             className="h-10 min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-[var(--color-graphite-400)]"
           />
-          <kbd className="hidden rounded-md border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)] px-2 py-1 text-[0.625rem] font-medium text-[var(--color-graphite-500)] sm:block">
-            ESC
-          </kbd>
+          {/* polish: search F7. The ESC key cap that sat here read as a button
+              and was not one; the footer's hints are where the keys live, so
+              Esc joins them there and the × is the one close control. */}
           <DialogClose
             render={
               <Button
@@ -429,6 +432,8 @@ export function SearchOverlay({
             Navigate
             <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">↵</kbd>
             Open
+            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">Esc</kbd>
+            Close
           </span>
         </footer>
       </DialogContent>
