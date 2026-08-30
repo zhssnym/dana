@@ -157,7 +157,7 @@ test.describe('AC-242: Help is in the account menu, and the sheet behind it is t
 
     await page.keyboard.press('Control+k')
     await expect(
-      page.getByLabel('Search tasks'),
+      page.getByPlaceholder('Search Dana'),
       'spec 9.1 and 9.9: the sheet says Ctrl+K searches everything, so Ctrl+K opens the ' +
         'search overlay. This is the assertion that stops the sheet being a list of ' +
         'plausible sentences: every line on it can be pressed, and this is the one a ' +

@@ -1127,12 +1127,22 @@ export async function chipValue(chip: Locator, name: string): Promise<string> {
  * front of the person, and an element nobody can see is not one. This is the
  * S11 class of fault, found by driving a live server and invisible to
  * reading.
+ *
+ * **And not one on its way out, added at S30 from the whole leg.** Base UI
+ * keeps a menu in the document through its exit animation, marked
+ * `data-closed`, and for those hundred-odd milliseconds it is still visible.
+ * A case that chose a folder and then opened the assignee chip met two
+ * visible menus, the folder's closing and the assignee's opening, and died
+ * of strict mode in one whole run out of two while passing alone. Visibility
+ * stays the discriminator; a closing element is excluded as well because a
+ * picker that is leaving is not the one the press just opened.
  */
 export function chipPicker(page: Page): Locator {
   return page
     .getByRole('dialog')
     .filter({ hasNot: page.getByLabel(/^\s*title\s*$/i) })
     .or(page.getByRole('menu'))
+    .and(page.locator(':not([data-closed])'))
     .filter({ visible: true })
 }
 
