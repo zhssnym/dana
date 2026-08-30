@@ -133,7 +133,7 @@ test.describe('AC-174: the sidebar is the application\'s only chrome', () => {
     ).toHaveCount(1)
   })
 
-  test('AC-174: the avatar menu offers Settings and Sign out', async ({ page }) => {
+  test('AC-174: the avatar menu offers Help and Sign out', async ({ page }) => {
     await page.goto(routes.myDay)
     await clickControl(
       sidebar(page).getByRole('button', { name: AVATAR_MENU, exact: true }),
@@ -142,13 +142,14 @@ test.describe('AC-174: the sidebar is the application\'s only chrome', () => {
     )
 
     await expect(
-      page.getByRole('menuitem', { name: /settings/i }),
-      'spec 9.1: the avatar menu carries Settings and Sign out. Without this the menu is a ' +
-        'control that opens nothing, which satisfies every assertion above',
+      page.getByRole('menuitem', { name: /help/i }),
+      'spec 9.1: the avatar menu carries Help and Sign out (Settings left it at the polish ' +
+        'round of 2026-08-30, sidebar F3, the foot link being the one door). Without this ' +
+        'the menu is a control that opens nothing, which satisfies every assertion above',
     ).toBeVisible()
     await expect(
       page.getByRole('menuitem', { name: /sign out/i }),
-      'spec 9.1: the avatar menu carries Settings and Sign out',
+      'spec 9.1: the avatar menu carries Help and Sign out',
     ).toBeVisible()
   })
 

@@ -374,7 +374,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: the folder\'s own menu carries the move',
     )
     await clickControl(
-      moveDestination(page, /ungrouped|no group|none/i),
+      moveDestination(page, /ungrouped|no shelf|no group|none/i),
       'spec 9.1: a folder can move out of every group, the unlabeled folders being a place in ' +
         'that list rather than the absence of one. The second of the two controls this file ' +
         'still matches by description: that section names the four group actions and names no ' +
