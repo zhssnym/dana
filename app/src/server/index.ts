@@ -23,6 +23,7 @@ import { createDiskStore } from './files/store.js'
 import type { ObjectStore } from './files/store.js'
 import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
+import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
 import { createEventsRouter } from './routes/events.js'
 import { createFilesRouter } from './routes/files.js'
@@ -340,6 +341,15 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createFilesRouter({ dbClient: options.dbClient, fileStore, rateLimits }),
+  )
+
+  // The photo tier's three routes (7.15, polish round of 2026-08-30): the
+  // Openverse search proxied so the CSP never widens, its thumbnails
+  // streamed from this origin, and a chosen photograph landed through the
+  // same createFile as an upload. Reasoning in routes/cover-photos.ts.
+  app.use(
+    '/api/v1',
+    createCoverPhotosRouter({ dbClient: options.dbClient, fileStore, rateLimits }),
   )
 
   // The S5 workshop (7.16): pages, shelves, and the object acts. Its

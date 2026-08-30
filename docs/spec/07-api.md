@@ -270,6 +270,19 @@ images downscaled server-side) · GET /api/v1/files/:id (authenticated
 serving) · DELETE /api/v1/files/:id (uploader or folder owner). Avatar: POST
 /api/v1/me/avatar updates users.avatar_url to the stored object.
 
+The photo tier (added at the polish round of 2026-08-30, the owner having
+waived this section's freeze for that round in his own words; the reasoning
+is `routes/cover-photos.ts`'s header): GET /api/v1/covers/photos?q= proxies
+the Openverse search, each result's thumb rewritten to
+GET /api/v1/covers/photos/:id/thumb, which streams that thumbnail from this
+origin so 10.8's img-src never widens · POST /api/v1/folders/:id/cover/photo
+{ photo_id } fetches the photograph server-side from the upstream's own
+record for that uuid — never from a client-supplied URL — and lands it
+through the same createFile as an upload: same membership check, same
+downscale, same quota and 413. The client then PATCHes cover_file_id exactly
+as after an upload, so the stored cover is this origin's file and 10.6's
+precache objection does not arise.
+
 ### 7.16 Pages, shelves and acts
 
 GET/PUT /api/v1/folders/:id/page — the block list, LWW per block, 409 on
