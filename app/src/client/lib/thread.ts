@@ -30,20 +30,18 @@ Times are `formatAgo`'s, the elapsed phrasing every other surface in this
 client uses, because the prototype's `at` is a written string and a fixture's
 written string is the one thing that must not cross.
 
-**Files ride as the picture and nothing else, and the reason is a measurement
-rather than a preference.** `CommentLine.file_ids` is an array of bare uuids
-(7.14), and `GET /files/:id` answers the bytes; nothing on the wire carries a
-file's name, its type or its size. So the tile-name-meta row the prototype
-draws cannot be drawn for a file this client did not itself just choose, and
-what is left that is honest is the bytes, which describe themselves when they
-are a picture and not otherwise. The composer therefore offers images, and
-`components/comments.tsx` draws an attachment carrying a preview and no name as
-the picture. **The widening that would close it is recorded at section 13 item
-54** and is frozen section 7's, so it is not taken here.
+**Files ride with their name, type and size since RFC 0005 change control
+item 57 (B5).** Until then `CommentLine.file_ids` was an array of bare uuids
+and nothing on the wire carried a file's name, its type or its size, so an
+attachment could only be drawn as the picture and the composer offered images
+alone (section 13 item 54). 7.14 now answers `files: { id, name, mime, bytes }[]`,
+4.16's own columns, so the tile-name-meta row the prototype draws is drawn
+for every file. The write half, one file per comment, stands as 7.14 wrote it
+and is the half item 54 left with the owner.
 */
 import { useMemo } from 'react'
 
-import type { CommentLine } from '../../shared/comments.js'
+import type { CommentFile, CommentLine } from '../../shared/comments.js'
 import { useMe } from '../api/queries.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
@@ -78,11 +76,39 @@ export function fileSrc(fileId: string): string {
 }
 
 /**
- * An attachment as this client can honestly describe one: the picture and no
- * words, per the module header.
+ * An attachment as 7.14 now describes one (RFC 0005 change control item 57
+ * B5): the tile, the name and the meta line the prototype draws, from 4.16's
+ * columns rather than from a download. The two helpers restate
+ * `components/comments.tsx`'s own, which that file keeps private.
  */
-function attachmentOf(fileId: string): Attachment {
-  return { name: '', meta: '', kind: 'image', preview: fileSrc(fileId) }
+function attachmentOf(file: CommentFile): Attachment {
+  const kind = fileKind(file.mime)
+  return {
+    name: file.name,
+    meta: `${file.mime.split('/')[1]?.toUpperCase() ?? 'FILE'} · ${readableSize(file.bytes)}`,
+    kind,
+    preview: kind === 'image' ? fileSrc(file.id) : undefined,
+  }
+}
+
+/** 7.15's declared kind for a file a comment attaches: an image is
+ *  `image` and anything else is `file`, the two kinds 4.16 gives a comment
+ *  (item 57 B5; `voice` waits on item 44's B5). */
+export function commentFileKind(file: File): 'image' | 'file' {
+  return file.type.startsWith('image/') ? 'image' : 'file'
+}
+
+function readableSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileKind(mime: string): 'image' | 'video' | 'document' | 'file' {
+  if (mime.startsWith('image/')) return 'image'
+  if (mime.startsWith('video/')) return 'video'
+  if (mime === 'application/pdf' || mime.startsWith('text/')) return 'document'
+  return 'file'
 }
 
 /** One wire comment as the lifted thread reads one, replies excepted. */
@@ -103,9 +129,7 @@ function conceptOf(
     ...(line.likes === 0
       ? {}
       : { reactions: [{ emoji: 'like', count: line.likes, mine: line.liked }] }),
-    ...(line.file_ids.length === 0
-      ? {}
-      : { files: line.file_ids.map(attachmentOf) }),
+    ...(line.files.length === 0 ? {} : { files: line.files.map(attachmentOf) }),
     mine,
     /* 4.15: the author or the folder's owner. Answered here so that both
        mounts of the one thread agree. */
