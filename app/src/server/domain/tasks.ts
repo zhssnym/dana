@@ -935,10 +935,23 @@ export async function patchTask(
       // last-write-wins evidence 8.3 relies on. An empty body writes nothing
       // and therefore touches nothing.
       sets.push(sql`updated_at = now()`)
+      if (moving) {
+        // 4.15's pair FK holds a comment's scope to its task's folder, so
+        // the conversation moves with the task, and the pair's check is
+        // deferred to the commit because neither UPDATE can satisfy it
+        // while the other has not run (migration 0007).
+        await tx.execute(sql`SET CONSTRAINTS comments_task_scope_fkey DEFERRED`)
+      }
       await tx.execute(
         sql`UPDATE tasks SET ${sql.join(sets, sql`, `)}
             WHERE id = ${taskId}::uuid`,
       )
+      if (moving) {
+        await tx.execute(
+          sql`UPDATE comments SET folder_id = ${folderId}::uuid
+              WHERE task_id = ${taskId}::uuid`,
+        )
+      }
     }
     if (clearing) {
       await tx.execute(

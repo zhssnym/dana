@@ -33,6 +33,7 @@ which AC-158 reads as an absence rather than a heading saying zero.
 import { CalendarCheck2 } from '../lib/icons.js'
 
 import { useMyDayView } from '../api/queries.js'
+import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -71,6 +72,7 @@ export function TodayPage(): React.JSX.Element {
   return (
     <div className="space-y-7">
       <PlaceChrome place={place} />
+      <SampleStrip />
       <PlaceHead
         place={place}
         {...(total === 0 ? {} : { fact: `${String(done)} of ${String(total)} done` })}

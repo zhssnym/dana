@@ -681,4 +681,18 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [],
   },
+  sample_objects: {
+    primaryKey: { name: 'sample_objects_pkey', columns: ['user_id', 'kind', 'id'] },
+    uniques: [],
+    checks: [{ name: 'sample_objects_kind_check', columns: ['kind'] }],
+    foreignKeys: [
+      {
+        name: 'sample_objects_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
 }

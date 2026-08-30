@@ -29,6 +29,7 @@ export default defineConfig({
     comment exists to argue against.
     */
     testTimeout: 30_000,
+    setupFiles: ['./tests/vitest-setup.ts'],
     include: [
       'src/**/*.test.{ts,tsx}',
       'db/**/*.test.{ts,tsx}',

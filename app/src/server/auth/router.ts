@@ -87,6 +87,9 @@ export interface AuthRouterOptions {
    * item 18). Optional for the same reason as dbClient: a route-presence
    * probe constructs the application bare. */
   fileStore?: ObjectStore
+  /** Item 60: whether a brand-new account is written the sample workspace
+   * at its first sign-in. createApp decides the default. */
+  sampleWorkspace?: boolean
 }
 
 /*
@@ -104,6 +107,7 @@ interface DevLoginModule {
     req: Request,
     res: Response,
     establish: (res: Response, userId: string) => Promise<void>,
+    sampleDefault?: boolean,
   ): Promise<void>
 }
 
@@ -303,7 +307,9 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
 
     let user
     try {
-      user = await provisionUser(db, identity, record.timezone)
+      user = await provisionUser(db, identity, record.timezone, {
+        sample: options.sampleWorkspace === true,
+      })
       await syncTimezone(db, user, record.timezone)
     } catch {
       // A provisioning fault rolls the whole transaction back (AC-005), and
@@ -444,8 +450,12 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       }
       const db = database(res)
       if (db === null) return
-      await module.handleDevLogin(db, req, res, (target, userId) =>
-        establishSession(db, target, userId),
+      await module.handleDevLogin(
+        db,
+        req,
+        res,
+        (target, userId) => establishSession(db, target, userId),
+        options.sampleWorkspace === true,
       )
     })
   }
