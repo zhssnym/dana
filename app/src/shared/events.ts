@@ -48,6 +48,8 @@ export interface NotificationLine {
   id: string
   read_at: string | null
   created_at: string
+  /** The task a comment subject sits on, null otherwise (polish, search F3). */
+  task_id: string | null
   event: EventLine
 }
 
@@ -128,6 +130,7 @@ export const notificationLine = z.object({
   id: z.uuid(),
   read_at: z.string().nullable(),
   created_at: z.string(),
+  task_id: z.uuid().nullable(),
   event: eventLine,
 })
 
