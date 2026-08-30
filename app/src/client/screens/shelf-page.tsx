@@ -180,6 +180,9 @@ export function ShelfPage({
   useEffect(() => {
     setItems((current) => reconcileItems(current, folders))
   }, [memberNames])
+  /* polish: shelves F11. The section just made is the one whose field opens
+     empty and focused, with "New section" as its placeholder. */
+  const [freshId, setFreshId] = useState<string | null>(null)
   /* Seam 3: the save effect, over 7.16's PUT. The first run is the mount and
      is not a change; a run that adopted the server's ids is not one either. */
   const mounted = useRef(false)
@@ -196,6 +199,20 @@ export function ShelfPage({
     void onLayoutChange(items).then((saved) => {
       if (saved === null) return
       adopting.current = true
+      /* polish: shelves F11. The write hands back the server's own block ids,
+         so the section just made arrives under a new one and the field that
+         was to open empty and focused would close on the adoption. It is
+         found again as the one section the write names that this page did not
+         have a moment ago. */
+      if (freshId !== null) {
+        const before = new Set(
+          items.flatMap((item) => (item.kind === "section" ? [item.section.id] : [])),
+        )
+        const made = saved.flatMap((item) =>
+          item.kind === "section" && !before.has(item.section.id) ? [item.section.id] : [],
+        )
+        setFreshId(made[0] ?? null)
+      }
       setItems(saved)
     })
   }, [items])
@@ -222,9 +239,6 @@ export function ShelfPage({
     },
   })
 
-  /* polish: shelves F11. The section just made is the one whose field opens
-     empty and focused, with "New section" as its placeholder. */
-  const [freshId, setFreshId] = useState<string | null>(null)
   const insertAt = (index: number, kind: "section" | "paragraph" | "image") => {
     const id = `${key}-${kind}-${items.length}-${Date.now()}`
     if (kind === "section") setFreshId(id)

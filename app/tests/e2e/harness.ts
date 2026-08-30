@@ -1328,6 +1328,31 @@ export async function expectServiceWorkerControl(page: Page): Promise<void> {
  * computed property of the rendered page whatever CSS produced it, where a
  * class name would be the implementer's internals.
  */
+
+/**
+ * The opacity a person sees on an element: its own times every ancestor's.
+ *
+ * Added at the polish round for the resting-affordance rule (a hover-only
+ * control must be drawn at reduced opacity at rest): `toBeVisible` counts an
+ * opacity-zero element as visible, so a control hidden that way passed every
+ * visibility assertion while nobody could see it.
+ */
+export async function effectiveOpacity(locator: Locator): Promise<number> {
+  return locator.evaluate((element) => {
+    const view = globalThis as unknown as {
+      getComputedStyle: (el: unknown) => { opacity: string }
+      document: { body: unknown }
+    }
+    let node = element as unknown as { parentElement: unknown } | null
+    let opacity = 1
+    while (node !== null && node !== view.document.body) {
+      opacity *= Number(view.getComputedStyle(node).opacity)
+      node = node.parentElement as { parentElement: unknown } | null
+    }
+    return opacity
+  })
+}
+
 export async function computedStyle(
   locator: Locator,
   properties: readonly string[],

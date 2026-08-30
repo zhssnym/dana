@@ -93,6 +93,7 @@ import {
   IMPORTANT_ONLY,
   REPEATING_ONLY,
   UNASSIGNED,
+  customRangeOpen,
   filterChips,
   isNarrowed,
 } from './filter.js'
@@ -438,8 +439,10 @@ export function FilterControl({
 
   const narrowed = isNarrowed(filter)
   const arranged = filter.groupBy !== 'none' || filter.sort !== 'manual'
+  /* polish: pagehead F2. The badge counts the axes that narrow, and a custom
+     range with a day still owed narrows nothing, so it is not one of them. */
   const count =
-    Number(filter.due !== 'any') +
+    Number(filter.due !== 'any' && !customRangeOpen(filter)) +
     Number(filter.assignees.length > 0) +
     Number(filter.creators.length > 0) +
     Number(filter.repeating) +
