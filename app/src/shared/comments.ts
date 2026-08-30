@@ -23,6 +23,16 @@ export const patchCommentBody = z.object({
 })
 export type PatchCommentBody = z.infer<typeof patchCommentBody>
 
+/** A comment's file as the thread answers it, 4.16's own columns and no
+ * more (7.14, RFC 0005 change control item 57 B5): enough to draw the tile,
+ * the name and the meta line without downloading the bytes. */
+export interface CommentFile {
+  id: string
+  name: string
+  mime: string
+  bytes: number
+}
+
 export interface CommentLine {
   id: string
   folder_id: string
@@ -34,7 +44,7 @@ export interface CommentLine {
   likes: number
   /** Whether the viewer is inside that count. */
   liked: boolean
-  file_ids: string[]
+  files: CommentFile[]
   created_at: string
   edited_at: string | null
 }
@@ -60,7 +70,14 @@ export const commentLine = z.object({
   body: z.string().nullable(),
   likes: z.number().int(),
   liked: z.boolean(),
-  file_ids: z.array(z.uuid()),
+  files: z.array(
+    z.object({
+      id: z.uuid(),
+      name: z.string(),
+      mime: z.string(),
+      bytes: z.number().int(),
+    }),
+  ),
   created_at: z.string(),
   edited_at: z.string().nullable(),
 })

@@ -302,7 +302,12 @@ function BoardCard({
         </span>
         <button
           type="button"
-          aria-label={task.important ? "Remove from Important" : "Mark as Important"}
+          /* seam: the names are 9.1's and 9.5's, "Important" when on and
+             "Mark as important" when off, where the prototype writes "Remove
+             from Important" and "Mark as Important". Item 44's A2 ruled the
+             table stands and the row transcribed it at S23; the board's card
+             is the same control and was transcribed at item 57 (A2). */
+          aria-label={task.important ? "Important" : "Mark as important"}
           aria-pressed={task.important || undefined}
           onClick={(event) => {
             event.stopPropagation()

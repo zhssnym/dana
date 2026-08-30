@@ -64,7 +64,7 @@ import {
 } from '../api/mutations.js'
 import { useConnections, useFolders, useMe, useTask, useThread } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
-import { applyThreadChange, toConceptComments } from '../lib/thread.js'
+import { applyThreadChange, commentFileKind, toConceptComments } from '../lib/thread.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import { presenterToday } from '../parts/presenters.js'
 import { conceptPatchToBody, toConceptTask } from '../lib/task-concept.js'
@@ -335,7 +335,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
         like: (commentId, liked) => {
           setLike.mutate({ id: commentId, liked })
         },
-        upload: (file) => uploadFile('image', folderId, file).then((stored) => stored.id),
+        upload: (file) =>
+          uploadFile(commentFileKind(file), folderId, file).then((stored) => stored.id),
       })
       return
     }

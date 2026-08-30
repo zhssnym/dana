@@ -26,13 +26,15 @@ worse than an absent one) and `MediaRecorder`, `VoiceNote` and the recording
 bar stay here unreferenced-by-default, so that B5's package flips one default
 rather than restoring a hundred lines.
 
-**Four. One file per comment, and images.** Frozen 7.14 takes a single
-`file_id` on a comment and answers a bare uuid on the read, so a second
-attachment has no route and a file's name, type and size are not on the wire at
-all. The composer therefore takes one file, offers images, and an attachment
-carrying a preview and no name draws as the picture: the bytes are the one
-thing this client can honestly say about a file somebody else attached.
-Section 13 item 54 is the widening that would close it.
+**Four. One file per comment, of any kind.** Frozen 7.14 takes a single
+`file_id` on a comment, so a second attachment has no route and the composer
+takes one. Until RFC 0005 change control item 57 (B5) the read answered a bare
+uuid, so a file's name, type and size were not on the wire and the composer
+offered images alone, the bytes being the one thing this client could honestly
+say about a file somebody else attached; the read now carries 4.16's columns
+(`files: { id, name, mime, bytes }[]`), `lib/thread.ts` draws the tile, the
+name and the meta line from them, and the composer offers any file 10.3
+admits. The picture-only branch below stays for a file that arrives nameless.
 
 **Five. A folder's owner deletes, which is 4.15 and not the prototype.** The
 lab has no permission system, so it offers Edit and Delete on `mine` alone;
@@ -580,8 +582,8 @@ function Composer({
           <input
             ref={fileInput}
             type="file"
-            /* Seam four: one, and a picture. See the header. */
-            accept="image/*"
+            /* Seam four: one file, of any kind since item 57 (B5). See the
+               header. */
             className="sr-only"
             onChange={(event) => {
               takeFiles(event.target.files)
