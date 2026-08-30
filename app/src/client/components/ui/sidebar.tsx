@@ -196,7 +196,11 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      /* polish: sidebar F1. The landmark props (role, aria-label) go on the
+         drawer's own box rather than on the sheet root, which renders no
+         element of its own, so the drawer is the same navigation landmark the
+         column is. */
+      <Sheet open={openMobile} onOpenChange={setOpenMobile}>
         <SheetContent
           dir={dir}
           data-sidebar="sidebar"
@@ -214,7 +218,9 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div {...props} className={cn("flex h-full w-full flex-col", className)}>
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     )

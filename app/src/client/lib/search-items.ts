@@ -118,7 +118,15 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         hint: home?.name === undefined ? 'Page' : `On ${home.name}`,
       }
     })
-    const all = [...tasks, ...found, ...foundShelves, ...pages]
+    /* polish: search F5. The places are findable by typing too, not only
+       offered before anything is typed: "sched" should reach Scheduled. A
+       page matches on its name or on the question it answers. */
+    const places = placeItems().filter(
+      (place) =>
+        place.title.toLocaleLowerCase().includes(normalized) ||
+        (place.hint ?? '').toLocaleLowerCase().includes(normalized),
+    )
+    const all = [...tasks, ...found, ...foundShelves, ...places, ...pages]
     /* The prototype's rank: a title match beats a body match. Stable, so
        Q8's status order inside Tasks survives it. */
     return all

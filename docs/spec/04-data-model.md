@@ -259,6 +259,13 @@ A comment on a task or on a folder's conversation. One level of replies
 | created_at | timestamptz | no | now() | none |
 | edited_at | timestamptz | yes | none | none |
 
+**Annotation, sample-workspace row, 2026-08-30.** The pair FK
+comments_task_scope_fkey, (folder_id, task_id) against tasks (folder_id,
+id), is DEFERRABLE INITIALLY IMMEDIATE since migration 0007, so that 7.6's
+move can re-scope a task's conversation in the same transaction; its name
+and shape are unchanged. (Annotate unit of RFC 0005 change control item 60,
+ruled by delegation and folded here the same day.)
+
 `comment_likes` rides beside it: (comment_id FK ON DELETE CASCADE, user_id FK
 ON DELETE CASCADE, created_at), PK (comment_id, user_id). A like is the whole
 reaction set (DES-146).
@@ -368,3 +375,25 @@ row exists exactly when a cover was chosen and removal is the row's
 deletion. The place set is 4.19's native-view vocabulary minus `desk`, which
 is a folder and carries 4.3's own cover column. No index: the primary key
 serves the only read this table has, which is one viewer's covers.
+
+### 4.21 sample_objects
+
+*Insert unit of RFC 0005 change control item 60, ruled by delegation
+2026-08-30 and folded here the same day. Migration `0007_sample_objects.sql`;
+its three constraints are named in AC-001's catalog.*
+
+| Column | Type | Null | Default | Constraint |
+| - | - | - | - | - |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
+| kind | text | no | none | CHECK (kind IN ('shelf','folder','task','view')) |
+| id | uuid | no | none | the object's own id; no FK, deliberately |
+| created_at | timestamptz | no | now() | none |
+
+PK (user_id, kind, id). The register of what the sample workspace wrote
+into an account at its first sign-in (7.1, 7.20). It carries no foreign
+key to the object because the object keeps its id through every edit the
+person makes and removal must still find it; a row whose object the person
+destroyed themselves names nothing and is dropped by the next removal.
+Objects that ride another's cascade (steps, blocks, comments, reminders,
+pulls, events) are not registered. No index: the primary key serves the
+only reads, one person's register.

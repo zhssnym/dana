@@ -70,14 +70,26 @@ export async function createComment(
   body: PostCommentBody,
 ): Promise<CreateCommentResult> {
   return inTransaction(db, async (tx) => {
+    /* polish: search F1. The task's own people, read here so the fan-out
+       below can reach them: a comment on a task concerns its assignee and
+       its creator whether or not either has spoken yet (4.14, "the people
+       it concerns"), which is what 9.12's empty state promises. The title is
+       read too, so the sentence the bell draws can say which task. */
+    let taskPeople: string[] = []
+    let taskTitle: string | null = null
     if (taskId !== null) {
       const task = await rowsOf(
         tx,
-        sql`SELECT 1 AS present FROM tasks
+        sql`SELECT title, assignee_id, created_by FROM tasks
             WHERE id = ${taskId} AND folder_id = ${folderId}
               AND deleted_at IS NULL`,
       )
-      if (task.length === 0) return { kind: 'task_not_here' } as const
+      const row = task[0]
+      if (row === undefined) return { kind: 'task_not_here' } as const
+      taskTitle = String(row.title)
+      taskPeople = [row.assignee_id, row.created_by].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      )
     }
 
     if (body.parent_id !== undefined) {
@@ -140,6 +152,11 @@ export async function createComment(
             AND task_id IS NOT DISTINCT FROM ${taskId}
             AND id <> ${commentId}::uuid`,
     )
+    const folderRow = await rowsOf(
+      tx,
+      sql`SELECT name FROM folders WHERE id = ${folderId}`,
+    )
+    const placeName = taskTitle ?? String(folderRow[0]?.name ?? 'a folder')
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'created',
@@ -147,8 +164,11 @@ export async function createComment(
       subjectId: commentId,
       subjectName: snippetOf(body.body ?? null, fileName),
       folderId,
-      detail: 'commented',
-      recipients: participants.map((row) => String(row.author_id)),
+      /* polish: search F4. The detail names where the comment landed, so the
+         bell reads "commented on 'Book the van'" rather than "created
+         <snippet>, commented". 4.13 caps detail at 200. */
+      detail: `commented on "${placeName}"`.slice(0, 200),
+      recipients: [...participants.map((row) => String(row.author_id)), ...taskPeople],
     })
 
     return {

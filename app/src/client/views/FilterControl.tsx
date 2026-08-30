@@ -93,6 +93,7 @@ import {
   IMPORTANT_ONLY,
   REPEATING_ONLY,
   UNASSIGNED,
+  customRangeOpen,
   filterChips,
   isNarrowed,
 } from './filter.js'
@@ -121,8 +122,10 @@ reading: an open range is "from this day onward" rather than nothing, and
 */
 function rangeSentence(from: string | null, to: string | null): string {
   if (from !== null && to !== null) return from === to ? from : `${from} to ${to}`
-  if (from !== null) return `From ${from}`
-  if (to !== null) return `Until ${to}`
+  /* polish: pagehead F2. A half-built range filters nothing yet, so the
+     sentence says what is still owed rather than promising "from here on". */
+  if (from !== null) return `From ${from}. Now pick the last day.`
+  if (to !== null) return `Until ${to}. Now pick the first day.`
   return 'Pick the first day, then the last.'
 }
 
@@ -436,8 +439,10 @@ export function FilterControl({
 
   const narrowed = isNarrowed(filter)
   const arranged = filter.groupBy !== 'none' || filter.sort !== 'manual'
+  /* polish: pagehead F2. The badge counts the axes that narrow, and a custom
+     range with a day still owed narrows nothing, so it is not one of them. */
   const count =
-    Number(filter.due !== 'any') +
+    Number(filter.due !== 'any' && !customRangeOpen(filter)) +
     Number(filter.assignees.length > 0) +
     Number(filter.creators.length > 0) +
     Number(filter.repeating) +

@@ -144,7 +144,15 @@ export function ShelfPage(): React.JSX.Element {
   return (
     <PageBody query={shelf} isEmpty={false} emptyCopy="">
       <PageBody query={page} isEmpty={false} emptyCopy="">
-        {page.data === undefined ? null : (
+        {/* polish: shelves F2. Mounted only once the folder list is here:
+            mounted before it, the screen read an empty membership, dropped
+            every folder row from its arrangement, wrote that, and then wrote
+            the folders back with evidence the first write had already
+            replaced. Every shelf page opened with a 409 nobody caused and a
+            "Someone else changed this block" toast that reload re-raised;
+            and a section inserted in between landed under the rows the
+            second write re-appended. */}
+        {page.data === undefined || folders.data === undefined ? null : (
           <ShelfScreen
             /* Remounted per shelf, the screen holding its arrangement as
                state the way the prototype does. */

@@ -24,6 +24,7 @@ shell honours by the floating button's own rule; this file adds none.
 */
 import { useRestoreFolder, useTransitionTask } from '../api/mutations.js'
 import { TrashScreen } from '../screens/trash-screen.js'
+import { showToast } from '../state/toasts.js'
 
 export function TrashPage(): React.JSX.Element {
   const restoreFolder = useRestoreFolder()
@@ -33,8 +34,19 @@ export function TrashPage(): React.JSX.Element {
     <div className="min-h-full">
       <TrashScreen
         onRestore={(item) => {
-          if (item.kind === 'folder') restoreFolder.mutate(item.subject)
-          else if (item.kind === 'task') restoreTask.mutate({ id: item.subject, event: 'restore' })
+          /* polish: places F10. The row vanished and nothing said where it
+             went; the toast names the folder it went back to. */
+          const said = (): void => {
+            showToast(
+              item.kind === 'task' && item.from
+                ? `Restored "${item.name}" to ${item.from}`
+                : `Restored "${item.name}"`,
+            )
+          }
+          if (item.kind === 'folder') restoreFolder.mutate(item.subject, { onSuccess: said })
+          else if (item.kind === 'task') {
+            restoreTask.mutate({ id: item.subject, event: 'restore' }, { onSuccess: said })
+          }
         }}
       />
     </div>

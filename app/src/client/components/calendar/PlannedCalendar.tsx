@@ -61,7 +61,7 @@ current occurrence with 9.5's banner, and clicking a real row opens it
 without: the banner rides the ghost path alone because the opened row shows a
 date the person did not click.
 */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Ban,
   Check,
@@ -74,6 +74,8 @@ import {
 } from 'lucide-react'
 
 import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
+import { useUpdateTask } from '../../api/mutations.js'
+import { showToast } from '../../state/toasts.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
 import { openTaskForm } from '../../shell/overlays.js'
 import { InlineError } from '../state-patterns.js'
@@ -157,12 +159,25 @@ function CalendarEvent({
   const ghost = event.kind === 'ghost'
   const completed = event.status === 'completed'
   const abandoned = event.status === 'abandoned'
+  /* polish: places F6. A real, open row can be carried to another day; a
+     ghost is a projection and has no date of its own to move. */
+  const movable = !ghost && !completed && !abandoned
 
   return (
     <button
       type="button"
+      draggable={movable}
+      onDragStart={
+        movable
+          ? (drag) => {
+              drag.dataTransfer.setData('text/plain', event.taskId)
+              drag.dataTransfer.effectAllowed = 'move'
+            }
+          : undefined
+      }
       className={cn(
         'flex w-full items-center gap-1.5 overflow-hidden rounded-[4px] border border-transparent bg-[var(--color-graphite-25)] px-1.5 text-left text-[var(--color-graphite-700)] transition-[background-color,border-color] hover:border-[var(--color-graphite-200)] hover:bg-white focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none',
+        movable && 'cursor-grab active:cursor-grabbing',
         compact ? 'min-h-5 text-[10px] leading-3' : 'min-h-7 text-xs leading-4',
         completed && 'bg-white text-[var(--color-graphite-400)]',
         abandoned && 'bg-white text-[var(--color-graphite-500)] line-through',
@@ -212,6 +227,7 @@ function DayCell({
   lastRow,
   events,
   onReveal,
+  onDropTask,
 }: {
   readonly date: string
   readonly zoom: Zoom
@@ -222,7 +238,10 @@ function DayCell({
   readonly lastRow: boolean
   readonly events: readonly CellEvent[]
   readonly onReveal: () => void
+  /** polish: places F6. A row dropped here takes this date. */
+  readonly onDropTask: (taskId: string) => void
 }): React.JSX.Element {
+  const [over, setOver] = useState(false)
   /*
   The control takes the last line rather than a line of its own, so a cell
   that overflows is exactly as tall as one that does not. Reserving a line
@@ -239,6 +258,8 @@ function DayCell({
   return (
     <div
       role="gridcell"
+      data-today={date === today ? 'true' : undefined}
+      data-date={date}
       className={cn(
         'group/calendar-cell relative border-r border-b border-[var(--color-graphite-100)] p-1.5',
         CELL_MIN_HEIGHT[zoom],
@@ -246,7 +267,23 @@ function DayCell({
         weekend && !outsideMonth && 'bg-[var(--color-graphite-25)]/35',
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
+        over && 'bg-[var(--color-graphite-100)]',
       )}
+      onDragOver={(drag) => {
+        if (!drag.dataTransfer.types.includes('text/plain')) return
+        drag.preventDefault()
+        drag.dataTransfer.dropEffect = 'move'
+        if (!over) setOver(true)
+      }}
+      onDragLeave={() => {
+        setOver(false)
+      }}
+      onDrop={(drag) => {
+        drag.preventDefault()
+        setOver(false)
+        const taskId = drag.dataTransfer.getData('text/plain')
+        if (taskId !== '') onDropTask(taskId)
+      }}
     >
       {/*
       The whole cell opens the form at this date: 9.5's "click on empty cell
@@ -343,6 +380,33 @@ export function PlannedCalendar(): React.JSX.Element {
 
   const view = usePlannedCalendarView(start, end)
   const folders = useFolders()
+  const update = useUpdateTask()
+  /*
+  polish: places F7. The month opened at its first week with today three
+  weeks below the fold on the last day of a month; the grid scrolls today's
+  row into view once, on arrival, and the person takes it from there.
+  */
+  const grid = useRef<HTMLDivElement>(null)
+  const scrolled = useRef(false)
+  useEffect(() => {
+    if (scrolled.current || view.data === undefined) return
+    const cell = grid.current?.querySelector('[data-today="true"]')
+    if (cell === null || cell === undefined) return
+    scrolled.current = true
+    cell.scrollIntoView({ block: 'center' })
+  }, [view.data])
+
+  /* polish: places F6: 7.6's PATCH of the due date, from a drop. */
+  function moveTaskTo(taskId: string, date: string): void {
+    const already = (view.data?.real ?? []).find(
+      (row) => row.id === taskId && row.due_date === date,
+    )
+    if (already !== undefined) return
+    update.mutate(
+      { id: taskId, body: { due_date: date } },
+      { onSuccess: () => showToast(`Moved to ${formatDueDate(date, today)}`) },
+    )
+  }
 
   const cells = useMemo(
     () => cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? []),
@@ -450,7 +514,7 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
         </div>
 
-        <div role="grid" aria-label="Planned calendar" className="bg-white">
+        <div role="grid" aria-label="Planned calendar" className="bg-white" ref={grid}>
           <div
             role="row"
             className="grid border-b border-[var(--color-graphite-200)] bg-white"
@@ -498,6 +562,9 @@ export function PlannedCalendar(): React.JSX.Element {
                     // 9.5's reveal: the day zoom draws every row the day holds.
                     setAnchor(date)
                     setZoom('day')
+                  }}
+                  onDropTask={(taskId) => {
+                    moveTaskTo(taskId, date)
                   }}
                 />
               ))}

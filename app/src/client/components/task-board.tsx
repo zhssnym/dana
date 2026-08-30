@@ -51,6 +51,13 @@ export interface BoardColumn {
   /* A group nobody made: No section, Unassigned, No due date. Named in the
      quieter tone the list's own headings use for them. */
   quiet?: boolean
+  /*
+  polish (AC-228): whether a release can land here at all. A column grouping
+  by a relation to today — Overdue — has no value a drop could write, so it
+  must not promise one while a card is over it. Absent means it takes drops,
+  which is every column's answer but that one.
+  */
+  takes?: boolean
 }
 
 /* -------------------------------------------------------------- capture, */
@@ -508,7 +515,11 @@ export function TaskBoard({
               const landing = columnAt(point)
               if (landing === null || landing === column.key) return null
               const named = columns.find((entry) => entry.key === landing)
-              return named ? `Into ${named.label}` : null
+              /* polish (AC-228): and a column that cannot take the release is
+                 not proposed, so the promise and the act agree. The flag was
+                 what this seam's own sentence above already claimed. */
+              if (named === undefined || named.takes === false) return null
+              return `Into ${named.label}`
             }}
             renderRow={(task, wiring) => {
               const done = column.done || task.status === "completed"

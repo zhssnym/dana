@@ -81,18 +81,24 @@ export function IconPicker({
   icon,
   color,
   onPick,
+  subject = 'Folder',
 }: {
   /** The stored 4.3 key, null for unset (the plain folder). */
   readonly icon: string | null
   /** The stored hex, null for unset (graphite). */
   readonly color: string | null
   readonly onPick: (next: { icon?: string; color?: string }) => void
+  /** polish: shelves F10. What the picker dresses, "Folder" or "Shelf", so a
+      shelf's picker does not head itself "Folder". */
+  readonly subject?: 'Folder' | 'Shelf'
 }): React.JSX.Element {
   const [preview, setPreview] = useState<string | null>(null)
   const activeKey = icon ?? 'folder'
   const shownKey = preview ?? activeKey
   const shownLabel =
-    (GLYPH_LABELS as Record<string, string>)[shownKey] ?? 'Folder icon'
+    shownKey === 'folder' && subject === 'Shelf'
+      ? 'Shelf'
+      : ((GLYPH_LABELS as Record<string, string>)[shownKey] ?? `${subject} icon`)
   const drawn = color ?? IDENTITY_COLOR_FALLBACK
 
   return (
@@ -102,7 +108,7 @@ export function IconPicker({
       </p>
       <div
         role="listbox"
-        aria-label="Folder icon"
+        aria-label={`${subject} icon`}
         className="grid grid-cols-7 gap-1"
         onMouseLeave={() => {
           setPreview(null)
@@ -148,7 +154,7 @@ export function IconPicker({
 
       <div className="mx-1 my-2 h-px bg-border" aria-hidden="true" />
 
-      <div role="listbox" aria-label="Folder color" className="flex flex-wrap gap-1 px-1 pb-1">
+      <div role="listbox" aria-label={`${subject} color`} className="flex flex-wrap gap-1 px-1 pb-1">
         {IDENTITY_COLORS.map(([name, hex]) => {
           const selected = drawn.toLowerCase() === hex
           return (

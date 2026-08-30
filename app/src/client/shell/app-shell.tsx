@@ -52,7 +52,7 @@ answer to a question 11.6's double-submit expects one answer to.
 */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 /* The icon module of DES-125, since S8: every icon Dana uses is an export
    of one file and nothing imports `lucide-react` directly. */
 import { adoptClock } from '../lib/time-format.js'
@@ -65,7 +65,9 @@ import {
   Folder as FolderIcon,
   LampDesk,
   Layers3,
+  PanelLeft,
   RefreshCw,
+  Search,
   Settings,
   Star,
   SunMedium,
@@ -102,7 +104,9 @@ import { FolderLibraryMemory } from '../lib/folder-library.js'
 import { useHistory } from '../lib/history.js'
 import { TaskWriter, useApiTaskPatch } from '../lib/task-writer.js'
 import { Button } from '../components/ui/button.js'
-import { SidebarInset, SidebarProvider } from '../components/ui/sidebar.js'
+import { SidebarInset, SidebarProvider, useSidebar } from '../components/ui/sidebar.js'
+import { DanaMark } from '../components/dana-mark.js'
+import { NotificationsBell } from '../components/notifications-bell.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { folderMark } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
@@ -242,6 +246,10 @@ function currentPage(
   if (pathname === paths.people) {
     return { title: 'People', icon: pageIcons[paths.people], iconColor: undefined }
   }
+  /* polish: places F10. The Trash tab was a blank with an "x". */
+  if (pathname === paths.trash) {
+    return { title: 'Trash', icon: pageIcons[paths.trash], iconColor: undefined }
+  }
   if (pathname.startsWith(FOLDER_PREFIX)) {
     const id = pathname.slice(FOLDER_PREFIX.length)
     const folder = folders?.find((candidate) => candidate.id === id)
@@ -299,6 +307,56 @@ function shellSubjectOf(pathname: string): { kind: 'folder' | 'task'; id: string
 
 /** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
 const UPDATE_AVAILABLE = 'Update available, reload'
+
+/*
+polish: sidebar F1, tabstrip F1, search F2 (the blocker in six reports).
+
+Below 768px the vendored sidebar is a drawer and nothing opened it: the only
+toggle lived inside the drawer. This bar stands above the tab strip on a
+phone only, carrying the one thing that opens the drawer, the mark as the way
+home, and the two everywhere-controls the sidebar header holds on a laptop,
+Search and the bell. It is a `div` inside `main` rather than a `header`
+outside it, which keeps AC-174's "no banner landmark" true; and it returns
+nothing at all on a laptop rather than hiding, so a desktop page carries one
+"Search" control and one bell, as every criterion that counts them expects.
+The drawer closes on navigation from `app-sidebar.tsx`, on the backdrop and
+on Escape from the sheet itself.
+*/
+function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element | null {
+  const { isMobile, setOpenMobile } = useSidebar()
+  if (!isMobile) return null
+  return (
+    <div className="flex h-11 shrink-0 items-center gap-1 border-b border-[var(--color-graphite-100)] bg-[var(--color-graphite-50)] px-1">
+      <Button
+        variant="ghost"
+        className="size-10 text-[var(--color-graphite-700)]"
+        aria-label="Menu"
+        onClick={() => {
+          setOpenMobile(true)
+        }}
+      >
+        <PanelLeft className="!size-5" strokeWidth={1.75} aria-hidden="true" />
+      </Button>
+      <Link
+        to={paths.desk}
+        className="flex min-w-0 items-center gap-2 rounded-md px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+      >
+        <DanaMark className="size-6" />
+        <span className="truncate text-base font-semibold text-[var(--color-graphite-900)]">Dana</span>
+      </Link>
+      <span className="min-w-0 flex-1" />
+      <Button
+        variant="ghost"
+        className="size-10 text-[var(--color-graphite-700)]"
+        aria-label="Search"
+        onClick={onOpenSearch}
+      >
+        <Search className="!size-5" strokeWidth={1.75} aria-hidden="true" />
+      </Button>
+      <NotificationsBell side="bottom" />
+    </div>
+  )
+}
 
 function WindowBarChrome({
   pathname,
@@ -461,7 +519,28 @@ export function AppShell(): React.JSX.Element {
           showToast(WORKFLOW_UNREADABLE)
           return
         }
-        importWorkflow.mutate(file.data)
+        /* polish: settings F3. A folder whose name the Library already has
+           arrives as "Name (imported)" rather than as a second "Desk"; and
+           the import says what it made and opens it. */
+        const taken = new Set((folders.data ?? []).map((folder) => folder.name))
+        const body = {
+          ...file.data,
+          folders: file.data.folders.map((folder) =>
+            taken.has(folder.name) ? { ...folder, name: `${folder.name} (imported)`.slice(0, 100) } : folder,
+          ),
+        }
+        importWorkflow.mutate(body, {
+          onSuccess: (made) => {
+            const tasks = body.folders.reduce((sum, folder) => sum + (folder.tasks?.length ?? 0), 0)
+            const first = made.folders[0]
+            showToast(
+              made.folders.length === 1 && first !== undefined
+                ? `Imported "${first.name}" with ${String(tasks)} task${tasks === 1 ? '' : 's'}`
+                : `Imported ${String(made.folders.length)} folders with ${String(tasks)} task${tasks === 1 ? '' : 's'}`,
+            )
+            if (first !== undefined) void navigate(paths.folder(first.id))
+          },
+        })
       },
       () => {
         showToast(WORKFLOW_UNREADABLE)
@@ -732,6 +811,7 @@ export function AppShell(): React.JSX.Element {
             }}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
+            avatarUrl={me.data?.user.avatar_url ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
             currentSearch={location.search}
@@ -748,9 +828,6 @@ export function AppShell(): React.JSX.Element {
               clearSidebarWidth()
             }}
             onOpenSearch={openSearch}
-            onOpenSettings={() => {
-              void navigate(paths.settings)
-            }}
             onNewFolder={() => {
               setNewFolderIn(null)
               setNewFolderOpen(true)
@@ -800,6 +877,7 @@ export function AppShell(): React.JSX.Element {
             asserts the absence of, and the strip is chrome belonging to the
             window rather than to the application.
             */}
+            <PhoneBar onOpenSearch={openSearch} />
             <TabStrip
               face={(path) => currentPage(path, folders.data, shelves.data)}
               folders={folders.data ?? NO_FOLDERS}
@@ -838,7 +916,7 @@ export function AppShell(): React.JSX.Element {
                   pages each choosing their own width is thirteen chances to
                   disagree. His screens each carry this wrapper because they
                   have no shell to put it in. */}
-              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-10 py-6">
+              <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 <Outlet />
               </div>
             </div>
@@ -863,17 +941,17 @@ export function AppShell(): React.JSX.Element {
               const label = newFolderIn
               createFolder.mutate(
                 { name },
-                label === null
-                  ? undefined
-                  : {
-                      /* Filed after it exists rather than in the same call:
-                         7.4 creates a folder and 7.4's my-membership places
-                         it, and widening the create to carry a label would be
-                         a frozen section 7 change for a client convenience. */
-                      onSuccess: (made) => {
-                        relabelFolder.mutate({ id: made.id, body: { label } })
-                      },
-                    },
+                {
+                  /* Filed after it exists rather than in the same call: 7.4
+                     creates a folder and 7.4's my-membership places it, and
+                     widening the create to carry a label would be a frozen
+                     section 7 change for a client convenience. polish:
+                     sidebar F8, then the folder opens, ready for tasks. */
+                  onSuccess: (made) => {
+                    if (label !== null) relabelFolder.mutate({ id: made.id, body: { label } })
+                    void navigate(paths.folder(made.id))
+                  },
+                },
               )
             }}
           />

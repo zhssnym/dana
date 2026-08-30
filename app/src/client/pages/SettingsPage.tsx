@@ -24,6 +24,8 @@ import { useNavigate } from 'react-router'
 import { mutateApi } from '../api/http.js'
 import { usePatchSavedView } from '../api/mutations.js'
 import { useBundle, useSavedViews } from '../api/queries.js'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
+import { SAMPLE_COPY, useSampleActs } from '../onboarding/sample.js'
 import { paths } from '../routes.js'
 import { SettingsScreen } from '../screens/settings-screen.js'
 import { signOut } from '../shell/session.js'
@@ -33,9 +35,24 @@ export function SettingsPage(): React.JSX.Element {
   const bundle = useBundle()
   const savedViews = useSavedViews()
   const patchSavedView = usePatchSavedView()
+  /* Item 60: the sample workspace's row, over the same hook as the strip. */
+  const sample = useSampleActs()
 
   return (
+    <>
     <SettingsScreen
+      sample={
+        sample.present === undefined
+          ? null
+          : {
+              present: sample.present,
+              busy: sample.busy,
+              tasks: sample.counts?.tasks ?? 0,
+              folders: sample.counts?.folders ?? 0,
+            }
+      }
+      onRemoveSample={sample.askRemove}
+      onRestoreSample={sample.restore}
       previewState={bundle.isPending ? 'loading' : bundle.isError ? 'error' : null}
       savedViews={savedViews.data ?? []}
       onPinSavedView={(id, pinned) => {
@@ -57,5 +74,13 @@ export function SettingsPage(): React.JSX.Element {
         })
       }}
     />
+    {sample.confirming ? (
+      <ConfirmDialog
+        message={SAMPLE_COPY.confirm}
+        onContinue={sample.remove}
+        onCancel={sample.cancelRemove}
+      />
+    ) : null}
+    </>
   )
 }

@@ -119,7 +119,14 @@ function UndatedGroups({
 
   return (
     <div className="space-y-7">
-      <PageSection name={inboxName}>
+      {/* polish: places F12. Every undated group is a folder and reads as
+          one; Desk's group had no heading and looked like a group called
+          "Anytime" beside groups called by their folders. */}
+      <PageSection
+        name={inboxName}
+        heading={inboxName}
+        headingMedia={<FolderGlyph folder={context.folders.find((entry) => entry.id === inboxFolderId)} />}
+      >
         <PageBody
           query={query}
           isEmpty={false}
@@ -139,9 +146,10 @@ function UndatedGroups({
               inboxFolderId === undefined ? undefined : { folder_id: inboxFolderId },
             )
           }}
-          onOpenFullForm={() => {
+          onOpenFullForm={(title) => {
             place.openFull(
               inboxFolderId === undefined ? undefined : { folder_id: inboxFolderId },
+              title,
             )
           }}
         />
@@ -163,8 +171,8 @@ function UndatedGroups({
             onAdd={(title) => {
               place.capture(title, { folder_id: group.folder.id })
             }}
-            onOpenFullForm={() => {
-              place.openFull({ folder_id: group.folder.id })
+            onOpenFullForm={(title) => {
+              place.openFull({ folder_id: group.folder.id }, title)
             }}
           />
         </PageSection>

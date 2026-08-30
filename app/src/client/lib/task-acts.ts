@@ -238,14 +238,38 @@ export function writeSteps(taskId: string, next: readonly ConceptStep[]): void {
     .then((current) => {
       const before = new Map(current.steps.map((step) => [step.id, step]))
       const kept = new Set(next.map((step) => step.id).filter((id) => id !== undefined))
+      /*
+      polish: taskcard F1 and F4. A step the card added and then renamed or
+      ticked before the refetch handed it an id arrives here without one,
+      while the server already holds it. Diffing by id alone deleted the
+      server's copy and posted the renamed one, so a rename read as "removed
+      a step, added a step" in the history and the two writes raced the
+      refetch. An id-less step standing at the same position as a server
+      step nobody kept is that step, so it is patched rather than replaced.
+      */
+      const paired = new Map<number, (typeof current.steps)[number]>()
+      current.steps.forEach((step, index) => {
+        if (kept.has(step.id)) return
+        const candidate = next[index]
+        if (candidate !== undefined && candidate.id === undefined) paired.set(index, step)
+      })
       const writes: Promise<unknown>[] = []
       for (const step of current.steps) {
-        if (!kept.has(step.id)) {
+        if (!kept.has(step.id) && ![...paired.values()].includes(step)) {
           writes.push(mutateApi(null, { method: 'DELETE', path: `/steps/${step.id}` }))
         }
       }
       next.forEach((step, index) => {
         const position = index + 1
+        const twin = step.id === undefined ? paired.get(index) : undefined
+        if (twin !== undefined) {
+          const body: Record<string, unknown> = {}
+          if (twin.title !== step.title) body['title'] = step.title
+          if (twin.done !== step.done) body['done'] = step.done
+          if (Object.keys(body).length === 0) return
+          writes.push(mutateApi(taskDetail, { method: 'PATCH', path: `/steps/${twin.id}`, body }))
+          return
+        }
         if (step.id === undefined) {
           writes.push(
             mutateApi(taskDetail, {

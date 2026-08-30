@@ -57,7 +57,7 @@ import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
-import { agoFor, type HistoryEvent, lineFor, verbFor, whenFor } from "../lib/history.js"
+import { agoFor, type HistoryEvent, storyFor, verbFor, whenFor } from "../lib/history.js"
 
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
@@ -170,6 +170,26 @@ control that opens onto an empty popover is a promise the page cannot keep
 export function WindowActivity({ events }: { events: HistoryEvent[] }) {
   const newest = events[0]
   if (!newest) return null
+  /*
+  polish: pagehead F4, folderpage F3. This was a button opening an "Activity"
+  popover of the same rows the History sheet shows, two doors into one room
+  with the sentences truncated in the smaller one. It is the line it looks
+  like now; "..." > History is the one way to the record.
+  */
+  return (
+    <span
+      className="flex h-7 items-center px-2 text-[12px] leading-4 text-[var(--color-graphite-500)]"
+      title={`${verbFor(newest)} ${whenFor(newest.at).toLowerCase()} by ${newest.actor}`}
+    >
+      {verbFor(newest)} {agoFor(newest.at)}
+    </span>
+  )
+}
+
+/* The popover this replaced, kept beside it and rendered by nothing. */
+export function WindowActivityPopover({ events }: { events: HistoryEvent[] }) {
+  const newest = events[0]
+  if (!newest) return null
   return (
     <Popover>
       <PopoverTrigger
@@ -200,11 +220,13 @@ export function WindowActivity({ events }: { events: HistoryEvent[] }) {
             key={event.id}
             className="flex items-baseline gap-2 rounded-md px-2 py-1.5"
           >
+            {/* polish: taskcard F4. One sentence, the person first: "Hassan
+                added a step 'Plates'", from `lib/history.ts`'s `storyFor`. */}
             <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-[var(--color-graphite-700)]">
-              {lineFor(event)} by{" "}
               <span className="font-medium text-[var(--color-graphite-900)]">
                 {event.actor}
-              </span>
+              </span>{" "}
+              {storyFor(event).slice(event.actor.length + 1)}
             </span>
             <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)]">
               {whenFor(event.at)}

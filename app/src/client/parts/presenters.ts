@@ -806,6 +806,11 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     engineer's; the request is in the session report with this reasoning, and
     the visual review of section 13 item 33 is where the missing glyph shows.
     */
-    recurrence: undefined,
+    /* polish: places F8. The inline card built from this row said "Does not
+       repeat" over a task the panel beside it called weekly, because this
+       was never set. The card cannot know the rule from a row (7.0 puts it
+       on the detail alone), so the word is the fact the row does carry:
+       that it repeats. */
+    recurrence: task.is_recurring ? 'Repeats' : undefined,
   }
 }

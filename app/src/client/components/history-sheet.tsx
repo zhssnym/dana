@@ -36,7 +36,7 @@ import {
 import {
   type HistoryEvent,
   type HistorySubjectKind,
-  lineFor,
+  sentenceOf,
   useHistory,
   whenFor,
 } from "../lib/history.js"
@@ -69,17 +69,21 @@ export function HistorySheet({
   name,
   open,
   onOpenChange,
+  scope = "subject",
 }: {
   kind: HistorySubjectKind
   subject: string
   name: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  /* polish: folderpage F3. A folder's sheet reads everything that happened
+     in the folder; every other sheet reads its subject alone. */
+  scope?: "subject" | "folder"
 }) {
   /* Seam, S23: read while it is open and not before. `lib/history.ts`
      carries the measurement, which is one `GET /events` per row on a page of
      closed sheets. */
-  const events = useHistory(kind, subject, open)
+  const events = useHistory(kind, subject, open, scope)
 
   /* Grouped in render order rather than sorted into a map, because the events
      already arrive newest-first and a heading is simply the point where the
@@ -125,11 +129,11 @@ export function HistorySheet({
                   >
                     {timeOf(row.event.at)}
                   </span>
+                  {/* polish: pagehead F4, folderpage F3. One sentence with
+                      the actor in it, rather than a verb column and an actor
+                      column that read "Edited edited the page". */}
                   <span className="min-w-0 flex-1 text-[13px] leading-5 text-[var(--color-graphite-700)]">
-                    {lineFor(row.event)}
-                  </span>
-                  <span className="shrink-0 text-[12px] leading-5 text-[var(--color-graphite-500)]">
-                    {row.event.actor}
+                    {sentenceOf(row.event, { kind, subject })}
                   </span>
                 </div>
               ),

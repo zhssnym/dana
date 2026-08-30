@@ -96,6 +96,11 @@ export function TaskBoard({
     /* Finished columns strike through and drop their details, the lifted
        board's own contract for its `done` flag (item 58, F and G). */
     ...(column.done === true ? { done: true, quiet: true } : {}),
+    /* polish (AC-228): the same question `onDropIn` below answers, asked one
+       moment earlier, so a column with nothing to write — Overdue, a relation
+       to today rather than a value (DES-182) — never promises a landing it
+       will then refuse. */
+    takes: column.done === true || (column.capture !== undefined && column.capture !== null),
     tasks: column.rows.map(
       (task: TaskCard): BoardTask => ({
         ...taskRowDisplay(task, columnContext),
@@ -163,8 +168,8 @@ export function TaskBoard({
             onAdd={(title) => {
               place.capture(title, group.capture ?? undefined)
             }}
-            onOpenFullForm={() => {
-              place.openFull(group.capture ?? undefined)
+            onOpenFullForm={(title) => {
+              place.openFull(group.capture ?? undefined, title)
             }}
           />
         )

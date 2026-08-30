@@ -30,6 +30,7 @@ import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
    which is the one thing this message must never do. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
 import { FolderMark, folderNameOf } from "./folder-mark.js"
+import { HistorySheet } from "./history-sheet.js"
 import { TaskCard } from "./task-card.js"
 import {
   Actions,
@@ -45,6 +46,7 @@ import { WindowBarActions, WindowBarLead } from "./window-bar.js"
 import { setTaskSurfacePreference } from "../lib/task-surface-preference.js"
 import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../lib/task-acts.js"
 import { cn } from "./ui/utils.js"
+import { useIsMobile } from "./ui/use-mobile.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
@@ -370,11 +372,26 @@ export function TaskPage({
   inWindow?: boolean
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
+  /* polish: taskcard F5. The surface's menu carries History like the row's,
+     over the same sheet. */
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const actions = (
     <Actions
       task={task}
       persistent
+      onHistory={props.id ? () => setHistoryOpen(true) : undefined}
+      extra={
+        props.id ? (
+          <HistorySheet
+            kind="task"
+            subject={props.id}
+            name={task.title}
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+          />
+        ) : undefined
+      }
       onStar={() => {
         patch(task.id, { important: !task.important })
         props.onToggleImportant?.()
@@ -557,6 +574,15 @@ function SurfaceChrome({
         The strip keeps its space, so the view controls stay where they are.
         */}
         <span className="min-w-0 flex-1" />
+        {/* polish: settings F11: three unlabelled icons beside the close
+            control read as nothing in particular; the word says what they
+            choose, and that choosing one is remembered. */}
+        <span
+          className="text-[11px] leading-4 text-[var(--color-graphite-500)]"
+          title="Where this task opens; Dana remembers the one you pick"
+        >
+          Open in
+        </span>
         <ViewStrip
           ariaLabel="Where this task opens"
           value={mode}
@@ -608,6 +634,10 @@ export function TaskSurface({
   closeRef.current = onClose
   const [panelWidth, setPanelWidth] = useState(readPanelWidth)
   const [dialogWidth, setDialogWidth] = useState(readDialogWidth)
+  /* polish: shell, phone. Below 768px the surface takes the whole width in
+     either mode and its resize handle goes, a hand having nothing to drag
+     against; the close control in the chrome above stays where it is. */
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -664,7 +694,7 @@ export function TaskSurface({
           className="absolute inset-0 cursor-default bg-[var(--color-graphite-950)]/30"
         />
         <div
-          style={{ width: dialogWidth }}
+          style={{ width: isMobile ? "100%" : dialogWidth }}
           /*
           **Seam, S23: the dialog says so.** 9.1's roles table fixes "The task
           surface: a dialog when opened as one; a page when opened as a tab or
@@ -689,8 +719,12 @@ export function TaskSurface({
           hand, and AC-182 measured a width still travelling. The entrance
           keeps its animation; only the transition is switched off.
           */
-          className="absolute inset-x-0 top-[8vh] mx-auto flex max-h-[84vh] w-full flex-col overflow-hidden rounded-xl border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] transition-none duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2"
+          className={cn(
+            "absolute inset-x-0 mx-auto flex w-full max-w-full flex-col overflow-hidden border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] transition-none duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2",
+            isMobile ? "top-0 max-h-svh rounded-none" : "top-[8vh] max-h-[84vh] rounded-xl",
+          )}
         >
+          {isMobile ? null : (
           <PanelResizeHandle
             side="left"
             min={DIALOG_MIN}
@@ -707,6 +741,7 @@ export function TaskSurface({
             }}
             onReset={() => setDialogWidth(DIALOG_DEFAULT)}
           />
+          )}
           {chrome(
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{page}</div>,
           )}
@@ -741,12 +776,16 @@ export function TaskSurface({
   owner. The shell reads the variable; nothing has to be told.
   */
   return (
-    <ReservesRightEdge width={panelWidth}>
+    <ReservesRightEdge width={isMobile ? 0 : panelWidth}>
     <aside
       aria-label={task.title}
-      style={{ width: panelWidth }}
-      className="fixed top-[calc(var(--shell-pagebar-height)+var(--shell-windowbar-height))] right-0 bottom-0 z-50 flex flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right"
+      style={{ width: isMobile ? "100%" : panelWidth }}
+      className={cn(
+        "fixed right-0 bottom-0 z-50 flex max-w-full flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right",
+        isMobile ? "top-0" : "top-[calc(var(--shell-pagebar-height)+var(--shell-windowbar-height))]",
+      )}
     >
+      {isMobile ? null : (
       <PanelResizeHandle
         side={mode === "right" ? "right" : "left"}
         width={panelWidth}
@@ -754,6 +793,7 @@ export function TaskSurface({
         onCommit={commitPanelWidth}
         onReset={() => commitPanelWidth(PANEL_DEFAULT)}
       />
+      )}
       {chrome(
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{page}</div>,
       )}

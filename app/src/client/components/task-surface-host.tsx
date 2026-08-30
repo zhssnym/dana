@@ -52,35 +52,33 @@ task passes AC-098 as written and tells the person something false every time
 they open a repeat from its own day."
 */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import {
-  useCreateTask,
-  useDeleteComment,
-  usePatchComment,
-  usePostComment,
-  useSetCommentLike,
-} from '../api/mutations.js'
-import { useConnections, useFolders, useMe, useTask, useThread } from '../api/queries.js'
-import { uploadFile } from '../api/http.js'
-import { applyThreadChange, commentFileKind, threadAttachments, toConceptComments } from '../lib/thread.js'
-import { useTimeFormat } from '../lib/time-format.js'
-import { presenterToday } from '../parts/presenters.js'
-import { conceptPatchToBody, toConceptTask } from '../lib/task-concept.js'
+import { useCreateTask } from '../api/mutations.js'
+import { useBundle, useFolders, useMe } from '../api/queries.js'
+import { conceptPatchToBody } from '../lib/task-concept.js'
 import type { ConceptTask } from '../lib/task-model.js'
-import { TaskWriter, useApiTaskPatch } from '../lib/task-writer.js'
+import { TaskWriter } from '../lib/task-writer.js'
 import {
   useTaskSurfacePreference,
   setTaskSurfacePreference,
 } from '../lib/task-surface-preference.js'
+import { useRowActions } from '../parts/useRowActions.js'
+import { paths } from '../routes.js'
 import { onOpenTaskForm } from '../shell/overlays.js'
 import type { TaskFormDefaults } from '../shell/overlays.js'
 import { onOpenTask } from './task-open.js'
-import { UNCOMPLETE_SERIES_CONFIRM, UPCOMING_OCCURRENCE } from './task-copy.js'
+import { UPCOMING_OCCURRENCE } from './task-copy.js'
+import { surfaceTask, useTaskEditing } from './task-editing.js'
 import { ConfirmDialog } from './ui/ConfirmDialog.js'
+import {
+  ABANDON_CONFIRM,
+  DELETE_CONFIRM_LABEL,
+  DELETE_TASK_CONFIRM,
+  keepLabel,
+} from './ui/copy.js'
 import { TaskSurface, type TaskSurfaceMode } from './task-surface.js'
-import type { TaskRowProps } from './task-row.js'
 
 interface OpenState {
   /** Bumped on every open, so the surface remounts with fresh state. */
@@ -90,23 +88,14 @@ interface OpenState {
   readonly upcoming: boolean
 }
 
-/** A `ConceptTask` as `TaskSurface` takes one: the row's flat props, with the
-    whole concept riding `detail` so nothing about it has to be flattened. */
-function surfaceTask(
-  id: string,
-  task: ConceptTask,
-): TaskRowProps & { id: string } {
-  return {
-    id,
-    title: task.title,
-    ...(task.folder === undefined ? {} : { folder: task.folder }),
-    ...(task.due === undefined ? {} : { due: task.due }),
-    status: task.abandoned ? 'abandoned' : task.done ? 'completed' : 'pending',
-    ...(task.important === undefined ? {} : { important: task.important }),
-    ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
-    ...(task.pulled === undefined ? {} : { pulled: task.pulled }),
-    detail: task,
-  }
+/* polish: taskcard F5. The confirm a surface asks before it abandons or
+   deletes the task it is showing, the row's two sentences over the row's two
+   acts. */
+interface PendingAct {
+  readonly message: string
+  readonly run: () => void
+  readonly confirmLabel?: string
+  readonly cancelLabel?: string
 }
 
 export function TaskSurfaceHost(): React.JSX.Element | null {
@@ -119,23 +108,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const [draft, setDraft] = useState<ConceptTask | null>(null)
   const [created, setCreated] = useState<string | null>(null)
   const making = useRef(false)
-  /*
-  **Seam, S23: 9.5's confirmation, on the surface that has no screen behind
-  it.**
-
-  9.3 gives the card's completion control 9.5's rule "unchanged": an
-  un-complete that takes a G-SERIES successor confirms first, because 5.1
-  deletes that successor in the same transaction and the parenthesis is the
-  part the person cannot see, "any edits already made to the next occurrence
-  go with it". A row gets this from its page, which is where the confirm has
-  lived since P8; a surface has no page behind it, so it is here, in the one
-  component that owns the surface's write.
-
-  Only on the branch that has one: a task with no rule generates no
-  successor, so there is nothing to warn about and a confirmation with an
-  empty consequence is the dead control DES-144 removes.
-  */
-  const [uncompleting, setUncompleting] = useState<(() => void) | null>(null)
+  const [pending, setPending] = useState<PendingAct | null>(null)
 
   const preference = useTaskSurfacePreference()
   const [mode, setMode] = useState<TaskSurfaceMode | null>(null)
@@ -143,64 +116,30 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
 
   const me = useMe()
   const folders = useFolders()
-  const clock = useTimeFormat()
+  const bundle = useBundle()
   const create = useCreateTask()
-  const patch = useApiTaskPatch()
+  const acts = useRowActions()
 
   const editing = open?.taskId ?? created
-  const task = useTask(editing)
+  /* polish: taskcard F3. The edit path is `useTaskEditing`'s, shared with the
+     task's own page, so the dialog, the panel and the tab edit one way. */
+  const editingTask = useTaskEditing(editing)
 
   /*
-  **S26: the thread inside a task, which had no mount at all.**
-
-  Ledger L-246 and L-258, and the owner's own list from the 2026-08-26 review.
-  9.3 puts Comments on the card after the content blocks and applies 9.6's
-  rules to them (L-158), `components/task-card.tsx` has drawn the disclosure
-  since S23, and the server has answered `?task=` since S5. What was missing
-  was one query and one write path, and this is the only component that holds
-  both a task's identity and its folder's.
-
-  It reads only while a surface is open, which is the whole of what the host's
-  own lifetime already says: nothing renders until `open` is set.
+  Read inside the listeners below without resubscribing them: the listeners
+  are attached once, and what they need is whatever these hold at the moment
+  an open is raised.
   */
-  const threadFolderId = task.data?.folder.id ?? null
-  const thread = useThread(
-    threadFolderId ?? '',
-    editing,
-    threadFolderId !== null && editing !== null,
-  )
-  const connections = useConnections()
-  const postComment = usePostComment()
-  const patchComment = usePatchComment()
-  const deleteComment = useDeleteComment()
-  const setLike = useSetCommentLike()
-
-  /* Who an author is, off the roster the People screen and the sharing panel
-     already read; an id this client cannot resolve says "Someone" rather than
-     being shown. */
-  const authorNames = useMemo(() => {
-    const names = new Map<string, string>()
-    const viewer = me.data?.user
-    if (viewer?.display_name != null) names.set(viewer.id, viewer.display_name)
-    for (const connection of connections.data ?? []) {
-      const name = connection.user.display_name
-      if (name !== null) names.set(connection.user.id, name)
-    }
-    return names
-  }, [connections.data, me.data?.user])
-
-  const conversation = useMemo(
-    () =>
-      toConceptComments(
-        thread.data?.comments ?? [],
-        me.data?.user.id ?? null,
-        (authorId) => authorNames.get(authorId) ?? 'Someone',
-        Date.now(),
-        /* 4.15's other half, off the library row every page already holds. */
-        folders.data?.find((row) => row.id === threadFolderId)?.is_owner ?? false,
-      ),
-    [thread.data?.comments, me.data?.user.id, authorNames, folders.data, threadFolderId],
-  )
+  const foldersRef = useRef(folders.data)
+  foldersRef.current = folders.data
+  const viewerRef = useRef(me.data?.user)
+  viewerRef.current = me.data?.user
+  const createRef = useRef(create)
+  createRef.current = create
+  const taskOpenRef = useRef(bundle.data?.task_open)
+  taskOpenRef.current = bundle.data?.task_open
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
 
   useEffect(() => {
     const offForm = onOpenTaskForm((defaults) => {
@@ -208,14 +147,57 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       setDraft(null)
       setCreated(null)
       setMode(null)
+      setPending(null)
       making.current = false
       setOpen({ seq: seq.current, taskId: null, defaults, upcoming: false })
+      /*
+      polish: taskrow F3. "Open full form" from a quick-add carries the words
+      already typed, and a title is all 7.6 needs to make the task, so it is
+      made at once and the surface opens on it: what the person typed is
+      never sitting in one box while an empty one asks for it again.
+      */
+      const title = defaults.title?.trim() ?? ''
+      if (title === '') return
+      const rows = foldersRef.current ?? []
+      const fallback = rows.find((folder) => folder.is_default) ?? rows[0]
+      const chosen =
+        defaults.folder_id === undefined
+          ? fallback
+          : (rows.find((folder) => folder.id === defaults.folder_id) ?? fallback)
+      const viewer = viewerRef.current
+      making.current = true
+      createRef.current.mutate(
+        {
+          title,
+          ...(chosen === undefined ? {} : { folder_id: chosen.id }),
+          ...(viewer === undefined ? {} : { assignee_id: viewer.id }),
+          ...(defaults.important === undefined ? {} : { important: defaults.important }),
+          ...(defaults.due_date == null ? {} : { due_date: defaults.due_date }),
+        },
+        {
+          onSuccess: (detail) => setCreated(detail.id),
+          onError: () => {
+            making.current = false
+          },
+        },
+      )
     })
     const offTask = onOpenTask((taskId, options) => {
+      /*
+      polish: taskcard F3. 9.3's third home, honoured: with "Where a task
+      opens" set to Tab, a task opens at its own address, which is the card
+      as a page, rather than in the dialog the setting said it would not use.
+      A ghost's upcoming occurrence keeps the dialog, its banner living there.
+      */
+      if (taskOpenRef.current === 'tab' && options.upcoming !== true) {
+        void navigateRef.current(paths.task(taskId))
+        return
+      }
       seq.current += 1
       setDraft(null)
       setCreated(null)
       setMode(null)
+      setPending(null)
       making.current = false
       setOpen({
         seq: seq.current,
@@ -245,9 +227,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   the dialog for a round trip immediately after the person named the task,
   which is the same fault seen from the other side.
   */
-  if (open.taskId !== null && task.data === undefined) return null
-
-  const context = { today: presenterToday(), folders: rows, clock }
+  if (open.taskId !== null && editingTask.concept === null) return null
 
   /*
   9.3's entry defaults, "derived from the page's own spine so a made task
@@ -264,7 +244,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     const viewer = me.data?.user
     return {
       id: 'new',
-      title: '',
+      title: open?.defaults.title?.trim() ?? '',
       important: open?.defaults.important ?? false,
       ...(chosen === undefined
         ? {}
@@ -285,20 +265,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   }
 
   /* The server's answer the moment there is one, and the draft until then. */
-  const concept =
-    task.data === undefined
-      ? (draft ?? seed())
-      : /* S26: the conversation rides the concept, which is where
-           `components/task-card.tsx` reads it (9.3's Comments block). A capture
-           has no task yet and therefore no thread, which is the same reason
-           `lib/task-concept.ts` left the field undefined until now. */
-        {
-          ...toConceptTask(task.data, context),
-          comments: conversation,
-          /* Item 58 (D): the Attachments block is the conversation's files,
-             which is the only place 4.16 lets a task's file live. */
-          attachments: threadAttachments(conversation),
-        }
+  const concept = editingTask.concept ?? draft ?? seed()
   const id = editing ?? 'new'
 
   /*
@@ -311,94 +278,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   commits non-empty, the draft becomes the create body and everything after it
   takes the first path.
   */
-  function write(_taskId: string, fields: Partial<ConceptTask>): void {
-    /*
-    **S26's seam: the conversation is 7.14's and never 7.6's.**
-
-    `writtenElsewhere` has carried `comments` since S22 precisely so that a
-    thread change never rides a task PATCH; what it had nowhere to go to is
-    what this answers. `lib/thread.ts` turns the array the lifted thread wants
-    into the routes that would produce it, and the folder is the task's own,
-    which is also where 7.15 scopes an attachment.
-    */
-    if (fields.comments !== undefined) {
-      const folderId = threadFolderId
-      if (folderId === null || editing === null) return
-      applyThreadChange(conversation, fields.comments, {
-        post: (body) => {
-          postComment.mutate({
-            folderId,
-            body,
-            taskId: editing,
-          })
-        },
-        edit: (commentId, body) => {
-          patchComment.mutate({ id: commentId, body: { body } })
-        },
-        remove: (commentId) => {
-          deleteComment.mutate(commentId)
-        },
-        like: (commentId, liked) => {
-          setLike.mutate({ id: commentId, liked })
-        },
-        upload: (file) =>
-          uploadFile(commentFileKind(file), folderId, file).then((stored) => stored.id),
-      })
-      return
-    }
-    /*
-    The block's picker, item 58 (D): a file added under Attachments is a
-    comment carrying that file and nothing said, because that is the one
-    way 4.15 lets a file hang on a task. The same two calls the composer
-    makes, 7.15 then 7.14, and the refetch draws it in both places.
-    */
-    if (fields.attachments !== undefined) {
-      const folderId = threadFolderId
-      if (folderId === null || editing === null) return
-      const taskId = editing
-      for (const added of fields.attachments) {
-        if (added.file === undefined) continue
-        void uploadFile(commentFileKind(added.file), folderId, added.file).then((stored) => {
-          postComment.mutate({ folderId, body: { file_id: stored.id }, taskId })
-        })
-      }
-      return
-    }
+  function write(taskId: string, fields: Partial<ConceptTask>): void {
     if (editing !== null) {
-      /*
-      **Seam, S23: 9.5's confirmation, on the branch that has a
-      successor, and the condition is `pages/DonePage.tsx`'s own.**
-
-      9.3 gives the card's completion control 9.5's rule "unchanged": an
-      un-complete that takes a G-SERIES successor confirms first, because
-      5.1 deletes that successor in the same transaction and the
-      parenthesis is the part the person cannot see, "any edits already
-      made to the next occurrence go with it". A row gets this from its
-      page; a surface has no page behind it, so it is here.
-
-      **The condition is not "does it repeat", which is the reading that
-      cost this row two runs.** Completing a rule-carrying task moves the
-      rule to the successor, so the completed occurrence carries a
-      `series_id` and no rule at all: a client asking whether the task
-      repeats gets "no" from the one row where the confirm is owed. That
-      is written down already, in `pages/DonePage.tsx`, and recorded as a
-      reading in `src/client/README.md` with its own escalation, the
-      transition endpoints answering `deleted_successor_id` so the server
-      knows this before it acts while the client infers it beforehand.
-      One condition, two surfaces, and this is the second.
-      */
-      const takesSuccessor =
-        fields.done === false &&
-        task.data?.series_id != null &&
-        task.data.recurrence_rule === null
-      if (takesSuccessor) {
-        const id = editing
-        setUncompleting(() => () => {
-          patch(id, fields)
-        })
-        return
-      }
-      patch(editing, fields)
+      editingTask.write(taskId, fields)
       return
     }
     const next: ConceptTask = { ...(draft ?? seed()), ...fields }
@@ -438,19 +320,58 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     setOpen(null)
     setDraft(null)
     setCreated(null)
+    setPending(null)
   }
+
+  /*
+  polish: taskcard F5. The card's menu carries what the row's carries: the
+  two acts that end a task are the page layer's, with the row's confirms and
+  the row's undo entries, and the surface closes on either because the task
+  it was showing has left the list beneath it.
+  */
+  const detail = editingTask.detail
+  const surface = surfaceTask(id, concept)
+  const withActs =
+    detail === undefined
+      ? surface
+      : {
+          ...surface,
+          onAbandon: () => {
+            setPending({
+              message: ABANDON_CONFIRM,
+              run: () => {
+                acts.onAbandon(detail)
+                close()
+              },
+            })
+          },
+          onDelete: () => {
+            setPending({
+              message: DELETE_TASK_CONFIRM,
+              confirmLabel: DELETE_CONFIRM_LABEL,
+              cancelLabel: keepLabel(1),
+              run: () => {
+                acts.onDelete(detail)
+                close()
+              },
+            })
+          },
+        }
 
   return (
     <TaskWriter patch={write}>
-      {uncompleting === null ? null : (
+      {editingTask.confirm}
+      {pending === null ? null : (
         <ConfirmDialog
-          message={UNCOMPLETE_SERIES_CONFIRM}
+          message={pending.message}
           onContinue={() => {
-            const run = uncompleting
-            setUncompleting(null)
+            const run = pending.run
+            setPending(null)
             run()
           }}
-          onCancel={() => setUncompleting(null)}
+          onCancel={() => setPending(null)}
+          {...(pending.confirmLabel === undefined ? {} : { confirmLabel: pending.confirmLabel })}
+          {...(pending.cancelLabel === undefined ? {} : { cancelLabel: pending.cancelLabel })}
         />
       )}
       {open.upcoming ? (
@@ -460,7 +381,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       ) : null}
       <TaskSurface
         key={open.seq}
-        task={surfaceTask(id, concept)}
+        task={withActs}
         mode={mode ?? preference}
         onModeChange={(next) => {
           setMode(next)
@@ -471,7 +392,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
           : {
               onOpenInTab: () => {
                 close()
-                void navigate(`/app/tasks/${editing}`)
+                void navigate(paths.task(editing))
               },
             })}
         onClose={close}

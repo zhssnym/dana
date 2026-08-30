@@ -23,6 +23,9 @@ export interface TaskFormDefaults {
   readonly due_date?: string | null
   readonly important?: boolean
   readonly folder_id?: string
+  /* polish: taskrow F3. What the quick-add held when "Open full form" was
+     pressed, so the surface opens on that title rather than a blank one. */
+  readonly title?: string
 }
 
 type TaskFormListener = (defaults: TaskFormDefaults) => void

@@ -90,7 +90,10 @@ export function AssignmentsPage(): React.JSX.Element {
     ...(data?.tasks_groups ?? []).flatMap((group) => group.rows),
   ]
   const place = usePlace(SPINE, rows)
-  const context = { ...basis, multiMemberFolderIds, showCreator: true }
+  /* polish: places F9. "From <me>" on every row of a one-person account is
+     a chip saying nothing; the creator is drawn once somebody else can be
+     one, which is a shared folder. */
+  const context = { ...basis, multiMemberFolderIds, showCreator: multiMemberFolderIds.size > 0 }
 
   const axis = place.filter.groupBy === 'none' ? 'person' : place.filter.groupBy
   const grouped = groupRows(place.narrow(rows), axis, place.today, place.viewerId)
@@ -119,7 +122,6 @@ export function AssignmentsPage(): React.JSX.Element {
             })),
           ]}
           onSelect={setScope}
-          collapse
         />
       </WindowBarActions>
       <PlaceChrome place={place} />
