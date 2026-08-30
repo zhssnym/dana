@@ -538,3 +538,7 @@ The criterion asserts the dot as identification rather than as a colour value, f
 
 - AC-281 Given an account whose theme is Dark, when the application is opened again on a device that has drawn it before, then the document's theme attribute is `dark` from the first value it is ever given rather than after the settings bundle answers; given the same account choosing System, then the device keeps `system` and not the value it resolved to; and given a sign-out, then the device keeps nothing.
 - AC-282 Given a workflow file of 7.16 as widened, whose task carries a repeat, when it is chosen through the sidebar's Import control, then the request carries the viewer's tz, the folder appears in the Library, and the task is in it; and given a file that is not a workflow at all, then nothing is sent and the person is told.
+
+**The delegated sitting's criterion, authored 2026-08-30 under persona 11 beside RFC 0005 change control item 57 (AC-283 to AC-289 are S28b's range).**
+
+- AC-290 Given a comment carrying a file, when the thread is read, then that comment's `files` carries the file's id, name, mime and bytes as 4.16 stores them and no bare-id form rides beside it; and the create answer carries the same (spec 7.14 as amended by item 57, B5).
