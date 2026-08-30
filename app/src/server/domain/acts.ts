@@ -110,7 +110,7 @@ export async function duplicateFolder(
       tx,
       sql`SELECT id, title, notes, important,
                  to_char(due_date, 'YYYY-MM-DD') AS due_date,
-                 recurrence_rule, section_block_id
+                 recurrence_rule, section_block_id, position
           FROM tasks
           WHERE folder_id = ${sourceFolderId} AND deleted_at IS NULL
           ORDER BY created_at ASC, id ASC`,
@@ -124,16 +124,21 @@ export async function duplicateFolder(
         task.recurrence_rule === null ? null : String(task.recurrence_rule)
       const inserted = await rowsOf(
         tx,
+        /* polish: folderpage F9. The hand order (4.5's position, item 44's
+           B4) is part of the structure a duplicate keeps: without it the
+           copy came out in creation order, which is not the order the
+           person had arranged. */
         sql`INSERT INTO tasks
               (folder_id, title, notes, important, due_date, recurrence_rule,
-               series_id, assignee_id, created_by, section_block_id)
+               series_id, assignee_id, created_by, section_block_id, position)
             VALUES (${copyId}::uuid, ${String(task.title)},
                     ${task.notes === null ? null : String(task.notes)},
                     ${task.important === true},
                     ${task.due_date === null ? null : String(task.due_date)}::date,
                     ${rule},
                     ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
-                    ${viewerId}::uuid, ${viewerId}::uuid, ${section})
+                    ${viewerId}::uuid, ${viewerId}::uuid, ${section},
+                    ${task.position === null || task.position === undefined ? null : String(task.position)})
             RETURNING id`,
       )
       const newTaskId = String(inserted[0]?.id)

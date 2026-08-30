@@ -121,8 +121,10 @@ reading: an open range is "from this day onward" rather than nothing, and
 */
 function rangeSentence(from: string | null, to: string | null): string {
   if (from !== null && to !== null) return from === to ? from : `${from} to ${to}`
-  if (from !== null) return `From ${from}`
-  if (to !== null) return `Until ${to}`
+  /* polish: pagehead F2. A half-built range filters nothing yet, so the
+     sentence says what is still owed rather than promising "from here on". */
+  if (from !== null) return `From ${from}. Now pick the last day.`
+  if (to !== null) return `Until ${to}. Now pick the first day.`
   return 'Pick the first day, then the last.'
 }
 

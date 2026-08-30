@@ -162,7 +162,7 @@ import { cn } from '../components/ui/utils.js'
 import { useDuplicateFolder } from '../api/mutations.js'
 import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
-import { paths, pinnedNavPages } from '../routes.js'
+import { navPages, paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
 import { openInNewTab } from './tabs.js'
 import { savedViewPath } from '../views/saved-views.js'
@@ -376,6 +376,40 @@ const NAVIGATION_ROW_CLASS =
  * the answer from depending on a prop somebody forgets to pass. AC-175
  * asserts the mark on Planned and its absence on My Day in one case.
  */
+/* polish: places F3, shelves F12: two sidebar disclosures remembered per
+   browser, the "More" row and each shelf's fold. Nothing here is a
+   preference 4.19 holds, and losing it costs one click. */
+const MORE_OPEN_KEY = 'dana.sidebar.more-open'
+function readMoreOpen(): boolean {
+  try {
+    return globalThis.localStorage.getItem(MORE_OPEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+function writeMoreOpen(open: boolean): void {
+  try {
+    globalThis.localStorage.setItem(MORE_OPEN_KEY, open ? '1' : '0')
+  } catch {
+    /* A browser that keeps nothing still shows the row this session. */
+  }
+}
+const SHELF_FOLD_KEY = 'dana.sidebar.shelf-collapsed:'
+function readShelfOpen(label: string): boolean {
+  try {
+    return globalThis.localStorage.getItem(SHELF_FOLD_KEY + label) !== '1'
+  } catch {
+    return true
+  }
+}
+function writeShelfOpen(label: string, open: boolean): void {
+  try {
+    globalThis.localStorage.setItem(SHELF_FOLD_KEY + label, open ? '0' : '1')
+  } catch {
+    /* As above. */
+  }
+}
+
 function NavigationRow({
   name,
   to,
@@ -654,7 +688,11 @@ function FolderGroupBlock({
   readonly onMoveOut: (folder: Folder, label: string | null) => void
   readonly onReorderWithin: (label: string, from: number, to: number) => void
 }): React.JSX.Element {
-  const [open, setOpen] = useState(true)
+  const [open, setOpenState] = useState(() => readShelfOpen(group.label))
+  const setOpen = (next: boolean): void => {
+    setOpenState(next)
+    writeShelfOpen(group.label, next)
+  }
   const self = groupKey(group.label)
   const navigate = useNavigate()
   /* Null for a label no shelf row names, which is what makes the reaching
@@ -1257,11 +1295,14 @@ function SidebarBrandHeader({
  */
 function AccountMenu({
   displayName,
+  image = null,
   onOpenSettings,
   onOpenHelp,
   onSignOut,
 }: {
   readonly displayName: string | null
+  /** polish: settings F7. 7.15's avatar, drawn here as everywhere else. */
+  readonly image?: string | null
   readonly onOpenSettings: () => void
   readonly onOpenHelp: () => void
   readonly onSignOut: () => void
@@ -1277,6 +1318,7 @@ function AccountMenu({
             <PersonFace
               name={displayName ?? ''}
               initials={initialsOf(displayName ?? '')}
+              image={image}
               className="size-7 group-data-[collapsible=icon]:size-5"
             />
             <span className="min-w-0 truncate text-[13px] font-semibold group-data-[collapsible=icon]:hidden">
@@ -1325,6 +1367,7 @@ export function AppSidebar({
   onSidebarOrderChange,
   groups: groupActions,
   displayName,
+  avatarUrl = null,
   activeFolderId,
   currentPath,
   currentSearch,
@@ -1376,6 +1419,8 @@ export function AppSidebar({
   /** 9.1's four folder-group operations, held by the shell that mounts them. */
   readonly groups: FolderGroupActions
   readonly displayName: string | null
+  /** polish: settings F7: 7.15's avatar for the foot. */
+  readonly avatarUrl?: string | null
   readonly activeFolderId: string | null
   readonly currentPath: string
   /** The active location's query string, so a pinned saved view can be active. */
@@ -1404,6 +1449,12 @@ export function AppSidebar({
   const inbox = inboxOf(folders ?? [])
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
+  /* polish: places F3. Done, Anytime and Abandoned ship unpinned and had no
+     door but Search. A "More" row under the page block opens onto whatever
+     native pages are not pinned; 9.7's pin list still promotes one to the
+     block itself. Its open state is this browser's. */
+  const morePages = navPages.filter((page) => !visiblePages.includes(page))
+  const [moreOpen, setMoreOpen] = useState(() => readMoreOpen())
 
   return (
     <Sidebar
@@ -1473,6 +1524,38 @@ export function AppSidebar({
                   active={currentPath + currentSearch === savedViewPath(view)}
                 />
               ))}
+              {morePages.length === 0 ? null : (
+                <>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+                    <SidebarMenuButton
+                      aria-expanded={moreOpen}
+                      onClick={() => {
+                        setMoreOpen(!moreOpen)
+                        writeMoreOpen(!moreOpen)
+                      }}
+                      className="h-[var(--shell-sidebar-item-height)] gap-2 px-2 text-[13px] text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]"
+                    >
+                      <ChevronDown
+                        className={`size-4 shrink-0 transition-transform ${moreOpen ? '' : '-rotate-90'}`}
+                        strokeWidth={1.75}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">More</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {moreOpen
+                    ? morePages.map((page) => (
+                        <NavigationRow
+                          key={page.path}
+                          name={page.name}
+                          to={page.path}
+                          icon={page.icon}
+                          active={currentPath === page.path}
+                        />
+                      ))
+                    : null}
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -1745,6 +1828,7 @@ export function AppSidebar({
           <SidebarMenuItem>
             <AccountMenu
               displayName={displayName}
+              image={avatarUrl}
               onOpenSettings={onOpenSettings}
               onOpenHelp={() => {
                 setHelpOpen(true)

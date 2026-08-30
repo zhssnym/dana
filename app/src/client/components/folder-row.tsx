@@ -389,7 +389,7 @@ export function FolderRow({
                  it acts on the Library's arrangement and not on the folder. */
               onNewGroup === undefined ? undefined : (
                 <DropdownMenuItem onClick={onNewGroup}>
-                  <Folders className="size-4" aria-hidden="true" />New folder group
+                  <Folders className="size-4" aria-hidden="true" />New shelf…
                 </DropdownMenuItem>
               )
             }
@@ -420,7 +420,7 @@ export function FolderRow({
                           ))}
                           <DropdownMenuSeparator />
                           <DropdownMenuRadioItem value="__none" closeOnClick>
-                            No group
+                            Not on a shelf
                           </DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
                       ),

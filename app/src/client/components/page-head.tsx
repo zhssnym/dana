@@ -237,8 +237,9 @@ export function PageHead({
         <AddCoverAction storageName={storageName} />
       </div>
 
-      <div className="mt-1.5 flex items-baseline gap-3">
-        <h1 className="min-w-0 truncate text-2xl leading-8 font-semibold text-foreground">
+      {/* polish: pagehead F6. On a phone the fact wraps under the name. */}
+      <div className="mt-1.5 flex items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
+        <h1 className="min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal">
           {title}
         </h1>
         {fact ? (

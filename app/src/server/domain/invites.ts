@@ -21,6 +21,7 @@ import type { Db } from '../../../db/client.js'
 import { accessOf } from './folders.js'
 import type { FolderAccess } from './folders.js'
 import { inTransaction, rowsOf } from './db.js'
+import { recordEvent } from './events.js'
 import type { Executor } from './db.js'
 
 /** 10.3's members-per-folder limit, the number every 8.7 grant checks. It is
@@ -459,6 +460,21 @@ export async function createInvite(
           RETURNING id`,
     )
     const insertedId = inserted[0]?.id
+    if (insertedId !== undefined && folderId !== null) {
+      /* polish: folderpage F3. The folder's history said nothing about an
+         invite, so "who did I ask into this" had no answer there. Recorded
+         as 'edited' with the predicate in detail, the same way a member's
+         arrival is (4.13's verb list being a CHECK constraint). */
+      await recordEvent(tx, {
+        actorId: inviterId,
+        verb: 'edited',
+        subjectKind: 'folder',
+        subjectId: folderId,
+        subjectName: folderAccess?.name ?? '',
+        folderId,
+        detail: `invited ${email}`,
+      })
+    }
     if (insertedId === undefined) {
       // The partial unique index of 4.9 caught a duplicate this transaction
       // did not see when it looked: a concurrent create won the race, and

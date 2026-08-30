@@ -97,7 +97,7 @@ export function FolderGroupDialog({
     const nextName = name.trim()
 
     if (!nextName) {
-      setError('Give the group a name')
+      setError('Give the shelf a name')
       return
     }
     if (nextName.length > 40) {
@@ -111,7 +111,7 @@ export function FolderGroupDialog({
         label.toLocaleLowerCase() !== (currentLabel ?? '').toLocaleLowerCase(),
     )
     if (duplicate) {
-      setError('That group already exists. Move folders into it instead.')
+      setError('That shelf already exists. Move folders onto it instead.')
       return
     }
 
@@ -133,12 +133,13 @@ export function FolderGroupDialog({
               <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
             <DialogTitle>
-              {mode === 'rename' ? 'Rename folder group' : 'New folder group'}
+              {/* polish: shelves F1: the thing is a shelf on every screen. */}
+              {mode === 'rename' ? 'Rename shelf' : 'New shelf'}
             </DialogTitle>
             <DialogDescription>
               {mode === 'rename'
-                ? 'This changes your personal label on every folder in this group. Other members are unaffected.'
-                : 'Groups are personal labels. Select at least one folder because Dana cannot save an empty group.'}
+                ? 'This renames the shelf and moves every folder on it with it. Other members are unaffected.'
+                : 'A shelf is yours alone: it holds folders the way you arrange them. Pick at least one folder to put on it.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -148,7 +149,7 @@ export function FolderGroupDialog({
                 htmlFor="folder-group-name"
                 className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]"
               >
-                Group name
+                Shelf name
               </label>
               <Input
                 ref={inputRef}
@@ -237,7 +238,7 @@ export function FolderGroupDialog({
               type="submit"
               className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]"
             >
-              {mode === 'rename' ? 'Rename group' : 'Create group'}
+              {mode === 'rename' ? 'Rename shelf' : 'Create shelf'}
             </Button>
           </DialogFooter>
         </form>

@@ -162,10 +162,10 @@ test.describe('AC-281: the theme is on the document before first paint', () => {
     await page.goto(routesV2.settings)
     await expect.poll(() => mirror(page)).toBe('dark')
 
-    await page
-      .getByRole('region', { name: 'Account' })
-      .getByRole('button', { name: 'Sign out', exact: true })
-      .click()
+    /* polish: settings F5. Sign out lives in the account menu alone now;
+       the Settings page's second copy is gone. */
+    await page.getByRole('button', { name: 'Account', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Sign out', exact: true }).click()
     await page.waitForURL((url) => !url.pathname.startsWith('/app'))
     expect(
       await mirror(page),

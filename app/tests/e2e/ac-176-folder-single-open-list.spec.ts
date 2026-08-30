@@ -256,15 +256,18 @@ test.describe('AC-176: the folder page carries one open list', () => {
     ).toEqual([SOON, LATER, UNDATED_A, UNDATED_B])
   })
 
-  test('AC-176: the Completed region stays collapsed and says so', async ({ page }) => {
+  test('AC-176: the Done region stays collapsed and says so', async ({ page }) => {
     await page.goto(routes.folder(folderId))
 
-    const control = page.getByRole('button', { name: 'Completed', exact: true })
+    /* polish: places F11. The region is "Done" since the polish round, one word for
+       the finished pile everywhere; 9.1's sections table is amended with it. */
+    const control = page.getByRole('button', { name: 'Done', exact: true })
     await expect(
       control,
       "spec 9.1: a collapsible section is a named region together with a control carrying that " +
-        'same name, and this page\'s region is named "Completed" in the sections table. Exact, ' +
-        'because a control named "Completed (2)" is a different string and the table spells the ' +
+        'same name, and this page\'s region is named "Done" in the sections table since the ' +
+        'polish round (places F11: one word for the finished pile). Exact, ' +
+        'because a control named "Done (2)" is a different string and the table spells the ' +
         'count only where it means one, on My Day\'s "Done today (N)"',
     ).toHaveCount(1)
     await expect(
