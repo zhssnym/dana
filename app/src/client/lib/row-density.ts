@@ -30,9 +30,11 @@ Dana took Lane 2 before this file arrived. `row_density` is a `user_settings`
 column of 4.19, 9.7 names the control, AC-261 asserts that the choice survives
 a reload because it was written through the API rather than held in the page,
 and `shell/appearance.ts` puts the answer on the document as `data-density`.
-So this module reads the document rather than storage, and there is no setter:
-**writing the preference is the Settings page's mutation and must stay the one
-path**, because a second writer is how the column and the attribute drift.
+So this module reads the document rather than storage. **The setter is the
+one write path**, added at S27 when `screens/settings-screen.tsx` crossed and
+called `setRowDensity` as the prototype does: it writes the column through
+`PATCH /settings` and the attribute follows from the bundle, so the two
+cannot drift because only one of them is ever written by hand.
 
 Reading the document rather than the query cache is deliberate and is the
 prototype's own argument one level over. A row density is read by the row, by
@@ -52,6 +54,12 @@ here, in one line, rather than either name being pushed into the other's half.
 */
 
 import { useSyncExternalStore } from 'react'
+
+import { mutateApi } from '../api/http.js'
+import { queryKeys } from '../api/keys.js'
+import { queryClient, writeFailureMessage } from '../api/queryClient.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
+import { showToast } from '../state/toasts.js'
 
 export type RowDensity = 'two' | 'one'
 
@@ -112,4 +120,25 @@ export function useRowDensity(): RowDensity {
     () => current,
     () => 'two' as const,
   )
+}
+
+/**
+ * The write, in the prototype's vocabulary, to 4.19's column.
+ *
+ * The attribute is applied when the bundle read comes back rather than here,
+ * which is the one-writer rule above; the round trip is short and the
+ * alternative is two things writing one attribute.
+ */
+export function setRowDensity(next: RowDensity): void {
+  const client = queryClient()
+  void mutateApi(getSettingsResponse, {
+    method: 'PATCH',
+    path: '/settings',
+    body: { row_density: next === 'one' ? COMPACT : 'comfortable' },
+  })
+    .then((bundle) => {
+      client?.setQueryData(queryKeys.bundle(), bundle)
+      void client?.invalidateQueries()
+    })
+    .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
