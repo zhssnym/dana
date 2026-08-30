@@ -15,8 +15,9 @@ third scheme exists." A third scheme is exactly what a third query would be,
 so there is not one here.
 
 Q4 is the odd one and section 6 says why: it borrows Q3's keys for its dated
-rows and Q2's for its undated ones, and the two disagree on created_at, which
-is ascending in Q3 and descending in Q2. It is still one list, so it is one
+rows and Q2's for its undated ones. The two agreed on created_at only at the
+polish round of 2026-08-30, when Q2 turned ascending; the CASE split below
+is kept because the boundary is real even while the directions coincide. It is still one list, so it is one
 ORDER BY, with the keys of each block written as expressions that are null in
 the other. The alternative, two queries concatenated, would answer the same
 sequence today and would stop being one list the moment a key changed.
@@ -42,8 +43,17 @@ import { CAP_PROBE, OPEN_SCOPE, STATUS_RANK, readCards } from './cards.js'
  * The orders of section 6, one fragment each
  * ------------------------------------------------------------------ */
 
-/** Q2's row order: "status_rank, created_at descending, id descending". */
-const Q2_ROW_ORDER = sql`${STATUS_RANK} ASC, t.created_at DESC, t.id DESC`
+/**
+ * Q2's row order: "status_rank, created_at ascending, id ascending".
+ *
+ * Ascending since the polish round of 2026-08-30 (it was descending from
+ * P4 to 2.1.0): the owner ruled that a newly added task lands at the foot
+ * of the list it was typed into, everywhere, and a list whose newest row
+ * leads puts every capture at the top instead. Q2 feeds Anytime, the
+ * folder groups and Q4's undated block, so this one fragment is that
+ * ruling for all three.
+ */
+const Q2_ROW_ORDER = sql`${STATUS_RANK} ASC, t.created_at ASC, t.id ASC`
 
 /**
  * Q7's second section as RFC 0005 change control item 44 B4 amended it: the
@@ -55,14 +65,15 @@ const Q2_ROW_ORDER = sql`${STATUS_RANK} ASC, t.created_at DESC, t.id DESC`
  * folder's unscheduled list". Nothing else in this file reads `position`,
  * and AC-269 is the criterion that holds the rest of them still.
  *
- * Nulls lead because Q2 already lists a folder's undated rows newest first,
- * so a task created since the last arrangement lands where it has always
- * landed. Q2's keys stay behind the new one rather than being replaced: two
- * people may place into one gap at once, so ties in `position` are expected
- * by design, and the keys behind it end in id, which is what the preamble's
- * byte-identical guarantee is made of.
+ * Nulls trail (leading until the polish round of 2026-08-30): a task with
+ * no position yet is a task nobody has placed, and the owner's ruling is
+ * that what nobody has placed sits at the foot, newest last, exactly where
+ * the capture that made it put it. Q2's keys stay behind the new one rather
+ * than being replaced: two people may place into one gap at once, so ties
+ * in `position` are expected by design, and the keys behind it end in id,
+ * which is what the preamble's byte-identical guarantee is made of.
  */
-export const FOLDER_UNSCHEDULED_ORDER = sql`t.position ASC NULLS FIRST,
+export const FOLDER_UNSCHEDULED_ORDER = sql`t.position ASC NULLS LAST,
        ${Q2_ROW_ORDER}`
 
 /**
@@ -96,7 +107,8 @@ const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
  * Q4's order, one list across the boundary: "due_date ascending nulls last,
  * then within dated rows the Q3 keys (status_rank, timed flag, due_time,
  * created_at, id), within undated rows the Q2 keys (status_rank, created_at
- * descending, id descending)".
+ * ascending, id ascending — descending until the polish round of
+ * 2026-08-30)".
  *
  * Nulls last is spelled as its own leading key so the block boundary is
  * visible, and the keys the two blocks disagree on are written as CASE
@@ -109,8 +121,8 @@ const Q4_ORDER = sql`(t.due_date IS NULL) ASC, t.due_date ASC,
        (t.due_time IS NOT NULL) ASC, t.due_time ASC NULLS FIRST,
        CASE WHEN t.due_date IS NULL THEN NULL ELSE t.created_at END ASC,
        CASE WHEN t.due_date IS NULL THEN NULL ELSE t.id END ASC,
-       CASE WHEN t.due_date IS NULL THEN t.created_at END DESC,
-       CASE WHEN t.due_date IS NULL THEN t.id END DESC`
+       CASE WHEN t.due_date IS NULL THEN t.created_at END ASC,
+       CASE WHEN t.due_date IS NULL THEN t.id END ASC`
 
 /* ------------------------------------------------------------------ *
  * The two open halves, which All stacks

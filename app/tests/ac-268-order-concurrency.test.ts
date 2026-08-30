@@ -63,8 +63,9 @@ describe('AC-268 two people arranging one list at once', () => {
     const folder = await createFolder(owner, 's22a ac268 folder')
     await addMemberOk(owner, folder, partner.id)
 
-    // Q2 lists newest first, so the seeded sequence reads head, mover one,
-    // mover two, tail.
+    // Q2 lists oldest first (newest until the polish round of 2026-08-30),
+    // so the ages below descend and the seeded sequence reads head, mover
+    // one, mover two, tail.
     const titles = ['head', 'mover one', 'mover two', 'tail'].map(
       (name) => `s22a ac268 ${name}`,
     )
@@ -75,7 +76,7 @@ describe('AC-268 two people arranging one list at once', () => {
           folderId: folder,
           createdBy: owner.id,
           title,
-          agoMinutes: 10 + index * 10,
+          agoMinutes: 40 - index * 10,
         }),
       )
     }

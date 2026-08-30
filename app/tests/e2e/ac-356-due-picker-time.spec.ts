@@ -26,7 +26,7 @@ import {
   TEST_TIMEOUT_MS,
   waitForApiIdle,
   watchWire,
-} from './harness.js'
+ taskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -42,7 +42,7 @@ test('AC-356: the calendar is open, Custom date is gone, and Time writes the rem
     due_date: seedDate(2),
   })
   await page.goto(routesV2.folder(seedIds.groceries))
-  await clickControl(page.getByRole('main').getByText(title).first(), 'the row opens its task')
+  await clickControl(taskRow(page, title).first(), 'the row opens its task')
   await clickControl(
     page.getByRole('button', { name: /due/i }).first(),
     'spec 9.3: the due chip opens its picker in place',

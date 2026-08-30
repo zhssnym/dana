@@ -184,8 +184,8 @@ describe('AC-051: Tasks puts the Inbox on top, ungrouped, and groups the rest', 
     const body = await tasksView(viewer, tz)
     expect(
       idsOf(body.inbox),
-      'Q2 renders V\'s default folder first, ungrouped and with no heading, and 7.10 gives it its own key; inside it the order is status_rank, created_at descending, id descending',
-    ).toEqual([inboxNewer, inboxOlder])
+      'Q2 renders V\'s default folder first, ungrouped and with no heading, and 7.10 gives it its own key; inside it the order is status_rank, created_at ascending, id ascending (descending until the polish round of 2026-08-30), so a capture lands at the foot',
+    ).toEqual([inboxOlder, inboxNewer])
   })
 
   test('AC-051: the default folder is never also a group', async () => {

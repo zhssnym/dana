@@ -135,7 +135,8 @@ async function stage(): Promise<Stage> {
       dueDate: shiftDate(today, 3),
     })
 
-    // Unscheduled, in Q2's row order: status_rank, created_at descending.
+    // Unscheduled, in Q2's row order: status_rank, created_at ascending
+    // (descending until the polish round of 2026-08-30).
     const undatedNewer = await here({
       title: 'p4 ac058 undated, made second',
       createdAt: at(10),
@@ -180,7 +181,7 @@ async function stage(): Promise<Stage> {
       folderId,
       otherFolderId,
       scheduled: [soonAllDay, soonTimed, abandonedDated, laterRow],
-      unscheduled: [undatedNewer, undatedOlder, undatedAbandoned],
+      unscheduled: [undatedOlder, undatedNewer, undatedAbandoned],
       completedDay,
       abandonedDated,
       outsideFolder,
@@ -214,7 +215,7 @@ describe('AC-058: a folder page is three sections and a ratio', () => {
     const body = await folderOpen(owner, folderId, tz)
     expect(
       idsOf(body.unscheduled),
-      '6 Q7 section 2 is Q2\'s row order, folder_id = F, no folder grouping: status_rank then created_at descending, id descending. The abandoned row is the newest of the three, so an implementation ordering by recency alone leads with it where status_rank puts it last',
+      '6 Q7 section 2 is Q2\'s row order, folder_id = F, no folder grouping: status_rank then created_at ascending, id ascending since the polish round of 2026-08-30. The abandoned row is the newest of the three and still follows both pending rows, because status_rank leads the keys whatever direction created_at runs',
     ).toEqual(unscheduled)
   })
 

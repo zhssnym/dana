@@ -1029,6 +1029,9 @@ export function TaskTitle({
   */
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task.title)
+  /* Where the press landed, so the click can tell a tap from a drag that
+     ended back over the button; see the onClick below. */
+  const pressAt = useRef<{ x: number; y: number } | null>(null)
   const struck = Boolean(task.done) || Boolean(task.abandoned)
 
   /* w-fit rather than w-full, because the strike-through is drawn as a rule
@@ -1102,9 +1105,14 @@ export function TaskTitle({
   the folder menu, and neither of those has ever opened the task either. The
   gesture that opens a task from its title is a press anywhere else on the
   row, or the chevron, which is one target away. The mechanism is
-  `use-sortable-list`'s own: `surfaceProps` ignores a pointerdown that starts
-  on a `button`, so a press on the title never becomes the row's tap and the
-  row cannot both rename and open.
+  `use-sortable-list`'s own: `surfaceProps` withholds the row's *tap* from a
+  pointerdown that starts on a `button`, so the row cannot both rename and
+  open — but the title carries `data-drag-through`, so the same press still
+  arms the row's lift. A still press is the title's click and renames; four
+  pixels of travel is the row's drag, exactly as it was when the title was
+  text. The onClick below reads the travel back off the pointer stream and
+  declines the rename after a drag, because a drag released over the button
+  still ends in a click.
 
   **What this breaks is addressing, in two known shapes, and both were read
   off the criteria rather than guessed at.** Seven browser criteria open a
@@ -1128,12 +1136,29 @@ export function TaskTitle({
     ? {}
     : ({
         type: "button",
+        /* Drag passes through: the row's lift arms on this press too, and a
+           still press is what renames. See the header note above. */
+        "data-drag-through": true,
+        onPointerDown: (event: ReactPointerEvent) => {
+          pressAt.current = { x: event.clientX, y: event.clientY }
+        },
         /* The press starts the rename and goes no further: the row's opener
            is resolved on the pointer stream rather than on the click, so what
            actually keeps the two apart is `surfaceProps`' button check above,
-           and this stops a screen that wired an ordinary click handler. */
+           and this stops a screen that wired an ordinary click handler. A
+           click whose pointer travelled was a drag that happened to end over
+           the button, and a drag is not a request to rename. */
         onClick: (event: ReactMouseEvent) => {
           event.stopPropagation()
+          const from = pressAt.current
+          pressAt.current = null
+          if (
+            from &&
+            (Math.abs(event.clientX - from.x) >= 4 ||
+              Math.abs(event.clientY - from.y) >= 4)
+          ) {
+            return
+          }
           setDraft(task.title)
           setEditing(true)
         },

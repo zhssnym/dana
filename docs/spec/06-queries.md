@@ -18,7 +18,7 @@ Two v2 notes that touch every query above. First, rows with deleted_at set are e
 Predicate: folder_id IN ACCESSIBLE(V) AND status = 'pending' AND ((assignee_id = V AND due_date IS NOT NULL AND due_date <= today) OR EXISTS my_day_entries(task_id = t.id, user_id = V)).
 qualify_date per row = least of: due_date when the automatic clause holds; added_on when the entry exists. (At least one exists by the predicate.)
 Grouping: Carried group where qualify_date < today; Today group where qualify_date = today. Carried renders above Today.
-Sort inside each group: due_date ascending nulls last, due_time ascending nulls first, id.
+Sort inside each group: due_date ascending nulls last, due_time ascending nulls first, created_at ascending, id. (created_at added at the polish round of 2026-08-30: id is a random uuid, so without it a task captured on Today landed anywhere in its group; oldest first puts every capture at the group's foot.)
 Abandoned tasks never match (status filter). The important toggle is a client-side filter to important = true within already-fetched groups; it changes no query.
 Empty state (both groups empty): "Nothing on your day. Tasks assigned to you appear here on their due date, or pull anything in yourself."
 
@@ -32,7 +32,7 @@ Empty state: section hidden entirely.
 
 Predicate: folder_id IN ACCESSIBLE(V) AND due_date IS NULL AND status IN (pending, abandoned).
 Grouping: rows from V's default folder first, ungrouped, no heading; then one group per remaining folder having at least one row, ordered by lower(folder name) ascending, folder id. (The only accessible default folder is V's own: defaults are never shared.)
-Sort inside a group: status_rank, created_at descending, id descending.
+Sort inside a group: status_rank, created_at ascending, id ascending. (Descending until the polish round of 2026-08-30: the owner ruled that a newly added task lands at the foot of the list it was typed into, so the newest row trails rather than leads.)
 Row adornments: assignee chip except on rows in V's own default folder; star when important.
 Empty state: "No undated tasks. Anything you capture without a date lands here."
 
@@ -55,7 +55,7 @@ Empty state (no rows in range): the bare grid; no message.
 ### Q4: Important
 
 Predicate: folder_id IN ACCESSIBLE(V) AND important = true AND status IN (pending, abandoned).
-Sort: due_date ascending nulls last, then within dated rows the Q3 keys (status_rank, timed flag, due_time, created_at, id), within undated rows the Q2 keys (status_rank, created_at descending, id descending). Effect: dated block first, undated block after, exactly one list.
+Sort: due_date ascending nulls last, then within dated rows the Q3 keys (status_rank, timed flag, due_time, created_at, id), within undated rows the Q2 keys (status_rank, created_at ascending, id ascending; descending until the polish round of 2026-08-30). Effect: dated block first, undated block after, exactly one list.
 Row adornments: dated rows show due date and time like a Planned row; undated rows show their folder like a Tasks row; assignee chip; the star tooltip here points outward ("Also in Planned, due 2026-07-28" or "Also in Tasks, in Work") since every row here is important by definition.
 Un-starring a row removes it from the result on the next fetch; nothing else about the task changes.
 Empty state: "Nothing marked important. Star any task and it shows up here."
@@ -78,7 +78,7 @@ Empty state: "Nothing completed yet. Finished tasks build your history here."
 
 Three sections over folder F:
 1. Scheduled: Q3 predicate and order, folder_id = F.
-2. Unscheduled: Q2 row order, folder_id = F (no folder grouping), preceded by the hand order of 4.5: `position` ascending with nulls first, then Q2's own keys. A folder nobody has arranged by hand carries no positions and therefore reads exactly as Q2 orders it; once arranged, a task created since the last arrangement carries no position and leads, which is where Q2's newest-first order already puts it. Ties in `position` are possible by design (two people may place into one gap at once) and are broken by Q2's keys and finally by id, so the preamble's byte-identical guarantee holds unchanged.
+2. Unscheduled: Q2 row order, folder_id = F (no folder grouping), preceded by the hand order of 4.5: `position` ascending with nulls last (nulls first until the polish round of 2026-08-30), then Q2's own keys. A folder nobody has arranged by hand carries no positions and therefore reads exactly as Q2 orders it; once arranged, a task created since the last arrangement carries no position and trails, which is where Q2's oldest-first order already puts it and where the capture that made it drew it. Ties in `position` are possible by design (two people may place into one gap at once) and are broken by Q2's keys and finally by id, so the preamble's byte-identical guarantee holds unchanged.
 3. Completed: Q6 predicate, order, and pagination, folder_id = F, rendered collapsed.
 Header: name, completion count per section 8.11, member avatars, share entry point.
 Empty states: sections 1 and 2 absent when empty with a single line "No tasks yet. Add one below." when both are empty; section 3 hidden while empty.
