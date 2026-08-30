@@ -9,7 +9,7 @@ RFC 0005 change control item 36 declined to decide who may press this in a
 shared folder, naming the hazard: permanently destroying a co-member's
 attachments is not the same permission as a delete that is reversible for
 thirty days. Item 38 answered it for folders, the owner holding full rights,
-and S28a's item 52 reads the same answer onto tasks for the same hazard: a
+and S28a's item 53 reads the same answer onto tasks for the same hazard: a
 task's conversation carries co-members' attachments, and a non-owner's act
 on the folder is leave. The 403 rather than 10.2's 404 is deliberate: the
 member can see the row in Trash, so hiding it would tell them something
