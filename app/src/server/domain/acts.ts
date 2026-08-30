@@ -189,6 +189,15 @@ export interface DuplicableSource {
   title: string
 }
 
+/**
+ * RFC 0005 change control items 46 and 47(b), enacted by RFC 0004's S28a:
+ * the copy carries the title, the notes, the importance, the steps (all
+ * undone), the section, the due date and the repeat, and never the
+ * conversation, the completion, or the assignment, which lands on whoever
+ * made the copy (item 44's B10). The date follows 9.6's one rule for a
+ * folder applied to one task: a spent due date re-anchors on today and a
+ * future one keeps, the repeat riding whichever the copy carries.
+ */
 export async function duplicateTask(
   db: Db,
   viewerId: string,
@@ -199,7 +208,9 @@ export async function duplicateTask(
       await rowsOf(
         tx,
         sql`SELECT title, notes, important,
-                   to_char(due_date, 'YYYY-MM-DD') AS due_date,
+                   to_char(CASE WHEN due_date < current_date
+                                THEN current_date ELSE due_date END,
+                           'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id
             FROM tasks WHERE id = ${source.id}::uuid`,
       )
