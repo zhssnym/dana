@@ -20,7 +20,20 @@ hairline separates the two surfaces, the reading measure becomes a clamp, and
 motion, dark-mode and reduced-motion blocks arrive that v1 had none of. Every
 one of those carries its own reasoning below, in his words.
 
-**Five departures from his file, each with its reason.**
+**Seven departures from his file, each with its reason.** Five are the port's
+own and are described here; the sixth and seventh belong to the dark theme,
+are written at the lines they change, and are named here so this list stays
+the index: the `dark:` variant is taught `[data-theme="dark"]` beside `.dark`,
+and Tailwind's `white` keyword is pointed at `--color-graphite-0`.
+
+**Why the dark colourway may be departed from at all**, when the rule above is
+that a difference from his values is a defect in the port: because he says so
+in this file. His dark block is "offered as a first pass for his ruling rather
+than as a settled palette", RFC 0004's S21 row records that the dark theme
+cannot close until the rulings sitting happens, and neither of the two touches
+a value he wrote. One corrects a selector that could never match the theme he
+ships, and the other tells a Tailwind keyword which of his own ramp steps it
+means. Both are no-ops in the light colourway.
 
 His `min-width: 1180px` on `html` and on `body` is absent, and it is the one
 thing here that is forbidden rather than merely changed. Section 13 item 32
@@ -82,7 +95,31 @@ typeface only while online.
 
 @source '../**/*.{ts,tsx}';
 
-@custom-variant dark (&:is(.dark *));
+/*
+The `dark:` variant, taught the selector this product actually ships.
+
+**Sixth departure from his file, and it is a correction rather than a
+preference.** His `app.css` declares this variant as `&:is(.dark *)`, but
+nothing in his prototype or in this client ever writes a `dark` class: the
+theme is `data-theme="dark"` on the document element, written by
+`shell/appearance.ts`, by `lib/theme.ts` and by the pre-paint script in
+`index.html`, and answered by the `[data-theme="dark"]` blocks at the foot of
+this file. So every `dark:` utility in the product was compiling to a rule
+that could never match. Measured at the dark-mode round: twenty-two of them,
+every one inside the seven shadcn primitives under `components/ui/` and every
+one that library's own dark correction. `avatar.tsx`'s
+`dark:after:mix-blend-lighten` is the one worth naming, because it is what
+stops an avatar's ring blending itself away on a dark ground.
+
+The attribute selector is added rather than substituted, so a surface that
+does reach for the class keeps working, and `.dark` remains what the mark's
+colourway rule below is written against.
+
+**Light mode cannot move**, which is the safety property worth stating: every
+declaration this unlocks is behind `dark:` and therefore behind a selector
+that matches nothing while the attribute reads `light`.
+*/
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
 /* Dana v1, approved light-theme tokens, including the Session 4 desktop
  * compact-control refinement.
@@ -126,6 +163,47 @@ typeface only while online.
   --radius-lg: calc(var(--radius) + 4px);
   --radius-xl: calc(var(--radius) + 8px);
   --radius-full: 9999px;
+
+  /*
+  White, told which white it means.
+
+  **Seventh departure from his file, and the one that carries the dark theme.**
+  Tailwind's `white` is `#fff` fixed, so `bg-white` and `text-white` are the
+  only two colour decisions in this product that the ramp below cannot reach.
+  Seventy-six of them are written across the client, and every one of them means
+  one of exactly two things: *the sheet the work sits on* (`bg-white` on a
+  card, a calendar frame, an input, a `kbd`) or *the ink on an inverted plate*
+  (`text-white` on `bg-[var(--color-graphite-900)]`, on the accent, on a
+  scrim). Both of those are `--color-graphite-0`, which is `#ffffff` in the
+  light colourway and `#17181b` in the dark one, and `ui/bubble.tsx` already
+  writes exactly that pairing by hand: `bg-[var(--color-graphite-900)]
+  text-[var(--color-graphite-0)]`. Pointing the keyword at the token makes the
+  other seventy-six agree with the one that was already right.
+
+  **What it fixes, because a token this broad owes a list.** The Scheduled
+  page's calendar drew a white sheet on a dark page with black cells where the
+  month ran out, which is the surface the round was opened on. Settings' nine
+  toggles put a white thumb on a near-white track, so on could not be told
+  from off. Every primary button, the toast, the undo bar, the floating add
+  control, the filter's applied chip and the search overlay's key caps put
+  white ink on a plate that had already turned near-white underneath it.
+
+  **Light mode is byte-identical.** `--color-graphite-0` is `#ffffff` in the
+  light colourway and Tailwind's default is `#fff`, the same colour, so no
+  light surface changes by so much as a channel. Only the dark colourway moves,
+  and only in the direction the ramp already committed to.
+
+  **Where it is wrong, and it is wrong in two places**, both outside this
+  file's ownership and both reported rather than edited: a glyph drawn over
+  *imagery* means white absolutely rather than by role, because a photograph
+  does not follow the viewer's colourway. `components/task-card.tsx`'s play
+  badge over a video thumbnail and `pages/LandingPage.tsx`'s disc behind the
+  Google mark are the two, and both want a colour that is fixed rather than a
+  ramp step. `--color-black` is deliberately not moved for the same reason
+  read the other way: the three modal scrims are `bg-black/20`, `/25` and
+  `/80`, and a scrim darkens what is behind it in both colourways.
+  */
+  --color-white: var(--color-graphite-0);
 }
 
 :root {
