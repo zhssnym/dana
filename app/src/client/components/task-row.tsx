@@ -102,6 +102,7 @@ import { ActionStrip, type ViewStripOption } from "./view-strip.js"
 import { useRowDensity, type RowDensity } from "../lib/row-density.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useTaskWriter } from "../lib/task-writer.js"
+import { useExpandedDetail } from "../lib/row-detail.js"
 import { setTaskSurfacePreference } from "../lib/task-surface-preference.js"
 import {
   repeatShort,
@@ -789,7 +790,8 @@ export function useRowSelection({
         />
         <IconAction
           icon={SunMedium}
-          label="Add to My Day"
+          /* polish: taskrow F11. The page is called Today everywhere else. */
+          label="Add to Today"
           onClick={() => {
             onBulk(selected, { pulled: true })
             exit()
@@ -797,21 +799,29 @@ export function useRowSelection({
         />
 
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label="Move to a folder"
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <FolderInput className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            }
-          />
+          {/* polish: taskrow F11. Named on hover like its five neighbours. */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Move to a folder"
+                      className={cn(
+                        "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
+                        T_FAST,
+                        FOCUS,
+                      )}
+                    >
+                      <FolderInput className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  }
+                />
+              }
+            />
+            <TooltipContent side="top">Move to a folder</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="end" className="min-w-[16rem]">
             <MenuHeading>
               Move {selected.length} task{selected.length === 1 ? "" : "s"} to
@@ -1242,6 +1252,8 @@ export function Actions({
   onNewFolderFor,
   onRestore,
   onOpenIn,
+  onPull,
+  onUnpull,
   onMoveToFolder,
   onAbandon,
   onDelete,
@@ -1276,6 +1288,9 @@ export function Actions({
      see the star below. Seam, S23. */
   importantTooltip?: string
   onOpenIn?: (mode: TaskOpenMode) => void
+  /* polish: taskrow F5. Today membership, one of the pair at a time. */
+  onPull?: () => void
+  onUnpull?: () => void
   onMoveToFolder?: (folder: { name: string; color: string }) => void
   onAbandon?: () => void
   onDelete?: () => void
@@ -1389,7 +1404,8 @@ export function Actions({
           FOCUS,
           task.important
             ? "opacity-100"
-            : "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
+            : /* polish: taskrow F10. Visible at rest where there is no hover to reveal it. */
+                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
         )}
       >
         {/*
@@ -1452,7 +1468,8 @@ export function Actions({
               FOCUS,
               persistent
                 ? "opacity-100"
-                : "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100",
+                : /* polish: taskrow F10. Visible at rest where there is no hover to reveal it. */
+                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
             )}
           >
             <MoreHorizontal className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
@@ -1474,6 +1491,8 @@ export function Actions({
               }
             : undefined,
           history: onHistory,
+          pull: onPull && !task.pulled ? onPull : undefined,
+          unpull: onUnpull && task.pulled ? onUnpull : undefined,
           move: onMoveToFolder
             ? {
                 /*
@@ -1957,7 +1976,8 @@ stands alone as the strip's tooltip.
 */
 export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
   { key: "dialog", label: "Dialog", icon: SquareSquare },
-  { key: "right", label: "Sidebar", icon: PanelRight },
+  /* polish: taskcard F11. "Panel", the word Settings uses for the same home. */
+  { key: "right", label: "Panel", icon: PanelRight },
   { key: "tab", label: "New tab", icon: ArrowUpRight },
 ]
 
@@ -2384,7 +2404,17 @@ export function TaskRow(props: TaskRowProps) {
      the other, which is a thing no reader of the setting can do. */
   const density = props.density ?? useRowDensity()
   const [open, setOpen] = useState(props.defaultOpen ?? false)
-  const { task, patch, counts, cardHandlers } = useCardWiring(props)
+  /*
+  polish: taskcard F8. An expanded row drew "Step 1 … Step 16", because the
+  list's card carries a count and the fallback below invents titles from it.
+  The row reads 7.6's detail while it is open, so the inline card shows the
+  same steps, notes and reminder the dialog shows. A surface hands `detail`
+  in already and reads nothing.
+  */
+  const fetched = useExpandedDetail(props.detail === undefined ? props.id : undefined, open)
+  const { task, patch, counts, cardHandlers } = useCardWiring(
+    fetched === undefined ? props : { ...props, detail: { ...fetched, ...props.detail } },
+  )
   /*
   **Seam, S23: the assignee menu's roster is the folder's members.**
 
@@ -2815,7 +2845,22 @@ export function TaskRow(props: TaskRowProps) {
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
       quietStar={given.important}
       importantTooltip={props.importantTooltip}
-      onOpenIn={props.onOpen ? openIn : undefined}
+      /* polish: taskrow F8. No "Open in…" in the row menu: the title opens the
+         task where the person last chose, the chevron expands it in place, and
+         the expanded card's footer is where the surface is chosen. */
+      onOpenIn={undefined}
+      /* polish: taskrow F5. The page's own act where it has one (Today's
+         rows, with its undo), the writer's pull otherwise. Absent without an
+         id, the row lab's case. */
+      onPull={props.id ? () => patch(task.id, { pulled: true }) : undefined}
+      onUnpull={
+        props.id
+          ? () => {
+              if (props.onRemoveFromMyDay) props.onRemoveFromMyDay()
+              else patch(task.id, { pulled: false })
+            }
+          : undefined
+      }
       onMoveToFolder={(folder) => patch(task.id, { folder })}
       onNewFolderFor={props.onNewFolder}
       onAbandon={props.onAbandon}

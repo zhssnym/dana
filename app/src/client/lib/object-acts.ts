@@ -85,6 +85,7 @@ import {
   OpenInNewTab,
   Pencil,
   RotateCcw,
+  SunMedium,
   Trash2,
   Workflow,
 } from './icons.js'
@@ -110,6 +111,8 @@ export type ActKey =
   | 'history'
   | 'rename'
   | 'move'
+  | 'pull'
+  | 'unpull'
   /*
   The seventh ellipsis of change control item 44's A1, and the one act it
   measured as absent from this client: "'Make this a folder…', an act the
@@ -181,6 +184,11 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     */
     { key: 'open', label: 'Open in…', icon: Fullscreen, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
+    /* polish: taskrow F5 (2026-08-30). Today membership from the row's own
+       menu, the pair of 7.8's pull and its DELETE, offered one at a time the
+       way abandon and restore are. */
+    { key: 'pull', label: 'Add to Today', icon: SunMedium, group: 2 },
+    { key: 'unpull', label: 'Remove from Today', icon: SunMedium, group: 2 },
     { key: 'move', label: 'Move to folder…', icon: FolderInput, group: 2 },
     { key: 'make-folder', label: 'Make this a folder…', icon: Folders, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
