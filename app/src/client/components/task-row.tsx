@@ -76,7 +76,7 @@ import {
   TaskCard,
   newFolderChoice,
 } from "./task-card.js"
-import { FolderMark, folderNameOf, useFolderMark } from "./folder-mark.js"
+import { FolderMark, useFolderMark } from "./folder-mark.js"
 import { folderLibrary } from "../lib/folder-library.js"
 import { DuePanel, RepeatPanel } from "./task-pickers.js"
 import {
@@ -1071,45 +1071,58 @@ export function TaskTitle({
   }
 
   /*
-  **Seam, S23: the row's title is text, not a control, and 9.4 is why.**
+  **The title renames in the row, which reverses S23's exemption.**
 
-  The prototype makes it a `<button>` that swaps itself for a field, which is
-  DES-095, "renaming happens in the row". Two sentences of section 9 are
-  against it and 11.13 makes them win.
+  DES-095, "renaming happens in the row", is the prototype's decision and
+  ledger entry L-152 recorded the client as not carrying it. S23 declined the
+  lift and the item 57 sitting exempted the row on item 47(e): "the row's
+  title is text and renaming is the card's". The owner asked for the
+  prototype's behaviour at the round of 2026-08-30, so the button is back and
+  the exemption is spent. What that reversal costs is written here rather than
+  discovered later, because both costs were measured once already and neither
+  has gone away.
 
-  **9.4: "a click on any row opens that task."** The title is the largest
-  target in a row and the one a person aims at, and in the prototype clicking
-  it starts a rename instead. AC-178 performs the section's sentence literally,
-  `page.getByText(title)` then expects the surface; against a title that
-  renames, the click lands in a text field and no task opens.
+  **9.4's "a click on any row opens that task" now means the row and not its
+  title.** The title is the one part of the row that does something else, the
+  way a chip does: the due chip opens the due picker and the folder chip opens
+  the folder menu, and neither of those has ever opened the task either. The
+  gesture that opens a task from its title is a press anywhere else on the
+  row, or the chevron, which is one target away. The mechanism is
+  `use-sortable-list`'s own: `surfaceProps` ignores a pointerdown that starts
+  on a `button`, so a press on the title never becomes the row's tap and the
+  row cannot both rename and open.
 
-  **And 9.3 already says where a title is edited**: "the title (editable in
-  place, required)", in the card's field table. The row expands into that card
-  by DES-093, so renaming in the row is still one gesture away and is done on
-  the artifact the section puts the field on. Section 9 asks for no
-  row-rename control anywhere, and 9.1's roles table, which fixes roles for
-  eight things, does not list one.
-
-  **The second cost it was carrying is an addressing one and it is worth
-  naming**, because it is F1 and F2's class again and the criteria triage
-  could not have seen it. A button whose accessible name is the task's own
-  title makes every loose locator inside a row ambiguous: AC-097 asks a row
-  for `getByRole('button', { name: 'Restore' })`, and against a seeded task
-  called "ac-097 restore returns to my day" that matched the title button as
-  well as the Restore control, dying of strict mode. The v1 row never had the
-  problem because its title was not a control. Any row-scoped locator whose
-  name happens to appear in a task's title has the same fault, so this is a
-  class rather than one case.
-
-  What is given up is a click's worth of convenience, and it is recorded
-  rather than taken quietly: renaming is now the chevron then the card's
-  title, where the section puts it.
+  **What this breaks is addressing, in two known shapes, and both were read
+  off the criteria rather than guessed at.** Seven browser criteria open a
+  task by pressing its title text, `page.getByText(title)` and then a surface,
+  and each now lands in a rename field instead: AC-092, AC-170, AC-178,
+  AC-179, AC-183, AC-219 and AC-220. Cases that only *read* a title are
+  untouched, which is why AC-095, AC-172, AC-221 and AC-224 are not on that
+  list, and AC-098 presses a calendar event rather than a row. The second
+  shape is one case: a button whose accessible name is the task's own title
+  makes a loose row-scoped locator ambiguous, and AC-097 asks a row for
+  `getByRole('button', { name: 'Restore' })` against a task titled "ac-097
+  restore returns to my day", which Playwright matches as a substring and so
+  resolves to both. Neither shape is this file's to repair, protocol section 8
+  putting a criterion's text with persona 11, and both are raised with the
+  round rather than worked around here.
   */
   const button = (
-    <span
+    <button
+      type="button"
+      /* The press starts the rename and goes no further: the row's opener is
+         resolved on the pointer stream rather than on the click, so what
+         actually keeps the two apart is `surfaceProps`' button check above,
+         and this stops a screen that wired an ordinary click handler. */
+      onClick={(event) => {
+        event.stopPropagation()
+        setDraft(task.title)
+        setEditing(true)
+      }}
       className={cn(
         metrics,
-        "relative -mx-1 rounded-[4px] px-1 text-left transition-colors",
+        "relative -mx-1 cursor-text rounded-[4px] px-1 text-left transition-colors hover:bg-[var(--color-graphite-200)]",
+        FOCUS,
         T_FAST,
         /*
         **Seam, S23: the strike is the text's own, and it is a third finding
@@ -1152,7 +1165,7 @@ export function TaskTitle({
       {task.title || (
         <span className="text-[var(--color-graphite-400)]">Untitled task</span>
       )}
-    </span>
+    </button>
   )
 
   /* A truncated title is unreadable, and every concept but J truncates. The
@@ -1912,8 +1925,9 @@ function FolderDetailWord({
   name,
   color,
 }: {
-  /* A name rather than the task's folder object, because an unfiled task has
-     no object and is still in Desk (DES-155). The resolver answers for both. */
+  /* A name rather than the task's folder object, because the mark is resolved
+     by name against the folder list. The caller has already decided there is
+     a folder to draw; see `folderName` in the row. */
   name: string
   color?: string
 }) {
@@ -2450,10 +2464,28 @@ export function TaskRow(props: TaskRowProps) {
   }
 
   const given = props.given ?? {}
-  /* An unfiled task is in Desk, and the row says so, the same resolver the
-     card and the sidebar ask (DES-155). It said nothing at all before, so the
-     one task with no folder was the one task whose address was invisible. */
-  const folderName = given.folder ? undefined : folderNameOf(task.folder?.name)
+  /*
+  **The chip names the folder the row was told, and invents none.**
+
+  It used to answer an absent folder with `folderNameOf`, which resolves to
+  "Desk" on DES-155's reading that an unfiled task is in Desk. That reading is
+  the prototype's and it does not survive the port, because **Dana has no
+  unfiled task**: 4.5 makes `tasks.folder_id` NOT NULL and 7.0 answers every
+  card a folder stub. So an absent folder here never means "filed nowhere", it
+  means "the surface drawing this row did not pass one", and the two are
+  indistinguishable inside an `undefined`. That is RFC 0005 change control item
+  50(o)'s fault exactly, and item 50(o) fixed one half of it: `given.folder` is
+  how a list says "this page has already named the folder", and
+  `pages/task-rows.tsx` sends it. This is the other half, and it is the one
+  that holds for a call site nobody has written yet.
+
+  **Why silence rather than a guess.** The chip is not a label: it is a
+  `ChipMenu` whose items move the task, so a chip naming a folder the task is
+  not in invites somebody to correct it and moves their work out of the folder
+  they were standing in. A row that says nothing about a folder it was not
+  told costs a fact; a row that says the wrong one costs the task.
+  */
+  const folderName = given.folder ? undefined : task.folder?.name?.trim()
   const showDue = Boolean(task.due) && !given.due
 
   /*

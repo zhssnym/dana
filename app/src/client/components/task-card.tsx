@@ -566,84 +566,107 @@ function CardFooter({
     where the shade begins, and drawing a rule along it would be saying the
     same thing twice, which is the mistake the block icons had.
     */
-    <div className="-mx-3 -mb-3 -ml-7 flex items-center justify-between gap-2 rounded-b-[7px] bg-[var(--color-graphite-50)] px-3 py-2">
+    <div className="-mx-3 -mb-3 -ml-7 rounded-b-[7px] bg-[var(--color-graphite-50)]">
       {/*
-      The edited line is the History control, rather than a caption beside one,
-      F5, 2026-08-22.
+      **9.3 puts the provenance in the footer, and until the round of
+      2026-08-30 it was above one.**
 
-      It used to be dead text saying "Edited just now by Imran Wafa · saved"
-      with a History button two centimetres to its right that did nothing, so
-      the same fact was stated twice and neither statement could be opened.
-      The window bar already settled the pattern for exactly this
-      (`WindowActivity`, DES-139): the line's resting job is to *tell* you
-      something and its second job is to open. Same component here, so a
-      task's history and a page's are one control rather than two that will
-      drift.
+      That section's card paragraph ends "the footer renders the task's
+      creation and its completion; the rest of its history is the Activity
+      control", and the two lines were a block of their own sitting between
+      the Comments disclosure and this band. Read down the card that is a
+      history section under the conversation, which is what the owner called
+      it at the round, and it is also the one place a reader would look for
+      the rest of the record and not find it: the whole record is the
+      overflow menu's History, one door, since the Activity popover was
+      retired (pagehead F4).
+
+      Nothing about what is rendered moves. AC-178 reads the creator and the
+      instant off the surface with nothing pressed, and it reads them off the
+      same two paragraphs, which still carry no control of their own; what
+      changes is that they are now inside the edge the section names rather
+      than above it.
       */}
-      {/*
-      **Seam, S23: 9.3's history is a block on the card, not only a line that
-      opens.** `components/task-history-block.tsx` carries the whole of the
-      reasoning. The Activity line stays beside it, because it is the window
-      bar's own control and DES-139's pattern, "the line's resting job is to
-      *tell* you something and its second job is to open"; what changes is that
-      the telling no longer has to be pressed to be read.
-      */}
-      <TaskActivity taskId={taskId} />
-      <span className="flex shrink-0 items-center gap-0.5">
+      <TaskHistoryBlock taskId={taskId} />
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
         {/*
-        Four controls left this row at F5, and each for a stated reason rather
-        than for tidiness.
+        The edited line is the History control, rather than a caption beside one,
+        F5, 2026-08-22.
 
-        **Undo and Redo** were the safety net that replaced Save and Cancel,
-        and they were the right instinct wired to the wrong metaphor: a card
-        footer promises text-editor semantics a to-do app does not have, and
-        both buttons were in fact permanently disabled. The net is real now and
-        app-wide, `lib/undo.ts`, one bar and Ctrl/Cmd+Z, which also covers
-        deleting and abandoning a task, which a card-local undo never could.
-
-        **Share** and **Email** were fictions about the model, and this file's
-        own note said so before they were removed: Dana shares *folders*, so
-        "share this task" either invites somebody to the whole folder, which
-        is not what the button appears to promise, or it is a new sharing
-        model nobody has specified. Sharing lives on the folder page, where it
-        is true.
-
-        Copy link stays and now actually copies.
+        It used to be dead text saying "Edited just now by Imran Wafa · saved"
+        with a History button two centimetres to its right that did nothing, so
+        the same fact was stated twice and neither statement could be opened.
+        The window bar already settled the pattern for exactly this
+        (`WindowActivity`, DES-139): the line's resting job is to *tell* you
+        something and its second job is to open. Same component here, so a
+        task's history and a page's are one control rather than two that will
+        drift.
         */}
-        <IconAction
-          icon={Link2}
-          label={copied ? "Link copied" : "Copy link"}
-          onClick={() => {
-            void navigator.clipboard?.writeText(
-              `${window.location.origin}/?task=${taskId ?? ""}`,
-            )
-            setCopied(true)
-            window.setTimeout(() => setCopied(false), 1600)
-          }}
-        />
-        {/* Real since the task surface exists (DES-136): full screen from
-            the card, one press. Inside a surface the chrome above already
-            owns the views and the close, so the footer offers neither,
-            two closes in one card is one too many. In the lab, where no
-            surface host exists, it stays honestly disabled. */}
-        {chrome === "inline" ? (
-          <>
-            {/* The same "Open in…" the row offers, so both entry points
-                behave alike, the footer used to jump straight to full
-                screen, which made one control a choice and the other a
-                verdict (DES-138). */}
-            {openIn ?? (
-              <IconAction
-                icon={Maximize2}
-                label="Open full screen"
-                disabled={!onExpand}
-                onClick={onExpand}
-              />
-            )}
-            <IconAction icon={X} label="Close" onClick={onClose} />
-          </>
-        ) : null}
-      </span>
+        {/*
+        **Seam, S23: 9.3's history is a block on the card, not only a line that
+        opens.** `components/task-history-block.tsx` carries the whole of the
+        reasoning. The Activity line stays beside it, because it is the window
+        bar's own control and DES-139's pattern, "the line's resting job is to
+        *tell* you something and its second job is to open"; what changes is that
+        the telling no longer has to be pressed to be read.
+        */}
+        <TaskActivity taskId={taskId} />
+        <span className="flex shrink-0 items-center gap-0.5">
+          {/*
+          Four controls left this row at F5, and each for a stated reason rather
+          than for tidiness.
+
+          **Undo and Redo** were the safety net that replaced Save and Cancel,
+          and they were the right instinct wired to the wrong metaphor: a card
+          footer promises text-editor semantics a to-do app does not have, and
+          both buttons were in fact permanently disabled. The net is real now and
+          app-wide, `lib/undo.ts`, one bar and Ctrl/Cmd+Z, which also covers
+          deleting and abandoning a task, which a card-local undo never could.
+
+          **Share** and **Email** were fictions about the model, and this file's
+          own note said so before they were removed: Dana shares *folders*, so
+          "share this task" either invites somebody to the whole folder, which
+          is not what the button appears to promise, or it is a new sharing
+          model nobody has specified. Sharing lives on the folder page, where it
+          is true.
+
+          Copy link stays and now actually copies.
+          */}
+          <IconAction
+            icon={Link2}
+            label={copied ? "Link copied" : "Copy link"}
+            onClick={() => {
+              void navigator.clipboard?.writeText(
+                `${window.location.origin}/?task=${taskId ?? ""}`,
+              )
+              setCopied(true)
+              window.setTimeout(() => setCopied(false), 1600)
+            }}
+          />
+          {/* Real since the task surface exists (DES-136): full screen from
+              the card, one press. Inside a surface the chrome above already
+              owns the views and the close, so the footer offers neither,
+              two closes in one card is one too many. In the lab, where no
+              surface host exists, it stays honestly disabled. */}
+          {chrome === "inline" ? (
+            <>
+              {/* The same "Open in…" the row offers, so both entry points
+                  behave alike, the footer used to jump straight to full
+                  screen, which made one control a choice and the other a
+                  verdict (DES-138). */}
+              {openIn ?? (
+                <IconAction
+                  icon={Maximize2}
+                  label="Open full screen"
+                  disabled={!onExpand}
+                  onClick={onExpand}
+                />
+              )}
+              <IconAction icon={X} label="Close" onClick={onClose} />
+            </>
+          ) : null}
+        </span>
+      </div>
     </div>
   )
 }
@@ -2229,8 +2252,8 @@ export function TaskCard({
         />
       </Disclosure>
 
-      <TaskHistoryBlock taskId={task.id} />
-
+      {/* The provenance lines moved into the footer at the round of
+          2026-08-30; `CardFooter` carries the reasoning. */}
       <CardFooter taskId={task.id} onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
     </div>
   )
