@@ -69,6 +69,8 @@ export interface RowActions {
   readonly onOpenTask: (task: TaskCard) => void
   /** 9.4's overflow delete, behind 9.3's confirmation. */
   readonly onDelete: (task: TaskCard) => void
+  /** The selection bar's delete: one act, one undo entry for the batch. */
+  readonly onDeleteMany: (tasks: readonly TaskCard[]) => void
   /**
    * 9.1: "dropping a card in a column writes that value". The board is the
    * one caller today and the value is the column's own `ColumnValue`, which
@@ -170,6 +172,23 @@ export function useRowActions(): RowActions {
       remove.mutate(task.id)
       pushUndo(undoLabel('Deleted', task.title), () => {
         transition.mutate({ id: task.id, event: 'restore' })
+      })
+    },
+    /*
+    polish: taskrow F1 (2026-08-30). The selection bar deleted three tasks
+    by calling the act above three times, so the bar named the last one and
+    Undo put back only that one. A batch is one act with one inverse: one
+    entry that restores every task it trashed.
+    */
+    onDeleteMany: (tasks) => {
+      if (tasks.length === 0) return
+      for (const task of tasks) remove.mutate(task.id)
+      const label =
+        tasks.length === 1 && tasks[0] !== undefined
+          ? undoLabel('Deleted', tasks[0].title)
+          : `Deleted ${String(tasks.length)} tasks`
+      pushUndo(label, () => {
+        for (const task of tasks) transition.mutate({ id: task.id, event: 'restore' })
       })
     },
     /*

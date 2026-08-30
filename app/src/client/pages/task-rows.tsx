@@ -38,13 +38,18 @@ import { useCreateFolder, useOrderTask, usePullIntoMyDay, useUpdateTask } from '
 import { useFolders, useMe } from '../api/queries.js'
 import { TaskList, TaskRow } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM, deleteTasksConfirm } from '../components/ui/copy.js'
-import { presenterToday, taskRowDisplay } from '../parts/presenters.js'
+import {
+  ABANDON_CONFIRM,
+  DELETE_CONFIRM_LABEL,
+  DELETE_TASK_CONFIRM,
+  deleteTasksConfirm,
+  keepLabel,
+} from '../components/ui/copy.js'
+import { folderDisplay, presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { showToast } from '../state/toasts.js'
 import { duplicateTask } from '../lib/task-acts.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
@@ -86,6 +91,14 @@ interface PendingConfirm {
   /** The normative sentence section 9 writes for this action. */
   readonly message: string
   readonly run: () => void
+  /* polish: taskrow F11. The delete confirms name their controls. */
+  readonly confirmLabel?: string
+  readonly cancelLabel?: string
+}
+
+export interface ConfirmLabels {
+  readonly confirmLabel: string
+  readonly cancelLabel: string
 }
 
 /**
@@ -113,6 +126,8 @@ export function ConfirmDialog({
         onClose()
       }}
       onCancel={onClose}
+      {...(pending.confirmLabel === undefined ? {} : { confirmLabel: pending.confirmLabel })}
+      {...(pending.cancelLabel === undefined ? {} : { cancelLabel: pending.cancelLabel })}
     />
   )
 }
@@ -123,13 +138,13 @@ export function ConfirmDialog({
  */
 export function useConfirm(): {
   pending: PendingConfirm | null
-  ask: (message: string, run: () => void) => void
+  ask: (message: string, run: () => void, labels?: ConfirmLabels) => void
   close: () => void
 } {
   const [pending, setPending] = useState<PendingConfirm | null>(null)
   return {
     pending,
-    ask: (message, run) => setPending({ message, run }),
+    ask: (message, run, labels) => setPending({ message, run, ...labels }),
     close: () => setPending(null),
   }
 }
@@ -163,7 +178,7 @@ export function TaskRows({
   readonly context: RowContext
   readonly actions: RowActions
   /** Raised for the two overflow entries section 9 puts a confirmation on. */
-  readonly onAsk: (message: string, run: () => void) => void
+  readonly onAsk: (message: string, run: () => void, labels?: ConfirmLabels) => void
   readonly arrangement?: ListArrangement
 }): React.JSX.Element {
   const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
@@ -240,6 +255,15 @@ export function TaskRows({
           */
           given={context.showFolder === false ? { folder: true } : undefined}
           /*
+          polish: taskrow F2. The row is told its folder even where the page
+          has already said it: `given` silences the chip, but the card the
+          chevron opens still names the folder, and a card given none read
+          the DES-155 fallback and said "Desk" on every row of "Apartment
+          move". The resolved name and colour come from the same table the
+          chip reads when it is drawn.
+          */
+          folder={{ id: row.card.folder.id, ...folderDisplay(row.card.folder, context.folders) }}
+          /*
           **S23's drag seam is gone at S25, and it went the way its own
           comment said it would.** That seam took `RowDrag`, the interface
           `views/TaskBoard.tsx` published while it was still the v1 board, and
@@ -270,9 +294,13 @@ export function TaskRows({
             })
           }}
           onDelete={() => {
-            onAsk(DELETE_TASK_CONFIRM, () => {
-              actions.onDelete(row.card)
-            })
+            onAsk(
+              DELETE_TASK_CONFIRM,
+              () => {
+                actions.onDelete(row.card)
+              },
+              { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(1) },
+            )
           }}
         />
       )}
@@ -290,7 +318,7 @@ export function TaskRows({
 function useListActs(
   tasks: readonly TaskCard[],
   actions: RowActions,
-  onAsk: (message: string, run: () => void) => void,
+  onAsk: (message: string, run: () => void, labels?: ConfirmLabels) => void,
   arrangeable: boolean,
 ): {
   onReorder: (from: number, to: number, next: string[]) => Promise<boolean>
@@ -363,8 +391,9 @@ function useListActs(
         await Promise.all(
           moving.map((task) => update.mutateAsync({ id: task.id, body: { folder_id: folder.id } })),
         )
-        showToast(`Moved ${plural(moving.length)} to "${folder.name}"`)
-        pushUndo(undoLabel('Moved', plural(moving.length)), () => {
+        /* polish: taskrow F9. One bar for one act: the undo entry names the
+           folder, so there is no second toast saying the same thing. */
+        pushUndo(`Moved ${plural(moving.length)} to "${folder.name}"`, () => {
           for (const task of moving) {
             update.mutate({ id: task.id, body: { folder_id: task.folder.id } })
           }
@@ -405,9 +434,14 @@ function useListActs(
     onDelete: (ids) => {
       const going = pick(ids)
       if (going.length === 0) return
-      onAsk(going.length === 1 ? DELETE_TASK_CONFIRM : deleteTasksConfirm(going.length), () => {
-        for (const task of going) actions.onDelete(task)
-      })
+      /* polish: taskrow F1. One act, one undo entry for the whole batch. */
+      onAsk(
+        going.length === 1 ? DELETE_TASK_CONFIRM : deleteTasksConfirm(going.length),
+        () => {
+          actions.onDeleteMany(going)
+        },
+        { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(going.length) },
+      )
     },
   }
 }
