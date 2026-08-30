@@ -87,7 +87,11 @@ const CONTRACT = [
 /** What a surface may add of its own, and nothing else may appear. */
 const SURFACE_ONLY = [
   'Add task',
-  'New folder group',
+  /* "New shelf…" sits inside the row's "Move to shelf" submenu since the
+     polish round (sidebar F5, F7), where "New folder group" stood at the top
+     of the menu; it is listed for the submenu case and never appears while
+     the submenu is closed. */
+  'New shelf…',
   'Open in a new tab',
   'Transfer ownership',
 ]

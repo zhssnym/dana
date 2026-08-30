@@ -109,6 +109,7 @@ import {
   useFolderCompletedTasks,
   useFolderOpenTasks,
   useFolderPage,
+  useShelves,
   useThread,
 } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
@@ -301,13 +302,18 @@ export function FolderPage({
   /* Every label in use, which is what the move submenu offers, deduplicated
      and in the order the library holds them. 9.1 makes a group "the label of
      7.4's my-membership and nothing else", so this is the whole of a group. */
+  /* polish: tabstrip F6 (shell edit, minimal). The shelves the viewer has
+     made are offered too, not only the labels already in use: a shelf with
+     nothing on it yet was exactly the one a person wanted to move to. */
+  const shelvesRead = useShelves()
   const groupLabels = [
-    ...new Set(
-      (library.data ?? [])
+    ...new Set([
+      ...(library.data ?? [])
         .map((entry) => entry.my_label)
         .filter((label): label is string => label !== null && label !== ''),
-    ),
-  ]
+      ...(shelvesRead.data ?? []).map((shelf) => shelf.name),
+    ]),
+  ].sort((a, b) => a.localeCompare(b))
   const putPage = usePutFolderPage()
   const postComment = usePostComment()
   const patchComment = usePatchComment()
@@ -328,8 +334,13 @@ export function FolderPage({
   const [markOpen, setMarkOpen] = useState(false)
   const [conversationHome, setConversationHome] =
     useState<ConversationHome>(readConversationHome)
-  const [footThreadOpen, setFootThreadOpen] = useState(false)
-  const [panelOpen, setPanelOpen] = useState(false)
+  /* polish: search F3 (shell edit, minimal). A notification lands here with
+     `?conversation=open`, so the thread the person was told about is open on
+     arrival rather than folded below the fold; `search` is the page's own
+     `useSearchParams`, read above. Both homes honour it. */
+  const arrivingAtThread = search.get('conversation') === 'open'
+  const [footThreadOpen, setFootThreadOpen] = useState(arrivingAtThread)
+  const [panelOpen, setPanelOpen] = useState(arrivingAtThread)
 
   const connections = useConnections()
   const threadOpen =
@@ -672,6 +683,9 @@ export function FolderPage({
     anchor.download = `${detail?.name ?? 'folder'}.dana-workflow.json`
     anchor.click()
     URL.revokeObjectURL(url)
+    /* polish: tabstrip F7. A download that starts silently reads as nothing
+       happening; the toast says what was saved and where it went. */
+    showToast(`"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.`)
   }
 
   /*
@@ -896,7 +910,7 @@ export function FolderPage({
                     ))}
                     <DropdownMenuSeparator />
                     <DropdownMenuRadioItem value="__none" closeOnClick>
-                      No group
+                      No shelf
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 ),
@@ -907,6 +921,7 @@ export function FolderPage({
                    sidebar's folder row and on the shelf page, which is three
                    copies of one address. */
                 void navigator.clipboard.writeText(folderLink(id))
+                showToast('Link copied')
               },
               duplicate: () => {
                 /* DES-198 server-side; the copy is the duplicator's own

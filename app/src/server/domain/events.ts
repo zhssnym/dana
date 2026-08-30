@@ -180,9 +180,12 @@ export async function listNotifications(
   const rows = await rowsOf(
     db,
     sql`SELECT n.id AS notification_id, n.read_at,
-               n.created_at AS notified_at, ${EVENT_COLUMNS}
+               n.created_at AS notified_at, c.task_id AS comment_task_id,
+               ${EVENT_COLUMNS}
         FROM notifications n
         JOIN events e ON e.id = n.event_id
+        LEFT JOIN comments c
+          ON e.subject_kind = 'comment' AND c.id = e.subject_id
         WHERE n.user_id = ${viewerId}
         ORDER BY n.created_at DESC, n.id DESC
         LIMIT ${LIST_CAP + 1}`,
@@ -192,6 +195,10 @@ export async function listNotifications(
       id: String(row.notification_id),
       read_at: nullableIso(row.read_at),
       created_at: toIso(row.notified_at),
+      /* polish: search F3. The task a comment sits on, so the bell can land
+         on the task with its thread open rather than on the folder. Null
+         for a folder-level comment and for every other subject. */
+      task_id: nullableString(row.comment_task_id),
       event: eventFromRow(row),
     })),
     truncated: rows.length > LIST_CAP,
