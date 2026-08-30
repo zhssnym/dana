@@ -140,7 +140,7 @@ test.describe('AC-156: the search overlay', () => {
     ).toBeGreaterThan(0)
   })
 
-  test('AC-156: results group under the three status headings and the footer is present', async ({
+  test('AC-156: task results keep Q8\'s order and wear their status, and the footer is present', async ({
     page,
   }) => {
     const PENDING = caseTitle(PENDING_BASE)
@@ -166,22 +166,38 @@ test.describe('AC-156: the search overlay', () => {
       'spec 9.9: the overlay carries the input its results are typed into',
     )
 
-    for (const [heading, row] of [
+    const dialog = page.getByRole('dialog')
+    await expect(
+      /* The heading carries the group's count beside its name, the prototype's
+         own "Tasks 3", so the name is matched at its start. */
+      dialog.getByRole('heading', { name: /^Tasks\b/ }),
+      'spec 9.9: results group by kind, and the three rows planted here are all tasks',
+    ).toBeVisible()
+
+    for (const [status, row] of [
       ['Pending', PENDING],
       ['Abandoned', ABANDONED],
       ['Completed', COMPLETED],
     ] as const) {
       await expect(
-        page.getByRole('heading', { name: heading }),
-        `spec 9.9: results are grouped under Pending, Abandoned and Completed headings, and ` +
-          `6 Q8 admits all three statuses. Without the headings the page is Q8's status_rank ` +
-          'order with nothing saying what changed between two adjacent rows',
-      ).toBeVisible()
-      await expect(
-        page.getByText(row),
-        `the ${heading} group has the row that belongs in it`,
-      ).toBeVisible()
+        dialog.getByRole('button', { name: new RegExp(row) }),
+        `spec 9.9: task results "keep the Pending, Abandoned, Completed order of Q8, each ` +
+          `row wearing its status as a badge". The ${status} row carries the word on the ` +
+          'row itself, which is what tells two adjacent rows of different statuses apart ' +
+          'now that no heading does',
+      ).toContainText(status)
     }
+
+    const titles = await dialog
+      .getByRole('button')
+      .filter({ hasText: TOKEN })
+      .allTextContents()
+    const at = (row: string) => titles.findIndex((text) => text.includes(row))
+    expect(
+      [at(PENDING), at(ABANDONED), at(COMPLETED)],
+      'spec 9.9 and 6 Q8: pending above abandoned above completed. The order is the ' +
+        `subgrouping now that the badge names the status: ${JSON.stringify(titles)}`,
+    ).toEqual([at(PENDING), at(PENDING) + 1, at(PENDING) + 2])
 
     await expect(
       page.getByText('Showing matches from every folder you can access.'),

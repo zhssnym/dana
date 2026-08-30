@@ -139,7 +139,10 @@ test.describe('AC-261: Settings carries Appearance', () => {
         'header says these are unbuilt',
     ).toBeVisible()
 
-    for (const name of ['Theme', 'Row density', 'Clock', 'Where a task opens']) {
+    /* 'Row height' since S27: 9.7 names the preference row density and the
+       prototype's control, lifted whole, names itself by what a row has
+       (RFC 0005 change control item 52). */
+    for (const name of ['Theme', 'Row height', 'Clock', 'Where a task opens']) {
       await expect(
         appearance(page).getByRole('group', { name }).or(
           appearance(page).getByRole('radiogroup', { name }),
@@ -237,13 +240,14 @@ test.describe('AC-261: Settings carries Appearance', () => {
     await page.goto(routesV2.settings)
 
     await clickControl(
-      appearance(page).getByRole('radio', { name: 'Compact', exact: true }),
-      'spec 9.7: row density is comfortable or compact',
+      appearance(page).getByRole('radio', { name: 'One line', exact: true }),
+      "spec 9.7: row density is comfortable or compact, drawn in the prototype's words as " +
+        'Two lines and One line since S27',
     )
 
     await page.reload()
     await expect(
-      appearance(page).getByRole('radio', { name: 'Compact', exact: true }),
+      appearance(page).getByRole('radio', { name: 'One line', exact: true }),
       'spec 4.19: the density is a column of the bundle, so the control reads its own value ' +
         'back after a reload rather than resetting to the default. DES-113\'s fuller reading, ' +
         'two lines against one, belongs to the v2 task row S15 records as not ported, and is ' +

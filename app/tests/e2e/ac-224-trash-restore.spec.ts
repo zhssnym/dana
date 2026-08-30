@@ -53,9 +53,10 @@ test.describe('AC-224: Trash restores a folder', () => {
 
     await page.goto(routesV2.trash)
     await expect(
-      page.getByText("Deleted things stay here for 30 days, then they're gone for good."),
-      'spec 9.11: the page states the rule once, in these words. The v1 client has no ' +
-        'Trash page, which is the red this shows until S9',
+      page.getByText('Deleted items are kept for 30 days, then removed.'),
+      'spec 9.11: the page states the rule once, in these words, which are the ' +
+        'prototype\'s since S27 (RFC 0005 change control item 52). The v1 client has no ' +
+        'Trash page, which is the red this showed until S9',
     ).toBeVisible()
 
     const row = page.getByRole('main').getByText(new RegExp(folderName)).first()

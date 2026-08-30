@@ -2,10 +2,19 @@
 AC-258: given one query that matches a task through a step's title, a folder
 by name, a shelf by name and a page's own paragraph, then the search overlay
 draws a result of each of those four kinds, each under its own heading, and
-the task results keep Q8's Pending, Abandoned and Completed subgrouping inside
-theirs; and given the overlay opened with nothing typed, then it already
-offers the places, the pages and the viewer's folders and shelves, as rows
-that go to them.
+the task results keep Q8's Pending, Abandoned and Completed order inside
+theirs, each wearing its status; and given the overlay opened with nothing
+typed, then it already offers the pages of 9.1's block as rows that go to
+them.
+
+**Reworked at S27, RFC 0005 change control item 52.** Two of the sentences
+above moved toward `prototype-v2`'s `search-overlay.tsx`, which is the file
+that ships now: status is a badge on the row and an order inside Tasks rather
+than a heading, and "an empty box offers the places rather than nothing"
+means the pages, "few and fixed, so they cost one glance", not every folder
+and shelf the viewer has. 9.9 is amended to both. The fourth case, a place
+row going to its place, now types the word first, a folder being a result
+rather than a place.
 
 **One query for all four, which is the point and not a convenience.** The
 audit's fourth headline gap is "search finds only tasks, while the server
@@ -232,53 +241,59 @@ test.describe('AC-258: search finds all four kinds', () => {
 
     for (const heading of ['Tasks', 'Folders', 'Shelves', 'Pages']) {
       await expect(
-        sheet.getByRole('heading', { name: heading, exact: true }),
+        /* The prototype's heading carries the group's count beside its name,
+           "Folders 1", so the name is matched at its start. */
+        sheet.getByRole('heading', { name: new RegExp(`^${heading}\\b`) }),
         `spec 9.9: "results group by kind". ${heading} is one of the four kinds that section ` +
           'names, and a flat list of everything is not a grouping',
       ).toBeVisible()
     }
 
     await expect(
-      sheet.getByRole('heading', { name: 'Pending', exact: true }),
-      'spec 9.9: "task results keep the Pending, Abandoned, Completed subgrouping of Q8". ' +
-        'AC-156 pins those three headings and is green today, so widening the overlay around ' +
-        'them must not cost them: this is the assertion a port that flattened tasks fails',
-    ).toBeVisible()
+      sheet.getByRole('button', { name: new RegExp(fixture.taskTitle) }),
+      'spec 9.9: task results keep Q8\'s order "each row wearing its status as a badge". ' +
+        'AC-156 pins the order and the badge, so widening the overlay around them must not ' +
+        'cost them: a pending task says so on its row',
+    ).toContainText('Pending')
   })
 
-  test('AC-258: the places are offered before anything is typed', async ({ page }) => {
+  test('AC-258: the pages are offered before anything is typed', async ({ page }) => {
     await page.goto(routesV2.desk)
     await openSearch(page)
 
     const sheet = overlay(page)
 
-    await expect(
-      sheet.getByText('Today', { exact: true }).first(),
-      'spec 9.9 and DES-203: "before anything is typed it offers the places, pages, folders ' +
-        'and shelves, as rows to go to". Today is one of 9.1\'s page block, and the built ' +
-        'overlay offers an empty box until 2 characters are typed',
-    ).toBeVisible()
+    for (const name of ['Today', 'Scheduled']) {
+      await expect(
+        sheet.getByText(name, { exact: true }).first(),
+        'spec 9.9 and DES-203: "before anything is typed it offers the pages of 9.1\'s block ' +
+          `as rows to go to". ${name} is one of them, and an overlay that shows an empty box ` +
+          'until two characters are typed is one you have to already know the answer to',
+      ).toBeVisible()
+    }
 
     await expect(
-      sheet.getByText(fixture.folderName, { exact: false }).first(),
-      'the viewer\'s folders are places too, and this is the one call where useFolders() is ' +
-        'the right list rather than the wrong one',
-    ).toBeVisible()
-
-    await expect(
-      sheet.getByText(fixture.shelfName, { exact: false }).first(),
-      'spec 9.9 names shelves among the places offered before a keystroke, which needs the ' +
-        'shelves read AC-257 brings into the chrome',
-    ).toBeVisible()
+      sheet.getByText(fixture.folderName, { exact: false }),
+      'the prototype\'s own reason for offering the pages alone: they are "few and fixed, so ' +
+        'they cost one glance". A folder is found by typing, and a list of every folder the ' +
+        'viewer has before a keystroke is the sidebar drawn twice',
+    ).toHaveCount(0)
   })
 
   test('AC-258: a place row goes to its place', async ({ page }) => {
     await page.goto(routesV2.desk)
     await openSearch(page)
 
+    await page.getByRole('searchbox').or(page.getByRole('textbox')).first().fill(fixture.word)
+
     const sheet = overlay(page)
     await clickControl(
-      sheet.getByText(fixture.folderName, { exact: false }).first(),
+      /* Within the Folders group: the task result names the same folder on
+         its second line, and it stands above the folder in kind order. */
+      sheet
+        .getByRole('region', { name: /^Folders\b/ })
+        .getByRole('button', { name: new RegExp(fixture.folderName) })
+        .first(),
       'spec 9.9: "a row opens its thing in place", which is what makes these rows to go to ' +
         'rather than a list to read',
     )
