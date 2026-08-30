@@ -109,8 +109,8 @@ export function AnytimePage(): React.JSX.Element {
             onAdd={(title) => {
               place.capture(title)
             }}
-            onOpenFullForm={() => {
-              place.openFull()
+            onOpenFullForm={(title) => {
+              place.openFull(undefined, title)
             }}
           />
         )}

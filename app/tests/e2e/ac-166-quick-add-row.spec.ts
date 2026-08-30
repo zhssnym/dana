@@ -190,7 +190,7 @@ test.describe('AC-166: the inline quick-add', () => {
     expect(card.important, 'spec 9.3: important is off at this entry point').toBe(false)
   })
 
-  test('AC-166: escape clears the box, collapses the control and creates nothing', async ({
+  test('AC-166: escape keeps a filled box, collapses an empty one, and creates nothing', async ({
     page,
   }) => {
     const title = 'ac-166 escaped and never created'
@@ -200,11 +200,20 @@ test.describe('AC-166: the inline quick-add', () => {
     await fillControl(quickAdd, title, 'spec 9.1: the expanded quick-add is a title input')
     await quickAdd.press('Escape')
 
+    /* Reworked in the polish round of 2026-08-30 (taskrow F7, AC-353): escape
+       and clicking away follow one rule, a box with words keeps them and an
+       empty box collapses. Escape used to throw the words away while a click
+       kept them, two answers to one gesture. */
     await expect(
       quickAddInput(page),
-      'spec 9.1: escape clears the box and returns the control to collapsed, so the box is no ' +
-        'longer on the page at all. A client that merely empties it has kept the expanded ' +
-        'state the rewritten criterion exists to assert',
+      'spec 9.1: escape on a filled box keeps the words, exactly as clicking away does',
+    ).toHaveValue(title)
+    await quickAdd.fill('')
+    await quickAdd.press('Escape')
+    await expect(
+      quickAddInput(page),
+      'spec 9.1: escape on an empty box returns the control to collapsed, so the box is no ' +
+        'longer on the page at all',
     ).toHaveCount(0)
     await expect(
       quickAddControl(page).first(),

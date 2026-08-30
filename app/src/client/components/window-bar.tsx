@@ -57,7 +57,7 @@ import { useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
-import { agoFor, type HistoryEvent, lineFor, verbFor, whenFor } from "../lib/history.js"
+import { agoFor, type HistoryEvent, storyFor, verbFor, whenFor } from "../lib/history.js"
 
 const slots: { lead: HTMLElement | null; trail: HTMLElement | null } = {
   lead: null,
@@ -200,11 +200,13 @@ export function WindowActivity({ events }: { events: HistoryEvent[] }) {
             key={event.id}
             className="flex items-baseline gap-2 rounded-md px-2 py-1.5"
           >
+            {/* polish: taskcard F4. One sentence, the person first: "Hassan
+                added a step 'Plates'", from `lib/history.ts`'s `storyFor`. */}
             <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-[var(--color-graphite-700)]">
-              {lineFor(event)} by{" "}
               <span className="font-medium text-[var(--color-graphite-900)]">
                 {event.actor}
-              </span>
+              </span>{" "}
+              {storyFor(event).slice(event.actor.length + 1)}
             </span>
             <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)]">
               {whenFor(event.at)}

@@ -47,12 +47,22 @@ interface ConfirmDialogProps {
   readonly message: string
   readonly onContinue: () => void
   readonly onCancel: () => void
+  /**
+   * polish: taskrow F11 (2026-08-30). A destructive confirm may name what
+   * the press does ("Delete") and what declining keeps ("Keep it") in place of
+   * 9.1's uniform pair, which 9.1 now allows for the task's confirms. Absent,
+   * the pair stands.
+   */
+  readonly confirmLabel?: string
+  readonly cancelLabel?: string
 }
 
 export function ConfirmDialog({
   message,
   onContinue,
   onCancel,
+  confirmLabel = CONTINUE,
+  cancelLabel = CANCEL,
 }: ConfirmDialogProps): React.JSX.Element {
   const decided = useRef(false)
 
@@ -68,7 +78,7 @@ export function ConfirmDialog({
           <AlertDialogTitle>{message}</AlertDialogTitle>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{CANCEL}</AlertDialogCancel>
+          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             destructive
             onClick={() => {
@@ -76,7 +86,7 @@ export function ConfirmDialog({
               onContinue()
             }}
           >
-            {CONTINUE}
+            {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

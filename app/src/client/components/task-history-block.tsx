@@ -57,11 +57,26 @@ export function TaskHistoryBlock({
   readonly taskId?: string
 }): React.JSX.Element | null {
   const events = useHistory('task', taskId ?? '')
-  if (events.length === 0) return null
+  /*
+  polish: taskcard F4. This block drew every event, one line each, and a
+  task with twenty step edits ended in a wall of "Edited added a step by …"
+  lines with the same list again behind the footer's Activity control. What
+  9.3 asks the card itself to render is the task's provenance, "created,
+  completed, and the rest, actor and viewer-local time": the creation and,
+  where there is one, the latest completion, two lines at most. The whole
+  history stays one press away in the footer's popover, in the grammar
+  `lib/history.ts`'s `storyFor` gives it.
+  */
+  const created = events.find((event) => event.verb === 'created')
+  const completed = events.find((event) => event.verb === 'completed')
+  const shown = [created, completed].filter(
+    (event): event is NonNullable<typeof event> => event !== undefined,
+  )
+  if (shown.length === 0) return null
 
   return (
     <div className="flex flex-col gap-0.5 px-2 pt-1.5">
-      {events.map((event) => (
+      {shown.map((event) => (
         <p
           key={event.id}
           className="text-[12px] leading-4 text-[var(--color-graphite-500)]"
