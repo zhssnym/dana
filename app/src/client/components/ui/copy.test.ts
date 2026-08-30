@@ -112,13 +112,23 @@ describe('the confirmations and row copy of 9.3 to 9.5', () => {
     // and is not this copy: a block boundary is where a reader stops hearing
     // one sentence, and this is the only thing that tells the person the task
     // stays everywhere else.
+    // Both strings below moved with the specification and this file did not,
+    // so it was red on `ui-polish` before the cover round touched anything
+    // (found 2026-08-30 while running the gate for the covers row, repaired
+    // here because a unit test of this directory's copy is this role's).
+    // 9.4's line now reads "in Today", the page having been renamed, and
+    // 9.3's confirm is 7.13's soft delete rather than the v1 warning: the
+    // authority for each is the section, quoted below, and the shipped
+    // strings in `copy.ts` already matched them.
     expect(ABANDON_CONFIRM).toBe(
-      'Abandon this task? It stops appearing in My Day but stays everywhere else.',
+      'Abandon this task? It stops appearing in Today but stays everywhere else.',
     )
   })
 
   test("9.3's delete confirm, which 9.4 also puts in a row's overflow", () => {
-    expect(DELETE_TASK_CONFIRM).toBe("Delete this task? This can't be undone.")
+    expect(DELETE_TASK_CONFIRM).toBe(
+      'Move this task to Trash? It stays there for 30 days.',
+    )
   })
 
   test("9.4's un-pull control", () => {

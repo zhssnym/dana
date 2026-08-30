@@ -1110,8 +1110,13 @@ export function FolderPage({
               mark riding up over it (`page-head.tsx`); the folder page now
               draws the same geometry, the same wrapper undoing the shell's
               inset, the same top padding when there is no band. */}
+          {/* The horizontal half of that inset moved into `page-cover.tsx` on
+              2026-08-30: `-mx-10` reached the shell's padding and never its
+              `--shell-content-max` cap, so the band stopped at the reading
+              width with the ground showing either side. The top inset stays
+              here, and follows the shell's own two measures. */}
           {hasCover ? (
-            <div className="-mx-10 -mt-6">
+            <div className="-mt-4 md:-mt-6">
               <PageCover storageName={coverKey} />
             </div>
           ) : null}

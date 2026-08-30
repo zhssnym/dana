@@ -145,6 +145,42 @@ export function coverTiersFor(place: string): readonly CoverTier[] {
   return folderOf(place) === null ? ['gallery'] : ['gallery', 'upload']
 }
 
+/*
+**Why `photos` and `link` are still absent, measured 2026-08-30 rather than
+assumed, because what is written down about them is incomplete.**
+
+The owner asked for "free stock images" and B8 exempted the tier on 10.6, "a
+third-party network dependency the service worker cannot precache". That is
+true and it is the smaller half. **The larger half is 10.8's response headers,
+and it refuses both halves of the tier outright**:
+`app/src/server/index.ts` sends `img-src 'self' data:` and
+`connect-src 'self' https://*.sentry.io`, so the picker's search request to
+`api.openverse.org` never leaves the page and a result's thumbnail never
+paints. Two things follow that are worth having on the record.
+
+**No provider key is missing.** B8 was written against Unsplash; the picker
+lifted at S25 searches **Openverse**, which needs no key and no account, and
+`components/folder-cover.tsx`'s own header already says so. Nothing here is
+waiting on a credential.
+
+**And no client-side workaround exists**, which is the finding that decides
+it. The obvious one, download the chosen photograph and put it through 7.15
+so the stored cover is Dana's own file, dies twice: `connect-src 'self'`
+refuses the download, and a photograph's bytes sit on whichever host the
+original publisher uses, which sends no CORS header to a browser that asked.
+So the tier is not a front-end job pending a flag. It needs the **server** to
+do the fetching, which is a section 7 addition and therefore the owner's:
+a search proxy, and a route that turns a chosen URL into a `files` row. With
+those, `img-src 'self'` is satisfied by construction and 10.6's objection
+goes away with it, because the cover a person ends up wearing is a file this
+origin serves rather than a third party's URL.
+
+Everything on this side of that line is already built and needs no further
+work: the Photos tab, its search field, its result grid, its attribution line
+and its offline copy are in `components/folder-cover.tsx` today, and the one
+switch that draws them is the array above.
+*/
+
 /**
  * Whether this page has somewhere to keep a cover's vertical crop.
  *
@@ -176,7 +212,12 @@ export function coverUploader(place: string): ((file: File) => void) | undefined
         mutateApi(null, {
           method: 'PATCH',
           path: `/folders/${folderId}`,
-          body: { cover_file_id: stored.id },
+          /* The crop goes back to the middle with the picture, exactly as
+             `savePageIdentity` does for every other cover: without it a
+             folder whose last cover had been dragged to its foot showed the
+             new one already repositioned, which reads as an upload that
+             cropped itself. */
+          body: { cover_file_id: stored.id, cover_focal_y: DEFAULT_FOCAL_Y },
         }),
       )
       .then(() => void client?.invalidateQueries())

@@ -222,9 +222,17 @@ export function PageHead({
       across the page rather than a picture inside its column, so the wrapper
       is drawn only when there is one: an empty box carrying a negative margin
       would pull every uncovered page's mark up by the shell's own padding.
+
+      **Only the vertical half is here now.** The horizontal `-mx-10` reached
+      the column's padding and never its cap, which is the white space either
+      side the owner reported on 2026-08-30; `page-cover.tsx` draws the band
+      to the window's own edge and states the arithmetic. What is left is the
+      top inset, and it is the shell's two measures rather than one: the
+      column is `py-4` on a phone and `py-6` from `md` up, so a flat `-mt-6`
+      pulled the band 8px past the top of the scroll region on a phone.
       */}
       {hasCover ? (
-        <div className="-mx-10 -mt-6">
+        <div className="-mt-4 md:-mt-6">
           <PageCover storageName={storageName} />
         </div>
       ) : null}
