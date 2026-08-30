@@ -68,7 +68,7 @@ The 8.6 delivery loop runs in-process: a 60-second interval in the server, guard
 - A missed tick self-heals: the poll is over fire_at <= now(), so the next pass picks up anything a missed one would have sent, inside the 6-hour stale window.
 - The deploy overlap window can run two instances for about ninety seconds; SKIP LOCKED makes concurrent ticks contend safely instead of double-sending. A crash between send and mark can duplicate at most one batch; 8.6 accepts duplicates.
 - Tick liveness is monitored separately from process liveness (11.12), because a dead interval inside a live server is invisible to an uptime check.
-- The same pass prunes expired session rows, so 8.6's statement that the reminder loop is the only background execution stays true: one scheduled process, two duties.
+- The same pass prunes expired session rows, purges Trash rows whose deleted_at is older than 30 days and events older than 90 (RFC 0005), and fans events out to notification rows — so 8.6's statement that the reminder loop is the only background execution stays true: one scheduled process, five duties. The Trash purge collects the files rows its folder deletes will cascade away and removes their objects from the store after the delete commits, because those rows are the only index to the bytes and a purge that drops them without the objects grows the disk without bound (change control item 18, 2026-08-25). Each added duty claims its rows the way the reminder duty always has, SKIP LOCKED in its own transaction, and each is idempotent, so the missed-tick and overlap properties above hold for all five unchanged. This is also three more reasons the single-instance rule of 11.2 must be flagged before it ever changes, and none of these duties may migrate into request handlers.
 
 The pass is a plain callable function and must stay one: if hosting ever moves somewhere without an always-on process, the replacement is an external per-minute trigger (Google Cloud Scheduler or equivalent) hitting an authenticated endpoint that runs one pass.
 
@@ -196,3 +196,13 @@ Facts agents get wrong because training data lags the installed versions. Read b
 - PGlite is real Postgres but single-connection; tests must not assume parallel connections against one instance. What that costs is narrower than the sentence reads, measured at the P3 merge review after three sessions and a package fix had been routed on the wider inference. One connection serializes statements, not handler logic: two requests in flight interleave their awaits, so a read-then-write race is fully expressible on the default backend, and two concurrent step adds against a task holding 49 steps do leave 51 where the count and the insert are not one decision. What genuinely needs a second connection is a second concurrent transaction. That is what a test must not assume here, rather than concurrency itself.
 - tsc compiles and emits a tsconfig-excluded file whenever any resolvable import references it, literal dynamic import() included. The dev-login exclusion of 11.6 therefore holds only when the loader uses a computed import specifier and treats the load failure in a production build as the route not existing (404).
 - Intl.DateTimeFormat as an IANA oracle is tolerant beyond the tzdb: it accepts ECMA-402 offset identifiers (+05:30) that are not IANA names and would break the 11.9 zone math, and it matches names case-insensitively. Every IANA validation goes through the shared validator (app/src/shared/timezone.ts), whose sign guard closes the offset hole; an independent re-check, such as the acceptance harness's, must refuse leading signs the same way.
+- **Stored client state serializes ids, never display names.** The v2
+  prototype keys folders, shelves and people by name because fixtures have
+  no ids; a port that copies that shape breaks on the first rename. Saved
+  views, arrangements and orders store uuids.
+- **Production carries two task rows** — `DoneRow` in `DonePage.tsx`
+  duplicates `task-row.tsx` line for line. The v2 port reunifies them or
+  records why not.
+- **The single-instance tick now carries three jobs** — reminders,
+  trash purge, notification fan-out. The second-instance flag rule of 11.2
+  has three reasons now; none of the jobs may move to request handlers.

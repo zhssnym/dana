@@ -4,7 +4,7 @@ Reference dialect: Postgres 16. All primary keys are uuid with default gen_rando
 
 **Two annotations covering the whole section, added by the S29 fold on 2026-08-27. Neither is an edit: section 4 is frozen, and RFC 0004's S29 row is annotate rather than rewrite.**
 
-**First, this section is not the whole schema Dana runs.** RFC 0005 was accepted on 2026-08-24 with additive units inserting sections 4.13 to 4.19, replacing 4.3 and 4.5, and later adding 4.20 (RFC 0005 change control item 46), and those units are **not folded here yet**. Events, notifications, comments, files, page blocks, shelves, user views and place covers, and the `deleted_at`, identity, section and position columns that carry Trash, folder identity and the hand order, all live in RFC 0005's specification delta and are built and shipping. Until they are folded, a reader of this file sees v1's twelve tables and would conclude that Dana has no Trash and no attachments. **The fold is owed and is scoped as its own package**, for the reason given at RFC 0005 change control item 49: this row's acceptance line is annotation, and pasting nine hundred lines of accepted amendment into a frozen section is a different act from correcting a stale word in it.
+**First, this section now carries the whole schema Dana runs, folded by S29a on 2026-08-30.** RFC 0005's accepted units are folded into this frozen file as text and nothing else: unit 11 replaced 4.3 and 4.5; unit 10 inserted 4.13 to 4.19; change control item 46's units appended `position` to 4.5, `width_pct` to 4.17 and inserted 4.20. Every one of them was ruled by the owner before it was written (RFC 0005's acceptance of 2026-08-24, re-accepted 2026-08-27; item 44 for the four frozen changes of item 46), so the freeze's rule, that section 4 moves only on a human decision, holds through the fold. The S29 fold of 2026-08-27 annotated rather than folded, and its annotations on 4.3, 4.7 and 4.10 stand where they were.
 
 **Second, the page names in this section's justification prose are v1's.** "My Day recap" at 4.5's rationale line and "Q1 My Day automatic inclusion" in 4.12's index table both name a page now called Today; 4.7's own annotation states the rule that governs both, which is that the queries and the tables kept their names while the pages were renamed. Every such name in this section is a citation of a query or a table and none of them is a claim about what Dana's pages are called.
 
@@ -41,11 +41,18 @@ PK (user_a_id, user_b_id). CHECK (user_a_id < user_b_id): canonical ordering mak
 | owner_id | uuid | no | none | FK users(id) ON DELETE RESTRICT |
 | name | text | no | none | length 1 to 100 |
 | is_default | boolean | no | false | none |
+| icon | text | yes | none | key from the server-known icon set (RFC 0005) |
+| color | text | yes | none | CHECK matches '#RRGGBB' hex pattern |
+| cover_file_id | uuid | yes | none | FK files(id) ON DELETE SET NULL |
+| description | text | yes | none | length up to 500 |
+| deleted_at | timestamptz | yes | none | set marks Trash; purged by the 11.7 pass at 30 days |
 | created_at | timestamptz | no | now() | none |
 
 **Annotation, S29 fold, 2026-08-27. "Inbox" below is v1's name for this row and the row is unchanged.** RFC 0005 renamed the default folder to Desk, and the migration renames only defaults still carrying the old name; a v1 account keeps whatever it was called. Nothing in this table moves for that: `is_default` is the record, the unique index is the constraint, and the name is a value in the `name` column. Section 4 is frozen and this is an annotation rather than an edit, which is RFC 0004's S29 acceptance line. See section 2 for both names and the migration's rule.
 
 UNIQUE INDEX ON (owner_id) WHERE is_default: one Inbox per account (INV-2). ON DELETE RESTRICT on owner_id is a tripwire: the account deletion transaction must transfer or delete owned folders first; if it fails to, the database refuses rather than corrupting. Ownership is read from owner_id only; the role column below never encodes it (one source of truth).
+
+The four identity columns are the folder's, not a member's (pricing decision D1): one look for every member, any member may change it, and the event log of 4.13 records who. A member's personal label and color on 4.4 are untouched and remain per-viewer. Reads exclude rows with deleted_at set except through the Trash surface of 7.13; every query in section 6 gains the implicit `deleted_at IS NULL` guard at fold time.
 
 ### 4.4 folder_members
 
@@ -71,19 +78,22 @@ PK (folder_id, user_id) (INV-10). Index on (user_id): the accessible-folders loo
 | status | text | no | 'pending' | CHECK (status IN ('pending','completed','abandoned')) |
 | important | boolean | no | false | none |
 | due_date | date | yes | none | floating calendar date |
-| due_time | time | yes | none | minute precision; CHECK (due_time IS NULL OR due_date IS NOT NULL) |
+| due_time | time | yes | none | minute precision; CHECK (due_time IS NULL OR due_date IS NOT NULL); v2 interfaces do not set it (RFC 0005); existing values are honored |
 | recurrence_rule | text | yes | none | RRULE subset, section 4.11; CHECK (recurrence_rule IS NULL OR due_date IS NOT NULL); length up to 200 |
 | series_id | uuid | yes | none | CHECK (recurrence_rule IS NULL OR series_id IS NOT NULL) (INV-13) |
 | assignee_id | uuid | yes | none | see composite FK below |
+| section_block_id | uuid | yes | none | FK page_blocks(id) ON DELETE SET NULL; the section this task sits under on its folder's page (4.17); null is the loose block |
 | created_by | uuid | no | none | FK users(id) ON DELETE RESTRICT (users are soft-deleted) |
 | completed_at | timestamptz | yes | none | CHECK ((status = 'completed') = (completed_at IS NOT NULL)) |
 | completed_by | uuid | yes | none | FK users(id); CHECK ((status = 'completed') = (completed_by IS NOT NULL)) |
+| deleted_at | timestamptz | yes | none | set marks Trash; purged by the 11.7 pass at 30 days |
 | created_at | timestamptz | no | now() | none |
 | updated_at | timestamptz | no | now() | touched on every mutation |
+| position | text | yes | none | COLLATE "C"; the hand order of a folder's unscheduled list; null until that folder is first arranged by hand; gaps and ties allowed; ordered by (position, id) |
 
 Composite foreign key enforcing INV-4: FOREIGN KEY (folder_id, assignee_id) REFERENCES folder_members (folder_id, user_id) ON DELETE SET NULL (assignee_id). The column-targeted SET NULL form requires Postgres 15 or later; on older engines, drop the ON DELETE clause and unassign inside the member-removal transaction instead (section 8.8 does so anyway; the FK is belt and braces). This constraint also validates folder moves automatically: changing folder_id with a stale assignee fails at the database.
 
-Rationale lines: series_id groups a recurrence chain for guards (INV-7) and Done-page trails; completed_by feeds the My Day recap (Q1R), makes the completion race guard natural (section 8.5), and prepares the v2 activity log; updated_at is the last-write-wins tiebreak evidence and the search recency key.
+Rationale lines: series_id groups a recurrence chain for guards (INV-7) and Done-page trails; completed_by feeds the My Day recap (Q1R), makes the completion race guard natural (section 8.5), and feeds the activity log of 4.13; updated_at is the last-write-wins tiebreak evidence and the search recency key. Reads exclude rows with deleted_at set except through the Trash surface of 7.13, the same guard 4.3 states for folders; a task in a trashed folder is unreachable while its folder is, and purges with it.
 
 ### 4.6 steps
 
@@ -180,3 +190,170 @@ My Day, Tasks, and Planned have no toggles: they cannot be hidden. Session stora
 | invites (email) WHERE status = 'pending' | Q12 at-login invite surfacing |
 | invites (inviter_id) | sent-invites list |
 | connections (user_b_id) | Q9 roster reverse lookup |
+
+### 4.13 events
+
+One row per recorded act, written at the section 10.2 authorization
+chokepoint by the mutation that passed it. Read by history surfaces and
+fanned out to notifications. Retention: 90 days rolling, purged by the
+section 11.7 tick.
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| actor_id | uuid | no | none | FK users(id) ON DELETE RESTRICT (users soft-delete) |
+| verb | text | no | none | CHECK (verb IN ('created','renamed','edited','moved','completed','reopened','abandoned','restored','duplicated','removed','deleted','left')) |
+| subject_kind | text | no | none | CHECK (subject_kind IN ('task','folder','shelf','comment')) |
+| subject_id | uuid | no | none | no FK: the subject may be purged before the event |
+| subject_name | text | no | none | the name at act time, so a line reads after a rename |
+| folder_id | uuid | yes | none | FK folders(id) ON DELETE CASCADE; the visibility scope |
+| detail | text | yes | none | length up to 200; the half a verb cannot carry |
+| created_at | timestamptz | no | now() | none |
+
+Index ON (folder_id, created_at DESC) for folder activity; ON (subject_kind,
+subject_id, created_at DESC) for one object's history. Visibility follows the
+subject: an event is readable by whoever could read its folder scope at read
+time, enforced at 10.2 like every read.
+
+### 4.14 notifications
+
+The fan-out of an event to the people it concerns: the assignee of an
+assignment, the participants of a thread, the members of a deleted shared
+folder. Derived rows; deleting an event does not retract its notifications.
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE; the recipient |
+| event_id | uuid | no | none | FK events(id) ON DELETE CASCADE |
+| read_at | timestamptz | yes | none | null is unread |
+| created_at | timestamptz | no | now() | none |
+
+Partial index ON (user_id) WHERE read_at IS NULL for the badge count. An
+actor is never notified of their own act.
+
+### 4.15 comments
+
+A comment on a task or on a folder's conversation. One level of replies
+(INV: a parent comment has a null parent_id).
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| folder_id | uuid | no | none | FK folders(id) ON DELETE CASCADE; visibility scope |
+| task_id | uuid | yes | none | FK tasks(id) ON DELETE CASCADE; null is the folder's own thread |
+| parent_id | uuid | yes | none | FK comments(id) ON DELETE CASCADE; CHECK one level (parent's parent is null, enforced by the API and restated at write) |
+| author_id | uuid | no | none | FK users(id) ON DELETE RESTRICT |
+| body | text | yes | none | length up to 4000; null when the comment is a file or voice note alone |
+| created_at | timestamptz | no | now() | none |
+| edited_at | timestamptz | yes | none | none |
+
+`comment_likes` rides beside it: (comment_id FK ON DELETE CASCADE, user_id FK
+ON DELETE CASCADE, created_at), PK (comment_id, user_id). A like is the whole
+reaction set (DES-146).
+
+### 4.16 files
+
+One row per stored object: an image on a page, a comment's attachment or
+voice note, a cover upload, an avatar. Bytes live in the object store
+(section 11); this table is the authority on existence, ownership and quota.
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK; also the object-store key |
+| owner_id | uuid | no | none | FK users(id) ON DELETE RESTRICT; whose quota it spends |
+| folder_id | uuid | yes | none | FK folders(id) ON DELETE CASCADE; visibility scope; null for avatars |
+| kind | text | no | none | CHECK (kind IN ('image','file','voice','cover','avatar')) |
+| name | text | no | none | length 1 to 300 |
+| mime | text | no | none | server-validated against the kind |
+| bytes | integer | no | none | CHECK (bytes > 0); quota arithmetic |
+| duration_ms | integer | yes | none | voice only |
+| created_at | timestamptz | no | now() | none |
+
+Per-user quota: 1 GB (D5, revisited with usage). Serving passes 10.2 like
+every read; there are no public object URLs.
+
+### 4.17 page_blocks
+
+The writing arranged on a folder page or a shelf page: sections, paragraphs
+and images, ordered, with tasks assigned to sections by position's record.
+The page is the folder's — one page for every member, any member edits, the
+event log says who (pricing decision D1).
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| folder_id | uuid | yes | none | FK folders(id) ON DELETE CASCADE |
+| shelf_id | uuid | yes | none | FK shelves(id) ON DELETE CASCADE; CHECK exactly one of folder_id/shelf_id |
+| kind | text | no | none | CHECK (kind IN ('section','paragraph','image','folder_ref')) |
+| position | integer | no | none | ordering within the page |
+| text | text | yes | none | section name (1-120) or paragraph body (up to 4000) |
+| file_id | uuid | yes | none | FK files(id) ON DELETE SET NULL; image kind |
+| ref_folder_id | uuid | yes | none | FK folders(id) ON DELETE CASCADE; folder_ref kind, shelf pages only |
+| updated_at | timestamptz | no | now() | stale-write 409 per 7.0's conflict rule |
+| width_pct | integer | yes | none | CHECK (width_pct IS NULL OR width_pct BETWEEN 25 AND 100); CHECK (width_pct IS NULL OR kind = 'image'); the person's dragged width as a percentage of the column |
+
+Task→section assignment is `tasks.section_block_id uuid null` (a 4.5 column
+addition, expand-only). Concurrency is last-write-wins per block with the
+standard 409 on a stale `updated_at`; there is no operational transform.
+
+Folder identity rides the folder: 4.3 gains `icon text null` (server-known
+key set), `color text null` (#RRGGBB), `cover_file_id uuid null FK files`,
+`description text null` (up to 500) — expand-only column additions.
+
+### 4.18 shelves
+
+A person's shelf: the per-user container whose *membership* remains
+`folder_members.label` (unchanged, frozen) and whose page needs a stable key
+that a rename cannot move. The API holds label and shelf name in step in one
+transaction; the id never changes.
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
+| name | text | no | none | length 1 to 40; UNIQUE (user_id, name) |
+| icon | text | yes | none | server-known key set |
+| color | text | yes | none | #RRGGBB |
+| cover_file_id | uuid | yes | none | FK files(id) ON DELETE SET NULL |
+| description | text | yes | none | length up to 500 |
+| created_at | timestamptz | no | now() | none |
+
+Shelves are private by construction (DES-195/196): no member rows, no share.
+
+### 4.19 user_views
+
+A saved view: a filter state given a name and a pin (DES-153's second half).
+Serialized by ids, never display names.
+
+| column | type | null | default | notes |
+| - | - | - | - | - |
+| id | uuid | no | generated | PK |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
+| name | text | no | none | length 1 to 40 |
+| definition | jsonb | no | none | the filter model; zod-validated at write; ids only |
+| pinned | boolean | no | false | none |
+| created_at | timestamptz | no | now() | none |
+
+`user_settings` gains (all with defaults, expand-only): row density, clock
+(12/24), theme (system/light/dark), task-open surface, pinned native views
+(migrating show_important/show_all/show_done in one migration — two records
+of one fact are not kept), sidebar order, per-shelf/folder arrangement keys.
+
+### 4.20 user_page_covers
+
+| Column | Type | Null | Default | Constraint |
+| - | - | - | - | - |
+| user_id | uuid | no | none | FK users(id) ON DELETE CASCADE |
+| place | text | no | none | CHECK (place IN ('today','scheduled','assignments','important','all','done','abandoned','anytime')) |
+| file_id | uuid | yes | none | FK files(id) ON DELETE CASCADE |
+| preset | text | yes | none | CHECK matches '^[a-z0-9-]{1,40}$'; a built-in cover named by the design system |
+| focal_y | integer | no | 50 | CHECK (focal_y BETWEEN 0 AND 100); the vertical reposition, as a percentage |
+| updated_at | timestamptz | no | now() | none |
+
+PK (user_id, place). CHECK ((file_id IS NULL) <> (preset IS NULL)): a cover
+is either a stored file or a built-in, never both and never neither, so a
+row exists exactly when a cover was chosen and removal is the row's
+deletion. The place set is 4.19's native-view vocabulary minus `desk`, which
+is a folder and carries 4.3's own cover column. No index: the primary key
+serves the only read this table has, which is one viewer's covers.
