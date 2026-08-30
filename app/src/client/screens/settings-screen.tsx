@@ -36,6 +36,12 @@ original except at the seams named here, each marked `Seam` in the body.
    Imran's ruling of 2026-08-22 recorded in the file itself**, where 9.7 read
    "Danger zone"; 9.7 is amended toward it (RFC 0005 change control item 55).
    The storage line 9.7 names is still absent, section 13 item 35(c) standing.
+8. **The sample workspace's row**, RFC 0005 change control item 60, drawn only
+   once the page above knows whether the sample of 7.20 is present.
+9. **The 560px measure is the whole page's and is centred**, where the
+   prototype caps only the rows and leaves them flush left inside the page
+   measure. Imran, 2026-08-30. The number and its reason are the prototype's,
+   unchanged; what moves is which element carries the cap. 9.7 records it.
 
 Nothing else moves.
 */
@@ -311,8 +317,21 @@ export function SettingsScreen({
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
   return (
-    /* polish: pagehead F5. The shell insets every page; not a second time here. */
-    <div className="w-full">
+    /*
+    polish: pagehead F5. The shell insets every page; not a second time here.
+
+    **Seam 9: the measure moves up here and is centred.** The prototype caps
+    its rows at 560 and leaves that column flush against the left of the
+    page's own 720-to-1040 measure, so the head sits over a band of rows with
+    a third of the window empty beside them. Imran, 2026-08-30: the page "is
+    not centered and leaves too much empty space on the right". The number is
+    still the prototype's, and its reason is still the prototype's, quoted
+    where it used to be applied: a label with a control at its far end is
+    unreadable at the page measure. What changes is that the head travels
+    with the rows it heads, so the two share one edge and the column sits in
+    the middle of the space it is given.
+    */
+    <div className="mx-auto w-full max-w-[560px]">
       <header className="flex min-h-12 items-start gap-3">
         <Settings
           className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
@@ -332,8 +351,9 @@ export function SettingsScreen({
       {/* ~560px, not the page measure (review S2): every row here is a label
           with a control at its far end, and at 820px the switch sat a whole
           reading-line away from the words that name it. 560 is the same
-          discipline the People screen's form already keeps. */}
-      <div className="mt-7 max-w-[560px]">
+          discipline the People screen's form already keeps. The cap itself is
+          on the column above since seam 9; this is the gap under the head. */}
+      <div className="mt-7">
         {previewState === "loading" ? (
           <SettingsSkeleton />
         ) : previewState === "error" ? (

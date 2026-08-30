@@ -876,6 +876,55 @@ export function FolderPage({
             </Button>
           ) : null}
           {/*
+          The member faces and Share, in the bar rather than in the head.
+
+          The prototype's folder page draws both here and always has
+          (`folder-page-v2.tsx`, the block it calls `strip`: the activity
+          line, then the avatar group, then the share control, then the
+          overflow menu), and this client kept them beside the title, which
+          is the composition DES-139 replaced. They are the window's controls
+          and not the page's content: a header that carries them scrolls its
+          own chrome away, and it puts two tiers of control forty pixels
+          apart. An icon rather than a filled block, because the bar is
+          chrome and chrome is quiet; the panel it opens is unchanged.
+          */}
+          {isDefault || members.length < 2 ? null : (
+            /* 9.6's member stack. One face is not a stack: a folder nobody
+               shares draws its owner's own picture at nobody, which is the
+               same noise the Share control is withheld for. */
+            <AvatarGroup>
+              {members.map((member) => (
+                /* polish: settings F7, pagehead F9: the uploaded picture,
+                   and the name on hover. */
+                <span key={member.user.id} title={member.user.display_name ?? 'Someone'}>
+                  <PersonFace
+                    name={member.user.display_name ?? 'Someone'}
+                    initials={initialsOf(member.user.display_name ?? 'Someone')}
+                    image={member.user.avatar_url}
+                  />
+                </span>
+              ))}
+            </AvatarGroup>
+          )}
+          {/* 9.6's Share control. Withheld on a default folder, which
+              INV-2 makes single-member and 5.3 refuses an add on. The name
+              is the word it always answered to; AC-162 and AC-183 reach the
+              sharing panel through it. */}
+          {isDefault ? null : (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Share"
+              aria-expanded={sharing}
+              className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
+              onClick={() => {
+                setSharing(!sharing)
+              }}
+            >
+              <Share2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            </Button>
+          )}
+          {/*
           9.1: the bar's right end holds the object's overflow menu, and since
           S17a it is the object's contract rather than this page's list.
 
@@ -1042,10 +1091,11 @@ export function FolderPage({
               <PageCover storageName={coverKey} />
             </div>
           ) : null}
-          <header
-            className={`group/head flex items-start justify-between gap-6 ${hasCover ? '' : 'pt-2'}`}
-          >
-            <div className="min-w-0 flex-1">
+          {/* One column since the faces and Share moved to the window bar:
+              the split this header used to make had a right-hand column in
+              it, and `page-head.tsx` draws the same head without one. */}
+          <header className={`group/head ${hasCover ? '' : 'pt-2'}`}>
+            <div className="min-w-0">
               <Popover open={markOpen} onOpenChange={setMarkOpen}>
                 <PopoverTrigger
                   render={
@@ -1133,39 +1183,6 @@ export function FolderPage({
                 label="Folder description"
                 offer={pristine}
               />
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              {/* 9.6's member avatar stack. */}
-              <AvatarGroup>
-                {members.map((member) => (
-                  /* polish: settings F7, pagehead F9: the uploaded picture,
-                     and the name on hover. */
-                  <span key={member.user.id} title={member.user.display_name ?? 'Someone'}>
-                    <PersonFace
-                      name={member.user.display_name ?? 'Someone'}
-                      initials={initialsOf(member.user.display_name ?? 'Someone')}
-                      image={member.user.avatar_url}
-                    />
-                  </span>
-                ))}
-              </AvatarGroup>
-
-              {/* 9.6's Share button. Withheld on a default folder, which
-                  INV-2 makes single-member and 5.3 refuses an add on. */}
-              {isDefault ? null : (
-                <Button
-                  variant="outline"
-                  className="h-[var(--control-height)] px-3 text-sm"
-                  aria-expanded={sharing}
-                  onClick={() => {
-                    setSharing(!sharing)
-                  }}
-                >
-                  <Share2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  Share
-                </Button>
-              )}
             </div>
           </header>
         </PageSection>

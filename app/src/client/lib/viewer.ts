@@ -18,6 +18,14 @@ picture. The route answers the new serving path and the `/me` read carries it
 from then on, so the four surfaces that draw the face update the way the
 prototype's store updated them.
 
+**The request goes through `api/http.ts`'s `uploadAvatar` since the polish
+round of 2026-08-30**, where it was a hand-written `fetch` here. That copy was
+written before this client had a multipart helper and never caught up, so it
+was the one write in the product that skipped the offline check: choosing a
+picture with no connection posted into the dark and reported the generic
+failure rather than 9.1's "Couldn't save. You're offline." Nothing else about
+it changes.
+
 **Removal is not offered, and the reason is the contract.** 7.15 has a route
 that sets an avatar and none that clears one, so `setViewerImage(undefined)`
 would be a promise the API cannot keep; the screen's Remove control is behind
@@ -30,9 +38,8 @@ portrait photograph in un-cropped means the browser decides what to cut,
 which is usually the top of somebody's head".
 */
 import { useMe } from '../api/queries.js'
-import { mutateApi } from '../api/http.js'
+import { mutateApi, uploadAvatar } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
-import { csrfToken } from '../api/csrf.js'
 import { showToast } from '../state/toasts.js'
 import { initialsOf } from '../parts/presenters.js'
 
@@ -76,20 +83,7 @@ async function fileOf(dataUrl: string): Promise<File> {
 export function setViewerImage(image: string): void {
   const client = queryClient()
   void fileOf(image)
-    .then(async (file) => {
-      const form = new FormData()
-      form.set('file', file)
-      const headers: Record<string, string> = {}
-      const token = csrfToken()
-      if (token !== null) headers['X-CSRF-Token'] = token
-      const response = await fetch('/api/v1/me/avatar', {
-        method: 'POST',
-        body: form,
-        headers,
-        credentials: 'same-origin',
-      })
-      if (!response.ok) throw new Error(`avatar: ${response.status}`)
-    })
+    .then((file) => uploadAvatar(file))
     .then(() => {
       void client?.invalidateQueries()
       /* polish: settings F7: an upload says when it has landed. */
