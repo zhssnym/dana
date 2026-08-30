@@ -10,6 +10,12 @@ where the control is one of several and the bar is chrome; 9.3 asks for a
 block on the card, and AC-178 reads the creator's name and the date off the
 surface with nothing pressed.
 
+**Where it sits moved at the round of 2026-08-30 and what it renders did
+not.** It stood between the Comments disclosure and the footer, which reads
+as a history section filed under the conversation; 9.3 says "the footer
+renders the task's creation and its completion", so it is drawn inside the
+footer band now and `CardFooter` carries the rest of the reasoning.
+
 **Read-only means no control at all**, which AC-178 is explicit about and
 which is the whole of why this is paragraphs rather than a list of actions:
 "what would go wrong is a client rendering the two names as links to a person,
@@ -75,7 +81,11 @@ export function TaskHistoryBlock({
   if (shown.length === 0) return null
 
   return (
-    <div className="flex flex-col gap-0.5 px-2 pt-1.5">
+    /* Inside the footer band since the round of 2026-08-30, so the padding is
+       the footer's own `px-3` rather than the content column's `px-2`; see
+       `CardFooter`. The bottom is the footer row's `py-2`, so there is none
+       here. */
+    <div className="flex flex-col gap-0.5 px-3 pt-2">
       {shown.map((event) => (
         <p
           key={event.id}
