@@ -8,6 +8,15 @@ fixes the contents and their order; it fixes no width, and a persisted width
 is a preference rather than a layout." AC-182 reads both across a full
 document load.
 
+**RFC 0005 rewrote 9.1 and that sentence did not survive it**, which is worth
+saying here rather than leaving a quotation of something the contract no
+longer carries. What is unchanged is everything this file does: both
+preferences are still the viewer's, still persisted client-side, and AC-182
+still reads both across a reload. What went with the sentence is its second
+clause, the claim that the rail holds exactly what the open sidebar holds,
+and `app-sidebar.tsx`'s rail paragraph records what stands in its place and
+which criterion is escalated over it.
+
 **localStorage rather than a cookie, and the choice is not a style.** The
 designer's prototype keeps the width in localStorage and the shadcn primitive
 under it writes the collapsed state into a `sidebar_state` cookie, because

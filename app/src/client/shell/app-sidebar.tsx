@@ -54,15 +54,36 @@ in. A name built by interpolating the object the control acts on also puts
 fixture data into the one namespace a test has to know before it reads the
 fixture, which is 9.1's own argument at the avatar menu.
 
-**The rail keeps the whole list, and his hides half of it.** His folder
-directory carries `group-data-[collapsible=icon]:hidden`, so collapsing to the
-rail drops Inbox, every label group and every folder. 9.1 says the width and
-the collapsed state "change nothing about what the sidebar holds", and AC-182
-asserts that the rail still reaches every page and every folder. So the class
-is gone from the directory and the rows survive; what makes the rail look like
-a rail is the primitive's own `size-8!` and `overflow-hidden`, which clips a
-row's label without removing it from the accessibility tree. The section
-headings, which name nothing a person can reach, are hidden there instead.
+**The rail holds the folder you are in and the folders you have open, which
+is neither what this file used to do nor what his does.** His folder directory
+carries `group-data-[collapsible=icon]:hidden`, so collapsing to the rail
+drops Inbox, every shelf and every folder. This file dropped that class and
+kept all of them, on a sentence 9.1 carried at the time, "the width and the
+collapsed state change nothing about what the sidebar holds", and on AC-182,
+which asserts that the rail still reaches every page and every folder. **That
+sentence is no longer in 9.1**: RFC 0005 rewrote the section and it did not
+survive, so what the rail must hold is no longer stated anywhere except in
+that criterion. The owner ruled on the surface itself on 2026-08-30: a rail
+listing one anonymous glyph per folder is a wall rather than a list, and what
+belongs in 56 pixels is the folder in front of you and the ones you already
+have open. `railFolderIds` and `RailLibrary` below are that rule; the page
+block, the footer and every control are untouched, so what the rail loses is
+folder rows and nothing else.
+
+**AC-182's third case is red on this and is escalated rather than worked
+around.** It opens Desk, collapses the sidebar and asserts a link for
+Groceries, a folder on a shelf that nothing has opened, which is exactly the
+row this change stops drawing. Its own header argues from the 9.1 sentence
+quoted above, which that section no longer carries, so the criterion is
+recommended for amendment to the Adversarial Test Engineer with the reasoning
+in this session's report; it is not edited here, protocol section 8 giving
+those files one owner and this file is not it. Inbox stays drawn wherever the
+viewer is standing on Desk, so that case's other assertion is unaffected.
+
+What makes the rail look like a rail otherwise is unchanged: the primitive's
+own `size-8!` and `overflow-hidden` clip a row's label without removing it
+from the accessibility tree, and the section headings, which name nothing a
+person can reach, are hidden there.
 
 **Two of the three menus his sidebar carries arrived at R10 with the writes
 they need, and the third is not coming.** The folder row's own menu and the
@@ -165,7 +186,8 @@ import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { navPages, paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
-import { openInNewTab } from './tabs.js'
+import { openInNewTab, useTabs } from './tabs.js'
+import type { Tab } from './tabs.js'
 import { savedViewPath } from '../views/saved-views.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
@@ -332,6 +354,27 @@ function routerLink(to: string): ReactElement<Record<string, unknown>> {
  * elements concatenate in an accessible name, so without it the row announces
  * "Inbox1". A whitespace-only text node is not laid out as a flex item, so it
  * costs nothing on the screen.
+ *
+ * **The count is positioned rather than laid out, and that is the alignment
+ * defect this wrapper introduced.** Moving the badge inside the anchor moved
+ * it into the anchor's *content box*, and that box stops 4.75rem short of the
+ * row's right edge: `folder-row.tsx` pads the link by that much so the name
+ * truncates before it reaches the actions strip. So every count in the
+ * Library sat 64px left of where the prototype draws it, in a ragged line
+ * that moved with nothing, while the strip that padding was reserving space
+ * for is drawn at `right-1`. The prototype's own badge is
+ * `SidebarMenuBadge` at `right-3`, absolutely positioned against the row, and
+ * this is that geometry expressed from inside the anchor: same offset, same
+ * pill, same fade under the hover that brings the actions strip up, same
+ * absence in the icon rail. The name keeps its padding and still truncates
+ * before the number.
+ *
+ * `!absolute` carries the important marker on purpose. The link's own class
+ * string sets `[&>*]:relative` on every direct child, to lift the row's
+ * contents above the `before:` wash behind them, and Tailwind emits `.absolute`
+ * ahead of `.relative` in the same layer, so the two collide at equal
+ * specificity and the variant wins on source order. Measured against
+ * tailwindcss 4.3.3 rather than assumed.
  */
 interface FolderRowLinkProps extends Omit<React.ComponentPropsWithRef<'a'>, 'href'> {
   readonly to: string
@@ -350,7 +393,7 @@ function FolderRowLink({
       {pending > 0 ? (
         <>
           {' '}
-          <span className="shrink-0 rounded-full bg-[var(--color-graphite-200)] px-1.5 text-[0.625rem] leading-5 text-[var(--color-graphite-600)] tabular-nums">
+          <span className="pointer-events-none !absolute top-1/2 right-3 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-graphite-200)] px-1.5 text-[0.625rem] leading-5 font-medium text-[var(--color-graphite-600)] tabular-nums transition-opacity select-none group-data-active/menu-button:text-[var(--color-graphite-800)] group-hover/folder-row:opacity-0 group-focus-within/folder-row:opacity-0 group-data-[collapsible=icon]:hidden">
             {pending}
           </span>
         </>
@@ -468,6 +511,51 @@ function NavigationRow({
  */
 function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
+}
+
+/** The prefix of 9.1's folder route, so a tab's path can be read back to an id. */
+const FOLDER_PATH = paths.folder('')
+
+/**
+ * Which folders the icon rail draws.
+ *
+ * **The rail used to draw every one of them, and that is the defect.** The
+ * port kept the whole Library there deliberately, against a sentence 9.1 no
+ * longer carries ("the width and the collapsed state change nothing about
+ * what the sidebar holds", removed from that section by RFC 0005), and the
+ * result is a 56px strip holding one anonymous glyph per folder an account
+ * has. The designer's own answer is `group-data-[collapsible=icon]:hidden`
+ * on the whole directory: his rail holds no folders at all. What is drawn
+ * here sits between the two, on the owner's instruction of 2026-08-30: the
+ * rail holds the folder you are standing in and the folders you already have
+ * open, which is the part of the Library a rail is narrow enough to be about.
+ *
+ * **"Open" is the tab strip's own word.** 9.1 makes the strip the set of
+ * places the viewer has open and "the place the viewer stands on is the
+ * active tab", so a folder is open exactly when a tab points at it. Nothing
+ * new is remembered to answer the question, which matters: a second record of
+ * what is open would be a second opinion about it.
+ *
+ * Desk is the default folder's own page (9.1's routes table gives that folder
+ * `/app` rather than a folder path), so a tab standing on Desk is that folder
+ * open and its row is drawn. Without that clause the one folder every account
+ * has would be the one the rail dropped first.
+ */
+function railFolderIds(
+  tabs: readonly Tab[],
+  activeFolderId: string | null,
+  defaultFolderId: string | null,
+): ReadonlySet<string> {
+  const open = new Set<string>()
+  if (activeFolderId !== null) open.add(activeFolderId)
+  for (const tab of tabs) {
+    if (tab.path === paths.desk) {
+      if (defaultFolderId !== null) open.add(defaultFolderId)
+    } else if (tab.path.startsWith(FOLDER_PATH)) {
+      open.add(tab.path.slice(FOLDER_PATH.length))
+    }
+  }
+  return open
 }
 
 /*
@@ -1218,6 +1306,65 @@ function LibraryColumn({
 }
 
 /**
+ * The Library as the icon rail draws it: a flat list of the folders
+ * `railFolderIds` names, in the column's own order.
+ *
+ * **Flat rather than the column, because the rail has already lost what makes
+ * the column a column.** A shelf's heading is hidden there and has been since
+ * the port, having no room for a name, so a shelf section in the rail is an
+ * empty caption over some folders: it contributes a named region a screen
+ * reader announces and a person cannot see, four pixels of padding, and a
+ * tree line the row's own class already hides. Drawing the survivors as one
+ * list says exactly what the rail shows.
+ *
+ * **And no drag.** `LibraryColumn`'s engine sorts the sequence it is
+ * rendering, and a rail rendering a filtered list would write an arrangement
+ * of the folders it happens to be showing over the arrangement of all of
+ * them. Rearranging the Library is what the Library's own width is for.
+ *
+ * The order is `arrangeColumn`'s, so a folder keeps the place the viewer put
+ * it in rather than the order the tabs happen to be in: the rail is a
+ * narrower view of one list, not a second list.
+ */
+function RailLibrary({
+  folders,
+  shelves,
+  order,
+  shown,
+  activeId,
+  groups,
+}: {
+  readonly folders: readonly Folder[]
+  readonly shelves: readonly Shelf[]
+  readonly order: readonly string[]
+  readonly shown: ReadonlySet<string>
+  readonly activeId: string | null
+  readonly groups: FolderGroupActions
+}): React.JSX.Element {
+  const rows = useMemo(
+    () =>
+      arrangeColumn(folders, order, shelves)
+        .flatMap((entry) => (entry.kind === 'group' ? entry.folders : [entry.folder]))
+        .filter((folder) => shown.has(folder.id)),
+    [folders, order, shelves, shown],
+  )
+  return (
+    <SidebarGroupContent>
+      <SidebarMenu className="mt-1">
+        {rows.map((folder) => (
+          <SidebarFolderRow
+            key={folder.id}
+            folder={folder}
+            activeId={activeId}
+            groups={groups}
+          />
+        ))}
+      </SidebarMenu>
+    </SidebarGroupContent>
+  )
+}
+
+/**
  * 9.1's header: the app name linking to My Day, the global search control,
  * and the rail control.
  *
@@ -1445,14 +1592,26 @@ export function AppSidebar({
   /* polish: sidebar F1. On a phone the sidebar is a drawer, and a drawer
      closes on the navigation it was opened to make: the shell's `PhoneBar`
      opens it, and this effect on the route closes it. */
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile, state } = useSidebar()
   useEffect(() => {
     if (isMobile) setOpenMobile(false)
   }, [currentPath, currentSearch, isMobile, setOpenMobile])
+  /* The icon rail, which is a desktop state alone: below 768px the sidebar is
+     a drawer at its full width (9.1), and `ui/sidebar.tsx` sets
+     `data-collapsible` on the desktop element only, so the rail's own rule
+     has to be scoped the same way or a phone would get it. */
+  const railed = state === 'collapsed' && !isMobile
+  const { tabs } = useTabs()
   /* The file input the Import button presses, hidden because a bare file
      control cannot be given the row's shape and a button that opens one can. */
   const workflowInput = useRef<HTMLInputElement>(null)
   const inbox = inboxOf(folders ?? [])
+  /* Memoised because `RailLibrary` filters on it: a fresh Set every render
+     would rebuild that list whenever any chrome query settled. */
+  const railShown = useMemo(
+    () => railFolderIds(tabs, activeFolderId, inbox?.id ?? null),
+    [tabs, activeFolderId, inbox],
+  )
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
   /* polish: places F3. Done, Anytime and Abandoned ship unpinned and had no
@@ -1580,14 +1739,13 @@ export function AppSidebar({
         />
 
         {/* `mt-2` is the prototype's: the Library stands off the page block
-            above it. Its `group-data-[collapsible=icon]:hidden` is not taken,
-            9.1 keeping the folder rows reachable in the rail where the
-            prototype hides the whole section. */}
+            above it. Its `group-data-[collapsible=icon]:hidden` is still not
+            taken, because the rail keeps the folders the header's rail
+            paragraph names rather than none of them; what the rail drops it
+            drops by not rendering the row, which is a fact about the list and
+            not about the block around it. */}
         <Collapsible className="mt-2" open={foldersOpen} onOpenChange={setFoldersOpen}>
           <SidebarGroup className="py-0">
-            {/* The heading is hidden in the rail and the rows below it are
-                not, which is 9.1's "changes nothing about what the sidebar
-                holds" applied to the half of the list a person can reach. */}
             {/*
             The Library block of 9.1, and it is a heading wrapping the
             control rather than a control alone. That section's regions
@@ -1597,9 +1755,9 @@ export function AppSidebar({
             leaves the block unnamed in the document outline, which is
             what AC-214 reads when it asks for the heading.
 
-            The heading is hidden in the rail and the rows below it are
-            not, which is 9.1's "changes nothing about what the sidebar
-            holds" applied to the half of the list a person can reach.
+            The heading is hidden in the rail, where it has no room for its
+            word and names nothing a person can reach; the rows below it are
+            drawn there under the rule the header's rail paragraph records.
             */}
             <h2 className="group/folder-directory flex h-8 items-center px-1 group-data-[collapsible=icon]:hidden">
               <CollapsibleTrigger
@@ -1625,7 +1783,14 @@ export function AppSidebar({
                   has enforced since R10. */}
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {inbox === null ? null : (
+                  {/* Pinned above the column, and in the rail only when it is
+                      one of the folders the rail is about: Desk is the page
+                      block's own entry there, so an Inbox row drawn beside it
+                      for a folder nobody is standing in is the same glyph
+                      twice. `railFolderIds` reads a tab on Desk as this
+                      folder open, which is what keeps it drawn wherever it is
+                      the folder in front of you. */}
+                  {inbox === null || (railed && !railShown.has(inbox.id)) ? null : (
                     <SidebarFolderRow
                       folder={inbox}
                       activeId={activeFolderId}
@@ -1635,14 +1800,25 @@ export function AppSidebar({
                 </SidebarMenu>
               </SidebarGroupContent>
 
-              <LibraryColumn
-                folders={folders ?? []}
-                shelves={shelves ?? NO_SHELVES}
-                order={sidebarOrder}
-                onOrderChange={onSidebarOrderChange}
-                activeId={activeFolderId}
-                groups={groupActions}
-              />
+              {railed ? (
+                <RailLibrary
+                  folders={folders ?? []}
+                  shelves={shelves ?? NO_SHELVES}
+                  order={sidebarOrder}
+                  shown={railShown}
+                  activeId={activeFolderId}
+                  groups={groupActions}
+                />
+              ) : (
+                <LibraryColumn
+                  folders={folders ?? []}
+                  shelves={shelves ?? NO_SHELVES}
+                  order={sidebarOrder}
+                  onOrderChange={onSidebarOrderChange}
+                  activeId={activeFolderId}
+                  groups={groupActions}
+                />
+              )}
             </CollapsibleContent>
           </SidebarGroup>
         </Collapsible>
