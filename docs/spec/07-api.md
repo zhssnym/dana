@@ -70,6 +70,15 @@ The roster element's email is not nullable, settled at the P5 shape review and e
 
 Response shapes, settled at the P2 shape review and entered by owner ruling: GET /folders answers the bare array of Folder objects, no wrapper key. The folder detail's invite key is pending_invites, its elements carrying exactly the five fields above. The user object inside a members element is {id, display_name, avatar_url}, the person shape TaskCard's assignee carries, and includes no email. A 7.4 mutation answers what a fresh GET would: PATCH /folders/:id and PATCH /folders/:id/my-membership answer the Folder object, and POST /folders/:id/members answers the members element it created.
 
+The Folder object carries `cover_preset` (text or null) and `cover_focal_y`
+(0 to 100) beside `cover_file_id`. PATCH /folders/:id takes `cover_preset`
+(nullable) and `cover_focal_y` beside `cover_file_id`, any member as for the
+rest of the 4.3 identity; a body naming both a file and a preset is 422, and
+setting either source clears the other. (Amend unit of RFC 0005 change
+control item 58, H, ruled by delegation 2026-08-30 and folded here the same
+day; it takes section 13 item 53's first answer, and 4.3 carries the two
+columns.)
+
 ### 7.5 Invites
 
 - POST /invites. { email, folder_id optional, task_id optional }. Validations V-INV (section 8.7): lowercase and syntax-check email (422), reject own email (422), reject default folder (409), reject when target of a folder invite is already a member (409 "already a member"), reject task_id without folder_id or task not in folder (422), convert to instant share when the email belongs to a roster connection of V (response 200 { converted_to_share: true, membership created }), dedupe against INV-11 (409 with existing invite id). Rate limits in 10.4. Sends one email. 201 { invite }.
@@ -131,6 +140,15 @@ No other text moves, frozen or otherwise. 5.1's table names generation as a side
 All require membership of the parent task's folder (404 otherwise). No effect on task status ever.
 
 Response bodies, settled at the P3 shape review and entered by owner ruling: POST /tasks/:id/steps and PATCH /steps/:id each answer the affected TaskDetail, which is what a fresh GET /tasks/:id would give, the same convention 7.1 carries on PATCH /me and 7.2 and 7.4 carry on each of their mutations. A step is not a resource this contract shapes: 7.0 gives it no object of its own and this section offers no GET for one, while a step mutation moves steps_done and steps_total as well as the steps array, so the parent task is the only object that reports what the call did. POST therefore answers 201 with that task rather than with the step it created, and the created step rides in the steps array carrying the id and position the server assigned it. DELETE /steps/:id keeps the 204 above and carries no body.
+
+- POST /tasks/:id/steps/:stepId/promote. The step becomes a pending task
+  titled after it, in the parent's folder and under the parent's section,
+  created by V and assigned to nobody, and the step is removed in the same
+  transaction. 201 with the new TaskDetail. 404 when the step is not the
+  named task's or V is not a member of the folder. A task never demotes:
+  there is no reverse address. (Append unit of RFC 0005 change control item
+  58, C, ruled by delegation 2026-08-30 and folded here the same day; it is
+  item 44's B9 given an address.)
 
 ### 7.8 My Day membership
 
@@ -222,6 +240,14 @@ the copy is assigned to and created by whoever made it. A spent due date
 re-anchors on today and a future one keeps, 9.6's rule for a folder read
 onto one task. 201 with the new TaskDetail; member access on the source,
 404 otherwise.
+
+**7.16's folder duplicate, annotated by the loose-ends row.** POST
+/folders/:id/duplicate answers `{ id, name, shifted_days }`: the number of
+days the plan moved when its earliest date was spent, 0 when every date
+kept. The copy's `duplicated` event carries "dates moved to start today"
+exactly when it is positive, which is the fact 9.6's bar reads (ledger
+L-055). (Append unit of RFC 0005 change control item 58, E, ruled by
+delegation 2026-08-30 and folded here the same day.)
 
 ### 7.14 Comments
 
