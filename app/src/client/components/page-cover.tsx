@@ -40,6 +40,7 @@ import {
      rather than of the band, so the module that owns the storage owns them. */
   coverStoresPosition,
   coverTiersFor,
+  coverPhotoPicker,
   coverUploader,
 } from "../lib/page-identity.js"
 import { cn } from "./ui/utils.js"
@@ -194,6 +195,7 @@ export function PageCover({ storageName }: { storageName: string }) {
                   folderName={storageName}
                   tiers={coverTiersFor(storageName)}
                   onUpload={coverUploader(storageName)}
+                  onPickPhoto={coverPhotoPicker(storageName)}
                   onPick={(key) =>
                     savePrototypeFolderIdentity(storageName, {
                       cover: key,
@@ -289,6 +291,7 @@ export function AddCoverAction({ storageName }: { storageName: string }) {
           folderName={storageName}
           tiers={coverTiersFor(storageName)}
           onUpload={coverUploader(storageName)}
+          onPickPhoto={coverPhotoPicker(storageName)}
           onPick={(key) =>
             savePrototypeFolderIdentity(storageName, { cover: key, coverPos: 50 })
           }

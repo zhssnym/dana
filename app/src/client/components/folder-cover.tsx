@@ -184,28 +184,32 @@ interface OpenverseResult {
 }
 
 async function searchOpenverse(query: string): Promise<OpenverseResult[]> {
+  /* Through this origin since the polish round of 2026-08-30: 10.8's CSP
+     (connect-src 'self') refuses a direct call to api.openverse.org, so the
+     server proxies the search and serves each thumbnail itself — see
+     `routes/cover-photos.ts` for the whole reasoning. The lab build, which
+     has no server, gets the tab's offline copy instead of a broken grid. */
   const response = await fetch(
-    `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=12&mature=false`,
+    `/api/v1/covers/photos?q=${encodeURIComponent(query)}`,
     { headers: { Accept: "application/json" } },
   )
-  if (!response.ok) throw new Error(`Openverse answered ${response.status}`)
+  if (!response.ok) throw new Error(`The photo search answered ${response.status}`)
   const data = (await response.json()) as {
     results?: {
       id: string
       title?: string
       creator?: string
-      thumbnail?: string
-      url?: string
+      thumb?: string
     }[]
   }
   return (data.results ?? [])
-    .filter((item) => item.thumbnail && item.url)
+    .filter((item) => item.thumb)
     .map((item) => ({
       id: item.id,
       title: item.title ?? "Untitled",
       creator: item.creator ?? "unknown",
-      thumb: item.thumbnail!,
-      url: item.url!,
+      thumb: item.thumb!,
+      url: item.id,
     }))
 }
 
@@ -341,6 +345,7 @@ export function FolderCoverPicker({
   onRemove,
   tiers = ALL_COVER_TIERS,
   onUpload,
+  onPickPhoto,
 }: {
   value: string | undefined
   folderName: string
@@ -349,6 +354,10 @@ export function FolderCoverPicker({
   tiers?: readonly CoverTier[]
   /* The S26 seam: where the caller can store the bytes, it takes them. */
   onUpload?: (file: File) => void
+  /* The photo tier's same seam (polish round, 2026-08-30): where the caller
+     can turn a chosen photograph into a stored file, the pick goes there;
+     the lab, which cannot, keeps the legacy link key. */
+  onPickPhoto?: (photoId: string) => void
 }) {
   const [tab, setTab] = useState<CoverTier>(tiers[0] ?? "gallery")
   const [linkUrl, setLinkUrl] = useState("")
@@ -607,7 +616,10 @@ export function FolderCoverPicker({
                     aria-selected={value === `link:${photo.url}`}
                     title={`${photo.title}, ${photo.creator}`}
                     aria-label={`${photo.title} by ${photo.creator}`}
-                    onClick={() => onPick(`link:${photo.url}`)}
+                    onClick={() => {
+                      if (onPickPhoto) onPickPhoto(photo.id)
+                      else onPick(`link:${photo.url}`)
+                    }}
                     className={cn(
                       "h-16 rounded-md border bg-[var(--color-graphite-100)] bg-cover bg-center transition-shadow",
                       T_FAST,

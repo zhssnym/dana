@@ -69,6 +69,8 @@ tiers that leaves this row.
 import type { PlaceCover } from '../../shared/covers.js'
 import { DEFAULT_FOCAL_Y } from '../../shared/covers.js'
 import { queryKeys } from '../api/keys.js'
+import { z } from 'zod'
+
 import { mutateApi } from '../api/http.js'
 import { queryClient } from '../api/queryClient.js'
 import { placeCover } from '../../shared/covers.js'
@@ -142,11 +144,20 @@ export function coverTiersFor(place: string): readonly CoverTier[] {
      cannot make (item 52); a shelf holds a file it has no way of making
      (section 13 item 57). */
   if (shelfOf(place) !== null) return []
-  return folderOf(place) === null ? ['gallery'] : ['gallery', 'upload']
+  return folderOf(place) === null ? ['gallery'] : ['gallery', 'upload', 'photos']
 }
 
 /*
-**Why `photos` and `link` are still absent, measured 2026-08-30 rather than
+**The `photos` tier is on since later the same day**: the owner waived the
+frozen-section rule for the round, so the server half this note asked for
+exists — `routes/cover-photos.ts` proxies the search, streams the thumbnails
+from this origin (10.8's CSP unmoved), and turns a chosen photograph into a
+`cover` file through the same `createFile` as an upload. `coverPhotoPicker`
+below is the client's half. `link` stays absent; nothing asked for it. The
+measurement that got us here is kept verbatim underneath, because it is the
+reason the tier is built this way and not by widening the CSP.
+
+**Why `photos` and `link` were absent, measured 2026-08-30 rather than
 assumed, because what is written down about them is incomplete.**
 
 The owner asked for "free stock images" and B8 exempted the tier on 10.6, "a
@@ -217,6 +228,35 @@ export function coverUploader(place: string): ((file: File) => void) | undefined
              folder whose last cover had been dragged to its foot showed the
              new one already repositioned, which reads as an upload that
              cropped itself. */
+          body: { cover_file_id: stored.id, cover_focal_y: DEFAULT_FOCAL_Y },
+        }),
+      )
+      .then(() => void client?.invalidateQueries())
+      .catch((error: unknown) => showToast(writeFailureMessage(error)))
+  }
+}
+
+/**
+ * The photo tier's other half of `coverUploader`'s bargain: the server
+ * fetches and stores the photograph (POST /folders/:id/cover/photo), and the
+ * PATCH that follows is byte-for-byte the upload's, crop reset included.
+ */
+const storedCoverSchema = z.object({ id: z.uuid() })
+
+export function coverPhotoPicker(place: string): ((photoId: string) => void) | undefined {
+  const folderId = folderOf(place)
+  if (folderId === null) return undefined
+  return (photoId: string) => {
+    const client = queryClient()
+    void mutateApi(storedCoverSchema, {
+      method: 'POST',
+      path: `/folders/${folderId}/cover/photo`,
+      body: { photo_id: photoId },
+    })
+      .then((stored) =>
+        mutateApi(null, {
+          method: 'PATCH',
+          path: `/folders/${folderId}`,
           body: { cover_file_id: stored.id, cover_focal_y: DEFAULT_FOCAL_Y },
         }),
       )
