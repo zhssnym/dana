@@ -1,6 +1,6 @@
 /*
 Deleted, but not gone: `prototype-v2`'s `lib/trash.ts` rewritten over 7.13
-(RFC 0004's S27).
+(RFC 0004's S27, the permanent delete added at S28b).
 
 The prototype's header argues the design and says what the port does: "that
 is a stand-in for what the port does, which is flip a column and leave the
@@ -27,15 +27,21 @@ its task count, the shelf a folder sat on not being a fact 7.13 answers.
 control item 35(b) is the escalation with its recommendation; the field is
 optional here and the screen draws the line without it, at a named seam.
 
-**The permanent delete is S28b's, and the slot is here.** The prototype's
-`purge` and `emptyTrash` are the acts RFC 0005 change control item 36 ruled
-back into Trash; S28a builds the route and S28b the control. Until then
-`PERMANENT_DELETE_AVAILABLE` is false, the screen keeps its markup behind it,
-and AC-262's last arm, which asserts the absence, stays true rather than
-being weakened ahead of the package that moves it.
+**The permanent delete is the folder owner's, and `purgeable` says so per
+row.** The prototype's `purge` and `emptyTrash` are the acts RFC 0005 change
+control item 36 ruled back into Trash; S28a built `DELETE /trash/tasks/:id`
+and `DELETE /trash/folders/:id`, the owner's alone (item 38, read onto tasks
+at item 53(b)), and 7.13's read carries `is_owner` so the screen can draw the
+control only where the server would answer 204. `usePurge` is the two
+mutations behind one act: a row goes to the address its kind names, and
+"Empty trash" walks the purgeable rows one by one, there being no bulk
+address and the list being short by construction. A non-owner who reaches
+the address anyway is answered 403 with the server's sentence, which the
+toast carries (`writeFailureMessage`), never a crash.
 */
 import { useMemo } from 'react'
 
+import { useDestroyTrashedFolder, useDestroyTrashedTask } from '../api/mutations.js'
 import { useTrash as useTrashRead } from '../api/queries.js'
 
 export type TrashKind = 'task' | 'folder' | 'shelf'
@@ -51,18 +57,13 @@ export interface TrashItem {
   /* Where it was, in a person's words. Restoring puts it back there, and
      the list says where each thing will land. */
   from?: string
+  /* Whether the viewer may delete this permanently: the folder owner's act,
+     for a task as for a folder. */
+  purgeable: boolean
 }
 
 export const TRASH_DAYS = 30
 const DAY = 24 * 60 * 60 * 1000
-
-/*
-TODO(S28b): flip to true when 7.13's permanent delete lands on the server
-(S28a) and `purge` and `emptyTrash` below are written over it. RFC 0005
-change control items 36 and 38 carry the ruling and the owner's
-leave-or-delete question.
-*/
-export const PERMANENT_DELETE_AVAILABLE = false
 
 /* How long this has left, for the line that says so. Rounded up, which is
    the safe direction: a row with less than a day reads "1d left" rather than
@@ -91,6 +92,7 @@ export function useTrash(): TrashItem[] {
           name: task.title,
           at: Date.parse(task.deleted_at),
           from: task.folder_name,
+          purgeable: task.is_owner,
         }),
       ),
       ...data.folders.map(
@@ -101,6 +103,7 @@ export function useTrash(): TrashItem[] {
           name: folder.name,
           at: Date.parse(folder.deleted_at),
           from: plural(folder.task_count, 'task', 'tasks'),
+          purgeable: folder.is_owner,
         }),
       ),
     ]
@@ -115,5 +118,37 @@ export function useTrashState(): { pending: boolean; failed: boolean; retry: () 
     pending: read.isPending,
     failed: read.isError,
     retry: () => void read.refetch(),
+  }
+}
+
+/**
+ * The prototype's `purge` and `emptyTrash` over 7.13's two permanent
+ * addresses. Each press is one request; the mutation cache's own rule
+ * refetches Trash once it lands, and its error toast carries a 403's
+ * sentence. `emptyTrash` sends the purgeable rows in sequence rather than at
+ * once so the rate limit of 10.4 is not met by a burst, and stops at the
+ * first refusal, which the toast has already named.
+ */
+export function usePurge(): {
+  purge: (item: TrashItem) => Promise<void>
+  emptyTrash: (items: readonly TrashItem[]) => Promise<void>
+  pending: boolean
+} {
+  const task = useDestroyTrashedTask()
+  const folder = useDestroyTrashedFolder()
+  const purge = async (item: TrashItem): Promise<void> => {
+    if (item.kind === 'task') await task.mutateAsync(item.subject)
+    else if (item.kind === 'folder') await folder.mutateAsync(item.subject)
+  }
+  return {
+    purge: (item) => purge(item).catch(() => undefined),
+    emptyTrash: async (items) => {
+      try {
+        for (const item of items) if (item.purgeable) await purge(item)
+      } catch {
+        /* Toasted by the mutation cache; the list refetches as it stands. */
+      }
+    },
+    pending: task.isPending || folder.isPending,
   }
 }
