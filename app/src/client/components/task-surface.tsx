@@ -30,6 +30,7 @@ import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
    which is the one thing this message must never do. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
 import { FolderMark, folderNameOf } from "./folder-mark.js"
+import { HistorySheet } from "./history-sheet.js"
 import { TaskCard } from "./task-card.js"
 import {
   Actions,
@@ -370,11 +371,26 @@ export function TaskPage({
   inWindow?: boolean
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
+  /* polish: taskcard F5. The surface's menu carries History like the row's,
+     over the same sheet. */
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const actions = (
     <Actions
       task={task}
       persistent
+      onHistory={props.id ? () => setHistoryOpen(true) : undefined}
+      extra={
+        props.id ? (
+          <HistorySheet
+            kind="task"
+            subject={props.id}
+            name={task.title}
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+          />
+        ) : undefined
+      }
       onStar={() => {
         patch(task.id, { important: !task.important })
         props.onToggleImportant?.()
