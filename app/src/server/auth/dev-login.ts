@@ -39,7 +39,9 @@ export async function handleDevLogin(
   res: Response,
   establish: (res: Response, userId: string) => Promise<void>,
 ): Promise<void> {
-  const body = (req.body ?? {}) as DevLoginBody
+  // The query string is read beside the body so a plain HTML form, which
+  // cannot post JSON, can still name the account: POST .../dev-login?sub=x.
+  const body = { ...(req.query as object), ...((req.body ?? {}) as object) } as DevLoginBody
 
   // Every field is optional so that a bare POST signs in as a fresh account,
   // which is what the Playwright seeding path wants; naming an email or sub
