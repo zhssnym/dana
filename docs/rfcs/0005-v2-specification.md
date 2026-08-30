@@ -167,7 +167,7 @@ Dana is a collaborative to-do web application delivered as an installable PWA. A
 Two v2 notes that touch every query above. First, rows with deleted_at set are excluded everywhere except the Trash surface of 7.13; the guard is implicit in each query rather than restated per query. Second, Assignments is not a query of its own: it is a client-side composition over the open tasks the viewer can already read, grouped by assignee with the unassigned last, which is why it appears in section 9 and not here.
 ```
 
-### Insert new section 4.13 after 4.12 (events)
+### Insert new section 4.13 after 4.12 (events) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.13 events
@@ -195,7 +195,7 @@ subject: an event is readable by whoever could read its folder scope at read
 time, enforced at 10.2 like every read.
 ```
 
-### Insert new section 4.14 after 4.13 (notifications)
+### Insert new section 4.14 after 4.13 (notifications) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.14 notifications
@@ -216,7 +216,7 @@ Partial index ON (user_id) WHERE read_at IS NULL for the badge count. An
 actor is never notified of their own act.
 ```
 
-### Insert new section 4.15 after 4.14 (comments)
+### Insert new section 4.15 after 4.14 (comments) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.15 comments
@@ -240,7 +240,7 @@ ON DELETE CASCADE, created_at), PK (comment_id, user_id). A like is the whole
 reaction set (DES-146).
 ```
 
-### Insert new section 4.16 after 4.15 (files)
+### Insert new section 4.16 after 4.15 (files) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.16 files
@@ -265,7 +265,7 @@ Per-user quota: 1 GB (D5, revisited with usage). Serving passes 10.2 like
 every read; there are no public object URLs.
 ```
 
-### Insert new section 4.17 after 4.16 (page blocks)
+### Insert new section 4.17 after 4.16 (page blocks) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.17 page_blocks
@@ -296,7 +296,7 @@ key set), `color text null` (#RRGGBB), `cover_file_id uuid null FK files`,
 `description text null` (up to 500) — expand-only column additions.
 ```
 
-### Insert new section 4.18 after 4.17 (shelves)
+### Insert new section 4.18 after 4.17 (shelves) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.18 shelves
@@ -320,7 +320,7 @@ transaction; the id never changes.
 Shelves are private by construction (DES-195/196): no member rows, no share.
 ```
 
-### Insert new section 4.19 after 4.18 (user views and the settings expansion)
+### Insert new section 4.19 after 4.18 (user views and the settings expansion) — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.19 user_views
@@ -343,7 +343,7 @@ Serialized by ids, never display names.
 of one fact are not kept), sidebar order, per-shelf/folder arrangement keys.
 ```
 
-### Replace section 4.3
+### Replace section 4.3 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.3 folders
@@ -366,7 +366,7 @@ UNIQUE INDEX ON (owner_id) WHERE is_default: one Inbox per account (INV-2). ON D
 The four identity columns are the folder's, not a member's (pricing decision D1): one look for every member, any member may change it, and the event log of 4.13 records who. A member's personal label and color on 4.4 are untouched and remain per-viewer. Reads exclude rows with deleted_at set except through the Trash surface of 7.13; every query in section 6 gains the implicit `deleted_at IS NULL` guard at fold time.
 ```
 
-### Replace section 4.5
+### Replace section 4.5 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 4.5 tasks
@@ -397,7 +397,7 @@ Composite foreign key enforcing INV-4: FOREIGN KEY (folder_id, assignee_id) REFE
 Rationale lines: series_id groups a recurrence chain for guards (INV-7) and Done-page trails; completed_by feeds the My Day recap (Q1R), makes the completion race guard natural (section 8.5), and feeds the activity log of 4.13; updated_at is the last-write-wins tiebreak evidence and the search recency key. Reads exclude rows with deleted_at set except through the Trash surface of 7.13, the same guard 4.3 states for folders; a task in a trashed folder is unreachable while its folder is, and purges with it.
 ```
 
-### Replace section 10.3
+### Replace section 10.3 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 10.3 Input validation and limits
@@ -433,7 +433,7 @@ Rationale lines: series_id groups a recurrence chain for guards (INV-7) and Done
 All numbers are server-enforced and returned as 422 with the field named, except the storage quota, which returns 413 with the copy of section 9, and the body ceiling, which the parser refuses as 400 before any field is read. The task cap and the body row were added 2026-08-25 by change control item 18: the parser's undocumented 100 kB default was refusing legal workflow files before this table's own import cap could, and was the only bound on the task array.
 ```
 
-### Insert new section 10.8 after 10.7
+### Insert new section 10.8 after 10.7 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 10.8 Response security headers
@@ -451,7 +451,7 @@ it. One acceptance criterion is owed; its number is the test persona's to
 assign.
 ```
 
-### Replace section 11.7
+### Replace section 11.7 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 11.7 Reminder scheduler
@@ -468,7 +468,7 @@ The pass is a plain callable function and must stay one: if hosting ever moves s
 That callable is the acceptance suite's only way in, ratified here at the P7 mid-package change control on 2026-08-10 rather than left assumed, the way 11.10 ratified options.notifications when the same need appeared for sends. Everything else the suite reaches, it reaches over HTTP through the 11.10 seam, and frozen section 7 offers no endpoint that runs a pass, so without this the delivery criteria could not be written at all. `app/src/server/scheduler/index.ts` exports the pass as `createReminderPass(deps)` or as `runReminderPass(deps)`, either name, with deps of { dbClient, notifications } reusing 11.10's own option names for the same two things. The tolerance over the name is deliberate and costs nothing: the harness accepts both, so the choice is the implementing session's and no drift is possible in the suite. What is fixed is only what the suite must know in advance, the module path and the two dependencies, both already determined by 11.10 and by the scheduler directory this section's implementer owns; the pass's internals, its transaction shape and its return value are untouched by this and stay that session's. Two things it is not. It is not an HTTP endpoint, adding one being a change to frozen section 7 that the paragraph above contemplates only if hosting moves. And it is not a second export path for production, which composes the same callable at boot as it always did.
 ```
 
-### Insert new sections 7.12–7.17 after 7.11
+### Insert new sections 7.12–7.17 after 7.11 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 7.12 Events and notifications
@@ -510,8 +510,11 @@ DES-198 copy rules server-side. POST /api/v1/workflows/import — zod-validated
 structure file, caps per section 10, creates folders/sections/titles only;
 never ids, people, dates or states. POST /api/v1/folders/:id/transfer-ownership
 { to: user_id } — owner-only, member target, the DES-225/8.9 flow.
+```
 
-### 7.17b Replace the TaskCard line of section 7.0
+*Fence closed here by S29a on 2026-08-30: the unit below is a unit description, not specification text, and RFC 0005 change control item 49(g) named this fence malformed for enclosing it. Unit 12's pasteable text is 7.12 to 7.16 above and 7.17 below.*
+
+### 7.17b Replace the TaskCard line of section 7.0 — folded 2026-08-30 (S29a)
 
 The two widenings Imran approved at change control item 19, written as one
 unit because they land on one line. **Frozen section 7 moves only here**, and
@@ -553,6 +556,7 @@ criterion asserting a TaskCard key set **before** `04-api-and-contract.md`
 writes a line, and the widening is additive so no existing key moves, changes
 type or changes meaning.
 
+```markdown
 ### 7.17 View routes
 
 Client routes /app/tasks/:id and /app/shelves/:id resolve by the SPA against
@@ -847,7 +851,7 @@ The starter files themselves are the design record's, on the 9.2 ruling of the s
 
 ```
 
-### Insert new section 7.18 after 7.17
+### Insert new section 7.18 after 7.17 — folded 2026-08-30 (S29a)
 
 ```markdown
 ### 7.18 Search extension
@@ -862,7 +866,7 @@ GET /api/v1/search gains additive result kinds beside Q8's tasks: folders and sh
 | `docs/design/v2-refs/` | The v2 reference exports, regenerated at V9 from one build; comparison references, not specifications |
 ```
 
-### Append to section 11.15
+### Append to section 11.15 — folded 2026-08-30 (S29a)
 
 ```markdown
 - **Stored client state serializes ids, never display names.** The v2
@@ -979,7 +983,7 @@ untouched; the new criteria extend them rather than restate them.*
 - AC-066 ... given the task was deleted before acceptance, then the invite keeps its parked task_id, the acceptance grants the folder and skips the assignment, and the task waits in Trash unassigned ... (the moved-folder arms verbatim)
 ```
 
-### Append to section 13
+### Append to section 13 — folded 2026-08-30 (S29a)
 
 ```markdown
 - The object-store provider (S3-compatible vs host disk) is a deployment
@@ -1005,7 +1009,7 @@ about. Every unit below is additive. No column changes shape, no response
 field is removed, no existing value changes meaning, and exactly one of
 section 6's eleven orders moves, which is the one item 44 permits.*
 
-### Append a row to the table in section 4.5 (the task's hand order)
+### Append a row to the table in section 4.5 (the task's hand order) — folded 2026-08-30 (S29a)
 
 *B4 of change control item 44, and the first of that item's four frozen
 changes. Frozen section 4 moves here for `tasks`, and it moves by one
@@ -1059,7 +1063,7 @@ single folder's undated open rows, which section 6 caps at 1000; there is no
 scan an index would save. `steps.position` has carried the same shape since
 4.6 with no index of its own.
 
-### Append a row to the table in section 4.17 (the page block's width)
+### Append a row to the table in section 4.17 (the page block's width) — folded 2026-08-30 (S29a)
 
 *B7 of change control item 44, and the second of its four frozen changes.
 4.17 arrives in this RFC's own delta above, so this appends one row to that
@@ -1088,7 +1092,7 @@ the image block, item 44 ruled it there, and a constraint is cheaper to
 relax later than to add to a column that already carries values nobody
 meant.
 
-### Insert new section 4.20 after 4.19 (place covers)
+### Insert new section 4.20 after 4.19 (place covers) — folded 2026-08-30 (S29a)
 
 *B1 of change control item 44, and the third of its four frozen changes.
 This is the table the ruling says has to exist: `folders.cover_file_id` and
@@ -1146,7 +1150,7 @@ CHECK forbids, so deleting the file has to delete the row. That is also the
 honest reading: a cover whose picture is gone is not a half-set cover, it is
 no cover.
 
-### Replace the Unscheduled line of section 6's Q7
+### Replace the Unscheduled line of section 6's Q7 — folded 2026-08-30 (S29a)
 
 *The one ordering change B4 permits, and the only one. Item 44: the ruling
 "keeps every one of section 6's eleven queries and their byte-identical
@@ -1173,7 +1177,7 @@ abandoned rather than re-sorting it below the pending ones. That is what a
 hand order means, it is confined to this one section of this one query, and
 every other query, Q2's own page included, is untouched.
 
-### Append to section 7.6 (the order endpoint)
+### Append to section 7.6 (the order endpoint) — folded 2026-08-30 (S29a)
 
 *B4's second half, and the fourth frozen change of item 44: "the order
 itself needs a column on `tasks` ... and an endpoint to write it". Frozen
@@ -1221,7 +1225,7 @@ the same key and produce a tie, which section 6's final id tie-break
 resolves into one sequence both of them read. The transaction locks the
 folder so that two first drags cannot both seed the list.
 
-### Replace the workflow-import sentence of section 7.16
+### Replace the workflow-import sentence of section 7.16 — folded 2026-08-30 (S29a)
 
 *B3 of change control item 44. Frozen section 7 moves for 7.16's import,
 and this replaces the sentence that begins "POST /api/v1/workflows/import"
@@ -1272,7 +1276,7 @@ the shape the owner entered for the two generating transitions on
 2026-08-10. Every workflow file that imports today evaluates no date and is
 untouched.
 
-### Append to section 7.16's page contract (the block width)
+### Append to section 7.16's page contract (the block width) — folded 2026-08-30 (S29a)
 
 *B7's wire half. The block objects of GET and PUT /folders/:id/page and
 the two shelf routes gain one optional field; nothing else about the
@@ -1282,7 +1286,7 @@ PUT-whole contract or its 409 moves.*
 A block object carries `width_pct: integer or null` beside its position: the person's dragged width as a percentage of the column, 25 to 100, null where nobody has dragged it, and 422 naming the field where it is out of those bounds or set on a block that is not an image (4.17).
 ```
 
-### Insert new section 7.19 after 7.18 (place covers)
+### Insert new section 7.19 after 7.18 (place covers) — folded 2026-08-30 (S29a)
 
 *B1's wire half, the endpoints 4.20 needs. Additive: no existing route or
 response changes.*
@@ -1303,7 +1307,7 @@ own throughout: no route reads or writes another person's, and a folder's or
 a shelf's cover stays where 7.4 and 7.16 already put it.
 ```
 
-### Amend three rows of the table in section 10.3
+### Amend three rows of the table in section 10.3 — folded 2026-08-30 (S29a)
 
 *The limits the three additive changes above introduce or move. The workflow
 row is replaced; the other two are new rows.*
@@ -5762,6 +5766,43 @@ fold, the way P7's mid-package change control ratified the pass callable:
     page**, which is what item 50(i) said of `states/PageStates.tsx` and what
     S30's walkthrough exists for; this row offers it as the second instance of
     the same lesson rather than as a defect it happened to trip over.
+
+52. **The systems fold: every remaining accepted unit of this RFC is in a
+    numbered section, and the RFC stays `Accepted` (S29a, 2026-08-30, ruled by
+    delegation).** RFC 0004's S29a row, done with the owner's full delegation
+    and no human to escalate to; every choice below took the recommendation the
+    documents already carried. **Folded, copied verbatim to the stated
+    location**: units 10 and 11 into section 4 (4.13 to 4.19; 4.3 and 4.5
+    replaced, S29's Inbox annotation kept inside the new 4.3); unit 12 into
+    7.12 to 7.17, unit 12a onto 7.0's `TaskCard` line, unit 9a's 7.18 half;
+    units 13 and 13a into 10.3 and 10.8; unit 14 into 11.7; unit 16 into 11.15;
+    unit 18 into section 13 as items 55 and 56; and all nine units of item 46,
+    which are the `position` row on 4.5, the `width_pct` row on 4.17, 4.20,
+    Q7's Unscheduled line in section 6, the order endpoint on 7.6, the two 7.16
+    widenings, 7.19 and the three 10.3 rows. Each unit heading above carries
+    "folded 2026-08-30 (S29a)" so nobody folds it twice. **Frozen 4 and 7 gained
+    only the text those units carry**, and each file's S29 "not folded here yet"
+    annotation is replaced by one naming the units, the rulings behind them and
+    the date, the freeze's audit trail. **Three decisions taken by delegation.**
+    (a) Item 49(g)'s malformed fence is fixed in the writing rather than
+    interpreted: unit 12's fence now closes before the 7.17b meta-unit and
+    reopens for 7.17, and the fold pasted 7.12 to 7.16 and 7.17 without the
+    description between them. (b) 7.13 is folded exactly as accepted and
+    minimally, because `07-api.md` lacked it entirely; S28a's Replace unit and
+    the Duplicate route land on it in parallel, and the head annotation says so.
+    (c) Q7's line is section 6's, not in the row's list, and was folded anyway:
+    it is item 46's ninth unit, accepted text with a stated location, and
+    leaving it would have left section 6 contradicting 4.5's own row. **Left
+    alone, each with its reason**: section 12, S29 having already folded the
+    seven criteria this RFC replaces (AC-005 reads Desk today) and no other unit
+    replacing a criterion's text; unit 15's 11.13 rows, which 11.13 already
+    carries in a later form; and the status line, which stays `Accepted`
+    because section 9.12 and unit 17's stub are this RFC's to close and
+    `Implemented` is RFC 0004's S30 judgment. `00-index.md`'s map names the new
+    subsections and section 12's range reads AC-001 to AC-273, the next free
+    being AC-274, none spent here. **Numbers, read at the opening**: next
+    change control item 52, this one; next SESSION-LOG row 46; next section 13
+    item 55, two spent. No file under `app/` was touched.
 
 ## Implementation plan
 
