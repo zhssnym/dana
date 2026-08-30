@@ -5763,6 +5763,102 @@ fold, the way P7's mid-package change control ratified the pass callable:
     S30's walkthrough exists for; this row offers it as the second instance of
     the same lesson rather than as a defect it happened to trip over.
 
+52. **S27's remainder lift: the five surfaces lifted, item 43's mirror built,
+    item 44's Import clause found to be a missing tz, and every ruling the
+    row met decided by delegation (S27, 2026-08-30).** RFC 0004's S27 row is
+    the shelf page, the search overlay, Settings with Appearance, the Trash
+    page and the onboarding touches. **The owner delegated full authority for
+    this row on 2026-08-30 and there was no human to escalate to**, so every
+    ruling below was taken by the session, the documented recommendation
+    followed where one existed, and is recorded here rather than routed. The
+    owner set the row arrived at, corrected against `docs/team/` a ninth time:
+    `07-frontend-architect.md` for `screens/`, `pages/`, `lib/`, `shell/` and
+    `index.html`; `08-component-and-design-system.md` for `components/`;
+    `09-complex-interaction.md` for 9.9 and `components/search/**`;
+    `11-adversarial-test.md` for `app/tests/**` and section 12.
+
+    (a) **Four screens crossed whole and one component**, each diffing empty
+    against its prototype original except at seams its header names:
+    `screens/settings-screen.tsx` (seven seams), `screens/trash-screen.tsx`
+    (five), `screens/shelf-page.tsx` (nine), `components/search-overlay.tsx`
+    (three). Six adapters landed in `lib/` on S22's pattern: `nav-model`,
+    `page-pins`, `theme`, `viewer`, `trash`, `search-items`, `shelf-acts` and
+    `shelf-layout`, and `page-identity` gained a shelf half. What retired:
+    the S16 and S17b `pages/SettingsPage.tsx`, the S9 `pages/TrashPage.tsx`,
+    the S12 `pages/ShelfPage.tsx`, the P8R `components/search/SearchOverlay.tsx`
+    and its `copy.ts`, and `components/page/IdentityHead.tsx`, which S26 left
+    in the tree for exactly this row. Each page file is wiring now.
+
+    (b) **Item 37's standing direction, applied three times to section 9, ruled
+    by delegation, 2026-08-30.** 9.9: task results wear their status as a
+    badge in Q8's order rather than standing under status headings, and the
+    pre-typed places are the pages of 9.1's block rather than every folder
+    and shelf; both are the prototype's own decisions with their reasons in
+    its file. 9.11: the rule sentence and the empty state take the
+    prototype's copy. 9.7: the danger section is headed "Deleting your
+    account", which the prototype records as Imran's ruling of 2026-08-22 and
+    which 9.7 had never received, and the density labels are the prototype's
+    "Two lines" and "One line" over 4.19's two values. AC-156, AC-224, AC-258
+    and AC-262 were reworked to the amended sentences, each asserting the same
+    rule read off the row rather than off a heading or a superseded string;
+    nothing was weakened. **The confirmation's control keeps 9.1's
+    "Continue"** rather than the prototype's "Delete account", the names
+    table fixing every confirmation and item 44's A2 keeping 9.1's names on
+    addressing.
+
+    (c) **Item 43 is built.** `app/index.html` carries the inline pre-paint
+    script, `lib/theme.ts` is the write-through mirror under `dana:theme`,
+    `shell/appearance.ts` mirrors the bundle's value only once the bundle has
+    landed, `system` mirrors as `system`, and `shell/session.ts` is the one
+    sign-out that clears it. 9.7 gained the sentence. AC-274 asserts the
+    first value the root is ever given, which is the question AC-261's own
+    comment says it could not ask, and it caught the second half of the
+    flash on its first run: the shell applied 4.19's default while the bundle
+    was in flight and repainted the frame the script had painted, so the
+    shell now applies the mirror until the column answers.
+
+    (d) **Item 44's Import clause was a missing zone, not a missing parse.**
+    `useImportWorkflow` posted with no `tz` at all, so every file the widened
+    7.16 admits and AC-273 requires a zone for was refused by the client's
+    own omission while every older file imported as before. The mutation now
+    carries `requestTimezone()` exactly when `needsImportAnchor` says the file
+    evaluates a date, and the shell parses the chosen file through the shared
+    `importWorkflowBody` before sending, so a file that is JSON and not a
+    workflow is refused with the shell's own sentence. AC-275 asserts both
+    through the control rather than the address.
+
+    (e) **Section 13 item 48 answered by delegation, 2026-08-30**: neither of
+    its two frozen-table answers is a client row's to take, so 9.7's
+    "where a task opens" control writes the column 9.7 names and the browser
+    store the ruled behaviour reads, together, for dialog and panel; `tab`
+    reaches the column alone. The control is live on the device it is
+    pressed on and the column is written for the day item 48's first answer
+    lands. The row displays the column.
+
+    (f) **Three things the contract cannot reach, each drawn absent under
+    DES-144 rather than dead.** The profile picture's Remove control: 7.15
+    sets an avatar and no route clears one. A shelf's cover: `coverTiersFor`
+    answers no tier for a shelf because 7.15's upload needs a `folder_id`,
+    item 52's gap one object over, opened as section 13 item 55. The Trash
+    row's "by {actor}": 7.13 carries no actor, item 35(b) standing.
+
+    (g) **The Trash page's permanent-delete slot is S28b's**, drawn as the
+    prototype's markup behind `PERMANENT_DELETE_AVAILABLE` in `lib/trash.ts`,
+    false until S28a's route exists, so AC-262's last arm holds rather than
+    being weakened ahead of the package that moves it.
+
+    (h) **Onboarding touches: nothing is owed.** `prototype-v2` has no first-run
+    surface and no starter; 9.13 stands as written and `onboarding/StarterOffer.tsx`
+    is unchanged, ruled by delegation, 2026-08-30.
+
+    (i) **The shelf's blocks stay the prototype's own loop over the adopted
+    ids.** The prototype saves its arrangement in an effect on every change;
+    over 7.16's PUT that effect skips its mount run, and the page hands the
+    screen the items rebuilt from the response so a section made a moment
+    ago is edited rather than inserted twice. `lib/shelf-layout.ts` records
+    the two translations. The title-first rank in search crosses with the
+    overlay as the prototype's decision, stable over Q8's status order.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,
