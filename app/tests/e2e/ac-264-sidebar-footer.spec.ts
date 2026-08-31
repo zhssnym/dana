@@ -1,78 +1,90 @@
 /*
-AC-264: given the sidebar at its full width, then its footer offers "New
-folder" and then "New shelf", "Import" and "Trash" as one row of three, which
-is 9.1's composition; and when the sidebar is narrowed, then "New shelf" keeps
-its label while the other two show their glyphs alone, and all three are named
-by tooltip in both states.
+AC-264: given the sidebar, then its footer carries the account row and nothing
+else — no "New folder", no "New shelf", no "Import", no "Trash", no "People"
+and no "Settings" standing beside it — and the three acts of making are one
+"New" control on the Library's heading, which offers "New folder", "New shelf"
+and "New task" and opens the surface each of them names.
 
-**The composition is 9.1's sentence and its ordering carries a reason the
-criterion has to keep.** "One primary 'New folder' action; then a row of three
-placed by role: 'New shelf', 'Import' (a workflow file), and 'Trash', the
-first two acts of making and the third a destination." The built footer offers
-New folder and then Trash, People and Settings as three navigation rows, and
-its own comment names the gap: "the other two acts that row owes, 'New shelf'
-and 'Import', arrive with the surfaces they make." This is that row.
+**This criterion is amended rather than deleted, and the amendment is the
+owner's own ruling of 2026-08-30**, at the polish round: "leave more real
+estate to the Library in the sidebar, and move Import and People and Settings
+and Trash to when you click on the profile! and leave only New shelf and New
+folder and New task side by side or just put them into a '+' icon just like
+Imran said, somewhere around easy to find in the sidebar! my goal is that
+there is more space for the Library so people can see a big picture of what's
+going on in their app."
 
-**Trash stays where the built file already put it, and that is not an
-accident.** It is a destination rather than an act, so the row of three is not
-three buttons: two make something and the third goes somewhere. A criterion
-that asserted three buttons would push a client into making Trash an action,
-which 9.1 explicitly does not, so what is asserted is the composition and the
-tooltip rather than a role for all three.
+What it asserted before was 9.1's older composition, and each clause of that
+is now false on purpose:
 
-**The narrow state is DES-216 and it is asserted as an asymmetry.** 9.1: "when
-the sidebar narrows, 'New shelf' keeps its label and the other two drop to
-icons, all three named by tooltip in every state." An implementation that
-dropped all three labels together, or kept all three, is the easy version of
-this and is what the asymmetry refuses. The tooltip clause is asserted in both
-states because it is what keeps the narrow footer usable at all, and 9.1 makes
-it unconditional.
+- "one primary New folder action" in the footer — the act survives, its place
+  does not, and it is the first item of the Library's "+".
+- "a row of two acts of making, New shelf and Import, each keeping its label
+  at every width" — DES-216's narrowing asymmetry was arithmetic about fitting
+  words into 224 pixels, and a menu has no width to run out of. The clause has
+  no subject left, which is why the narrow-width case is gone rather than
+  rewritten: a criterion has to assert something a client could get wrong, and
+  there is nothing here to get wrong any more.
+- "then Trash, People and Settings as links" — the three are menu items in the
+  account menu, where AC-242 asserts their order and presses each one to see
+  that it arrives. That is deliberately not duplicated here; what this
+  criterion owes is that they are **gone from the footer**, which is the half
+  AC-242 cannot see.
 
-**Import is asserted to reach the file, not merely to exist.** 9.1 calls it
-"Import (a workflow file)", and `useImportWorkflow` has existed since S13 with
-exactly one caller, the starter offer. A label with no picker behind it is the
-same defect as a control with no endpoint, one level down, so the control is
-asserted to open a file chooser.
+**So the shape of the case inverts, and that is the point.** The old case
+asserted presence, because a port could drop a control. This one asserts
+absence, because the failure it now guards against is the opposite one: a
+footer that grows a row back, or a session that moves a control and leaves the
+old one behind, gives the Library its room back and then takes it away again
+without anybody noticing. Absence is asserted **by role and name within the
+footer's own landmark**, never by counting rows, so a footer that rearranges
+itself honestly stays green.
 
-**People and Settings are asserted to survive.** 9.1 puts them after the row
-of three, "then People and Settings as links; then the avatar menu". The
-built footer has them and a port that replaced three nav rows with a row of
-three could lose them, which would be trading one clause of the section for
-another.
+**The "+" is asserted to open its three and to make one of them.** A menu of
+three labels is three labels until one of them is pressed, so "New folder" is
+pressed and the dialog AC-181 owns has to open. The other two are asserted to
+be offered; AC-313 presses New shelf through the same control and 9.3's form
+is AC-093's, so pressing all three here would be three criteria wearing one
+number.
 
-Spec: 9.1 (the footer's composition, the narrowing rule, People and Settings,
-and the account menu after them), 7.16 (POST /workflows/import), DES-209,
-DES-216, and the parity audit's sidebar-footer row.
+Spec: 9.1 (the footer, which is now the avatar menu alone; the Library's "New"
+control and the three acts it begins), 7.16 (POST /workflows/import, reached
+from the account menu and asserted by AC-242), DES-209, DES-216 (spent), and
+the parity audit's sidebar-footer row.
 */
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
   clickControl,
+  effectiveOpacity,
   routesV2,
   seedSubs,
   sidebar,
   signIn,
   TEST_TIMEOUT_MS,
-  tooltipText,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
-/**
- * The row of two, since the polish round of 2026-08-30 (sidebar F10).
- *
- * 9.1's row was three, "New shelf", "Import" and "Trash", and the third was
- * a destination among acts: an unlabelled glyph at the default width that a
- * newcomer could not tell from Import beside it. Trash is a place, so it
- * joined the places, a navigation row above People and Settings, and the row
- * keeps the two acts of making with their words at every width.
- */
-const ROW_OF_TWO = ['New shelf', 'Import'] as const
+/** 9.1's names table, since the polish round of 2026-08-30. */
+const LIBRARY_NEW = 'New'
 
-function control(page: Page, name: string) {
+/** The three the "+" offers, in the order 9.1 names them. */
+const ACTS = ['New folder', 'New shelf', 'New task'] as const
+
+/**
+ * The six controls the footer used to carry above the account row.
+ *
+ * Named as strings rather than derived, because what this asserts is that no
+ * control answering to any of these names is left standing in the footer, and
+ * a list computed from the client would be the client marking its own paper.
+ */
+const MOVED = ['New folder', 'New shelf', 'Import', 'Trash', 'People', 'Settings'] as const
+
+function control(page: Page, name: string): Locator {
   return sidebar(page)
     .getByRole('button', { name, exact: true })
     .or(sidebar(page).getByRole('link', { name, exact: true }))
@@ -80,137 +92,105 @@ function control(page: Page, name: string) {
 }
 
 /**
- * Drags the rail to one end of its range through the handle 9.1 gives it,
- * which is the gesture DES-216's label dropping responds to.
+ * The sidebar's footer.
  *
- * The travel is far past either end on purpose: the clamp of `preferences.ts`
- * holds the sidebar between 224 and 360, so an overshoot lands exactly at the
- * end rather than wherever the drag happened to stop, and the case is reading
- * the two ends rather than a width it guessed.
+ * `contentinfo` is not it: the footer of a navigation landmark is not the
+ * page's, and the primitive draws a plain `div`. So it is reached through the
+ * one control this criterion asserts is in it — the account row — and read as
+ * that control's own parent chain, which is what "beside it" means. A test
+ * asserting absence has to be scoped to somewhere, and the alternative,
+ * asserting absence from the whole sidebar, would fail the day a folder is
+ * named "Trash".
  */
-async function drag(page: Page, to: 'wide' | 'narrow'): Promise<void> {
-  const handle = page.getByRole('separator', { name: /sidebar/i }).first()
-  await expect(
-    handle,
-    'spec 9.1: the sidebar carries a resize handle, which AC-182 drives',
-  ).toBeVisible()
-  const box = await handle.boundingBox()
-  expect(box, 'the handle is on the page and has a box to drag').not.toBeNull()
-  if (box === null) return
-  const y = box.y + box.height / 2
-  await page.mouse.move(box.x + box.width / 2, y)
-  await page.mouse.down()
-  await page.mouse.move(box.x + (to === 'wide' ? 400 : -400), y, { steps: 12 })
-  await page.mouse.up()
+function footer(page: Page): Locator {
+  return sidebar(page).locator('[data-slot="sidebar-footer"]')
 }
 
-test.describe('AC-264: the sidebar footer is 9.1\'s composition', () => {
+test.describe("AC-264: the sidebar footer is the account row, and the acts are the Library's", () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page, seedSubs.hassan)
     await page.goto(routesV2.desk)
   })
 
-  test('AC-264: New folder, then the row of two, then Trash among the places', async ({ page }) => {
+  test('AC-264: the footer carries the account row and none of the six that moved', async ({
+    page,
+  }) => {
+    const account = footer(page).getByRole('button', { name: 'Account', exact: true })
     await expect(
-      control(page, 'New folder'),
-      'spec 9.1: "one primary New folder action"',
+      account,
+      'spec 9.1: the footer is the avatar menu, named "Account" by that section\'s names ' +
+        'table. It is what the footer is for and the one thing in it that is not a door to ' +
+        'somewhere else',
     ).toBeVisible()
 
-    for (const name of ROW_OF_TWO) {
+    for (const name of MOVED) {
       await expect(
-        control(page, name),
-        `spec 9.1: "then a row of two acts of making: New shelf and Import (a workflow ` +
-          `file)". ${name} is one of the two`,
-      ).toBeVisible()
-    }
-
-    /* The order is the section's. Reading the boxes rather than the DOM keeps
-       the assertion about what a person sees. */
-    const positions: number[] = []
-    for (const name of ROW_OF_TWO) {
-      const box = await control(page, name).boundingBox()
-      expect(box, `${name} has a box`).not.toBeNull()
-      if (box !== null) positions.push(Math.round(box.x))
-    }
-    expect(
-      positions,
-      'spec 9.1 orders the two as it names them, New shelf then Import across the row',
-    ).toEqual([...positions].sort((a, b) => a - b))
-
-    const trash = sidebar(page).getByRole('link', { name: 'Trash', exact: true })
-    await expect(
-      trash,
-      'spec 9.1: "then Trash, People and Settings as links". Trash is a destination and ' +
-        'stands with the other places rather than in a row of acts (polish round, sidebar F10)',
-    ).toBeVisible()
-    await expect(trash, 'the link reaches 9.11\'s page').toHaveAttribute('href', /\/app\/trash$/)
-
-    const newFolder = await control(page, 'New folder').boundingBox()
-    const newShelf = await control(page, 'New shelf').boundingBox()
-    expect(newFolder, 'New folder has a box').not.toBeNull()
-    expect(newShelf, 'New shelf has a box').not.toBeNull()
-    if (newFolder !== null && newShelf !== null) {
-      expect(
-        newShelf.y,
-        'spec 9.1: the primary action stands above the row of three rather than in it',
-      ).toBeGreaterThan(newFolder.y)
-    }
-
-    for (const name of ['People', 'Settings']) {
+        footer(page).getByRole('button', { name, exact: true }),
+        `spec 9.1 as the owner amended it on 2026-08-30: "${name}" left the footer so that ` +
+          'the Library could have its room. A control that moved and did not go is the ' +
+          'failure this case exists for',
+      ).toHaveCount(0)
       await expect(
-        control(page, name),
-        'spec 9.1: "then People and Settings as links". The built footer has them and a port ' +
-          'that replaced three nav rows with a row of three could lose them',
-      ).toBeVisible()
+        footer(page).getByRole('link', { name, exact: true }),
+        `and "${name}" is not a footer link either: three of the six were links, and a ` +
+          'button-only assertion would have missed exactly those three',
+      ).toHaveCount(0)
     }
   })
 
-  test('AC-264: both labels survive the narrow end, and both are named by tooltip', async ({ page }) => {
+  test('AC-264: the Library heading carries "New", offering the three acts of making', async ({
+    page,
+  }) => {
+    const plus = control(page, LIBRARY_NEW)
+    await expect(
+      plus,
+      'spec 9.1: the Library block carries a "New" control. The owner asked for "a \'+\' ' +
+        'icon just like Imran said, somewhere around easy to find in the sidebar", and the ' +
+        "prototype's own affordance sits on this heading",
+    ).toBeVisible()
+
     /*
-    Both ends of the range are read, wide first, for the reason the older
-    case gave: a case that only read one end could pass against a footer
-    whose labels were never there. DES-216's asymmetry, New shelf keeping its
-    word while the others dropped to glyphs, was the arithmetic of three words
-    in 240px; with two words there is room at every width, and the polish
-    round's rule is that a control with no word at rest is a control a
-    newcomer has to guess, so both keep theirs at both ends.
+    Drawn at rest rather than on hover, and read through the harness's
+    `effectiveOpacity` rather than as `toBeVisible`.
 
-    `useInnerText`, because `textContent` includes a node CSS has hidden and
-    a label that had wrongly dropped would still read as present.
+    That matters here and nowhere else in this file: Playwright calls an
+    element visible when it has a box and is not `visibility: hidden`, and the
+    prototype's own heading control has a box at `opacity-0`. So the assertion
+    every other case makes would pass against exactly the control this one is
+    written to refuse — which is the fault that helper was added to the
+    harness for, at this same round. Nothing is hovered before the read, which
+    is what makes it about the rest state; 9.11's "a row whose only controls
+    appear on hover is a row with nothing to press" is the ruling behind it,
+    and a touchscreen has no hover to give.
     */
-    for (const end of ['wide', 'narrow'] as const) {
-      await drag(page, end)
-      for (const name of ROW_OF_TWO) {
-        await expect(
-          control(page, name),
-          `spec 9.1: the footer's two acts of making carry their words at every width, and ` +
-            `${name} is one of them (read at the ${end} end)`,
-        ).toContainText(name, { useInnerText: true })
-      }
-    }
+    expect(
+      await effectiveOpacity(plus),
+      "spec 9.1: the control rests visible; a '+' a person has to find by hovering is not " +
+        'easy to find, which is the half of the owner\'s instruction a revealed control fails',
+    ).toBeGreaterThan(0.5)
 
-    for (const name of ROW_OF_TWO) {
-      expect(
-        await tooltipText(
-          control(page, name),
-          `spec 9.1: "both named by tooltip in every state". A footer whose glyphs are ` +
-            `unnamed is unusable, which is why that clause is unconditional`,
-        ),
-      ).toContain(name)
+    await clickControl(plus, 'spec 9.1: it opens')
+    for (const name of ACTS) {
+      await expect(
+        page.getByRole('menuitem', { name, exact: true }),
+        `spec 9.1: the "New" control begins New folder, New shelf and New task, and ` +
+          `"${name}" is one of the three`,
+      ).toBeVisible()
     }
   })
 
-  test('AC-264: Import reaches a workflow file', async ({ page }) => {
-    const chooser = page.waitForEvent('filechooser')
+  test('AC-264: "New folder" in that menu opens the dialog that makes one', async ({
+    page,
+  }) => {
+    await clickControl(control(page, LIBRARY_NEW), 'spec 9.1: the "New" control opens')
     await clickControl(
-      control(page, 'Import'),
-      'spec 9.1: "Import (a workflow file)", which is 7.16\'s POST /workflows/import. ' +
-        'useImportWorkflow has existed since S13 with one caller, the starter offer, so a ' +
-        'label with no picker behind it is a control with nothing behind it one level down',
+      page.getByRole('menuitem', { name: 'New folder', exact: true }),
+      'spec 9.1: the first of the three acts of making',
     )
     await expect(
-      (await chooser).page(),
-      'the control opens a file chooser rather than merely being a label',
-    ).toBe(page)
+      page.getByRole('dialog', { name: 'New folder' }),
+      "spec 9.1 and AC-181: the act is the same act it was in the footer, so it opens the " +
+        'same dialog. A menu of three labels is three labels until one of them is pressed',
+    ).toBeVisible()
   })
 })
