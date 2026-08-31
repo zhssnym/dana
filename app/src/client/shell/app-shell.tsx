@@ -882,6 +882,10 @@ export function AppShell(): React.JSX.Element {
               face={(path) => currentPage(path, folders.data, shelves.data)}
               folders={folders.data ?? NO_FOLDERS}
               shelves={shelves.data ?? NO_SHELVES}
+              /* The same dialog the sidebar's own "New shelf" opens, handed
+                 over rather than opened twice: the hook that owns it is
+                 mounted once here with its dialogs beside it. */
+              onNewShelf={() => { groups.actions.onNewShelf() }}
               onNavigate={(path) => {
                 void navigate(path)
               }}

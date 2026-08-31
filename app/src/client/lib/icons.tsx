@@ -655,23 +655,140 @@ export const Wallet = icon(Lu.Wallet, Anim.WalletIcon)
 export const Zap = icon(Lu.Zap, Anim.ZapIcon)
 
 /*
+The sixty-three glyphs the library grew by on 2026-08-30, at the owner's word:
+the picker was missing "the larger animated Lucide icon library", and the one
+glyph a person could not get back was Desk's own lamp.
+
+Three rules, and each is the block above's rather than a new one. **Every
+addition is a drawing this family really has**, checked name for name against
+`@animateicons/react/lucide`'s exports before it was written here, so nothing
+below resolves to `undefined` at render; `LampDesk` is the single exception
+and it already sat above with its own paragraph, animated by nothing on
+Imran's 2026-08-23 ruling. **None of them is a control this product draws**,
+so a folder's mark still cannot be mistaken for something to press: the set is
+objects and subjects, never acts, which is why there is no plus, no pencil and
+no chevron in it. **And they arrive in sevens**, sixty-three of them, so the
+picker's seven columns still fill whole rows and the orphan cell Imran caught
+stays closed, per section rather than per grid now that the picker groups.
+*/
+export const Activity = icon(Lu.Activity, Anim.ActivityIcon)
+export const AlarmClock = icon(Lu.AlarmClock, Anim.AlarmClockIcon)
+export const Atom = icon(Lu.Atom, Anim.AtomIcon)
+export const AudioWaveform = icon(Lu.AudioWaveform, Anim.AudioWaveformIcon)
+export const Barcode = icon(Lu.Barcode, Anim.BarcodeIcon)
+export const BicepsFlexed = icon(Lu.BicepsFlexed, Anim.BicepsFlexedIcon)
+export const Blocks = icon(Lu.Blocks, Anim.BlocksIcon)
+export const Box = icon(Lu.Box, Anim.BoxIcon)
+export const Brain = icon(Lu.Brain, Anim.BrainIcon)
+export const Calculator = icon(Lu.Calculator, Anim.CalculatorIcon)
+export const Clipboard = icon(Lu.Clipboard, Anim.ClipboardIcon)
+export const CloudRain = icon(Lu.CloudRain, Anim.CloudRainIcon)
+export const CloudSnow = icon(Lu.CloudSnow, Anim.CloudSnowIcon)
+export const CloudSun = icon(Lu.CloudSun, Anim.CloudSunIcon)
+export const Cpu = icon(Lu.Cpu, Anim.CpuIcon)
+export const CreditCard = icon(Lu.CreditCard, Anim.CreditCardIcon)
+export const Disc3 = icon(Lu.Disc3, Anim.Disc3Icon)
+export const Droplets = icon(Lu.Droplets, Anim.DropletsIcon)
+export const Flag = icon(Lu.Flag, Anim.FlagIcon)
+export const HardDrive = icon(Lu.HardDrive, Anim.HardDriveIcon)
+export const Hourglass = icon(Lu.Hourglass, Anim.HourglassIcon)
+export const Keyboard = icon(Lu.Keyboard, Anim.KeyboardIcon)
+export const Lock = icon(Lu.Lock, Anim.LockIcon)
+export const Mailbox = icon(Lu.Mailbox, Anim.MailboxIcon)
+export const Milestone = icon(Lu.Milestone, Anim.MilestoneIcon)
+export const Navigation = icon(Lu.Navigation, Anim.NavigationIcon)
+export const Package = icon(Lu.Package, Anim.PackageIcon)
+export const PiggyBank = icon(Lu.PiggyBank, Anim.PiggyBankIcon)
+export const Plug = icon(Lu.Plug, Anim.PlugIcon)
+export const Printer = icon(Lu.Printer, Anim.PrinterIcon)
+export const QrCode = icon(Lu.QrCode, Anim.QrCodeIcon)
+export const Quote = icon(Lu.Quote, Anim.QuoteIcon)
+export const Rabbit = icon(Lu.Rabbit, Anim.RabbitIcon)
+export const Radio = icon(Lu.Radio, Anim.RadioIcon)
+export const Rainbow = icon(Lu.Rainbow, Anim.RainbowIcon)
+export const Receipt = icon(Lu.Receipt, Anim.ReceiptIcon)
+export const Route = icon(Lu.Route, Anim.RouteIcon)
+export const Router = icon(Lu.Router, Anim.RouterIcon)
+export const Server = icon(Lu.Server, Anim.ServerIcon)
+export const ShoppingBasket = icon(Lu.ShoppingBasket, Anim.ShoppingBasketIcon)
+export const Signpost = icon(Lu.Signpost, Anim.SignpostIcon)
+export const Smartphone = icon(Lu.Smartphone, Anim.SmartphoneIcon)
+export const Snowflake = icon(Lu.Snowflake, Anim.SnowflakeIcon)
+export const Sparkles = icon(Lu.Sparkles, Anim.SparklesIcon)
+export const Speaker = icon(Lu.Speaker, Anim.SpeakerIcon)
+export const Store = icon(Lu.Store, Anim.StoreIcon)
+export const Sunrise = icon(Lu.Sunrise, Anim.SunriseIcon)
+export const Tablet = icon(Lu.Tablet, Anim.TabletIcon)
+export const Tag = icon(Lu.Tag, Anim.TagIcon)
+export const Telescope = icon(Lu.Telescope, Anim.TelescopeIcon)
+export const Terminal = icon(Lu.Terminal, Anim.TerminalIcon)
+export const Thermometer = icon(Lu.Thermometer, Anim.ThermometerIcon)
+export const Ticket = icon(Lu.Ticket, Anim.TicketIcon)
+export const Timer = icon(Lu.Timer, Anim.TimerIcon)
+export const Tornado = icon(Lu.Tornado, Anim.TornadoIcon)
+export const Truck = icon(Lu.Truck, Anim.TruckIcon)
+export const Tv = icon(Lu.Tv, Anim.TvIcon)
+export const Usb = icon(Lu.Usb, Anim.UsbIcon)
+export const Watch = icon(Lu.Watch, Anim.WatchIcon)
+export const Webcam = icon(Lu.Webcam, Anim.WebcamIcon)
+export const Wifi = icon(Lu.Wifi, Anim.WifiIcon)
+export const Wind = icon(Lu.Wind, Anim.WindIcon)
+
+/*
 The set the 4.3 icon key validates against, exported here because RFC 0005's
 change control item 5 promised it at S8: the key is pattern-validated until
 S8 exports the set, the server storing it opaquely so the tightening is a
 validation change and never a migration. One record of the set, in the file
 whose family bounded the choice; the picker that arrives with S12 builds its
-labelled manifest from these keys and adds nothing to them. The keys are the
-designer's own, forty-two so his picker's seven columns fill six rows with
-no orphan cell, and adding one here without adding six siblings breaks his
-own rule before it breaks the grid.
+labelled manifest from these keys and adds nothing to them.
+
+**One hundred and five since 2026-08-30, and the two rules that governed
+forty-two still govern it.** The keys were the designer's own forty-two, so
+his picker's seven columns filled six rows with no orphan cell; the owner
+asked for the larger library and for Desk's lamp to be inside it, so the set
+grew by sixty-three, which is nine more whole rows, and the picker now groups
+them into fifteen sections of seven so the rule holds where a person actually
+reads it. **The forty-two are all still here and none of them moved**, because
+a key is what 4.3 stores: dropping or respelling one would blank the mark on
+every folder wearing it. `lamp-desk` is the addition with a reason of its own
+and it is the third line below, next to the plain folder it stands beside on
+Desk.
 */
 export const FOLDER_ICON_KEYS = [
-  'folder', 'house', 'heart', 'gift', 'book-open', 'lightbulb', 'rocket',
-  'flame', 'zap', 'key', 'map', 'map-pin', 'compass', 'tent', 'mountain',
-  'globe', 'cloud', 'moon', 'umbrella', 'footprints', 'car', 'bike',
-  'shopping-cart', 'shopping-bag', 'utensils', 'coffee', 'coins', 'wallet',
-  'banknote', 'laptop', 'code', 'camera', 'music', 'guitar', 'headphones',
-  'piano', 'drum', 'gamepad', 'swords', 'cat', 'dog', 'fish',
+  /* General */
+  'folder', 'lamp-desk', 'house', 'heart', 'gift', 'flag', 'sparkles',
+  /* Work */
+  'laptop', 'code', 'terminal', 'keyboard', 'printer', 'calculator',
+  'clipboard',
+  /* Ideas and study */
+  'book-open', 'lightbulb', 'brain', 'telescope', 'atom', 'quote', 'rocket',
+  /* Money */
+  'coins', 'wallet', 'banknote', 'credit-card', 'piggy-bank', 'receipt', 'tag',
+  /* Shopping */
+  'shopping-cart', 'shopping-bag', 'shopping-basket', 'store', 'package',
+  'box', 'barcode',
+  /* Home */
+  'key', 'lock', 'plug', 'utensils', 'coffee', 'umbrella', 'mailbox',
+  /* Travel */
+  'map', 'map-pin', 'compass', 'tent', 'mountain', 'globe', 'route',
+  /* Getting around */
+  'car', 'bike', 'truck', 'footprints', 'navigation', 'signpost', 'ticket',
+  /* Weather */
+  'cloud', 'cloud-rain', 'cloud-snow', 'cloud-sun', 'moon', 'sunrise',
+  'rainbow',
+  /* Nature */
+  'flame', 'zap', 'snowflake', 'wind', 'droplets', 'tornado', 'thermometer',
+  /* Music */
+  'music', 'guitar', 'piano', 'drum', 'headphones', 'radio', 'audio-waveform',
+  /* Time and effort */
+  'hourglass', 'timer', 'alarm-clock', 'watch', 'activity', 'biceps-flexed',
+  'milestone',
+  /* Media */
+  'camera', 'tv', 'smartphone', 'tablet', 'webcam', 'disc', 'speaker',
+  /* Tech */
+  'cpu', 'server', 'hard-drive', 'router', 'wifi', 'usb', 'qr-code',
+  /* Animals and play */
+  'cat', 'dog', 'fish', 'rabbit', 'gamepad', 'swords', 'blocks',
 ] as const
 
 /*

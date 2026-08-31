@@ -25,8 +25,13 @@ original except at the seams named here, each marked `Seam` in the body.
    second.
 5. **The account row reads the session**: `imran@example.com` and
    `America/Edmonton` are the viewer's own email and 7.2's detected timezone.
-   The Remove control on the picture is not drawn, because 7.15 has no route
-   that clears an avatar (the reason is in `lib/viewer.ts`).
+   The Remove control on the picture *is* drawn as of the polish round of
+   2026-08-30, and its absence was this seam's one real subtraction: 7.15 set
+   an avatar and cleared none, so the prototype's `setViewerImage(undefined)`
+   had no route behind it (RFC 0005 change control item 55(f)).
+   `DELETE /api/v1/me/avatar` now exists, noted at 7.15 under the owner's
+   waiver of section 7's freeze, and the control crosses with the prototype's
+   own variant, size, class and word over `clearViewerImage`.
 6. **Sign out and Delete account are callbacks**, `onSignOut` and
    `onDeleteAccount`, the lab having nothing to sign out of. The dialog's
    confirming control reads "Continue" rather than the prototype's "Delete
@@ -36,6 +41,12 @@ original except at the seams named here, each marked `Seam` in the body.
    Imran's ruling of 2026-08-22 recorded in the file itself**, where 9.7 read
    "Danger zone"; 9.7 is amended toward it (RFC 0005 change control item 55).
    The storage line 9.7 names is still absent, section 13 item 35(c) standing.
+8. **The sample workspace's row**, RFC 0005 change control item 60, drawn only
+   once the page above knows whether the sample of 7.20 is present.
+9. **The 560px measure is the whole page's and is centred**, where the
+   prototype caps only the rows and leaves them flush left inside the page
+   measure. Imran, 2026-08-30. The number and its reason are the prototype's,
+   unchanged; what moves is which element carries the cap. 9.7 records it.
 
 Nothing else moves.
 */
@@ -45,7 +56,6 @@ import {
   Moon,
   Monitor,
   ImagePlus,
-  Download,
   Globe,
   ListTodo,
   Settings,
@@ -75,7 +85,13 @@ import { NAV_PAGES, pageQuestion } from "../lib/nav-model.js"
 import { isPagePinned, setPagePinned, usePagePins } from "../lib/page-pins.js"
 import { setRowDensity, useRowDensity } from "../lib/row-density.js"
 import { setTheme, useTheme } from "../lib/theme.js"
-import { setViewerImage, setViewerTimezone, squareImageFile, useViewer } from "../lib/viewer.js"
+import {
+  clearViewerImage,
+  setViewerImage,
+  setViewerTimezone,
+  squareImageFile,
+  useViewer,
+} from "../lib/viewer.js"
 import { cn } from "../components/ui/utils.js"
 /* Seam 4: the two writers 9.7's other two rows need. */
 import { setClock, useTimeFormat } from "../lib/time-format.js"
@@ -148,8 +164,25 @@ function ViewerPictureRow() {
           {viewer.email} · name and address from your Google account
         </p>
       </div>
-      {/* Seam 5: the prototype's Remove control is not drawn; 7.15 has no
-          route that clears an avatar. See `lib/viewer.ts`. */}
+      {/* Seam 5, closed in the polish round of 2026-08-30: the prototype's
+          Remove control, drawn as the prototype draws it — its own variant,
+          size, class and word, offered only once there is a picture to take
+          away. It stood undrawn because 7.15 set an avatar and cleared none;
+          `DELETE /api/v1/me/avatar` now exists and `clearViewerImage` is the
+          handler in place of the prototype's `setViewerImage(undefined)`,
+          which is the same act over a store rather than a route. */}
+      {viewer.image ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-[var(--color-graphite-600)]"
+          onClick={() => {
+            clearViewerImage()
+          }}
+        >
+          Remove
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -311,8 +344,21 @@ export function SettingsScreen({
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
   return (
-    /* polish: pagehead F5. The shell insets every page; not a second time here. */
-    <div className="w-full">
+    /*
+    polish: pagehead F5. The shell insets every page; not a second time here.
+
+    **Seam 9: the measure moves up here and is centred.** The prototype caps
+    its rows at 560 and leaves that column flush against the left of the
+    page's own 720-to-1040 measure, so the head sits over a band of rows with
+    a third of the window empty beside them. Imran, 2026-08-30: the page "is
+    not centered and leaves too much empty space on the right". The number is
+    still the prototype's, and its reason is still the prototype's, quoted
+    where it used to be applied: a label with a control at its far end is
+    unreadable at the page measure. What changes is that the head travels
+    with the rows it heads, so the two share one edge and the column sits in
+    the middle of the space it is given.
+    */
+    <div className="mx-auto w-full max-w-[560px]">
       <header className="flex min-h-12 items-start gap-3">
         <Settings
           className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
@@ -332,8 +378,9 @@ export function SettingsScreen({
       {/* ~560px, not the page measure (review S2): every row here is a label
           with a control at its far end, and at 820px the switch sat a whole
           reading-line away from the words that name it. 560 is the same
-          discipline the People screen's form already keeps. */}
-      <div className="mt-7 max-w-[560px]">
+          discipline the People screen's form already keeps. The cap itself is
+          on the column above since seam 9; this is the gap under the head. */}
+      <div className="mt-7">
         {previewState === "loading" ? (
           <SettingsSkeleton />
         ) : previewState === "error" ? (
@@ -622,22 +669,12 @@ export function SettingsScreen({
               </div>
             </SettingsSection>
 
-            <SettingsSection
-              id="settings-install"
-              title="Install Dana"
-              description="Install Dana from your browser to open it like a regular desktop app."
-            >
-              <div className="flex min-h-14 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
-                <div className="flex size-10 shrink-0 items-center justify-center text-[var(--color-graphite-500)]">
-                  <Download className="size-5" strokeWidth={1.75} aria-hidden="true" />
-                </div>
-                {/* polish: settings F8. A "Browser menu" chip styled as a
-                    button did nothing; the sentence is the whole answer. */}
-                <p className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
-                  Use the install option in your browser&apos;s address bar or application menu.
-                </p>
-              </div>
-            </SettingsSection>
+            {/* The Install section left at polish round-2 (2026-08-30, the
+                owner's own ruling): the browser already offers the install
+                affordance in its address bar, so a Settings block saying so
+                again was repetition occupying a section. 10.6's manifest and
+                the service worker are untouched — the app installs exactly
+                as before, from where the browser puts it. */}
 
             {/*
             "Deleting your account", not "Danger zone": Imran, 2026-08-22.

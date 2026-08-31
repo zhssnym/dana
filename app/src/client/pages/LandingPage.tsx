@@ -267,7 +267,7 @@ the link's accessible name stays the three words 9.2 fixes and AC-159 counts.
 function GoogleGlyph(): React.JSX.Element {
   return (
     <span
-      className="flex size-5 items-center justify-center rounded-full bg-white"
+      className="flex size-5 items-center justify-center rounded-full bg-[var(--color-fixed-white)]"
       aria-hidden="true"
     >
       <img src="/google-g.svg" alt="" className="size-[18px]" />

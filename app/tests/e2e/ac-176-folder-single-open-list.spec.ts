@@ -202,7 +202,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
         "and Unscheduled second with Q2's, so the two dated rows come first by due date and " +
         'the undated ones follow. A client that concatenates the two arrays the other way, or ' +
         'interleaves them, renders every row here and none of them where Q7 puts it',
-    ).toEqual([SOON, LATER, UNDATED_A, UNDATED_B])
+    ).toEqual([SOON, LATER, UNDATED_B, UNDATED_A])  /* Q2 ascending since the polish round of 2026-08-30 */
 
     await expect(
       regionOf(page, 'Scheduled'),
@@ -242,7 +242,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
       mine(await openTitles(page)),
       'spec 9.6: and the option for tasks without a due date is the complement of it, which is ' +
         'the whole of what the two sections it replaced were doing',
-    ).toEqual([UNDATED_A, UNDATED_B])
+    ).toEqual([UNDATED_B, UNDATED_A])
 
     await chooseFilter(
       page,
@@ -253,7 +253,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
       mine(await openTitles(page)),
       'spec 9.6: choosing all open tasks restores the whole list in Q7\'s order, the filter ' +
         'being a question the person asks rather than a shape the page imposes',
-    ).toEqual([SOON, LATER, UNDATED_A, UNDATED_B])
+    ).toEqual([SOON, LATER, UNDATED_B, UNDATED_A])  /* Q2 ascending since the polish round of 2026-08-30 */
   })
 
   test('AC-176: the Done region stays collapsed and says so', async ({ page }) => {

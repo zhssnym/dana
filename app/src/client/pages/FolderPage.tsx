@@ -84,6 +84,7 @@ client-side preference. The thread fetches only while its surface is open
 and polls politely while it stays open, which is the whole of D3.
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
@@ -113,7 +114,8 @@ import {
   useShelves,
   useThread,
 } from '../api/queries.js'
-import { uploadFile } from '../api/http.js'
+import { getPlain, uploadFile } from '../api/http.js'
+import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 import { BlocksEditor } from '../components/page/BlocksEditor.js'
 /* S26: the head is the prototype's own composition rather than this page's
@@ -194,7 +196,9 @@ import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import type { PageBlock, PageBlockWrite } from '../../shared/pages.js'
-import type { TaskCard } from '../../shared/tasks.js'
+import { getTaskResponse } from '../../shared/tasks.js'
+import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
+import { folderToWorkflowFile } from '../../shared/workflows.js'
 
 /**
  * What the list says when the folder holds open tasks and the filter has
@@ -293,6 +297,9 @@ export function FolderPage({
   const shelves = useShelves()
   const open = useFolderOpenTasks(id)
   const page = useFolderPage(id)
+  /* "Save as workflow" reads each row's 7.6 detail before it writes the
+     file, through the cache the row already stores one in. */
+  const cache = useQueryClient()
   const basis = useRowBasis()
   const actions = useRowActions()
   const confirm = useConfirm()
@@ -622,20 +629,27 @@ export function FolderPage({
     detail.description === null
 
   /** Who a comment's author is, off the members already read; a face the
-   * roster cannot resolve says "Someone" rather than leaking an id. */
-  const authorNames = useMemo(() => {
-    const names = new Map<string, string>()
+   * roster cannot resolve says "Someone" rather than leaking an id.
+   *
+   * polish round-2: the picture rides with the name. 7.14 carries an author's
+   * id alone, so this directory is the only route an avatar has onto the
+   * thread, and both reads behind it — 7.4's members and 7.3's connections —
+   * have carried `avatar_url` since 4.1. */
+  const authorPeople = useMemo(() => {
+    const people = new Map<string, { name: string; image?: string }>()
     for (const member of members) {
       const name = member.user.display_name
-      if (name !== null) names.set(member.user.id, name)
+      if (name === null) continue
+      const image = member.user.avatar_url
+      people.set(member.user.id, { name, ...(image === null ? {} : { image }) })
     }
     for (const connection of connections.data ?? []) {
       const name = connection.user.display_name
-      if (name !== null && !names.has(connection.user.id)) {
-        names.set(connection.user.id, name)
-      }
+      if (name === null || people.has(connection.user.id)) continue
+      const image = connection.user.avatar_url
+      people.set(connection.user.id, { name, ...(image === null ? {} : { image }) })
     }
-    return names
+    return people
   }, [members, connections.data])
 
   function putBlocks(body: PageBlockWrite[]): void {
@@ -687,27 +701,42 @@ export function FolderPage({
     leave.mutate(id, { onSuccess: () => navigate(paths.desk) })
   }
 
-  /** DES-206: structure and titles only, the import's own keep-set. */
-  function saveAsWorkflow(): void {
-    const sections = (page.data?.blocks ?? [])
-      .filter((block) => block.kind === 'section' || block.kind === 'paragraph')
-      .map((block) => ({ kind: block.kind, text: block.text ?? '' }))
-      .filter((block) => block.text !== '')
+  /*
+  DES-206's file, as RFC 0005 change control item 44's B3 widened it: the
+  folder's sections and paragraphs, and per task its notes, star, repeat,
+  reminder and step titles beside the title.
+
+  **The rows are read before the file is written, and that is the fix rather
+  than an optimisation missed.** This page lists 7.10 TaskCards, which carry
+  `steps_done` and `steps_total` and neither the notes nor the step titles,
+  so the object literal that stood here could only ever write `{ title }`.
+  The file therefore never held a note or a step title, and importing one
+  produced a folder that looked as though the import had dropped them; it
+  had not, and `shared/workflows.ts` is where the two halves of the format
+  now sit together. The details are read through the same query key the row
+  cache uses, so an already-open task costs no request.
+  */
+  async function saveAsWorkflow(): Promise<void> {
+    const folderName = detail?.name ?? 'Folder'
+    const pending = [...scheduled, ...unscheduled].filter(
+      (task) => task.status === 'pending',
+    )
+    let tasks: TaskDetail[]
+    try {
+      tasks = await Promise.all(
+        pending.map((task) =>
+          cache.fetchQuery({
+            queryKey: queryKeys.task(task.id),
+            queryFn: () => getPlain(getTaskResponse, `/tasks/${task.id}`),
+          }),
+        ),
+      )
+    } catch {
+      showToast('Could not read this folder’s tasks, so nothing was saved.')
+      return
+    }
     const file = JSON.stringify(
-      {
-        dana: 'workflow',
-        version: 1,
-        name: detail?.name ?? '',
-        folders: [
-          {
-            name: detail?.name ?? 'Folder',
-            tasks: [...scheduled, ...unscheduled]
-              .filter((task) => task.status === 'pending')
-              .map((task) => ({ title: task.title })),
-            ...(sections.length > 0 ? { blocks: sections } : {}),
-          },
-        ],
-      },
+      folderToWorkflowFile(folderName, tasks, page.data?.blocks ?? []),
       null,
       2,
     )
@@ -759,7 +788,7 @@ export function FolderPage({
     )
     if (action === 'rename' && isOwner) setRenaming(true)
     else if (action === 'history') setHistoryOpen(true)
-    else if (action === 'workflow') saveAsWorkflow()
+    else if (action === 'workflow') void saveAsWorkflow()
     else if (action === 'leave' && !isOwner) askLeave()
     else if (action === 'delete' && isOwner && !isDefault) askDelete()
   })
@@ -795,14 +824,14 @@ export function FolderPage({
   memoises. A face the roster cannot resolve says "Someone" rather than leaking
   an id, which is the rule the history sheet and the bell both keep.
   */
-  const nameOf = useCallback(
-    (authorId: string) => authorNames.get(authorId) ?? 'Someone',
-    [authorNames],
+  const personOf = useCallback(
+    (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
+    [authorPeople],
   )
   const conversation = useConceptThread(
     thread.data?.comments,
     basis.viewerId,
-    nameOf,
+    personOf,
     isOwner,
   )
 
@@ -875,6 +904,55 @@ export function FolderPage({
               <MessageSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </Button>
           ) : null}
+          {/*
+          The member faces and Share, in the bar rather than in the head.
+
+          The prototype's folder page draws both here and always has
+          (`folder-page-v2.tsx`, the block it calls `strip`: the activity
+          line, then the avatar group, then the share control, then the
+          overflow menu), and this client kept them beside the title, which
+          is the composition DES-139 replaced. They are the window's controls
+          and not the page's content: a header that carries them scrolls its
+          own chrome away, and it puts two tiers of control forty pixels
+          apart. An icon rather than a filled block, because the bar is
+          chrome and chrome is quiet; the panel it opens is unchanged.
+          */}
+          {isDefault || members.length < 2 ? null : (
+            /* 9.6's member stack. One face is not a stack: a folder nobody
+               shares draws its owner's own picture at nobody, which is the
+               same noise the Share control is withheld for. */
+            <AvatarGroup>
+              {members.map((member) => (
+                /* polish: settings F7, pagehead F9: the uploaded picture,
+                   and the name on hover. */
+                <span key={member.user.id} title={member.user.display_name ?? 'Someone'}>
+                  <PersonFace
+                    name={member.user.display_name ?? 'Someone'}
+                    initials={initialsOf(member.user.display_name ?? 'Someone')}
+                    image={member.user.avatar_url}
+                  />
+                </span>
+              ))}
+            </AvatarGroup>
+          )}
+          {/* 9.6's Share control. Withheld on a default folder, which
+              INV-2 makes single-member and 5.3 refuses an add on. The name
+              is the word it always answered to; AC-162 and AC-183 reach the
+              sharing panel through it. */}
+          {isDefault ? null : (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Share"
+              aria-expanded={sharing}
+              className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
+              onClick={() => {
+                setSharing(!sharing)
+              }}
+            >
+              <Share2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            </Button>
+          )}
           {/*
           9.1: the bar's right end holds the object's overflow menu, and since
           S17a it is the object's contract rather than this page's list.
@@ -992,7 +1070,9 @@ export function FolderPage({
                   },
                 })
               },
-              workflow: saveAsWorkflow,
+              workflow: () => {
+                void saveAsWorkflow()
+              },
               leave: isOwner ? undefined : askLeave,
               delete: isOwner && !isDefault ? askDelete : undefined,
             }}
@@ -1037,15 +1117,21 @@ export function FolderPage({
               mark riding up over it (`page-head.tsx`); the folder page now
               draws the same geometry, the same wrapper undoing the shell's
               inset, the same top padding when there is no band. */}
+          {/* The horizontal half of that inset moved into `page-cover.tsx` on
+              2026-08-30: `-mx-10` reached the shell's padding and never its
+              `--shell-content-max` cap, so the band stopped at the reading
+              width with the ground showing either side. The top inset stays
+              here, and follows the shell's own two measures. */}
           {hasCover ? (
-            <div className="-mx-10 -mt-6">
+            <div className="-mt-4 md:-mt-6">
               <PageCover storageName={coverKey} />
             </div>
           ) : null}
-          <header
-            className={`group/head flex items-start justify-between gap-6 ${hasCover ? '' : 'pt-2'}`}
-          >
-            <div className="min-w-0 flex-1">
+          {/* One column since the faces and Share moved to the window bar:
+              the split this header used to make had a right-hand column in
+              it, and `page-head.tsx` draws the same head without one. */}
+          <header className={`group/head ${hasCover ? '' : 'pt-2'}`}>
+            <div className="min-w-0">
               <Popover open={markOpen} onOpenChange={setMarkOpen}>
                 <PopoverTrigger
                   render={
@@ -1134,119 +1220,100 @@ export function FolderPage({
                 offer={pristine}
               />
             </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              {/* 9.6's member avatar stack. */}
-              <AvatarGroup>
-                {members.map((member) => (
-                  /* polish: settings F7, pagehead F9: the uploaded picture,
-                     and the name on hover. */
-                  <span key={member.user.id} title={member.user.display_name ?? 'Someone'}>
-                    <PersonFace
-                      name={member.user.display_name ?? 'Someone'}
-                      initials={initialsOf(member.user.display_name ?? 'Someone')}
-                      image={member.user.avatar_url}
-                    />
-                  </span>
-                ))}
-              </AvatarGroup>
-
-              {/* 9.6's Share button. Withheld on a default folder, which
-                  INV-2 makes single-member and 5.3 refuses an add on. */}
-              {isDefault ? null : (
-                <Button
-                  variant="outline"
-                  className="h-[var(--control-height)] px-3 text-sm"
-                  aria-expanded={sharing}
-                  onClick={() => {
-                    setSharing(!sharing)
-                  }}
-                >
-                  <Share2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  Share
-                </Button>
-              )}
-            </div>
           </header>
         </PageSection>
 
         <div className="mt-7 space-y-7">
-          <PageSection name="All open tasks">
-            <PageBody
-              query={open}
-              /* A board whose Done column holds finished work is not an
-                 empty page (item 58 G): the last open task completed by a
-                 drop must not take the board with it. */
-              isEmpty={bothEmpty && !(place.mode === 'board' && completedDays.length > 0)}
-              emptyCopy={FOLDER_EMPTY}
-              emptyIcon={FolderIcon}
-              truncated={open.data?.truncated ?? false}
-            >
-              {place.mode === 'board' ? (
-                /* DES-132's board, on the folder page at last. It is the
-                   shared `views/TaskBoard.tsx` and not a second one, which is
-                   what makes S17b's two-columns-per-row change reach here and
-                   every place page together (AC-259). */
-                <TaskBoard
-                  place={place}
-                  columns={boardWithDone}
-                  context={context}
-                  actions={actions}
-                />
-              ) : loose.length === 0 && visible.length === 0 ? (
-                <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
-                  {FILTER_NARROWED_EMPTY}
-                </p>
-              ) : (
-                /* 9.6: "the loose open tasks", which since S18 means the ones
-                   under no section. The rest are drawn under the section
-                   block they name, below. */
-                <TaskRows
-                  tasks={loose}
-                  context={context}
-                  actions={actions}
-                  onAsk={confirm.ask}
-                  arrangement={arrangement}
+          {/*
+          polish round 2, folderpage: the open list and the page's blocks are
+          one body, not two regions with a hole between them.
+
+          The prototype stacks them at 8px and says why: "the insertion lines
+          carry the separation between blocks now, so the stack's own gap is
+          small, two 24px gaps in a row read as a hole". This column's 28px
+          put 28px plus the strip's own height between the quick-add and the
+          first insertion line, which is what made the line read as belonging
+          to nothing above it. The 28px stays where it is the separation
+          between the body and Done.
+          */}
+          <div className="space-y-2">
+            <PageSection name="All open tasks">
+              <PageBody
+                query={open}
+                /* A board whose Done column holds finished work is not an
+                   empty page (item 58 G): the last open task completed by a
+                   drop must not take the board with it. */
+                isEmpty={bothEmpty && !(place.mode === 'board' && completedDays.length > 0)}
+                emptyCopy={FOLDER_EMPTY}
+                emptyIcon={FolderIcon}
+                truncated={open.data?.truncated ?? false}
+              >
+                {place.mode === 'board' ? (
+                  /* DES-132's board, on the folder page at last. It is the
+                     shared `views/TaskBoard.tsx` and not a second one, which is
+                     what makes S17b's two-columns-per-row change reach here and
+                     every place page together (AC-259). */
+                  <TaskBoard
+                    place={place}
+                    columns={boardWithDone}
+                    context={context}
+                    actions={actions}
+                  />
+                ) : loose.length === 0 && visible.length === 0 ? (
+                  <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
+                    {FILTER_NARROWED_EMPTY}
+                  </p>
+                ) : (
+                  /* 9.6: "the loose open tasks", which since S18 means the ones
+                     under no section. The rest are drawn under the section
+                     block they name, below. */
+                  <TaskRows
+                    tasks={loose}
+                    context={context}
+                    actions={actions}
+                    onAsk={confirm.ask}
+                    arrangement={arrangement}
+                  />
+                )}
+              </PageBody>
+              {/* 9.6: the quick-add at the loose list's foot; 9.3's sixth
+                  entry-point row states its value: this folder, no due date.
+                  Absent in board view, where every column captures with its own
+                  value and a row above them would capture with none (9.1). */}
+              {place.mode === 'board' ? null : (
+                <QuickAdd
+                  folderName={detail?.name ?? 'this folder'}
+                  onAdd={(title) => {
+                    create.mutate(
+                      { title, folder_id: id },
+                      { onSuccess: (made) => placeLast(made.id, loose) },
+                    )
+                  }}
+                  onOpenFullForm={(title) => {
+                    openTaskForm({ folder_id: id, title })
+                  }}
                 />
               )}
-            </PageBody>
-            {/* 9.6: the quick-add at the loose list's foot; 9.3's sixth
-                entry-point row states its value: this folder, no due date.
-                Absent in board view, where every column captures with its own
-                value and a row above them would capture with none (9.1). */}
-            {place.mode === 'board' ? null : (
-              <QuickAdd
-                folderName={detail?.name ?? 'this folder'}
-                onAdd={(title) => {
-                  create.mutate(
-                    { title, folder_id: id },
-                    { onSuccess: (made) => placeLast(made.id, loose) },
-                  )
-                }}
-                onOpenFullForm={(title) => {
-                  openTaskForm({ folder_id: id, title })
-                }}
-              />
-            )}
-          </PageSection>
+            </PageSection>
 
-          {/* The page's blocks (4.17): sections, paragraphs, images, with
-              the insert affordance between them. */}
-          <PageBody query={page} isEmpty={false} emptyCopy="">
-            <BlocksEditor
-              blocks={page.data?.blocks ?? []}
-              onPut={putBlocks}
-              sectionExtras={sectionExtras}
-              onDeleteSection={(block, remove) => {
-                setSectionAsk({ block, remove })
-              }}
-              /* S26: an image block is inserted empty and fills itself, three
-                 ways (L-197). The hidden input this replaces uploaded before
-                 the block existed, so choosing was the only gesture that
-                 could land anywhere. */
-              folderId={id}
-            />
-          </PageBody>
+            {/* The page's blocks (4.17): sections, paragraphs, images, with
+                the insert affordance between them. */}
+            <PageBody query={page} isEmpty={false} emptyCopy="">
+              <BlocksEditor
+                blocks={page.data?.blocks ?? []}
+                onPut={putBlocks}
+                sectionExtras={sectionExtras}
+                onDeleteSection={(block, remove) => {
+                  setSectionAsk({ block, remove })
+                }}
+                /* S26: an image block is inserted empty and fills itself, three
+                   ways (L-197). The hidden input this replaces uploaded before
+                   the block existed, so choosing was the only gesture that
+                   could land anywhere. */
+                folderId={id}
+              />
+            </PageBody>
+          </div>
 
           {/* Q7 hides the third section while it is empty; the control is
               rendered on the folder's own completed count. polish: pagehead

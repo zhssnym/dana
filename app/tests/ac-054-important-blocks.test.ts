@@ -103,8 +103,9 @@ async function stage(): Promise<Stage> {
       createdAt: at(50),
     })
 
-    // Undated block, by the Q2 keys: status_rank, created_at descending, id
-    // descending. Newest first, which is the opposite of the block above.
+    // Undated block, by the Q2 keys: status_rank, created_at ascending, id
+    // ascending since the polish round of 2026-08-30: oldest first, the same
+    // direction as the dated block, so a capture lands at the foot.
     const undatedNewest = await seed({
       folderId: inboxId,
       createdBy: viewer.id,
@@ -142,8 +143,8 @@ async function stage(): Promise<Stage> {
         laterAllDay,
         laterTimed,
         abandonedDated,
-        undatedNewest,
         undatedOldest,
+        undatedNewest,
       ],
       datedCount: 4,
       notImportant,
@@ -169,7 +170,7 @@ describe('AC-054: Important is one list with a dated block and an undated one', 
     const body = await important(viewer, tz)
     expect(
       idsOf(body.rows),
-      'Q4 sorts by due_date ascending nulls last, then the Q3 keys within dated rows and the Q2 keys within undated ones, and calls the effect exactly one list. Soonest first above the boundary, newest first below it, which are opposite comparators on created_at: an implementation reaching for one and applying it throughout gets one block backwards',
+      'Q4 sorts by due_date ascending nulls last, then the Q3 keys within dated rows and the Q2 keys within undated ones, and calls the effect exactly one list. Soonest first above the boundary and oldest first below it since the polish round of 2026-08-30, one direction on created_at across both blocks, with the boundary still real: a dated row sorts by its date before its age',
     ).toEqual(expected)
   })
 

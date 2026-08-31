@@ -140,7 +140,19 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
     ).toBe(railed)
   })
 
-  test('AC-182: the rail still reaches every page and every folder', async ({ page }) => {
+  test('AC-182: the rail reaches every page, the folder the viewer stands in, and the open folders', async ({
+    page,
+  }) => {
+    /* Reworked at the polish round of 2026-08-30. The case used to assert
+       every folder in the rail, reasoning from a 9.1 sentence ("the collapsed
+       state changes nothing about what the sidebar holds") that RFC 0005's
+       rewrite of the section removed; the prototype's own rail draws no
+       folder list at all, and the amended 9.1 says the rail holds the page
+       set, the folder the viewer is standing in, and the folders the tab
+       strip holds open. On Desk with nothing else open, the rail owes the
+       page set and the Inbox (Desk being the default folder's page), and it
+       owes Groceries — neither selected nor open — no row at all, which is
+       the assertion that makes the rule discriminate. */
     await page.goto(routesV2.desk)
     await clickControl(
       railControl(page).first(),
@@ -151,21 +163,19 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
     for (const name of PAGES) {
       await expect(
         nav.getByRole('link', { name, exact: true }),
-        `spec 9.1: the width and the rail "change nothing about what the sidebar holds", so ` +
-          `${name} is still an entry of it. A rail that drops the page set has changed what ` +
-          'the sidebar holds while satisfying every assertion about its width',
+        `spec 9.1: the rail keeps the page set, so ${name} is still an entry of it`,
       ).toHaveCount(1)
     }
     await expect(
       nav.getByRole('link', { name: new RegExp('Inbox') }),
-      "spec 9.1: the Library is what the sidebar holds too, and the account's default folder " +
-        'is in it',
+      "spec 9.1: the viewer stands on Desk, which is the default folder's page, so the rail " +
+        'owes the Inbox its row',
     ).toHaveCount(1)
     await expect(
       nav.getByRole('link', { name: new RegExp('Groceries') }),
-      'spec 9.1: including a folder carrying a member label, which is the part of the Library ' +
-        'a rail is likeliest to drop, a shelf heading having nowhere to go',
-    ).toHaveCount(1)
+      'spec 9.1: a folder neither selected nor open is not in the rail; a rail drawing the ' +
+        'whole Library is the old rule, and this absence is what tells the two apart',
+    ).toHaveCount(0)
   })
 
   test('AC-182: a resized sidebar survives a reload', async ({ page }) => {

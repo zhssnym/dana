@@ -119,12 +119,14 @@ describe('AC-269 the hand order reaches exactly one query', () => {
     const before = await readAll(owner)
     const scheduledBefore = await scheduledTitles(owner, folder)
 
-    // A hand order that moves every row: the last becomes the first.
-    await placeTaskOk(owner, one, { after_id: null, before_id: three })
+    // A hand order that moves every row: the last becomes the first. (The
+    // unarranged base reads oldest first since the polish round of
+    // 2026-08-30, so the last is now `three` and the move mirrors.)
+    await placeTaskOk(owner, three, { after_id: null, before_id: one })
     expect(
       await unscheduledTitles(owner, folder),
       'the arrangement took',
-    ).toEqual(['s22a ac269 one', 's22a ac269 three', 's22a ac269 two'])
+    ).toEqual(['s22a ac269 three', 's22a ac269 one', 's22a ac269 two'])
 
     expect(
       await readAll(owner),
@@ -149,7 +151,7 @@ describe('AC-269 the hand order reaches exactly one query', () => {
     expect(
       await unscheduledTitles(owner, folder),
       'an abandoned row keeps its hand place; Q2’s status_rank does not reclaim it',
-    ).toEqual(['s22a ac269 one', 's22a ac269 three', 's22a ac269 two'])
+    ).toEqual(['s22a ac269 three', 's22a ac269 one', 's22a ac269 two'])
     expect(two, 'the middle task is the one that did not move').toBeDefined()
   })
 })

@@ -78,6 +78,7 @@ import {
   signIn,
   taskSurface,
   TEST_TIMEOUT_MS,
+  openTaskRow,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -203,8 +204,9 @@ test.describe('AC-161: the task surface says why it will not commit', () => {
     }
 
     await page.goto(routesV2.anytime)
-    await clickControl(
-      page.getByText('ac-161 task below the step cap'),
+    await openTaskRow(
+      page,
+      'ac-161 task below the step cap',
       'spec 9.4: a click on any row opens that task, which is how its steps block is reached',
     )
     await expect(
@@ -220,8 +222,9 @@ test.describe('AC-161: the task surface says why it will not commit', () => {
     ).toHaveCount(0)
 
     await page.goto(routesV2.anytime)
-    await clickControl(
-      page.getByText('ac-161 task at the step cap'),
+    await openTaskRow(
+      page,
+      'ac-161 task at the step cap',
       'spec 9.4: a click on any row opens that task, which is how its steps block is reached',
     )
     await expect(

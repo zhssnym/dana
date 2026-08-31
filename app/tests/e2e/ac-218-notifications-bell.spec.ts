@@ -87,9 +87,11 @@ test.describe('AC-218: the notifications bell', () => {
       'spec 9.12: pressing a row opens its subject',
     )
     await expect(
-      page.getByRole('main').getByText(first).first(),
-      'the row\'s subject is the assigned task, so the task is now on screen',
-    ).toBeVisible()
+      page.getByRole('main').getByLabel(/^\s*title\s*$/i),
+      'the row\'s subject is the assigned task, so the task is now on screen. Since the ' +
+        'polish round of 2026-08-30 the task page is the editor (taskcard F3, AC-354), ' +
+        "so the title is the field's value rather than page text",
+    ).toHaveValue(first)
     await expect(
       bellWith(1),
       'spec 9.12: opening a row marks that row read and only that row, so the count ' +

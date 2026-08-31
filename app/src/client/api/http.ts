@@ -240,7 +240,7 @@ export function requestTimezone(): string {
 }
 
 /**
- * The one non-JSON write: 7.15's multipart upload.
+ * The non-JSON writes: 7.15's two multipart routes.
  *
  * `send` above stringifies a JSON body and says so in its Content-Type; a
  * multipart body must let the browser write the boundary itself, so this is
@@ -248,23 +248,15 @@ export function requestTimezone(): string {
  * contract: fail fast offline, CSRF on the mutation, the error envelope
  * carried through verbatim, the answer parsed through a schema.
  */
-export async function uploadFile(
-  kind: 'image' | 'file' | 'voice' | 'cover',
-  folderId: string,
-  file: File,
-): Promise<{ id: string; bytes: number }> {
+async function postMultipart(path: string, form: FormData): Promise<unknown> {
   if (!isOnline()) throw new OfflineError()
-  const form = new FormData()
-  form.set('kind', kind)
-  form.set('folder_id', folderId)
-  form.set('file', file)
   const headers: Record<string, string> = {}
   const token = csrfToken()
   if (token !== null) headers['X-CSRF-Token'] = token
 
   let response: Response
   try {
-    response = await fetch(`${BASE}/files`, {
+    response = await fetch(`${BASE}${path}`, {
       method: 'POST',
       headers,
       credentials: 'same-origin',
@@ -284,9 +276,42 @@ export async function uploadFile(
     const message = envelope.success ? envelope.data.error.message : 'Request failed.'
     throw new ApiError(response.status, code, message)
   }
+  return payload
+}
+
+export async function uploadFile(
+  kind: 'image' | 'file' | 'voice' | 'cover',
+  folderId: string,
+  file: File,
+): Promise<{ id: string; bytes: number }> {
+  const form = new FormData()
+  form.set('kind', kind)
+  form.set('folder_id', folderId)
+  form.set('file', file)
   return parsed(
     z.object({ id: z.uuid(), bytes: z.number().int() }),
     '/files',
-    payload,
+    await postMultipart('/files', form),
+  )
+}
+
+/**
+ * 7.15's avatar arm: `POST /me/avatar`, one part named `file`, answering the
+ * serving path it pointed `users.avatar_url` at.
+ *
+ * It sits beside `uploadFile` rather than in `lib/viewer.ts`, where it was a
+ * second hand-written `fetch` written before this file had one. The copy was
+ * missing the offline check and the error envelope, so a picture chosen with
+ * no connection was the one write in the client that did not fail fast and
+ * did not carry 9.1's "Couldn't save. You're offline." One multipart path,
+ * one contract, and 10.6's offline rule reaches the avatar with it.
+ */
+export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+  const form = new FormData()
+  form.set('file', file)
+  return parsed(
+    z.object({ avatar_url: z.string() }),
+    '/me/avatar',
+    await postMultipart('/me/avatar', form),
   )
 }
