@@ -62,11 +62,17 @@ export interface ThreadPerson {
  * The prototype reads `PEOPLE[0]`, three names written for the row lab, and
  * RFC 0004's close forbids a fixture crossing in any form. The session is the
  * honest answer and is already in the cache on every page.
+ *
+ * **The picture comes with it since the polish round of 2026-08-30.** `/me`
+ * has carried `avatar_url` all along and this read took the name off it and
+ * left the column, so the one face on the screen that is certainly yours was
+ * the one face that could never be your photograph.
  */
 export function useViewerPerson(): ThreadPerson {
   const me = useMe()
   const name = me.data?.user.display_name ?? 'You'
-  return { initials: initialsOf(name), name }
+  const image = me.data?.user.avatar_url ?? null
+  return { initials: initialsOf(name), name, ...(image === null ? {} : { image }) }
 }
 
 /** 7.15's serving path, which the browser sends the session cookie for, this
@@ -127,18 +133,40 @@ function fileKind(mime: string): 'image' | 'video' | 'document' | 'file' {
   return 'file'
 }
 
+/*
+Who wrote a comment, as the lifted thread's `Face` takes them.
+
+**It was `nameOf: (id) => string` until the polish round of 2026-08-30**, and
+the widening is the whole of that round's conversation half: 7.14 carries an
+author's id and nothing else, so the resolver *is* the only route a picture
+has onto this surface, and a resolver that could only answer a name made the
+tinted disc the only face a comment could ever wear. The page resolves the id
+against the members and connections it has already read, both of which carry
+`avatar_url`, so nothing new is fetched to draw a photograph here.
+
+The initials stay derived from the answered name rather than taken from the
+caller, which is `parts/presenters.ts`'s standing rule: a name and its
+initials that arrive separately are two facts that can disagree.
+*/
+export type PersonResolver = (authorId: string) => { name: string; image?: string }
+
 /** One wire comment as the lifted thread reads one, replies excepted. */
 function conceptOf(
   line: CommentLine,
   viewerId: string | null,
-  nameOf: (authorId: string) => string,
+  personOf: PersonResolver,
   now: number,
   ownerDeletes: boolean,
 ): ConceptComment {
   const mine = line.author_id === viewerId
+  const author = personOf(line.author_id)
   return {
     id: line.id,
-    author: { initials: initialsOf(nameOf(line.author_id)), name: nameOf(line.author_id) },
+    author: {
+      initials: initialsOf(author.name),
+      name: author.name,
+      ...(author.image === undefined ? {} : { image: author.image }),
+    },
     at: formatAgo(line.created_at, now),
     ...(line.body === null ? {} : { body: line.body }),
     ...(line.edited_at === null ? {} : { edited: true }),
@@ -165,7 +193,7 @@ function conceptOf(
 export function toConceptComments(
   lines: readonly CommentLine[],
   viewerId: string | null,
-  nameOf: (authorId: string) => string,
+  personOf: PersonResolver,
   now: number,
   /** Whether this viewer owns the folder the thread belongs to (4.15). */
   ownerDeletes = false,
@@ -174,7 +202,7 @@ export function toConceptComments(
   const byId = new Map<string, ConceptComment>()
   for (const line of lines) {
     if (line.parent_id !== null) continue
-    const comment = conceptOf(line, viewerId, nameOf, now, ownerDeletes)
+    const comment = conceptOf(line, viewerId, personOf, now, ownerDeletes)
     byId.set(line.id, comment)
     tops.push(comment)
   }
@@ -183,7 +211,7 @@ export function toConceptComments(
     const parent = byId.get(line.parent_id)
     if (parent === undefined) continue
     const replies = parent.replies ?? []
-    replies.push(conceptOf(line, viewerId, nameOf, now, ownerDeletes))
+    replies.push(conceptOf(line, viewerId, personOf, now, ownerDeletes))
     parent.replies = replies
   }
   return tops
@@ -293,11 +321,11 @@ export function applyThreadChange(
 export function useConceptThread(
   lines: readonly CommentLine[] | undefined,
   viewerId: string | null,
-  nameOf: (authorId: string) => string,
+  personOf: PersonResolver,
   ownerDeletes = false,
 ): ConceptComment[] {
   return useMemo(
-    () => toConceptComments(lines ?? [], viewerId, nameOf, Date.now(), ownerDeletes),
-    [lines, viewerId, nameOf, ownerDeletes],
+    () => toConceptComments(lines ?? [], viewerId, personOf, Date.now(), ownerDeletes),
+    [lines, viewerId, personOf, ownerDeletes],
   )
 }

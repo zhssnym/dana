@@ -25,8 +25,13 @@ original except at the seams named here, each marked `Seam` in the body.
    second.
 5. **The account row reads the session**: `imran@example.com` and
    `America/Edmonton` are the viewer's own email and 7.2's detected timezone.
-   The Remove control on the picture is not drawn, because 7.15 has no route
-   that clears an avatar (the reason is in `lib/viewer.ts`).
+   The Remove control on the picture *is* drawn as of the polish round of
+   2026-08-30, and its absence was this seam's one real subtraction: 7.15 set
+   an avatar and cleared none, so the prototype's `setViewerImage(undefined)`
+   had no route behind it (RFC 0005 change control item 55(f)).
+   `DELETE /api/v1/me/avatar` now exists, noted at 7.15 under the owner's
+   waiver of section 7's freeze, and the control crosses with the prototype's
+   own variant, size, class and word over `clearViewerImage`.
 6. **Sign out and Delete account are callbacks**, `onSignOut` and
    `onDeleteAccount`, the lab having nothing to sign out of. The dialog's
    confirming control reads "Continue" rather than the prototype's "Delete
@@ -80,7 +85,13 @@ import { NAV_PAGES, pageQuestion } from "../lib/nav-model.js"
 import { isPagePinned, setPagePinned, usePagePins } from "../lib/page-pins.js"
 import { setRowDensity, useRowDensity } from "../lib/row-density.js"
 import { setTheme, useTheme } from "../lib/theme.js"
-import { setViewerImage, setViewerTimezone, squareImageFile, useViewer } from "../lib/viewer.js"
+import {
+  clearViewerImage,
+  setViewerImage,
+  setViewerTimezone,
+  squareImageFile,
+  useViewer,
+} from "../lib/viewer.js"
 import { cn } from "../components/ui/utils.js"
 /* Seam 4: the two writers 9.7's other two rows need. */
 import { setClock, useTimeFormat } from "../lib/time-format.js"
@@ -153,8 +164,25 @@ function ViewerPictureRow() {
           {viewer.email} · name and address from your Google account
         </p>
       </div>
-      {/* Seam 5: the prototype's Remove control is not drawn; 7.15 has no
-          route that clears an avatar. See `lib/viewer.ts`. */}
+      {/* Seam 5, closed in the polish round of 2026-08-30: the prototype's
+          Remove control, drawn as the prototype draws it — its own variant,
+          size, class and word, offered only once there is a picture to take
+          away. It stood undrawn because 7.15 set an avatar and cleared none;
+          `DELETE /api/v1/me/avatar` now exists and `clearViewerImage` is the
+          handler in place of the prototype's `setViewerImage(undefined)`,
+          which is the same act over a store rather than a route. */}
+      {viewer.image ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 text-[var(--color-graphite-600)]"
+          onClick={() => {
+            clearViewerImage()
+          }}
+        >
+          Remove
+        </Button>
+      ) : null}
     </div>
   )
 }

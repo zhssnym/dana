@@ -123,16 +123,27 @@ export function useTaskEditing(editing: string | null): TaskEditing {
 
   /* Who an author is, off the roster the People screen and the sharing panel
      already read; an id this client cannot resolve says "Someone" rather than
-     being shown. */
-  const authorNames = useMemo(() => {
-    const names = new Map<string, string>()
+     being shown.
+     polish round-2: the picture rides with the name, as it does on the folder
+     page's own copy of this directory. 7.14 carries an author's id alone, so
+     this map is the only route an avatar has onto a comment, and both reads
+     behind it carry `avatar_url`. */
+  const authorPeople = useMemo(() => {
+    const people = new Map<string, { name: string; image?: string }>()
     const viewer = me.data?.user
-    if (viewer?.display_name != null) names.set(viewer.id, viewer.display_name)
+    if (viewer?.display_name != null) {
+      people.set(viewer.id, {
+        name: viewer.display_name,
+        ...(viewer.avatar_url === null ? {} : { image: viewer.avatar_url }),
+      })
+    }
     for (const connection of connections.data ?? []) {
       const name = connection.user.display_name
-      if (name !== null) names.set(connection.user.id, name)
+      if (name === null || people.has(connection.user.id)) continue
+      const image = connection.user.avatar_url
+      people.set(connection.user.id, { name, ...(image === null ? {} : { image }) })
     }
-    return names
+    return people
   }, [connections.data, me.data?.user])
 
   const conversation = useMemo(
@@ -140,12 +151,12 @@ export function useTaskEditing(editing: string | null): TaskEditing {
       toConceptComments(
         thread.data?.comments ?? [],
         me.data?.user.id ?? null,
-        (authorId) => authorNames.get(authorId) ?? 'Someone',
+        (authorId) => authorPeople.get(authorId) ?? { name: 'Someone' },
         Date.now(),
         /* 4.15's other half, off the library row every page already holds. */
         folders.data?.find((row) => row.id === threadFolderId)?.is_owner ?? false,
       ),
-    [thread.data?.comments, me.data?.user.id, authorNames, folders.data, threadFolderId],
+    [thread.data?.comments, me.data?.user.id, authorPeople, folders.data, threadFolderId],
   )
 
   const rows = folders.data
