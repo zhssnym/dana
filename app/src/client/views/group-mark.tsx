@@ -55,6 +55,7 @@ export function groupHeadingMedia(
         <PersonFace
           name={mark.name}
           initials={initialsOf(mark.name)}
+          image={mark.image}
           dense
           className="size-5 shrink-0 data-[size=sm]:size-5"
         />

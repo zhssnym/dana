@@ -26,11 +26,16 @@ picture with no connection posted into the dark and reported the generic
 failure rather than 9.1's "Couldn't save. You're offline." Nothing else about
 it changes.
 
-**Removal is not offered, and the reason is the contract.** 7.15 has a route
-that sets an avatar and none that clears one, so `setViewerImage(undefined)`
-would be a promise the API cannot keep; the screen's Remove control is behind
-this seam and is drawn when a clearing route exists. Recorded at RFC 0005
-change control item 55.
+**Removal is offered since the polish round of 2026-08-30, and the paragraph
+this replaces is why it took a round.** It read: "7.15 has a route that sets
+an avatar and none that clears one, so `setViewerImage(undefined)` would be a
+promise the API cannot keep; the screen's Remove control is behind this seam
+and is drawn when a clearing route exists" — recorded at RFC 0005 change
+control item 55(f) as one of three controls drawn absent under DES-144 rather
+than dead. The route now exists: `DELETE /api/v1/me/avatar`, added under the
+owner's waiver of section 7's freeze for this round and noted at 7.15. So the
+seam keeps its shape and gains its other half, `clearViewerImage`, and the
+Settings row draws the prototype's Remove control unchanged.
 
 `squareImageFile` crosses verbatim: square because every avatar in the
 product is a circle, centre-cropped to the short edge because "letting a
@@ -88,6 +93,28 @@ export function setViewerImage(image: string): void {
       void client?.invalidateQueries()
       /* polish: settings F7: an upload says when it has landed. */
       showToast('Picture updated')
+    })
+    .catch((error: unknown) => showToast(writeFailureMessage(error)))
+}
+
+/**
+ * 7.15's `DELETE /me/avatar`, the other half of the seam above.
+ *
+ * Through `mutateApi` rather than a hand-written `fetch` for the reason the
+ * header gives for the upload: one write path, the CSRF header the caller
+ * cannot forget, the offline check, and 9.1's "Couldn't save. You're offline."
+ * on a Remove pressed with no connection. The route answers 204, so nothing is
+ * parsed; the `/me` read is what tells every surface the picture is gone, and
+ * invalidating is what makes the sidebar, the roster and the rows agree with
+ * this screen in the same frame.
+ */
+export function clearViewerImage(): void {
+  const client = queryClient()
+  void mutateApi(null, { method: 'DELETE', path: '/me/avatar' })
+    .then(() => {
+      void client?.invalidateQueries()
+      /* The mirror of the upload's own toast: a removal says when it landed. */
+      showToast('Picture removed')
     })
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }

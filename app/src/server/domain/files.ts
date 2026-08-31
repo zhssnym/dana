@@ -273,3 +273,44 @@ export async function setAvatar(
   )
   return created
 }
+
+/*
+7.15's other avatar arm, added in the polish round of 2026-08-30 under the
+owner's waiver of section 7's freeze: clear `users.avatar_url` and take the
+stored picture with it.
+
+**The file row goes rather than staying, and the choice is `setAvatar`'s own
+reasoning read the other way.** That function already deletes the previous
+avatar row and its bytes on every upload, "one avatar being the shape of the
+feature and the quota's reason"; a Remove that left the row would keep an
+account's quota (10.3's 1 GB) spent on a picture nothing points at and no
+surface can ever show again, and would leave the bytes on a serving path that
+still answers to anyone holding the URL. Neither is what the word Remove
+promises. There is no history to preserve: an avatar is a current fact about a
+person and not a record of one, which is what separates it from a comment's
+attachment, where 4.16 hangs the file on something that was said.
+
+**Idempotent, and it answers 204 either way**, per 7.15's own removal shape
+and 10.2's discipline that a person's second press of a control they have
+already used is not an error. A viewer whose picture came from Google at
+sign-in has a column and no row of their own; clearing the column is still the
+whole of what Remove means there, and the loop below simply removes nothing.
+*/
+export async function clearAvatar(
+  db: Db,
+  store: ObjectStore,
+  viewerId: string,
+): Promise<void> {
+  const removed = await inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`UPDATE users SET avatar_url = NULL WHERE id = ${viewerId}`,
+    )
+    return rowsOf(
+      tx,
+      sql`DELETE FROM files
+          WHERE owner_id = ${viewerId} AND kind = 'avatar'
+          RETURNING id`,
+    )
+  })
+  for (const row of removed) await store.remove(String(row.id))
+}

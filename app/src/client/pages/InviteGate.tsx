@@ -134,7 +134,15 @@ export function InviteGate({
                   key={row.id}
                   className="grid min-h-[116px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 py-5"
                 >
-                  <PersonFace name={row.inviter} initials={row.initials} className="size-8" />
+                  {/* polish round-2: the inviter's own picture, which 7.5's
+                      element has always carried; the tinted disc is what a
+                      person with no picture falls back to. */}
+                  <PersonFace
+                    name={row.inviter}
+                    initials={row.initials}
+                    image={row.image ?? null}
+                    className="size-8"
+                  />
 
                   <div className="min-w-0">
                     {/* 9.8's sentence, one text run, which is what tells a

@@ -26,6 +26,7 @@ import {
 } from '../auth/index.js'
 import {
   MAX_FILE_BYTES,
+  clearAvatar,
   createFile,
   deleteFile,
   serveFile,
@@ -294,6 +295,36 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         .status(200)
         .json({ avatar_url: `/api/v1/files/${outcome.id}` })
     }),
+  )
+
+  /*
+  7.15's removal, added in the polish round of 2026-08-30 under the owner's
+  waiver of section 7's freeze.
+
+  It is not `parsed`: there is no multipart body to read, and running the
+  upload parser over a bodiless DELETE would be a middleware looking for a
+  part that by definition is not there. Otherwise it is the POST's own
+  contract, session, CSRF and the general mutation limit, so a picture is
+  removed under exactly the guard it was set under.
+
+  204 and no body, which is 7.0's shape for a mutation with nothing to
+  report, and idempotent: the domain clears the column and the stored row
+  whether or not either was there, so a second press is the same act rather
+  than a 404 about a picture the person can already see is gone.
+  */
+  router.delete(
+    '/me/avatar',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const store = storeOf(res)
+      if (store === null) return
+      await clearAvatar(db, store, viewer(req))
+      res.status(204).end()
+    },
   )
 
   return router
