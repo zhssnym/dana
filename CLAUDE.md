@@ -10,12 +10,17 @@ and an orientation sketch of the architecture. **Everything else is a pointer.**
 stated twice is a rule that will one day disagree with itself, so nothing here restates
 a rule that lives elsewhere.
 
-**The workflow is being restructured, and this file is mid-migration.** Until
-`docs/workflow/` exists, the plan and the reasoning behind it are in
-`docs/restructuring-workflow-pipelines/`, which is the current authority on how work is
-meant to flow. The former rulebook at `docs/team/_shared-protocol.md` has been deleted
-along with the thirteen personas. Other references to `docs/team/` and `docs/design/`
-still survive in the specification and in source comments; they are being removed.
+**How work flows is `docs/workflow/`.** Start at `docs/workflow/README.md`, then read the
+file for your side: `docs/workflow/frontend/README.md` or `docs/workflow/backend/README.md`.
+Each side's file is meant to be complete enough to work from on its own. Nothing about
+process is restated in this file.
+
+The restructure that produced that folder is still in progress, and its reasoning and
+remaining phases are in `docs/restructuring-workflow-pipelines/`. The former rulebook at
+`docs/team/_shared-protocol.md` is deleted, along with the thirteen personas that depended on
+it; three agents in `.claude/agents/` replace them. Other references to `docs/team/` and
+`docs/design/` still survive in the specification and in source comments, and are being
+removed.
 
 ## Before implementation work
 
