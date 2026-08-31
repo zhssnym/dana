@@ -18,6 +18,9 @@ Read this first. It is short on purpose.
    Say so in the pull request and leave it failing.
 8. **Say you are blocked rather than saying you are done.** A blocked agent is recoverable.
    A false green is not, because everything after it is built on top.
+9. **The repository is not a scratchpad.** Anything unresolved is a GitHub issue, not a file.
+   Open questions, notes to self, things to come back to: an issue, labelled and assigned.
+   Do the work, act on it, then delete the file.
 
 Merging into `main` deploys to production within minutes. There is no staging. That is why
 rules 2 and 8 exist.

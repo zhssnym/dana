@@ -52,6 +52,7 @@ Every issue gets an **area** and a **type**.
 | `breaking` | Changes something people already rely on |
 | `blocked` | Cannot proceed until something else lands. Say what, in a comment |
 | `rfc` | This work has an RFC |
+| `open-question` | A decision nobody has made yet. Always assigned to whoever decides it |
 | `handoff-to-backend` | The frontend needs something from the server |
 | `handoff-to-frontend` | The backend needs something from the client |
 
@@ -128,6 +129,39 @@ issue points at it. That folder does not exist yet, which is the expected state.
 
 **When the work is merged, close the handoff issue and delete the document if there was
 one.** This repository is working code, not an archive of finished conversations.
+
+### The repository is not a scratchpad
+
+**Anything unresolved lives in GitHub, not in a file.** An open question, a thing to come
+back to, a "we should decide this later", a note to self: that is an issue.
+
+The rule exists because the alternative was tried and it failed in a specific, measurable
+way. `docs/spec/13-open-questions.md` accumulated **57 items**, most of them long since
+decided, in a file nobody revisited. A question parked in a document is invisible: it
+notifies nobody, it has no owner, nothing marks it answered, and it is indistinguishable at a
+glance from a question that still matters. Fifty-seven of them together are simply weight,
+and weight is what stops a document being read at all.
+
+An issue is the opposite of all of that. It notifies someone, it has an assignee, it closes,
+and closed is visibly different from open.
+
+**When you meet an open question:**
+
+1. Open an issue, labelled `open-question`.
+2. **Assign it.** A product question, about what Dana should do or become, goes to Imran: he
+   decides where the product goes. A technical question, about how something should work,
+   goes to Hassan.
+3. Write it so the assignee can answer it. Anything going to Imran must be answerable
+   **without reading code**.
+4. Do not also write it into a document. The issue is the record.
+
+The same rule covers audits, investigations, handoffs and one-off reports: **do the work,
+act on it, then delete the file.** Git history keeps everything, and nothing that has stopped
+being true should be sitting in a folder waiting to mislead someone.
+
+The test for whether something belongs in the repository at all: *is this true of the
+product today, and will it still be true next month?* A specification is. A workflow rule is.
+A question is not.
 
 ### Reporting a problem you are not going to fix
 
