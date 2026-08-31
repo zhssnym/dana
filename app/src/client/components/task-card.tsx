@@ -537,8 +537,6 @@ function CardFooter({
   openIn?: ReactNode
   chrome?: "inline" | "surface"
 }) {
-  const [copied, setCopied] = useState(false)
-
   return (
     /*
     The footer is shaded, and that needs squaring with DES-099, which says
@@ -588,7 +586,11 @@ function CardFooter({
       than above it.
       */}
       <TaskHistoryBlock taskId={taskId} />
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
+      {/* `empty:hidden` because this row can now render nothing at all: in a
+          surface it holds the Activity line alone, and that line is absent
+          until the events arrive. A padded shaded strip with nothing in it is
+          the same useless space the Copy link icon was removed for. */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 empty:hidden">
         {/*
         The edited line is the History control, rather than a caption beside one,
         F5, 2026-08-22.
@@ -611,61 +613,74 @@ function CardFooter({
         the telling no longer has to be pressed to be read.
         */}
         <TaskActivity taskId={taskId} />
-        <span className="flex shrink-0 items-center gap-0.5">
-          {/*
-          Four controls left this row at F5, and each for a stated reason rather
-          than for tidiness.
+        {/*
+        Five controls have left this row now, and each for a stated reason
+        rather than for tidiness.
 
-          **Undo and Redo** were the safety net that replaced Save and Cancel,
-          and they were the right instinct wired to the wrong metaphor: a card
-          footer promises text-editor semantics a to-do app does not have, and
-          both buttons were in fact permanently disabled. The net is real now and
-          app-wide, `lib/undo.ts`, one bar and Ctrl/Cmd+Z, which also covers
-          deleting and abandoning a task, which a card-local undo never could.
+        **Undo and Redo** were the safety net that replaced Save and Cancel,
+        and they were the right instinct wired to the wrong metaphor: a card
+        footer promises text-editor semantics a to-do app does not have, and
+        both buttons were in fact permanently disabled. The net is real now and
+        app-wide, `lib/undo.ts`, one bar and Ctrl/Cmd+Z, which also covers
+        deleting and abandoning a task, which a card-local undo never could.
 
-          **Share** and **Email** were fictions about the model, and this file's
-          own note said so before they were removed: Dana shares *folders*, so
-          "share this task" either invites somebody to the whole folder, which
-          is not what the button appears to promise, or it is a new sharing
-          model nobody has specified. Sharing lives on the folder page, where it
-          is true.
+        **Share** and **Email** were fictions about the model, and this file's
+        own note said so before they were removed: Dana shares *folders*, so
+        "share this task" either invites somebody to the whole folder, which
+        is not what the button appears to promise, or it is a new sharing
+        model nobody has specified. Sharing lives on the folder page, where it
+        is true.
 
-          Copy link stays and now actually copies.
-          */}
-          <IconAction
-            icon={Link2}
-            label={copied ? "Link copied" : "Copy link"}
-            onClick={() => {
-              void navigator.clipboard?.writeText(
-                `${window.location.origin}/?task=${taskId ?? ""}`,
-              )
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), 1600)
-            }}
-          />
-          {/* Real since the task surface exists (DES-136): full screen from
-              the card, one press. Inside a surface the chrome above already
-              owns the views and the close, so the footer offers neither,
-              two closes in one card is one too many. In the lab, where no
-              surface host exists, it stays honestly disabled. */}
-          {chrome === "inline" ? (
-            <>
-              {/* The same "Open in…" the row offers, so both entry points
-                  behave alike, the footer used to jump straight to full
-                  screen, which made one control a choice and the other a
-                  verdict (DES-138). */}
-              {openIn ?? (
-                <IconAction
-                  icon={Maximize2}
-                  label="Open full screen"
-                  disabled={!onExpand}
-                  onClick={onExpand}
-                />
-              )}
-              <IconAction icon={X} label="Close" onClick={onClose} />
-            </>
-          ) : null}
-        </span>
+        **Copy link went at the round of 2026-08-31, on the owner's call, and
+        it is the one removal here that overrides the prototype rather than
+        following it.** `docs/design/prototype-v2/src/components/task-card.tsx`
+        still draws the same `IconAction` in the same band, so this is not a
+        parity fix and must not be read back as drift; his words were that on
+        the open task the share link "is so much big, it's like a whole block
+        ... you can get to that share link either way by going to the three
+        dots, so it's just useless space". In a surface the band's whole
+        trailing cluster was that one icon, `chrome === "surface"` drawing
+        neither the expand nor the close, so a full-bleed row of chrome
+        existed to carry a single act.
+
+        **The act is not lost, which is the only thing that made this safe.**
+        It is `copy-link` in `lib/object-acts.ts`'s task contract, drawn by
+        every "More actions" menu the surface and the row already carry, and
+        supplied from the object's own id (`task-surface.tsx` and
+        `task-row.tsx` both pass `onCopyLink`). Spec 9.3 puts it there and
+        only there: its footer sentence names "the completion control, the
+        star, and 'More actions' (History, Copy link, ...)", so the standalone
+        icon was a second door the section never asked for.
+
+        **And the door that went was the wrong one anyway.** It wrote
+        `${origin}/?task=<id>`, the prototype's address scheme, while
+        `lib/nav-links.ts` is the one place that decides where an object lives
+        and answers 9.1's `/app/tasks/:id`; the menu's act goes through
+        `lib/task-acts.ts` and therefore through that module. Two doors, two
+        answers, and the one being removed gave the wrong one.
+        */}
+        {chrome === "inline" ? (
+          <span className="flex shrink-0 items-center gap-0.5">
+            {/* Real since the task surface exists (DES-136): full screen from
+                the card, one press. Inside a surface the chrome above already
+                owns the views and the close, so the footer offers neither,
+                two closes in one card is one too many. In the lab, where no
+                surface host exists, it stays honestly disabled. */}
+            {/* The same "Open in…" the row offers, so both entry points
+                behave alike, the footer used to jump straight to full
+                screen, which made one control a choice and the other a
+                verdict (DES-138). */}
+            {openIn ?? (
+              <IconAction
+                icon={Maximize2}
+                label="Open full screen"
+                disabled={!onExpand}
+                onClick={onExpand}
+              />
+            )}
+            <IconAction icon={X} label="Close" onClick={onClose} />
+          </span>
+        ) : null}
       </div>
     </div>
   )
