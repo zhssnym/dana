@@ -51,7 +51,6 @@ import {
   Moon,
   Monitor,
   ImagePlus,
-  Download,
   Globe,
   ListTodo,
   Settings,
@@ -642,22 +641,12 @@ export function SettingsScreen({
               </div>
             </SettingsSection>
 
-            <SettingsSection
-              id="settings-install"
-              title="Install Dana"
-              description="Install Dana from your browser to open it like a regular desktop app."
-            >
-              <div className="flex min-h-14 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
-                <div className="flex size-10 shrink-0 items-center justify-center text-[var(--color-graphite-500)]">
-                  <Download className="size-5" strokeWidth={1.75} aria-hidden="true" />
-                </div>
-                {/* polish: settings F8. A "Browser menu" chip styled as a
-                    button did nothing; the sentence is the whole answer. */}
-                <p className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
-                  Use the install option in your browser&apos;s address bar or application menu.
-                </p>
-              </div>
-            </SettingsSection>
+            {/* The Install section left at polish round-2 (2026-08-30, the
+                owner's own ruling): the browser already offers the install
+                affordance in its address bar, so a Settings block saying so
+                again was repetition occupying a section. 10.6's manifest and
+                the service worker are untouched — the app installs exactly
+                as before, from where the browser puts it. */}
 
             {/*
             "Deleting your account", not "Danger zone": Imran, 2026-08-22.
