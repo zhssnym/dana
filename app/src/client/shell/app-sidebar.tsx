@@ -54,27 +54,57 @@ in. A name built by interpolating the object the control acts on also puts
 fixture data into the one namespace a test has to know before it reads the
 fixture, which is 9.1's own argument at the avatar menu.
 
-**The rail keeps the whole list, and his hides half of it.** His folder
-directory carries `group-data-[collapsible=icon]:hidden`, so collapsing to the
-rail drops Inbox, every label group and every folder. 9.1 says the width and
-the collapsed state "change nothing about what the sidebar holds", and AC-182
-asserts that the rail still reaches every page and every folder. So the class
-is gone from the directory and the rows survive; what makes the rail look like
-a rail is the primitive's own `size-8!` and `overflow-hidden`, which clips a
-row's label without removing it from the accessibility tree. The section
-headings, which name nothing a person can reach, are hidden there instead.
+**The rail holds the folder you are in and the folders you have open, which
+is neither what this file used to do nor what his does.** His folder directory
+carries `group-data-[collapsible=icon]:hidden`, so collapsing to the rail
+drops Inbox, every shelf and every folder. This file dropped that class and
+kept all of them, on a sentence 9.1 carried at the time, "the width and the
+collapsed state change nothing about what the sidebar holds", and on AC-182,
+which asserts that the rail still reaches every page and every folder. **That
+sentence is no longer in 9.1**: RFC 0005 rewrote the section and it did not
+survive, so what the rail must hold is no longer stated anywhere except in
+that criterion. The owner ruled on the surface itself on 2026-08-30: a rail
+listing one anonymous glyph per folder is a wall rather than a list, and what
+belongs in 56 pixels is the folder in front of you and the ones you already
+have open. `railFolderIds` and `RailLibrary` below are that rule; the page
+block, the footer and every control are untouched, so what the rail loses is
+folder rows and nothing else.
 
-**Two of the three menus his sidebar carries arrived at R10 with the writes
-they need, and the third is not coming.** The folder row's own menu and the
-folder group's menu are wired below, each to `shell/folder-groups.tsx`, which
-holds 9.1's four operations and the dialogs they open; until R10 they were
-props that were absent rather than markup that had been removed, because a
-control that opens nothing is worse than one that is not there. The one not
-coming is his folder-directory menu: its two entries are "New folder", which
-would be a second control of that name inside this landmark, and "New folder
-group", which 9.1 makes an action on a folder and which is therefore on the
-folder row's menu instead. 9.1's addressing sentence does not admit the first
-and the P8R change control settled the second.
+**AC-182's third case is red on this and is escalated rather than worked
+around.** It opens Desk, collapses the sidebar and asserts a link for
+Groceries, a folder on a shelf that nothing has opened, which is exactly the
+row this change stops drawing. Its own header argues from the 9.1 sentence
+quoted above, which that section no longer carries, so the criterion is
+recommended for amendment to the Adversarial Test Engineer with the reasoning
+in this session's report; it is not edited here, protocol section 8 giving
+those files one owner and this file is not it. Inbox stays drawn wherever the
+viewer is standing on Desk, so that case's other assertion is unaffected.
+
+What makes the rail look like a rail otherwise is unchanged: the primitive's
+own `size-8!` and `overflow-hidden` clip a row's label without removing it
+from the accessibility tree, and the section headings, which name nothing a
+person can reach, are hidden there.
+
+**All three of the menus his sidebar carries are here now, and the third
+arrived last, at the polish round of 2026-08-30.** The folder row's own menu
+and the folder group's menu were wired at R10, each to
+`shell/folder-groups.tsx`, which holds 9.1's four operations and the dialogs
+they open; until then they were props that were absent rather than markup that
+had been removed, because a control that opens nothing is worse than one that
+is not there.
+
+**The third is his folder-directory menu, and this paragraph used to say it
+was not coming. That reasoning is spent rather than wrong, which is the
+distinction worth keeping.** It read: the menu's two entries are "New folder",
+which would be a second control of that name inside this landmark, and "New
+folder group", which 9.1 makes an action on a folder and which is therefore on
+the folder row's menu instead. Both halves were true of a sidebar whose footer
+carried "New folder" as its one primary action. The owner emptied that footer
+on 2026-08-30 so that the Library could have its room, so there is no second
+control of that name to collide with — this menu is now the only one — and the
+grouping act stays on the folder row exactly as the P8R change control settled
+it. What is drawn here is `LibraryPlusMenu` below: his position and his
+treatment, a "+" rather than his ellipsis, and three entries rather than two.
 
 **Two controls he draws are dropped as unnamed rather than renamed.** `Add
 task to {folder}` on a folder row and `Add folder to {group}` on a group
@@ -108,15 +138,14 @@ import {
   ChevronDown,
   /* Help's glyph, which S8 exported for this menu and named DES-200 for. */
   CircleQuestionMark,
+  Settings,
   FolderPlus,
   Folders,
+  ListPlus,
   Plus,
   LogOut,
-
-
   Search,
   Workflow,
-  Settings as SettingsGlyph,
   Bookmark,
   Trash2,
   UsersRound,
@@ -127,6 +156,7 @@ import { useSidebar } from '../components/ui/sidebar.js'
 import { showToast } from '../state/toasts.js'
 import { FolderRow } from '../components/folder-row.js'
 import { useHelpSheet } from '../components/help-sheet.js'
+import { onWorkflowImportRequest, openTaskForm } from './overlays.js'
 import { Button } from '../components/ui/button.js'
 import {
   Collapsible,
@@ -165,7 +195,8 @@ import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { navPages, paths, pinnedNavPages } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
-import { openInNewTab } from './tabs.js'
+import { openInNewTab, useTabs } from './tabs.js'
+import type { Tab } from './tabs.js'
 import { savedViewPath } from '../views/saved-views.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
@@ -240,10 +271,19 @@ function proposalIn(
    column's memo on every render of the shell above it. */
 const NO_SHELVES: readonly Shelf[] = []
 
-/* One class for the three, because they are one row and a difference between
-   them here would be a difference nobody decided. */
-const ROW_OF_THREE_CLASS =
-  'h-[var(--shell-sidebar-item-height)] w-full justify-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0'
+/*
+The three acts of making, as the Library's "+" names them.
+
+One spelling each, shared with the tab strip's own "+" and with 9.1's names
+table: the footer and the strip were one act reached through two doors even
+while the footer existed, and two doors that disagree about a word are two
+acts as far as anybody reading the screen is concerned. No ellipsis on any of
+the three, on the section's own rule for what one means: each opens its
+surface on the press.
+*/
+const NEW_FOLDER = 'New folder'
+const NEW_SHELF = 'New shelf'
+const NEW_TASK = 'New task'
 
 /**
  * The glyph on a Library group's heading.
@@ -287,6 +327,17 @@ import { PersonFace } from '../components/person-face.js'
  */
 const SEARCH = 'Search'
 const ACCOUNT = 'Account'
+/**
+ * The Library's "+", named at the polish round of 2026-08-30 on the owner's
+ * own ruling and added to 9.1's names table with it.
+ *
+ * One word, like every other fixed string in that table: what it opens is a
+ * menu of the three things a person makes, and a name that listed them would
+ * be the menu read aloud twice. The tab strip's own plus is "New tab" and
+ * this is not that control: it makes things rather than opening places, which
+ * is why the two are named apart.
+ */
+const LIBRARY_NEW = 'New'
 
 /*
 The map that stood here moved to `routes.ts` at S16, onto the page it draws.
@@ -332,6 +383,27 @@ function routerLink(to: string): ReactElement<Record<string, unknown>> {
  * elements concatenate in an accessible name, so without it the row announces
  * "Inbox1". A whitespace-only text node is not laid out as a flex item, so it
  * costs nothing on the screen.
+ *
+ * **The count is positioned rather than laid out, and that is the alignment
+ * defect this wrapper introduced.** Moving the badge inside the anchor moved
+ * it into the anchor's *content box*, and that box stops 4.75rem short of the
+ * row's right edge: `folder-row.tsx` pads the link by that much so the name
+ * truncates before it reaches the actions strip. So every count in the
+ * Library sat 64px left of where the prototype draws it, in a ragged line
+ * that moved with nothing, while the strip that padding was reserving space
+ * for is drawn at `right-1`. The prototype's own badge is
+ * `SidebarMenuBadge` at `right-3`, absolutely positioned against the row, and
+ * this is that geometry expressed from inside the anchor: same offset, same
+ * pill, same fade under the hover that brings the actions strip up, same
+ * absence in the icon rail. The name keeps its padding and still truncates
+ * before the number.
+ *
+ * `!absolute` carries the important marker on purpose. The link's own class
+ * string sets `[&>*]:relative` on every direct child, to lift the row's
+ * contents above the `before:` wash behind them, and Tailwind emits `.absolute`
+ * ahead of `.relative` in the same layer, so the two collide at equal
+ * specificity and the variant wins on source order. Measured against
+ * tailwindcss 4.3.3 rather than assumed.
  */
 interface FolderRowLinkProps extends Omit<React.ComponentPropsWithRef<'a'>, 'href'> {
   readonly to: string
@@ -350,7 +422,7 @@ function FolderRowLink({
       {pending > 0 ? (
         <>
           {' '}
-          <span className="shrink-0 rounded-full bg-[var(--color-graphite-200)] px-1.5 text-[0.625rem] leading-5 text-[var(--color-graphite-600)] tabular-nums">
+          <span className="pointer-events-none !absolute top-1/2 right-3 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-graphite-200)] px-1.5 text-[0.625rem] leading-5 font-medium text-[var(--color-graphite-600)] tabular-nums transition-opacity select-none group-data-active/menu-button:text-[var(--color-graphite-800)] group-hover/folder-row:opacity-0 group-focus-within/folder-row:opacity-0 group-data-[collapsible=icon]:hidden">
             {pending}
           </span>
         </>
@@ -468,6 +540,51 @@ function NavigationRow({
  */
 function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
+}
+
+/** The prefix of 9.1's folder route, so a tab's path can be read back to an id. */
+const FOLDER_PATH = paths.folder('')
+
+/**
+ * Which folders the icon rail draws.
+ *
+ * **The rail used to draw every one of them, and that is the defect.** The
+ * port kept the whole Library there deliberately, against a sentence 9.1 no
+ * longer carries ("the width and the collapsed state change nothing about
+ * what the sidebar holds", removed from that section by RFC 0005), and the
+ * result is a 56px strip holding one anonymous glyph per folder an account
+ * has. The designer's own answer is `group-data-[collapsible=icon]:hidden`
+ * on the whole directory: his rail holds no folders at all. What is drawn
+ * here sits between the two, on the owner's instruction of 2026-08-30: the
+ * rail holds the folder you are standing in and the folders you already have
+ * open, which is the part of the Library a rail is narrow enough to be about.
+ *
+ * **"Open" is the tab strip's own word.** 9.1 makes the strip the set of
+ * places the viewer has open and "the place the viewer stands on is the
+ * active tab", so a folder is open exactly when a tab points at it. Nothing
+ * new is remembered to answer the question, which matters: a second record of
+ * what is open would be a second opinion about it.
+ *
+ * Desk is the default folder's own page (9.1's routes table gives that folder
+ * `/app` rather than a folder path), so a tab standing on Desk is that folder
+ * open and its row is drawn. Without that clause the one folder every account
+ * has would be the one the rail dropped first.
+ */
+function railFolderIds(
+  tabs: readonly Tab[],
+  activeFolderId: string | null,
+  defaultFolderId: string | null,
+): ReadonlySet<string> {
+  const open = new Set<string>()
+  if (activeFolderId !== null) open.add(activeFolderId)
+  for (const tab of tabs) {
+    if (tab.path === paths.desk) {
+      if (defaultFolderId !== null) open.add(defaultFolderId)
+    } else if (tab.path.startsWith(FOLDER_PATH)) {
+      open.add(tab.path.slice(FOLDER_PATH.length))
+    }
+  }
+  return open
 }
 
 /*
@@ -1218,6 +1335,162 @@ function LibraryColumn({
 }
 
 /**
+ * The Library as the icon rail draws it: a flat list of the folders
+ * `railFolderIds` names, in the column's own order.
+ *
+ * **Flat rather than the column, because the rail has already lost what makes
+ * the column a column.** A shelf's heading is hidden there and has been since
+ * the port, having no room for a name, so a shelf section in the rail is an
+ * empty caption over some folders: it contributes a named region a screen
+ * reader announces and a person cannot see, four pixels of padding, and a
+ * tree line the row's own class already hides. Drawing the survivors as one
+ * list says exactly what the rail shows.
+ *
+ * **And no drag.** `LibraryColumn`'s engine sorts the sequence it is
+ * rendering, and a rail rendering a filtered list would write an arrangement
+ * of the folders it happens to be showing over the arrangement of all of
+ * them. Rearranging the Library is what the Library's own width is for.
+ *
+ * The order is `arrangeColumn`'s, so a folder keeps the place the viewer put
+ * it in rather than the order the tabs happen to be in: the rail is a
+ * narrower view of one list, not a second list.
+ */
+function RailLibrary({
+  folders,
+  shelves,
+  order,
+  shown,
+  activeId,
+  groups,
+}: {
+  readonly folders: readonly Folder[]
+  readonly shelves: readonly Shelf[]
+  readonly order: readonly string[]
+  readonly shown: ReadonlySet<string>
+  readonly activeId: string | null
+  readonly groups: FolderGroupActions
+}): React.JSX.Element {
+  const rows = useMemo(
+    () =>
+      arrangeColumn(folders, order, shelves)
+        .flatMap((entry) => (entry.kind === 'group' ? entry.folders : [entry.folder]))
+        .filter((folder) => shown.has(folder.id)),
+    [folders, order, shelves, shown],
+  )
+  return (
+    <SidebarGroupContent>
+      <SidebarMenu className="mt-1">
+        {rows.map((folder) => (
+          <SidebarFolderRow
+            key={folder.id}
+            folder={folder}
+            activeId={activeId}
+            groups={groups}
+          />
+        ))}
+      </SidebarMenu>
+    </SidebarGroupContent>
+  )
+}
+
+/**
+ * The Library's "+": one door to the three things a person makes.
+ *
+ * **This is the whole of what the footer's four acts became** (polish round,
+ * 2026-08-30, the owner's own ruling: "leave only New shelf and New folder and
+ * New task side by side or just put them into a '+' icon just like Imran said,
+ * somewhere around easy to find in the sidebar"). A primary button, a row of
+ * two and a hidden input took four rows of the footer for three acts; a menu
+ * takes one control on a row that was already there, and every pixel it saves
+ * is a pixel the Library's scroll area gets.
+ *
+ * **It sits on the Library's heading because that is where Imran drew it**, at
+ * `prototype-v2/src/components/app-sidebar.tsx:624`: a ghost icon button at
+ * the right end of the heading row, opening New folder and New shelf. The
+ * treatment is his — `size-6`, rounded, the graphite ghost — and the glyph is
+ * the `Plus` his shelf headings already carry for "Add folder to {shelf}",
+ * which is the same act one level down and now reads as the same affordance
+ * two places in one list.
+ *
+ * **Two departures from him, and both are this round's own rulings.** His
+ * control is `MoreHorizontal` and rests at `opacity-0` until the heading is
+ * hovered; this one is a "+" and rests visible. The owner asked for a "+" and
+ * for it to be easy to find, and the round has already settled the general
+ * form of the second half twice: 9.11's "a row whose only controls appear on
+ * hover is a row with nothing to press", and the tab strip's close control,
+ * drawn at rest for the same reason on the same day. A touchscreen has no
+ * hover to give, so a revealed control is a control a phone cannot find at
+ * all.
+ *
+ * **New task is the third item and is neither his nor 9.1's**, arriving with
+ * the same round that put it on the tab strip's "+"; it is recorded in 9.1
+ * with this change. It opens a plain task and carries none of 9.3's entry
+ * defaults, for that control's own reason: the sidebar belongs to the window
+ * and not to the page under it, so a task made from here is not a task made
+ * on a page.
+ *
+ * **It survives the icon rail, where the heading does not.** The heading has
+ * no room for its word there and is hidden; the row it sits on is not, so the
+ * three acts stay reachable at 56px, which is what the footer's New folder
+ * button did before it and the only thing about the rail this change keeps
+ * from it.
+ */
+function LibraryPlusMenu({
+  onNewFolder,
+  onNewShelf,
+  onNewTask,
+}: {
+  readonly onNewFolder: () => void
+  readonly onNewShelf: () => void
+  readonly onNewTask: () => void
+}): React.JSX.Element {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-900)] data-popup-open:bg-[var(--color-graphite-200)] data-popup-open:text-[var(--color-graphite-900)]"
+            /* 9.1's names table, one word; the sentence that lists the three
+               is the tooltip's, a name that enumerated them being the menu
+               read aloud before it opens. */
+            aria-label={LIBRARY_NEW}
+            title="New folder, shelf or task"
+          />
+        }
+      >
+        <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onNewFolder}
+        >
+          <FolderPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          {NEW_FOLDER}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onNewShelf}
+        >
+          <Folders className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          {NEW_SHELF}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onNewTask}
+        >
+          <ListPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          {NEW_TASK}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
  * 9.1's header: the app name linking to My Day, the global search control,
  * and the rail control.
  *
@@ -1285,7 +1558,8 @@ function SidebarBrandHeader({
 }
 
 /**
- * 9.1's footer control: the avatar menu, ("Account": Settings, Help, Sign out).
+ * 9.1's one footer control: the avatar menu, ("Account": Settings, People,
+ * Trash, Import, Help, Sign out).
  *
  * Named "Account" by 9.1's names table, which took this control at the P8R
  * mid-package change control on 2026-08-13 and gave its reason: what the
@@ -1297,21 +1571,52 @@ function SidebarBrandHeader({
  *
  * **Help arrived at S16 and is the third item that section has always named.**
  * The menu shipped with two, and the sheet behind the third existed in the
- * prototype and in no package's row, so nobody built it. It goes between the
- * two rather than under them, because 9.1 spells the contents as a sequence
- * and because what the menu holds is the things that are about the
- * application rather than about your work; Sign out is the door, and a door
- * belongs last.
+ * prototype and in no package's row, so nobody built it.
+ *
+ * **Four more arrived at the polish round of 2026-08-30, and the reason is one
+ * sentence of the owner's: "my goal is that there is more space for the
+ * Library so people can see a big picture of what's going on in their app."**
+ * The footer held seven controls above this one — a New folder button, a row
+ * of two, three navigation rows and a hidden input — and every one of them was
+ * vertical room the Library did not have. The three acts of making moved to
+ * the Library's own "+" (below) and the other three, People, Import and Trash,
+ * came in here, which leaves the footer the account row alone.
+ *
+ * **The order is the object-menu contract's read onto an account**, which is
+ * the one ordering rule this repository already has: reach it, change it,
+ * destroy it, and the door last. So the places this account owns first
+ * (Settings, People, Trash — Trash standing with the places is sidebar F10's
+ * own ruling from earlier the same day, restated rather than reopened); then
+ * the act and the sheet that are about the application rather than about your
+ * work (Import, Help); then Sign out alone behind its separator, because a
+ * door belongs last and because a door beside a bin is a misclick nobody
+ * wanted.
+ *
+ * **The three that were links are menu items here**, which is a role change
+ * and is recorded as one: 9.1's roles table makes the page block links, and
+ * these three were never in it. Settings has been a menu item since earlier
+ * this round and nothing about it read wrong; what a menu item costs is the
+ * middle click that opened a page in a tab, and the tab strip's own "+" opens
+ * any place as a tab, so the gesture is not lost, only moved.
  */
 function AccountMenu({
   displayName,
   image = null,
+  onOpenSettings,
+  onOpenPeople,
+  onOpenTrash,
+  onImport,
   onOpenHelp,
   onSignOut,
 }: {
   readonly displayName: string | null
   /** polish: settings F7. 7.15's avatar, drawn here as everywhere else. */
   readonly image?: string | null
+  readonly onOpenSettings: () => void
+  readonly onOpenPeople: () => void
+  readonly onOpenTrash: () => void
+  /** Presses the one file input this sidebar owns; see `workflowInput`. */
+  readonly onImport: () => void
   readonly onOpenHelp: () => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
@@ -1335,11 +1640,46 @@ function AccountMenu({
           </SidebarMenuButton>
         }
       />
-      <DropdownMenuContent side="right" align="end" className="w-44">
-        {/* polish: sidebar F3. Settings was here and four rows up as a foot
-            link; the link a newcomer finds first is the survivor, so this
-            menu keeps what is about the person and the application: their
-            name, Help, and the door. */}
+      <DropdownMenuContent side="right" align="end" className="w-48">
+        {/* Settings came back into this menu earlier the same day, sidebar F3
+            having taken it out as a duplicate of the foot link; the foot link
+            is what went in the end, so this is now the one door to it. */}
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onOpenSettings}
+        >
+          <Settings className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onOpenPeople}
+        >
+          <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          People
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onOpenTrash}
+        >
+          <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Trash
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {/*
+        Import presses the one file input the application has, which lives in
+        this sidebar's footer and stays there: a second input here would be a
+        second answer to one selector, which is the fault the prototype's own
+        comment records against exactly this control and the reason the tab
+        strip's "+" asks through `overlays.ts` rather than growing one.
+        */}
+        <DropdownMenuItem
+          className="min-h-[var(--control-height)] text-sm"
+          onClick={onImport}
+        >
+          <Workflow className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Import
+        </DropdownMenuItem>
         <DropdownMenuItem
           className="min-h-[var(--control-height)] text-sm"
           onClick={onOpenHelp}
@@ -1442,17 +1782,42 @@ export function AppSidebar({
 }): React.JSX.Element {
   const [foldersOpen, setFoldersOpen] = useState(true)
   const { setOpen: setHelpOpen, sheet: helpSheet } = useHelpSheet()
+  /* For the account menu's Settings item alone; every other navigation in
+     this file happens in the row components, which hold their own. */
+  const navigate = useNavigate()
   /* polish: sidebar F1. On a phone the sidebar is a drawer, and a drawer
      closes on the navigation it was opened to make: the shell's `PhoneBar`
      opens it, and this effect on the route closes it. */
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile, state } = useSidebar()
   useEffect(() => {
     if (isMobile) setOpenMobile(false)
   }, [currentPath, currentSearch, isMobile, setOpenMobile])
+  /* The icon rail, which is a desktop state alone: below 768px the sidebar is
+     a drawer at its full width (9.1), and `ui/sidebar.tsx` sets
+     `data-collapsible` on the desktop element only, so the rail's own rule
+     has to be scoped the same way or a phone would get it. */
+  const railed = state === 'collapsed' && !isMobile
+  const { tabs } = useTabs()
   /* The file input the Import button presses, hidden because a bare file
      control cannot be given the row's shape and a button that opens one can. */
   const workflowInput = useRef<HTMLInputElement>(null)
+  /* The tab strip's "+" offers Import too (9.1's plus sentence, closed at
+     the polish round of 2026-08-30), and the one file input belongs here; the
+     strip asks through `overlays.ts` and this presses it. */
+  useEffect(
+    () =>
+      onWorkflowImportRequest(() => {
+        workflowInput.current?.click()
+      }),
+    [],
+  )
   const inbox = inboxOf(folders ?? [])
+  /* Memoised because `RailLibrary` filters on it: a fresh Set every render
+     would rebuild that list whenever any chrome query settled. */
+  const railShown = useMemo(
+    () => railFolderIds(tabs, activeFolderId, inbox?.id ?? null),
+    [tabs, activeFolderId, inbox],
+  )
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
   /* polish: places F3. Done, Anytime and Abandoned ship unpinned and had no
@@ -1580,14 +1945,13 @@ export function AppSidebar({
         />
 
         {/* `mt-2` is the prototype's: the Library stands off the page block
-            above it. Its `group-data-[collapsible=icon]:hidden` is not taken,
-            9.1 keeping the folder rows reachable in the rail where the
-            prototype hides the whole section. */}
+            above it. Its `group-data-[collapsible=icon]:hidden` is still not
+            taken, because the rail keeps the folders the header's rail
+            paragraph names rather than none of them; what the rail drops it
+            drops by not rendering the row, which is a fact about the list and
+            not about the block around it. */}
         <Collapsible className="mt-2" open={foldersOpen} onOpenChange={setFoldersOpen}>
           <SidebarGroup className="py-0">
-            {/* The heading is hidden in the rail and the rows below it are
-                not, which is 9.1's "changes nothing about what the sidebar
-                holds" applied to the half of the list a person can reach. */}
             {/*
             The Library block of 9.1, and it is a heading wrapping the
             control rather than a control alone. That section's regions
@@ -1597,26 +1961,46 @@ export function AppSidebar({
             leaves the block unnamed in the document outline, which is
             what AC-214 reads when it asks for the heading.
 
-            The heading is hidden in the rail and the rows below it are
-            not, which is 9.1's "changes nothing about what the sidebar
-            holds" applied to the half of the list a person can reach.
+            The heading is hidden in the rail, where it has no room for its
+            word and names nothing a person can reach; the rows below it are
+            drawn there under the rule the header's rail paragraph records.
             */}
-            <h2 className="group/folder-directory flex h-8 items-center px-1 group-data-[collapsible=icon]:hidden">
-              <CollapsibleTrigger
-                data-sidebar-tier="section"
-                className="group/folder-directory-trigger flex h-6 min-w-0 flex-1 items-center rounded-md px-2 text-left text-[11px] font-semibold text-[var(--color-graphite-600)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-ring/30"
-              >
-                <span className="truncate">Library</span>
-                <ChevronDown
-                  className={`ml-1 size-3.5 shrink-0 text-[var(--color-graphite-500)] opacity-0 transition-[opacity,transform] group-hover/folder-directory-trigger:opacity-100 group-focus-visible/folder-directory-trigger:opacity-100 ${foldersOpen ? '' : '-rotate-90'}`}
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-              </CollapsibleTrigger>
-              {/* polish: sidebar F7. The "Library options" menu that hung
-                  here offered New folder and New shelf, which the foot
-                  already offers eight rows down; one door per act. */}
-            </h2>
+            {/*
+            The heading row is the prototype's own `div` again, with the
+            heading inside it rather than around it (polish round,
+            2026-08-30). It held only the `h2` while the controls were in the
+            footer; the "+" is beside the word now, and an `h2` wrapping both
+            would give the document outline a heading called "Library New".
+            The word is the heading, the control is its neighbour, and the row
+            is what the two share.
+            */}
+            <div className="group/folder-directory flex h-8 items-center px-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+              <h2 className="flex min-w-0 flex-1 items-center group-data-[collapsible=icon]:hidden">
+                <CollapsibleTrigger
+                  data-sidebar-tier="section"
+                  className="group/folder-directory-trigger flex h-6 min-w-0 flex-1 items-center rounded-md px-2 text-left text-[11px] font-semibold text-[var(--color-graphite-600)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-ring/30"
+                >
+                  <span className="truncate">Library</span>
+                  <ChevronDown
+                    className={`ml-1 size-3.5 shrink-0 text-[var(--color-graphite-500)] opacity-0 transition-[opacity,transform] group-hover/folder-directory-trigger:opacity-100 group-focus-visible/folder-directory-trigger:opacity-100 ${foldersOpen ? '' : '-rotate-90'}`}
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                </CollapsibleTrigger>
+              </h2>
+              {/* polish: sidebar F7 said the "Library options" menu that hung
+                  here was a second door to what the foot already offered,
+                  "one door per act", and took it out. The foot no longer
+                  offers them, so this is the one door and the rule holds
+                  rather than being reversed. */}
+              <LibraryPlusMenu
+                onNewFolder={onNewFolder}
+                onNewShelf={onNewShelf}
+                onNewTask={() => {
+                  openTaskForm({})
+                }}
+              />
+            </div>
             <CollapsibleContent>
               {/* Inbox above the column and never in it: 9.1 pins it first,
                   above the label groups and never inside one, so it is the
@@ -1625,7 +2009,14 @@ export function AppSidebar({
                   has enforced since R10. */}
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {inbox === null ? null : (
+                  {/* Pinned above the column, and in the rail only when it is
+                      one of the folders the rail is about: Desk is the page
+                      block's own entry there, so an Inbox row drawn beside it
+                      for a folder nobody is standing in is the same glyph
+                      twice. `railFolderIds` reads a tab on Desk as this
+                      folder open, which is what keeps it drawn wherever it is
+                      the folder in front of you. */}
+                  {inbox === null || (railed && !railShown.has(inbox.id)) ? null : (
                     <SidebarFolderRow
                       folder={inbox}
                       activeId={activeFolderId}
@@ -1635,108 +2026,63 @@ export function AppSidebar({
                 </SidebarMenu>
               </SidebarGroupContent>
 
-              <LibraryColumn
-                folders={folders ?? []}
-                shelves={shelves ?? NO_SHELVES}
-                order={sidebarOrder}
-                onOrderChange={onSidebarOrderChange}
-                activeId={activeFolderId}
-                groups={groupActions}
-              />
+              {railed ? (
+                <RailLibrary
+                  folders={folders ?? []}
+                  shelves={shelves ?? NO_SHELVES}
+                  order={sidebarOrder}
+                  shown={railShown}
+                  activeId={activeFolderId}
+                  groups={groupActions}
+                />
+              ) : (
+                <LibraryColumn
+                  folders={folders ?? []}
+                  shelves={shelves ?? NO_SHELVES}
+                  order={sidebarOrder}
+                  onOrderChange={onSidebarOrderChange}
+                  activeId={activeFolderId}
+                  groups={groupActions}
+                />
+              )}
             </CollapsibleContent>
           </SidebarGroup>
         </Collapsible>
       </SidebarContent>
 
       <SidebarFooter className="gap-0 py-2">
-        <SidebarMenu className="mb-1">
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              data-sidebar-tier="action"
-              tooltip="New folder"
-              /* `w-full` and the two rail overrides are the prototype's and
-                 were dropped in the port: without them 9.1's one primary
-                 footer action is a button the width of its own label, and in
-                 the icon rail it keeps its full height and padding where
-                 every other rail control is a square. */
-              className="h-[var(--shell-sidebar-item-height)] w-full justify-center gap-2 rounded-lg border border-transparent bg-[var(--color-graphite-100)] px-3 text-[13px] font-semibold text-[var(--color-graphite-600)] shadow-none hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-600)] group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:px-0"
-              onClick={onNewFolder}
-            >
-              <FolderPlus className="!size-4" strokeWidth={1.75} aria-hidden="true" />
-              <span className="group-data-[collapsible=icon]:hidden">New folder</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
         {/*
-        The row of three (DES-209, DES-216), which arrived at S17b with the
-        surfaces that make it. The sentence this replaces said so in the
-        future tense: "the other two acts that row owes, New shelf and
-        Import, arrive with the surfaces they make."
+        One control, and that is the whole of this change (polish round,
+        2026-08-30, the owner's own ruling).
 
-        9.1: "then a row of three placed by role: New shelf, Import (a
-        workflow file), and Trash, the first two acts of making and the third
-        a destination." **Trash keeps the place the older footer already gave
-        it and gains the two neighbours it was waiting for**, so nothing about
-        the reading that put it here has changed: it is a destination, and it
-        ends the row because it is the only one of the three that is somewhere
-        you go rather than something you do. It is still a link where the
-        other two are buttons, which is that distinction made in the markup
-        rather than only in a comment.
+        The footer held seven things before it: a primary "New folder"
+        button, a row of two acts, the hidden file input, and Trash, People
+        and Settings as three navigation rows, with the account row under
+        them. Six of the seven have somewhere else to be as of the same day —
+        the three acts of making at the Library's own "+", and People, Import
+        and Trash inside the account menu — and what they cost while they sat
+        here was six rows off the bottom of a column whose whole purpose above
+        them is a list that scrolls. The owner's sentence is the argument: "my
+        goal is that there is more space for the Library so people can see a
+        big picture of what's going on in their app." The footer and
+        `SidebarContent` are the fixed and the flexible halves of one column,
+        so every row the first gives up the second takes.
 
-        **Whose label survives narrowing is arithmetic and not rank**
-        (DES-216, and Imran on 2026-08-24: "New shelf is not fully visible,
-        the remaining two should be shortened"). The three words need more
-        room than the default row has, and "New shelf" is the label that was
-        clipping and the one that reads worst clipped, so it keeps its word at
-        every width and the other two go to their glyphs until the row
-        genuinely fits all three. A container query asks the row how much room
-        it has, so the answer follows the drag rather than a breakpoint
-        somebody guessed.
+        What is left is the person, which is the one thing in this footer that
+        was never a door to somewhere else, and the file input, which is not
+        drawn at all.
 
-        **Each carries an `aria-label` as well as its text**, which is not
-        belt and braces: with the label hidden the button would have no
-        accessible name at all, and 9.1's addressing sentence makes every
-        control it names reachable by role and name in every state. The
-        tooltip says more than the name for the same reason it does in the
-        prototype, and 9.1's "all three named by tooltip in every state" is
-        satisfied by the name being inside it.
+        **What each departing control cost, so that nothing is lost silently.**
+        "New folder" was 9.1's one primary action and the only one of the six
+        that was styled as a button rather than a row; it is the first item of
+        the "+" menu, which is where the eye that wants to make something now
+        goes for all three. The row of two carried DES-216's narrowing
+        asymmetry, which was arithmetic about fitting three words into 224
+        pixels and has no subject left. Trash, People and Settings were links
+        and are menu items, which is the one role this change spends; the note
+        on `AccountMenu` says what that costs and why the tab strip's "+"
+        answers it.
         */}
-        {/* polish: sidebar F10. The row is two acts of making now, each
-            with its word at every width: Trash was the third, a destination
-            among acts and an unlabelled glyph at the default width, and it
-            has gone to the navigation rows below where the other places
-            are. `title` names both for a pointer at rest, the primitive's
-            own tooltip only speaking in the rail. */}
-        <SidebarMenu className="mb-1 flex-row gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-0.5">
-          <SidebarMenuItem className="min-w-0 flex-auto">
-            <SidebarMenuButton
-              data-sidebar-tier="action"
-              aria-label="New shelf"
-              title="New shelf, a group of folders"
-              tooltip="New shelf, a group of folders"
-              className={ROW_OF_THREE_CLASS}
-              onClick={onNewShelf}
-            >
-              <Folders className="!size-4" strokeWidth={1.75} aria-hidden="true" />
-              <span className="truncate group-data-[collapsible=icon]:hidden">New shelf</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem className="min-w-0 flex-auto">
-            <SidebarMenuButton
-              data-sidebar-tier="action"
-              aria-label="Import"
-              title="Import a workflow file"
-              tooltip="Import a workflow file"
-              className={ROW_OF_THREE_CLASS}
-              onClick={() => {
-                workflowInput.current?.click()
-              }}
-            >
-              <Workflow className="!size-4" strokeWidth={1.75} aria-hidden="true" />
-              <span className="truncate group-data-[collapsible=icon]:hidden">Import</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
         {/*
         The workflow file itself (7.16's POST /workflows/import), read in the
         browser and handed over as parsed structure.
@@ -1747,6 +2093,16 @@ export function AppSidebar({
         and let it refuse. A file that is not JSON at all is refused here,
         because sending a parse failure to the server as a 400 would tell the
         person less than the sentence the page can write itself.
+
+        **It stays in this footer although the control that pressed it does
+        not.** There is one file input in the application and two ways to
+        reach it: the account menu's Import below, and the tab strip's "+"
+        through `overlays.ts`. A second input beside either caller would be a
+        second answer to one selector, which is the fault the prototype's own
+        comment records against exactly this control, and which the two
+        browser criteria addressing it as
+        `sidebar(page).locator('input[type="file"]')` would find the moment it
+        happened.
         */}
         <input
           ref={workflowInput}
@@ -1763,32 +2119,22 @@ export function AppSidebar({
           }}
         />
         <SidebarMenu>
-          {/* 9.1: "then Trash, People and Settings as links", after the row
-              of two and before the avatar menu (polish: sidebar F10). */}
-          <NavigationRow
-            name="Trash"
-            to={paths.trash}
-            icon={Trash2}
-            active={currentPath === paths.trash}
-          />
-          <NavigationRow
-            name="People"
-            to={paths.people}
-            icon={UsersRound}
-            active={currentPath === paths.people}
-          />
-          <NavigationRow
-            name="Settings"
-            to={paths.settings}
-            icon={SettingsGlyph}
-            active={currentPath === paths.settings}
-          />
-        </SidebarMenu>
-        <SidebarMenu className="mt-2">
           <SidebarMenuItem>
             <AccountMenu
               displayName={displayName}
               image={avatarUrl}
+              onOpenSettings={() => {
+                navigate(paths.settings)
+              }}
+              onOpenPeople={() => {
+                navigate(paths.people)
+              }}
+              onOpenTrash={() => {
+                navigate(paths.trash)
+              }}
+              onImport={() => {
+                workflowInput.current?.click()
+              }}
               onOpenHelp={() => {
                 setHelpOpen(true)
               }}

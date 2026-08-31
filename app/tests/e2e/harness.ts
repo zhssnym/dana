@@ -130,9 +130,13 @@ specification being met, not noise to wait out.
  * specification. These two put the sentence back: the assertion is what
  * fails, and it fails saying which rule went unmet.
  */
-export async function clickControl(locator: Locator, why: string): Promise<void> {
+export async function clickControl(
+  locator: Locator,
+  why: string,
+  options?: Parameters<Locator['click']>[0],
+): Promise<void> {
   await expect(locator, why).toBeVisible()
-  await locator.click()
+  await locator.click(options)
 }
 
 export async function fillControl(
@@ -1016,6 +1020,43 @@ export async function chooseView(page: Page, name: string, why: string): Promise
  */
 export function taskRow(page: Page, title: string): Locator {
   return page.getByRole('listitem').or(page.getByRole('row')).filter({ hasText: title })
+}
+
+/**
+ * Opens a task from its row, by pressing the row rather than its title.
+ *
+ * 9.4's sentence is "a click on any row opens that task", and since the
+ * polish round of 2026-08-30 the row's *title* is the one part of the row
+ * that does something else: it is DES-095's rename control, the way the due
+ * chip is the due picker. A case that presses the title text therefore lands
+ * in a rename field, which a dozen cases did before this helper existed.
+ * Pressing the row itself is both what the sentence says and what a hand
+ * does.
+ *
+ * The point is computed from the title's own box rather than assumed:
+ * `caseTitle` appends the testId, so a suite title easily spans past the
+ * row's centre and a centre click would land on the rename control. The
+ * press goes just right of where the title ends, on the title's own line,
+ * capped short of the row's trailing controls; when either box is missing
+ * the row's centre is the fallback.
+ */
+export async function openTaskRow(page: Page, title: string, why?: string): Promise<void> {
+  const row = taskRow(page, title).first()
+  const reason = why ?? 'spec 9.4: a click on any row opens that task'
+  await expect(row, reason).toBeVisible()
+  const rowBox = await row.boundingBox()
+  const titleBox = await row
+    .getByRole('button', { name: title, exact: true })
+    .first()
+    .boundingBox()
+    .catch(() => null)
+  if (rowBox === null || titleBox === null) {
+    await row.click()
+    return
+  }
+  const x = Math.min(titleBox.x - rowBox.x + titleBox.width + 24, rowBox.width - 96)
+  const y = titleBox.y - rowBox.y + titleBox.height / 2
+  await row.click({ position: { x: Math.max(x, 8), y } })
 }
 
 /**

@@ -104,6 +104,7 @@ import {
   signIn,
   taskSurface,
   taskRow,
+  openTaskRow,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -172,8 +173,7 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     }
 
     await page.goto(routesV2.anytime)
-    await clickControl(
-      page.getByText(title),
+    await openTaskRow(page, title,
       'spec 9.4: a click on any row opens that task, which is how its steps block is reached',
     )
     await expect(

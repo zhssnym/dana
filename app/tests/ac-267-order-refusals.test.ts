@@ -89,7 +89,7 @@ describe('AC-267 the order endpoint refuses what has no hand order', () => {
     })
 
     const before = await unscheduledTitles(owner, folder)
-    expect(before, 'the list starts in Q2’s order').toEqual([TWO, ONE])
+    expect(before, 'the list starts in Q2’s order, oldest first since the polish round of 2026-08-30').toEqual([ONE, TWO])
 
     expectStatus(
       await placeTask(owner, dated, { after_id: null, before_id: two }),

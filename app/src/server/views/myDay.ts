@@ -64,7 +64,12 @@ async function openGroups(
     // "Sort inside each group: due_date ascending nulls last, due_time
     // ascending nulls first, id." One order for both groups, because the
     // groups are a partition of this sequence rather than two queries.
-    order: sql`t.due_date ASC NULLS LAST, t.due_time ASC NULLS FIRST, t.id ASC`,
+    /* created_at before id since the polish round of 2026-08-30: the final
+       key used to be the uuid alone, which is random, so a task captured on
+       Today landed anywhere in its group rather than at its foot. Oldest
+       first puts every capture last, the same ruling Q2 took that day, and
+       id stays behind it as the deterministic tiebreak. */
+    order: sql`t.due_date ASC NULLS LAST, t.due_time ASC NULLS FIRST, t.created_at ASC, t.id ASC`,
     limit: CAP_PROBE,
     extra: sql`${automatic} AS automatic,
                to_char(e.added_on, 'YYYY-MM-DD') AS added_on`,

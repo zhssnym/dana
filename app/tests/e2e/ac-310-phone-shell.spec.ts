@@ -32,7 +32,7 @@ import {
   routesV2,
   seedSubs,
   signIn,
-  taskRow,
+  openTaskRow,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -117,7 +117,7 @@ test.describe('AC-310: the shell is navigable on a phone', () => {
     const title = 'ac-310 a task on a phone'
     await createTask(page, { title })
     await page.goto(routesV2.desk)
-    await clickControl(taskRow(page, title), 'the row opens the task in the preferred surface, the dialog')
+    await openTaskRow(page, title, 'the row opens the task in the preferred surface, the dialog')
     const close = page.getByRole('button', { name: 'Close task', exact: true }).first()
     await expect(
       close,

@@ -27,7 +27,7 @@ import {
   TEST_TIMEOUT_MS,
   waitForApiIdle,
   watchWire,
-} from './harness.js'
+ openTaskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -48,7 +48,7 @@ test('AC-350: the press opens an empty field, Enter writes and chains, a rename 
   const title = caseTitle('AC-350 steps')
   const task = await createTask(page, { title, folder_id: seedIds.groceries })
   await page.goto(routesV2.folder(seedIds.groceries))
-  await clickControl(page.getByText(title).first(), 'spec 9.4: a click on the row opens the task')
+  await openTaskRow(page, title, 'spec 9.4: a click on the row opens the task')
   const surface = taskSurface(page)
   await expect(surface).toBeVisible()
 

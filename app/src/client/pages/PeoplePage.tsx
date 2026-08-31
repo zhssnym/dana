@@ -142,9 +142,14 @@ export function PeoplePage(): React.JSX.Element {
                   key={entry.user.id}
                   className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 hover:bg-[var(--color-graphite-50)]"
                 >
+                  {/* polish round-2: the connection's own picture, which 7.3's
+                      element has carried beside the name since 4.1. The tinted
+                      disc is the fallback and no longer the only thing this
+                      roster could draw. */}
                   <PersonFace
                     name={entry.user.display_name ?? entry.user.email}
                     initials={initialsOf(entry.user.display_name ?? entry.user.email)}
+                    image={entry.user.avatar_url}
                     className="size-9"
                   />
                   <div className="min-w-0 flex-1">

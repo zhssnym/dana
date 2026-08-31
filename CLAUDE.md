@@ -143,9 +143,18 @@ protocol points here rather than repeating them.
   picked up by `npm test`.
 - **Never select a test leg by habit; select it explicitly and check which one
   you got.** `TEST_DATABASE_URL` was set machine-wide when this file was first
-  written, which made a bare `npm test` the Postgres leg. It is no longer set in
-  any scope, verified 2026-08-16 at the P10 release session, so a bare `npm test`
-  is now the PGlite leg and `app/.env` carries the variable empty. Either way,
+  written, which made a bare `npm test` the Postgres leg. A later revision of
+  this bullet claimed it was "no longer set in any scope, verified 2026-08-16 at
+  the P10 release session, so a bare `npm test` is now the PGlite leg"; **that is
+  false again, and the flip-flop is the point of the bullet rather than an
+  embarrassment to it.** Measured 2026-08-30 at the eight-agent polish round:
+  the variable is set in the **user** scope, four sessions found it independently
+  (three subagents printing it before their gate, and the integrating session
+  reading it back after), and so a bare `npm test` here is the **Postgres** leg
+  once more. Nobody recorded setting it back, which is exactly why the state of
+  this variable must never be read from this file: **it is ambient, it has
+  changed at least twice, and the only trustworthy answer is the one your own
+  process prints.** Either way,
   running `npm test` twice measures one leg twice and reports both green, which
   is the false green the CI workflow's own guard exists to stop. Print the
   variable before you trust a leg: the Postgres leg needs an explicit

@@ -10,6 +10,13 @@ in the Library beside it, and called the thing a group, a label and a shelf
 within two clicks. 4.18 gives a shelf a row of its own, so it can be made
 empty and filled later by drag or from its page.
 
+**Where the control lives moved again later the same day**, when the owner
+emptied the sidebar footer to give the Library its room: the three acts of
+making are one "New" control on the Library's heading, and "New shelf" is the
+second item of its menu. Only the first press of this case changes; what a
+shelf is and what the dialog says are untouched, and AC-264 is the criterion
+that owns the control's place.
+
 Spec: 9.1 (the Library and the footer, as amended at the polish round), 7.16.
 */
 import { expect, test } from '@playwright/test'
@@ -38,8 +45,13 @@ test.describe('AC-313: a shelf may be made empty, and is called a shelf', () => 
   test('AC-313: New shelf with nothing ticked makes an empty shelf', async ({ page }) => {
     const name = caseTitle('ac-313 shelf').slice(0, 40)
     await clickControl(
-      sidebar(page).getByRole('button', { name: 'New shelf', exact: true }),
-      'spec 9.1: the footer offers "New shelf"',
+      sidebar(page).getByRole('button', { name: 'New', exact: true }),
+      'spec 9.1: the Library heading carries the "New" control, the one door to the three ' +
+        'acts of making since the owner emptied the footer on 2026-08-30',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: 'New shelf', exact: true }),
+      'spec 9.1: it offers "New shelf"',
     )
     const dialog = page.getByRole('dialog', { name: 'New shelf' })
     await expect(dialog, 'spec 9.1: the dialog is named for the thing it makes').toBeVisible()

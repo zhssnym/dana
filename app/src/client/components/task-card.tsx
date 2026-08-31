@@ -537,8 +537,6 @@ function CardFooter({
   openIn?: ReactNode
   chrome?: "inline" | "surface"
 }) {
-  const [copied, setCopied] = useState(false)
-
   return (
     /*
     The footer is shaded, and that needs squaring with DES-099, which says
@@ -566,33 +564,58 @@ function CardFooter({
     where the shade begins, and drawing a rule along it would be saying the
     same thing twice, which is the mistake the block icons had.
     */
-    <div className="-mx-3 -mb-3 -ml-7 flex items-center justify-between gap-2 rounded-b-[7px] bg-[var(--color-graphite-50)] px-3 py-2">
+    <div className="-mx-3 -mb-3 -ml-7 rounded-b-[7px] bg-[var(--color-graphite-50)]">
       {/*
-      The edited line is the History control, rather than a caption beside one,
-      F5, 2026-08-22.
+      **9.3 puts the provenance in the footer, and until the round of
+      2026-08-30 it was above one.**
 
-      It used to be dead text saying "Edited just now by Imran Wafa · saved"
-      with a History button two centimetres to its right that did nothing, so
-      the same fact was stated twice and neither statement could be opened.
-      The window bar already settled the pattern for exactly this
-      (`WindowActivity`, DES-139): the line's resting job is to *tell* you
-      something and its second job is to open. Same component here, so a
-      task's history and a page's are one control rather than two that will
-      drift.
+      That section's card paragraph ends "the footer renders the task's
+      creation and its completion; the rest of its history is the Activity
+      control", and the two lines were a block of their own sitting between
+      the Comments disclosure and this band. Read down the card that is a
+      history section under the conversation, which is what the owner called
+      it at the round, and it is also the one place a reader would look for
+      the rest of the record and not find it: the whole record is the
+      overflow menu's History, one door, since the Activity popover was
+      retired (pagehead F4).
+
+      Nothing about what is rendered moves. AC-178 reads the creator and the
+      instant off the surface with nothing pressed, and it reads them off the
+      same two paragraphs, which still carry no control of their own; what
+      changes is that they are now inside the edge the section names rather
+      than above it.
       */}
-      {/*
-      **Seam, S23: 9.3's history is a block on the card, not only a line that
-      opens.** `components/task-history-block.tsx` carries the whole of the
-      reasoning. The Activity line stays beside it, because it is the window
-      bar's own control and DES-139's pattern, "the line's resting job is to
-      *tell* you something and its second job is to open"; what changes is that
-      the telling no longer has to be pressed to be read.
-      */}
-      <TaskActivity taskId={taskId} />
-      <span className="flex shrink-0 items-center gap-0.5">
+      <TaskHistoryBlock taskId={taskId} />
+      {/* `empty:hidden` because this row can now render nothing at all: in a
+          surface it holds the Activity line alone, and that line is absent
+          until the events arrive. A padded shaded strip with nothing in it is
+          the same useless space the Copy link icon was removed for. */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 empty:hidden">
         {/*
-        Four controls left this row at F5, and each for a stated reason rather
-        than for tidiness.
+        The edited line is the History control, rather than a caption beside one,
+        F5, 2026-08-22.
+
+        It used to be dead text saying "Edited just now by Imran Wafa · saved"
+        with a History button two centimetres to its right that did nothing, so
+        the same fact was stated twice and neither statement could be opened.
+        The window bar already settled the pattern for exactly this
+        (`WindowActivity`, DES-139): the line's resting job is to *tell* you
+        something and its second job is to open. Same component here, so a
+        task's history and a page's are one control rather than two that will
+        drift.
+        */}
+        {/*
+        **Seam, S23: 9.3's history is a block on the card, not only a line that
+        opens.** `components/task-history-block.tsx` carries the whole of the
+        reasoning. The Activity line stays beside it, because it is the window
+        bar's own control and DES-139's pattern, "the line's resting job is to
+        *tell* you something and its second job is to open"; what changes is that
+        the telling no longer has to be pressed to be read.
+        */}
+        <TaskActivity taskId={taskId} />
+        {/*
+        Five controls have left this row now, and each for a stated reason
+        rather than for tidiness.
 
         **Undo and Redo** were the safety net that replaced Save and Cancel,
         and they were the right instinct wired to the wrong metaphor: a card
@@ -608,26 +631,41 @@ function CardFooter({
         model nobody has specified. Sharing lives on the folder page, where it
         is true.
 
-        Copy link stays and now actually copies.
+        **Copy link went at the round of 2026-08-31, on the owner's call, and
+        it is the one removal here that overrides the prototype rather than
+        following it.** `docs/design/prototype-v2/src/components/task-card.tsx`
+        still draws the same `IconAction` in the same band, so this is not a
+        parity fix and must not be read back as drift; his words were that on
+        the open task the share link "is so much big, it's like a whole block
+        ... you can get to that share link either way by going to the three
+        dots, so it's just useless space". In a surface the band's whole
+        trailing cluster was that one icon, `chrome === "surface"` drawing
+        neither the expand nor the close, so a full-bleed row of chrome
+        existed to carry a single act.
+
+        **The act is not lost, which is the only thing that made this safe.**
+        It is `copy-link` in `lib/object-acts.ts`'s task contract, drawn by
+        every "More actions" menu the surface and the row already carry, and
+        supplied from the object's own id (`task-surface.tsx` and
+        `task-row.tsx` both pass `onCopyLink`). Spec 9.3 puts it there and
+        only there: its footer sentence names "the completion control, the
+        star, and 'More actions' (History, Copy link, ...)", so the standalone
+        icon was a second door the section never asked for.
+
+        **And the door that went was the wrong one anyway.** It wrote
+        `${origin}/?task=<id>`, the prototype's address scheme, while
+        `lib/nav-links.ts` is the one place that decides where an object lives
+        and answers 9.1's `/app/tasks/:id`; the menu's act goes through
+        `lib/task-acts.ts` and therefore through that module. Two doors, two
+        answers, and the one being removed gave the wrong one.
         */}
-        <IconAction
-          icon={Link2}
-          label={copied ? "Link copied" : "Copy link"}
-          onClick={() => {
-            void navigator.clipboard?.writeText(
-              `${window.location.origin}/?task=${taskId ?? ""}`,
-            )
-            setCopied(true)
-            window.setTimeout(() => setCopied(false), 1600)
-          }}
-        />
-        {/* Real since the task surface exists (DES-136): full screen from
-            the card, one press. Inside a surface the chrome above already
-            owns the views and the close, so the footer offers neither,
-            two closes in one card is one too many. In the lab, where no
-            surface host exists, it stays honestly disabled. */}
         {chrome === "inline" ? (
-          <>
+          <span className="flex shrink-0 items-center gap-0.5">
+            {/* Real since the task surface exists (DES-136): full screen from
+                the card, one press. Inside a surface the chrome above already
+                owns the views and the close, so the footer offers neither,
+                two closes in one card is one too many. In the lab, where no
+                surface host exists, it stays honestly disabled. */}
             {/* The same "Open in…" the row offers, so both entry points
                 behave alike, the footer used to jump straight to full
                 screen, which made one control a choice and the other a
@@ -641,9 +679,9 @@ function CardFooter({
               />
             )}
             <IconAction icon={X} label="Close" onClick={onClose} />
-          </>
+          </span>
         ) : null}
-      </span>
+      </div>
     </div>
   )
 }
@@ -1133,7 +1171,7 @@ function StepList({
                     <path
                       d="M4 10.5 L8.2 14.5 L16 5.8"
                       fill="none"
-                      stroke="white"
+                      className="stroke-[var(--color-graphite-0)]"
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -1700,7 +1738,7 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
                   {file.kind === "video" ? (
                     <span className="absolute inset-0 flex items-center justify-center">
                       <Play
-                        className="size-3.5 fill-white text-white drop-shadow"
+                        className="size-3.5 fill-[var(--color-fixed-white)] text-[var(--color-fixed-white)] drop-shadow"
                         strokeWidth={1.5}
                         aria-hidden="true"
                       />
@@ -2229,8 +2267,8 @@ export function TaskCard({
         />
       </Disclosure>
 
-      <TaskHistoryBlock taskId={task.id} />
-
+      {/* The provenance lines moved into the footer at the round of
+          2026-08-30; `CardFooter` carries the reasoning. */}
       <CardFooter taskId={task.id} onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
     </div>
   )

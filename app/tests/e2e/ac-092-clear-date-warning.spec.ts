@@ -91,6 +91,7 @@ import {
   taskSurface,
   watchCommit,
   TEST_TIMEOUT_MS,
+  openTaskRow,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -384,8 +385,7 @@ test.describe('AC-092: clearing the date on the task surface', () => {
     })
 
     await page.goto(routesV2.scheduled)
-    await clickControl(
-      page.getByText(title),
+    await openTaskRow(page, title,
       'spec 9.4: a click on any row opens that task; the row is on Scheduled because 6 Q3 ' +
         'admits dated pending rows',
     )

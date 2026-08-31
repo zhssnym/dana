@@ -29,9 +29,19 @@ sends it looks identical to one that works, until the list is reloaded. The
 name field is addressed as the dialog's only text box, no numbered section
 naming the control.
 
-Spec: 9.1 (the "New folder" action in the footer's four actions), 9.6 (the
-shared identity that retired "Label and color"), frozen 7.4 (POST /folders),
-RFC 0005 change control item 14 (the Replace and its acceptance).
+**It moved a third time at the polish round of 2026-08-30 and the sentence
+still does not move**, which is the whole point of a criterion written about
+an act rather than about a place. The owner emptied the sidebar footer to
+give the Library its room, and the three acts of making became one "New"
+control on the Library's heading. So the case reaches the act through that
+menu instead of through a footer button; everything after the first press is
+byte-for-byte what it was, because nothing about what "New folder" owes has
+changed. AC-264 is the criterion that owns where the control lives.
+
+Spec: 9.1 (the "New folder" act, at the Library's "New" control since
+2026-08-30), 9.6 (the shared identity that retired "Label and color"), frozen
+7.4 (POST /folders), RFC 0005 change control item 14 (the Replace and its
+acceptance).
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -85,7 +95,12 @@ test.describe('AC-181: the "New folder" dialog', () => {
   }) => {
     await page.goto(routes.myDay)
     await clickControl(
-      sidebar(page).getByRole('button', { name: 'New folder', exact: true }),
+      sidebar(page).getByRole('button', { name: 'New', exact: true }),
+      'spec 9.1: the Library heading carries the "New" control, which is where the three ' +
+        'acts of making went when the owner emptied the footer on 2026-08-30',
+    )
+    await clickControl(
+      page.getByRole('menuitem', { name: 'New folder', exact: true }),
       'spec 9.1: the sidebar carries a "New folder" action, named by that section itself',
     )
 

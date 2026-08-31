@@ -22,6 +22,7 @@ import {
   seedSubs,
   signIn,
   taskRow,
+  openTaskRow,
   taskSurface,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
@@ -38,7 +39,7 @@ test('AC-357: History, Abandon and Delete task are in the card\'s menu, and Dele
   const title = caseTitle('AC-357 from the card')
   const task = await createTask(page, { title, folder_id: seedIds.groceries })
   await page.goto(routesV2.folder(seedIds.groceries))
-  await clickControl(page.getByText(title).first(), 'spec 9.4: a click on the row opens the task')
+  await openTaskRow(page, title, 'spec 9.4: a click on the row opens the task')
   const surface = taskSurface(page)
   await expect(surface).toBeVisible()
 
