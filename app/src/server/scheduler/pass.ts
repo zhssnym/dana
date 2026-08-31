@@ -33,9 +33,12 @@ the row, so the comparison cannot be written the wrong way round in one place
 and right in another, and so a row does not age between the poll and the
 branch.
 
-**Two duties, and that is the ceiling.** 8.6 calls this loop the only
+**Four duties, and that is the ceiling.** 8.6 calls this loop the only
 background execution in v1, so pruning expired sessions rides here rather than
-in a second scheduled process (11.7). It runs after the reminder work, on the
+in a second scheduled process (11.7), and the Trash and events purges joined it
+for the same reason. This paragraph said two until 2026-09-01, having been
+written when there were two; the count below the delivery block is the one that
+kept up. It runs after the reminder work, on the
 handle rather than inside the delivery transaction, because it is hygiene and
 never revocation (11.6): its failure must not roll back a delivery that
 already happened.
