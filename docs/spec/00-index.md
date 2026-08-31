@@ -15,9 +15,18 @@ the filenames. Every cross-reference in this repository says "section N" or
 "section N.M", and it resolves to the file whose name begins with N. Nothing else
 needs to be remembered.
 
-Section numbers are identifiers and are append-only: they are never renumbered,
-and a removed section becomes a tombstone rather than a deletion. The rules are in
-the preamble of `../rfcs/0000-template.md`.
+Section numbers are identifiers and are append-only. The rules, stated here because
+this is the file they govern:
+
+- **A number is never renumbered and never reused.** Something else cites it.
+- **A removed section becomes a tombstone, not a deletion.** The heading stays, with
+  one line saying what happened and where the subject went. A gap in the numbering
+  reads as an error; a tombstone reads as a decision.
+- **A new subsection takes the next unused number in its section**, and that act is
+  what creates its file.
+
+Acceptance criteria follow the same rule: `AC-NNN` numbers are append-only, never
+reused, and a retired criterion is marked rather than removed.
 
 | Section | File | Covers |
 | - | - | - |

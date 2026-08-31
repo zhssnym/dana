@@ -33,7 +33,7 @@ How much the issue says depends on the size of the work:
 | - | - |
 | A colour, a spacing, an alignment, a bug | One sentence. The issue is the documentation. |
 | A normal feature | A few paragraphs in the issue. No separate document. |
-| Weeks of work on both sides | Discussion first, then Hassan writes an RFC. The issue links it. |
+| Weeks of work on both sides | Discussion first, then Hassan writes an RFC. It becomes a milestone, and the work becomes issues inside it. See [`big-features.md`](big-features.md). |
 
 Writing long documents for small changes wasted a great deal of time in version 1. Do not
 repeat it.

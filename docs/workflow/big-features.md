@@ -30,7 +30,25 @@ of what goes in and comes out, the errors, and what a valid request looks like.*
 If the RFC is vague about the data, both people fill the vagueness in privately and
 differently, and everything downstream fails.
 
-### 2. Schemas *and a stub endpoint* land on `main` (Hassan)
+### 2. A milestone, and the work broken into issues (Hassan)
+
+Create a **GitHub milestone named for the RFC**, and set the RFC's status to
+`accepted -> Milestone #N`.
+
+Then break the work into issues, all of them in that milestone. Each is an ordinary
+issue and goes through the ordinary flow: branch, pull request, review, merge. The
+slices in step 5 below are those issues.
+
+**The milestone is the only record of progress.** The RFC says why and what, and never
+says how far along, because two places tracking one thing is how a document starts
+lying. The milestone updates itself; a status line in a file does not.
+
+Give the milestone a **due date** if the work has one. A date on a milestone is visible
+on the issues page every day. A date in the body of a long document is not, which is how
+a hard-dated hosting deadline sat unread at line 360 of a 369-line RFC until eleven days
+before it expired.
+
+### 3. Schemas *and a stub endpoint* land on `main` (Hassan)
 
 Write the zod schemas in `app/src/shared/`. Then ship a working endpoint behind them that
 returns hardcoded or empty data of the right shape. Real URL, real method, behind the real
@@ -44,12 +62,12 @@ problems surface on day one instead of at the end.
 Merge it as one small pull request. Nothing calls it yet, so it is invisible to users and
 safe to ship even though `main` deploys.
 
-### 3. Tell Imran to start (Hassan)
+### 4. Tell Imran to start (Hassan)
 
 A comment on the issue. Name the endpoint, the schema file, and anything in the RFC that
 changed while you were writing it.
 
-### 4. Both sides build, in parallel
+### 5. Both sides build, in parallel
 
 **Imran** branches from `main` and builds the screen against the stubbed endpoint. Real
 types, real server, wrong data.
@@ -58,7 +76,7 @@ types, real server, wrong data.
 
 Neither waits. Neither guesses.
 
-### 5. Merge in slices, not one lump
+### 6. Merge in slices, not one lump
 
 A month of work does not arrive as one pull request. It arrives as several, each harmless on
 its own:
@@ -74,10 +92,10 @@ on one branch. Each piece is reviewed while it is still small enough to review p
 If a screen genuinely cannot be split, land it on a route that is not linked from the
 sidebar yet. Same effect, no feature-flag machinery.
 
-### 6. There is no step 6
+### 7. There is no step 7
 
-The feature is done when the last slice merges. Nothing is connected, because nothing was
-ever apart.
+The feature is done when the last slice merges, and the milestone says so without anyone
+writing it down. Nothing is connected, because nothing was ever apart.
 
 ## Imran's part
 
