@@ -7,18 +7,22 @@ implementation session.
 
 ## Progress
 
-Everything below lands on the `pipelines` branch. Nothing merges to `main` until
-the whole plan is done.
+**Complete, 2026-09-01.** Everything below landed on the `pipelines` branch.
 
 | Phase | State |
 | --- | --- |
-| 0 — Safety | **Done.** 5 commits. |
-| 1 — Boundary and settings | **Done except the runner.** 4 commits, plus 3 labels and the merge settings applied on GitHub. |
-| 1.3 runner registration | **Waiting on Hassan.** Manual, needs an admin shell on this machine. |
-| 2 — Workflow folder and agents | Not started |
-| 3 — Documentation | Not started |
-| 4 — Test layer | Not started |
-| 5 — Findings backlog | Not started. Filed as issues at the end of phase 2. |
+| 0 — Safety | Done |
+| 1 — Boundary, CI, templates, settings | Done. The runner is registered and CI has run |
+| 2 — Workflow folder and three agents | Done, and rehearsed: a cold agent ran a real issue end to end and its report produced seven fixes |
+| 3 — Documentation | Done, including the two parts deferred to the end: the RFCs and the spec directories |
+| 4 — The component test layer | Done. Two guards, each proved by reintroducing the bug it guards |
+| 5 — The findings backlog | Filed as issues 32 to 45. Not restructure work, and deliberately not done here |
+
+Open questions from retired specification section 13 are issues 15 to 30, and the
+contradiction found in section 12 is issue 31.
+
+**What this plan does not cover, and never did:** issue #15, the September hosting move.
+That is operational, it has a hard date, and it outranks everything in this document.
 
 ---
 
