@@ -142,6 +142,29 @@ export function createApp(options: AppOptions = {}): express.Express {
     execute nothing; the directive that matters for scripts stays 'self'.
   - img-src data:: Vite inlines assets under its size threshold as data:
     URIs at build time. A data: image is bytes, not a document.
+  - img-src https://*.googleusercontent.com: the account picture 7.2 stores
+    at first sign-in, which is Google's `picture` claim and therefore a URL
+    on Google's own user-content CDN. Added at the polish round of
+    2026-08-30 (avatars F3) and it is 10.8's own rule applied rather than
+    relaxed: the policy is "sized to what the client actually loads and no
+    wider", and this is a thing the client has tried to load on every
+    surface that draws a person since 4.1 while the policy silently refused
+    it. What that looked like is the reason it went unnoticed for so long:
+    the disc falls back to the person's initials on an image that will not
+    load, so every account whose picture came from Google looked exactly
+    like an account with no picture, and nothing anywhere said otherwise.
+    **This is not the case `routes/cover-photos.ts` refused**, and the
+    distinction is worth keeping. That header declines to widen img-src for
+    a *search result*: an arbitrary third-party host chosen at runtime,
+    where a directive wide enough to admit one is wide enough to admit any,
+    so the bytes come through this origin instead. Here the host is fixed,
+    it is the identity provider the session itself rests on, and no route
+    in this application ever writes a caller-supplied string into
+    `users.avatar_url` — provisioning writes Google's claim and 7.15's
+    upload writes `/api/v1/files/:id`, and there is no third writer. The
+    directive admits images and nothing else; `Referrer-Policy:
+    strict-origin-when-cross-origin` below keeps the request from telling
+    Google which page drew the face.
   - connect-src https://*.sentry.io: 11.12 sends client errors to Sentry
     when the build carried VITE_SENTRY_DSN; the wildcard covers the
     per-organization ingest hosts.
@@ -154,7 +177,8 @@ export function createApp(options: AppOptions = {}): express.Express {
       'Content-Security-Policy',
       "default-src 'self'; base-uri 'self'; object-src 'none'; " +
         "frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data:; connect-src 'self' https://*.sentry.io",
+        "img-src 'self' data: https://*.googleusercontent.com; " +
+        "connect-src 'self' https://*.sentry.io",
     ],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
   ]

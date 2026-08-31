@@ -42,7 +42,12 @@ axis produced and never how to draw one, the drawing being a page's.
 */
 export type GroupMark =
   | { readonly kind: 'folder'; readonly folderId: string }
-  | { readonly kind: 'person'; readonly name: string }
+  /* polish round-2: the person's own picture beside the name the tint is a
+     function of. The ruling above says "even a profile avatar" in as many
+     words, and the card this is read off has carried `avatar_url` since 4.1;
+     the heading drew the disc alone only because this shape had nowhere to
+     put one. Null where the person has no picture, which is the disc. */
+  | { readonly kind: 'person'; readonly name: string; readonly image: string | null }
 
 export interface TaskGroup {
   readonly key: string
@@ -109,7 +114,7 @@ function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string 
         key: task.assignee.id,
         name: mine ? 'You' : who,
         capture: { assignee_id: task.assignee.id },
-        mark: { kind: 'person', name: who },
+        mark: { kind: 'person', name: who, image: task.assignee.avatar_url },
       }
     }
     case 'date': {

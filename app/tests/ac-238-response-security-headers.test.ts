@@ -13,6 +13,17 @@ after a router covers everything but that router and looks complete from
 any single probe: an unauthenticated refusal, an authenticated read, an
 unmatched API path's 404, and the health endpoint.
 
+**The second test is the polish round's amendment of 2026-08-30 (avatars
+F3).** 7.2 stores Google's `picture` claim in `users.avatar_url` at first
+sign-in and every surface that draws a person renders it, so a policy reading
+`img-src 'self' data:` refused the account picture of every account that had
+never uploaded one. It went unnoticed for months because the failure is
+silent in exactly the wrong way: the disc falls back to the person's initials
+on an image that will not load, so a blocked photograph and no photograph are
+the same picture. A directive narrower than what the client loads is the same
+defect as one wider, and this is the arm that makes the narrow case fail
+loudly too.
+
 Spec: 10.8.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -70,5 +81,18 @@ describe('AC-238 every response class carries the 10.8 headers', () => {
       assertHeaders(response, surface),
     )
     expect(failures, 'responses outside the 10.8 header set').toEqual([])
+  })
+
+  test('img-src admits the host the account picture is stored on', async () => {
+    const response = await app.browser().request('/api/health')
+    const csp = String(response.headers['content-security-policy'] ?? '')
+    expect(
+      csp,
+      "7.2 stores Google's picture claim in users.avatar_url and every person-drawing surface renders it, so a policy that refuses that host draws initials for every account that never uploaded one (10.8)",
+    ).toContain('https://*.googleusercontent.com')
+    /* And no wider than that: the directive is sized to what the client
+       loads, which is images from one fixed host and this origin's own
+       files, never a host chosen at runtime. */
+    expect(csp, 'img-src stays a list and never a wildcard (10.8)').not.toContain('img-src *')
   })
 })

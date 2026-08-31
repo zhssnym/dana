@@ -49,7 +49,7 @@ import type { Folder } from '../../shared/folders.js'
 import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { RecurrenceFrequency } from '../../shared/recurrence.js'
 import type { PatchTaskBody, TaskCard, TaskDetail } from '../../shared/tasks.js'
-import { dueDisplay, folderDisplay, initialsOf, personDisplay } from '../parts/presenters.js'
+import { dueDisplay, folderDisplay, personDisplay } from '../parts/presenters.js'
 import type { ConceptTask } from './task-model.js'
 import type { TimeFormat } from './time-format.js'
 
@@ -179,19 +179,20 @@ export function toConceptTask(
  * written to fix one axis over: its own header records a lab that said "Sara"
  * with initials SK while the People screen two clicks away said "Sara Khan"
  * with initials HA for her colleague.
+ *
+ * **It is `personDisplay` plus the id since the polish round of 2026-08-30**,
+ * where it re-derived the initials and re-read `avatar_url` itself. That was
+ * the same three fields spelled twice, which is the very thing the paragraph
+ * above says not to do, and it was harmless only for as long as the two
+ * agreed: `personDisplay` dropped the picture and this one kept it, so a card
+ * showed a face and the row for the same task showed a disc. One spelling now.
  */
 export function toConceptPerson(person: {
   readonly id: string
   readonly display_name: string | null
   readonly avatar_url: string | null
 }): NonNullable<ConceptTask['assignee']> {
-  const { name } = personDisplay(person)
-  return {
-    id: person.id,
-    name,
-    initials: initialsOf(name),
-    ...(person.avatar_url === null ? {} : { image: person.avatar_url }),
-  }
+  return { id: person.id, ...personDisplay(person) }
 }
 
 /**

@@ -172,14 +172,20 @@ export function NotificationsBell({
   const rows = notifications.data?.notifications ?? []
   const unread = rows.filter((row) => row.read_at === null).length
 
-  const names = new Map<string, string>()
+  /* polish round-2: the actor's picture rides with their name. A feed about
+     what people did to you is the surface a face helps most, and both reads
+     behind this directory — 7.3's connections and 7.1's own profile — have
+     carried `avatar_url` since 4.1; only this map dropped it. */
+  const people = new Map<string, { name: string; image: string | null }>()
   for (const connection of connections.data ?? []) {
     const name = connection.user.display_name
-    if (name !== null) names.set(connection.user.id, name)
+    if (name !== null) {
+      people.set(connection.user.id, { name, image: connection.user.avatar_url })
+    }
   }
   const myName = me.data?.user.display_name
   if (me.data !== undefined && myName !== null && myName !== undefined) {
-    names.set(me.data.user.id, myName)
+    people.set(me.data.user.id, { name: myName, image: me.data.user.avatar_url })
   }
 
   function openRow(row: NotificationLine): void {
@@ -239,7 +245,8 @@ export function NotificationsBell({
         ) : (
           rows.map((row) => {
             const read = row.read_at !== null
-            const actor = names.get(row.event.actor_id) ?? 'Someone'
+            const person = people.get(row.event.actor_id) ?? null
+            const actor = person?.name ?? 'Someone'
             const { act, quote } = sentenceOf(row)
             return (
               <button
@@ -258,6 +265,7 @@ export function NotificationsBell({
                   className="mt-0.5 shrink-0"
                   name={actor}
                   initials={initialsOf(actor)}
+                  image={person?.image ?? null}
                 />
                 <span className="min-w-0 flex-1">
                   <span

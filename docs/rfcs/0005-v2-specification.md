@@ -6677,6 +6677,80 @@ fold, the way P7's mid-package change control ratified the pass callable:
     **(g) The criteria.** AC-297 to AC-302 on vitest, AC-303 in the browser;
     section 12 carries their lines. Next free acceptance number AC-304.
 
+61. **Avatars by default, and the profile picture's other half, 2026-08-30:
+    the owner's last polish item, and one silent CSP refusal underneath it.**
+    The item in his own words was "what's not done is the avatars by default
+    to people profile". Two faults answered it and the second is the one
+    nobody had seen.
+
+    **(a) The picture was carried everywhere and passed almost nowhere.**
+    `avatar_url` has been on the wire since 4.1 and every read that names a
+    person carries it — 7.0's card assignee and creator, 7.4's members, 7.3's
+    connections, 7.5's inviter, 7.1's own profile — and
+    `components/person-face.tsx` has taken an `image` since the disc was
+    shared. **No server response needed widening; every field was already
+    there.** What was missing was that most call sites never passed one:
+    `parts/presenters.ts`'s `personDisplay` dropped the column on the floor,
+    so the same person wore a photograph on a card (which goes through
+    `toConceptPerson`, which kept it) and a coloured disc on the row beneath
+    it. Nine surfaces were passing nothing: every list row's assignee chip,
+    the People roster, the sharing panel's members, the invite gate, both
+    conversation directories, the composer's own face, the notifications
+    feed, and the person group heading. Each now passes the image and the
+    tinted initials are the fallback. `toConceptPerson` is `personDisplay`
+    plus the id rather than a second spelling of the same three fields, which
+    is what let the two disagree in the first place. 9.x records the rule as
+    a rule, and the "wherever a person is drawn" sentence is the whole of it.
+
+    **(b) The Remove control, item 55(f)'s first case, closed.** 7.15 set an
+    avatar and cleared none, so the prototype's Remove had no route behind it
+    and the client drew it absent under DES-144. **Section 7's freeze was
+    waived by the owner for this round, in his own words**, and 7.15 gained
+    `DELETE /api/v1/me/avatar`: the column goes null and the stored row and
+    its bytes go with it, 204 and idempotent. The row goes rather than
+    staying because POST already deletes the picture it replaces — one avatar
+    is the shape of the feature and 10.3's quota is its reason — and because
+    a folderless avatar is readable by any signed-in account (AC-234's
+    fault), so bytes left behind stay reachable at an address the person can
+    no longer see. AC-360 pins all four arms.
+
+    **(c) The fault under the fault: 10.8 refused the picture 7.2 stores.**
+    Sign-in writes Google's `picture` claim into `users.avatar_url`, which is
+    a URL on Google's user-content CDN, and the policy read
+    `img-src 'self' data:`. So the account picture of **every account that
+    had never uploaded one** was blocked, on every surface, since 4.1 — which
+    is to say that fixing (a) alone would have changed nothing at all for
+    most people, and the round would have reported a fix that could not be
+    seen. **It went unnoticed because the failure is silent in exactly the
+    wrong direction**: a disc falls back to initials on an image that will
+    not load, so a blocked photograph and no photograph are the same picture,
+    and nothing anywhere says which one you are looking at. img-src now
+    admits `https://*.googleusercontent.com`. This is 10.8's own rule applied
+    rather than relaxed — "sized to what the client actually loads and no
+    wider" — and **a directive narrower than what the client loads is the
+    same defect as one wider, with the difference that only one of the two
+    announces itself.** It is deliberately *not* the case
+    `routes/cover-photos.ts` refused three commits earlier in this same
+    round: that one declines to widen img-src for a **search result**, an
+    arbitrary host chosen at runtime, where a directive wide enough for one
+    is wide enough for any, and proxies the bytes through this origin
+    instead. Here the host is fixed, it is the identity provider the session
+    already rests on, the directive admits images and nothing else, and no
+    route writes a caller-supplied string into that column — provisioning
+    writes the claim, 7.15's upload writes `/api/v1/files/:id`, and there is
+    no third writer. AC-238 gains the arm.
+
+    **What was considered and not done.** Mirroring Google's photograph into
+    this origin's own store at first sign-in is the stronger answer — it
+    survives the CDN rotating its URLs, tells Google nothing on every page
+    that draws a face, and is what `lib/viewer.ts`'s header means by "the
+    honest ported default is *that*". It is not this row's: it puts a network
+    fetch in the sign-in path, it needs a seam so that 146 test files do not
+    dial `example.test` on every provisioning, and it needs a backfill for
+    every account already provisioned, none of which is a polish change.
+    Recorded here so the next session finds the reasoning rather than the
+    gap. Next free acceptance number AC-361.
+
 ## Implementation plan
 
 One row: RFC 0004 is this RFC's implementation plan in full — packages,

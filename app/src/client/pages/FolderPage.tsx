@@ -629,20 +629,27 @@ export function FolderPage({
     detail.description === null
 
   /** Who a comment's author is, off the members already read; a face the
-   * roster cannot resolve says "Someone" rather than leaking an id. */
-  const authorNames = useMemo(() => {
-    const names = new Map<string, string>()
+   * roster cannot resolve says "Someone" rather than leaking an id.
+   *
+   * polish round-2: the picture rides with the name. 7.14 carries an author's
+   * id alone, so this directory is the only route an avatar has onto the
+   * thread, and both reads behind it — 7.4's members and 7.3's connections —
+   * have carried `avatar_url` since 4.1. */
+  const authorPeople = useMemo(() => {
+    const people = new Map<string, { name: string; image?: string }>()
     for (const member of members) {
       const name = member.user.display_name
-      if (name !== null) names.set(member.user.id, name)
+      if (name === null) continue
+      const image = member.user.avatar_url
+      people.set(member.user.id, { name, ...(image === null ? {} : { image }) })
     }
     for (const connection of connections.data ?? []) {
       const name = connection.user.display_name
-      if (name !== null && !names.has(connection.user.id)) {
-        names.set(connection.user.id, name)
-      }
+      if (name === null || people.has(connection.user.id)) continue
+      const image = connection.user.avatar_url
+      people.set(connection.user.id, { name, ...(image === null ? {} : { image }) })
     }
-    return names
+    return people
   }, [members, connections.data])
 
   function putBlocks(body: PageBlockWrite[]): void {
@@ -817,14 +824,14 @@ export function FolderPage({
   memoises. A face the roster cannot resolve says "Someone" rather than leaking
   an id, which is the rule the history sheet and the bell both keep.
   */
-  const nameOf = useCallback(
-    (authorId: string) => authorNames.get(authorId) ?? 'Someone',
-    [authorNames],
+  const personOf = useCallback(
+    (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
+    [authorPeople],
   )
   const conversation = useConceptThread(
     thread.data?.comments,
     basis.viewerId,
-    nameOf,
+    personOf,
     isOwner,
   )
 
