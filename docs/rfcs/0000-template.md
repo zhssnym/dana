@@ -192,9 +192,9 @@ external facts move to the Append-to-13 unit. Omit with a reason if none.*
 ## Implementation plan
 
 *Never merges. Packages sized for one agent session each; a small RFC has one
-row. Owners are persona files in `docs/team/`, which are the authority on who
+row. Owners come from `CODEOWNERS`, which is the authority on who
 owns what; this table repeats their claims for scheduling only. If the delta
-touches section 9, name the `docs/design/` artifacts that must be updated
+touches section 9, name the screens affected and attach before and after images
 before the UI package starts. Name file boundaries wherever two agents could
 touch adjacent code.*
 

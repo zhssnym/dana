@@ -51,8 +51,8 @@ you named them and never showed them. The roster this file already reads for
 the name is the same one that supplies the initials, so it costs a component
 and no request.
 
-And the file was in `shell/`, which is `07-frontend-architect.md`'s, while
-`components/**` is `08-component-and-design-system.md`'s and the prototype's
+And the file was in `shell/`, which is the app frame, while
+`components/**` is the reusable layer and the prototype's
 own path is `components/notifications-bell.tsx`. A component in the wrong
 owner's directory is the fault RFC 0005 change control item 46 names, one
 level below the one it names it at: not a duplicate yet, but the state a

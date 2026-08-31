@@ -1,9 +1,9 @@
 /*
 The 8.10 account deletion transaction, steps 1 to 6a.
 
-Ownership of this file and its caller is the one seam docs/team/README.md
-spells out: the Security engineer owns the DELETE /me route and session
-destruction, this role owns the transaction it calls. So the function below
+This file and its caller sit either side of a deliberate seam: the auth
+module owns the DELETE /me route and session destruction, and this file owns
+the transaction it calls. So the function below
 takes an executor rather than a handle and opens nothing: 8.10's first words
 are "One transaction", and steps 7 and 8, the identity scrub and the session
 revocation, live in the auth module and must commit with these six or not at

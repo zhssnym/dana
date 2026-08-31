@@ -157,7 +157,7 @@ here:
      deleted_at = now()
   8  destroy all sessions of the user
 
-That split is the seam docs/team/README.md fixes, and it is why
+That split is a deliberate module seam, and it is why
 deleteAccountData takes an executor rather than a handle. One transaction, not
 two: 8.10's first words are "One transaction", and eight steps across two of
 them would be two failure modes, one of them a scrubbed account whose folders

@@ -138,25 +138,37 @@ Resend, one provider for the four templates (invite_folder, invite_connection, s
 
 ### 11.13 Design artifacts
 
-The design contract between the designer and implementing agents is repo-committed, matching the protocol rule that state lives in artifacts. Figma is the designer's private workshop; nothing builds against it directly. Section 9 always wins over any design artifact on structure and copy: an artifact implying a different page structure, a different control or different wording is an escalation to the Integration Steward and never an edit.
+**Amended 2026-08-31 at the workflow restructure. This subsection previously named seven
+committed design artifacts under `docs/design/`, and every one of them has been deleted.**
 
-Rewritten 2026-08-12 at the P8D kickoff, because the sentence this replaces named one path that no longer exists and did not name the two that matter most. `docs/design/screens/*.png` held sixteen exported screens and was deleted at 552d4a5 on the owner's judgment that stills were of no use to him; this section is not waiting for them to return, and the two artifacts it now names in their place are strictly better for the purpose, one being interactive and the other being a cross-reference no image could carry. Every path below is relative to `docs/design/`, a directory every role reads and no agent writes.
+What it described was a process where a designer built a standalone prototype in this
+repository and implementing agents ported from it. That process is over, and it is over
+deliberately rather than by neglect: building a frontend separately and connecting it
+afterwards is what made the v1 and v2 integrations a mess, twice. The workflow now forbids
+standalone prototypes outright. A feature is built on a branch against the real client, and
+`docs/workflow/` carries the rule.
 
-| Artifact | What it is | Authoritative for |
-| - | - | - |
-| `brief.md` | The designer-facing brief the owner wrote and later amended | What was asked for. It is a request rather than a delivery, so where the brief and the prototype disagree, the prototype is what was actually built and the brief is evidence of intent |
-| `design-contract.md` | The designer's own record of approved and open decisions, keyed `DES-NNN`, each with a status and a date | What the designer decided, and when. It binds the design, not this specification. A `DES` record reaches Dana only by being read into a numbered section, and until it is, it is evidence rather than a rule |
-| `screen-registry.csv` | Thirty-one rows, one per required surface, each mapping the surface to its spec sections, acceptance criteria, required subcomponents, required interactions, normative copy references, states and status | The surface inventory and the cross-reference, and still the first file an implementing session should open, being the only artifact that maps a screen to the criteria that assert it and to the copy that is normative on it. **Its `implementation_status` column is not authoritative and must not be read as state, recorded 2026-08-25.** All thirty-one rows still say "PRODUCTION NOT VERIFIED", "NOT WIRED" or "PROTOTYPE-V2 ONLY; NOT IN PRODUCTION", including surfaces that S8 to S13 built, routed and hold green browser criteria for. The column was written during the design phase and no build session owns it, so it records what was true before the client existed. Read state from protocol section 2's five sources; the other columns of this file are unaffected |
-| `prototype-v2/` | Twenty-three screens under `src/screens/`, with the components beside them, built from 2026-08-18 and approved whole at V10 on 2026-08-24 | **The v2 client's markup, components and appearance, and the only artifact that is.** It carries RFC 0002's rule forward unchanged: it is the source the client is built from rather than a reference it is compared against, so a difference between it and `app/src/client` is a defect in the port unless a numbered section says otherwise. Item 19's release gate, that 2.0.0 ships only when the client matches the v2 prototype, is a gate on parity with **this** directory. It is not authoritative for data, on the same terms as the row below |
-| `prototype/` | Seventy files: a running React 19, Vite 8 and Tailwind 4 application with twenty shadcn components under `src/components/ui/`, thirteen screens including `states-page.tsx` and `shell-page.tsx`, `fixtures.ts`, and `src/styles/tokens.css` with `src/styles/app.css` | **The v1 client only, and superseded for appearance by the row above from 2026-08-25.** It was the source the v1 client was built from under RFC 0002, and it remains the record of what v1 was and the home of the token transcription described below. It is no longer the source any v2 session builds from, and a v2 surface that matches this directory rather than `prototype-v2/` is a defect rather than a port. What it never was authoritative for is data: its screens run on `fixtures.ts` and Dana's run on the query layer of 11.4 against section 7 |
-| `visual_foundation/` | The rendering foundation board, `Dana Visual Foundation.dc.html` in eight numbered sections, plus the two mark assets | The token values themselves. Section 08 is a complete token table its author wrote for `app/src/client/styles/tokens.css` specifically, and it is the origin both token files below were transcribed from |
-| `notes.md` | The designer's implementation, behaviour and QA notes | Behaviour the prototype implies and a value list could not carry |
+Three consequences are normative.
 
-**Two files now carry token values, and neither is a copy of the other.** `app/src/client/styles/tokens.css` is the single tokens file of 11.4 and that rule does not move: it is the only place in the application where a raw colour, type size, spacing step or radius may be written, and it was transcribed from section 08 of the foundation board at 34c0b29. `docs/design/prototype/src/styles/tokens.css` was transcribed from the same board by the designer, into a different vocabulary and for a different consumer. Checked value by value at this kickoff, the two agree on every primitive they share, the graphite ramp, the cobalt accent, the four semantic families, the ten folder swatches, the radii and the two elevations, and they differ in three ways that are vocabulary rather than disagreement: the spacing scale is spelled `--spacing-N` in ours and `--space-N` in his, the icon stroke is `--icon-stroke` in ours and `--icon-stroke-width` in his, and his file adds a shadcn role layer (`--background`, `--primary`, `--sidebar` and their kin) that ours has no equivalent for because ours is consumed by named component classes rather than by utility strings. So the ordering is: the board adjudicates a value, our file is where that value lives in the application, and his file is read for the two things the board never carried.
+**There is no repo-committed design contract, and design decisions no longer arrive as
+artifacts.** A feature request arrives as a GitHub issue, and where it needs a technical
+design it becomes an RFC. There is no `design-contract.md`, no `screen-registry.csv`, and no
+`DES-NNN` key space. References to those keys survive in dated records elsewhere in this
+specification and in the RFCs; they are history and are accurate as history.
 
-Those two things are why his token file is named here at all rather than dismissed as a duplicate. It carries the **layout dimensions** the board has no section for, `--shell-sidebar-width: 256px`, `--shell-content-max: 1120px`, `--control-height: 40px`, `--task-row-height: 44px` and their neighbours, recorded there as the Session 4 approved desktop shell; and it carries the **role mapping** that says which primitive plays which part. The absence of the first set from our file is not a detail, it is the direct cause of what P8 shipped: a client whose tokens file described every colour correctly and never said how wide the sidebar is.
+**`app/src/client/styles/tokens.css` is now the only file in the repository that carries
+token values.** The sentence this replaces said "two files now carry token values, and
+neither is a copy of the other", the second being the designer's. His is gone, so 11.4's rule
+stands alone and unqualified: that file is the only place a raw colour, type size, spacing
+step or radius may be written. Nothing adjudicates a value above it any more. The
+consequence is worth stating plainly, because it is a real loss rather than a simplification:
+a wrong value in that file is now checked by nothing, and `foundation.test.ts` asserts only
+that two strings are present.
 
-Two known-stale pointers inside the designer's own files, recorded here rather than corrected, because agents read that directory and never write it. `prototype/README.md` directs a reader to `docs/design/screens/`, deleted at 552d4a5, and calls `prototype/src/styles/tokens.css` the authoritative visual tokens, which is true of the values and not of the file, 11.4 naming ours. And `prototype/src/styles/app.css` sets `min-width: 1180px` on both `html` and `body`, which is a decision about the prototype's own delivery scope and is not normative on Dana; it must not be ported, and the reason is in section 13 item 32.
+**Where the deleted material went.** All of it is in git history, reachable from the commit
+before `6b8a8f2`. Nothing was thrown away; it stopped being a live authority. A reader who
+needs to know what a surface looked like in August 2026 should read it there and treat it as
+a record of that date, not as a description of the product.
 
 ### 11.14 Rejected alternatives
 

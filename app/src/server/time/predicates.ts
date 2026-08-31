@@ -4,8 +4,8 @@ rather than a convenience: 8.1's boundary statement, 8.2's qualify_date and
 its carried-versus-today boundary, and Q3C's range rules.
 
 They are functions here, and not arithmetic inlined into the queries, because
-docs/team/README.md's first seam gives the date predicates inside Q1 and Q3C
-to this role while the queries around them belong to another, and a predicate
+the date predicates inside Q1 and Q3C belong to this module while the queries
+around them belong to the read path, and a predicate
 restated in two places is a predicate that will one day disagree with itself.
 Nothing in this file decides an HTTP status or names a field in an error
 body: those belong to the route, and checkCalendarRange hands it which rule

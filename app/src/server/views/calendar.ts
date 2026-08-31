@@ -19,7 +19,7 @@ two orders disagree on any date carrying a mixed cell.
 
 The virtual arm is 8.5's projection over the 4.11 iterator, which 11.9 gives
 to the Scheduling engineer and P6 delivered; this file calls it and fetches
-what it projects from, which is the whole of the seam docs/team/README.md
+what it projects from, which is the whole of the seam
 names. The arithmetic below the call is never restated here.
 
 **The two fetches are two queries on purpose, and this is the one thing about
