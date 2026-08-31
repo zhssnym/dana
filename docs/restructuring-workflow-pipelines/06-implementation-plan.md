@@ -371,8 +371,21 @@ There are **zero component tests**, though five testing-library and jsdom packag
 installed and imported by nothing. That is the layer where Imran's agent can make its own work
 green without touching anything of yours.
 
-1. Write two or three example component tests, co-located beside their components.
-2. Put the rule in `docs/workflow/frontend/README.md`: a component test lives beside its
+**There is a prerequisite the first draft of this plan missed.** `app/vitest.config.ts:5`
+sets `environment: 'node'` for the whole suite, so a component test cannot render anything
+today. Nothing imports jsdom or `@testing-library` anywhere in the repository, and
+`src/client/lib/use-sortable-list.test.ts:5` says so in as many words: "this repository has no
+component test leg to render one in."
+
+The consequence is larger than a missing test layer, and it is why this phase matters more
+than it looked: **for an agent working from a terminal, `npm test` proves only that the client
+compiles.** What the screen does is covered by 109 Playwright specs and nothing else. So most
+of the frontend is, to an agent, as silent as a migration.
+
+1. Give client files a jsdom environment, either per-file or by an `environmentMatchGlobs`
+   style rule for `src/client/**`. Do this first; nothing else in this phase works without it.
+2. Write two or three example component tests, co-located beside their components.
+3. Put the rule in `docs/workflow/frontend/README.md`: a component test lives beside its
    component.
 
 **`app/tests/` is not split.** Co-location is the standard pattern, this repo already uses it
@@ -439,6 +452,8 @@ Two of them are risk rather than tidiness and are marked accordingly.
 | Remove the duplicate page heading | client | `pages/page-heading.tsx` vs `components/page-head.tsx`. One importer left. |
 | `pages/` vs `screens/` | client | A real split applied to only 4 of 20 pages, and one "presentational" screen fetches anyway (`screens/settings-screen.tsx:99`). Either finish it or drop it. |
 | `lib/` is no longer a helpers folder | client | 18 of its 27 files read or write the server. The name lies about what is in it. |
+| A `fetch` call outside `api/http.ts` | `components/folder-cover.tsx:192` | `http.ts:4` claims nothing else calls `fetch` directly, and that claim is already false. Route it through `http.ts` or amend the comment. Nothing enforces this: the eslint boundary rules restrict `server/` and `db/` imports, not this. |
+| `presenters.ts` is untested and load-bearing | `client/parts/presenters.ts` | 32 dependents, and its own header says "no acceptance criterion sees this file". It already shipped a real bug: `359d28d`, where `personDisplay` dropped `avatar_url` across nine surfaces. |
 
 ### Database
 

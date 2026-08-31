@@ -40,6 +40,7 @@ Every claim in them is tied to a file and a line.
 | [a4 — tests and CI](analysis/a4-tests-and-ci.md) | The `ac-NNN` scheme, test ownership, what Imran can run, and the state of the pipeline |
 | [a5 — documentation](analysis/a5-docs-structure.md) | Dead references, the spec-to-folders move, RFCs, changelog, session log, `CLAUDE.md` |
 | [a6 — agent tooling](analysis/a6-claude-tooling.md) | The thirteen personas, `.claude/` layout, and the memory question |
+| [a8 — frontend blast radius](analysis/a8-frontend-blast-radius.md) | Which parts of the client a small diff changes far more of than it looks, and why `npm test` proves less about the client than it seems |
 | [a7 — history and hygiene](analysis/a7-history-and-hygiene.md) | Who actually worked where, branch protection, `LICENSE`, `CODEOWNERS`, the committed `.env` |
 
 ---

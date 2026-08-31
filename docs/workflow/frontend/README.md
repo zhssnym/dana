@@ -67,8 +67,10 @@ build if you write a hex value in a component. This is not style policing: it is
 the design changeable in one place.
 
 **Every server call goes through `app/src/client/api/http.ts`.** The CSRF header and the
-timezone parameter are added there, once, for everything. Do not call `fetch` directly. If
-you do, requests will fail in ways that look like backend bugs.
+timezone parameter are added there, once, for everything. Do not call `fetch` directly: you
+will get a 403 or a 422 that looks like a backend bug. The comment at `http.ts:4` claims
+nothing else calls `fetch`, and that is **already false** at
+`components/folder-cover.tsx:192`. Nothing enforces it, so it is on you.
 
 **The Content Security Policy refuses external images and scripts silently.** If you add an
 image from a new domain, it will not load, nothing will appear in the console, and it will
@@ -98,9 +100,22 @@ npm run e2e             about 17 minutes
 Hassan's machine has. If `npm test` behaves strangely, check `CLAUDE.md`: `TEST_DATABASE_URL`
 is ambient on that machine and picks the leg for you.
 
-**Write component tests for what you build.** They go beside the component. There are none
-yet, which means you are starting the pattern rather than following it. `@testing-library`
-and `jsdom` are already installed.
+**Know what `npm test` actually proves about your work: that the client compiles.**
+`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite. `jsdom` and four
+`@testing-library` packages are installed and **nothing imports them**, so there is no
+component test leg to render anything in. What your screen *does* is covered by the 109
+Playwright specs, and nothing else.
+
+So for a visual or behavioural change, say honestly how you checked it:
+
+- you ran the Playwright spec that covers it, and you name it; or
+- you ran the app and looked; or
+- **you say it was not verified in a browser.**
+
+The third is an acceptable answer. Writing "tested" after watching it compile is not.
+
+**Component tests are coming but do not exist yet.** They cannot until the suite has a jsdom
+environment for client files. Do not add one and assume it runs.
 
 ## When the work needs the backend
 
