@@ -1,6 +1,8 @@
 ## 5. State machines
 
-Every transition not listed is forbidden and must be rejected by the API with 409 (state conflict) or 403 (actor not permitted). Same-state repeats listed as no-op return 200 without side effects, which is the idempotency contract for retried requests.
+Every transition not listed is forbidden and must be rejected by the API with 409 (state
+conflict) or 403 (actor not permitted). Same-state repeats listed as no-op return 200
+without side effects, which is the idempotency contract for retried requests.
 
 | | File | Covers |
 | - | - | - |

@@ -1,6 +1,11 @@
 ## 11. Architecture
 
-**This section is normative.** It records the implementation stack, the constraint each choice imposes, and the alternatives rejected with their reasons, so a future change is an argument with a recorded decision rather than a silent replacement. Agents implement against it exactly as against every other section; changes go through an RFC. External facts cited here (platform limits, versions, prices) were verified on 2026-07-29; prices are context, never contract.
+**This section is normative.** It records the implementation stack, the constraint each
+choice imposes, and the alternatives rejected with their reasons, so a future change is an
+argument with a recorded decision rather than a silent replacement. Agents implement
+against it exactly as against every other section; changes go through an RFC. External
+facts cited here (platform limits, versions, prices) were verified on 2026-07-29; prices
+are context, never contract.
 
 | | File | Covers |
 | - | - | - |
