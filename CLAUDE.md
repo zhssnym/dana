@@ -24,8 +24,19 @@ removed.
 
 ## Before implementation work
 
+**Comments in this repository state intent and behaviour in the same voice, and nothing
+distinguishes them.** They are long, confident, and often describe what a piece of code is
+*supposed* to do rather than what it does. At least one has been provably false since it was
+written: `app/src/client/components/folder-row.tsx` claimed "one centred glyph per folder in
+the rail" for a row that had never been centred, and a session working from that comment
+concluded the reported bug was impossible. **Treat a comment as a claim about intent. Verify
+behaviour by running it.** This is the most likely way a session here goes wrong.
+
 Read spec section 11, including the 11.15 hazard list, before your first line of
-code. It exists because training-data recall of the installed library versions is
+code, **when the work touches the libraries it names**. For a change confined to markup or
+styling it is a tax, and section 11.15's list will tell you within a minute whether it bears
+on what you are doing. It exists because training-data recall of the installed library
+versions is
 wrong in specific, listed ways: FullCalendar 7 plugin entrypoints, Tailwind 4
 CSS-first configuration, React Router library mode, zod 4, Express 5, Luxon DST
 handling, and PGlite's single connection.

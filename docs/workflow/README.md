@@ -26,10 +26,16 @@ rules 2 and 8 exist.
 
 | You are | Read |
 | - | - |
-| Working on the frontend | [`frontend/README.md`](frontend/README.md) |
-| Working on the backend | [`backend/README.md`](backend/README.md) |
-| Doing anything at all | [`how-we-work.md`](how-we-work.md), the whole flow from issue to merge |
+| Working on the frontend | [`frontend/README.md`](frontend/README.md), and stop there |
+| Working on the backend | [`backend/README.md`](backend/README.md), and stop there |
 | Starting a feature that needs both sides for weeks | [`big-features.md`](big-features.md). Rare. |
+
+**Your side's file is meant to be enough on its own.** Read it and start working. If it is
+not enough, that is a bug in it, and saying so is more useful than reading around it.
+
+[`how-we-work.md`](how-we-work.md) is the shared reference behind both: the label table, the
+review, versions, and how the changelog is kept. Go there when you need one of those, not
+before. It was measured once at 222 lines against a task that needed two of them.
 
 `CLAUDE.md` at the repository root owns the environment: the commands, the machine, and the
 ways the test suite fails here that are not your fault. Read it before you run anything.

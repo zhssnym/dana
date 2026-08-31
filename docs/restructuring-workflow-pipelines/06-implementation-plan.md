@@ -261,6 +261,30 @@ carries no risk of publishing private notes to the other partner. Leave
 
 ### 2.4 Rehearse it
 
+**Done. A cold agent ran issue #12 end to end and reported back.** The fix was correct and it
+found the workflow in about ninety seconds from `CLAUDE.md`, which is the structure working.
+Seven documentation fixes came out of it and are committed. Three findings could not be fixed
+from inside the documentation and are recorded here instead:
+
+**The entry point an agent is handed is `main`'s, not this branch's.** The harness injects
+`CLAUDE.md` from the checked-out state, and on `main` that file still names
+`docs/team/_shared-protocol.md` as the rulebook and says the repository is documentation only
+until P0 lands. Worse than stale: **`docs/team/` still exists on `main`**, so a session that
+starts there reads the wrong rulebook cover to cover and never learns it was wrong. This
+resolves itself on merge and cannot be fixed before it. It is an argument for merging sooner
+rather than accumulating more phases first.
+
+**The workflow tells agents to branch from `main`, and the restructure itself branches from
+`pipelines`.** Every agent reading these documents during the transition reads a rule the
+transition is breaking. Also resolves on merge.
+
+**A frontend fix currently ships with nothing guarding it.** Imran does not own `app/tests/`,
+and there is no component test leg, so there is usually no way for him to leave a regression
+test behind. The frontend brief now says to declare this in the pull request. The real fix is
+phase 4.
+
+
+
 Before declaring the workflow done, **run one real frontend issue end to end.** Pick something
 small and real, and take it the whole way: fresh session, gather context, branch, work, test,
 pull request naming its test commands, review agent, your review, merge.

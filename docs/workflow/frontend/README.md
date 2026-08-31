@@ -26,6 +26,18 @@ Hassan. You may run them. Do not edit them.
 Start a **new session** for each issue. Then:
 
 1. Read the issue and anything it links to.
+
+   **Most frontend issues here are a screenshot and one sentence, and the screenshot is the
+   specification.** `gh issue view` prints the image as a raw `user-attachments` URL. The
+   repository is private, so fetching it needs a token:
+
+   ```
+   "C:\Program Files\GitHub CLI\gh.exe" issue view 12 --json body
+   curl -H "Authorization: Bearer $(gh auth token)" -o /tmp/issue.png "<the URL>"
+   ```
+
+   Then read the image. Working from the sentence alone means guessing at what someone
+   photographed.
 2. Check whether an open pull request is already touching the same files.
 3. Read [`allowed-backend-changes.md`](allowed-backend-changes.md) if the work looks like it
    might reach the server.
@@ -59,6 +71,11 @@ was never there.
 **`state/` and `states/` are genuinely different things one letter apart.** Check which one
 you meant before importing.
 
+**The table tells you where things live, not where a given feature lives.** One screen often
+straddles two folders: the sidebar's navigation rows are in `shell/app-sidebar.tsx` while its
+folder rows are in `components/folder-row.tsx`, and a change to "the sidebar" can need both.
+Grep for the thing you can see on screen rather than reasoning from the table.
+
 ## Three things that will bite you
 
 **Colours live in exactly one file.** `app/src/client/styles/tokens.css` is the only place a
@@ -85,7 +102,7 @@ Four things run on any machine with no setup:
 ```
 npm run lint
 npm run typecheck
-npm test          the full suite on PGlite, an embedded database, about 7 minutes
+npm test          the full suite on PGlite, an embedded database, about 6 minutes
 npm run build
 ```
 
@@ -93,7 +110,7 @@ The browser tests need one download first:
 
 ```
 npm run e2e:install     once
-npm run e2e             about 17 minutes
+npm run e2e             about 11 minutes
 ```
 
 **Do not run the Postgres leg.** It needs a database created with an exact locale that only
@@ -112,16 +129,41 @@ So for a visual or behavioural change, say honestly how you checked it:
 - you ran the app and looked; or
 - **you say it was not verified in a browser.**
 
+To find the spec that covers a screen, grep `app/tests/e2e/` for the thing on it: a label, a
+role, a test id. To *measure* a layout rather than assert on it, copy `playwright.config.ts`
+to an untracked file, change its port and `testDir`, and write a throwaway spec that reads
+the numbers you care about. Do not commit either.
+
+**Budget for it.** Each browser run rebuilds the client first, so a measure, fix, measure
+loop costs a couple of minutes per turn on this machine. That number governs how you work
+once you are past the first few minutes, so know it before you start rather than paying to
+discover it.
+
 The third is an acceptable answer. Writing "tested" after watching it compile is not.
 
 **Component tests are coming but do not exist yet.** They cannot until the suite has a jsdom
 environment for client files. Do not add one and assume it runs.
 
+**So a frontend fix currently ships with nothing guarding it.** You do not own `app/tests/`,
+and there is no component test leg, which means there is usually no way for you to leave a
+regression test behind. That is a real gap and not your fault. **Say so in the pull request**
+when it applies, so the next person to touch that code knows nothing is watching it.
+
 ## When the work needs the backend
 
-Read [`allowed-backend-changes.md`](allowed-backend-changes.md). Do not decide for yourself
-that a change is small. There is a short list of six things that always stop you, and
-written criteria for everything else.
+**A change confined to `app/src/client/` needs none of this.** Skip straight to the pull
+request. The rules below are only for work that reaches outside your folder.
+
+When it does: read [`allowed-backend-changes.md`](allowed-backend-changes.md). Do not decide
+for yourself that a change is small. Six things always stop you, and there are written
+criteria for everything else.
+
+## Labels, in one line
+
+Your issue needs an area label (`frontend`) and a type label (`bug`, `enhancement` or
+`documentation`). Add `blocked` if you stop, `breaking` if it changes something people rely
+on. The full table is in [`../how-we-work.md`](../how-we-work.md); you rarely need the rest
+of that file.
 
 ## Opening the pull request
 

@@ -115,6 +115,13 @@ Read [`allowed-frontend-changes.md`](allowed-frontend-changes.md). The same two-
 shape as the frontend's file, pointing the other way. **The rule binds you too.** A quick
 frontend fix is how Imran discovers his own area changed underneath him.
 
+## Labels, in one line
+
+Your issue needs an area label (`backend`) and a type label (`bug`, `enhancement` or
+`documentation`). Add `blocked` if you stop, `breaking` if it changes something people rely
+on. The full table is in [`../how-we-work.md`](../how-we-work.md); you rarely need the rest
+of that file.
+
 ## Opening the pull request
 
 Same template as everyone. Declare files touched outside your area, name the test commands
