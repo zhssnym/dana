@@ -48,7 +48,7 @@ reused, and a retired criterion is marked rather than removed.
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
 | 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 324 numbered criteria, the definition of done |
-| 13 | retired 2026-09-01 | Open questions are now GitHub issues, labelled `open-question`. The assumptions it recorded moved into the sections that state the behaviour they constrain. The number is not reused. |
+| 13 | [`13-open-questions/`](13-open-questions/) | **Retired 2026-09-01.** A forwarding address only: open questions are GitHub issues now, its recorded assumptions moved into the sections they constrain, and its table maps all 57 old item numbers to where each went. The number is not reused. |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by
 number and is a human decision, never an agent's. Both carry an annotation at
