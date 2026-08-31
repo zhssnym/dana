@@ -5,6 +5,23 @@ implementation session.
 
 ---
 
+## Progress
+
+Everything below lands on the `pipelines` branch. Nothing merges to `main` until
+the whole plan is done.
+
+| Phase | State |
+| --- | --- |
+| 0 — Safety | **Done.** 5 commits. |
+| 1 — Boundary and settings | **Done except the runner.** 4 commits, plus 3 labels and the merge settings applied on GitHub. |
+| 1.3 runner registration | **Waiting on Hassan.** Manual, needs an admin shell on this machine. |
+| 2 — Workflow folder and agents | Not started |
+| 3 — Documentation | Not started |
+| 4 — Test layer | Not started |
+| 5 — Findings backlog | Not started. Filed as issues at the end of phase 2. |
+
+---
+
 ## How to run this
 
 **Not as one enormous session.** Almost every step below is an ordinary issue. Open it, do it,
