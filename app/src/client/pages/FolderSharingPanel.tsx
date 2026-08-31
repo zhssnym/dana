@@ -244,7 +244,15 @@ export function FolderSharingPanel({
                       key={member.user.id}
                       className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-[var(--color-graphite-50)]"
                     >
-                      <PersonFace name={name} initials={initialsOf(name)} className="size-8" />
+                      {/* polish round-2: the member's own picture, which
+                          7.4's members element carries; the tint stands in
+                          where a person has none. */}
+                      <PersonFace
+                        name={name}
+                        initials={initialsOf(name)}
+                        image={member.user.avatar_url}
+                        className="size-8"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-medium text-foreground">{name}</p>

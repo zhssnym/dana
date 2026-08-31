@@ -254,15 +254,34 @@ export function initialsOf(name: string): string {
   return `${firstLetter}${lastLetter}`.toUpperCase()
 }
 
-/** What `TaskRowProps['assignee']` is: precomputed initials plus a name. */
+/** What `TaskRowProps['assignee']` is: precomputed initials plus a name, and
+ *  the picture where the person has one. */
 export type AssigneeDisplay = NonNullable<TaskRowProps['assignee']>
 
-/** A person as his components take one, from 7.0's person shape. */
+/*
+A person as his components take one, from 7.0's person shape.
+
+**The picture is the default and the initials are the fallback, since the
+polish round of 2026-08-30.** This function answered a name and initials and
+dropped `avatar_url` on the floor, which made the tinted disc the *only* thing
+a list row could ever draw: every card on the wire has carried the column
+since 4.1, `components/person-face.tsx` has taken an `image` since S17a, and
+`lib/task-concept.ts` was passing one — so a person's own photograph appeared
+on a card and on a board and vanished the moment the same person was drawn on
+a row. One seam, one omission, every list view in the product.
+
+`avatar_url` is optional in the parameter rather than required, because two
+callers pass a shape that genuinely has no such column: `lib/history.ts` reads
+this for the name alone, and the unit tests pin the two-key answer. Absent and
+null are the same answer here, which is the disc.
+*/
 export function personDisplay(person: {
   display_name: string | null
+  avatar_url?: string | null
 }): AssigneeDisplay {
   const name = person.display_name ?? DELETED_USER
-  return { initials: initialsOf(name), name }
+  const image = person.avatar_url ?? null
+  return { initials: initialsOf(name), name, ...(image === null ? {} : { image }) }
 }
 
 /* ------------------------------------------------------------------ *
@@ -543,6 +562,9 @@ export interface InviteRowDisplay {
   readonly inviter: string
   /** The inviter's initials, for the row's avatar. */
   readonly initials: string
+  /** 7.15's picture, which 7.5's element has always carried beside the name
+      and this row drew nothing with until the polish round of 2026-08-30. */
+  readonly image?: string
   /** Whether this invite grants a folder, which 7.5's null discriminates. */
   readonly isFolder: boolean
 }
@@ -560,15 +582,17 @@ export interface InviteRowDisplay {
  */
 export function inviteRowDisplay(invite: {
   id: string
-  inviter: { display_name: string | null }
+  inviter: { display_name: string | null; avatar_url?: string | null }
   folder_name: string | null
 }): InviteRowDisplay {
   const who = invite.inviter.display_name ?? 'Someone'
+  const image = invite.inviter.avatar_url ?? null
   return {
     id: invite.id,
     sentence: `${who} invited you to ${invite.folder_name ?? 'connect'}`,
     inviter: who,
     initials: initialsOf(who),
+    ...(image === null ? {} : { image }),
     isFolder: invite.folder_name !== null,
   }
 }

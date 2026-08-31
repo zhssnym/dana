@@ -42,7 +42,16 @@ export interface PersonFaceProps {
   readonly name: string
   /** Precomputed by `parts/presenters.ts`, the one place initials are decided. */
   readonly initials: string
-  /** 7.15's avatar, when the person has uploaded one. */
+  /**
+   * The person's own picture: 7.15's upload, or the account picture 7.2
+   * stored from Google at first sign-in. Null where they have neither.
+   *
+   * **It is the default and the initials are the fallback**, which the
+   * polish round of 2026-08-30 made true of the call sites as well as of
+   * this component: it had taken an image since the disc was shared and most
+   * callers passed nothing, so one person wore a photograph on a card and a
+   * coloured disc on the row beneath it. Every call site passes one now.
+   */
   readonly image?: string | null
   /** The row's 16px face, for a chip or a reply. Default is the product's. */
   readonly dense?: boolean
@@ -65,7 +74,21 @@ export function PersonFace({
         className,
       )}
     >
-      {image === null ? null : <AvatarImage src={image} alt="" />}
+      {/*
+      `referrerPolicy="no-referrer"` because the src is one of two things and
+      the second is cross-origin: 7.15's own `/api/v1/files/:id`, or the
+      account picture 7.2 stored from Google's `picture` claim, which lives
+      on Google's user-content CDN (10.8 admits that host and no other, at
+      the polish round of 2026-08-30). A face is drawn on nearly every screen
+      in the product, so without this every list, every roster and every
+      conversation would tell Google which page of Dana the reader is
+      standing on, once per person on it. Nothing of ours depends on the
+      header: the serving route authenticates by session cookie, which an
+      image request carries same-origin regardless of this.
+      */}
+      {image === null ? null : (
+        <AvatarImage src={image} alt="" referrerPolicy="no-referrer" />
+      )}
       <AvatarFallback
         className={cn(dense ? 'text-[0.5rem]' : 'text-[0.625rem]', 'font-semibold')}
         style={{ color: paint.ink, background: paint.ground }}
@@ -92,7 +115,8 @@ shapes, which is a component with two contracts and a branch that would
 outlive the reason for it.
 
 `image` is optional here and nullable there, and the two mean the same thing:
-7.15's avatar, when the person has uploaded one.
+the person's own picture, 7.15's upload or the account picture 7.2 stored
+from Google, and the tinted disc where they have neither.
 */
 export interface Person {
   readonly initials: string
