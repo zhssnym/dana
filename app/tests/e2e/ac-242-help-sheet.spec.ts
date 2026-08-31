@@ -1,9 +1,22 @@
 /*
-AC-242: given the account menu, then it carries Help between Settings and
-Sign out, which is 9.1's "Account": Settings, Help, Sign out; and when Help
-is chosen, then a sheet of keyboard shortcuts opens naming the shortcut for
-search, and pressing that shortcut opens the search overlay, so the sheet is
-measured against the handler rather than against itself.
+AC-242: given the account menu, then it carries, in order, Settings, People,
+Trash, Import, Help and Sign out, which is 9.1's "Account" after the polish
+round of 2026-08-30; and when Help is chosen, then a sheet of keyboard
+shortcuts opens naming the shortcut for search, and pressing that shortcut
+opens the search overlay, so the sheet is measured against the handler rather
+than against itself.
+
+**The list grew from three to six at that round, on the owner's own ruling,
+and this criterion is amended rather than joined by a second one.** His words:
+"move Import and People and Settings and Trash to when you click on the
+profile ... my goal is that there is more space for the Library so people can
+see a big picture of what's going on in their app." The sidebar footer carried
+those four as rows and now carries the account row alone; what the four became
+is four items here, and a criterion asserting the old three with `toEqual`
+would be red against the arrangement the owner asked for. The order is the
+menu's own argument, recorded at `AccountMenu`: the places this account owns
+(Settings, People, Trash), then the act and the sheet that are about the
+application rather than about your work (Import, Help), then the door.
 
 **The last clause is the criterion.** "Help" is the easiest control in any
 product to fill with a plausible lie, which is what `help-sheet.tsx`'s own
@@ -24,16 +37,16 @@ true of a different surface, and a case that pressed all six would be six
 criteria wearing one number.
 
 **The order is asserted, not just the membership.** 9.1 spells the menu's
-contents as a sequence and the account menu is three items long, so the
-sequence is cheap to state exactly and a client that appends Help under Sign
-out would otherwise pass. AC-174 already asserts Settings and Sign out are
-there and stays untouched by this: it names two items and never counts them,
-so a third arriving between them leaves it green, which is what a criterion
-about the menu's contents rather than its shape should do.
+contents as a sequence and the menu is six items long, so the sequence is
+cheap to state exactly and a client that appends Help under Sign out would
+otherwise pass. AC-174 already asserts Settings and Sign out are there and
+stays untouched by this: it names two items and never counts them, so the
+four arriving between them leave it green, which is what a criterion about
+the menu's contents rather than its shape should do.
 
-Spec: 9.1 (the avatar menu named "Account", carrying Settings, Help and Sign
-out; the search shortcut), 9.9 (the overlay the shortcut opens), DES-144,
-`components/help-sheet.tsx`.
+Spec: 9.1 (the avatar menu named "Account", carrying Settings, People, Trash,
+Import, Help and Sign out; the search shortcut), 9.9 (the overlay the shortcut
+opens), DES-144, `components/help-sheet.tsx`.
 */
 import { expect, test } from '@playwright/test'
 
@@ -53,15 +66,18 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 /** 9.1's names table calls the avatar menu this, and AC-174 pins the name. */
 const ACCOUNT_MENU = 'Account'
 
-/** 9.1: "the avatar menu ("Account": Settings, Help, Sign out)". */
-const MENU_ITEMS = ['Settings', 'Help', 'Sign out']
+/**
+ * 9.1: the avatar menu ("Account": Settings, People, Trash, Import, Help,
+ * Sign out), as the polish round of 2026-08-30 left it.
+ */
+const MENU_ITEMS = ['Settings', 'People', 'Trash', 'Import', 'Help', 'Sign out']
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
 })
 
-test.describe('AC-242: Help is in the account menu, and the sheet behind it is true', () => {
-  test('AC-242: the menu carries Settings, Help and Sign out, in that order', async ({
+test.describe('AC-242: the account menu holds the account\'s doors, and the sheet behind Help is true', () => {
+  test('AC-242: the menu carries Settings, People, Trash, Import, Help and Sign out, in that order', async ({
     page,
   }) => {
     await page.goto(routesV2.desk)
@@ -74,11 +90,67 @@ test.describe('AC-242: Help is in the account menu, and the sheet behind it is t
     await expect
       .poll(() => page.getByRole('menuitem').allInnerTexts(), {
         message:
-          'spec 9.1: the avatar menu is ("Account": Settings, Help, Sign out). The menu ' +
-          'built today carries Settings and Sign out and nothing between them, so Help is ' +
-          'the third item this section has always named and no package ever built',
+          'spec 9.1: the avatar menu is ("Account": Settings, People, Trash, Import, Help, ' +
+          'Sign out). The four in the middle were sidebar-footer rows until the polish round ' +
+          'of 2026-08-30, when the owner moved them here so the Library could have their ' +
+          'room; a menu that kept the old three would leave that footer with nothing to lose',
       })
       .toEqual(MENU_ITEMS)
+  })
+
+  /*
+  The three relocated places are asserted to arrive, not merely to be listed.
+
+  A menu item is a label until something happens when it is pressed, and
+  these three replace links that carried an `href` a browser could check
+  without pressing anything. So each is pressed and the address is read back:
+  what the footer's rows gave for free is exactly what a menu item has to be
+  measured for.
+  */
+  for (const [item, path] of [
+    ['Settings', '/app/settings'],
+    ['People', '/app/people'],
+    ['Trash', '/app/trash'],
+  ] as const) {
+    test(`AC-242: ${item} in the account menu reaches its page`, async ({ page }) => {
+      await page.goto(routesV2.desk)
+      await clickControl(
+        sidebar(page).getByRole('button', { name: ACCOUNT_MENU, exact: true }),
+        'spec 9.1: the account menu opens',
+      )
+      await clickControl(
+        page.getByRole('menuitem', { name: item, exact: true }),
+        `spec 9.1: "${item}" is in the account menu since the polish round of 2026-08-30`,
+      )
+      await expect(
+        page,
+        `spec 9.1's routes table: ${item} is a place, and a menu item that names a place ` +
+          'and goes nowhere is the plausible lie one level up from a Help sheet nobody wrote',
+      ).toHaveURL(new RegExp(`${path}$`))
+    })
+  }
+
+  /*
+  Import keeps the assertion AC-264 made of it while it was a footer button:
+  it reaches the file chooser rather than merely being a label. The control
+  moved; the thing behind it did not, and the one file input the application
+  has is still the sidebar's.
+  */
+  test('AC-242: Import in the account menu reaches a workflow file', async ({ page }) => {
+    await page.goto(routesV2.desk)
+    await clickControl(
+      sidebar(page).getByRole('button', { name: ACCOUNT_MENU, exact: true }),
+      'spec 9.1: the account menu opens',
+    )
+    const chooser = page.waitForEvent('filechooser')
+    await clickControl(
+      page.getByRole('menuitem', { name: 'Import', exact: true }),
+      'spec 9.1: "Import (a workflow file)", which is 7.16\'s POST /workflows/import',
+    )
+    await expect(
+      (await chooser).page(),
+      'the item opens a file chooser rather than merely being a label',
+    ).toBe(page)
   })
 
   test('AC-242: Help opens a sheet naming the search shortcut', async ({ page }) => {
