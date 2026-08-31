@@ -45,7 +45,7 @@ handling, and PGlite's single connection.
 
 | Path | What it is |
 | - | - |
-| `docs/spec/` | The single source of truth, one contract split by numbered section. `00-index.md` maps section numbers to files; a reference to "section N.M" resolves to the file whose name begins with N. Sections 4 and 7 are frozen |
+| `docs/spec/` | The single source of truth, one contract split by numbered section. `README.md` maps the numbers; **section N is the directory beginning with N, section N.M is the file inside it beginning with N.M**. Sections 4 and 7 are frozen |
 | `docs/rfcs/` | Proposals to change the contract. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. New RFCs are per feature |
 | `docs/restructuring-workflow-pipelines/` | The in-progress restructure of the workflow and documentation: what the repository actually looks like today, the proposed structure, and the implementation plan. Temporary, and deleted when the work lands |
 | `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |

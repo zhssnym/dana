@@ -136,7 +136,7 @@ one.** This repository is working code, not an archive of finished conversations
 back to, a "we should decide this later", a note to self: that is an issue.
 
 The rule exists because the alternative was tried and it failed in a specific, measurable
-way. `docs/spec/13-open-questions.md` accumulated **57 items**, most of them long since
+way. Specification section 13 accumulated **57 items**, most of them long since
 decided, in a file nobody revisited. A question parked in a document is invisible: it
 notifies nobody, it has no owner, nothing marks it answered, and it is indistinguishable at a
 glance from a question that still matters. Fifty-seven of them together are simply weight,
