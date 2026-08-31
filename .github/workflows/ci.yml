@@ -6,13 +6,25 @@ name: CI
 # Where the job runs, where the postgres leg's database comes from, and which
 # interpreter a step's script is handed to are job configuration: they move
 # without amending 11.11, exactly as the service block they replaced always was.
+#
+# A pull request is checked, not a branch. `pull_request` builds the merge
+# result, which is the thing that will actually land on main, and a branch that
+# is green alone can still be red merged. push is narrowed to main at the same
+# time and for the same reason it was widened before: with both triggers open,
+# every push to a branch with an open pull request would start two jobs for one
+# change, and there is exactly one runner. A branch with no pull request now
+# gets no verdict, which is correct under a workflow where nothing reaches main
+# except through one.
 on:
   push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
-# One machine serves every branch, so a second push to a branch supersedes the
-# first rather than queueing behind it. main is exempt: its run is the verdict a
-# merge is checked against, and a cancelled verdict is not a verdict.
+# One machine serves every branch, so a second push supersedes the first rather
+# than queueing behind it. main is exempt: its run is the verdict a merge is
+# checked against, and a cancelled verdict is not a verdict. A pull request's
+# ref is refs/pull/N/merge, so each one keeps its own group.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -53,7 +65,19 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      # The empty string is what makes this leg PGlite, and without it this step
+      # has been running Postgres. TEST_DATABASE_URL arrives from the runner
+      # installation's .env into the *job* environment, per the bullet below,
+      # so every step inherits it, including this one. Two Postgres legs, no
+      # PGlite leg, and both green: the exact false green the guard on the next
+      # step exists to prevent, in mirror image.
+      #
+      # Empty rather than absent because app/db/client.ts treats '' as unset by
+      # construction, which is the same condition the next step's guard tests.
+      # The two agree without being kept in step.
       - name: Test on PGlite
+        env:
+          TEST_DATABASE_URL: ''
         run: npm test
       # TEST_DATABASE_URL arrives from the runner installation's own .env file,
       # never from a repository secret and never from this file: 11.11's Secrets
@@ -113,3 +137,25 @@ jobs:
         if: hashFiles('app/playwright.config.ts') != ''
         shell: cmd
         run: npx playwright install chromium && npx playwright test
+
+      # What a red browser leg leaves behind. Without this a failure is a name
+      # and a stack in the log, and the trace, the screenshot and the video the
+      # config already produces die with the runner. That matters most for the
+      # person who cannot reproduce it: the frontend half of this project is
+      # worked by someone whose machine is not this one, and the difference
+      # between debugging a red check and asking about it is these files.
+      #
+      # failure() rather than always(): a green run's artifacts are noise.
+      # if-no-files-found: ignore because this step also runs when an earlier
+      # leg failed and Playwright never started, and a missing directory is
+      # then the correct outcome rather than a second failure.
+      - name: Failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/playwright-report/
+            app/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
