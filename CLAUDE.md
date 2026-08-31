@@ -2,23 +2,22 @@
 
 Guidance for Claude Code sessions working in this repository.
 
-Dana is a collaborative to-do PWA, specification-first, built by role-scoped agent
-sessions. Pre-release: the repository is documentation only until package P0 lands
-`app/`.
+Dana is a collaborative to-do PWA, specification-first. Version 2.2 is shipped and
+deployed from `main`; the application lives in `app/`.
 
 **What this file owns:** the repository map, this machine's environment and commands,
-and an orientation sketch of the architecture. **Everything else is a pointer.**
-`docs/team/_shared-protocol.md` is the operative rulebook: the contract, boundaries
-and owned paths, the definition of done, escalation, test ownership, and writing
-conventions all live there and are deliberately not restated here, because a rule
-stated twice is a rule that will one day disagree with itself. Wherever the two
-appear to differ, the protocol wins.
+and an orientation sketch of the architecture. **Everything else is a pointer.** A rule
+stated twice is a rule that will one day disagree with itself, so nothing here restates
+a rule that lives elsewhere.
+
+**The workflow is being restructured, and this file is mid-migration.** Until
+`docs/workflow/` exists, the plan and the reasoning behind it are in
+`docs/restructuring-workflow-pipelines/`, which is the current authority on how work is
+meant to flow. The former rulebook at `docs/team/_shared-protocol.md` has been deleted
+along with the thirteen personas. Other references to `docs/team/` and `docs/design/`
+still survive in the specification and in source comments; they are being removed.
 
 ## Before implementation work
-
-If your task touches `app/` and your opening instructions did not give you
-`docs/team/_shared-protocol.md` plus exactly one persona file from `docs/team/`, say
-so and stop. That pairing is required, and this file is not a substitute for it.
 
 Read spec section 11, including the 11.15 hazard list, before your first line of
 code. It exists because training-data recall of the installed library versions is
@@ -31,13 +30,16 @@ handling, and PGlite's single connection.
 | Path | What it is |
 | - | - |
 | `docs/spec/` | The single source of truth, one contract split by numbered section. `00-index.md` maps section numbers to files; a reference to "section N.M" resolves to the file whose name begins with N. Sections 4 and 7 are frozen |
-| `docs/rfcs/` | The change process (preamble of `0000-template.md`) and the active build plan, RFC `0001-mvp.md`, whose implementation plan is the authority on packages P0 to P10, their dependency order, and their owners |
-| `docs/team/` | The shared protocol and thirteen role personas. A persona's Owns section is the only statement of ownership |
-| `docs/design/` | Human-committed design material. Read it, never write it |
-| `docs/learn/` | The operator's personal learning material, written only by a tutor session he opens. Build sessions never read or write it |
-| `docs/operator/` | How this build is operated rather than written: the runbook, the co-lead's contract, and the prompting guide. It describes the coordination around you, not the contract that binds you, so there is nothing in it to reason from |
-| `SESSION-LOG.md` | Every agent session that has run, in order, one table per package. A record written after the fact, and deliberately not one of the five state sources protocol section 2 names. Read it for context; never reason from it |
-| `app/` | The application. Arrives with P0 |
+| `docs/rfcs/` | Proposals to change the contract. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. New RFCs are per feature |
+| `docs/restructuring-workflow-pipelines/` | The in-progress restructure of the workflow and documentation: what the repository actually looks like today, the proposed structure, and the implementation plan. Temporary, and deleted when the work lands |
+| `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |
+| `CHANGELOG.md` | What changed per release. Its `[1.0.0]` block is a decision log of the v1 build and is being cut back |
+| `SESSION-LOG.md` | Every agent session of the v1 and v2 builds. Superseded by GitHub issues and slated for deletion. Read it for context; never reason from it |
+| `app/` | The application |
+
+Deleted, and mentioned here only because references to them survive elsewhere in the
+repository: `docs/team/`, `docs/design/`, `docs/learn/`, `docs/operator/`, `docs/ux/`,
+`docs/parity/`, `docs/security/`, `dana-reports/`, `AGENTS.md`.
 
 ## Commands and this machine
 
