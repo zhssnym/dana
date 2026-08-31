@@ -175,38 +175,25 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   })
 })
 
-describe("the tokens are the approved prototype's (RFC 0004, S8)", () => {
+describe('the token file is the source of the values (11.4)', () => {
   /*
-  Line-for-line rather than byte-for-byte over the whole file, and the
-  difference is the point. This client's token file carries four `@import`s,
-  an explicit `@source`, one fenced v1 variable and his `app.css` rules, none
-  of which his `tokens.css` has; what it may not carry is a *value* he did not
-  write. So the assertion is that every declaration of his appears in ours,
-  which is false the moment somebody edits a hex here instead of in the design.
+  This block used to compare `tokens.css` line for line against
+  `docs/design/prototype-v2`, which was the approved design source: every
+  declaration of his had to appear here, so nobody could edit a hex in the
+  client instead of in the design.
+
+  That prototype is deleted and the workflow now forbids standalone prototypes
+  outright, so there is no second file to agree with. `tokens.css` is itself
+  the source of a value, and editing one is a change to the design rather than
+  a drift from it. What survives is the fence around the one variable that was
+  never the prototype's.
   */
   const fromHere = (relative: string) =>
     decodeURIComponent(new URL(relative, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
 
   const tokensCss = readFileSync(fromHere('../../styles/tokens.css'), 'utf8')
-  const prototypeTokensCss = readFileSync(
-    fromHere('../../../../../docs/design/prototype-v2/src/styles/tokens.css'),
-    'utf8',
-  )
 
-  const declarations = (css: string) =>
-    css
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .split('\n')
-      .map((line) => line.trimEnd())
-      .filter((line) => line.trim() !== '')
-
-  test('every value the prototype writes is written here', () => {
-    const prototype = declarations(prototypeTokensCss)
-    const ported = new Set(declarations(tokensCss))
-    expect(prototype.filter((line) => !ported.has(line))).toEqual([])
-  })
-
-  test('the one variable that is not his is fenced and named', () => {
+  test("the one variable that was never the prototype's is fenced and named", () => {
     expect(tokensCss).toContain('v1 interim block')
     expect(tokensCss).toContain('--sharing-panel-width: 440px;')
   })
