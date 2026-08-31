@@ -145,7 +145,32 @@ and weight is what stops a document being read at all.
 An issue is the opposite of all of that. It notifies someone, it has an assignee, it closes,
 and closed is visibly different from open.
 
-**When you meet an open question:**
+**But most things are not open questions, and this is the part worth getting right.**
+
+The protocol this workflow replaced made agents escalate rather than decide. It produced 57
+parked items, and when they were triaged, **nine of the twenty-one still live ones turned out
+to be work an agent should simply have done**: two screens showing an old name, a limit that
+disagreed with its endpoint, a spec paragraph nobody had written, a 2.3 MB bundle nobody had
+split.
+
+None of those needed a person. They needed somebody to decide and get on with it.
+
+So the bar is high. **Escalate only when the answer changes what Dana is, or costs money, or
+cannot be taken back.** Everything else, decide it, do it, and say in the pull request what
+you decided and why.
+
+- "Which of two spellings does the product use?" is not a question. The rename is decided.
+- "Should Dana let anyone sign up, or only invited people?" is a question. It changes what
+  the product is, and Imran owns that.
+- "Should this list paginate?" is not a question. Pick the sensible thing and note it.
+- "Should Dana email people a weekly digest?" is a question. It changes what Dana does to
+  someone's inbox.
+
+An agent that escalates an obvious thing costs a person a decision they did not need to make.
+An agent that decides a product question costs the project its direction. The first failure
+is far more common here than the second, and this workflow is deliberately tuned against it.
+
+**When you meet a genuine open question:**
 
 1. Open an issue, labelled `open-question`.
 2. **Assign it.** A product question, about what Dana should do or become, goes to Imran: he

@@ -21,6 +21,9 @@ Read this first. It is short on purpose.
 9. **The repository is not a scratchpad.** Anything unresolved is a GitHub issue, not a file.
    Open questions, notes to self, things to come back to: an issue, labelled and assigned.
    Do the work, act on it, then delete the file.
+10. **Decide the obvious thing yourself.** Escalate only when the answer changes what Dana
+    is, or costs money, or cannot be taken back. Everything else: decide, do it, and say what
+    you decided in the pull request.
 
 Merging into `main` deploys to production within minutes. There is no staging. That is why
 rules 2 and 8 exist.
