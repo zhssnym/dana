@@ -389,6 +389,17 @@ required.
 
 ## Phase 4 — The missing test layer
 
+**Done.** The layer exists, two guards are in it, and both were proved by reintroducing the
+bug they guard rather than by assuming. What follows is the plan as written, kept because its
+reasoning is still the reasoning.
+
+One correction to it. The claim that the client was untested was too strong: there are
+fourteen co-located client test files, and `parts/presenters.test.ts` alone is 744 lines. The
+client's *pure logic* is well covered. What did not exist was any way to test that a component
+**renders** the right thing, and the analysis's "no acceptance criterion sees this file" was
+about `app/tests/ac-*`, not about unit tests. Worth knowing before anyone reads that sentence
+again.
+
 Depends on nothing; blocks Imran's first real frontend issue.
 
 There are **zero component tests**, though five testing-library and jsdom packages are

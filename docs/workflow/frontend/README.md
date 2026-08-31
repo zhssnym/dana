@@ -141,13 +141,28 @@ discover it.
 
 The third is an acceptable answer. Writing "tested" after watching it compile is not.
 
-**Component tests are coming but do not exist yet.** They cannot until the suite has a jsdom
-environment for client files. Do not add one and assume it runs.
+**Component tests exist now, and they are yours.** A component test lives beside its
+component: `person-face.tsx` and `person-face.test.tsx` in the same folder. They run in
+milliseconds, which makes them the only fast way to check that a component draws the right
+thing.
 
-**So a frontend fix currently ships with nothing guarding it.** You do not own `app/tests/`,
-and there is no component test leg, which means there is usually no way for you to leave a
-regression test behind. That is a real gap and not your fault. **Say so in the pull request**
-when it applies, so the next person to touch that code knows nothing is watching it.
+Three things they need, and `components/person-face.test.tsx` is the worked example of all
+three. Read it before writing your first one; it is commented for exactly that.
+
+- **`// @vitest-environment jsdom` on line 1.** The suite runs under `node`, so without this
+  there is no document and nothing renders. Per file, because the other 277 files want
+  `node`.
+- **`afterEach(cleanup)`.** Testing Library only unmounts automatically when vitest runs with
+  `globals: true`, which this config does not set. Without it, one test's markup is still in
+  the document during the next one, and a query that should find one element finds two. The
+  error reads like a component bug and is not one.
+- **A load stub, if the component shows an image.** `Avatar` puts no `<img>` in the tree
+  until the image reports that it loaded, and jsdom never loads anything. Without the stub
+  the fallback is all that renders and the test looks like the component is broken.
+
+**If you cannot leave a test behind, say so in the pull request.** Some things still have no
+cheap guard, and an honest note is worth more than silence: it tells the next person that
+nothing is watching that code.
 
 ## When the work needs the backend
 
