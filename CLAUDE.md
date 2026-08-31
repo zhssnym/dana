@@ -50,12 +50,13 @@ handling, and PGlite's single connection.
 | `docs/restructuring-workflow-pipelines/` | The in-progress restructure of the workflow and documentation: what the repository actually looks like today, the proposed structure, and the implementation plan. Temporary, and deleted when the work lands |
 | `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |
 | `CHANGELOG.md` | What changed per release. Its `[1.0.0]` block is a decision log of the v1 build and is being cut back |
-| `SESSION-LOG.md` | Every agent session of the v1 and v2 builds. Superseded by GitHub issues and slated for deletion. Read it for context; never reason from it |
 | `app/` | The application |
 
 Deleted, and mentioned here only because references to them survive elsewhere in the
 repository: `docs/team/`, `docs/design/`, `docs/learn/`, `docs/operator/`, `docs/ux/`,
-`docs/parity/`, `docs/security/`, `dana-reports/`, `AGENTS.md`.
+`docs/parity/`, `docs/security/`, `dana-reports/`, `AGENTS.md`, `SESSION-LOG.md`.
+Where one appears in an RFC or in a dated record inside the specification, it is history
+and accurate as history. Where one appears anywhere else, it is a mistake worth fixing.
 
 ## Commands and this machine
 
@@ -191,14 +192,20 @@ protocol points here rather than repeating them.
   only a local run under `.work` is red. To run this leg locally, copy or clone
   the tree to a path with no dot directory; otherwise read CI's Playwright step
   as the verdict.
-- **The browser leg must have that variable unset for the whole run**, and the
-  reason is a seam that treats its two processes differently. `npm run e2e:app`
+- **The browser leg needed that variable unset for the whole run, and no longer
+  does. Corrected 2026-08-31.** `playwright.config.ts:146` now pins
+  `TEST_DATABASE_URL: ''` inside `webServer.env`, with a comment describing the
+  same seam this bullet describes, so the `env -u` prefix below is redundant and
+  has been since commit `63ecc34` on 2026-08-14. The reasoning is kept because it
+  is still the reason the config line exists, and deleting it would leave that
+  line looking arbitrary. The seam treats its two processes differently. `npm run e2e:app`
   seeds through `app/db/client.ts`, which prefers `TEST_DATABASE_URL`, and then
   boots the server through `app/src/server/index.ts`, which deletes it per 11.10
   and falls back to `.data`. With the variable set, the seed writes to `dana_test`
   while the browser is shown a `.data` nothing truncated, so the leg fails on
-  missing fixtures with a count that drifts as that directory accumulates. Run it
-  as `env -u TEST_DATABASE_URL npx playwright test`. Measured 2026-08-12 at the
+  missing fixtures with a count that drifts as that directory accumulates. That is
+  what the config line prevents; you no longer need to prefix the command.
+  Measured 2026-08-12 at the
   P8D session 1 verification: 97 of 97 in 1.2 minutes, run immediately after the
   five other legs with no cooldown and no process kill. The older belief that this
   leg needs a quiet machine, and the counts recorded for it, were this fault

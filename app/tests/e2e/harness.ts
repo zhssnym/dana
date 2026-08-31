@@ -522,7 +522,8 @@ export interface CommitBarrier {
  * write that had not been made. That produces a red on a stored value being
  * stale or null, which is the exact shape of the product defect AC-169 and
  * AC-170 exist to catch, so the flake would read as the fault it was meant
- * to find. Row 21 of SESSION-LOG is the worked example of that confusion.
+ * to find. That confusion has happened here, which is why this reads as a
+ * warning rather than as a note.
  *
  * So the barrier is positive rather than negative: it counts the requests
  * this page has started, takes the count before the interaction, and waits
