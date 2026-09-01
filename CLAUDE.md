@@ -67,16 +67,17 @@ npm run lint && npm run typecheck && npm test && npm run build   # the gate, in 
 npm test -- --maxWorkers=2                 # vitest flags go after the --
 npm run dev                                # API server plus client dev server
 npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
-npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # one package's range
+npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # a range of criteria
 npx vitest run -t "AC-042"                 # one acceptance criterion by number
 ```
 
 Environment specifics, hard-won and non-obvious. This file is their home; the
 protocol points here rather than repeating them.
 
-- Scope the suite while you iterate and run it whole before you report. Measured
-  2026-08-13 at 189 files and 1530 tests: the PGlite leg is about 200 seconds and
-  the Postgres leg about 60, one package's range about 33. The full run is not
+- Scope the suite while you iterate and run it whole before you report. **Measured
+  2026-09-01 in CI: 279 files and 1899 tests.** The proportions below were measured
+  2026-08-13 at 189 files and 1530 tests and still hold: the PGlite leg is about 200 seconds and
+  the Postgres leg about 60, a range of criteria about 33. The full run is not
   ceremony, it is the only one that sees a cross-package regression, and a change
   under `app/src/shared/**` or `app/src/server/domain/**` reaches criteria in
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
@@ -162,7 +163,7 @@ protocol points here rather than repeating them.
   you got.** `TEST_DATABASE_URL` was set machine-wide when this file was first
   written, which made a bare `npm test` the Postgres leg. A later revision of
   this bullet claimed it was "no longer set in any scope, verified 2026-08-16 at
-  the P10 release session, so a bare `npm test` is now the PGlite leg"; **that is
+  the 2026-08-16 release, so a bare `npm test` is now the PGlite leg"; **that is
   false again, and the flip-flop is the point of the bullet rather than an
   embarrassment to it.** Measured 2026-08-30 at the eight-agent polish round:
   the variable is set in the **user** scope, four sessions found it independently
@@ -204,17 +205,17 @@ protocol points here rather than repeating them.
   missing fixtures with a count that drifts as that directory accumulates. That is
   what the config line prevents; you no longer need to prefix the command.
   Measured 2026-08-12 at the
-  P8D session 1 verification: 97 of 97 in 1.2 minutes, run immediately after the
+  verification on that date: 97 of 97 in 1.2 minutes, run immediately after the
   five other legs with no cooldown and no process kill. The older belief that this
   leg needs a quiet machine, and the counts recorded for it, were this fault
   rather than load; `C:\Users\hassan\gate.ps1` still carries the superseded
   explanation and a stale count of 94.
 - **Two browser legs cannot share this machine, and the collision does not
-  announce itself as one.** Measured at S10 on 2026-08-25. `playwright.config.ts`
+  announce itself as one.** Measured 2026-08-25. `playwright.config.ts`
   hardcodes port 3100 and sets `reuseExistingServer: false`, so every run starts
   an `e2e:app` of its own; a run that has printed its tally has *not* released
   the port, because the `npx` process outlives the report. That session's own
-  finished full leg held 3100 for over an hour while a concurrent S12
+  finished full leg held 3100 for over an hour while a concurrent
   verification and a re-run each started a third and second server, all three
   seeding and truncating one another's database underneath the browser. What it
   looks like from the report is code: `Page crashed`, tests failing at 0 ms,
@@ -232,7 +233,7 @@ protocol points here rather than repeating them.
   Separate worktrees make vitest legs genuinely independent, having no port and
   no shared database; only the browser leg has a single hardcoded one.
 - **Killing a browser leg's server does not kill the leg, and the next run
-  then collides with the survivor.** Measured at S23 on 2026-08-27, and it is
+  then collides with the survivor.** Measured 2026-08-27, and it is
   the collision two bullets above caused by one session rather than two.
   `playwright.config.ts` starts `npm run e2e:app` per run, so a session that
   wants a fresh run against new code kills the process listening on the port
@@ -253,7 +254,7 @@ protocol points here rather than repeating them.
   artifact you are about to read belongs to a run that is already dead.
 - **A lone browser leg on its own port still loses about one case a run when
   commit charge is short, and the port-collision bullet above does not cover
-  it.** Measured 2026-08-26 at S22, three whole runs of one commit on an owned
+  it.** Measured 2026-08-26, three whole runs of one commit on an owned
   port 3122 with nothing listening on 3100 and no stale `npx playwright`:
   **227 of 228, then 227 of 228, then 228 of 228.** The two reds were
   different cases (`session-path.spec.ts:133`, then
@@ -261,7 +262,7 @@ protocol points here rather than repeating them.
   timeout, and each passed alone in under 7 seconds against a 2.2-minute
   failure in the leg. **The presenting shape is the same as the collision
   above and the cause cannot be it**, which is the whole reason for this
-  bullet: a session that reads the S10 note, checks the port, finds it clear
+  bullet: a session that reads the port note, checks the port, finds it clear
   and therefore believes the red, believes a defect that is not there. What
   was true instead was `FreeVirtualMemory` around 3.5 GB of 33.9 with two
   Chrome processes holding 4.4 GB of private bytes each, the same commit-charge
@@ -277,7 +278,7 @@ protocol points here rather than repeating them.
   8.8 GB, more than every test process on the machine put together.
 - **"Re-run a failing case alone before believing it" is wrong for a case whose
   assertion races a UI transition, and there it manufactures a false
-  confirmation rather than a check. Measured 2026-08-27 at S26 and S29, and
+  confirmation rather than a check. Measured 2026-08-27, and
   scoped rather than added to the bullet above, which stands for the flake it
   was written about.** Two sessions independently re-ran
   `ac-182-view-preferences-persist.spec.ts:227` alone, each on a quiet machine
@@ -303,7 +304,7 @@ protocol points here rather than repeating them.
   believing either verdict, check whether the expected value is a number the
   test measured or a number the spec fixes; if it measured it, the case needs a
   settle and the red is a criterion defect rather than a client one, which is
-  persona 11's under protocol section 8. **The cause is deliberately not
+  the reviewer agent's to catch, and the acceptance suite's owner to fix. **The cause is deliberately not
   asserted past "it races the UI update"**, on the same rule the `.data` bullet
   above keeps: what was measured is that the case fails alone on both commits,
   that the restored number is always the specified one, and that every wrong
@@ -336,11 +337,37 @@ protocol points here rather than repeating them.
   inherited the cluster default. The string authenticates as `dana_ci`, never the
   superuser, and lives in the runner installation's `.env` and in `app/.env`, which
   is committed (see the last bullet) and is never stored as a GitHub secret (11.11).
-- CI runs on a self-hosted GitHub Actions runner on this machine (spec 11.11), so
-  there is no CI while the machine is off or the runner service is stopped: a pushed
-  branch simply has no verdict until then, rather than failing. Hosted runs stopped
-  starting on 2026-08-11 on an account billing failure, and the owner chose not to
-  buy hosted minutes.
+- **CI runs on a self-hosted GitHub Actions runner on this machine, and it is not a
+  Windows service: it is a scheduled task that starts at logon** and runs `run.cmd`
+  hidden. So there is no CI while the machine is off or before anyone has logged in.
+  A pushed branch has no verdict until then rather than failing. Hosted runs stopped
+  on 2026-08-11 on an account billing failure and the owner chose not to buy hosted
+  minutes, which is why the runner is here at all. **A self-hosted runner costs no
+  Actions minutes and has no time limit; the 40 in the workflow is a hang killer.**
+  Manage it with `Start-ScheduledTask` and `Stop-ScheduledTask` on
+  `'GitHub Actions Runner (dana)'`.
+- **CI triggers on pull requests and on pushes to `main`, not on every push.** A
+  branch with no pull request gets no verdict, which is correct under a workflow where
+  nothing reaches `main` except through one, and it stops a single runner starting two
+  jobs for one change.
+- **Three flake classes now, and only two of them are answered by re-running.** Every
+  one was measured in CI on 2026-08-31 and 2026-09-01, on the first runs this
+  repository has ever had.
+  - **The Postgres leg shares one `dana_test` across all 279 files, so they see each
+    other's rows.** PGlite gives each worker its own. The fingerprint is a count that
+    climbs across successive tests, `expected 2 to be 1`, then 3, then 4: a logic error
+    gives a constant wrong number, accumulation climbs. Re-run the file alone before
+    believing it. Tracked as issue #32.
+  - **The browser leg loses about one case a run** under memory pressure, and the
+    bullets above cover it. Re-run the case alone, and read the note on when isolation
+    lies.
+  - **A test that reads the clock twice fails when a run crosses midnight.** Caught at
+    23:59:39Z: `ac-277` expected 2026-08-31 and got 2026-09-01, then passed unchanged at
+    02:00. **Re-running is not the fix and the red is real**, in the sense that the same
+    run at the same hour tomorrow fails again. Tracked as issue #46.
+- **Between them these are why a red is not evidence until you have named which class it
+  is.** In three CI runs of one commit, every step passed at least once and no run passed
+  all of them together, with nothing wrong in the commit.
 - The Postgres tooling here answers in French, `initdb --help` and `pg_controldata`
   included, and one translated flag name is wrong: the option is `--builtin-locale`,
   which the French help prints as `--builtin-provider`. Read option names from the
