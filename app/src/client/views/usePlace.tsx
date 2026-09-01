@@ -14,7 +14,7 @@ them is arranged when nobody has asked for a grouping. Everything else is
 here.
 */
 import { useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 
 import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, useCreateSavedView, usePullIntoMyDay } from '../api/mutations.js'
@@ -62,6 +62,32 @@ const VIEW_FACES: Record<ViewMode, { label: string; icon: typeof List }> = {
   list: { label: 'List', icon: List },
   board: { label: 'Board', icon: LayoutGrid },
   calendar: { label: 'Calendar', icon: CalendarDays },
+}
+
+/*
+The address bar, read at the moment it is asked for, and why nothing here may
+use React Router's copy of it to make a decision (issue #47).
+
+`useSearchParams()` returns the search of the location React last rendered.
+`BrowserRouter` commits that location inside `React.startTransition`
+(`react-router/dist/development/chunk-62JRHF6Z.mjs`, `BrowserRouter`'s
+`setState`), so `history` and the address bar are updated **synchronously** by
+the navigation while React's copy arrives at transition priority, whenever the
+scheduler gets to it. Measured in CI at over 400 ms behind, 289 specs deep.
+
+That gap is a product defect and not a test artifact: a person opened a saved
+view, cleared the filter before React caught up, and watched the clear undo
+itself half a second later, because the code that strips `?view=` read a
+`search` that did not have it yet and the code that seeds from a saved view
+read one that suddenly did.
+
+**The functional form of `setSearchParams` is no escape.** React Router calls
+it with `new URLSearchParams(searchParams)`, the same memoised, possibly stale
+value (`useSearchParams` in the same file). `window.location` is the only
+thing that is current at that instant, so both decisions below read it.
+*/
+function liveSearch(): URLSearchParams {
+  return new URLSearchParams(window.location.search)
 }
 
 export interface Place {
@@ -182,10 +208,32 @@ export function usePlace(
   }, [seedState])
   useEffect(() => {
     if (savedDefinition === undefined) return
+    /*
+    The seed is only honoured while the address bar still says this view is
+    open, and that one line is what stops a hand-cleared filter reverting
+    itself (issue #47).
+
+    This effect re-runs whenever `seedView` changes, and `seedView` comes from
+    the lagging copy described at `liveSearch`. So it fires not only when a
+    person opens a view but also, hundreds of milliseconds late, when a
+    location they have already left finally commits. In that second case the
+    person has edited the filter by hand, `changeFilter` has already taken the
+    id out of the address synchronously, and re-seeding here would overwrite
+    the edit they just made.
+
+    Reading the address rather than remembering what has been seeded is what
+    keeps the four cases apart, and the fourth is the one a "have I seeded
+    this id" flag gets wrong. Arriving cold at `?view=<id>`: the address has
+    it, seed. Opening a view from the panel on a page already open: the
+    navigation writes the address synchronously, so it has it, seed. Editing
+    the filter afterwards: the id is gone from the address, so the late echo
+    of the old location seeds nothing. Opening the same view again after
+    leaving it: the address has it once more, so it seeds again.
+    */
+    if (liveSearch().get('view') !== seedView) return
     setFilter(filterFromDefinition(savedDefinition))
-    // Same reasoning as above: opening a saved view sets the page's filter,
-    // and adjusting it afterwards is the person's business rather than a
-    // change the link should undo.
+    // Adjusting the filter afterwards is the person's business rather than a
+    // change the link should undo, which is why `filter` is not a dependency.
   }, [seedView, savedDefinition === undefined])
 
   const people = useMemo(
@@ -267,17 +315,35 @@ export function usePlace(
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
   const savedViews = useSavedViews()
-  const [search, setSearch] = useSearchParams()
+  const navigate = useNavigate()
   /* polish: pagehead F3. Editing the filter by hand leaves the saved view
      behind, so its id leaves the address too; otherwise "Clear all" cleared
      the chips while the sidebar went on saying the view was open. */
   const changeFilter = (next: PageFilter): void => {
     place.setFilter(next)
-    if (search.has('view')) {
-      const rest = new URLSearchParams(search)
-      rest.delete('view')
-      setSearch(rest, { replace: true })
-    }
+    /*
+    Read from the address bar and not from `useSearchParams`, for the reason
+    written at `liveSearch`: a view opened a moment ago is in the address at
+    once and in React's copy of it whenever the scheduler gets there, and
+    deciding from the copy meant that clearing a filter quickly enough left
+    the id behind and let the seed put the filter back (issue #47).
+    */
+    const rest = liveSearch()
+    if (!rest.has('view')) return
+    rest.delete('view')
+    const query = rest.toString()
+    /*
+    `setSearchParams` is not used here, and neither is a bare `?query`: both
+    resolve against the router's pathname, which lags for exactly the same
+    reason the search does, so a search written during a page change could
+    land on the page being left. The pathname is taken from the address bar
+    alongside the search, so the two halves of this navigation are always the
+    same instant.
+    */
+    navigate(
+      { pathname: window.location.pathname, search: query === '' ? '' : `?${query}` },
+      { replace: true },
+    )
   }
   /*
   The views saved on this page, listed at the panel's head, which is the
