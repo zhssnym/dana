@@ -15,10 +15,59 @@ name: CI
 # change, and there is exactly one runner. A branch with no pull request now
 # gets no verdict, which is correct under a workflow where nothing reaches main
 # except through one.
+#
+# `paths-ignore` keeps the job off changes no step of it can read. Measured on
+# PR #52: five markdown files started all seven steps, twenty minutes of the one
+# runner, and a docs job holding that runner is a code job not running. The
+# second cost is the one that decided it. Every run is a fresh roll against the
+# flake classes CLAUDE.md enumerates, and the merge of #49 (run 33495895742) went
+# red on `ac-022` with `Hook timed out in 10000ms` having nothing to do with the
+# commit. A prose change that can produce a meaningless red is how a team learns
+# to skim past red.
+#
+# The list is only paths nothing in app/ opens. Checked rather than assumed:
+# no file under app/tests/, app/src/, app/db/ or app/scripts/ reads a `docs/`
+# path or any `.md`. `*` does not match `/` in these patterns, so `*.md` is the
+# four root files and not app/src/client/components/README.md.
+#
+# **It is written twice on purpose.** GitHub Actions does not honour YAML
+# anchors, so the two triggers cannot share one list. They must stay in step;
+# a path ignored on `pull_request` and not on `push` means main re-runs what the
+# pull request already skipped.
+#
+# **The gotcha, recorded before it bites.** A workflow skipped this way reports
+# no check at all, not a green one. That is fine while branch protection is
+# unavailable on this plan (the API answers 403, "Upgrade to GitHub Pro"), so
+# nothing waits on a required check. The day this repository goes to Pro and main
+# gets required checks, a docs-only pull request will block forever on a check
+# that never reports, and the fix then is a second always-running job that exists
+# only to report the required name.
+#
+# What is deliberately NOT done here: choosing which tests to run from which
+# files changed. CLAUDE.md is explicit that a change under app/src/shared/** or
+# app/src/server/domain/** reaches criteria in packages nobody was thinking
+# about, and that the whole run is the only one that sees a cross-package
+# regression. The split worth having is docs against code, not test against test.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '.claude/**'
+      - '.vscode/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '*.md'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '.claude/**'
+      - '.vscode/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '*.md'
+      - 'LICENSE'
   workflow_dispatch:
 
 # One machine serves every branch, so a second push supersedes the first rather
