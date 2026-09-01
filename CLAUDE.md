@@ -15,12 +15,11 @@ file for your side: `docs/workflow/frontend/README.md` or `docs/workflow/backend
 Each side's file is meant to be complete enough to work from on its own. Nothing about
 process is restated in this file.
 
-The restructure that produced that folder is still in progress, and its reasoning and
-remaining phases are in `docs/restructuring-workflow-pipelines/`. The former rulebook at
-`docs/team/_shared-protocol.md` is deleted, along with the thirteen personas that depended on
-it; three agents in `.claude/agents/` replace them. Other references to `docs/team/` and
-`docs/design/` still survive in the specification and in source comments, and are being
-removed.
+That workflow replaced an earlier one built for a fleet of thirteen agent personas working
+package by package. The former rulebook at `docs/team/_shared-protocol.md` is deleted along
+with the personas, and three agents in `.claude/agents/` replace them. The restructure that
+did it ran on 2026-08-31 and 2026-09-01; its reasoning is in git, and what it left undone is
+in the GitHub issues.
 
 ## Before implementation work
 
@@ -47,7 +46,6 @@ handling, and PGlite's single connection.
 | - | - |
 | `docs/spec/` | The single source of truth, one contract split by numbered section. `README.md` maps the numbers; **section N is the directory beginning with N, section N.M is the file inside it beginning with N.M**. Sections 4 and 7 are frozen |
 | `docs/rfcs/` | Proposals to change the contract. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. New RFCs are per feature |
-| `docs/restructuring-workflow-pipelines/` | The in-progress restructure of the workflow and documentation: what the repository actually looks like today, the proposed structure, and the implementation plan. Temporary, and deleted when the work lands |
 | `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |
 | `CHANGELOG.md` | What changed per release. Its `[1.0.0]` block is a decision log of the v1 build and is being cut back |
 | `app/` | The application |
