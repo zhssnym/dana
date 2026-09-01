@@ -10,11 +10,10 @@ whole reason 8.1 can say DST "never break[s] date arithmetic, because
 comparisons are date against date, never instant against instant".
 
 Why the arithmetic lives here rather than inside the queries that need it:
-05-query-and-read-path.md's hard boundaries forbid that role writing date
-arithmetic, and the first seam of docs/team/README.md gives the date
-predicates inside Q1 and Q3C to this role. The exported signatures are
+The read path does not write date arithmetic: the date predicates inside Q1
+and Q3C belong to this module. The exported signatures are
 therefore a contract with a consumer, and changing one after a query depends
-on it is a Steward escalation (02-scheduling-and-time.md, Handoff).
+on it is a change to a published contract, not a local edit.
 */
 
 /**

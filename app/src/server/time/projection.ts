@@ -5,7 +5,7 @@ not happened yet.
 Pure, and deliberately so. Q3C scopes the projection by three things,
 accessible, pending and rule-carrying, and every one of them is a fact about
 rows that the Query engineer's SQL already establishes; what is left is
-arithmetic over dates, which is this role's by the seam docs/team/README.md
+arithmetic over dates, which is this module's across the seam
 names. So this function takes what was fetched and answers where it draws,
 and the fetch itself stays with the query.
 

@@ -52,6 +52,11 @@ rather than assumed away.
 for AC-227's reason: the engine commits a press to a drag only after it has
 travelled `LIFT_PX`, and it recomputes its proposal on every move, so a single
 `mouse.move` to the destination measures a code path no person reaches.
+The gesture itself is the harness's `carryInto` rather than this file's, a
+copy of it having lived here and an identical copy in AC-295 until the CI run
+of 2026-09-01 found the same fault in both: it clamped its waypoints into the
+window on the horizontal axis and not the vertical one, and this board grows
+downwards. See that helper for the measurement.
 
 Spec: 9.1 (the view strip's board sentence, the region table's board column,
 the undo bar), DES-182 (a column is a value), DES-171 (the proposal seam),
@@ -62,6 +67,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  carryInto,
   caseTitle,
   chooseView,
   clickControl,
@@ -158,56 +164,6 @@ async function board(page: Page, axis: RegExp): Promise<void> {
 /** A card in a column, addressed by the task that generates it. */
 function card(page: Page, column: string, title: string): Locator {
   return regionOf(page, column).getByRole('listitem').filter({ hasText: title }).first()
-}
-
-/**
- * Carry a card into another column as a person would: press, travel in steps,
- * and stop with the pointer inside the destination, still held down.
- *
- * Left held down on purpose, both cases reading what the board promises before
- * they release. The destination's live position is re-read each pass, because
- * the columns scroll horizontally and a board wider than the window moves
- * under the pointer exactly as the sidebar does under AC-227's.
- */
-async function carryInto(page: Page, from: Locator, into: Locator): Promise<void> {
-  await from.scrollIntoViewIfNeeded()
-  const start = await from.boundingBox()
-  expect(start, 'the card being carried is on the page and has a box to grab').not.toBeNull()
-  if (start === null) return
-  const viewport = page.viewportSize()
-  expect(viewport, 'the page has a viewport to clamp waypoints into').not.toBeNull()
-  if (viewport === null) return
-
-  /* Right of the row's first 44 pixels, which the row reserves for its
-     completion control and which its own click handler ignores. */
-  let atX = start.x + start.width / 2
-  let atY = start.y + start.height / 2
-  await page.mouse.move(atX, atY)
-  await page.mouse.down()
-
-  let previousX = Number.POSITIVE_INFINITY
-  for (let pass = 0; pass < 40; pass += 1) {
-    const now = await into.boundingBox()
-    expect(now, 'the destination column exists somewhere on the board').not.toBeNull()
-    if (now === null) return
-    const trueX = now.x + now.width / 2
-    const trueY = now.y + Math.min(now.height / 2, 120)
-    const clampedX = Math.min(Math.max(trueX, 40), viewport.width - 40)
-    for (let step = 1; step <= 4; step += 1) {
-      await page.mouse.move(
-        atX + ((clampedX - atX) * step) / 4,
-        atY + ((trueY - atY) * step) / 4,
-      )
-    }
-    atX = clampedX
-    atY = trueY
-    if (Math.abs(trueX - clampedX) < 1 && Math.abs(trueX - previousX) < 2) break
-    previousX = trueX
-    await page.waitForTimeout(150)
-  }
-  for (const nudge of [1, -1, 0]) {
-    await page.mouse.move(atX + nudge, atY + nudge)
-  }
 }
 
 test.beforeEach(async ({ page }) => {

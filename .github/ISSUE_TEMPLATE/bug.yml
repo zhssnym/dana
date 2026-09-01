@@ -1,0 +1,34 @@
+name: Bug
+description: Something is broken.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong
+      description: What happens, and what should happen instead. One or two sentences is fine.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The screen, the file, or the folder. A guess is better than nothing.
+      placeholder: app/src/client/views/, or "the sidebar on mobile"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which side
+      options:
+        - Frontend
+        - Backend
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to see it
+      description: Optional. Skip it if it is obvious.

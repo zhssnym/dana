@@ -2,7 +2,7 @@
 8.6's five recompute triggers, as one callable its consumers invoke.
 
 **Why this is a function rather than a rule other sessions follow.** The
-reminders seam of docs/team/README.md states the tiebreaker in the words this
+reminders seam states the tiebreaker in the words this
 file exists to satisfy: this role owns all five triggers as a callable, never
 as arithmetic the callers restate, and every caller invokes it inside its own
 transaction. Call sites restating one computation is one chance per site to

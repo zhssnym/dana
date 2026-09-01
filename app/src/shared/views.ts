@@ -29,8 +29,8 @@ Two rules that are deliberately somewhere else, so this file does not become a
 second home for them:
 
 - The calendar's 62 days and the inversion refusal are arithmetic over civil
-  dates, which 11.9 and docs/team/README.md's first seam give to
-  02-scheduling-and-time.md. checkCalendarRange in src/server/time answers
+  dates, which 11.9 and the module seam give to
+  src/server/time. checkCalendarRange there answers
   which of Q3C's two rules broke and says outright that naming the field and
   choosing the status are the route's. The schema below validates that start
   and end are calendar dates at all; the route asks that module the range
@@ -498,7 +498,7 @@ export type CompletedDay = z.infer<typeof completedDay>
 /*
 Q3C's ghosts, the five fields 7.10 enumerates. The array was empty from P4
 until P6: what draws in it is 8.5's projection over the 4.11 iterator that
-11.9 gives to 02-scheduling-and-time.md and P6 delivered, and AC-082 pins it
+11.9 gives to src/server/time and P6 delivered, and AC-082 pins it
 in P6's range. The shape was declared ahead of that for the reason P3 declared
 recurrence_rule and reminder while their computations were deferred: the key
 is frozen 7.10's, so a client can rely on it, and P6 filled a shape rather

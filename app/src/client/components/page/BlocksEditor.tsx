@@ -34,7 +34,7 @@ block holds.
 **No pointer drag yet, deliberately.** RFC 0004 assigns the drag engines to
 S11, and the sidebar drag moved there at the S9 close for exactly the
 one-engine reason; blocks arrange today by where they are inserted, and the
-grip arrives when the engine does. Recorded in SESSION-LOG's S12 row.
+grip arrives when the engine does.
 */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'

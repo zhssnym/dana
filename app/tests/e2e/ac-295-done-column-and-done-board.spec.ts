@@ -16,6 +16,10 @@ board drop: a column that repaints a card as finished without writing the
 transition is the false green this discriminates, and the transition is the
 one act a Done column can mean (9.5's completion, undo bar and all).
 
+The carry is the harness's `carryInto`, which is AC-228's gesture and was a
+copy of it here until 2026-09-01; see that helper for why one copy is worth
+more than two.
+
 Spec: 9.1 (the board sentence and the region table), 9.5 (Done, completion),
 9.6 (the folder board), 7.6 (the transition), RFC 0005 items 44 B2 and 58.
 */
@@ -24,6 +28,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  carryInto,
   caseTitle,
   chooseView,
   createFolder,
@@ -44,40 +49,6 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 function card(page: Page, column: string, title: string): Locator {
   return regionOf(page, column).getByRole('listitem').filter({ hasText: title }).first()
-}
-
-/** AC-228's carry: press, travel in steps, stop inside the destination, held. */
-async function carryInto(page: Page, from: Locator, into: Locator): Promise<void> {
-  await from.scrollIntoViewIfNeeded()
-  const start = await from.boundingBox()
-  expect(start, 'the card being carried has a box to grab').not.toBeNull()
-  if (start === null) return
-  const viewport = page.viewportSize()
-  if (viewport === null) return
-  let atX = start.x + start.width / 2
-  let atY = start.y + start.height / 2
-  await page.mouse.move(atX, atY)
-  await page.mouse.down()
-  let previousX = Number.POSITIVE_INFINITY
-  for (let pass = 0; pass < 40; pass += 1) {
-    const now = await into.boundingBox()
-    expect(now, 'the Done column exists somewhere on the board').not.toBeNull()
-    if (now === null) return
-    const trueX = now.x + now.width / 2
-    const trueY = now.y + Math.min(now.height / 2, 120)
-    const clampedX = Math.min(Math.max(trueX, 40), viewport.width - 40)
-    for (let step = 1; step <= 4; step += 1) {
-      await page.mouse.move(atX + ((clampedX - atX) * step) / 4, atY + ((trueY - atY) * step) / 4)
-    }
-    atX = clampedX
-    atY = trueY
-    if (Math.abs(trueX - clampedX) < 1 && Math.abs(trueX - previousX) < 2) break
-    previousX = trueX
-    await page.waitForTimeout(150)
-  }
-  for (const nudge of [1, -1, 0]) {
-    await page.mouse.move(atX + nudge, atY + nudge)
-  }
 }
 
 async function statusOf(page: Page, id: string): Promise<string> {

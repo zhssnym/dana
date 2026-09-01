@@ -14,8 +14,8 @@ Both seams this file opened at P3 are closed now, and both the same way:
 
 - **Generation (8.5) and G-SERIES (5.1)** are wired at P6. Neither is
   implemented here: both are the Scheduling engineer's functions, taken from
-  src/server/time as transaction-taking black boxes per the transitions seam
-  of docs/team/README.md, and what this file owns is where they are called
+  src/server/time as transaction-taking black boxes across the transitions
+  seam, and what this file owns is where they are called
   from. Generation runs in the winning branch of the complete and abandon
   updates, inside the same transaction, which is what makes it exactly-once
   under any race (8.3); the guard runs ahead of the uncomplete and restore
