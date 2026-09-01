@@ -209,6 +209,37 @@ Did not: Playwright (browser not installed) · Postgres leg (no local database)
 Naming matters. "Tested" is a word that gets written after watching the code compile. A
 command is a claim someone can check. An unstated gap is worse than a known one.
 
+### When CI runs, and what a commit costs
+
+**CI does not run per commit.** It runs per *push* to a branch that has an open pull request,
+and on pushes to `main`. Measured on pull request #14: **31 commits, 5 runs.**
+
+So commit as small and as often as you like. Batching commits to spare the runner is solving
+a problem that is already solved, and three things are why:
+
+- **A branch with no pull request runs nothing at all.** The `push` trigger is narrowed to
+  `main`. Push a work-in-progress branch fifty times and CI never starts.
+- **Successive pushes to an open pull request collapse into one.** `concurrency` cancels the
+  run in progress when the next push arrives, so five pushes in ten minutes cost one
+  completed run rather than five. `main` is exempt: a cancelled verdict is not a verdict.
+- **Opening the pull request is the moment CI starts caring**, which makes it the real lever.
+  Finish the work before the pull request exists — which is what "not a draft" in section 8
+  is already asking for, from the other direction.
+
+One case that leaves uncovered: a one-word fix pushed to a pull request that is already open.
+Two things answer it.
+
+- **Documentation-only changes skip themselves.** `paths-ignore` in the workflow keeps the job
+  off `docs/`, `.claude/`, `.vscode/`, the issue and pull request templates, and the root
+  markdown files. The list is in `.github/workflows/ci.yml`, with the reasoning.
+- **`[skip ci]` in the commit message** skips the run outright. GitHub honours it natively on
+  `push` and `pull_request`. For a typo in a comment, and nothing else: it is the wrong tool
+  the moment a change could alter what any leg measures, and a run skipped by hand is a run
+  nobody can tell was needed.
+
+**None of this makes a run cheaper, only rarer.** A run is about twenty minutes of the one
+self-hosted runner, and a docs job holding it is a code job not running.
+
 ## 8. Open a pull request
 
 Not a draft. The template asks for what the review depends on, and two of its sections are
