@@ -28,3 +28,8 @@ do damage:
 How to behave when you are uncertain: stop and ask, or hand off. The person you are working
 for cannot read backend code and cannot check your work, so a confident guess costs him more
 than a question does.
+
+And when what is wrong is the workflow rather than the code — it told you the wrong thing, or
+never told you the thing you needed — open an issue labelled `documentation` and keep going.
+You cannot fix `docs/workflow/` yourself, so that issue is the only way the next agent does
+not pay what you just paid. Rule 5 in your README says what to put in it.

@@ -24,6 +24,13 @@ Read this first. It is short on purpose.
 10. **Decide the obvious thing yourself.** Escalate only when the answer changes what Dana
     is, or costs money, or cannot be taken back. Everything else: decide, do it, and say what
     you decided in the pull request.
+11. **When the workflow itself is the obstacle, open an issue about it.** Wrong, missing, or
+    in the way of ordinary work: label it `documentation`, name the file and the section, and
+    say three things — what you were trying to do, what the workflow said or failed to say,
+    and what you did instead. Then **carry on**. This is not a way to stop; rule 8 is the one
+    for that. Not for "I would have phrased it differently" either: a rule that collects every
+    quibble becomes a list nobody reads, which is exactly how specification section 13 reached
+    57 items.
 
 Merging into `main` deploys to production within minutes. There is no staging. That is why
 rules 2 and 8 exist.
@@ -37,7 +44,8 @@ rules 2 and 8 exist.
 | Starting a feature that needs both sides for weeks | [`big-features.md`](big-features.md). Rare. |
 
 **Your side's file is meant to be enough on its own.** Read it and start working. If it is
-not enough, that is a bug in it, and saying so is more useful than reading around it.
+not enough, that is a bug in it, and saying so is more useful than reading around it. Rule 11
+is where saying so goes.
 
 [`how-we-work.md`](how-we-work.md) is the shared reference behind both: the label table, the
 review, versions, and how the changelog is kept. Go there when you need one of those, not
