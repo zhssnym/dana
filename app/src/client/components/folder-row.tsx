@@ -284,8 +284,30 @@ export function FolderRow({
           nested && !tree && 'pl-7',
           tree && 'pl-10 before:!left-8',
           (pending > 0 || hasActions) && 'pr-[4.75rem]',
-          /* polish: sidebar F2. One centred glyph per folder in the rail,
-             whatever indent the row has when it is wide. */
+          /* polish: sidebar F2, corrected against measurement for issue #12.
+             This said "one centred glyph per folder in the rail" and was false
+             from the day it was written: the glyph has never been centred, and
+             `CLAUDE.md` carries it as the worked example of a comment that
+             states intent and reads as behaviour. A session working from it
+             concluded the reported misalignment was impossible.
+
+             What was actually happening, measured in the browser at 56px of
+             rail, where the true centre is 28: this row's glyph sat at 20 and
+             every navigation row's sat at 24. The label is clipped to nothing
+             in the rail but is still a flex item, so `gap-2` laid out 8px of
+             space beside it and pushed every glyph 4px left; this row then
+             widened its own content box with the `!px-0` below, which gave its
+             `flex-1` label 8px to grow into rather than none, for 8px in all.
+             The two magnitudes are why the rail read as a straight column with
+             one folder falling out of it.
+
+             `justify-center` was therefore never wrong and never sufficient.
+             The gap is now zero in the rail (`ui/sidebar.tsx`) and the label
+             below is stopped from growing, so the glyph is the only thing in
+             flow and this comment is finally true. The label stays in the
+             markup and in the accessibility tree, hidden by nothing: AC-182
+             reads both a page row and a folder row by name in the rail, and
+             `app-sidebar.tsx` carries the same note on its own row. */
           'group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!px-0 group-data-[collapsible=icon]:before:!inset-x-0',
         )}
       >
@@ -313,7 +335,7 @@ export function FolderRow({
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:grow-0">{name}</span>
       </SidebarMenuButton>
 
       {pending > 0 ? (
