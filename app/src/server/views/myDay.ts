@@ -9,7 +9,7 @@ over it, in the order the stream arrived: filtering preserves relative order,
 so each group comes out in Q1's sort without either group being sorted twice.
 
 Every date decision here is the Scheduling engineer's, imported rather than
-restated, which docs/team/README.md's first seam requires and this role's
+restated, which the module seam requires and this file's
 hard boundaries repeat: today(tz) for 8.1's today(V), qualifyDate for 8.2's
 minimum, myDayGroup for the Carried and Today boundary, and localDayWindow
 for Q1R's "completed_at falls on today in V's timezone".

@@ -1,0 +1,70 @@
+name: Handoff to backend
+description: Frontend work needs something from the server. Opened by the frontend side.
+labels: [handoff-to-backend, backend]
+assignees: [zhssnym]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Put everything here. There is no length limit and no separate document:
+        an issue is the handoff. Only an RFC-scale one needs a file in
+        `docs/handoffs/`, and then this issue points at it.
+  - type: dropdown
+    id: blocking
+    attributes:
+      label: Is the frontend blocked
+      description: Blocked means the work cannot continue at all. These schedule very differently.
+      options:
+        - "Yes, blocked"
+        - "No, the work continues without it"
+    validations:
+      required: true
+  - type: input
+    id: from
+    attributes:
+      label: Came from
+      description: The frontend issue this arose in. Link it, and leave a comment there naming this one.
+      placeholder: "#42"
+    validations:
+      required: true
+  - type: textarea
+    id: need
+    attributes:
+      label: What I need
+      description: One or two sentences. The most important part of this issue.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What the screen is trying to do, and why the current API cannot do it.
+    validations:
+      required: true
+  - type: textarea
+    id: expects
+    attributes:
+      label: What the frontend expects
+      description: >
+        Be concrete. Field names, types, what happens when a value is missing or
+        the list is empty. An example payload helps.
+    validations:
+      required: true
+  - type: textarea
+    id: built
+    attributes:
+      label: What is already built
+      description: Which files, and whether they work, are stubbed, or are commented out.
+  - type: textarea
+    id: guess
+    attributes:
+      label: What I think has to change
+      description: >
+        A guess, not an instruction. Files or areas that look relevant. The
+        backend design is Hassan's call; this exists so he does not start from a
+        blank page, and it is fine for it to be wrong.
+  - type: textarea
+    id: else
+    attributes:
+      label: Anything else worth knowing
+      description: Edge cases, or decisions taken on the frontend that assume a particular answer.

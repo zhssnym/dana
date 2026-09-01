@@ -4,7 +4,7 @@ fire_at values recompute.
 
 **This is the one trigger of the five that fires outside the Collaboration
 engineer's endpoints.** The P7 kickoff added it to the reminders seam of
-docs/team/README.md because no file named it: the fifth trigger lives in the
+the module seams because no file named it: the fifth trigger lives in the
 Security engineer's auth module, at the login sync and at PATCH /me, and that
 persona mentions reminders nowhere. Frozen 7.1 carries the obligation in its
 own text for the second of those two doors, "Recomputes fire_at for scheduled

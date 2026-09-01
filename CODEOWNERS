@@ -1,0 +1,65 @@
+# CODEOWNERS
+#
+# When a pull request changes a file, GitHub asks that file's owner to review
+# it. That is ALL this file does. It does not stop anyone editing anything.
+#
+# On this repository it has no teeth at all: branch protection is unavailable
+# on the current plan, and requiring code-owner review is what would give it
+# force. So read this as the map each agent reads to learn where the boundary
+# is, and as the record of who owns what. The control that actually protects
+# main is Hassan reading the diff before he merges.
+#
+# THE LAST MATCHING LINE WINS. Not the most specific one. Order matters.
+# A leading / anchors at the repository root. A trailing / matches everything
+# inside the directory.
+
+# ---------------------------------------------------------------------------
+# Default. Anything not claimed below is Hassan's.
+# ---------------------------------------------------------------------------
+*                          @zhssnym
+
+# ---------------------------------------------------------------------------
+# Imran's ground.
+# ---------------------------------------------------------------------------
+# What the user sees. Both names on purpose: with Imran alone, every client fix
+# Hassan makes would sit waiting for Imran's approval, and most recent client
+# commits were Hassan's. With both names, whoever did not write it can approve
+# it.
+#
+# Component tests live in here too, beside the components they test, and are
+# owned by this line. That is why app/tests/ is not split.
+/app/src/client/           @mranwafa @zhssnym
+
+# ---------------------------------------------------------------------------
+# Hassan's ground.
+# ---------------------------------------------------------------------------
+# Redundant with the `*` line today. They stop being redundant the moment
+# anyone adds a broader rule above them, which is the whole reason to write
+# them down.
+/app/src/server/           @zhssnym
+/app/db/                   @zhssnym
+/app/tests/                @zhssnym
+/.github/                  @zhssnym
+/docs/spec/                @zhssnym
+/docs/rfcs/                @zhssnym
+/docs/workflow/            @zhssnym
+/CODEOWNERS                @zhssnym
+
+# ---------------------------------------------------------------------------
+# The contested middle.
+# ---------------------------------------------------------------------------
+# The contract between the two halves. 36 server files and 59 client files
+# import from it, and a change here is a change to spec section 7 in disguise.
+# Reading it is free and constant; only editing it asks for a review.
+#
+# One standing exception, written in docs/workflow/frontend/: a frontend pull
+# request may add a new READ schema for a shape the server already sends.
+# Nothing on the server imports it, and a wrong one fails loudly on one screen.
+# Request schemas are different and never move alone, because an unhandled
+# field is accepted and silently dropped with a 200.
+/app/src/shared/           @zhssnym
+
+# Dependencies. Imran's agent will want UI libraries. That is a bundle size,
+# licence and supply chain decision, so it comes here.
+/app/package.json          @zhssnym
+/app/package-lock.json     @zhssnym

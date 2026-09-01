@@ -2,26 +2,40 @@
 
 Guidance for Claude Code sessions working in this repository.
 
-Dana is a collaborative to-do PWA, specification-first, built by role-scoped agent
-sessions. Pre-release: the repository is documentation only until package P0 lands
-`app/`.
+Dana is a collaborative to-do PWA, specification-first. Version 2.2 is shipped and
+deployed from `main`; the application lives in `app/`.
 
 **What this file owns:** the repository map, this machine's environment and commands,
-and an orientation sketch of the architecture. **Everything else is a pointer.**
-`docs/team/_shared-protocol.md` is the operative rulebook: the contract, boundaries
-and owned paths, the definition of done, escalation, test ownership, and writing
-conventions all live there and are deliberately not restated here, because a rule
-stated twice is a rule that will one day disagree with itself. Wherever the two
-appear to differ, the protocol wins.
+and an orientation sketch of the architecture. **Everything else is a pointer.** A rule
+stated twice is a rule that will one day disagree with itself, so nothing here restates
+a rule that lives elsewhere.
+
+**How work flows is `docs/workflow/`.** Start at `docs/workflow/README.md`, then read the
+file for your side: `docs/workflow/frontend/README.md` or `docs/workflow/backend/README.md`.
+Each side's file is meant to be complete enough to work from on its own. Nothing about
+process is restated in this file.
+
+That workflow replaced an earlier one built for a fleet of thirteen agent personas working
+package by package. The former rulebook at `docs/team/_shared-protocol.md` is deleted along
+with the personas, and three agents in `.claude/agents/` replace them. The restructure that
+did it ran on 2026-08-31 and 2026-09-01; its reasoning is in git, and what it left undone is
+in the GitHub issues.
 
 ## Before implementation work
 
-If your task touches `app/` and your opening instructions did not give you
-`docs/team/_shared-protocol.md` plus exactly one persona file from `docs/team/`, say
-so and stop. That pairing is required, and this file is not a substitute for it.
+**Comments in this repository state intent and behaviour in the same voice, and nothing
+distinguishes them.** They are long, confident, and often describe what a piece of code is
+*supposed* to do rather than what it does. At least one has been provably false since it was
+written: `app/src/client/components/folder-row.tsx` claimed "one centred glyph per folder in
+the rail" for a row that had never been centred, and a session working from that comment
+concluded the reported bug was impossible. **Treat a comment as a claim about intent. Verify
+behaviour by running it.** This is the most likely way a session here goes wrong.
 
 Read spec section 11, including the 11.15 hazard list, before your first line of
-code. It exists because training-data recall of the installed library versions is
+code, **when the work touches the libraries it names**. For a change confined to markup or
+styling it is a tax, and section 11.15's list will tell you within a minute whether it bears
+on what you are doing. It exists because training-data recall of the installed library
+versions is
 wrong in specific, listed ways: FullCalendar 7 plugin entrypoints, Tailwind 4
 CSS-first configuration, React Router library mode, zod 4, Express 5, Luxon DST
 handling, and PGlite's single connection.
@@ -30,14 +44,17 @@ handling, and PGlite's single connection.
 
 | Path | What it is |
 | - | - |
-| `docs/spec/` | The single source of truth, one contract split by numbered section. `00-index.md` maps section numbers to files; a reference to "section N.M" resolves to the file whose name begins with N. Sections 4 and 7 are frozen |
-| `docs/rfcs/` | The change process (preamble of `0000-template.md`) and the active build plan, RFC `0001-mvp.md`, whose implementation plan is the authority on packages P0 to P10, their dependency order, and their owners |
-| `docs/team/` | The shared protocol and thirteen role personas. A persona's Owns section is the only statement of ownership |
-| `docs/design/` | Human-committed design material. Read it, never write it |
-| `docs/learn/` | The operator's personal learning material, written only by a tutor session he opens. Build sessions never read or write it |
-| `docs/operator/` | How this build is operated rather than written: the runbook, the co-lead's contract, and the prompting guide. It describes the coordination around you, not the contract that binds you, so there is nothing in it to reason from |
-| `SESSION-LOG.md` | Every agent session that has run, in order, one table per package. A record written after the fact, and deliberately not one of the five state sources protocol section 2 names. Read it for context; never reason from it |
-| `app/` | The application. Arrives with P0 |
+| `docs/spec/` | The single source of truth, one contract split by numbered section. `README.md` maps the numbers; **section N is the directory beginning with N, section N.M is the file inside it beginning with N.M**. Sections 4 and 7 are frozen |
+| `docs/rfcs/` | Proposals to change the contract. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. New RFCs are per feature |
+| `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |
+| `CHANGELOG.md` | What changed per release. Its `[1.0.0]` block is a decision log of the v1 build and is being cut back |
+| `app/` | The application |
+
+Deleted, and mentioned here only because references to them survive elsewhere in the
+repository: `docs/team/`, `docs/design/`, `docs/learn/`, `docs/operator/`, `docs/ux/`,
+`docs/parity/`, `docs/security/`, `dana-reports/`, `AGENTS.md`, `SESSION-LOG.md`.
+Where one appears in an RFC or in a dated record inside the specification, it is history
+and accurate as history. Where one appears anywhere else, it is a mistake worth fixing.
 
 ## Commands and this machine
 
@@ -50,16 +67,17 @@ npm run lint && npm run typecheck && npm test && npm run build   # the gate, in 
 npm test -- --maxWorkers=2                 # vitest flags go after the --
 npm run dev                                # API server plus client dev server
 npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
-npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # one package's range
+npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # a range of criteria
 npx vitest run -t "AC-042"                 # one acceptance criterion by number
 ```
 
 Environment specifics, hard-won and non-obvious. This file is their home; the
 protocol points here rather than repeating them.
 
-- Scope the suite while you iterate and run it whole before you report. Measured
-  2026-08-13 at 189 files and 1530 tests: the PGlite leg is about 200 seconds and
-  the Postgres leg about 60, one package's range about 33. The full run is not
+- Scope the suite while you iterate and run it whole before you report. **Measured
+  2026-09-01 in CI: 279 files and 1899 tests.** The proportions below were measured
+  2026-08-13 at 189 files and 1530 tests and still hold: the PGlite leg is about 200 seconds and
+  the Postgres leg about 60, a range of criteria about 33. The full run is not
   ceremony, it is the only one that sees a cross-package regression, and a change
   under `app/src/shared/**` or `app/src/server/domain/**` reaches criteria in
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
@@ -145,7 +163,7 @@ protocol points here rather than repeating them.
   you got.** `TEST_DATABASE_URL` was set machine-wide when this file was first
   written, which made a bare `npm test` the Postgres leg. A later revision of
   this bullet claimed it was "no longer set in any scope, verified 2026-08-16 at
-  the P10 release session, so a bare `npm test` is now the PGlite leg"; **that is
+  the 2026-08-16 release, so a bare `npm test` is now the PGlite leg"; **that is
   false again, and the flip-flop is the point of the bullet rather than an
   embarrassment to it.** Measured 2026-08-30 at the eight-agent polish round:
   the variable is set in the **user** scope, four sessions found it independently
@@ -173,25 +191,31 @@ protocol points here rather than repeating them.
   only a local run under `.work` is red. To run this leg locally, copy or clone
   the tree to a path with no dot directory; otherwise read CI's Playwright step
   as the verdict.
-- **The browser leg must have that variable unset for the whole run**, and the
-  reason is a seam that treats its two processes differently. `npm run e2e:app`
+- **The browser leg needed that variable unset for the whole run, and no longer
+  does. Corrected 2026-08-31.** `playwright.config.ts:146` now pins
+  `TEST_DATABASE_URL: ''` inside `webServer.env`, with a comment describing the
+  same seam this bullet describes, so the `env -u` prefix below is redundant and
+  has been since commit `63ecc34` on 2026-08-14. The reasoning is kept because it
+  is still the reason the config line exists, and deleting it would leave that
+  line looking arbitrary. The seam treats its two processes differently. `npm run e2e:app`
   seeds through `app/db/client.ts`, which prefers `TEST_DATABASE_URL`, and then
   boots the server through `app/src/server/index.ts`, which deletes it per 11.10
   and falls back to `.data`. With the variable set, the seed writes to `dana_test`
   while the browser is shown a `.data` nothing truncated, so the leg fails on
-  missing fixtures with a count that drifts as that directory accumulates. Run it
-  as `env -u TEST_DATABASE_URL npx playwright test`. Measured 2026-08-12 at the
-  P8D session 1 verification: 97 of 97 in 1.2 minutes, run immediately after the
+  missing fixtures with a count that drifts as that directory accumulates. That is
+  what the config line prevents; you no longer need to prefix the command.
+  Measured 2026-08-12 at the
+  verification on that date: 97 of 97 in 1.2 minutes, run immediately after the
   five other legs with no cooldown and no process kill. The older belief that this
   leg needs a quiet machine, and the counts recorded for it, were this fault
   rather than load; `C:\Users\hassan\gate.ps1` still carries the superseded
   explanation and a stale count of 94.
 - **Two browser legs cannot share this machine, and the collision does not
-  announce itself as one.** Measured at S10 on 2026-08-25. `playwright.config.ts`
+  announce itself as one.** Measured 2026-08-25. `playwright.config.ts`
   hardcodes port 3100 and sets `reuseExistingServer: false`, so every run starts
   an `e2e:app` of its own; a run that has printed its tally has *not* released
   the port, because the `npx` process outlives the report. That session's own
-  finished full leg held 3100 for over an hour while a concurrent S12
+  finished full leg held 3100 for over an hour while a concurrent
   verification and a re-run each started a third and second server, all three
   seeding and truncating one another's database underneath the browser. What it
   looks like from the report is code: `Page crashed`, tests failing at 0 ms,
@@ -209,7 +233,7 @@ protocol points here rather than repeating them.
   Separate worktrees make vitest legs genuinely independent, having no port and
   no shared database; only the browser leg has a single hardcoded one.
 - **Killing a browser leg's server does not kill the leg, and the next run
-  then collides with the survivor.** Measured at S23 on 2026-08-27, and it is
+  then collides with the survivor.** Measured 2026-08-27, and it is
   the collision two bullets above caused by one session rather than two.
   `playwright.config.ts` starts `npm run e2e:app` per run, so a session that
   wants a fresh run against new code kills the process listening on the port
@@ -230,7 +254,7 @@ protocol points here rather than repeating them.
   artifact you are about to read belongs to a run that is already dead.
 - **A lone browser leg on its own port still loses about one case a run when
   commit charge is short, and the port-collision bullet above does not cover
-  it.** Measured 2026-08-26 at S22, three whole runs of one commit on an owned
+  it.** Measured 2026-08-26, three whole runs of one commit on an owned
   port 3122 with nothing listening on 3100 and no stale `npx playwright`:
   **227 of 228, then 227 of 228, then 228 of 228.** The two reds were
   different cases (`session-path.spec.ts:133`, then
@@ -238,7 +262,7 @@ protocol points here rather than repeating them.
   timeout, and each passed alone in under 7 seconds against a 2.2-minute
   failure in the leg. **The presenting shape is the same as the collision
   above and the cause cannot be it**, which is the whole reason for this
-  bullet: a session that reads the S10 note, checks the port, finds it clear
+  bullet: a session that reads the port note, checks the port, finds it clear
   and therefore believes the red, believes a defect that is not there. What
   was true instead was `FreeVirtualMemory` around 3.5 GB of 33.9 with two
   Chrome processes holding 4.4 GB of private bytes each, the same commit-charge
@@ -254,7 +278,7 @@ protocol points here rather than repeating them.
   8.8 GB, more than every test process on the machine put together.
 - **"Re-run a failing case alone before believing it" is wrong for a case whose
   assertion races a UI transition, and there it manufactures a false
-  confirmation rather than a check. Measured 2026-08-27 at S26 and S29, and
+  confirmation rather than a check. Measured 2026-08-27, and
   scoped rather than added to the bullet above, which stands for the flake it
   was written about.** Two sessions independently re-ran
   `ac-182-view-preferences-persist.spec.ts:227` alone, each on a quiet machine
@@ -280,7 +304,7 @@ protocol points here rather than repeating them.
   believing either verdict, check whether the expected value is a number the
   test measured or a number the spec fixes; if it measured it, the case needs a
   settle and the red is a criterion defect rather than a client one, which is
-  persona 11's under protocol section 8. **The cause is deliberately not
+  the reviewer agent's to catch, and the acceptance suite's owner to fix. **The cause is deliberately not
   asserted past "it races the UI update"**, on the same rule the `.data` bullet
   above keeps: what was measured is that the case fails alone on both commits,
   that the restored number is always the specified one, and that every wrong
@@ -313,11 +337,37 @@ protocol points here rather than repeating them.
   inherited the cluster default. The string authenticates as `dana_ci`, never the
   superuser, and lives in the runner installation's `.env` and in `app/.env`, which
   is committed (see the last bullet) and is never stored as a GitHub secret (11.11).
-- CI runs on a self-hosted GitHub Actions runner on this machine (spec 11.11), so
-  there is no CI while the machine is off or the runner service is stopped: a pushed
-  branch simply has no verdict until then, rather than failing. Hosted runs stopped
-  starting on 2026-08-11 on an account billing failure, and the owner chose not to
-  buy hosted minutes.
+- **CI runs on a self-hosted GitHub Actions runner on this machine, and it is not a
+  Windows service: it is a scheduled task that starts at logon** and runs `run.cmd`
+  hidden. So there is no CI while the machine is off or before anyone has logged in.
+  A pushed branch has no verdict until then rather than failing. Hosted runs stopped
+  on 2026-08-11 on an account billing failure and the owner chose not to buy hosted
+  minutes, which is why the runner is here at all. **A self-hosted runner costs no
+  Actions minutes and has no time limit; the 40 in the workflow is a hang killer.**
+  Manage it with `Start-ScheduledTask` and `Stop-ScheduledTask` on
+  `'GitHub Actions Runner (dana)'`.
+- **CI triggers on pull requests and on pushes to `main`, not on every push.** A
+  branch with no pull request gets no verdict, which is correct under a workflow where
+  nothing reaches `main` except through one, and it stops a single runner starting two
+  jobs for one change.
+- **Three flake classes now, and only two of them are answered by re-running.** Every
+  one was measured in CI on 2026-08-31 and 2026-09-01, on the first runs this
+  repository has ever had.
+  - **The Postgres leg shares one `dana_test` across all 279 files, so they see each
+    other's rows.** PGlite gives each worker its own. The fingerprint is a count that
+    climbs across successive tests, `expected 2 to be 1`, then 3, then 4: a logic error
+    gives a constant wrong number, accumulation climbs. Re-run the file alone before
+    believing it. Tracked as issue #32.
+  - **The browser leg loses about one case a run** under memory pressure, and the
+    bullets above cover it. Re-run the case alone, and read the note on when isolation
+    lies.
+  - **A test that reads the clock twice fails when a run crosses midnight.** Caught at
+    23:59:39Z: `ac-277` expected 2026-08-31 and got 2026-09-01, then passed unchanged at
+    02:00. **Re-running is not the fix and the red is real**, in the sense that the same
+    run at the same hour tomorrow fails again. Tracked as issue #46.
+- **Between them these are why a red is not evidence until you have named which class it
+  is.** In three CI runs of one commit, every step passed at least once and no run passed
+  all of them together, with nothing wrong in the commit.
 - The Postgres tooling here answers in French, `initdb --help` and `pg_controldata`
   included, and one translated flag name is wrong: the option is `--builtin-locale`,
   which the French help prints as `--builtin-provider`. Read option names from the

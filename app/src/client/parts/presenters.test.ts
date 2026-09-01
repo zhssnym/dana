@@ -332,6 +332,44 @@ describe('personDisplay: 4.1\'s "Deleted user"', () => {
       name: DELETED_USER,
     })
   })
+
+  /*
+  **The three cases below are the regression that shipped, and they were the
+  gap this file had.** Until the polish round of 2026-08-30 this function
+  dropped `avatar_url` on the floor, so a person's own photograph appeared on a
+  card and on a board and vanished the moment the same person was drawn on a
+  row: one seam, one omission, every list view in the product. It was found by
+  a human looking at the product, not by anything here.
+
+  The fix landed and the guard did not. Every fixture in this file passed
+  `avatar_url: null`, which exercises only the branch that was never broken, so
+  the same omission could be reintroduced today and this suite would stay
+  green. The first case pins it; the other two pin the shape the fallback
+  depends on.
+  */
+  test('a picture is carried through, which is what the row draws', () => {
+    expect(
+      personDisplay({ display_name: 'Sara Ali', avatar_url: 'https://example.test/sara.jpg' }),
+    ).toEqual({ initials: 'SA', name: 'Sara Ali', image: 'https://example.test/sara.jpg' })
+  })
+
+  /*
+  Absent and null are one answer, and the answer is the absence of the key
+  rather than `image: null`. `components/person-face.tsx` chooses the tinted
+  disc on the key not being there, so a null carried through would be a picture
+  the browser tries and fails to load.
+  */
+  test('a null picture leaves no image key at all, which is the disc', () => {
+    const shown = personDisplay({ display_name: 'Sara', avatar_url: null })
+    expect(shown).toEqual({ initials: 'S', name: 'Sara' })
+    expect('image' in shown).toBe(false)
+  })
+
+  test('a caller whose shape has no such column gets the same two-key answer', () => {
+    const shown = personDisplay({ display_name: 'Sara' })
+    expect(shown).toEqual({ initials: 'S', name: 'Sara' })
+    expect('image' in shown).toBe(false)
+  })
 })
 
 describe('folderDisplay: the id-keyed to name-keyed bridge', () => {

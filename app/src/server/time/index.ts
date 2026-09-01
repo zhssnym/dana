@@ -1,9 +1,9 @@
 /*
 The date helper surface package P4's queries import.
 
-One entry point rather than three so the seam docs/team/README.md names has
-one import path: the Query engineer embeds these predicates in Q1 and Q3C and
-treats the module as a black box, and 02-scheduling-and-time.md's Handoff
+One entry point rather than three so the seam has one import path: the read
+path embeds these predicates in Q1 and Q3C and treats the module as a black
+box, and this module's handoff
 makes changing a signature they depend on a Steward escalation. Re-exporting
 here leaves the files behind it free to move without moving that contract.
 
@@ -12,7 +12,7 @@ it, and the seam stays the same: the Collaboration engineer calls generation
 and the G-SERIES guard inside the transitions it owns, and the Query engineer
 calls the projection from the calendar. Both are black boxes to their
 callers, so a signature here changes only through a Steward escalation
-(02-scheduling-and-time.md, Handoff).
+(this module's handoff).
 
 P7 added the reminder half, on the same terms. The Collaboration engineer
 calls the recompute at four of 8.6's five triggers and the Security engineer

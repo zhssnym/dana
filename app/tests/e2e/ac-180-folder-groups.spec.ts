@@ -66,7 +66,7 @@ asserted.
 **Two more of those four strings moved, and the S-fold is what moved them
 rather than S17b.** "Rename group" and "Delete group" came from the P8R change
 control of 2026-08-13, against a 9.1 that has since been replaced whole: the
-v2 names table of `docs/spec/09-ui.md` names neither, and its regions clause
+v2 names table of section 9.6 names neither, and its regions clause
 reads "the sidebar, one region per shelf named by it", so the section no longer
 describes a bare label group at all. What it does describe is 9.10's shelf
 contract, and DES-201 declares that contract's words: "Rename shelf" and

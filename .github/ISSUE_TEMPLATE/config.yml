@@ -1,0 +1,8 @@
+# Every issue uses a template. Issue #5 asked for this directly: "future issues
+# must be posted in their own template and in more organized manner, pin
+# pointing exact files or dirs."
+blank_issues_enabled: false
+contact_links:
+  - name: An idea, a question, or something not yet decided
+    url: https://github.com/zhssnym/dana/discussions
+    about: Discussions are for thinking. Issues are for work. A discussion that reaches a conclusion becomes an issue.

@@ -1,0 +1,48 @@
+name: Handoff to frontend
+description: Backend work needs something from the client, or has changed something it relies on.
+labels: [handoff-to-frontend, frontend]
+assignees: [mranwafa]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Put everything here. There is no length limit and no separate document.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change
+      description: >
+        The third is the one that matters. Additive breaks nothing, and a broken
+        shared type stops the build and announces itself. A change of meaning is
+        invisible from the frontend until a user hits it.
+      options:
+        - "Additive. Nothing breaks, there is just new work to do"
+        - "Breaking, and the type checker will catch it"
+        - "Breaking, and nothing will catch it"
+    validations:
+      required: true
+  - type: input
+    id: from
+    attributes:
+      label: Came from
+      placeholder: "#57"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What changed, or what is now available
+    validations:
+      required: true
+  - type: textarea
+    id: frontend
+    attributes:
+      label: What the frontend needs to do about it
+      description: In plain language. Which screens, and what should happen there.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: The shape
+      description: The schema in src/shared/, the endpoint, and an example of what it returns.
