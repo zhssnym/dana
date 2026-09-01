@@ -1061,6 +1061,125 @@ export async function openTaskRow(page: Page, title: string, why?: string): Prom
 }
 
 /**
+ * Carry one element into another as a person would: press, travel in steps,
+ * and stop with the pointer resting inside the destination, still held down.
+ *
+ * Left held down on purpose. AC-228 and AC-295 both read what the board
+ * promises before they release, "Into {column}" existing only while the
+ * pointer is down, so the gesture stops short of the release and the case
+ * makes it.
+ *
+ * **The waypoint is clamped into the window on both axes, and this is the
+ * whole reason the helper is here rather than copied into two specs.** It was
+ * copied into two, and both copies clamped the horizontal axis only, on the
+ * belief that a board scrolls sideways. It does not: 9.1's board is two
+ * columns per row (AC-259) and it grows downwards, so the axis that leaves the
+ * window is the vertical one. Measured at the CI run of 2026-09-01, where the
+ * `ac-228 destination` column sat about 1300 pixels above the grabbed card
+ * after a hundred and fifty specs had filled the Anytime board with their
+ * folders: the pointer was driven to y = -1174 and rested at y = -566, which
+ * is over nothing at all. `columnAt` hit-tests the pointer, so it answered
+ * null, `onOver` proposed nothing, and the case waited five seconds for a
+ * badge that no longer had any reason to exist. **A longer timeout could not
+ * have helped**, the pointer having stopped: nothing was going to move again.
+ * The same gesture in `ac-227-sidebar-drag.spec.ts` clamps the axis its own
+ * list scrolls along and has never had the fault.
+ *
+ * A clamped waypoint lands inside the engine's own edge band, which is what
+ * makes the page travel under the pointer; the destination's live box is
+ * therefore re-read every pass rather than remembered. Only the grabbed
+ * element is scrolled into view, never the destination, because scrolling the
+ * destination into view scrolls the grab off the element that has to be
+ * pressed.
+ *
+ * The loop rests on the condition the product itself tests, that the pointer
+ * lies inside the destination's box, and on that box having stopped moving,
+ * so a release does not land beside a column still in flight. Failing to
+ * arrive is asserted here rather than left to surface as a missing proposal in
+ * the caller, because the two failures have different causes and reading one
+ * as the other is what cost the 2026-09-01 investigation its first hour.
+ */
+export async function carryInto(page: Page, from: Locator, into: Locator): Promise<void> {
+  await from.scrollIntoViewIfNeeded()
+  const start = await from.boundingBox()
+  expect(start, 'the element being carried is on the page and has a box to grab').not.toBeNull()
+  if (start === null) return
+  const viewport = page.viewportSize()
+  expect(viewport, 'the page has a viewport to clamp waypoints into').not.toBeNull()
+  if (viewport === null) return
+
+  let atX = start.x + start.width / 2
+  let atY = start.y + start.height / 2
+  await page.mouse.move(atX, atY)
+  await page.mouse.down()
+
+  /*
+  The lift, waited for rather than assumed. `use-sortable-list.ts` commits a
+  press to a drag only once it has travelled LIFT_PX, and it says so by
+  putting the grabbing cursor on the document; every waypoint after this one
+  presumes a drag exists. Waiting for the signal is what the caller's
+  assertion cannot do for itself: the proposal is computed from the pointer's
+  position, so a press that never lifted and a pointer that never arrived look
+  identical from the badge alone.
+  */
+  atY += 12
+  await page.mouse.move(atX, atY)
+  await expect(
+    page.locator('body'),
+    'the press became a drag: the engine commits after LIFT_PX of travel and marks the ' +
+      'document as carrying something, which every waypoint after it presumes',
+  ).toHaveCSS('cursor', 'grabbing')
+
+  /* AC-227's figure, and inside the engine's own edge band on purpose: a
+     clamped waypoint is what asks the page to travel. A pointer left resting
+     in that band is still asking, which is why the rest test below will not
+     accept a destination whose box is still moving. */
+  const MARGIN = 40
+  let previousX = Number.POSITIVE_INFINITY
+  let previousY = Number.POSITIVE_INFINITY
+  let rested = false
+  for (let pass = 0; pass < 40 && !rested; pass += 1) {
+    const now = await into.boundingBox()
+    expect(now, 'the destination exists somewhere on the page').not.toBeNull()
+    if (now === null) return
+    const trueX = now.x + now.width / 2
+    const trueY = now.y + Math.min(now.height / 2, 120)
+    const clampedX = Math.min(Math.max(trueX, MARGIN), viewport.width - MARGIN)
+    const clampedY = Math.min(Math.max(trueY, MARGIN), viewport.height - MARGIN)
+    for (let step = 1; step <= 4; step += 1) {
+      await page.mouse.move(
+        atX + ((clampedX - atX) * step) / 4,
+        atY + ((clampedY - atY) * step) / 4,
+      )
+    }
+    atX = clampedX
+    atY = clampedY
+    /* Arrived is the product's own hit test, a point inside the destination's
+       box, and still is that box having not moved since the pass before, which
+       a page travelling under an edge-band pointer cannot satisfy. */
+    const arrived =
+      atX > now.x && atX < now.x + now.width && atY > now.y && atY < now.y + now.height
+    const still = Math.abs(now.x - previousX) < 1 && Math.abs(now.y - previousY) < 1
+    rested = arrived && still
+    previousX = now.x
+    previousY = now.y
+    if (!rested) await page.waitForTimeout(150)
+  }
+  expect(
+    rested,
+    'the pointer came to rest inside the destination, which is what a release there means. ' +
+      'A destination the page never brought under the pointer is a gesture that never ' +
+      'happened, and reading it off the proposal instead reads it as a client fault',
+  ).toBe(true)
+
+  /* A last small wander where the destination settled, so the engine's latest
+     answer is about the point the release will land on. */
+  for (const nudge of [1, -1, 0]) {
+    await page.mouse.move(atX + nudge, atY + nudge)
+  }
+}
+
+/**
  * The names of the options one of 9.3's pickers offers, whatever it is
  * built from. Dispatches on the element for the reason `chooseOption` does.
  */
