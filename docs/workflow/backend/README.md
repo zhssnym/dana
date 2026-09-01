@@ -22,6 +22,10 @@ Everything except `app/src/client/`. In practice:
    available failure, because everything after it is built on top.
 4. **Run the review agent before merging your own work.** Imran cannot read backend code, so
    nothing else reviews it. That agent is the second reader you would otherwise not have.
+5. **When the workflow itself is wrong, fix it or open an issue labelled `documentation`.**
+   `docs/workflow/` is yours, so unlike the frontend you have both options; fixing it in the
+   pull request that hit the problem is usually right. What is not an option is working
+   around it in silence and leaving the next person to pay the same tax. Shared rule 11.
 
 ## Starting a task
 

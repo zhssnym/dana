@@ -27,3 +27,7 @@ so nothing else reviews this side.
 
 Frontend changes bind you too: read `docs/workflow/backend/allowed-frontend-changes.md`
 before touching `app/src/client/`.
+
+When the workflow itself is what is wrong, `docs/workflow/` is yours: fix it in the pull
+request that hit the problem, or open an issue labelled `documentation`. Working around it
+silently is the one option you do not have. Rule 5 in your README.

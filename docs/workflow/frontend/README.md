@@ -20,6 +20,11 @@ Hassan. You may run them. Do not edit them.
 3. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
    Say so in the pull request and leave it failing.
 4. **Say you are blocked rather than saying you are done.**
+5. **If the workflow itself is what stops you, open an issue labelled `documentation`.**
+   `docs/workflow/` is not yours — `CODEOWNERS` puts it with Hassan — so an issue is the only
+   channel you have when it is wrong or missing the one thing you needed. Name the file and
+   the section, say what you were trying to do and what you did instead, and carry on. Shared
+   rule 11.
 
 ## Starting a task
 
