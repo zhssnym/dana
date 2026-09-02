@@ -79,11 +79,10 @@ import {
 import { ApiError } from '../api/http.js'
 import {
   useCreateFolder,
-  useImportWorkflow,
+  useImportWorkflowFile,
   usePatchBundle,
   useUpdateMyMembership,
 } from '../api/mutations.js'
-import { importWorkflowBody } from '../../shared/workflows.js'
 import {
   useBundle,
   useFolders,
@@ -123,6 +122,7 @@ import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
 import { signOut } from './session.js'
+import { prepareWorkflowImport } from './workflow-import.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { onOpenNewFolder, openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
@@ -488,22 +488,13 @@ export function AppShell(): React.JSX.Element {
   9.1's "Import (a workflow file)", the footer's third act, wired here because
   the mutation belongs to the shell and the control belongs to the sidebar.
 
-  **The parse is the client's and every cap is the server's.** 10.3 bounds a
-  workflow file's folders, blocks and tasks and the request body itself, and
-  7.16 refuses what breaks any of them; nothing here re-implements one of
-  those, which would be a rule the server also enforces written twice. What is
-  refused locally is a file that is not a workflow at all: not JSON, or JSON
-  that is not 7.16's shape, because either is something this page can say
-  plainly and a 400 or a 422 naming a key is not.
-
-  **The shape is the widened 7.16 file S22a landed** (RFC 0005 change control
-  item 44's B3, and this row's item 44 clause): `importWorkflowBody` is the
-  shared schema, so a file carrying notes, a star, a repeat, a reminder and
-  steps passes here as it passes on the server, and the mutation carries the
-  zone such a file needs. Zod strips what the schema does not name, which is
-  AC-201's rule and not a scrubbing pass of this file's own.
+  **The envelope is the client's and every field and cap is the server's.**
+  JSON that is not recognisably a Dana workflow is refused here. Everything
+  inside that envelope reaches 7.16, including an over-cap title or malformed
+  repeat, so its existing 422 can name the field instead of this surface
+  misidentifying an honest file as unreadable.
   */
-  const importWorkflow = useImportWorkflow()
+  const importWorkflow = useImportWorkflowFile()
   const importFile = (file: File): void => {
     void file.text().then(
       (text) => {
@@ -514,29 +505,23 @@ export function AppShell(): React.JSX.Element {
           showToast(WORKFLOW_UNREADABLE)
           return
         }
-        const file = importWorkflowBody.safeParse(parsed)
-        if (!file.success) {
+        const taken = new Set((folders.data ?? []).map((folder) => folder.name))
+        const prepared = prepareWorkflowImport(parsed, taken)
+        if (prepared === null) {
           showToast(WORKFLOW_UNREADABLE)
           return
         }
-        /* polish: settings F3. A folder whose name the Library already has
-           arrives as "Name (imported)" rather than as a second "Desk"; and
-           the import says what it made and opens it. */
-        const taken = new Set((folders.data ?? []).map((folder) => folder.name))
-        const body = {
-          ...file.data,
-          folders: file.data.folders.map((folder) =>
-            taken.has(folder.name) ? { ...folder, name: `${folder.name} (imported)`.slice(0, 100) } : folder,
-          ),
-        }
-        importWorkflow.mutate(body, {
+        importWorkflow.mutate(prepared.body, {
           onSuccess: (made) => {
-            const tasks = body.folders.reduce((sum, folder) => sum + (folder.tasks?.length ?? 0), 0)
             const first = made.folders[0]
-            showToast(
+            const success =
               made.folders.length === 1 && first !== undefined
-                ? `Imported "${first.name}" with ${String(tasks)} task${tasks === 1 ? '' : 's'}`
-                : `Imported ${String(made.folders.length)} folders with ${String(tasks)} task${tasks === 1 ? '' : 's'}`,
+                ? `Imported "${first.name}" with ${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
+                : `Imported ${String(made.folders.length)} folders with ${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
+            showToast(
+              prepared.skippedContent
+                ? `${success}. Some unsupported content was skipped.`
+                : success,
             )
             if (first !== undefined) void navigate(paths.folder(first.id))
           },

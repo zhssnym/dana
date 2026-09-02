@@ -66,6 +66,24 @@ export function writeFailureMessage(error: unknown): string {
   return ERROR_TOAST
 }
 
+/** A mutation carrying this metadata asks for a validation response whose
+ * message is already written for the person to correct their input. */
+export const VALIDATION_ERROR_TOAST_META = 'validationErrorToast'
+
+export function mutationFailureMessage(
+  error: unknown,
+  meta: Readonly<Record<string, unknown>> | undefined,
+): string {
+  if (
+    meta?.[VALIDATION_ERROR_TOAST_META] === true &&
+    error instanceof ApiError &&
+    error.status === 422
+  ) {
+    return error.message
+  }
+  return writeFailureMessage(error)
+}
+
 function isOffline(error: unknown): boolean {
   return error instanceof OfflineError
 }
@@ -89,8 +107,8 @@ export function createQueryClient(): QueryClient {
       },
     }),
     mutationCache: new MutationCache({
-      onError: (error) => {
-        showToast(writeFailureMessage(error))
+      onError: (error, _variables, _onMutateResult, mutation) => {
+        showToast(mutationFailureMessage(error, mutation.meta))
       },
       onSuccess: () => {
         void queryClientRef?.invalidateQueries()
