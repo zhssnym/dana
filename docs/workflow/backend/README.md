@@ -104,14 +104,27 @@ PGlite. Running `npm test` twice measures one leg twice and reports two greens.
 
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
-to be measurement rather than code. Two known flake classes will cost you time if you do not
-know them:
+to be measurement rather than code. Three known flake classes will cost you time if you do
+not know them, and **only two of them are answered by re-running**:
 
 - **The Postgres leg shares one database across all 278 files.** Files see each other's rows.
   The fingerprint is a count that climbs across successive tests, `expected 2 to be 1`, then
   3, then 4. Re-run the file alone before believing it.
 - **The browser leg loses about one case a run.** Re-run the case alone, and read
   `CLAUDE.md`'s note on when isolation lies.
+- **A test comparing a date the server computed against a date the test computed is red for
+  the hours when this machine's date is already tomorrow, and re-running does not help.**
+  `ac-277` is the one that fires. It reads the duplicate's re-anchored due date, which the
+  server takes from the database's `current_date`, against `todayInUtc()`, which the test
+  takes from `new Date().toISOString()`. Measured 2026-09-02 at 23:10Z, which was already the
+  3rd on this machine: PGlite's session zone here is `Etc/GMT-1`, so `current_date` read
+  `2026-09-03` while UTC was still `2026-09-02`, and the file failed alone, twice, on that
+  hour. **It is not the fork flake and
+  isolation confirms nothing**: on the same commit, `TZ=UTC env -u TEST_DATABASE_URL npx
+  vitest run tests/ac-277-task-duplicate-copy-rules.test.ts` was 2 of 2 green while the same
+  command without `TZ=UTC` was 1 of 2. So the check that separates this class from a defect
+  is the timezone, not a second run: force the zone, and if it goes green the red is the
+  clock. The criterion is tracked as issue #46 and **is not yours to edit** on the way past.
 
 ## When the work needs the frontend
 
