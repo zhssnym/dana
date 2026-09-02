@@ -57,6 +57,7 @@ import {
   Monitor,
   ImagePlus,
   Globe,
+  Mail,
   ListTodo,
   Settings,
   Trash2,
@@ -667,6 +668,22 @@ export function SettingsScreen({
                     that place is the sidebar. `onOpenPeople` and `onSignOut`
                     stay on the props for the shell's wiring. */}
               </div>
+            </SettingsSection>
+
+            <SettingsSection id="settings-support" title="Support">
+              <SettingRow
+                icon={Mail}
+                title="Tell us what went wrong"
+                description="support.danadana@gmail.com"
+                control={
+                  <Button
+                    variant="outline"
+                    render={<a href="mailto:support.danadana@gmail.com" />}
+                  >
+                    Email support
+                  </Button>
+                }
+              />
             </SettingsSection>
 
             {/* The Install section left at polish round-2 (2026-08-30, the
