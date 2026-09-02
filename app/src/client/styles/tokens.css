@@ -458,7 +458,9 @@ that matches nothing while the attribute reads `light`.
   --shell-sidebar-item-height: var(--control-height);
   --shell-sidebar-section-font-size: 11px;
   --shell-sidebar-row-font-size: 13px;
-  --shell-pagebar-height: 24px;
+  /* Raised from 24px at Imran's direction: the tab strip read too thin, and
+   * 28px adds room without competing with the 36px window bar below it. */
+  --shell-pagebar-height: 28px;
   /* The window bar under the tabs (DES-139). A token because surfaces that
    * sit below it, the conversation panel and the task sidebars, have to know
    * where the chrome ends. */
