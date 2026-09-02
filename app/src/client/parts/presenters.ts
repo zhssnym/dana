@@ -696,8 +696,8 @@ export type TaskRowDisplay = Pick<
 >
 
 /*
-Q4's outward tooltip, in Q4's own words: "Also in Planned, due 2026-07-28" for
-a dated row and "Also in Tasks, in Work" for an undated one. The date is
+Q4's outward tooltip uses the current page names: "Also in Scheduled, due
+2026-07-28" for a dated row and "Also in Anytime, in Work" for an undated one. The date is
 rendered as the card carries it, which is the form Q4's example writes and
 therefore the one place in this file where a date is not the design's format.
 */
@@ -707,8 +707,8 @@ function importantTooltipFor(
 ): string | undefined {
   if (mode === 'inward') return undefined
   return task.due_date === null
-    ? `Also in Tasks, in ${task.folder.name}`
-    : `Also in Planned, due ${task.due_date}`
+    ? `Also in Anytime, in ${task.folder.name}`
+    : `Also in Scheduled, due ${task.due_date}`
 }
 
 /*
