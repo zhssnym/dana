@@ -25,6 +25,15 @@ which is that the queries and the tables kept their names while the pages were r
 Every such name in this section is a citation of a query or a table and none of them is a
 claim about what Dana's pages are called.
 
+**A later amendment, and the authority for it. 2026-09-03.** Section 4.11 gained a
+paragraph saying what a monthly or yearly rule does when the anchor's day is missing from
+a period: short months are skipped rather than clamped, and a yearly rule anchored on 29
+February recurs only in leap years. It describes behaviour that has always been
+implemented and tested and changes no stored format. It was authorized in advance: retired
+section 13's items 15 and 22 each directed one sentence to be folded into 4.11 at the next
+authorized change to this section's text, that change was the S29a fold of 2026-08-30, and
+the fold missed it. Issue #26 records the miss and the decision to write it now.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |
