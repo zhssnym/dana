@@ -17,6 +17,22 @@ The endpoint itself predates the ruling (7.16, at 5763f70); what this
 criterion pins is the ruling's shape on it, so that a copy which carried the
 assignee, the progress, or a spent date is a visible criteria change.
 
+**"Today" here is the database's day and not the process's.** 7.16 carries no
+tz parameter, so acts.ts re-anchors with SQL current_date, which reads in the
+database session's timezone. This file first asserted against the UTC date
+taken from the process clock, and the two are different clocks in different
+zones: measured 2026-09-02, PGlite reports Etc/GMT-1 here and the local
+PostgreSQL 18 cluster reports Europe/Paris, so current_date turns over an
+hour or two before the UTC date does and the assertion was false for that
+whole window of every day. CI caught it at 23:59:39Z on 2026-08-31, where it
+read as a midnight flake rather than as the standing disagreement it was
+(issue #46). The oracle is now databaseToday(), which is AC-200's rule that
+the assertion and the implementation share a clock; and because reading
+current_date after the endpoint has read its own is still two readings,
+databaseDaysAcross() brackets the duplicate and the assertion is against the
+day or days the operation actually occupied. That is one day in every run
+that does not straddle the database's midnight, so nothing here is loosened.
+
 Spec: 7.16 (POST /tasks/:id/duplicate), 9.6's copy rules, 4.6, 4.15, 10.2.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -34,10 +50,10 @@ import type { Actor } from './folders-harness.js'
 import {
   addStepOk,
   createTaskOk,
+  databaseDaysAcross,
   patchStepOk,
   requireTaskRow,
   stepRows,
-  todayInUtc,
 } from './tasks-harness.js'
 
 let app: AuthTestApp
@@ -81,7 +97,10 @@ describe('AC-277 a task\'s duplicate takes the work and not the life', () => {
     )
     expectStatus(said, 201, 'a comment on the source (spec 7.14)')
 
-    const copied = await member.browser.json(`/tasks/${source.id}/duplicate`, 'POST')
+    const { result: copied, days: reanchorDays } = await databaseDaysAcross(
+      app.db,
+      () => member.browser.json(`/tasks/${source.id}/duplicate`, 'POST'),
+    )
     expectStatus(copied, 201, 'a member duplicates (spec 7.16)')
     const copyId = String((copied.json() as { id?: unknown }).id)
     expect(copyId, 'the response is the new task (spec 7.16)').not.toBe(source.id)
@@ -93,9 +112,9 @@ describe('AC-277 a task\'s duplicate takes the work and not the life', () => {
     expect(copy.notes, 'the notes travel (item 47(b))').toBe('the notes travel')
     expect(copy.status, 'the copy starts pending').toBe('pending')
     expect(
-      copy.due_date,
-      'a spent due date re-anchors on today (spec 9.6\'s rule, read onto one task by item 47(b))',
-    ).toBe(todayInUtc())
+      reanchorDays,
+      `a spent due date re-anchors on today (spec 9.6's rule, read onto one task by item 47(b)). Today is current_date, in the database's own zone, because 7.16 carries no tz; the row says ${String(copy.due_date)}`,
+    ).toContain(copy.due_date)
 
     const steps = await stepRows(app.db, copyId)
     expect(steps.map((step) => step.title), 'the steps travel (item 47(b))').toEqual(['s28a ac277 a step'])
