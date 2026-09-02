@@ -116,7 +116,12 @@ export function createCoverPhotosRouter(
           title: item.title ?? 'Untitled',
           creator: item.creator ?? 'unknown',
           /* Painted from this origin, which is the whole reason this route
-             exists: img-src 'self' stays exactly as 10.8 wrote it. */
+             exists: img-src admits no third-party host, and this route is
+             what keeps that true. It gained `blob:` on 2026-09-03 for the
+             object URLs the client builds from bytes it already holds; a
+             scheme that reaches no network is not the widening this
+             sentence is about, and no host has been added for a search
+             result. */
           thumb: `/api/v1/covers/photos/${String(item.id)}/thumb`,
         }))
       res.json({ results })
