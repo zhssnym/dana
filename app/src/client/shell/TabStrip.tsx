@@ -180,12 +180,14 @@ export function TabStrip({
       **The scrollbar is hidden rather than absent.** Tabs stop shrinking at
       the floor below, so enough of them overflow and the row scrolls; a
       scrollbar drawn inside a 24px strip would take a third of the tab's
-      height to say so. Every browser's own strip scrolls without one.
+      height to say so. Its buttons are hidden explicitly too, because
+      Chromium on Windows can leave them visible after hiding the track.
+      Every browser's own strip scrolls without one.
       */}
       <div
         role="tablist"
         aria-label="Open tabs"
-        className="flex min-w-0 shrink items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 shrink items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar-button]:hidden [&::-webkit-scrollbar]:hidden"
       >
         {tabs.map((tab, index) => {
           const { title, icon: Icon, iconColor } = face(tab.path)
