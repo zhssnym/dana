@@ -7,8 +7,9 @@ The handshake, in the order 11.6 fixes it:
   GET  /auth/google           state, nonce, PKCE S256, tz into the pending
                               record, redirect to the issuer
   GET  /auth/google/callback  validate all three single-use, refuse an
-                              unverified email with the 9.2 page, provision or
-                              adopt, sync the zone, issue a fresh session
+                              unverified email or a claimed one with the two
+                              9.2 pages, provision or adopt, sync the zone,
+                              issue a fresh session
   POST /auth/logout           destroy this session, not the person's others
   GET/PATCH/DELETE /me        the account endpoints, behind session then CSRF
   GET/PATCH /me/settings      the 7.2 toggles, the same two middlewares
@@ -28,10 +29,10 @@ cookie; what survives the callback is a user id and the claims that 7.1 names.
 
 **A refusal answers a browser, not a client.** The callback is a redirect
 target a person lands on, so the 7.0 JSON envelope would arrive as text on a
-blank screen. The one refusal section 9 gives copy for renders the 9.2 page;
-every other one returns to the landing page with a marker rather than
-inventing copy section 9 owns. The account endpoints, which clients call, use
-the envelope.
+blank screen. The two refusals section 9 gives copy for render the 9.2 pages,
+an unverified email and an email another account already holds; every other
+one returns to the landing page with a marker rather than inventing copy
+section 9 owns. The account endpoints, which clients call, use the envelope.
 */
 import { Router } from 'express'
 import type { Request, Response } from 'express'
@@ -69,9 +70,18 @@ import {
 import { attachSession, requireCsrf, requireSession, sessionOf } from './middleware.js'
 import { OidcClient, authConfigFromEnvironment, callbackUrl } from './oidc.js'
 import type { AuthConfig } from './oidc.js'
-import { SIGN_IN_FAILED_TARGET, unverifiedEmailPage } from './pages.js'
+import {
+  SIGN_IN_FAILED_TARGET,
+  emailAlreadyClaimedPage,
+  unverifiedEmailPage,
+} from './pages.js'
 import { PendingAuthorizations } from './pending.js'
-import { provisionUser, syncTimezone } from './provisioning.js'
+import {
+  EmailAlreadyClaimedError,
+  emailStanding,
+  provisionUser,
+  syncTimezone,
+} from './provisioning.js'
 import { handleGetSettings, handlePatchSettings } from './settings.js'
 import type { GoogleIdentity } from './provisioning.js'
 import { createSession, destroySession } from './sessions.js'
@@ -133,12 +143,22 @@ export async function establishSession(
 }
 
 /**
- * The 9.2 page, the only page this module renders, for the one refusal
+ * The 9.2 pages, the only two this module renders, for the two refusals
  * section 9 gives copy for.
+ *
+ * Both answer 403 and neither establishes anything. 7.0's taxonomy puts them
+ * there together: the person is who they say they are and the act is refused,
+ * which is what 403 means, and neither is a 404, the resource in each case
+ * being their own address.
  */
 function refuseUnverified(res: Response): void {
   clearPendingCookie(res)
   res.status(403).type('html').send(unverifiedEmailPage())
+}
+
+function refuseClaimedEmail(res: Response): void {
+  clearPendingCookie(res)
+  res.status(403).type('html').send(emailAlreadyClaimedPage())
 }
 
 /**
@@ -311,13 +331,36 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         sample: options.sampleWorkspace === true,
       })
       await syncTimezone(db, user, record.timezone)
-    } catch {
-      // A provisioning fault rolls the whole transaction back (AC-005), and
-      // the person still needs an answer. One case is known and unruled: a
-      // new google_sub claiming an email that already belongs to an active
-      // account collides with users_email_active_idx, and which account
-      // should win is a product decision, not this module's. Refusing is the
-      // safe half of every reading of it.
+    } catch (error) {
+      /*
+      A provisioning fault rolls the whole transaction back (AC-005), and the
+      person still needs an answer.
+
+      One case is now ruled and is answered with words rather than with the
+      landing page's bare marker: a google_sub Dana has never seen, carrying a
+      verified email a live account already holds. Imran's ruling on issue #17
+      of 2026-09-03, specified at 10.1, is that Dana refuses and never joins
+      the two accounts, and that the refusal explains itself. `provisionUser`
+      throws it by name; the second read below catches the same collision when
+      two brand-new subjects raced each other to one address, which the first
+      read cannot see from inside its own transaction and which arrives here
+      as an ordinary unique violation. The re-read costs one query on a path
+      that has already failed, and it is how this handler tells the two apart
+      without reading a driver's error text, where 11.15 records that bound
+      parameters live.
+
+      Everything else stays exactly as it was: refused, logged, and returned
+      to the landing page with the marker, inventing no copy section 9 has not
+      written.
+      */
+      const claimed =
+        error instanceof EmailAlreadyClaimedError ||
+        (await emailStanding(db, identity)).addressClaimed
+      if (claimed) {
+        securityLog.authEvent('sign_in_failed', { reason: 'email_already_claimed' })
+        refuseClaimedEmail(res)
+        return
+      }
       securityLog.authEvent('sign_in_failed', { reason: 'provisioning_failed' })
       refuse(res)
       return

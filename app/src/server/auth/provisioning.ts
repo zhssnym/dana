@@ -3,6 +3,14 @@ The 7.1 provisioning transaction: insert the user, the default Inbox folder
 with its owner membership, and the settings row, atomically, and idempotently
 under the google_sub unique constraint.
 
+Idempotence is under google_sub and nothing else, which leaves one collision
+this transaction cannot absorb and must name: a Google subject Dana has not
+seen, carrying a verified email that already belongs to a live account.
+`users_email_active_idx` refuses it, and until 2026-09-03 the refusal reached
+the person as an unexplained failure. It is now `EmailAlreadyClaimedError`,
+below, and the callback turns it into a page that says what happened. Dana
+does not join the two accounts; see 10.1 and the error's own comment.
+
 Idempotence is the unique index doing the work rather than a read-then-write,
 because a read-then-write is exactly the race AC-006 drives. The insert says
 ON CONFLICT (google_sub) DO NOTHING RETURNING id, so of two concurrent first
@@ -26,6 +34,8 @@ import { sameZone, writeTimezone } from './timezone-sync.js'
 export { inTransaction, rowsOf } from '../database.js'
 export type { Executor } from '../database.js'
 
+import type { Executor } from '../database.js'
+
 export interface GoogleIdentity {
   sub: string
   email: string
@@ -43,11 +53,101 @@ export interface ProvisionOptions {
   sample?: boolean
 }
 
+/**
+ * A verified Google email that already belongs to a different live account.
+ *
+ * **The decision, ruled by Imran on issue #17 on 2026-09-03 and specified at
+ * 10.1: Dana never joins two accounts because their addresses look alike.**
+ * Joining is the only one of refuse, ask and join that can hand somebody
+ * another person's account, and it cannot be taken back once it has. So the
+ * behaviour does not change; what changes is that the refusal is now
+ * distinguishable from every other reason a sign-in fails, because the
+ * callback can only explain a refusal it can tell apart.
+ *
+ * **What this error carries and what it deliberately does not.** No email
+ * address, no user id, no row. The callback needs to know which refusal this
+ * is and nothing else, and the page it renders is addressed to somebody who
+ * typed the address themselves.
+ *
+ * This class exists rather than a result union so that `ProvisionedUser` and
+ * every one of this module's callers keep their shapes: the collision is
+ * exceptional in the ordinary sense, one sign-in in the product's life, and a
+ * union would put a branch nobody takes into four call sites.
+ */
+export class EmailAlreadyClaimedError extends Error {
+  constructor() {
+    super('this verified email already belongs to another account')
+    this.name = 'EmailAlreadyClaimedError'
+  }
+}
+
 export interface ProvisionedUser {
   id: string
   timezone: string
   /** False when a concurrent or earlier sign-in had already created the rows. */
   created: boolean
+}
+
+/** What the users table already holds about one Google identity. */
+export interface EmailStanding {
+  /** Whether this google_sub already has a row, deleted or not. */
+  subjectKnown: boolean
+  /** Whether a different, live account holds this address. */
+  addressClaimed: boolean
+}
+
+/*
+The collision read, issue #17. It is a read before a write, which is exactly
+the shape the google_sub idempotence above refuses to use, and the difference
+is worth stating because the two look alike and are not.
+
+`ON CONFLICT (google_sub)` names one index and absorbs one collision. A new
+subject arriving on a claimed address violates a different index,
+`users_email_active_idx`, which that clause does not cover, so the insert
+raises. Absorbing that one too is not available: `ON CONFLICT` takes one
+conflict target, and a bare `ON CONFLICT DO NOTHING` would swallow both and
+leave provisioning unable to say which happened, which is the one thing the
+callback needs from it.
+
+**Both counts are needed and the second is the one that is easy to forget.** A
+subject Dana already knows adopts its rows below and never rewrites its stored
+email, so an account whose address at Google has since changed to one somebody
+else holds goes on signing in exactly as it did. Only a subject with no row
+here can be refused for an address. Without `subjectKnown` gating the refusal,
+this read would lock a returning person out of their own account over a change
+made at Google, which is a worse failure than the one it exists to explain.
+
+`deleted_at IS NULL` matches the index's own predicate: 8.10 scrubs the email
+of a deleted account, so an address a deletion released is free again.
+
+It is exported because the callback reads it a second time, outside the
+transaction, on any provisioning fault: two brand-new subjects on one address
+can both pass this read inside their own transactions and the loser's insert
+then raises the unique violation for real. A raised transaction is aborted and
+cannot be asked anything more, so the second look has to happen after the
+rollback, and it is one query on a path that has already failed. That is what
+makes the answer the same page for the race as for the ordinary case without
+this module parsing a driver's error text, which 11.15 warns is where bound
+parameters live.
+*/
+export async function emailStanding(
+  executor: Executor,
+  identity: GoogleIdentity,
+): Promise<EmailStanding> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT
+          (SELECT count(*)::int FROM users
+            WHERE google_sub = ${identity.sub}) AS mine,
+          (SELECT count(*)::int FROM users
+            WHERE email = ${identity.email.toLowerCase()}
+              AND google_sub <> ${identity.sub}
+              AND deleted_at IS NULL) AS theirs`,
+  )
+  return {
+    subjectKnown: Number(found[0]?.mine ?? 0) > 0,
+    addressClaimed: Number(found[0]?.theirs ?? 0) > 0,
+  }
 }
 
 /**
@@ -62,6 +162,14 @@ export async function provisionUser(
   options: ProvisionOptions = {},
 ): Promise<ProvisionedUser> {
   return inTransaction(db, async (tx) => {
+    // Issue #17: a subject Dana has never seen, on an address a live account
+    // already holds, is refused here rather than at the index. The whole of
+    // the reasoning is on emailStanding below.
+    const standing = await emailStanding(tx, identity)
+    if (!standing.subjectKnown && standing.addressClaimed) {
+      throw new EmailAlreadyClaimedError()
+    }
+
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO users (google_sub, email, display_name, avatar_url, timezone)

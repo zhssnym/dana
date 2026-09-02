@@ -104,12 +104,18 @@ which P9 extends rather than replaces.
   installed version, a rogue-key token signed in without it. Protocol section 6
   routes a library-versus-specification difference to the Steward and asks for
   it in spec section 13, which is not this role's path to write.
-- **An email collision with a different `google_sub` is unruled.** 7.1 makes
-  provisioning idempotent under `google_sub` only; a new subject claiming an
-  email that already belongs to an active account hits
-  `users_email_active_idx`. The callback refuses cleanly rather than crashing,
-  but which account should win is a product decision. Section 13 item 1 (the
-  Gmail dotted-variant claim) is the same question from another angle.
+- **An email collision with a different `google_sub` was unruled and is ruled.**
+  7.1 makes provisioning idempotent under `google_sub` only; a new subject
+  claiming an email that already belongs to an active account hits
+  `users_email_active_idx`. Imran ruled it on issue #17 on 2026-09-03: Dana
+  never joins two accounts because their addresses look alike, so the refusal
+  stands and now renders 9.2's claimed-email page instead of bouncing to the
+  landing page unexplained. `provisioning.ts`'s `emailStanding` names the
+  collision before the insert and the callback re-reads it after any
+  provisioning fault, which covers the race. The Gmail dotted-variant half of
+  the same issue is deferred by the same ruling and specified as current
+  behaviour at 10.1: no normalisation of any kind, in either direction.
+  AC-346.
 - **In-memory pending authorizations are a fourth item for 11.1's
   single-instance checklist**, which today names three (rate limiting, the
   reminder tick, the boot migration run).
