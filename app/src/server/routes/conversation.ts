@@ -6,7 +6,10 @@ Status grammar (7.0, 10.2, DES-225): a folder or comment out of the
 viewer's membership 404, never 403; a member touching another author's
 words 403, the thread being visible to them; a reply below the one level, a
 parent or task or file outside the thread's folder, all 422 naming the
-field.
+field. Since issue #22 a comment carries up to 10.3's ten files, named by
+`file_ids` in the order they are to be attached; eleven, a repeated id, and
+`file_ids` sent beside `file_id` are all refused by the shared schema before
+this router reads anything.
 */
 import { Router } from 'express'
 import type { NextFunction, Request, Response } from 'express'
@@ -165,11 +168,16 @@ export function createConversationRouter(
           )
           return
         case 'file_not_here':
+          // The message names the field the caller actually sent: 7.14 takes
+          // `file_id` for one file and `file_ids` for up to 10.3's ten, and a
+          // 422 that names the other one is a 422 nobody can act on.
           sendError(
             res,
             422,
             'validation_failed',
-            'file_id: must name a file stored in this folder.',
+            parsed.data.file_ids === undefined
+              ? 'file_id: must name a file stored in this folder.'
+              : 'file_ids: every id must name a file stored in this folder.',
           )
           return
         case 'created':

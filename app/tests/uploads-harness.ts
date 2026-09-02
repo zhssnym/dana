@@ -4,6 +4,8 @@ HTTP client is a raw socket writer, not fetch: FormData never enters it,
 the bytes on the wire are exactly the Buffer handed over, and the boundary
 is fixed so a failure prints a body a person can read.
 */
+import { expect } from 'vitest'
+
 import type { Actor } from './folders-harness.js'
 import type { RawResponse } from './http-client.js'
 
@@ -64,4 +66,30 @@ export function upload(
     body,
     headers: { 'content-type': contentType },
   })
+}
+
+/**
+ * One stored image in a folder, answering its id: the shape every criterion
+ * that needs a file to point at wants, rather than an upload it then has to
+ * unwrap. Added for issue #22, where a comment carries up to ten of them and
+ * a case that spelled the upload out eleven times would be unreadable.
+ */
+export async function uploadImageOk(
+  actor: Actor,
+  folderId: string,
+  name: string,
+): Promise<string> {
+  const stored = await upload(
+    actor,
+    '/files',
+    { kind: 'image', folder_id: folderId },
+    { name, type: 'image/png', bytes: ONE_PIXEL_PNG },
+  )
+  expect(
+    stored.status,
+    `the upload of ${name} must land before anything can reference it (spec 7.15); answered ${String(stored.status)} ${stored.body.slice(0, 160)}`,
+  ).toBe(201)
+  const id = (stored.json() as { id?: unknown }).id
+  expect(typeof id, 'the stored row answers with its id (spec 7.0)').toBe('string')
+  return id as string
 }
