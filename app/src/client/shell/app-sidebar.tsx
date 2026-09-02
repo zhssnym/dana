@@ -1904,10 +1904,10 @@ export function AppSidebar({
                         setMoreOpen(!moreOpen)
                         writeMoreOpen(!moreOpen)
                       }}
-                      className="h-[var(--shell-sidebar-item-height)] gap-2 px-2 text-[13px] text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]"
+                      className="relative h-[var(--shell-sidebar-row-height)] gap-2 border-0 bg-transparent px-3 text-xs text-[var(--color-graphite-500)] before:pointer-events-none before:absolute before:inset-x-1 before:inset-y-px before:rounded-md before:content-[''] hover:bg-transparent hover:text-[var(--color-graphite-700)] hover:before:bg-[var(--color-graphite-100)] [&>*]:relative [&>*]:z-10"
                     >
                       <ChevronDown
-                        className={`size-4 shrink-0 transition-transform ${moreOpen ? '' : '-rotate-90'}`}
+                        className={`size-3.5 shrink-0 transition-transform ${moreOpen ? '' : '-rotate-90'}`}
                         strokeWidth={1.75}
                         aria-hidden="true"
                       />

@@ -105,8 +105,9 @@ import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelve
 import { needsImportAnchor } from '../../shared/workflows.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
-import { mutateApi, requestTimezone } from './http.js'
 import { defaultFolderDescription } from '../lib/folder-description.js'
+import { mutateApi, requestTimezone } from './http.js'
+import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
@@ -824,6 +825,29 @@ export function useImportWorkflow(): UseMutationResult<
         path: '/workflows/import',
         body,
         ...(needsImportAnchor(body) ? { params: { tz: requestTimezone() } } : {}),
+      }),
+  })
+}
+
+/**
+ * The file-picker path sends a recognisable workflow before validating its
+ * fields so the endpoint can return its existing field-specific 422. A valid
+ * timezone is harmless for files that need no anchor and necessary for raw
+ * files whose reminder/repeat cannot be inspected without re-validating it.
+ */
+export function useImportWorkflowFile(): UseMutationResult<
+  ImportWorkflowResponse,
+  Error,
+  unknown
+> {
+  return useMutation({
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
+    mutationFn: (body: unknown) =>
+      mutateApi(importWorkflowResponse, {
+        method: 'POST',
+        path: '/workflows/import',
+        body,
+        params: { tz: requestTimezone() },
       }),
   })
 }
