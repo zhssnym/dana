@@ -92,7 +92,7 @@ function skippedByNormalization(
 }
 
 function taskCount(folders: unknown[]): number {
-  return folders.reduce((sum, folder) => {
+  return folders.reduce<number>((sum, folder) => {
     if (!isRecord(folder) || !Array.isArray(folder.tasks)) return sum
     return sum + folder.tasks.length
   }, 0)
