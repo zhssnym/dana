@@ -48,3 +48,4 @@ claim about what Dana's pages are called.
 | 4.19 | [`04.19-user-views.md`](04.19-user-views.md) | 4.19 user_views |
 | 4.20 | [`04.20-user-page-covers.md`](04.20-user-page-covers.md) | 4.20 user_page_covers |
 | 4.21 | [`04.21-sample-objects.md`](04.21-sample-objects.md) | 4.21 sample_objects |
+| 4.22 | [`04.22-user-page-descriptions.md`](04.22-user-page-descriptions.md) | 4.22 user_page_descriptions |

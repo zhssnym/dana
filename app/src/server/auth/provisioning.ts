@@ -1,7 +1,7 @@
 /*
 The 7.1 provisioning transaction: insert the user, the default Inbox folder
-with its owner membership, and the settings row, atomically, and idempotently
-under the google_sub unique constraint.
+with its owner membership and its default description, and the settings row,
+atomically, and idempotently under the google_sub unique constraint.
 
 Idempotence is the unique index doing the work rather than a read-then-write,
 because a read-then-write is exactly the race AC-006 drives. The insert says
@@ -25,6 +25,24 @@ import { sameZone, writeTimezone } from './timezone-sync.js'
 
 export { inTransaction, rowsOf } from '../database.js'
 export type { Executor } from '../database.js'
+
+/*
+The words a brand-new Desk carries under its name (issue #68).
+
+**It is Dana's own sentence for Desk, transcribed and not invented.** The
+client's `routes.ts` has answered "Nothing decided about it yet" under that
+page since RFC 0005, so writing anything else here would give one page two
+descriptions of itself and make the folder disagree with the sidebar it
+hangs in. It goes in `folders.description`, the column 4.3 already has, so
+the person can rewrite or empty it through 7.4 like any other folder's, and
+this is a default rather than a fixture: nothing restores it.
+
+Only new accounts get it. Existing Desks are not backfilled, because a
+migration that wrote words into a folder somebody had deliberately left
+blank would be Dana putting sentences in a person's mouth, and there is no
+way to tell the two blanks apart after the fact.
+*/
+export const DESK_DEFAULT_DESCRIPTION = 'Nothing decided about it yet'
 
 export interface GoogleIdentity {
   sub: string
@@ -99,8 +117,8 @@ export async function provisionUser(
     const userId = String(winner.id)
     const folders = await rowsOf(
       tx,
-      sql`INSERT INTO folders (owner_id, name, is_default)
-          VALUES (${userId}, 'Desk', true)
+      sql`INSERT INTO folders (owner_id, name, is_default, description)
+          VALUES (${userId}, 'Desk', true, ${DESK_DEFAULT_DESCRIPTION})
           RETURNING id`,
     )
     const folderId = String(folders[0]?.id)

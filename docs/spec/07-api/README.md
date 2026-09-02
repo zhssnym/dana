@@ -53,3 +53,4 @@ permanent delete; read that row's outcome before relying on 7.13's last sentence
 | 7.18 | [`07.18-search-extension.md`](07.18-search-extension.md) | 7.18 Search extension |
 | 7.19 | [`07.19-place-covers.md`](07.19-place-covers.md) | 7.19 Place covers |
 | 7.20 | [`07.20-sample-workspace.md`](07.20-sample-workspace.md) | 7.20 Sample workspace |
+| 7.21 | [`07.21-place-descriptions.md`](07.21-place-descriptions.md) | 7.21 Place descriptions |

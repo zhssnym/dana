@@ -695,4 +695,24 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [],
   },
+  user_page_descriptions: {
+    primaryKey: {
+      name: 'user_page_descriptions_pkey',
+      columns: ['user_id', 'place'],
+    },
+    uniques: [],
+    checks: [
+      { name: 'user_page_descriptions_length_check', columns: ['description'] },
+      { name: 'user_page_descriptions_place_check', columns: ['place'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'user_page_descriptions_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
 }
