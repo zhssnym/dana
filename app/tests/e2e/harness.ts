@@ -766,8 +766,6 @@ export const copy = {
   // AC-225 reads the undo bar that replaced it.
   /** 9.3, the 8.4 warning shown before a date is cleared. */
   clearDateWarning: 'Clearing the date also ends the repeat and removes the reminder.',
-  /** 9.3, the helper text on each of the three date-dependent fields. */
-  dateDependentHelper: 'Set a due date first',
   /** 9.3, empty title. */
   titleRequired: 'Give it a title',
   /** 9.3, the steps editor's cap notice, spelled at the P8 change control. */
