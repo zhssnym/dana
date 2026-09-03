@@ -209,8 +209,11 @@ export async function patchShelf(
 
     **And image-kinded**, which is `patchFolderProfile`'s second clause
     verbatim: a cover is a picture, and without it a `voice` note's id would
-    be storable as one and drawn as a broken image. `putPlaceCover` was the
-    third caller and lacked this clause until AC-374; the three now agree.
+    be storable as one and drawn as a broken image. `putPlaceCover` (7.19) is
+    the third gate that takes a cover's file id, and it lacked this clause
+    until AC-374; the three now agree on which files they take. `serveFile`
+    shares the predicate above with this gate and carries no kind clause,
+    correctly: it serves voice notes too.
 
     **A note for whoever takes #107, because half of the reasoning that
     deferred it is wrong and it is the half that would produce a hole.** It

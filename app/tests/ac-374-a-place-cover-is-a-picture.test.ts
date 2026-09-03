@@ -123,7 +123,7 @@ describe('AC-374 a place cover is a picture the caller can read', () => {
       'a refused cover writes no row at all (4.20 admits none with neither a file nor a preset)',
     ).toBeUndefined()
 
-    // The same file against a shelf, so that "the three call sites agree" is
+    // The same file against a shelf, so that "the three cover gates agree" is
     // asserted rather than asserted about. The refusal shapes differ — 422
     // there, 404 here — because 7.16 faults a field of a shelf it found and
     // 7.19 refuses a file it will not take; what must not differ is which

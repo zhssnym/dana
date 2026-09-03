@@ -30,8 +30,8 @@ default, so read this list before spending one.
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
-  it: the place-cover gate was the only one of the three callers of 7.15's serving predicate
-  with no `kind` clause, so another person's avatar could be worn on a person's own Today
+  it: of the three gates that decide what a page may wear, the place-cover one was the only
+  one with no `kind` clause, so another person's avatar could be worn on a person's own Today
   page and a voice note could be stored as a picture. The criterion is 12.9's.
 - **AC-368 to AC-373 were taken from the tail on 2026-09-03** (issues #20 and #100), on the
   rule two bullets below, and they are the cover work: a shelf that can wear one at all, the

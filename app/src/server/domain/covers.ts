@@ -25,8 +25,14 @@ folder-less file> }` answered **200**. `readableFileScope` in
 carries is owner-or-avatar.
 
 *A picture* is `kind IN ('cover', 'image')`, and this clause was missing until
-2026-09-03 while both other callers of that predicate carried it. **The gap
-was not a confidentiality one and must not be described as one**:
+2026-09-03 while the other two gates that decide what a page may wear both
+carried it: `patchShelf` (7.16), which shares this predicate, and
+`patchFolderProfile` (7.4), which scopes by folder instead. It is not in
+`readableFileScope` itself and must not be, because `serveFile` calls that
+predicate too and serves voice notes and attachments as readily as pictures:
+"may this account read these bytes" and "may this page wear this file" are
+two questions, and only the second one is about kinds. **The gap was not a
+confidentiality one and must not be described as one**:
 `readableFileScope` admits every **avatar** to every signed-in account on
 purpose (7.15, a member list renders other people's pictures), so what got
 through was bytes the caller could already `GET`. What it cost was the other
