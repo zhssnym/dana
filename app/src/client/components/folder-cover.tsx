@@ -55,11 +55,9 @@ honestly draw is a tier it does not draw, never a disabled one. **B8 is what
 lifts the other two**, with the provider, its key and its attribution, and
 7.15 owes it a folderless file or 4.20's `file_id` owes it another home.
 
-**The photo tier is Openverse and not Lorem Picsum**, which the module
-comment above says and the code has not done since the picker was rebuilt:
-`searchOpenverse` calls `api.openverse.org` and only the legacy `photo:`
-keys still resolve through Picsum. Recorded because B8 is written against
-"the prototype's photo tier" and would otherwise build the wrong one.
+**The photo tier is Openverse and not Lorem Picsum.** Recorded because B8 is
+written against "the prototype's photo tier" and would otherwise build the
+wrong one.
 */
 
 import { Input } from "./ui/input.js"
@@ -172,9 +170,7 @@ const MARKS: { key: string; name: string; css: string }[] = [
 /* Openverse, the openly licensed image search run by the Openverse project
    (api.openverse.org), standing where the reference design had Unsplash.
    Real search over a real free-source platform; the tab says plainly that it
-   needs the network, which the flattened share build refuses on purpose.
-   Legacy `photo:` keys from the first picker resolve through Picsum so a
-   cover chosen then keeps rendering. */
+   needs the network, which the flattened share build refuses on purpose. */
 interface OpenverseResult {
   id: string
   title: string
@@ -227,7 +223,7 @@ export function rememberUploadedCover(folderName: string, url: string) {
 /* Whether a stored cover has a crop worth moving, photographic tiers only. */
 export function coverRepositions(key: string | undefined): boolean {
   if (!key) return false
-  return key === "upload" || key.startsWith("photo:") || key.startsWith("link:")
+  return key === "upload" || key.startsWith("link:")
 }
 
 /* The style for a stored cover key, or null when there is nothing to draw ,
@@ -265,16 +261,6 @@ export function resolveCover(
           backgroundPosition: `center ${position}%`,
         }
       : null
-  }
-  if (key.startsWith("photo:")) {
-    /* Legacy tier from the first picker: pinned Picsum ids. */
-    const id = key.slice("photo:".length)
-    return {
-      backgroundImage: `url("https://picsum.photos/id/${Number(id)}/1600/400")`,
-      backgroundSize: "cover",
-      backgroundPosition: `center ${position}%`,
-      backgroundColor: "var(--color-graphite-100)",
-    }
   }
   if (key.startsWith("link:")) {
     return {
