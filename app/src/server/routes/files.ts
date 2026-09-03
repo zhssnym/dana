@@ -33,6 +33,10 @@ import {
   setAvatar,
 } from '../domain/files.js'
 import type { CreateFileResult, FileKind } from '../domain/files.js'
+import type {
+  PostAvatarResponse,
+  PostFilesResponse,
+} from '../../shared/files.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
@@ -204,7 +208,13 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      res.status(201).json({ id: outcome.id, bytes: outcome.bytes })
+      /* Annotated, not inlined into `res.json`, which takes `any`: the
+         annotation is the only thing tying this literal to the schema the
+         client parses it with (#39). It catches both directions — a field
+         the schema requires and this omits, and a field this sends and the
+         schema does not declare. */
+      const body: PostFilesResponse = { id: outcome.id, bytes: outcome.bytes }
+      res.status(201).json(body)
     }),
   )
 
@@ -291,9 +301,12 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      res
-        .status(200)
-        .json({ avatar_url: `/api/v1/files/${outcome.id}` })
+      /* As above: the shared schema is the contract, this is checked
+         against it (#39). */
+      const body: PostAvatarResponse = {
+        avatar_url: `/api/v1/files/${outcome.id}`,
+      }
+      res.status(200).json(body)
     }),
   )
 
