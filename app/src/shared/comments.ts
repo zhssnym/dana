@@ -100,6 +100,31 @@ export function attachedFileIds(comment: PostCommentBody): string[] {
   return comment.file_id === undefined ? [] : [comment.file_id]
 }
 
+/*
+The edit half, and it is the words alone.
+
+**`PATCH /comments/:id` with `file_ids` on it answers 200 and changes no
+attachment.** Nothing in this folder is `.strict()`, so the field parses, is
+dropped, and the caller is told the request succeeded. That is the same shape
+as the reminder field `tasks.ts` records, arriving on the very endpoint the
+create half was just widened for: the next person building a multi-file
+composer will reasonably try it.
+
+**It is left tolerant on purpose and the reason is not tidiness.** Frozen 7.0
+rules it outright, "on a parsed object, unknown fields are tolerated and wrong
+types are not", so a `.strict()` here would not be a local hardening but this
+one endpoint contradicting the section that governs every endpoint, and
+section 7 moves only on a human decision. Issue #40 carries the question for
+`app/src/shared/` as a whole, which is where it belongs: eighteen schemas
+answering one way and one answering another is worse than either answer.
+
+**What is genuinely undefined is attachment editing itself.** 7.14 as widened
+on 2026-09-03 says what a comment is posted with and says nothing about
+changing what it carries afterwards, so there is no rule here to enforce and
+none to break. Whoever specifies it should read `attachedFileIds` above: the
+two spellings exist because replacing a field the client still sends is the
+failure this endpoint has already been careful about once.
+*/
 export const patchCommentBody = z.object({
   body: z.string().min(1).max(4000),
 })

@@ -11,6 +11,17 @@ asserted beside the fail side because a server that refuses everything
 satisfies the fail side alone, which is the mistake this file exists not to
 make.
 
+**The ten-file case is also where the ordering is measured against the
+database, and that is deliberate.** AC-344 asserts the order on a three-file
+thread read, where a regression in the microsecond stamping leaves the read
+falling back to `cf.file_id` and has one chance in six of reproducing the sent
+order by accident. Ten files makes that one in 3,628,800. The create answer is
+asserted here too, but it is not the measurement: it is built from the request
+array in `domain/comments.ts` and would agree with the caller even if nothing
+were written in any order at all. The ten are sent in an order that is neither
+their upload order nor any order the ids themselves carry, so a read sorting
+by either would fail.
+
 The two adversarial cases are the ones the widening created rather than
 inherited. `comment_files`'s primary key is (comment_id, file_id), so the same
 id twice is a constraint violation wearing a 500 unless something refuses it
@@ -48,10 +59,17 @@ interface ThreadComment {
   files: { id: string }[]
 }
 
-async function threadIds(actor: Actor, folderId: string): Promise<string[]> {
+async function threadComments(
+  actor: Actor,
+  folderId: string,
+): Promise<ThreadComment[]> {
   const read = await actor.browser.json(`/folders/${folderId}/comments`, 'GET')
   expectStatus(read, 200, 'the thread reads for a member (spec 7.14)')
-  return (read.json() as { comments: ThreadComment[] }).comments.map((c) => c.id)
+  return (read.json() as { comments: ThreadComment[] }).comments
+}
+
+async function threadIds(actor: Actor, folderId: string): Promise<string[]> {
+  return (await threadComments(actor, folderId)).map((c) => c.id)
 }
 
 interface Stage {
@@ -85,9 +103,20 @@ describe('AC-345: ten files is the cap', () => {
     ).toBe(10)
   })
 
-  test('AC-345: ten are accepted and all ten are attached', async () => {
+  test('AC-345: ten are accepted, attached, and read back in that order', async () => {
     const { owner, folderId, fileIds } = await stage()
-    const ten = fileIds.slice(0, COMMENT_FILE_CAP)
+    // Deliberately neither the upload order nor any order the ids carry. A
+    // read that had lost the per-attachment stamping falls back to
+    // `cf.file_id`, and reproducing this sequence by accident is one chance
+    // in ten factorial.
+    const ten = [7, 2, 9, 0, 5, 3, 8, 1, 6, 4].map(
+      (index) => fileIds[index] as string,
+    )
+    expect(
+      ten,
+      'the permutation must name ten distinct stored files, or the case below measures nothing',
+    ).toHaveLength(COMMENT_FILE_CAP)
+
     const posted = await owner.browser.json(
       `/folders/${folderId}/comments`,
       'POST',
@@ -98,9 +127,29 @@ describe('AC-345: ten files is the cap', () => {
       201,
       'the cap is inclusive: ten files is a legal comment (spec 10.3)',
     )
+    const created = posted.json() as ThreadComment
     expect(
-      (posted.json() as ThreadComment).files.map((file) => file.id),
+      created.files.map((file) => file.id),
       'and every one of the ten is attached, in order (spec 7.14)',
+    ).toEqual(ten)
+
+    /*
+    The assertion above is built from the request array by
+    `domain/comments.ts` and would agree with the caller whatever the write
+    did. This one is the database's answer: the thread read is the only place
+    `ORDER BY cf.created_at, cf.file_id` is exercised, and at ten files a
+    coincidence is out of reach.
+    */
+    const line = (await threadComments(owner, folderId)).find(
+      (comment) => comment.id === created.id,
+    )
+    expect(
+      line,
+      'the comment the create answered is in the thread it was posted to (spec 7.14)',
+    ).toBeDefined()
+    expect(
+      line?.files.map((file) => file.id),
+      'the thread reads the ten back in the order they were attached, which is what "ordered as attached" measures once the create answer cannot (spec 7.14)',
     ).toEqual(ten)
   })
 
