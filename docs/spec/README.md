@@ -48,7 +48,7 @@ and a retired criterion is marked rather than removed.
 | 9 | [`09-ui/`](09-ui/) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
-| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 335 numbered criteria, the definition of done |
+| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 343 numbered criteria, the definition of done |
 | 13 | [`13-open-questions/`](13-open-questions/) | **Retired 2026-09-01.** A forwarding address only: open questions are GitHub issues now, its recorded assumptions moved into the sections they constrain, and its table maps all 57 old item numbers to where each went. The number is not reused. |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by number and
@@ -57,4 +57,11 @@ RFC 0005 units the owner ruled into them and the date they were folded (S29a, 20
 which is the freeze's audit trail. Both gained a further annotation on 2026-09-03, for
 issues #27 and #30, and it is the same trail rather than an exception to it: the owner
 ruled each change before it was written, and the annotation names the ruling, the migration
-and what the change does not do.
+and what the change does not do. Both gained a third on the same date, for issues #20 and
+#100 (migration 0012), on Imran's ruling that folders, shelves and the built-in pages all
+get the same cover options and that pictures belong to the person rather than to a folder.
+
+The count in row 12 above was 335 while the criteria files held 337, and it is 343 now
+because that is what counting the bullets answers. It is arithmetic over the files rather
+than a number to be carried forward, and whoever merges last re-derives it, which is the
+rule 12's own README states for the same reason.

@@ -14,6 +14,7 @@ import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelve
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { readableFileScope } from './files.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -32,13 +33,15 @@ function shelfFromRow(row: Record<string, unknown>): Shelf {
     icon: nullableString(row.icon),
     color: nullableString(row.color),
     cover_file_id: nullableString(row.cover_file_id),
+    cover_preset: nullableString(row.cover_preset),
+    cover_focal_y: Number(row.cover_focal_y ?? 50),
     description: nullableString(row.description),
     created_at: toIso(row.created_at),
   }
 }
 
-const SHELF_COLUMNS = sql`id, name, icon, color, cover_file_id, description,
-  created_at`
+const SHELF_COLUMNS = sql`id, name, icon, color, cover_file_id, cover_preset,
+  cover_focal_y, description, created_at`
 
 export async function listShelves(db: Db, viewerId: string): Promise<Shelf[]> {
   const rows = await rowsOf(
@@ -157,6 +160,8 @@ export type PatchShelfResult =
   | { kind: 'patched'; shelf: Shelf }
   | { kind: 'not_found' }
   | { kind: 'name_taken' }
+  /** The named cover is not a picture this caller can reach (issue #100). */
+  | { kind: 'cover_not_readable' }
 
 export async function patchShelf(
   db: Db,
@@ -186,10 +191,58 @@ export async function patchShelf(
       if (taken.length > 0) return { kind: 'name_taken' } as const
     }
 
+    /*
+    The cover's gate, and it is this module's to write: there is no
+    authorization chokepoint, so a route that takes a file id and does not
+    scope it is issue #107's shape, where a member of one folder can plant
+    another folder's id and learn that it exists. `createComment` is the
+    pattern and this is it one object over, with two clauses rather than one.
+
+    **Readable, by `readableFileScope`** — the same predicate `serveFile`
+    answers with, so a shelf can never point at a picture the person who set
+    it would then be refused the bytes of. A shelf is private (4.18), so in
+    practice this is the caller's own folder-less upload; a file from a folder
+    they are a member of is admitted too, exactly as 7.19 admits one for a
+    place cover, because refusing it would make the shelf the one page kind
+    with a narrower rule than the other two, which is the inconsistency #20
+    exists to end.
+
+    **And image-kinded**, which is `patchFolderProfile`'s second clause
+    verbatim: a cover is a picture, and without it a `voice` note's id would
+    be storable as one and drawn as a broken image.
+    */
+    if (patch.cover_file_id !== undefined && patch.cover_file_id !== null) {
+      const cover = await rowsOf(
+        tx,
+        sql`SELECT 1 AS present FROM files f
+            WHERE f.id = ${patch.cover_file_id}
+              AND f.kind IN ('cover', 'image')
+              AND ${readableFileScope(viewerId)}`,
+      )
+      if (cover.length === 0) return { kind: 'cover_not_readable' } as const
+    }
+
     const sets = []
     if (patch.name !== undefined) sets.push(sql`name = ${patch.name}`)
     if (patch.icon !== undefined) sets.push(sql`icon = ${patch.icon}`)
     if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
+    /* One source (4.18 as widened by issues #20 and #100, migration 0012):
+       a file arriving clears the preset and a preset arriving clears the
+       file, so the client never has to send the null it means. It is
+       `patchFolderProfile`'s rule transcribed, because it is the same rule,
+       and migration 0012's shelves_cover_one_source_check is what makes a
+       transcription that ever drifts a refusal rather than a wrong row. */
+    if (patch.cover_file_id !== undefined) {
+      sets.push(sql`cover_file_id = ${patch.cover_file_id}`)
+      if (patch.cover_file_id !== null) sets.push(sql`cover_preset = NULL`)
+    }
+    if (patch.cover_preset !== undefined) {
+      sets.push(sql`cover_preset = ${patch.cover_preset}`)
+      if (patch.cover_preset !== null) sets.push(sql`cover_file_id = NULL`)
+    }
+    if (patch.cover_focal_y !== undefined) {
+      sets.push(sql`cover_focal_y = ${patch.cover_focal_y}`)
+    }
     if (patch.description !== undefined) {
       sets.push(sql`description = ${patch.description}`)
     }

@@ -29,6 +29,7 @@ No events: a file upload is not one of 4.13's subjects. The act that
 consumes the file (a page edit, a comment, a cover) records itself.
 */
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
@@ -133,14 +134,26 @@ export async function createFile(
   viewerId: string,
   input: UploadInput,
 ): Promise<CreateFileResult> {
-  // Scope before shape (10.2): every kind but avatar lives in a folder.
+  /* Scope before shape (10.2), and which kinds may stand outside a folder is
+     migration 0012's files_folderless_kind_check, restated here so the
+     refusal is a sentence rather than a constraint violation.
+
+     **A cover may have a folder or no folder, and that is the whole of
+     issue #20's backend.** Every other kind hangs on something that lives in
+     a folder — a page image, a comment's attachment, a voice note — and takes
+     that folder's visibility. A cover decorates a page, and the three kinds
+     of page are not all folders: a folder's cover is shared with its members
+     and must be folder-scoped so they can read it (4.3, "one look for every
+     member"), while a shelf is private (4.18) and a place cover is per viewer
+     (4.20), so theirs belong to the person. The rule is therefore *the cover
+     file's scope matches its page's scope*, and the caller chooses it by
+     sending a folder_id or not. An avatar continues to refuse one. */
   if (input.kind === 'avatar') {
     if (input.folderId !== null) return { kind: 'kind_mime_mismatch' }
-  } else {
-    if (input.folderId === null) return { kind: 'folder_not_found' }
-    if ((await accessOf(db, viewerId, input.folderId)) === null) {
-      return { kind: 'folder_not_found' }
-    }
+  } else if (input.folderId === null) {
+    if (input.kind !== 'cover') return { kind: 'folder_not_found' }
+  } else if ((await accessOf(db, viewerId, input.folderId)) === null) {
+    return { kind: 'folder_not_found' }
   }
 
   if (!mimeMatchesKind(input.kind, input.mime)) {
@@ -206,6 +219,51 @@ export async function createFile(
   })
 }
 
+/*
+Who may read one stored file, as one SQL predicate over a `files` row aliased
+`f`.
+
+**It is a function rather than three copies because the three copies had
+already drifted.** `serveFile` below decides what bytes go over the wire;
+`putPlaceCover` (7.19) and now `patchShelf` (7.16) decide which file id a
+person may point a cover at, and a cover pointing at a file its owner cannot
+read is a broken picture the server promised. `domain/covers.ts` used to carry
+its own transcription of this, with a comment saying it was "restated as a
+scope rather than re-derived" — which is the drift risk named and then taken.
+One definition, imported.
+
+**The folder-less arm is narrower than it was before issues #20 and #100, and
+the narrowing is the load-bearing half of this change.** It used to read
+`f.folder_id IS NULL` and stop, on the reasoning that the only folder-less
+rows were avatars and "profile pictures are what member lists render". That
+was true while `createFile` refused a folder-less anything else. The moment a
+person can upload a cover of their own with no folder, the same clause hands
+every signed-in account read access to every personal cover picture in Dana
+for the cost of guessing a uuid, which is not what "pictures belong to the
+user" was ruled to mean. Measured before the change, on the PGlite leg: a
+second account's `GET /api/v1/files/:id` against a folder-less `cover` row
+with real bytes answered **200**.
+
+So: a folder-scoped file is its members', unchanged; an **avatar** with no
+folder stays readable by any signed-in account, because a member list renders
+other people's pictures and that behaviour is 7.15's; every other folder-less
+file is its owner's alone. AC-371 asserts all three arms.
+
+The predicate is deliberately self-contained — a correlated EXISTS rather than
+a join — so a caller needs nothing in its FROM clause but `files f`.
+*/
+export function readableFileScope(viewerId: string): SQL {
+  return sql`(
+    (f.folder_id IS NULL AND (f.kind = 'avatar' OR f.owner_id = ${viewerId}))
+    OR EXISTS (
+      SELECT 1 FROM folders fo
+      JOIN folder_members m ON m.folder_id = fo.id
+      WHERE fo.id = f.folder_id
+        AND fo.deleted_at IS NULL
+        AND m.user_id = ${viewerId})
+  )`
+}
+
 export interface ServedFile {
   id: string
   name: string
@@ -215,10 +273,9 @@ export interface ServedFile {
 }
 
 /**
- * 7.15's authenticated serving under 10.2: a folder-scoped file is its
- * members', and a file with no folder (an avatar) is readable by any
- * signed-in account, profile pictures being what member lists render.
- * There are no public URLs; the session got the caller this far.
+ * 7.15's authenticated serving under 10.2, the scope being
+ * `readableFileScope` above and nothing else. There are no public URLs; the
+ * session got the caller this far.
  */
 export async function serveFile(
   db: Db,
@@ -230,14 +287,7 @@ export async function serveFile(
     db,
     sql`SELECT f.id, f.name, f.mime, f.kind
         FROM files f
-        LEFT JOIN folders fo ON fo.id = f.folder_id
-        WHERE f.id = ${fileId}
-          AND (
-            f.folder_id IS NULL
-            OR (fo.deleted_at IS NULL AND EXISTS (
-              SELECT 1 FROM folder_members m
-              WHERE m.folder_id = f.folder_id AND m.user_id = ${viewerId}))
-          )`,
+        WHERE f.id = ${fileId} AND ${readableFileScope(viewerId)}`,
   )
   const row = found[0]
   if (row === undefined) return null

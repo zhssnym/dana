@@ -104,6 +104,35 @@ export function upload(
  * unwrap. Added for issue #22, where a comment carries up to ten of them and
  * a case that spelled the upload out eleven times would be unreadable.
  */
+/**
+ * One stored `cover`, in a folder or in none, answering its id.
+ *
+ * The null arm is what issues #20 and #100 added to 7.15: a cover is the one
+ * kind that may stand outside a folder, because a shelf and a place page are
+ * not folders and their covers belong to the person rather than to a folder's
+ * membership. `folderId` null therefore sends **no** `folder_id` part at all,
+ * which is the wire shape the route now admits, rather than an empty one.
+ */
+export async function uploadCoverOk(
+  actor: Actor,
+  folderId: string | null,
+  name: string,
+): Promise<string> {
+  const stored = await upload(
+    actor,
+    '/files',
+    folderId === null ? { kind: 'cover' } : { kind: 'cover', folder_id: folderId },
+    { name, type: 'image/png', bytes: ONE_PIXEL_PNG },
+  )
+  expect(
+    stored.status,
+    `the cover upload of ${name} must land before anything can wear it (spec 7.15 as widened by issues #20 and #100); answered ${String(stored.status)} ${stored.body.slice(0, 160)}`,
+  ).toBe(201)
+  const id = (stored.json() as { id?: unknown }).id
+  expect(typeof id, 'the stored row answers with its id (spec 7.0)').toBe('string')
+  return id as string
+}
+
 export async function uploadImageOk(
   actor: Actor,
   folderId: string,

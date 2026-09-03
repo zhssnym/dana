@@ -11,10 +11,17 @@ and it is why there is no separate access resolution: a place page is
 furniture, not an object somebody might or might not be a member of.
 
 **A named file must be one the caller can read**, and the predicate is
-`serveFile`'s, restated as a scope rather than re-derived: a folder-scoped
-file is its members', and a file with no folder is any signed-in account's.
-A file the caller cannot read answers 404 rather than 403, which is 10.2's
-rule and the same answer a file that does not exist gets.
+`serveFile`'s — imported since issues #20 and #100 rather than transcribed.
+It used to be transcribed here, under a sentence saying it was "restated as a
+scope rather than re-derived", and the two then diverged in the way that
+sentence exists to warn about: the copy admitted **any** file with no folder
+to **anybody**, so a person could wear another person's folder-less picture on
+their own Today page. Measured before the fix: a second account's
+`PUT /place-covers/today { file_id: <the first account's folder-less file> }`
+answered **200**. `readableFileScope` in `domain/files.ts` is now the one
+definition, and the folder-less arm it carries is owner-or-avatar. A file the
+caller cannot read answers 404 rather than 403, which is 10.2's rule and the
+same answer a file that does not exist gets.
 
 **Removal is the row's deletion**, because 4.20 admits no row with neither a
 file nor a preset. That is also why the migration's foreign key cascades
@@ -27,6 +34,7 @@ import type { Db } from '../../../db/client.js'
 import { DEFAULT_FOCAL_Y } from '../../shared/covers.js'
 import type { PlaceCover, PutPlaceCoverBody } from '../../shared/covers.js'
 import { rowsOf } from '../database.js'
+import { readableFileScope } from './files.js'
 
 function coverFromRow(row: Record<string, unknown>): PlaceCover {
   return {
@@ -65,16 +73,8 @@ export async function putPlaceCover(
   if (body.file_id !== undefined) {
     const readable = await rowsOf(
       db,
-      sql`SELECT f.id
-          FROM files f
-          LEFT JOIN folders fo ON fo.id = f.folder_id
-          WHERE f.id = ${body.file_id}
-            AND (
-              f.folder_id IS NULL
-              OR (fo.deleted_at IS NULL AND EXISTS (
-                SELECT 1 FROM folder_members m
-                WHERE m.folder_id = f.folder_id AND m.user_id = ${viewerId}))
-            )`,
+      sql`SELECT f.id FROM files f
+          WHERE f.id = ${body.file_id} AND ${readableFileScope(viewerId)}`,
     )
     if (readable.length === 0) return { kind: 'file_not_found' } as const
   }

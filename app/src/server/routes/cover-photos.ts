@@ -23,6 +23,10 @@ header. So the server does the fetching, and the CSP does not move an inch:
   client then PATCHes `cover_file_id` exactly as it does after an upload, so
   the cover a person ends up wearing is a file this origin serves — which is
   also what dissolves 10.6's precache objection, B8's original ground.
+- POST /covers/photo               — the same act for a page that is not a
+  folder, added for issues #20 and #100. The stored file has no folder and is
+  the caller's alone, which is what lets a shelf and a place page wear a
+  photograph.
 
 Openverse (api.openverse.org) needs no key and no account. `OPENVERSE_BASE`
 exists so the contract test can stand a stub upstream; production never sets
@@ -143,83 +147,134 @@ export function createCoverPhotosRouter(
     },
   )
 
+  /*
+  Fetch the chosen photograph and store it as a `cover` file in `folderId`,
+  which is null for a shelf's or a place page's cover.
+
+  Extracted from the folder route below when issues #20 and #100 gave it a
+  folder-less sibling, so the two differ in exactly the thing they differ in --
+  where the picture lands -- and not by a copy that will drift. Everything that
+  matters is shared: the upstream record is fetched here rather than taken
+  from the client, so this cannot be pointed at an arbitrary host; the bytes
+  are bounded before they are buffered; and `createFile` applies the same
+  membership check, downscale, quota and 413 an upload gets.
+  */
+  const storePhoto = async (
+    req: Request,
+    res: Response,
+    folderId: string | null,
+  ): Promise<void> => {
+    if (options.dbClient === undefined || options.fileStore === undefined) {
+      sendError(res, 500, 'internal_error', 'The application was constructed without a database.')
+      return
+    }
+    const body = pickBody.safeParse(req.body)
+    if (!body.success) {
+      sendError(res, 422, 'validation_failed', 'photo_id: must be a uuid.')
+      return
+    }
+
+    /* The upstream URL comes from Openverse's own record for that id,
+       fetched here -- never from the client -- so this cannot be pointed at
+       an arbitrary host. */
+    let source: { url: string; title: string; mime: string; bytes: Buffer }
+    try {
+      const detail = await fetch(`${upstreamBase()}/v1/images/${body.data.photo_id}/`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (!detail.ok) throw new Error(String(detail.status))
+      const record = (await detail.json()) as UpstreamResult
+      /* https in production; the one exception is a URL on the stub base
+         itself, so the contract test can serve the photograph it promised. */
+      const fromStub =
+        process.env['OPENVERSE_BASE'] !== undefined &&
+        typeof record.url === 'string' &&
+        record.url.startsWith(upstreamBase())
+      if (typeof record.url !== 'string' || (!/^https:\/\//.test(record.url) && !fromStub)) {
+        throw new Error('no url')
+      }
+      const image = await fetch(record.url, { signal: AbortSignal.timeout(20_000) })
+      if (!image.ok) throw new Error(String(image.status))
+      const mime = image.headers.get('content-type') ?? ''
+      if (!mime.startsWith('image/')) throw new Error('not an image')
+      const bytes = await boundedBytes(image)
+      if (bytes === null) throw new Error('too large')
+      source = { url: record.url, title: record.title ?? 'Photo', mime, bytes }
+    } catch {
+      sendError(res, 502, 'upstream_failed', 'The photograph could not be fetched.')
+      return
+    }
+
+    const outcome = await createFile(
+      options.dbClient.db,
+      options.fileStore,
+      viewer(req),
+      {
+        kind: 'cover',
+        folderId,
+        name: source.title.slice(0, 120) || 'Photo',
+        mime: source.mime,
+        bytes: source.bytes,
+      },
+    )
+    if (outcome.kind !== 'created') {
+      refusal(res, outcome)
+      return
+    }
+    // The same answer 7.15's upload sends, because it is the same act: the
+    // shape comes back with the id (issue #27). It matters more here than
+    // there -- the caller never held these bytes, the server fetched them
+    // from the upstream's own record, so this response is the only thing that
+    // can tell it what was stored.
+    res.status(201).json({
+      id: outcome.id,
+      bytes: outcome.bytes,
+      width: outcome.width,
+      height: outcome.height,
+    })
+  }
+
   router.post(
     '/folders/:id/cover/photo',
     requireSession,
     requireCsrf,
     mutationLimit,
     async (req: Request, res: Response) => {
-      if (options.dbClient === undefined || options.fileStore === undefined) {
-        sendError(res, 500, 'internal_error', 'The application was constructed without a database.')
-        return
-      }
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      const body = pickBody.safeParse(req.body)
-      if (!body.success) {
-        sendError(res, 422, 'validation_failed', 'photo_id: must be a uuid.')
-        return
-      }
+      await storePhoto(req, res, folderId)
+    },
+  )
 
-      /* The upstream URL comes from Openverse's own record for that id,
-         fetched here — never from the client — so this cannot be pointed at
-         an arbitrary host. */
-      let source: { url: string; title: string; mime: string; bytes: Buffer }
-      try {
-        const detail = await fetch(`${upstreamBase()}/v1/images/${body.data.photo_id}/`, {
-          headers: { Accept: 'application/json' },
-          signal: AbortSignal.timeout(10_000),
-        })
-        if (!detail.ok) throw new Error(String(detail.status))
-        const record = (await detail.json()) as UpstreamResult
-        /* https in production; the one exception is a URL on the stub base
-           itself, so the contract test can serve the photograph it promised. */
-        const fromStub =
-          process.env['OPENVERSE_BASE'] !== undefined &&
-          typeof record.url === 'string' &&
-          record.url.startsWith(upstreamBase())
-        if (typeof record.url !== 'string' || (!/^https:\/\//.test(record.url) && !fromStub)) {
-          throw new Error('no url')
-        }
-        const image = await fetch(record.url, { signal: AbortSignal.timeout(20_000) })
-        if (!image.ok) throw new Error(String(image.status))
-        const mime = image.headers.get('content-type') ?? ''
-        if (!mime.startsWith('image/')) throw new Error('not an image')
-        const bytes = await boundedBytes(image)
-        if (bytes === null) throw new Error('too large')
-        source = { url: record.url, title: record.title ?? 'Photo', mime, bytes }
-      } catch {
-        sendError(res, 502, 'upstream_failed', 'The photograph could not be fetched.')
-        return
-      }
+  /*
+  The folder-less arm, added 2026-09-03 for issues #20 and #100: the same act
+  for a page that is not a folder.
 
-      const outcome = await createFile(
-        options.dbClient.db,
-        options.fileStore,
-        viewer(req),
-        {
-          kind: 'cover',
-          folderId,
-          name: source.title.slice(0, 120) || 'Photo',
-          mime: source.mime,
-          bytes: source.bytes,
-        },
-      )
-      if (outcome.kind !== 'created') {
-        refusal(res, outcome)
-        return
-      }
-      // The same answer 7.15's upload sends, because it is the same act: the
-      // shape comes back with the id (issue #27). It matters more here than
-      // there — the caller never held these bytes, the server fetched them
-      // from the upstream's record, so this response is the only thing that
-      // can tell it what was stored.
-      res.status(201).json({
-        id: outcome.id,
-        bytes: outcome.bytes,
-        width: outcome.width,
-        height: outcome.height,
-      })
+  **A route rather than an optional parameter on the one above**, because the
+  URL is where the folder is named and there is no folder to name. It is a
+  distinct literal from `GET /covers/photos` and shadows nothing.
+
+  The stored file is the caller's own and has no folder, so
+  `readableFileScope` makes it readable by nobody else -- which is the answer
+  to "who may see a picture that belongs to a person rather than a folder",
+  and the reason a shelf's cover (private by 4.18) and a place page's cover
+  (per viewer by 4.20) can be pictures at all.
+
+  **No `accessOf` gate, and that is not an omission**, this being the one
+  thing a new route here is most likely to get wrong. There is no object whose
+  visibility could be in question: the act creates a row owned by the caller,
+  spending the caller's own quota, and `requireSession` is what makes "the
+  caller" a person. This is `POST /me/avatar`'s shape rather than
+  `POST /folders/:id/...`'s.
+  */
+  router.post(
+    '/covers/photo',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      await storePhoto(req, res, null)
     },
   )
 
