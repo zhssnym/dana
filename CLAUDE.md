@@ -75,9 +75,12 @@ Environment specifics, hard-won and non-obvious. This file is their home; the
 protocol points here rather than repeating them.
 
 - Scope the suite while you iterate and run it whole before you report. **Measured
-  2026-09-01 in CI: 279 files and 1899 tests.** The proportions below were measured
-  2026-08-13 at 189 files and 1530 tests and still hold: the PGlite leg is about 200 seconds and
-  the Postgres leg about 60, a range of criteria about 33. The full run is not
+  2026-09-03 on this machine, both legs green: 295 files and 1961 tests.** It was 279 and
+  1899 on 2026-09-01, so read every count in this file as a dated measurement rather than
+  a target. Wall clock that night on a quiet machine: the PGlite leg **291 seconds**, the
+  Postgres leg **94** (it was about 240 before issue #32 gave each worker its own
+  database, so that leg got *faster*), the browser leg **9.7 minutes for 289 cases**, and
+  a range of criteria about 33. The full run is not
   ceremony, it is the only one that sees a cross-package regression, and a change
   under `app/src/shared/**` or `app/src/server/domain/**` reaches criteria in
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
@@ -377,11 +380,18 @@ protocol points here rather than repeating them.
 - **Four classes now, counting the starvation one above, and only two of them are
   answered by re-running.** These three were measured in CI on 2026-08-31 and
   2026-09-01, on the first runs this repository has ever had.
-  - **The Postgres leg shares one `dana_test` across all 279 files, so they see each
-    other's rows.** PGlite gives each worker its own. The fingerprint is a count that
-    climbs across successive tests, `expected 2 to be 1`, then 3, then 4: a logic error
-    gives a constant wrong number, accumulation climbs. Re-run the file alone before
-    believing it. Tracked as issue #32.
+  - **The Postgres leg used to share one `dana_test`, and does not any more. Closed
+    2026-09-03 by issue #32.** Every file pointed at one database and they saw each
+    other's rows; the fingerprint was a count that climbed across successive tests,
+    `expected 2 to be 1`, then 3, then 4. Each vitest pool slot now gets its own
+    `dana_test_r<run>_w<slot>`, created with 11.10's locale statement, migrated at run
+    start and emptied before every file. **So a climbing count on that leg is now a
+    defect rather than a flake — read it.** Two things follow. `TEST_DATABASE_URL` names
+    the *base* database the worker ones are derived from, not the one your test runs in.
+    And `ac-001` alone still runs against that base, because it asserts the English text
+    of a server message and only a superuser can give a created database
+    `lc_messages = C` (issue #92); `tests/postgres-leg-isolation.test.ts` fails by name
+    if a second test ever grows a prose assertion.
   - **The browser leg loses about one case a run** under memory pressure, and the
     bullets above cover it. Re-run the case alone, and read the note on when isolation
     lies.
