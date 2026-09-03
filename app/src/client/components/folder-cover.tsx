@@ -62,7 +62,9 @@ wrong one.
 
 import { Input } from "./ui/input.js"
 import { useRef, useState, type CSSProperties } from "react"
+import { z } from "zod"
 
+import { getPlain } from "../api/http.js"
 import { Image as ImageIcon, LoaderCircle, Search, X } from "../lib/icons.js"
 import { cn } from "./ui/utils.js"
 
@@ -179,25 +181,22 @@ interface OpenverseResult {
   url: string
 }
 
+const openverseSearch = z.object({
+  results: z.array(z.object({
+    id: z.string(),
+    title: z.string().optional(),
+    creator: z.string().optional(),
+    thumb: z.string().optional(),
+  })).optional(),
+})
+
 async function searchOpenverse(query: string): Promise<OpenverseResult[]> {
   /* Through this origin since the polish round of 2026-08-30: 10.8's CSP
      (connect-src 'self') refuses a direct call to api.openverse.org, so the
      server proxies the search and serves each thumbnail itself — see
      `routes/cover-photos.ts` for the whole reasoning. The lab build, which
      has no server, gets the tab's offline copy instead of a broken grid. */
-  const response = await fetch(
-    `/api/v1/covers/photos?q=${encodeURIComponent(query)}`,
-    { headers: { Accept: "application/json" } },
-  )
-  if (!response.ok) throw new Error(`The photo search answered ${response.status}`)
-  const data = (await response.json()) as {
-    results?: {
-      id: string
-      title?: string
-      creator?: string
-      thumb?: string
-    }[]
-  }
+  const data = await getPlain(openverseSearch, "/covers/photos", { q: query })
   return (data.results ?? [])
     .filter((item) => item.thumb)
     .map((item) => ({
