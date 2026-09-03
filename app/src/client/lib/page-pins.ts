@@ -1,5 +1,5 @@
 /*
-Which views are pinned to the sidebar, as `settings-screen.tsx` reads and
+Which views are pinned to the sidebar, as `settings-page-content.tsx` reads and
 writes them: `prototype-v2`'s `lib/page-pins.ts` rewritten over 4.19's
 `pinned_views` (RFC 0004's S27).
 
