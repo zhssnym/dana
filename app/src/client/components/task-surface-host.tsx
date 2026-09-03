@@ -17,10 +17,9 @@ tree". Nothing about that changed when the surface behind them did, so the
 callers are untouched by this row: the calendar, the search overlay and every
 page still call what they called.
 
-**Where a task opens is the person's**, 9.3: "Where a task opens (dialog,
-panel, or tab) is a client-side preference; a row offers the choice and
-remembers it." `lib/task-surface-preference.ts` is the record and the seam
-onto 4.19's `task_open` column.
+**Where a task opens is the person's.** The account's `task_open` value is the
+record for dialog, panel, or tab, while `lib/task-surface-preference.ts` keeps
+a browser mirror for the first read before the account bundle arrives.
 
 **The create path holds a draft and the edit path does not, which is not two
 artifacts.** 9.3's "no Save control and no draft state" is about what a person
@@ -56,13 +55,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { useCreateTask } from '../api/mutations.js'
-import { useBundle, useFolders, useMe } from '../api/queries.js'
+import { useFolders, useMe } from '../api/queries.js'
 import { conceptPatchToBody } from '../lib/task-concept.js'
 import type { ConceptTask } from '../lib/task-model.js'
 import { TaskWriter } from '../lib/task-writer.js'
 import {
-  useTaskSurfacePreference,
-  setTaskSurfacePreference,
+  surfacePreferenceFor,
+  useTaskOpenPreference,
 } from '../lib/task-surface-preference.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
@@ -110,13 +109,13 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const making = useRef(false)
   const [pending, setPending] = useState<PendingAct | null>(null)
 
-  const preference = useTaskSurfacePreference()
+  const taskOpenPreference = useTaskOpenPreference()
+  const preference = surfacePreferenceFor(taskOpenPreference)
   const [mode, setMode] = useState<TaskSurfaceMode | null>(null)
   const navigate = useNavigate()
 
   const me = useMe()
   const folders = useFolders()
-  const bundle = useBundle()
   const create = useCreateTask()
   const acts = useRowActions()
 
@@ -136,8 +135,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   viewerRef.current = me.data?.user
   const createRef = useRef(create)
   createRef.current = create
-  const taskOpenRef = useRef(bundle.data?.task_open)
-  taskOpenRef.current = bundle.data?.task_open
+  const taskOpenRef = useRef(taskOpenPreference)
+  taskOpenRef.current = taskOpenPreference
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
@@ -385,7 +384,6 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
         mode={mode ?? preference}
         onModeChange={(next) => {
           setMode(next)
-          setTaskSurfacePreference(next)
         }}
         {...(editing === null
           ? {}

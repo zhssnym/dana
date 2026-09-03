@@ -104,7 +104,7 @@ import { useRowDensity, type RowDensity } from "../lib/row-density.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useTaskWriter } from "../lib/task-writer.js"
 import { useExpandedDetail } from "../lib/row-detail.js"
-import { setTaskSurfacePreference } from "../lib/task-surface-preference.js"
+import { setTaskOpen } from "../lib/task-surface-preference.js"
 import {
   repeatShort,
   stepCount,
@@ -2504,11 +2504,10 @@ export function TaskRow(props: TaskRowProps) {
     return () => onRegisterOpen(null)
   }, [onRegisterOpen, onOpen])
 
-  /* Choosing where a task opens is choosing where tasks open (DES-138): the
-     pick is remembered, so the next one lands in the same place. A tab is
-     the exception, an action rather than a home. */
+  /* Choosing where a task opens updates the person's account preference, so
+     the next task uses the same surface on this device and every other one. */
   function openIn(mode: TaskOpenMode) {
-    if (mode !== "tab") setTaskSurfacePreference(mode)
+    setTaskOpen(mode === "right" ? "panel" : mode)
     props.onOpen?.(mode)
   }
 

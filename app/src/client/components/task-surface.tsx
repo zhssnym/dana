@@ -43,7 +43,7 @@ import {
 import { ViewStrip } from "./view-strip.js"
 import { HoldsTheDocument, ReservesRightEdge } from "./right-edge.js"
 import { WindowBarActions, WindowBarLead } from "./window-bar.js"
-import { setTaskSurfacePreference } from "../lib/task-surface-preference.js"
+import { setTaskOpen } from "../lib/task-surface-preference.js"
 import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../lib/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { useIsMobile } from "./ui/use-mobile.js"
@@ -592,9 +592,7 @@ function SurfaceChrome({
               onOpenInTab?.()
               return
             }
-            /* Switching from inside the surface is the same decision made
-               later, so it is remembered too (DES-138). */
-            setTaskSurfacePreference(key as TaskSurfaceMode)
+            setTaskOpen(key === "right" ? "panel" : "dialog")
             onModeChange(key as TaskSurfaceMode)
           }}
         />
