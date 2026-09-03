@@ -148,7 +148,7 @@ describe('AC-238 every response class carries the 10.8 headers', () => {
       .filter((hash) => !csp.includes(hash))
     expect(
       missing,
-      'every inline script in app/index.html is named by a hash-source in script-src; a script edited without the policy being edited is refused in production and reported nowhere',
+      'every inline script in app/index.html is named by a hash-source in script-src. If this fails you have edited that script: put the digest printed above into THEME_SCRIPT_HASH in app/src/server/index.ts. Left alone, the script is refused in production and nothing reports it, which is how the theme flash of issue #34 survived for months',
     ).toEqual([])
 
     /* And the hash is the point: widening the one directive that decides
