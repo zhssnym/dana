@@ -17,7 +17,9 @@
     "test": "node scripts/run-suite.mjs",
     "e2e": "playwright test",
     "e2e:app": "vite build && tsx db/seed.ts && tsx src/server/index.ts",
-    "e2e:install": "playwright install chromium"
+    "e2e:install": "playwright install chromium",
+    "db:seed": "tsx db/seed.ts",
+    "db:verify": "tsx db/verify.ts"
   },
   "dependencies": {
     "@animateicons/react": "^0.4.3",

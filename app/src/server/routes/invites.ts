@@ -14,7 +14,10 @@ no session 401; an invite the caller cannot act on or see reads 404, never
 403, so nothing leaks; an actor who can see the invite but may not take this
 action gets 403; a transition against a terminal invite is 409, as is every
 V-INV rule conflict; limits and field failures are 422; and the resend window
-of 5.2 is this package's one 429, with Retry-After.
+of 5.2 is this package's one 429, with Retry-After. One 409 here carries a
+code of its own rather than `conflict`: accepting into a folder that is
+sitting in Trash answers `folder_deleted` (issue #28), because a client has
+to say something different for it than for an invite that is merely spent.
 
 Two response shapes here are wider than frozen 7.5 enumerates, and both are
 recorded for the endpoint shape review the RFC 0001 P5 row places after this
@@ -380,6 +383,30 @@ export function createInvitesRouter(
           422,
           'validation_failed',
           'This folder already has 25 members, the most a folder can hold.',
+        )
+        return
+      }
+      if (result.kind === 'folder_in_trash') {
+        /*
+        Issue #28, and 5.2's accept row as amended: the invite is still
+        pending and the folder is in Trash, so this is a state conflict
+        rather than a validation failure, which is 7.0's 409.
+
+        The code is its own rather than the bare `conflict` the not-pending
+        refusal answers, because a client has three different things to say
+        here and only the code tells them apart: `not_found` is an invite
+        that is not this caller's, `conflict` is an invite already settled,
+        and `folder_deleted` is an invite that is still good and a folder
+        that is not. A restore inside the thirty days makes this one
+        acceptable and makes neither of the others so. 7.0 provides for
+        exactly this, "409's rule conflicts gain their specific codes as the
+        section 5 tables land".
+        */
+        sendError(
+          res,
+          409,
+          'folder_deleted',
+          'This folder was deleted. It can be restored from Trash for 30 days, and the invite waits until then.',
         )
         return
       }

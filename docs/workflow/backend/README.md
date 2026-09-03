@@ -49,7 +49,7 @@ commands and this machine's failure modes.
 `app/db/` holds `client.ts` (the one seam that chooses PGlite or Postgres), `migrate.ts`,
 `seed.ts`, `verify.ts` and `constraint-catalog.ts`.
 
-## Four things that are true and not obvious
+## Five things that are true and not obvious
 
 **There is no authorization chokepoint, despite what spec 10.2 says.** There cannot be one,
 because what counts as authorized depends on what is being asked for. What exists instead is
@@ -58,10 +58,14 @@ that forgets it returns nothing rather than someone else's rows; and there are a
 hand-written `accessOf(...)` gates across 9 files. **When you add a route, the gate is your
 job.** Nothing adds it for you.
 
-**The structural guard does not cover GET.** `app/tests/ac-236-structural-guard-sweep.test.ts`
-walks the mounted router and fails any mutating route missing a session or CSRF check. It
-checks POST, PATCH, PUT and DELETE only. **A new GET route with no session check passes the
-entire suite.** Nothing structural checks authorization at all.
+**The structural guard covers authentication, on every method, and authorization on none.**
+`app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
+mutating route missing a session or CSRF check, and since issue #33 any GET that answers
+something other than 401 without a session. Three reads are exempt by name — the health
+probe and the two OAuth legs — each with its reason written beside it, and an exemption
+that stops being true fails too. **Nothing structural checks authorization at all**: a GET
+that takes a session and then reads whatever id it is handed passes the entire suite, so
+the `accessOf(...)` gate above is still yours to write and nothing will miss it.
 
 **Route mount order is load-bearing and undocumented.** In `app/src/server/routes/bundle.ts`,
 `/views/:id` would shadow six page endpoints if anyone reordered it. Do not reorder mounts
@@ -71,20 +75,44 @@ casually.
 production the moment the merge deploys. Recovery is a fix-forward migration or a restore.
 Destructive changes split across two releases: expand, then contract.
 
+**A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
+Added 2026-09-03 from issue #27, where it cost a red run and would otherwise have cost a
+fix-forward migration. A CHECK fails only on FALSE; UNKNOWN is as good as TRUE to it. So the
+obvious spelling of a both-or-neither rule,
+`((a IS NULL AND b IS NULL) OR (a > 0 AND b > 0))`, admits exactly the row it was written to
+refuse: with `a` null and `b` set, the first branch is FALSE and the second is NULL, because
+`NULL > 0` is NULL, and `FALSE OR NULL` is NULL. Write it so no possibly-null value is
+compared until both are known to be present — `(a IS NULL) = (b IS NULL) AND (a IS NULL OR
+(a > 0 AND b > 0))`, `IS NULL` always yielding a real boolean. **The reason this is worth a
+bullet rather than a footnote is the second half: AC-001 asserts constraints by name and by
+which columns they mention, never by what the expression does**, so a toothless CHECK is
+green across the whole suite. Only a behavioural case that tries the bad row catches it, and
+if your migration adds a CHECK, writing that case is your job.
+
 ## `app/src/shared/` is the contract
 
-18 files of zod schemas that both the browser and the server import. The client validates
+19 files of zod schemas that both the browser and the server import (measured 2026-09-03; it was 18 before `files.ts` landed at #39). The client validates
 every response against them before rendering, so a mismatch surfaces as a visible error
 rather than a blank field.
 
 Changing a **response** schema is caught by the compiler on both sides. That is the safe
 case.
 
-Changing a **request** schema is caught by nothing. There is no `.strict()` anywhere in that
-folder, so an unhandled field is accepted and thrown away and the API answers 200. This has
-already happened: `app/src/shared/tasks.ts` records a reminder field that was silently
-dropped for four packages. **If you add a request field, add the code that reads it in the
-same change.**
+Changing a **request** schema is caught by nothing, and there are two ways to lose a field
+rather than one. Both answer 200 and neither leaves anything on the wire.
+
+- **A field the schema does not declare** is stripped by `z.object` and dropped. There is no
+  `.strict()` anywhere in that folder and there is deliberately not going to be: spec 11.14
+  records the ruling and what is done instead, and an endpoint that means to refuse a field
+  declares it as `z.never({ error: … }).optional()` rather than making the object strict.
+- **A field the schema declares and the route does not act on** is dropped just as quietly,
+  and this is the one that has actually cost this project. `app/src/shared/tasks.ts` records
+  a reminder field lost for four packages, and it was **declared** the whole time — so
+  strictness would not have seen it, and neither would any unknown-key check. Only a
+  criterion catches this class, which is what AC-149 is.
+
+**So: if you add a request field, add the code that reads it in the same change, and add the
+criterion that proves it.** Spec 11.15 names both classes and what catches each.
 
 ## Testing
 
@@ -104,14 +132,44 @@ PGlite. Running `npm test` twice measures one leg twice and reports two greens.
 
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
-to be measurement rather than code. Two known flake classes will cost you time if you do not
-know them:
+to be measurement rather than code. Three known flake classes will cost you time if you do
+not know them, and **only two of them are answered by re-running**:
 
-- **The Postgres leg shares one database across all 278 files.** Files see each other's rows.
-  The fingerprint is a count that climbs across successive tests, `expected 2 to be 1`, then
-  3, then 4. Re-run the file alone before believing it.
 - **The browser leg loses about one case a run.** Re-run the case alone, and read
   `CLAUDE.md`'s note on when isolation lies.
+- **A test comparing a date the server computed against a date the test computed is red for
+  the hours when this machine's date is already tomorrow, and re-running does not help.**
+  `ac-277` was the one that fired. It read the duplicate's re-anchored due date, which the
+  server takes from the database's `current_date`, against `todayInUtc()`, which the test
+  took from `new Date().toISOString()`. Measured 2026-09-02 at 23:10Z, already the 3rd here:
+  PGlite's session zone is `Etc/GMT-1` and the local cluster's is `Europe/Paris`, so
+  `current_date` read `2026-09-03` while UTC was still the 2nd. **It is not the fork flake
+  and isolation confirms nothing**: on one commit, `TZ=UTC env -u TEST_DATABASE_URL npx
+  vitest run tests/ac-277-task-duplicate-copy-rules.test.ts` was 2 of 2 while the same
+  command without `TZ=UTC` was 1 of 2. **So the check that separates this class from a
+  defect is the timezone, not a second run** — force the zone, and if it goes green the red
+  is the clock. Note `TZ=UTC` settles only the PGlite leg; on Postgres the cluster's own
+  zone governs and the process variable changes nothing.
+
+  **The criterion is fixed as of 2026-09-03 (issue #46)** — its oracle is now the database's
+  own clock, bracketed across the operation. What is *not* fixed is the product defect
+  underneath: the endpoint anchors on the database's day rather than the viewer's, which
+  spec 8.1 forbids by name. That is **issue #76**, and when it lands the criterion's oracle
+  has to move in the same commit or this class comes straight back.
+
+**The Postgres leg used to be a third one, and is not any more (issue #32, 2026-09-03).**
+It pointed all 282 files at one `dana_test`, they saw each other's rows, and the fingerprint
+was a count that climbed across successive tests, `expected 2 to be 1`, then 3, then 4.
+Each Vitest pool slot now gets a database of its own, `dana_test_r<run>_w<slot>`, created and
+migrated at run start and emptied before every file; the machinery is
+`app/tests/postgres-leg*.ts` and the contract is spec 11.10. Three things follow for you. A
+count that climbs on that leg is now a defect rather than a flake, so read it.
+`TEST_DATABASE_URL` names the base database the worker ones are derived from rather than the
+one your test runs in. And one file, `ac-001-constraint-catalog.test.ts`, still runs against
+the base database, because it asserts the English text of a server message and only a
+superuser can give a created database `lc_messages = C`; if you write a second test that
+reads server prose rather than a constraint name, `tests/postgres-leg-isolation.test.ts`
+will tell you so by name.
 
 ## When the work needs the frontend
 

@@ -567,6 +567,18 @@ rather than measured, because this machine has neither Docker nor a
 TEST_DATABASE_URL, and it was fixed rather than deferred because CI stops at
 its first failing step, so the postgres leg had never run on this branch.
 
+**The premise of that paragraph stopped being true on 2026-09-03, and the
+scoping it produced is kept anyway.** Issue #32 gave each Vitest pool slot its
+own database on that leg, so no two files run against one database at the same
+instant and one file's pass can no longer deliver another file's due rows; spec
+11.10 carries it. The reasoning above stands as the record of why
+`reminderEmailsOf` is written the way it is, and the filter stays: a file that
+counts only its own emails is a file that can be read on its own, which was
+worth having before the leg stopped sharing a database and is worth having
+after. Every other comment in this suite saying that files share one database
+under TEST_DATABASE_URL is stale in the same way, and each defers to
+`helpers.ts`, which carries the correction.
+
 AC-144 to AC-153 were proposed here with their tests and numbered by the
 Integration Steward's section 12 amendment on 2026-08-10, the AC-125, AC-133
 and AC-142 precedent for a batch authored on the branch and numbered
