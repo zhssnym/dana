@@ -52,6 +52,36 @@ export const ONE_PIXEL_PNG = Buffer.from(
   'hex',
 )
 
+/*
+A real PNG of a stated size, for the criteria that assert 4.16's width and
+height (issue #27, migration 0009).
+
+**Generated rather than embedded, and generated with the encoder the server
+decodes with.** `ONE_PIXEL_PNG` above is 1 by 1, so it cannot tell a stored
+width from a stored height, and a hand-assembled PNG was already refused once
+for its CRCs, which is the note above this file's constant. sharp is a
+dependency of the application rather than of the suite, so the import is
+dynamic and inside the function: a test file that never asks for a picture
+never loads the native module.
+
+The bytes are a flat colour, which PNG compresses to almost nothing, so even
+the case that overflows the 2048px downscale costs a few kilobytes on the
+wire.
+*/
+export async function imagePng(width: number, height: number): Promise<Buffer> {
+  const { default: sharp } = await import('sharp')
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 32, g: 64, b: 128 },
+    },
+  })
+    .png()
+    .toBuffer()
+}
+
 export function upload(
   actor: Actor,
   path: string,

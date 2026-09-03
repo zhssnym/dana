@@ -15,6 +15,14 @@ lost-update this rule exists to refuse.
 
 One PUT is one mutation and one event (4.13), whatever it did to however
 many blocks.
+
+The read joins `files` for one thing only: 4.16's width and height, so that a
+reader who did not upload the picture can reserve its space before the bytes
+arrive (issue #27). It is a LEFT JOIN on the file's primary key, so a block
+with no file, and a file stored before migration 0009, both answer null and
+multiply no rows. Nothing about the write path knows these columns exist: the
+shape belongs to the file and a PUT that carried it would be a second record
+of one fact.
 */
 import { sql } from 'drizzle-orm'
 
@@ -38,6 +46,13 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
+/** 4.16's dimensions as the join hands them over: absent for a block with no
+ * file, null for a file stored before migration 0009 (issue #27). Both read
+ * as null here, and the contract says null means unknown. */
+function nullableInt(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
 function blockFromRow(row: Record<string, unknown>): PageBlock {
   return {
     id: String(row.id),
@@ -45,6 +60,8 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     position: Number(row.position),
     text: nullableString(row.text),
     file_id: nullableString(row.file_id),
+    file_width: nullableInt(row.file_width),
+    file_height: nullableInt(row.file_height),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -56,19 +73,30 @@ export interface PageHome {
   shelfId: string | null
 }
 
+/*
+Qualified with the block table's alias rather than bare, and the reason is a
+column collision rather than taste: the read below joins `files`, which
+carries a `folder_id` of its own (4.16's visibility scope), so an unqualified
+`folder_id` is ambiguous and the statement fails to parse. Every statement in
+this module aliases page_blocks `b` so this fragment reads the same in all
+three.
+*/
 function homeCondition(home: PageHome) {
   return home.folderId !== null
-    ? sql`folder_id = ${home.folderId}`
-    : sql`shelf_id = ${home.shelfId}`
+    ? sql`b.folder_id = ${home.folderId}`
+    : sql`b.shelf_id = ${home.shelfId}`
 }
 
 export async function pageView(db: Db, home: PageHome): Promise<PageView> {
   const rows = await rowsOf(
     db,
-    sql`SELECT id, kind, position, text, file_id, ref_folder_id, width_pct,
-               updated_at
-        FROM page_blocks WHERE ${homeCondition(home)}
-        ORDER BY position ASC, id ASC`,
+    sql`SELECT b.id, b.kind, b.position, b.text, b.file_id, b.ref_folder_id,
+               b.width_pct, b.updated_at,
+               f.width AS file_width, f.height AS file_height
+        FROM page_blocks b
+        LEFT JOIN files f ON f.id = b.file_id
+        WHERE ${homeCondition(home)}
+        ORDER BY b.position ASC, b.id ASC`,
   )
   return { blocks: rows.map(blockFromRow) }
 }
@@ -86,7 +114,7 @@ export async function putPage(
   return inTransaction(db, async (tx) => {
     const current = await rowsOf(
       tx,
-      sql`SELECT id, updated_at FROM page_blocks
+      sql`SELECT b.id, b.updated_at FROM page_blocks b
           WHERE ${homeCondition(home)} FOR UPDATE`,
     )
     const stored = new Map(
@@ -165,10 +193,13 @@ export async function putPage(
 async function pageViewIn(tx: Executor, home: PageHome): Promise<PageView> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT id, kind, position, text, file_id, ref_folder_id, width_pct,
-               updated_at
-        FROM page_blocks WHERE ${homeCondition(home)}
-        ORDER BY position ASC, id ASC`,
+    sql`SELECT b.id, b.kind, b.position, b.text, b.file_id, b.ref_folder_id,
+               b.width_pct, b.updated_at,
+               f.width AS file_width, f.height AS file_height
+        FROM page_blocks b
+        LEFT JOIN files f ON f.id = b.file_id
+        WHERE ${homeCondition(home)}
+        ORDER BY b.position ASC, b.id ASC`,
   )
   return { blocks: rows.map(blockFromRow) }
 }

@@ -553,6 +553,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'files_bytes_positive_check', columns: ['bytes'] },
+      // Issue #27, migration 0009. Both CHECK expressions name width, so
+      // both column lists carry it; the header's rule sorts them.
+      { name: 'files_dimensions_kind_check', columns: ['kind', 'width'] },
+      { name: 'files_dimensions_pair_check', columns: ['height', 'width'] },
       { name: 'files_duration_voice_check', columns: ['duration_ms', 'kind'] },
       { name: 'files_kind_check', columns: ['kind'] },
       { name: 'files_name_length_check', columns: ['name'] },

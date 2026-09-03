@@ -30,6 +30,13 @@ import { z } from 'zod'
 export const postFilesResponse = z.object({
   id: z.uuid(),
   bytes: z.number().int(),
+  /* 4.16's pair, and it is the stored shape rather than the sent one: 7.15
+     downscales anything past 2048px, so this is what the store actually kept
+     (#27). Null for every kind that carries no dimensions — a voice note, a
+     document — which is also every row uploaded before the column existed,
+     because no backfill has been run. A reader must treat null as unknown. */
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
 })
 export type PostFilesResponse = z.infer<typeof postFilesResponse>
 

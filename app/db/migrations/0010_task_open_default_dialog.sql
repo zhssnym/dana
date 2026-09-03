@@ -1,0 +1,39 @@
+-- 0010: where a task opens stops disagreeing with the ruling (issue #30,
+-- spec item 13.48). Forward-only. No constraint or index changes, so AC-001's
+-- catalog is untouched: a column default lives in pg_attrdef, not in
+-- pg_constraint.
+--
+-- 4.10's task_open was added at S12 with DEFAULT 'panel', chosen when nothing
+-- consumed the column. Imran's ruling is that a task opens as a dialog and
+-- that choosing the sidebar makes the sidebar the default until the dialog is
+-- chosen again, and 9.3 has said so since. Every surface that draws the value
+-- already treats dialog as the default: settings-screen.tsx reads
+-- `task_open ?? "dialog"`, lib/task-surface-preference.ts answers 'dialog'
+-- before anybody has chosen, and AC-261's own afterEach restores 'dialog' as
+-- "what a fresh account carries". The column was the last thing in the build
+-- still saying 'panel'.
+ALTER TABLE user_settings ALTER COLUMN task_open SET DEFAULT 'dialog';
+--> statement-breakpoint
+-- **The stored rows move with the default, and this statement is the reason
+-- the change is safe rather than the risk in it.** Reading the column as the
+-- record was tried at S23 and turned 42 of 228 browser cases red, because
+-- every account provisioned before today carries the S12 default 'panel' and
+-- the acceptance harness addresses the task surface as `getByRole('dialog')`.
+-- That measurement is about the rows, not about the design: with the rows
+-- moved, an account provisioned before this migration opens its tasks exactly
+-- where an account provisioned after it does, and there is nothing left for a
+-- reader of the column to get wrong.
+--
+-- **What it costs, named rather than hidden.** 'panel' cannot be told apart
+-- from the S12 default it was seeded with, so a person who deliberately chose
+-- Panel through 9.7's Appearance control since S27 is reset to Dialog and has
+-- to choose again once. That choice is one click, the control has existed for
+-- days rather than months, and the alternative is leaving the column wrong for
+-- everybody so that a handful of rows can be right. 'tab' is deliberately not
+-- touched: task-surface-host.tsx already reads it as the record, so a Tab
+-- chooser has a preference this build honours today and overwriting it would
+-- change behaviour somebody can see.
+--
+-- Forward-only, and this statement is not reversible: the old per-row values
+-- are not recorded anywhere and no down migration exists.
+UPDATE user_settings SET task_open = 'dialog' WHERE task_open = 'panel';

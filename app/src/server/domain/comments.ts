@@ -113,7 +113,7 @@ export async function createComment(
     if (body.file_id !== undefined) {
       const file = await rowsOf(
         tx,
-        sql`SELECT id, name, mime, bytes FROM files
+        sql`SELECT id, name, mime, bytes, width, height FROM files
             WHERE id = ${body.file_id} AND folder_id = ${folderId}`,
       )
       if (file[0] === undefined) return { kind: 'file_not_here' } as const
@@ -124,6 +124,8 @@ export async function createComment(
           name: fileName,
           mime: String(file[0].mime),
           bytes: Number(file[0].bytes),
+          width: dimensionOf(file[0].width),
+          height: dimensionOf(file[0].height),
         },
       ]
     }
@@ -210,7 +212,9 @@ export async function threadView(
                         WHERE l.comment_id = c.id
                           AND l.user_id = ${viewerId}) AS liked,
                (SELECT coalesce(json_agg(json_build_object(
-                          'id', f.id, 'name', f.name, 'mime', f.mime, 'bytes', f.bytes)
+                          'id', f.id, 'name', f.name, 'mime', f.mime,
+                          'bytes', f.bytes,
+                          'width', f.width, 'height', f.height)
                         ORDER BY cf.created_at), '[]'::json)
                   FROM comment_files cf JOIN files f ON f.id = cf.file_id
                   WHERE cf.comment_id = c.id) AS files
@@ -246,7 +250,15 @@ function filesFrom(value: unknown): CommentFile[] {
     name: String(entry.name),
     mime: String(entry.mime),
     bytes: Number(entry.bytes),
+    // Not Number(): a JSON null is 0 through that, and a zero width would
+    // be a shape rather than the absence of one (issue #27).
+    width: dimensionOf(entry.width),
+    height: dimensionOf(entry.height),
   }))
+}
+
+function dimensionOf(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
 }
 
 /* ------------------------------------------------------------------ *

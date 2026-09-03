@@ -212,8 +212,23 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
          annotation is the only thing tying this literal to the schema the
          client parses it with (#39). It catches both directions — a field
          the schema requires and this omits, and a field this sends and the
-         schema does not declare. */
-      const body: PostFilesResponse = { id: outcome.id, bytes: outcome.bytes }
+         schema does not declare.
+
+         4.16's width and height ride back with the id (#27). This caller is
+         holding the file and already knows its shape, so the pair is here for
+         completeness and for one real use: 7.15 downscales anything past
+         2048px, and this is the only place the answer says what the store
+         actually kept. The reader who genuinely needs the numbers is a
+         different person entirely, and reaches them through the page and
+         thread reads. Null for every kind that carries no dimensions.
+         `routes/cover-photos.ts` answers the same four for the same act,
+         where the caller never held the bytes at all. */
+      const body: PostFilesResponse = {
+        id: outcome.id,
+        bytes: outcome.bytes,
+        width: outcome.width,
+        height: outcome.height,
+      }
       res.status(201).json(body)
     }),
   )

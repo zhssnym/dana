@@ -64,6 +64,20 @@
       "when": 1788300000000,
       "tag": "0008_place_descriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0009_file_dimensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788500000000,
+      "tag": "0010_task_open_default_dialog",
+      "breakpoints": true
     }
   ]
 }

@@ -25,12 +25,21 @@ export type PatchCommentBody = z.infer<typeof patchCommentBody>
 
 /** A comment's file as the thread answers it, 4.16's own columns and no
  * more (7.14, RFC 0005 change control item 57 B5): enough to draw the tile,
- * the name and the meta line without downloading the bytes. */
+ * the name and the meta line without downloading the bytes. The pair added
+ * by issue #27 keeps that sentence true rather than widening it: 4.16 gained
+ * two columns and this shape is still all of them. */
 export interface CommentFile {
   id: string
   name: string
   mime: string
   bytes: number
+  /** 4.16's shape as migration 0009 added it (issue #27): the tile can be
+   *  drawn at the picture's proportion before the bytes arrive, for every
+   *  reader of the thread rather than only the person who attached it. Null
+   *  for an attachment that is not an image and for anything stored before
+   *  0009, and null means unknown: draw what was drawn before. */
+  width: number | null
+  height: number | null
 }
 
 export interface CommentLine {
@@ -76,6 +85,8 @@ export const commentLine = z.object({
       name: z.string(),
       mime: z.string(),
       bytes: z.number().int(),
+      width: z.number().int().nullable(),
+      height: z.number().int().nullable(),
     }),
   ),
   created_at: z.string(),
