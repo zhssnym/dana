@@ -16,11 +16,9 @@ person's own sentence under Today is the same kind of thing as their cover
 on it, and it shares this file's place parser rather than growing a second
 copy of 4.20's eight names.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import {
   patchSettingsBody,
   patchViewBody,
@@ -29,12 +27,7 @@ import {
 import { placeCoverPlace, putPlaceCoverBody } from '../../shared/covers.js'
 import type { PlaceCoverPlace } from '../../shared/covers.js'
 import { putPlaceDescriptionBody } from '../../shared/place-descriptions.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   createView,
   deleteView,
@@ -56,52 +49,16 @@ import {
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-const uuidParam = z.uuid()
-
 export function createBundleRouter(options: BundleRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
-  const parsedId = (res: Response, raw: unknown): string | null => {
-    const parsed = uuidParam.safeParse(raw)
-    if (!parsed.success) {
-      sendError(res, 404, 'not_found', 'Not found.')
-      return null
-    }
-    return parsed.data
-  }
 
   router.get(
     '/settings',
