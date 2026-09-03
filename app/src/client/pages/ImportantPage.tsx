@@ -24,7 +24,7 @@ what it makes is starred and undated, which is 9.3's Important row and this
 page's own spine.
 
 **The star points outward here and nowhere else.** Q4 gives this page the
-outward tooltip, "Also in Planned, due ..." and "Also in Tasks, in Work", and
+outward tooltip, "Also in Scheduled, due ..." and "Also in Anytime, in Work", and
 `presenters.ts` composes it; the star's accessible name stays "Important",
 which is what AC-055 and AC-099 address it by. The mode is a page-level fact
 passed down, because a component that read the route would behave differently

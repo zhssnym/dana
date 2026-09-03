@@ -1447,7 +1447,7 @@ export function Actions({
         stays `aria-hidden`, so a glyph swap is still never a rename.
 
         **And the tooltip is a separate string**, which 6 Q4 requires: on
-        Important it turns outward, "Also in Planned, due 3 Sep", while the
+        Important it turns outward, "Also in Scheduled, due 3 Sep", while the
         name has to keep saying what pressing the control does. The prototype
         drives no tooltip at all here and leaves `importantTooltip` declared
         and unread; driving both attributes off one string, which the v1 row

@@ -731,10 +731,10 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
     expect(
       taskRowDisplay(card({ due_date: '2026-07-28' }), context({ starTooltip: 'outward' }))
         .importantTooltip,
-    ).toBe('Also in Planned, due 2026-07-28')
+    ).toBe('Also in Scheduled, due 2026-07-28')
     expect(
       taskRowDisplay(card(), context({ starTooltip: 'outward' })).importantTooltip,
-    ).toBe('Also in Tasks, in Work')
+    ).toBe('Also in Anytime, in Work')
   })
 
   /*
