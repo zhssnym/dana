@@ -33,6 +33,17 @@ databaseDaysAcross() brackets the duplicate and the assertion is against the
 day or days the operation actually occupied. That is one day in every run
 that does not straddle the database's midnight, so nothing here is loosened.
 
+**Issue #76 will invalidate this oracle, and it must move in that change.**
+#76 is the product defect underneath: 8.1 wants the viewer's day and this
+endpoint anchors on the database's, so the fix gives 7.16 a tz parameter and
+re-anchors on the zone the caller names. The moment it lands, current_date is
+no longer what the endpoint reads, databaseToday() is no longer the clock the
+implementation uses, and this criterion returns to failing for the one or two
+hours a day the two zones disagree - the same shape as #46 and the same wrong
+diagnosis waiting to be made a second time. The oracle then becomes the
+viewer's day in the zone under test, computed the way the endpoint computes
+it, and it belongs in the same commit as the parameter.
+
 Spec: 7.16 (POST /tasks/:id/duplicate), 9.6's copy rules, 4.6, 4.15, 10.2.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
