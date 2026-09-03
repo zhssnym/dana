@@ -5,25 +5,43 @@ page with its date or folder; on any other page it confirms importance.
 Q4 is where the rule comes from and it gives the reason with it: every row on
 Important is important by definition, so a star that said "important" there
 would be telling the reader what the page they are on already told them. So
-the tooltip points outward instead, "Also in Planned, due 2026-07-28" for a
-dated row and "Also in Tasks, in Work" for an undated one, which is the same
+the tooltip points outward instead, "Also in Scheduled, due 2026-07-28" for a
+dated row and "Also in Anytime, in Work" for an undated one, which is the same
 information Q4's own sort uses to put the dated block first.
 
 **Both arms are asserted, because the criterion is a contrast.** A tooltip
 that always points outward and a tooltip that never does each satisfy one
-half. The second arm is asserted on Planned, on a row that is important, so
+half. The second arm is asserted on Scheduled, on a row that is important, so
 the difference is the page and not the task.
 
 **The outward copy is asserted by shape rather than character for
 character, and this is a deliberate weakening with a reason.** Q4's two
 strings are examples inside a query specification, not normative copy in
-section 9: the words "Also in Planned" and "Also in Tasks" are fixed by
+section 9: the words "Also in Scheduled" and "Also in Anytime" are fixed by
 them, but nothing states how the date after "due" is spelled, and asserting
 2026-07-28's format would pin a rendering decision the specification has not
 made. So the page name and the outward direction are asserted exactly, and
 the date is asserted as present rather than as formatted. The dated fixture
 is a month out precisely so a client rendering "today" or "tomorrow" instead
 of a date is not mistaken for a client rendering nothing.
+
+**The two page names were amended on 2026-09-03 (issue #146), and the
+criterion was the stale side.** This file asserted "Also in Planned" and
+"Also in Tasks" from the day it was written and was green for as long as the
+client said the same words. RFC 0005 had renamed the pages, and 9.1's route
+table fixes them as Scheduled and Anytime; the pages a starred row also
+lives on are Q3's and Q2's, which the table names that way, so a tooltip
+saying "Planned" pointed at a page Dana no longer has. The client kept the
+v1 words until issue #19 took it to the v2 ones (PR #69), which is the day
+this file went red on `main`, reading "Also in Scheduled, due 2026-10-03"
+and "Also in Anytime, in Groceries". The product agreed with 9.1 and this
+file did not, so this file moved; Q4's two example strings, which are what
+this file cites for the words, were amended in the same change so the
+criterion and the sentence it reads say one thing. The criterion's own text
+in 12.8 names neither page and did not move. The third arm reaches the page
+by its 9.1 path now rather than through the /app/planned redirect; that arm
+never failed, the redirect being AC-215's to assert, and the change is only
+so the three arms address the pages by one set of names.
 
 **The inward copy was a silence when this file was written and is a string
 now.** "Confirms importance" named nothing in section 9, so the second arm
@@ -46,7 +64,7 @@ import {
   ACTION_TIMEOUT_MS,
   caseTitle,
   createTask,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -76,7 +94,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-099: the star tooltip points outward on Important', () => {
-  test('AC-099: a dated row names Planned and its date', async ({ page }) => {
+  test('AC-099: a dated row names Scheduled and its date', async ({ page }) => {
     const DATED = caseTitle(DATED_BASE)
     await createTask(page, {
       title: DATED,
@@ -85,7 +103,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
       important: true,
     })
 
-    await page.goto(routes.important)
+    await page.goto(routesV2.important)
     // Named rather than matched: 9.5 makes "Important" the star's accessible
     // name in the filled state, which is the state every fixture here is in.
     const star = taskRow(page, DATED).getByRole('button', { name: 'Important', exact: true })
@@ -98,7 +116,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
       tip,
       'spec 6 Q4: the star tooltip on Important points outward, naming the page the row also ' +
         `lives on. It read ${JSON.stringify(tip)}`,
-    ).toContain('Also in Planned')
+    ).toContain('Also in Scheduled')
     expect(
       tip,
       'spec 6 Q4: a dated row shows its due date beside the page it points at. The fixture is ' +
@@ -106,7 +124,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
     ).toContain(DUE.slice(8).replace(/^0/, ''))
   })
 
-  test('AC-099: an undated row names Tasks and its folder', async ({ page }) => {
+  test('AC-099: an undated row names Anytime and its folder', async ({ page }) => {
     const UNDATED = caseTitle(UNDATED_BASE)
     await createTask(page, {
       title: UNDATED,
@@ -114,7 +132,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
       important: true,
     })
 
-    await page.goto(routes.important)
+    await page.goto(routesV2.important)
     const star = taskRow(page, UNDATED).getByRole('button', { name: 'Important', exact: true })
     const tip = await tooltipText(
       star,
@@ -123,9 +141,9 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
 
     expect(
       tip,
-      'spec 6 Q4: an undated important row lives in Tasks, so that is where the tooltip ' +
+      'spec 6 Q4: an undated important row lives in Anytime, so that is where the tooltip ' +
         `points. It read ${JSON.stringify(tip)}`,
-    ).toContain('Also in Tasks')
+    ).toContain('Also in Anytime')
     expect(
       tip,
       'spec 6 Q4: an undated row shows its folder where a dated row shows its date, which is ' +
@@ -144,7 +162,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
       important: true,
     })
 
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
     // Named rather than matched: 9.5 makes "Important" the star's accessible
     // name in the filled state, which is the state every fixture here is in.
     const star = taskRow(page, DATED).getByRole('button', { name: 'Important', exact: true })
@@ -156,7 +174,7 @@ test.describe('AC-099: the star tooltip points outward on Important', () => {
     expect(
       tip,
       'spec 6 Q4 gives the outward tooltip to Important, where every row is important by ' +
-        'definition and saying so would repeat the page. On Planned the row sits among ' +
+        'definition and saying so would repeat the page. On Scheduled the row sits among ' +
         `unimportant ones, so pointing outward is the wrong thing to say. It read ${JSON.stringify(tip)}`,
     ).not.toContain('Also in')
     expect(
