@@ -16,3 +16,15 @@ Thumbs.db
 # constraining an agent nobody can review.
 .claude/settings.local.json
 .claude/worktrees/
+
+# Environment files are ignored by shape, so that a future app/.env.production or
+# .env.local cannot be committed by accident. The two exceptions below are tracked
+# deliberately and the negations must stay: app/.env on the owner's ruling of
+# 2026-08-25 (this repository is private with two collaborators, and one shared
+# working config is worth more than each machine rebuilding one), and
+# app/.env.example as the template that ruling replaced but did not delete.
+# Note that a rule appearing here does not untrack an already-tracked file, so a
+# mistake in these negations stays invisible until someone next edits the file.
+.env*
+!app/.env
+!app/.env.example

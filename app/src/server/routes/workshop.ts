@@ -16,7 +16,9 @@ import { z } from 'zod'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import { putPageBody } from '../../shared/pages.js'
+import type { TransferOwnershipResponse } from '../../shared/folders.js'
 import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
+import type { ImportWorkflowResponse } from '../../shared/workflows.js'
 import { viewTz } from '../../shared/views.js'
 import {
   importWorkflowBody,
@@ -429,7 +431,10 @@ export function createWorkshopRouter(
         )
         return
       }
-      res.status(201).json({ folders: outcome.folders })
+      /* Checked against the schema the client parses it with, rather
+         than inlined into `res.json`, which takes `any` (#39). */
+      const body: ImportWorkflowResponse = { folders: outcome.folders }
+      res.status(201).json(body)
     },
   )
 
@@ -488,7 +493,8 @@ export function createWorkshopRouter(
         )
         return
       }
-      res.status(200).json({ owner_id: outcome.ownerId })
+      const body: TransferOwnershipResponse = { owner_id: outcome.ownerId }
+      res.status(200).json(body)
     },
   )
 
