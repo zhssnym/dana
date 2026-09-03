@@ -47,6 +47,7 @@ import {
   UserRoundCheck,
 } from './lib/icons.js'
 import type { LucideIcon } from './lib/icons.js'
+import type { NativeView } from '../shared/bundle.js'
 
 export const paths = {
   landing: '/',
@@ -87,19 +88,12 @@ export const retiredPaths = [
 
 /**
  * The pin keys of 4.19, which are what `pinned_views` holds and what the
- * Settings pin list of 9.7 writes. Kept as the join between a sidebar entry
- * and the person's stored choice, so neither side matches on a display name.
+ * Settings pin list of 9.7 writes. They come from `shared/bundle.ts`, so the
+ * client no longer gets a separate vote on which native views exist. Kept as
+ * the join between a sidebar entry and the person's stored choice, so neither
+ * side matches on a display name.
  */
-export type NativeViewKey =
-  | 'desk'
-  | 'today'
-  | 'scheduled'
-  | 'assignments'
-  | 'important'
-  | 'all'
-  | 'done'
-  | 'abandoned'
-  | 'anytime'
+export type NativeViewKey = NativeView
 
 /**
  * DES-152's page block: one page per question, in 9.1's fixed order.
@@ -144,7 +138,7 @@ export interface NavPage {
   readonly pinnable: boolean
 }
 
-export const navPages: readonly NavPage[] = [
+export const navPages = [
   {
     key: 'desk',
     name: 'Desk',
@@ -221,7 +215,16 @@ export const navPages: readonly NavPage[] = [
     icon: CalendarX,
     pinnable: true,
   },
-] as const
+] as const satisfies readonly NavPage[]
+
+/* Every native view has a page. The annotation on navPages had to go for
+   this to mean anything: `readonly NavPage[]` widens each key back to the
+   full union, so the check passed vacuously. `satisfies` keeps the check
+   and keeps the literal keys. */
+const _everyNativeViewDraws: NativeView extends (typeof navPages)[number]['key']
+  ? true
+  : never = true
+void _everyNativeViewDraws
 
 /**
  * 9.1's fixed order, and the pins a fresh account carries.
