@@ -134,6 +134,89 @@ export async function expectRejectedBy(
   expect(errorChainText(failure)).toContain(nameFragment)
 }
 
+/*
+The structured fields of a PostgreSQL error, read off the driver's error object
+rather than out of its message.
+
+A server error carries two kinds of content. The message, the detail and the
+severity are prose, written in the server's lc_messages language and translated
+wholesale on a cluster whose language is not English. The SQLSTATE and the
+schema, table, column and constraint names are fields of the ErrorResponse in
+their own right (protocol fields C, s, t, c and n), never translated, and set by
+the server from the object that failed rather than from anything in the
+statement it was sent. Both drivers the suite runs on surface every one of them
+on the error drizzle nests under `cause`: node-postgres as DatabaseError, PGlite
+as its own error class. Measured 2026-09-03 against pg 8.22.0 and PGlite 0.5.4
+with a NOT NULL violation, the Postgres side on a created database answering in
+French, which is what this machine's cluster hands the Postgres leg (spec 11.10,
+issue #92): code 23502, table tasks, column folder_id on both, with the message
+in French on one and in English on the other.
+*/
+export interface ServerErrorFields {
+  /** SQLSTATE, five characters: 23502 not_null_violation, 23505 unique_violation, and so on. */
+  code: string
+  schema?: string
+  table?: string
+  column?: string
+  constraint?: string
+}
+
+export function serverErrorFields(error: unknown): ServerErrorFields | undefined {
+  let current: unknown = error
+  for (let depth = 0; depth < 10 && current instanceof Error; depth += 1) {
+    const candidate = current as Error & Partial<Record<keyof ServerErrorFields, unknown>>
+    if (typeof candidate.code === 'string') {
+      const fields: ServerErrorFields = { code: candidate.code }
+      for (const key of ['schema', 'table', 'column', 'constraint'] as const) {
+        const value = candidate[key]
+        if (typeof value === 'string') fields[key] = value
+      }
+      return fields
+    }
+    current = current.cause
+  }
+  return undefined
+}
+
+/**
+ * Asserts that `attempt` is rejected by the server with the given SQLSTATE
+ * and, for every other field named, the given value. The comparison is over
+ * the named fields only, so `{ code: '23502', column: 'folder_id' }` says
+ * nothing about the table.
+ *
+ * Use this where the thing to pin is which column or which class of violation,
+ * and expectRejectedBy where it is a constraint or index name, which every
+ * translation keeps verbatim. Never assert the message: it is prose in the
+ * cluster's language, and tests/postgres-leg-isolation.test.ts fails a file
+ * that does.
+ */
+export async function expectRejectedWith(
+  attempt: () => Promise<unknown>,
+  expected: ServerErrorFields,
+): Promise<void> {
+  let failure: unknown
+  let rejected = false
+  try {
+    await attempt()
+  } catch (error) {
+    failure = error
+    rejected = true
+  }
+  expect(
+    rejected,
+    `statement succeeded, expected rejection with ${JSON.stringify(expected)}`,
+  ).toBe(true)
+  const actual = serverErrorFields(failure)
+  expect(
+    actual,
+    `the rejection carried no SQLSTATE, so it did not come from the server: ${errorChainText(failure)}`,
+  ).toBeDefined()
+  const observed = Object.fromEntries(
+    (Object.keys(expected) as (keyof ServerErrorFields)[]).map((key) => [key, actual?.[key]]),
+  )
+  expect(observed).toEqual(expected)
+}
+
 // Deletion order honors the two RESTRICT foreign keys of section 4
 // (tasks.created_by, folders.owner_id); everything else cascades. In-memory
 // PGlite discards the database at close, so this is load-bearing only for

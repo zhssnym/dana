@@ -7,8 +7,11 @@ The expected side is app/db/constraint-catalog.ts, the Data engineer's hand
 transcription of section 4, consumed here as data under the comparison rules
 its header documents. Assertions read structured facts from pg_constraint and
 pg_index, never deparsed SQL text (spec 11.10), so the same test passes on
-PGlite and on a real Postgres. Every list comparison is exact in both
-directions: a missing item and an unexpected extra are equally red.
+PGlite and on a real Postgres. The two behavioural probes at the end read a
+rejection's SQLSTATE and structured fields, or a constraint name, never the
+server's message, so they pass whatever language that server writes in (issue
+#92). Every list comparison is exact in both directions: a missing item and an
+unexpected extra are equally red.
 
 Two things are asserted independently of the catalog file, because the
 catalog and the migration are allowed to change together in a single
@@ -36,7 +39,13 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import type { DbClient } from '../db/client.js'
 import { constraintCatalog } from '../db/constraint-catalog.js'
 import type { ExpectedTable, OnDelete } from '../db/constraint-catalog.js'
-import { cleanupUsers, createTestDb, expectRejectedBy, rows } from './helpers.js'
+import {
+  cleanupUsers,
+  createTestDb,
+  expectRejectedBy,
+  expectRejectedWith,
+  rows,
+} from './helpers.js'
 
 // Transcribed from section 4 directly, not read from the catalog file, so a
 // catalog edit that drops or renames a table cannot narrow this suite's
@@ -354,16 +363,23 @@ describe('AC-001: migrated schema matches the section 4 catalog', () => {
     const userId = randomUUID()
     createdUserIds.push(userId)
     await client.db.execute(sql`INSERT INTO users (id) VALUES (${userId})`)
-    // The fragment is the server's own message text, not the bare column
-    // name: the column name also appears in the statement itself, and a
-    // fragment satisfiable by the statement text proves nothing.
-    await expectRejectedBy(
+    // Attributed through the server's structured error fields rather than
+    // its message: SQLSTATE 23502 is not_null_violation, and the table and
+    // column arrive as fields of the ErrorResponse in their own right, set
+    // by the server from the attribute that failed. The column name also
+    // appears in the statement sent, so a fragment matched against text
+    // could be satisfied by the statement itself and prove nothing; a field
+    // the server wrote cannot be. The message is prose in the cluster's
+    // language, which is why the English fragment this used to match was
+    // the one assertion in the suite that could not run on a database the
+    // Postgres leg creates for itself (spec 11.10, issue #92).
+    await expectRejectedWith(
       () =>
         client.db.execute(sql`
           INSERT INTO tasks (folder_id, title, created_by)
           VALUES (NULL, 'A task with no folder', ${userId})
         `),
-      'null value in column "folder_id"',
+      { code: '23502', table: 'tasks', column: 'folder_id' },
     )
   })
 

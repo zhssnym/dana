@@ -2,9 +2,10 @@
 Vitest globalSetup for the Postgres leg: claims the run, sweeps what dead runs
 left behind, and publishes what the workers need to name their own database.
 
-**Why this is a global setup and not just a setup file.** Three things happen
-once per run rather than once per file: claiming a run id, sweeping, and
-deciding whether a database this leg creates can answer in English. This module
+**Why this is a global setup and not just a setup file.** Two things happen
+once per run rather than once per file, claiming a run id and sweeping, and one
+failure is better met once than in every worker, a role that cannot CREATE
+DATABASE. This module
 runs in Vitest's own process, before any worker starts, and its mutations to
 `process.env` reach the forks because the pool builds each worker's environment
 from `process.env` at the moment it spawns them, after global setup has
@@ -28,16 +29,13 @@ import {
   dropRunDatabases,
   ensureDatabase,
   releaseRunId,
-  speaksEnglish,
   sweepDeadRuns,
 } from './postgres-leg-admin.js'
 import {
   BASE_URL_ENV,
-  ENGLISH_ENV,
   RUN_ID_ENV,
   databaseNameOf,
   legBaseUrl,
-  withDatabase,
   workerDatabaseName,
 } from './postgres-leg.js'
 
@@ -66,10 +64,11 @@ export async function setup(): Promise<void> {
   const dropped = await sweepDeadRuns(registry, baseName, runId)
 
   /*
-  Slot 1 is created here rather than on demand for one reason: the answer to
-  "does a database this leg creates speak English" is a measurement, not an
-  inference from a privilege bit, and slot 1 is a database the run is going to
-  create anyway. Every other slot is created by the worker that first needs it.
+  Slot 1 is created here rather than on demand for one reason: a role without
+  CREATEDB should fail the run once, in this process, with the message below,
+  rather than in every worker at once with the driver's own; and slot 1 is a
+  database the run is going to create anyway. Every other slot is created by
+  the worker that first needs it.
   */
   const first = workerDatabaseName(baseName, runId, 1)
   try {
@@ -86,26 +85,20 @@ export async function setup(): Promise<void> {
     }
     throw error
   }
-  const probe = await connect(withDatabase(baseUrl, first))
-  let english: boolean
-  try {
-    english = await speaksEnglish(probe)
-  } finally {
-    await probe.end()
-  }
 
   process.env[RUN_ID_ENV] = String(runId)
   process.env[BASE_URL_ENV] = baseUrl
-  process.env[ENGLISH_ENV] = english ? '1' : '0'
 
   /*
   One line, and it names no connection string. A person reading a CI log needs
-  to be able to tell this leg apart from the PGlite one and to see which mode the
-  lc_messages privilege left it in, and both facts change how a red is read.
+  to be able to tell this leg apart from the PGlite one, and to see that no
+  file is on the base database, which is the fact that changes how a red in a
+  constraint catalog assertion is read: a schema another branch left there can
+  reach nobody.
   */
   process.stdout.write(
     `[postgres leg] one database per worker: ${baseName}_r${runId}_w<slot>` +
-      `; server messages ${english ? 'English' : `not English, AC-001 routed to ${baseName}`}` +
+      `; no file runs on ${baseName}` +
       (dropped.length > 0 ? `; swept ${dropped.length} database(s) from dead runs` : '') +
       '\n',
   )

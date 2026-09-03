@@ -181,11 +181,15 @@ migrated at run start and emptied before every file; the machinery is
 `app/tests/postgres-leg*.ts` and the contract is spec 11.10. Three things follow for you. A
 count that climbs on that leg is now a defect rather than a flake, so read it.
 `TEST_DATABASE_URL` names the base database the worker ones are derived from rather than the
-one your test runs in. And one file, `ac-001-constraint-catalog.test.ts`, still runs against
-the base database, because it asserts the English text of a server message and only a
-superuser can give a created database `lc_messages = C`; if you write a second test that
-reads server prose rather than a constraint name, `tests/postgres-leg-isolation.test.ts`
-will tell you so by name.
+one your test runs in, and no file runs in that base any more: `ac-001` did until issue #92,
+because it asserted the English text of a server message and only a superuser can give a
+created database `lc_messages = C`, and that made it the one file another branch's
+forward-only migrations could break, since whatever a branch migrates into `dana_test`
+stays there. And so the third: **never assert the prose of a server message.** The created
+databases answer in this cluster's language, which is French. Assert a constraint name,
+which every translation keeps verbatim, or the SQLSTATE and the table or column field of
+the error, which no locale touches; `expectRejectedWith` in `tests/helpers.ts` does the
+second, and `tests/postgres-leg-isolation.test.ts` fails by name any test that reads prose.
 
 ## When the work needs the frontend
 

@@ -1,6 +1,6 @@
 /*
 The Postgres leg's isolation, asserted rather than believed, plus spec 11.10's
-three verification queries made executable.
+verification queries made executable.
 
 **Why this file exists.** Issue #32 is a defect nothing in the suite could see:
 282 files shared one `dana_test`, they wrote over each other, and the only
@@ -13,12 +13,20 @@ true for: that a file is not on the shared database, that the database it is on
 is empty when it starts, and that the database it is on sorts text the way spec
 11.10 requires.
 
-**And 11.10's checks were prose until now.** That section carries three SQL
-queries under the heading "Verify rather than assume", and until this file they
-were three queries a person could run by hand. A leg that creates its databases
-at run time needs them run every time, because the statement that creates a
-database and the statement that fixes its message language are two statements
-and the second one can fail on its own (see SERVER_MESSAGE_PROSE_FILES).
+**And 11.10's checks were prose until now.** That section carries its
+verification queries under the heading "Verify rather than assume", and until
+this file they were queries a person could run by hand. A leg that creates its
+databases at run time needs them run every time, against the database it
+created, because that is the database whose locale nobody chose by hand.
+
+**One thing is guarded here that no query can check: that no test reads the
+prose of a server message.** The created databases answer in the cluster's
+language, which on this machine is French, because `lc_messages` is a
+superuser-context GUC the leg's role cannot set (postgres-leg.ts). Until issue
+#92 one file did read prose and had to be routed to the base database for it,
+which made that file the one place a branch's forward-only migrations could
+reach another branch's run. The source scan at the end is what keeps that from
+coming back.
 
 **On the PGlite leg most of this is skipped, deliberately.** There is nothing to
 check there: every createTestDb() is already an isolated database, which is the
@@ -34,14 +42,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { DbClient } from '../db/client.js'
 import { createTestDb, rows } from './helpers.js'
-import { connect } from './postgres-leg-admin.js'
-import {
-  BASE_URL_ENV,
-  SERVER_MESSAGE_PROSE_FILES,
-  databaseNameOf,
-  legBaseUrl,
-  workerDatabasePattern,
-} from './postgres-leg.js'
+import { BASE_URL_ENV, databaseNameOf, workerDatabasePattern } from './postgres-leg.js'
 
 let client: DbClient
 
@@ -61,7 +62,9 @@ Every one of these is language dependent, so a test asserting one only passes
 where lc_messages is C. Constraint and index names are deliberately not here:
 those appear verbatim in a translated message, which is exactly why the eight
 other adversarial assertions in AC-001 survived the French cluster that caught
-the ninth.
+the ninth. Neither are SQLSTATEs or the schema, table, column and constraint
+fields of an error, which is what the ninth asserts now (helpers.ts,
+expectRejectedWith).
 */
 const SERVER_PROSE = [
   'null value in column',
@@ -108,8 +111,8 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
   })
 
   /*
-  Spec 11.10's first two verification queries, run against the database this
-  file was actually handed rather than against the one a person typed into psql
+  Spec 11.10's two verification queries, run against the database this file
+  was actually handed rather than against the one a person typed into psql
   once. The ordering is the whole point: section 6 asks two agents to produce
   byte-identical result sequences, nothing in the migrations or the query
   modules writes COLLATE, so every ordering over text takes the database
@@ -138,47 +141,19 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
   })
 
   /*
-  11.10's third query, run against the base database rather than this one.
+  The guard on server prose.
 
-  That is the honest place for it. lc_messages is a superuser-context GUC and
-  the role this leg authenticates as cannot set it on a database it creates, so
-  the created databases answer in the cluster's language and the base database
-  is where the suite's one assertion on server prose is routed. Asserting C here
-  therefore asserts the thing that actually has to hold: that the database
-  AC-001 runs against still answers in English. If someone rebuilds dana_test
-  and omits 11.10's second statement, this is what says so.
+  A test that asserts the text of a server message passes on PGlite, passes on
+  any cluster whose messages are English, and fails on this one with a message
+  in French about a message in French; and the only ways to make it pass here
+  are a superuser statement nobody may have to hand, or a routing back to the
+  base database, which is the sharing issue #92 ended. This is the cheap way to
+  be told at the moment it is written instead, and it names the alternative.
   */
-  test('11.10: the database that answers AC-001 has lc_messages = C', async () => {
-    const baseUrl = legBaseUrl()
-    if (baseUrl === undefined) return
-    const base = await connect(baseUrl)
-    try {
-      const shown = await base.query<{ lc_messages: string }>('SHOW lc_messages')
-      expect(
-        shown.rows[0]?.lc_messages,
-        'the base database no longer answers in English, so AC-001 reads a translated ' +
-          'message; spec 11.10 carries the ALTER DATABASE that fixes it',
-      ).toBe('C')
-    } finally {
-      await base.end()
-    }
-  })
-
-  /*
-  The guard on the routing list.
-
-  SERVER_MESSAGE_PROSE_FILES routes one file to the base database because it
-  reads server prose. A second such file added anywhere else would pass on
-  PGlite, pass on any cluster whose messages are English, and fail on this one
-  with a message in French about a message in French. This is the cheap way to
-  be told at the moment it is written instead.
-  */
-  test('only the declared files assert the text of a server message', () => {
+  test('no test file asserts the text of a server message', () => {
     const offenders: string[] = []
     for (const file of [...testFilesUnder('tests'), ...testFilesUnder('src'), ...testFilesUnder('db')]) {
-      const name = path.basename(file)
-      if (name === 'postgres-leg-isolation.test.ts') continue
-      if (SERVER_MESSAGE_PROSE_FILES.includes(name)) continue
+      if (path.basename(file) === 'postgres-leg-isolation.test.ts') continue
       const source = readFileSync(file, 'utf8')
       for (const fragment of SERVER_PROSE) {
         if (source.includes(fragment)) offenders.push(`${file}: ${fragment}`)
@@ -187,8 +162,9 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
     expect(
       offenders,
       'these files read the prose of a PostgreSQL server message, which is only English ' +
-        'where lc_messages is C. Add them to SERVER_MESSAGE_PROSE_FILES in ' +
-        'tests/postgres-leg.ts, or assert a constraint name instead, which every ' +
+        'where lc_messages is C, and the Postgres leg cannot set that on the databases it ' +
+        'creates. Assert the SQLSTATE and the table or column field of the error instead ' +
+        '(expectRejectedWith in tests/helpers.ts), or a constraint name, which every ' +
         'translation keeps verbatim',
     ).toEqual([])
   })

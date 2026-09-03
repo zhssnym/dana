@@ -59,17 +59,11 @@ export async function ensureDatabase(
     if (errorCode(error) !== '42P04') throw error
     return false
   }
-  /*
-  The second half of 11.10's statement. It is attempted rather than required:
-  the role that can create a database still cannot set a superuser-context GUC
-  on it, and the run is expected to survive that and route around it (see
-  SERVER_MESSAGE_PROSE_FILES). Any other failure is a real one and is raised.
-  */
-  try {
-    await admin.query(`ALTER DATABASE ${quoteIdent(name)} SET lc_messages = 'C'`)
-  } catch (error) {
-    if (errorCode(error) !== '42501') throw error
-  }
+  // Nothing sets lc_messages on the new database. The role cannot, it being a
+  // superuser-context GUC, and since issue #92 nothing in the suite reads a
+  // server message, so the database answers in the cluster's language and no
+  // test can tell (spec 11.10).
+
   // Imported here rather than at the top so that the module graph of this file
   // stays out of anything that only wants to read or empty a database.
   const { createDbClient } = await import('../db/client.js')
@@ -80,12 +74,6 @@ export async function ensureDatabase(
     await client.close()
   }
   return true
-}
-
-/** True when this database answers in English, which is what lc_messages = C buys. */
-export async function speaksEnglish(client: pg.Client): Promise<boolean> {
-  const shown = await client.query<{ lc_messages: string }>('SHOW lc_messages')
-  return shown.rows[0]?.lc_messages === 'C'
 }
 
 /**
