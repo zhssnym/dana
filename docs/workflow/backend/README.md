@@ -73,18 +73,28 @@ Destructive changes split across two releases: expand, then contract.
 
 ## `app/src/shared/` is the contract
 
-18 files of zod schemas that both the browser and the server import. The client validates
+19 files of zod schemas that both the browser and the server import (measured 2026-09-03; it was 18 before `files.ts` landed at #39). The client validates
 every response against them before rendering, so a mismatch surfaces as a visible error
 rather than a blank field.
 
 Changing a **response** schema is caught by the compiler on both sides. That is the safe
 case.
 
-Changing a **request** schema is caught by nothing. There is no `.strict()` anywhere in that
-folder, so an unhandled field is accepted and thrown away and the API answers 200. This has
-already happened: `app/src/shared/tasks.ts` records a reminder field that was silently
-dropped for four packages. **If you add a request field, add the code that reads it in the
-same change.**
+Changing a **request** schema is caught by nothing, and there are two ways to lose a field
+rather than one. Both answer 200 and neither leaves anything on the wire.
+
+- **A field the schema does not declare** is stripped by `z.object` and dropped. There is no
+  `.strict()` anywhere in that folder and there is deliberately not going to be: spec 11.14
+  records the ruling and what is done instead, and an endpoint that means to refuse a field
+  declares it as `z.never({ error: … }).optional()` rather than making the object strict.
+- **A field the schema declares and the route does not act on** is dropped just as quietly,
+  and this is the one that has actually cost this project. `app/src/shared/tasks.ts` records
+  a reminder field lost for four packages, and it was **declared** the whole time — so
+  strictness would not have seen it, and neither would any unknown-key check. Only a
+  criterion catches this class, which is what AC-149 is.
+
+**So: if you add a request field, add the code that reads it in the same change, and add the
+criterion that proves it.** Spec 11.15 names both classes and what catches each.
 
 ## Testing
 
