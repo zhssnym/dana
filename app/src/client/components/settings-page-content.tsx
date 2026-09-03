@@ -48,8 +48,24 @@ this production component differs from the prototype.
    prototype caps only the rows and leaves them flush left inside the page
    measure. Imran, 2026-08-30. The number and its reason are the prototype's,
    unchanged; what moves is which element carries the cap. 9.7 records it.
+10. **The ramp is not spelled here** (11.4; `ui/foundation.test.ts` is what
+    enforces it). The prototype's class strings reached for graphite and
+    danger steps directly, which the rule allows only inside `components/ui/`;
+    `screens/` sat outside that test's scope and the move under #129 brought
+    the file into it for the first time. Each step now asks for its role. Six
+    sit on a role exactly and draw the same pixels: graphite-50 is `muted`,
+    600 is `muted-foreground`, 500 is `supporting-foreground`, 700 is
+    `section-foreground`, 200 is `border`, dana-accent-600 is `ring`. Five
+    have no role on their step and take the idiom the primitives already use
+    for the purpose: the strongest ink is `foreground` (graphite-800, one
+    step off 900), danger ink is `destructive` (danger-600, one step off
+    700, as `ui/alert.tsx` and `ui/alert-dialog.tsx` spell it), the danger
+    box is `destructive` washed to the tints it had, the avatar fallback is
+    the primitive's own, and the segmented track is `input/40`, which lands
+    on graphite-100 in both colourways.
 
-The cleanup changes no visible behavior.
+The cleanup of #129 changed no visible behavior. Seam 10 moves a step of tone
+on the elements it names and nothing else.
 */
 import { useRef, useState, type ReactNode } from "react"
 import {
@@ -130,21 +146,21 @@ function ViewerPictureRow() {
   }
 
   return (
-    <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
+    <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-muted">
       <div className="group/pic relative">
         <button
           type="button"
           onClick={() => fileInput.current?.click()}
           aria-label={viewer.image ? "Change your picture" : "Add a picture"}
-          className="block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-2"
+          className="block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Avatar className="size-10">
             {viewer.image ? <AvatarImage src={viewer.image} alt="" /> : null}
-            <AvatarFallback className="bg-[var(--color-graphite-200)] text-xs font-medium text-[var(--color-graphite-700)]">
+            <AvatarFallback className="text-xs font-medium">
               {viewer.initials}
             </AvatarFallback>
           </Avatar>
-          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-[var(--color-graphite-900)]/55 opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/pic:opacity-100">
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/55 opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/pic:opacity-100">
             <ImagePlus className="size-4 text-white" strokeWidth={1.75} aria-hidden="true" />
           </span>
         </button>
@@ -176,7 +192,7 @@ function ViewerPictureRow() {
         <Button
           variant="ghost"
           size="sm"
-          className="shrink-0 text-[var(--color-graphite-600)]"
+          className="shrink-0 text-muted-foreground"
           onClick={() => {
             clearViewerImage()
           }}
@@ -208,7 +224,7 @@ function SettingsSection({
           id={id}
           className={
             danger
-              ? "text-sm font-semibold text-[var(--color-danger-700)]"
+              ? "text-sm font-semibold text-destructive"
               : "text-sm font-semibold text-foreground"
           }
         >
@@ -238,10 +254,10 @@ function SettingRow({
   icon?: LucideIcon
 }) {
   return (
-    <div className="flex min-h-14 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
+    <div className="flex min-h-14 items-center gap-3 rounded-lg px-2 hover:bg-muted">
       {Icon ? (
         <Icon
-          className="size-4 shrink-0 text-[var(--color-graphite-500)]"
+          className="size-4 shrink-0 text-supporting-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -287,7 +303,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="flex items-center gap-0.5 rounded-lg bg-[var(--color-graphite-100)] p-0.5"
+      className="flex items-center gap-0.5 rounded-lg bg-input/40 p-0.5"
     >
       {options.map(([option, text]) => (
         <button
@@ -299,8 +315,8 @@ function Segmented<T extends string>({
           className={cn(
             "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
             value === option
-              ? "bg-card text-[var(--color-graphite-900)] shadow-[var(--elevation-1)]"
-              : "text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-900)]",
+              ? "bg-card text-foreground shadow-[var(--elevation-1)]"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           {text}
@@ -363,7 +379,7 @@ export function SettingsPageContent({
     <div className="mx-auto w-full max-w-[560px]">
       <header className="flex min-h-12 items-start gap-3">
         <Settings
-          className="mt-0.5 size-6 shrink-0 text-[var(--color-graphite-700)]"
+          className="mt-0.5 size-6 shrink-0 text-section-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -497,7 +513,7 @@ export function SettingsPageContent({
                   <div
                     role="radiogroup"
                     aria-label="Row height"
-                    className="flex items-center gap-0.5 rounded-lg bg-[var(--color-graphite-100)] p-0.5"
+                    className="flex items-center gap-0.5 rounded-lg bg-input/40 p-0.5"
                   >
                     {(
                       [
@@ -514,8 +530,8 @@ export function SettingsPageContent({
                         className={cn(
                           "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
                           density === value
-                            ? "bg-card text-[var(--color-graphite-900)] shadow-[var(--elevation-1)]"
-                            : "text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-900)]",
+                            ? "bg-card text-foreground shadow-[var(--elevation-1)]"
+                            : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         {label}
@@ -558,7 +574,7 @@ export function SettingsPageContent({
                   <div
                     role="radiogroup"
                     aria-label="Theme"
-                    className="flex items-center gap-0.5 rounded-lg bg-[var(--color-graphite-100)] p-0.5"
+                    className="flex items-center gap-0.5 rounded-lg bg-input/40 p-0.5"
                   >
                     {(
                       [
@@ -576,8 +592,8 @@ export function SettingsPageContent({
                         className={cn(
                           "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
                           theme === value
-                            ? "bg-card text-[var(--color-graphite-900)] shadow-[var(--elevation-1)]"
-                            : "text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-900)]",
+                            ? "bg-card text-foreground shadow-[var(--elevation-1)]"
+                            : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         {label}
@@ -649,8 +665,8 @@ export function SettingsPageContent({
               <div className="space-y-0.5">
               <ViewerPictureRow />
 
-                <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-[var(--color-graphite-50)]">
-                  <div className="flex size-10 shrink-0 items-center justify-center text-[var(--color-graphite-500)]">
+                <div className="flex min-h-16 items-center gap-3 rounded-lg px-2 hover:bg-muted">
+                  <div className="flex size-10 shrink-0 items-center justify-center text-supporting-foreground">
                     <Globe className="size-5" strokeWidth={1.75} aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -729,7 +745,7 @@ export function SettingsPageContent({
                 }
               >
                 <div className="flex min-h-16 items-center gap-3 rounded-lg border border-border bg-white px-3">
-                  <p className="min-w-0 flex-1 text-sm text-[var(--color-graphite-700)]">
+                  <p className="min-w-0 flex-1 text-sm text-section-foreground">
                     {sample.present ? "Sample workspace present" : "Sample workspace removed"}
                   </p>
                   <Button
@@ -750,13 +766,13 @@ export function SettingsPageContent({
               description="Folders you share pass to their longest-standing member. Private folders and their tasks are deleted with the account."
               danger
             >
-              <div className="flex min-h-16 items-center gap-3 rounded-lg border border-[var(--color-danger-200)] bg-[var(--color-danger-100)]/45 px-3">
+              <div className="flex min-h-16 items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3">
                 <Trash2
-                  className="size-5 shrink-0 text-[var(--color-danger-700)]"
+                  className="size-5 shrink-0 text-destructive"
                   strokeWidth={1.75}
                   aria-hidden="true"
                 />
-                <p className="min-w-0 flex-1 text-sm text-[var(--color-graphite-700)]">
+                <p className="min-w-0 flex-1 text-sm text-section-foreground">
                   This cannot be undone.
                 </p>
                 <Button
@@ -831,7 +847,7 @@ function TimezoneSelect() {
       aria-label="Timezone"
       value={current}
       onChange={(event) => setViewerTimezone(event.target.value)}
-      className="h-8 max-w-[14rem] shrink-0 rounded-md border border-[var(--color-graphite-200)] bg-card px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+      className="h-8 max-w-[14rem] shrink-0 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {listed.map((zone) => (
         <option key={zone} value={zone}>
