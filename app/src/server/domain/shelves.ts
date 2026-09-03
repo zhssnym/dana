@@ -11,8 +11,8 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 
 function toIso(value: unknown): string {

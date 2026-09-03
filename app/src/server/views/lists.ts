@@ -34,8 +34,8 @@ import type {
   TaskCardGroup,
 } from '../../shared/views.js'
 import { takeCapped } from '../../shared/views.js'
-import { rowsOf } from '../domain/db.js'
-import type { Executor } from '../domain/db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 import { CAP_PROBE, OPEN_SCOPE, STATUS_RANK, readCards } from './cards.js'
 

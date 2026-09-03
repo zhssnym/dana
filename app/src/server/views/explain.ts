@@ -45,8 +45,8 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 
 import { createDbClient } from '../../../db/client.js'
 import type { Db } from '../../../db/client.js'
-import { rowsOf } from '../domain/db.js'
-import type { Executor } from '../domain/db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 import { plannedCalendarView } from './calendar.js'
 import { completedPage } from './done.js'

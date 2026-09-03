@@ -32,7 +32,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
-import { inTransaction, rowsOf } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
 import { accessOf } from './folders.js'
 
 export type FileKind = 'image' | 'file' | 'voice' | 'cover' | 'avatar'

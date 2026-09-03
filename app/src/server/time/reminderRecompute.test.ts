@@ -30,7 +30,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import { createTestDb, rows } from '../../../tests/helpers.js'
-import { inTransaction } from '../domain/db.js'
+import { inTransaction } from '../database.js'
 
 import {
   copyReminderToSuccessor,

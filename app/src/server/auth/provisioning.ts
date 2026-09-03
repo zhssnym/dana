@@ -32,9 +32,6 @@ import { inTransaction, rowsOf } from '../database.js'
 import { createSampleWorkspace } from '../sample/workspace.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
-export { inTransaction, rowsOf } from '../database.js'
-export type { Executor } from '../database.js'
-
 /*
 The words a brand-new Desk carries under its name (issue #68).
 

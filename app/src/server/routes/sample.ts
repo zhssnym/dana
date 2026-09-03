@@ -8,12 +8,9 @@ not take and the strip should be able to say so.
 */
 import type { Request, Response, Router } from 'express'
 
-import { sql } from 'drizzle-orm'
-
 import type { DbClient } from '../../../db/client.js'
 import { SAMPLE_KEPT_HEADER } from '../../shared/sample.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
-import { rowsOf } from '../domain/db.js'
 import { removeObjects } from '../domain/trash.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
@@ -68,31 +65,17 @@ export function createSampleRouter(options: SampleRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const zone = await rowsOf(
-        db,
-        sql`SELECT timezone FROM users WHERE id = ${viewer(req)}::uuid`,
-      )
-      try {
-        res
-          .status(200)
-          .json(
-            await restoreSampleWorkspace(db, viewer(req), String(zone[0]?.timezone ?? 'UTC')),
-          )
-      } catch (error) {
-        // 4.18's (user_id, name) unique: the person has a shelf of their own
-        // by one of the sample's names, and the sample will not rename
-        // theirs to make room for its own.
-        if (/23505|unique/i.test(String((error as { message?: string })?.message ?? error))) {
-          sendError(
-            res,
-            409,
-            'conflict',
-            'You already have a shelf named like one of the sample shelves. Rename it, then try again.',
-          )
-          return
-        }
-        throw error
+      const outcome = await restoreSampleWorkspace(db, viewer(req))
+      if (outcome.kind === 'shelf_name_taken') {
+        sendError(
+          res,
+          409,
+          'conflict',
+          'You already have a shelf named like one of the sample shelves. Rename it, then try again.',
+        )
+        return
       }
+      res.status(200).json(outcome.status)
     },
   )
 

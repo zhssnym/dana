@@ -33,8 +33,8 @@ import type {
   TrashedTask,
 } from '../../shared/trash.js'
 import type { ObjectStore } from '../files/store.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 
 function toIso(value: unknown): string {

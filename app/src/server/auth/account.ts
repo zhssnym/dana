@@ -18,7 +18,7 @@ import { deleteAccountData } from '../domain/accountDeletion.js'
 import type { AccountDeletionCounts } from '../domain/accountDeletion.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
-import { inTransaction, rowsOf } from './provisioning.js'
+import { inTransaction, rowsOf } from '../database.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
 /*

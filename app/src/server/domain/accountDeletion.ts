@@ -26,8 +26,8 @@ one AC-016, AC-018 and AC-019 already pin.
 import { sql } from 'drizzle-orm'
 
 import { deleteFolderRow, runRClean, transferOwnership } from './folders.js'
-import { rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 /**
  * Steps 1 to 6 of 8.10 for one account, inside the caller's transaction.

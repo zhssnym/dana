@@ -51,8 +51,8 @@ and it is what the ruling above asks for without a special case per trigger.
 import { sql } from 'drizzle-orm'
 
 import type { CalendarDate } from './calendarDate.js'
-import { rowsOf } from './executor.js'
-import type { Executor } from './executor.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { resolveFireAt } from './reminderTime.js'
 import type { LocalTimeKind } from './reminderTime.js'
 

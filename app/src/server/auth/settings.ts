@@ -18,7 +18,7 @@ import type { Db } from '../../../db/client.js'
 import { patchMeSettingsBody } from '../../shared/me.js'
 import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
 import { sendValidationError } from '../http/errors.js'
-import { rowsOf } from './provisioning.js'
+import { rowsOf } from '../database.js'
 
 /** The three 7.2 columns, named once so read and write cannot select
  * different halves of the same object. */

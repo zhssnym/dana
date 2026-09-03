@@ -78,4 +78,4 @@ export type {
   UnresolvedReminder,
 } from './reminderRecompute.js'
 
-export type { Executor } from './executor.js'
+export type { Executor } from '../database.js'
