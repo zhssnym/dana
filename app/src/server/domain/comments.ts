@@ -8,6 +8,11 @@ Three rules this module is the whole enforcement of:
   reply is refused before anything writes. The database cannot state
   "parent's parent is null" as a CHECK, so 4.15 makes it the API's and this
   is the API.
+- **Ten files, all or nothing (issue #22).** 10.3 caps a comment at ten
+  files and this module is what counts them, the schema having already
+  refused eleven. Every id must name a file of this folder or the whole
+  comment is refused, and the order the caller sent is the order the thread
+  reads back.
 - **The thread is the audience (4.14).** A comment's fan-out reaches the
   people who have spoken in that thread, never the whole roster: a member
   who never joined the conversation is not pinged by it, and the actor is
@@ -22,14 +27,15 @@ history line reads back is what was said, not that saying occurred.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import { attachedFileIds } from '../../shared/comments.js'
 import type {
   CommentFile,
   CommentLine,
   PostCommentBody,
   ThreadView,
 } from '../../shared/comments.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 
 function toIso(value: unknown): string {
@@ -43,7 +49,10 @@ function nullableString(value: unknown): string | null {
 }
 
 /** What an event line says for a comment: the words, clipped to fit the
- * 4.13 detail budget with room to read. */
+ * 4.13 detail budget with room to read. A wordless comment carrying several
+ * files is named by the first of them, which is a summary rather than a
+ * count: the history line says what was posted, and the thread is where the
+ * rest of it is. */
 function snippetOf(body: string | null, fileName: string | null): string {
   if (body !== null && body.length > 0) {
     return body.length > 120 ? `${body.slice(0, 119)}…` : body
@@ -108,24 +117,47 @@ export async function createComment(
       if (row.parent_id !== null) return { kind: 'too_deep' } as const
     }
 
+    /*
+    The attachments (issue #22): up to 10.3's ten, resolved in one read and
+    kept in the order the caller wrote them, which is what 7.14's "ordered as
+    attached" means once there is more than one.
+
+    All or nothing. One id naming a file outside this folder refuses the whole
+    comment, exactly as the single-file version refused, rather than posting
+    the words with the good files and dropping the rest: a comment that
+    silently carries fewer files than the person attached is the failure this
+    endpoint has to be careful about, and the words are still in the composer
+    for them to send again. The uploads themselves are separate 7.15 requests
+    that already succeeded or failed one at a time, so a failed third upload
+    of five is a file the client never got an id for and never names here.
+    */
+    const fileIds = attachedFileIds(body)
     let fileName: string | null = null
     let attached: CommentFile[] = []
-    if (body.file_id !== undefined) {
-      const file = await rowsOf(
+    if (fileIds.length > 0) {
+      const found = await rowsOf(
         tx,
-        sql`SELECT id, name, mime, bytes FROM files
-            WHERE id = ${body.file_id} AND folder_id = ${folderId}`,
+        sql`SELECT id, name, mime, bytes, width, height FROM files
+            WHERE folder_id = ${folderId}
+              AND id IN (${sql.join(
+                fileIds.map((id) => sql`${id}::uuid`),
+                sql`, `,
+              )})`,
       )
-      if (file[0] === undefined) return { kind: 'file_not_here' } as const
-      fileName = String(file[0].name)
-      attached = [
-        {
-          id: String(file[0].id),
-          name: fileName,
-          mime: String(file[0].mime),
-          bytes: Number(file[0].bytes),
-        },
-      ]
+      const byId = new Map(found.map((row) => [String(row.id), row]))
+      if (byId.size !== fileIds.length) return { kind: 'file_not_here' } as const
+      attached = fileIds.map((id) => {
+        const row = byId.get(id)
+        return {
+          id,
+          name: String(row?.name),
+          mime: String(row?.mime),
+          bytes: Number(row?.bytes),
+          width: dimensionOf(row?.width),
+          height: dimensionOf(row?.height),
+        }
+      })
+      fileName = attached[0]?.name ?? null
     }
 
     const inserted = await rowsOf(
@@ -136,10 +168,26 @@ export async function createComment(
           RETURNING id, created_at`,
     )
     const commentId = String(inserted[0]?.id)
-    if (body.file_id !== undefined) {
+    /*
+    One row per attachment, stamped in order.
+
+    `created_at` is what the thread read orders by, and inside one transaction
+    `now()` is the transaction's instant, identical for every row: ten rows
+    written with it would come back in whatever order the table felt like,
+    which is not an order at all. Each row is therefore stamped one microsecond
+    after the one before it, so the sequence the caller sent is the sequence
+    the column records and the read reproduces. The column means "when this
+    attachment was made", and making ten of them differ by a microsecond in
+    the order they were made is truer to that than making them identical.
+    Ordering by anything else available here (the file's own upload instant,
+    its id) would be deterministic and would not be the caller's order, which
+    is the one 7.14 names.
+    */
+    for (const [index, fileId] of fileIds.entries()) {
       await tx.execute(
-        sql`INSERT INTO comment_files (comment_id, file_id)
-            VALUES (${commentId}::uuid, ${body.file_id}::uuid)`,
+        sql`INSERT INTO comment_files (comment_id, file_id, created_at)
+            VALUES (${commentId}::uuid, ${fileId}::uuid,
+                    now() + (${index}::int * interval '1 microsecond'))`,
       )
     }
 
@@ -210,8 +258,10 @@ export async function threadView(
                         WHERE l.comment_id = c.id
                           AND l.user_id = ${viewerId}) AS liked,
                (SELECT coalesce(json_agg(json_build_object(
-                          'id', f.id, 'name', f.name, 'mime', f.mime, 'bytes', f.bytes)
-                        ORDER BY cf.created_at), '[]'::json)
+                          'id', f.id, 'name', f.name, 'mime', f.mime,
+                          'bytes', f.bytes,
+                          'width', f.width, 'height', f.height)
+                        ORDER BY cf.created_at, cf.file_id), '[]'::json)
                   FROM comment_files cf JOIN files f ON f.id = cf.file_id
                   WHERE cf.comment_id = c.id) AS files
         FROM comments c
@@ -237,7 +287,11 @@ export async function threadView(
 }
 
 /* 7.14's read shape (item 57 B5): the aggregate is 4.16's columns as JSON,
-   which PGlite hands back parsed and node-postgres as text. */
+   which PGlite hands back parsed and node-postgres as text. "Ordered as
+   attached" is cf.created_at, which createComment stamps a microsecond apart
+   per attachment for exactly this ORDER BY to read; file_id follows it as a
+   total tiebreak, so the aggregate has one answer even for rows this module
+   did not write. */
 function filesFrom(value: unknown): CommentFile[] {
   const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value
   if (!Array.isArray(parsed)) return []
@@ -246,7 +300,15 @@ function filesFrom(value: unknown): CommentFile[] {
     name: String(entry.name),
     mime: String(entry.mime),
     bytes: Number(entry.bytes),
+    // Not Number(): a JSON null is 0 through that, and a zero width would
+    // be a shape rather than the absence of one (issue #27).
+    width: dimensionOf(entry.width),
+    height: dimensionOf(entry.height),
   }))
+}
+
+function dimensionOf(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
 }
 
 /* ------------------------------------------------------------------ *

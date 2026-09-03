@@ -6,20 +6,17 @@ Status grammar (7.0, 10.2, DES-225): a folder or comment out of the
 viewer's membership 404, never 403; a member touching another author's
 words 403, the thread being visible to them; a reply below the one level, a
 parent or task or file outside the thread's folder, all 422 naming the
-field.
+field. Since issue #22 a comment carries up to 10.3's ten files, named by
+`file_ids` in the order they are to be attached; eleven, a repeated id, and
+`file_ids` sent beside `file_id` are all refused by the shared schema before
+this router reads anything.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
+import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import { patchCommentBody, postCommentBody } from '../../shared/comments.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   accessibleComment,
   createComment,
@@ -33,55 +30,20 @@ import { accessOf } from '../domain/folders.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface ConversationRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-const uuidParam = z.uuid()
 const threadQuery = z.object({ task: z.uuid().optional() })
 
 export function createConversationRouter(
   options: ConversationRouterOptions = {},
 ): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
-  const parsedId = (res: Response, raw: unknown): string | null => {
-    const parsed = uuidParam.safeParse(raw)
-    if (!parsed.success) {
-      sendError(res, 404, 'not_found', 'Not found.')
-      return null
-    }
-    return parsed.data
-  }
 
   router.get(
     '/folders/:id/comments',
@@ -165,11 +127,16 @@ export function createConversationRouter(
           )
           return
         case 'file_not_here':
+          // The message names the field the caller actually sent: 7.14 takes
+          // `file_id` for one file and `file_ids` for up to 10.3's ten, and a
+          // 422 that names the other one is a 422 nobody can act on.
           sendError(
             res,
             422,
             'validation_failed',
-            'file_id: must name a file stored in this folder.',
+            parsed.data.file_ids === undefined
+              ? 'file_id: must name a file stored in this folder.'
+              : 'file_ids: every id must name a file stored in this folder.',
           )
           return
         case 'created':

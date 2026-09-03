@@ -1,13 +1,27 @@
 /*
 Shared harness for the acceptance suite. The database seam (app/db/client.ts)
-picks the backend: in-memory PGlite by default, where every createTestDb()
-call is an isolated database, or one shared Postgres when TEST_DATABASE_URL
-is set. The shared case drives two rules here. Migration runs under an
-advisory lock, because Vitest runs test files in parallel workers and two
-drizzle migrators racing on a fresh database both try to create the same
-tables. And test files must keep their rows self-identifying (random UUIDs,
-never TRUNCATE) and remove them on the way out, so parallel files sharing one
-database cannot interfere.
+picks the backend: in-memory PGlite by default, where every createTestDb() call
+is an isolated database, or a real Postgres when TEST_DATABASE_URL is set.
+
+**The Postgres leg no longer shares one database, corrected 2026-09-03 against
+issue #32.** This comment used to say that it did, and that test files must keep
+their rows self-identifying and "never TRUNCATE" because parallel files shared
+one `dana_test`. They did share it, and they interfered: the fingerprint was a
+count that climbed across successive tests. Each Vitest pool slot now gets a
+database of its own, emptied before every file, so the files running at the same
+instant cannot see each other and a file cannot start on top of the rows of the
+file that ran before it. tests/postgres-leg.ts is the whole of it and spec 11.10
+is the contract.
+
+The advice the old comment gave is still good practice and nothing depends on it
+any more: self-identifying rows and a cleanup on the way out are what let a file
+be read on its own. What has changed is that a file which forgets is now only
+its own problem.
+
+The migration advisory lock stands. It is uncontended now, each slot's database
+being reached by one process at a time and already migrated before any test
+opens it, and it costs one connection; it is the thing that would still be
+holding the line if the isolation above were ever bypassed.
 */
 import pg from 'pg'
 import { DrizzleQueryError, sql } from 'drizzle-orm'
@@ -16,11 +30,16 @@ import { expect } from 'vitest'
 
 import { createDbClient } from '../db/client.js'
 import type { Db, DbClient } from '../db/client.js'
+import { prepareLegDatabaseOnce } from './postgres-leg-admin.js'
 
 // Arbitrary constant; workers only need to agree on it.
 const MIGRATION_LOCK_KEY = 727001
 
 export async function createTestDb(): Promise<DbClient> {
+  // Creates and empties this file's own database on the Postgres leg, once per
+  // file; a no-op on PGlite. Here rather than in the setup file so that a file
+  // which never opens a database never opens a connection either.
+  await prepareLegDatabaseOnce()
   const client = await createDbClient()
   if (client.kind === 'postgres') {
     // The lock must live on its own connection: a pooled query could take the

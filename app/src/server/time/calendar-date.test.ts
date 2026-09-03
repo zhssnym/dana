@@ -10,7 +10,7 @@ import {
   earliestDate,
   isCalendarDate,
   withinInclusive,
-} from './calendarDate.js'
+} from './calendar-date.js'
 
 describe('isCalendarDate', () => {
   test('accepts 4.11 dates and rejects near misses', () => {

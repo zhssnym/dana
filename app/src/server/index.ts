@@ -124,6 +124,32 @@ function defaultDiskStore(): ObjectStore {
   )
 }
 
+/**
+ * The sha256 of the one inline script in `app/index.html`, base64, in the
+ * form a CSP hash-source takes. The theme script paints the first frame from
+ * the localStorage mirror and cannot be moved into the bundle without
+ * becoming the second frame, which is the flash it exists to prevent, so the
+ * policy names it instead.
+ *
+ * It is a literal rather than a digest computed at boot because createApp
+ * performs no I/O (11.10) and because the file it would read does not exist
+ * in a source checkout that has never built. What keeps it honest is
+ * `tests/ac-238-response-security-headers.test.ts`, which recomputes the
+ * digest from the shell document itself, preferring the built
+ * `dist/client/index.html` the browser is actually served and falling back
+ * to `app/index.html` when nothing has been built, and fails if `script-src`
+ * does not name every inline script it finds there: edit the script without
+ * editing this line and the suite says so. Its one gap is that CI reaches
+ * the vitest legs before the build step, so there the fallback is what runs;
+ * issue #96 carries the version that reads a freshly built document.
+ *
+ * And the digest is stable across checkouts only because `.gitattributes`
+ * sets `* text=auto eol=lf`. `core.autocrlf` is true on at least one machine
+ * here, and a CRLF working copy of `app/index.html` hashes to something else
+ * entirely, which would ship a policy refusing the very script it names.
+ */
+const THEME_SCRIPT_HASH = 'sha256-Dj3RFqRnuo6lgqd0HI36Wj2p9AqPZv5+ymGddn+OUjw='
+
 // createApp is synchronous, performs no I/O, and opens no database (11.10):
 // everything a route needs arrives through options, already opened.
 export function createApp(options: AppOptions = {}): express.Express {
@@ -169,6 +195,58 @@ export function createApp(options: AppOptions = {}): express.Express {
     when the build carried VITE_SENTRY_DSN; the wildcard covers the
     per-organization ingest hosts.
 
+  The four directives below were added on 2026-09-03 for issues #34 and #13,
+  and they are one finding rather than four: this policy was written against
+  what the client was believed to load and had never been read back from a
+  browser, so every one of them was refusing something the product does.
+  None of them can happen in development, which is why they survived to
+  production: `npm run dev` serves the document from Vite, which sends no
+  policy at all, and proxies only /api to this process, so the header rides
+  on the API responses and never on the page. Each was measured with
+  Chromium against the production build before being written here, and the
+  refusal each answers is quoted from the console.
+
+  - script-src 'self' <sha256 of the theme script>: `index.html` carries one
+    inline script that paints the theme from localStorage before the first
+    frame, and with no script-src at all `default-src 'self'` governed it:
+    "Executing inline script violates the following Content Security Policy
+    directive 'default-src 'self''". So every person on Dark saw a white
+    frame on every cold load. The hash is preferred over a nonce because
+    this process serves `index.html` as a static file it never templates,
+    and over 'unsafe-inline' because widening the one directive that decides
+    whether an injected script runs, in order to remove a flash, is not a
+    trade worth making. The literal below is the digest of that script's
+    body, and `tests/ac-238` recomputes it from the shell document rather
+    than importing it, so an edit to the script fails the suite instead of
+    silently restoring the flash.
+  - img-src blob:: the client turns a chosen File into an object URL and
+    loads it into an Image to crop it (`lib/viewer.ts` squareImageFile), and
+    draws the same kind of URL as the preview of an attachment that is still
+    uploading. "Loading the image 'blob:...' violates the following Content
+    Security Policy directive: img-src 'self' data: ...". This is the whole
+    of issue #13: the avatar crop resolved null on the refusal, and the
+    Settings screen's `if (square)` then did nothing at all, with no error
+    anywhere, so a Google account picture worked (an https URL this policy
+    already admitted) and an uploaded one silently never happened. A blob:
+    URL is bytes this document already holds, addressable by nothing else
+    and by no other origin, which is the same ground `data:` is admitted on
+    two bullets up.
+  - media-src 'self' blob:: a voice note is played back from the object URL
+    of the Blob the recorder just produced, before it has been uploaded.
+    "Loading media from 'blob:...' violates the following Content Security
+    Policy directive: default-src 'self'". Same bytes, same reasoning; the
+    directive is written out rather than left to fall back so that 'self',
+    which the uploaded note is served from, is stated too.
+  - connect-src data:: the crop hands a canvas data: URL back through
+    `fetch()` to rebuild it as a File for the multipart upload, and
+    connect-src is what governs a fetch of a data: URL: "Connecting to
+    'data:image/jpeg;base64,...' violates the following Content Security
+    Policy directive: connect-src 'self' https://*.sentry.io". This is the
+    second wall in front of issue #13's upload, behind the img-src one.
+    data: reaches no network, so admitting it here widens what this document
+    can talk to by nothing at all; it is the img-src data: bullet's sentence
+    read against the directive that happens to govern fetch.
+
   HSTS is deliberately absent: 10.8 gives it to the edge in front of the
   process, which is the only party that knows TLS is really terminating.
   */
@@ -176,9 +254,12 @@ export function createApp(options: AppOptions = {}): express.Express {
     [
       'Content-Security-Policy',
       "default-src 'self'; base-uri 'self'; object-src 'none'; " +
-        "frame-ancestors 'none'; style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data: https://*.googleusercontent.com; " +
-        "connect-src 'self' https://*.sentry.io",
+        "frame-ancestors 'none'; " +
+        `script-src 'self' '${THEME_SCRIPT_HASH}'; ` +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob: https://*.googleusercontent.com; " +
+        "media-src 'self' blob:; " +
+        "connect-src 'self' data: https://*.sentry.io",
     ],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
   ]
@@ -268,6 +349,39 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.use('/api/health', healthRouter)
 
+  /*
+  The mount order below is load-bearing in exactly one place, and issue #37
+  is that nothing said so. Everything else here is order-independent, which
+  is why the one exception is easy to lose: fifteen routers share the
+  `/api/v1` mount, Express matches whole paths rather than prefixes, and the
+  wiring ledger in routes/README.md checks path-by-path for each new router
+  that it meets no whole path an earlier one claims. The rule those checks
+  are for:
+
+  **`createViewsRouter` must stay ahead of `createBundleRouter`.** The views
+  router owns 7.10's six literal pages, `GET /views/my-day`, `/views/tasks`,
+  `/views/planned`, `/views/important`, `/views/all` and `/views/done`. The
+  bundle router owns 4.19's `GET /views/:id`, which matches any single
+  segment after `/views`, so mounted first it swallows all six: `parsedId`
+  refuses `my-day` as a uuid and the page answers 404 instead of a view.
+
+  Measured 2026-09-03 rather than reasoned, both halves. Swapping the two
+  mounts turns AC-045 and AC-130 red, 15 cases, every one on a page that no
+  longer answers. And a bare Express 5 application with those seven paths
+  answers `shadow` for the six and `page` for `/views/planned/calendar`,
+  which is the boundary: `/views/:id` is one segment and the calendar is two,
+  so it is the only 7.10 page the swap leaves standing.
+
+  **AC-236 does not catch this and cannot.** Both routes stay in the
+  enumeration and both still answer 401 bare, so the sweep's counts and its
+  statuses are unmoved; only the behavioural criteria go red. The guard
+  against reordering is this comment and the two markers below.
+
+  Anything mounted after these two is safe if its paths are literal or claim
+  a prefix no earlier router uses. A new router carrying a one-segment
+  `:param` under a prefix somebody else spells out is the shape to look for.
+  */
+
   // The frozen /api/v1 surface. The 7.1 auth and account endpoints mount
   // first, by the request recorded in src/server/auth/README.md; later
   // packages add their routers here, and every one of them stays ahead of
@@ -326,6 +440,9 @@ export function createApp(options: AppOptions = {}): express.Express {
   // prefix with the folders router but no whole path with it, and Express
   // matches on the whole path, so that pair is order-independent too; every
   // endpoint on it is a GET, which 7.0 makes safe, so it takes no CSRF link.
+  // Load-bearing position: ahead of the bundle router, whose `/views/:id`
+  // would shadow this router's six literal `/views/...` pages. See the
+  // block above `/api/v1`.
   app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient, rateLimits }))
 
   // The P5 invites and connections routers, by the fourth request in that same
@@ -392,6 +509,10 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   // The S7 bundle (4.19): the v2 /settings surface beside frozen 7.2's
   // /me/settings, and the saved views.
+  //
+  // Load-bearing position: behind the views router. Its `GET /views/:id`
+  // matches one segment after `/views` and would shadow that router's six
+  // literal pages if it moved ahead. See the block above `/api/v1`.
   app.use(
     '/api/v1',
     createBundleRouter({ dbClient: options.dbClient, rateLimits }),

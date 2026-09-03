@@ -10,24 +10,24 @@ choice about one of Dana's own pages, which is the same kind of thing as a
 saved view and a row of 4.19's settings. A router of its own would have
 needed a line in the boot file, which is another owner's, for a surface with
 no other claim to be separate.
-*/
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
 
-import type { Db, DbClient } from '../../../db/client.js'
+7.21's place descriptions joined it on the same reasoning (issue #68): a
+person's own sentence under Today is the same kind of thing as their cover
+on it, and it shares this file's place parser rather than growing a second
+copy of 4.20's eight names.
+*/
+import type { Request, Response, Router } from 'express'
+
+import type { DbClient } from '../../../db/client.js'
 import {
   patchSettingsBody,
   patchViewBody,
   postViewBody,
 } from '../../shared/bundle.js'
 import { placeCoverPlace, putPlaceCoverBody } from '../../shared/covers.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import type { PlaceCoverPlace } from '../../shared/covers.js'
+import { putPlaceDescriptionBody } from '../../shared/place-descriptions.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   createView,
   deleteView,
@@ -42,55 +42,23 @@ import {
   listPlaceCovers,
   putPlaceCover,
 } from '../domain/covers.js'
+import {
+  listPlaceDescriptions,
+  putPlaceDescription,
+} from '../domain/place-descriptions.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-const uuidParam = z.uuid()
-
 export function createBundleRouter(options: BundleRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
-  const parsedId = (res: Response, raw: unknown): string | null => {
-    const parsed = uuidParam.safeParse(raw)
-    if (!parsed.success) {
-      sendError(res, 404, 'not_found', 'Not found.')
-      return null
-    }
-    return parsed.data
-  }
 
   router.get(
     '/settings',
@@ -152,6 +120,15 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     },
   )
 
+  /* **This router must stay mounted behind `createViewsRouter`, and this is
+     the route that makes it so.** `/views/:id` matches one segment after
+     `/views`, so ahead of that router it swallows 7.10's six literal pages —
+     `/views/my-day`, `/views/tasks`, `/views/planned`, `/views/important`,
+     `/views/all` and `/views/done` — and `parsedId` answers each of them 404
+     for not being a uuid. `/views/planned/calendar` is two segments and is
+     the one page that survives. Measured 2026-09-03, and the mount block in
+     index.ts carries the same rule and the measurement. AC-236 cannot see
+     it: both routes stay enumerated and both still answer 401 bare. */
   router.get(
     '/views/:id',
     requireSession,
@@ -218,7 +195,10 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   /** 4.20's set and nothing else. A place page is furniture rather than a
    * resource that might exist somewhere the caller cannot see, so an
    * unknown name is 404 and says nothing further. */
-  const parsedPlace = (res: Response, raw: unknown): string | null => {
+  const parsedPlace = (
+    res: Response,
+    raw: unknown,
+  ): PlaceCoverPlace | null => {
     const parsed = placeCoverPlace.safeParse(raw)
     if (!parsed.success) {
       sendError(res, 404, 'not_found', 'Not found.')
@@ -273,6 +253,54 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (place === null) return
       await deletePlaceCover(db, viewer(req), place)
       res.status(204).end()
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * 7.21 place descriptions
+   * ---------------------------------------------------------------- */
+
+  /* Mounted after the /views family and beside the covers, deliberately: a
+     literal prefix added at the end of this file shadows nothing. The
+     load-bearing order is not inside this file at all — it is this router's
+     position behind createViewsRouter in index.ts, written down at
+     `/views/:id` above and at both mounts there (issue #37). The place parser above is 4.20's set and 4.22's is the
+     same set, so it is shared rather than copied.
+
+     **The session check on the read is written here because nothing else
+     writes it.** AC-236 sweeps mutating routes only, so a GET that forgot
+     `requireSession` would answer every caller with the empty viewer's rows
+     and pass the whole suite. */
+  router.get(
+    '/place-descriptions',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      res
+        .status(200)
+        .json({ descriptions: await listPlaceDescriptions(db, viewer(req)) })
+    },
+  )
+
+  router.put(
+    '/place-descriptions/:place',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const place = parsedPlace(res, req.params.place)
+      if (place === null) return
+      const parsed = putPlaceDescriptionBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      res
+        .status(200)
+        .json(await putPlaceDescription(db, viewer(req), place, parsed.data))
     },
   )
 

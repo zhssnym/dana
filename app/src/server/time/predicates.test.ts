@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { addDays } from './calendarDate.js'
+import { addDays } from './calendar-date.js'
 import {
   CALENDAR_RANGE_MAX_DAYS,
   checkCalendarRange,

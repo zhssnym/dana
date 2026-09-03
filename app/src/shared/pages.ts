@@ -80,6 +80,27 @@ export interface PageBlock {
   position: number
   text: string | null
   file_id: string | null
+  /*
+  The shape of the picture `file_id` names, or null (4.16 as migration 0009
+  left it, issue #27).
+
+  **These are read-only and they are the file's, not the block's**, which is
+  why they are absent from `blockWrite` above and why they carry the `file_`
+  prefix that `width_pct` does not. `width_pct` is a decision the person made
+  about this block, so a PUT carries it; the dimensions are a fact about the
+  bytes, so they arrive with the block and are never sent back. One image
+  placed on three pages is one shape reported three times rather than three
+  numbers free to disagree.
+
+  **Null means unknown and must draw exactly what today draws.** Every file
+  stored before migration 0009 has null here and no backfill has been run, so
+  a client that treats null as anything but "I do not know this picture's
+  shape" would break pages that work now. `components/page-image.tsx`'s 16 by
+  9 fallback is that behaviour and it stays; these fields let it be right
+  instead, for a reader who did not upload the picture.
+  */
+  file_width: number | null
+  file_height: number | null
   ref_folder_id: string | null
   width_pct: number | null
   updated_at: string
@@ -103,6 +124,8 @@ export const pageBlock = z.object({
   position: z.number().int(),
   text: z.string().nullable(),
   file_id: z.uuid().nullable(),
+  file_width: z.number().int().nullable(),
+  file_height: z.number().int().nullable(),
   ref_folder_id: z.uuid().nullable(),
   width_pct: z.number().int().nullable(),
   updated_at: z.string(),

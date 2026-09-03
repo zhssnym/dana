@@ -32,8 +32,8 @@ import type { SQL } from 'drizzle-orm'
 
 import type { GetSearchResponse, SearchCursor } from '../../shared/views.js'
 import { encodeSearchCursor } from '../../shared/views.js'
-import { rowsOf } from '../domain/db.js'
-import type { Executor } from '../domain/db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 import {
   SEARCH_PAGE_SIZE,

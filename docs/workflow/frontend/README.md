@@ -146,6 +146,21 @@ discover it.
 
 The third is an acceptable answer. Writing "tested" after watching it compile is not.
 
+**The order for a small change: look at it first, gate it last.** The full suite is about six
+minutes and the browser leg about eleven, and spending both before anyone has seen a
+seventeen-line change spends them in the wrong order; issue #66 measured fourteen minutes
+before the change could be shown to anybody. So: make the change, run `npm run lint` and
+`npm run typecheck`, run the one Playwright spec that covers that screen, and look at it in a
+browser. Show it, take the corrections, and run the full gate when the work is accepted and
+you are preparing the pull request. **The gate is not weakened by this: the same four
+commands and the browser leg, in full, before every pull request, each named with its result.
+Only the order moves.**
+
+**`npm test` is deliberately not in that fast loop**, and not to save the six minutes. Under
+`environment: 'node'` it proves the client compiles and almost nothing about what it does,
+which `npm run typecheck` has already told you in seconds. For a change to what a person
+sees, the focused spec and your own eyes are the whole of the evidence.
+
 **Component tests exist now, and they are yours.** A component test lives beside its
 component: `person-face.tsx` and `person-face.test.tsx` in the same folder. They run in
 milliseconds, which makes them the only fast way to check that a component draws the right

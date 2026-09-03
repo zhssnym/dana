@@ -1,9 +1,7 @@
 /*
 AC-262: given a deleted task and a deleted folder in the Trash, then each row
 names the days it has left, in the prototype's "30d left", of 4.3 and 4.5's thirty, says its kind as a glyph
-rather than as a word, and still says where it lived; and given that page, then
-it offers no control that deletes anything permanently, 7.13 assigning the
-purge to the tick and 9.11 naming restore alone.
+rather than as a word, and still says where it lived (spec 9.11).
 
 **The countdown is on the row because thirty days is per item**, which the
 prototype's own header argues rather than assumes: "a page-level 'items are
@@ -41,9 +39,14 @@ item 38 made the act the folder owner's, and RFC 0004's S28a amended 7.13
 (item 53) and built `DELETE /api/v1/trash/tasks/:id` and
 `DELETE /api/v1/trash/folders/:id`. Item 36 says this arm "moves in the
 amendment's own commit, red before the implementation", so it moved with the
-server half and is red until S28b draws the control on the row, which is the
-sequencing items 8, 14 and 24 hold to. What it asserts is what a folder owner
-sees: a control that deletes permanently, on a row, beside Restore.
+server half and was red until S28b drew the control on the row, which is the
+sequencing items 8, 14 and 24 hold to. S28b built it and
+`client/screens/trash-screen.tsx` draws "Delete for ever" on the row, so what
+this case asserts is what a folder owner sees: a control that deletes
+permanently, on a row, beside Restore. **The criterion in section 12 caught up
+on 2026-09-03**, issue #31 retiring the arm that still said the opposite; the
+transcription at the head of this file is the amended text, and this paragraph
+is that change's history rather than a claim about what the page does now.
 
 **Who deleted it is 9.11's clause and is not asserted here, because the read
 cannot answer it.** `shared/trash.ts` carries `deleted_at` and no actor, and
@@ -215,8 +218,8 @@ test.describe('AC-262: a Trash row carries its own facts', () => {
       'spec 7.13 as amended by RFC 0005 change control items 36 and 52: Trash offers the ' +
         'folder owner a permanent delete, behind a confirm, served by ' +
         'DELETE /api/v1/trash/tasks/:id and DELETE /api/v1/trash/folders/:id. The signed-in ' +
-        'person owns both fixtures. This arm moved with the server half (S28a) and is red ' +
-        'until S28b draws the control, which is item 36\'s own sequencing',
+        'person owns both fixtures. This arm moved with the server half (S28a), S28b drew ' +
+        'the control, and section 12 retired the arm that denied it on 2026-09-03',
     ).toHaveCount(1)
 
     await expect(

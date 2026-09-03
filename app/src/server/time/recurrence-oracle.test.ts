@@ -28,8 +28,8 @@ refusals are the grammar module's tests, since a string rrule accepts and
 import { RRule } from 'rrule'
 import { describe, expect, test } from 'vitest'
 
-import { addDays } from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+import { addDays } from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 import { instancesInRange, nextInstance } from './recurrence.js'
 
 /** A calendar date as the UTC midnight rrule reads its input at. */

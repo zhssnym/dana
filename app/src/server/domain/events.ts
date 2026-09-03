@@ -32,8 +32,8 @@ import type {
   EventVerb,
   NotificationLine,
 } from '../../shared/events.js'
-import { rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date

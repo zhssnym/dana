@@ -25,6 +25,24 @@ which is that the queries and the tables kept their names while the pages were r
 Every such name in this section is a citation of a query or a table and none of them is a
 claim about what Dana's pages are called.
 
+**A later amendment, and the authority for it. 2026-09-03.** Section 4.11 gained a
+paragraph saying what a monthly or yearly rule does when the anchor's day is missing from
+a period: short months are skipped rather than clamped, and a yearly rule anchored on 29
+February recurs only in leap years. It describes behaviour that has always been
+implemented and tested and changes no stored format. It was authorized in advance: retired
+section 13's items 15 and 22 each directed one sentence to be folded into 4.11 at the next
+authorized change to this section's text, that change was the S29a fold of 2026-08-30, and
+the fold missed it. Issue #26 records the miss and the decision to write it now.
+
+**Third, two amendments landed on 2026-09-03 and both are the freeze working rather than
+failing.** Issue #27 appended `width` and `height` to 4.16, and issue #30 changed 4.19's
+`task_open` default from `panel` to `dialog`. Each was ruled by the owner before it was
+written — #27 as a correctness fix rather than a feature, #30 as Imran's ruling that a task
+opens as a dialog, which 9.3 has carried since — so section 4 moved on a human decision,
+which is what the freeze asks. Neither drops or renames a column. The migrations are 0009 and
+0010, and 0010 carries a data statement as well as a DDL one; its reasoning is in the file
+because forward-only migrations have no other place to keep it.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |
@@ -48,3 +66,4 @@ claim about what Dana's pages are called.
 | 4.19 | [`04.19-user-views.md`](04.19-user-views.md) | 4.19 user_views |
 | 4.20 | [`04.20-user-page-covers.md`](04.20-user-page-covers.md) | 4.20 user_page_covers |
 | 4.21 | [`04.21-sample-objects.md`](04.21-sample-objects.md) | 4.21 sample_objects |
+| 4.22 | [`04.22-user-page-descriptions.md`](04.22-user-page-descriptions.md) | 4.22 user_page_descriptions |

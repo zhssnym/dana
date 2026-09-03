@@ -11,7 +11,8 @@ mount in: when the auth router ran first on this request, its attachSession
 already resolved the cookie and this one steps aside, and when it did not,
 this router still stands alone behind the same three middleware links
 (11.3: session, CSRF on mutations, then the handler; rate limiting joins
-at P9).
+at P9). That block lives in `preamble.ts` since issue #36, with what is and
+is not true of it written down there.
 
 Status grammar, uniform across the surface (5.4, 7.0, 10.2): no session
 401; inaccessible or nonexistent folder 404, never 403, so existence never
@@ -19,23 +20,16 @@ leaks; visible but not permitted 403; the 5.3 and INV-2 rule conflicts
 409; limit and guard failures 422 through the shared schemas and the
 domain results.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import {
   patchFolderBody,
   patchFolderMyMembershipBody,
   postFolderMembersBody,
   postFoldersBody,
 } from '../../shared/folders.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { notifierOf } from '../notify/index.js'
 import { optionalLimit } from '../security/rate-limit.js'
@@ -57,6 +51,7 @@ import {
   removeMembership,
   setMyMembership,
 } from '../domain/folders.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface FoldersRouterOptions {
   dbClient?: DbClient
@@ -64,56 +59,12 @@ export interface FoldersRouterOptions {
   securityLog?: SecurityLogger
 }
 
-/*
-A path id that is not a uuid names nothing that exists, and letting it
-reach a query would surface as a cast error, a 500 wearing a taxonomy the
-contract does not have. 404 is 7.0's word for nonexistent.
-*/
-const uuidParam = z.uuid()
-
-function parsedId(res: Response, raw: unknown): string | null {
-  const parsed = uuidParam.safeParse(raw)
-  if (!parsed.success) {
-    sendError(res, 404, 'not_found', 'Not found.')
-    return null
-  }
-  return parsed.data
-}
-
 export function createFoldersRouter(
   options: FoldersRouterOptions = {},
 ): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
-
-  // 11.10: routes that touch the database require options.dbClient and
-  // fail only when called without it (the auth router's convention).
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
 
   /* ---------------------------------------------------------------- *
    * Folders
