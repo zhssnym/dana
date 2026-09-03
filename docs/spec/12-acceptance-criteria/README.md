@@ -15,16 +15,23 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **328 criteria carry their text in the files below.** Every number from AC-001 to AC-360
-  not named below is one of them.
+- **330 criteria carry their text in the files below.** Every number from AC-001 to AC-360
+  not named below is one of them. **This total counts two evenings' work at once and must be
+  re-derived rather than chosen from, if it ever conflicts.** It is 324 as this file stood on
+  2026-09-02, plus AC-343 to AC-346 from the branch that carries this sentence, plus AC-314
+  and AC-315 from a branch merging the same night, which carries their text and the count of
+  the subsection file that holds them. Whichever of the two lands second will conflict here
+  and on the free-numbers bullet below; add the counts, do not take a side.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
-- **Never spent, and free to take: 286 to 289, 304 to 309, 314 to 329, 347 to 349, 358 and
-  359.** Thirty-one numbers. AC-343 to AC-346 were spent on 2026-09-03 by issues #28, #22
-  and #17, taken from the tail of the run rather than its head so that work running in
-  parallel could not collide on the same numbers. Each gap is a range that was allocated ahead of the work and
-  only partly used, which is the ordinary cost of allocating a range before writing it.
+- **Never spent, and free to take: 286 to 289, 304 to 309, 316 to 329, 347 to 349, 358 and
+  359.** Twenty-nine numbers. Six were spent on 2026-09-03: AC-343 to AC-346 by issues #28,
+  #22 and #17, taken from the tail of the run rather than its head so that work running in
+  parallel could not collide on the same numbers, and AC-314 and AC-315 from the head of the
+  same run by the parallel branch described above. Each gap is a range that was allocated
+  ahead of the work and only partly used, which is the ordinary cost of allocating a range
+  before writing it.
 
 The subsection numbers obey the same rule. 12.1 to 12.23 are addresses rather than an
 ordering: a group that dies becomes a tombstone row in the table below, and a new topic takes
