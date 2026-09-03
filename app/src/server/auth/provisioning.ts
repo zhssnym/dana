@@ -191,7 +191,9 @@ export async function provisionUser(
   return inTransaction(db, async (tx) => {
     // Issue #17: a subject Dana has never seen, on an address a live account
     // already holds, is refused here rather than at the index. The whole of
-    // the reasoning is on emailStanding below.
+    // the reasoning is on emailStanding and isEmailCollision above, and the
+    // condition is theirs rather than restated here, because the callback
+    // asks the same question a second time and the two must not drift.
     if (isEmailCollision(await emailStanding(tx, identity))) {
       throw new EmailAlreadyClaimedError()
     }
