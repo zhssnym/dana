@@ -371,7 +371,12 @@ function WindowBarChrome({
   /* Hooks before the branch, and the disabled read is `useHistory`'s own
      contract: a subject that is not a uuid is a thing with no history rather
      than a wrong question, so nothing is sent. */
-  const events = useHistory(subject?.kind ?? 'task', subject?.id ?? '', subject !== null)
+  const events = useHistory(
+    subject?.kind ?? 'task',
+    subject?.id ?? '',
+    subject !== null,
+    subject?.kind === 'folder' ? 'folder' : 'subject',
+  )
   if (subject === null && !showUpdate) return null
   return (
     <WindowBarActions order={1}>
