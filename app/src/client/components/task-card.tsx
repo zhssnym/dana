@@ -88,7 +88,6 @@ import {
   CHIP_REPEAT,
   UNASSIGNED,
 } from "./task-card-copy.js"
-import { DATE_DEPENDENT_HELPER } from "./task-copy.js"
 import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
 import { TaskHistoryBlock } from "./task-history-block.js"
@@ -2196,29 +2195,6 @@ export function TaskCard({
           <RepeatPanel task={task} patch={patch} />
         </PickerChip>
       </div>
-
-      {/*
-      **Seam, S23: 9.3's helper for the two date-dependent rows.**
-
-      The section's field table gives reminder and repeat the same "requires a
-      due date" and the same "On disable, helper" text, and AC-092 reads it as
-      a property of the surface rather than of either chip: visible while the
-      two are disabled, gone the moment they are not. Drawn once, beside them,
-      because two disabled chips each carrying their own would put two of one
-      sentence on one strip.
-
-      **Enablement is on the value and never on the write.** `undated` is read
-      off the task the surface is holding, which is the draft on a capture and
-      the answered row afterwards, so a date answered on the due chip enables
-      these two in the same render. The criterion is explicit that the other
-      reading fails: "a strip that enables on the response renders a chip a
-      person cannot press while the answer sits beside it."
-      */}
-      {undated ? (
-        <p className="px-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-          {DATE_DEPENDENT_HELPER}
-        </p>
-      ) : null}
 
       {inviting && task.folder?.id !== undefined ? (
         <TaskAssigneeInvite
