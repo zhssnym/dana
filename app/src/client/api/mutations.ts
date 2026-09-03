@@ -24,9 +24,6 @@ ones section 7 names.
 */
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
-// A value import since S13: two one-key response shapes (the import's and
-// the transfer's) are their endpoints' own and no shared module carries them.
-import { z } from 'zod'
 
 import {
   deleteFolderResponse,
@@ -34,6 +31,7 @@ import {
   patchFolderMyMembershipResponse,
   patchFolderResponse,
   postFolderMembersResponse,
+  transferOwnershipResponse,
 } from '../../shared/folders.js'
 import type {
   DeleteFolderResponse,
@@ -42,6 +40,7 @@ import type {
   PatchFolderBody,
   PatchFolderMyMembershipBody,
   PostFoldersBody,
+  TransferOwnershipResponse,
 } from '../../shared/folders.js'
 import { getSettingsResponse, savedView } from '../../shared/bundle.js'
 import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
@@ -102,8 +101,14 @@ import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
-import { needsImportAnchor } from '../../shared/workflows.js'
-import type { ImportWorkflowBody } from '../../shared/workflows.js'
+import {
+  importWorkflowResponse,
+  needsImportAnchor,
+} from '../../shared/workflows.js'
+import type {
+  ImportWorkflowBody,
+  ImportWorkflowResponse,
+} from '../../shared/workflows.js'
 
 import { mutateApi, requestTimezone } from './http.js'
 import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
@@ -762,37 +767,19 @@ export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string
 /** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
  * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
 export function useTransferOwnership(): UseMutationResult<
-  { owner_id: string },
+  TransferOwnershipResponse,
   Error,
   { readonly id: string; readonly to: string }
 > {
   return useMutation({
     mutationFn: ({ id, to }) =>
-      mutateApi(z.object({ owner_id: z.uuid() }), {
+      mutateApi(transferOwnershipResponse, {
         method: 'POST',
         path: `/folders/${id}/transfer-ownership`,
         body: { to },
       }),
   })
 }
-
-/*
-7.16's workflow import, which 9.13's starter offer is the only caller of so
-far and a person's own exported file will be the second.
-
-**The response schema is declared here rather than in `src/shared/`**, and
-that is a boundary rather than a preference. The v2 packages published write
-bodies and no readable response shapes, which S9 recorded when it added four
-read schemas outside its own paths and flagged them; `src/shared/workflows.ts`
-belongs to the API role, so this session declares what it needs to parse and
-leaves the move to the Steward. It is not a duplicate of anything: no shared
-schema for this body exists to duplicate.
-*/
-const importWorkflowResponse = z.object({
-  folders: z.array(z.object({ id: z.uuid(), name: z.string() })),
-})
-
-export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
 
 export function useImportWorkflow(): UseMutationResult<
   ImportWorkflowResponse,
