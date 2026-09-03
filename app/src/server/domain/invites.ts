@@ -569,11 +569,14 @@ export type AcceptInviteResult =
     }
   | { kind: 'not_pending' }
   | { kind: 'member_cap' }
+  | { kind: 'folder_in_trash' }
 
 /*
 The acceptance transaction of 8.7, in its order, all or nothing:
 
   connection upsert (INV-9, idempotent)
+  the Trash guard when a folder is attached: a folder whose deleted_at is set
+    is refused, and the acceptance rolls back whole (issue #28)
   membership grant when a folder is attached and the acceptor is not already
     a member, under the 10.3 cap the kickoff ruling binds to every 8.7 grant
   conditional assignment when a task is attached
@@ -591,6 +594,24 @@ because a return value commits the transaction and everything this function
 has written by then, the connection row included, has to go with it.
 */
 const CAP_ROLLBACK = Symbol('member cap refusal, rolling the acceptance back')
+
+/*
+The Trash guard, issue #28, decided by the owner on 2026-09-03 and written
+into 5.2's accept row and 8.7's transaction.
+
+Deleting a folder was hard until RFC 0005 made it soft, and its pending
+invites went with it in the same statement. Since then the row survives for
+thirty days and this function never looked at `deleted_at`, so an acceptance
+inside that window succeeded and handed somebody a membership on a folder no
+query but Trash will ever show them. Nothing was specified for the window;
+this is the answer chosen for it, and the reasons are 8.7's.
+
+It is a rollback marker rather than a return for exactly the CAP_ROLLBACK
+reason above: the connection row is already written by the time the folder is
+read, and a refusal that kept it would mint a roster connection out of an
+invite nobody accepted.
+*/
+const TRASH_ROLLBACK = Symbol('the folder is in Trash, rolling the acceptance back')
 
 export async function acceptInvite(
   db: Db,
@@ -627,15 +648,33 @@ export async function acceptInvite(
       )
 
       if (folderId !== null) {
+        /*
+        One read, locking the folder row, answering both questions this
+        transaction has about it: is it in Trash, and is the cap free.
+
+        The lock moves up from the counting branch below, where it used to
+        sit, so that the Trash guard and the grant are one decision against a
+        concurrent DELETE /folders/:id, which soft-deletes by updating this
+        same row. A delete that commits first is read here and refuses; one
+        that arrives later waits on this lock and lands after the grant. It
+        is taken whether or not the acceptor is already a member, because the
+        refusal is about the invite's folder rather than about the membership
+        it would create: an invite into a folder sitting in Trash is refused
+        even when accepting it would grant nothing, since the response's
+        `folder` would otherwise name a folder the acceptor cannot open.
+        */
+        const target = await rowsOf(
+          tx,
+          sql`SELECT deleted_at FROM folders WHERE id = ${folderId} FOR UPDATE`,
+        )
+        if ((target[0]?.deleted_at ?? null) !== null) throw TRASH_ROLLBACK
+
         const already = await rowsOf(
           tx,
           sql`SELECT 1 AS present FROM folder_members
               WHERE folder_id = ${folderId} AND user_id = ${acceptorId}`,
         )
         if (already.length === 0) {
-          await tx.execute(
-            sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
-          )
           const count = await rowsOf(
             tx,
             sql`SELECT count(*)::int AS n FROM folder_members
@@ -680,6 +719,7 @@ export async function acceptInvite(
     })
   } catch (error) {
     if (error === CAP_ROLLBACK) return { kind: 'member_cap' }
+    if (error === TRASH_ROLLBACK) return { kind: 'folder_in_trash' }
     throw error
   }
 }

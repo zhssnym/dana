@@ -1,9 +1,11 @@
 /*
-The two pages the callback can answer with. A refusal reaches a person in a
+The pages the callback can answer with. A refusal reaches a person in a
 browser, not a client that reads JSON: the callback is a redirect target, so
 the section 7.0 error envelope would arrive as text on a blank screen.
 
-The unverified-email copy is section 9.2, normative and reproduced exactly.
+There are two of them since 2026-09-03 (issue #17): the unverified email, and
+a verified email that already belongs to another account. Both copies are
+section 9.2, normative and reproduced exactly.
 Every value interpolated into these pages is escaped, even where today's
 callers pass literals, because the day one of them passes a provider-supplied
 string is the day that rule has to already exist.
@@ -35,6 +37,8 @@ Frontend Architect's section, and only the presentation moved. `pages.test.ts`
 beside this file pins the nine so a third transcription cannot quietly undo
 them.
 */
+import { SUPPORT_EMAIL } from '../../shared/support.js'
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -44,7 +48,20 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function page(title: string, heading: string, body: string, action: string): string {
+interface Support {
+  href: string
+  label: string
+}
+
+function page(
+  title: string,
+  heading: string,
+  body: string,
+  action: string,
+  /** A second, quieter action. The unverified page has none, which is why
+   * this is optional rather than a second required argument. */
+  support?: Support,
+): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -157,6 +174,16 @@ function page(title: string, heading: string, body: string, action: string): str
     outline: 2px solid #3c5bbf;
     outline-offset: 2px;
   }
+  /* The second action, where a page has one: the same control at rest, in
+     the card's own hairline rather than in the mark's black, so that one
+     page never offers two things that look equally like the way out. */
+  .action a.support {
+    margin-left: 10px;
+    border: 1px solid #dddee2;
+    background: #ffffff;
+    color: #2f3136;
+  }
+  .action a.support:hover { background: #fafafb; }
 </style>
 </head>
 <body>
@@ -174,7 +201,11 @@ function page(title: string, heading: string, body: string, action: string): str
 </div>
 <h1>${escapeHtml(heading)}</h1>
 <p>${escapeHtml(body)}</p>
-<p class="action"><a href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>${escapeHtml(action)}</a></p>
+<p class="action"><a href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>${escapeHtml(action)}</a>${
+    support === undefined
+      ? ''
+      : `<a class="support" href="${escapeHtml(support.href)}">${escapeHtml(support.label)}</a>`
+  }</p>
 </section>
 </main>
 </body>
@@ -193,12 +224,58 @@ export function unverifiedEmailPage(): string {
 }
 
 /*
-There is deliberately no second page here. Every other refusal (a spent or
+The second page, section 9.2 verbatim, added 2026-09-03 for issue #17.
+
+**What it says and what it is careful about.** Imran ruled the words: tell the
+person an account already uses this email, ask them to try their original
+Google account, and point them at support. The heading and body below are 9.2
+and are normative there like every other string in section 9.
+
+**On telling an unauthenticated stranger that an account exists.** It was
+weighed and it is not a disclosure, and the reasoning is written here because
+the next person to read this page will otherwise reopen it.
+
+Nobody reaches this page without completing the whole handshake: a
+state, a nonce and a PKCE verifier, each single-use and bound to a cookie this
+origin set, and Google's own assertion that this address is verified and is
+theirs. So the only person who can be shown this sentence about an address is
+somebody Google has just vouched for as the owner of that mailbox. It cannot
+be probed: an attacker who wants to ask "does Dana have an account at this
+address" has first to hold a Google account at it, at which point they can
+read the mailbox and the answer is not Dana's to keep. That is a stronger
+guarantee than a password-reset form gives, and the products that hide this
+fact are hiding it from a form anyone can type into.
+
+Against that, the refusal is the one dead end in the product. There is no
+password to reset and no second factor to try; the person is holding the wrong
+Google account and has no way to be told so. Refusing without saying why costs
+a real person their account and buys an attacker nothing, because the attacker
+was already the mailbox's owner. So it says why.
+
+**What it still does not say.** Not whose account, not when it was made, not
+what name is on it, and not whether the two addresses differ by a Gmail dot.
+The sentence is about the address the person themselves just presented and
+about nothing else in the database.
+*/
+export function emailAlreadyClaimedPage(): string {
+  return page(
+    'This email already has an account',
+    'This email already has an account',
+    'An account already uses this email address, and Dana never joins two accounts together. Sign in with the Google account you used the first time. If that still does not get you in, write to ' +
+      `${SUPPORT_EMAIL} and a person will answer.`,
+    'Back to Dana',
+    { href: `mailto:${SUPPORT_EMAIL}`, label: 'Email support' },
+  )
+}
+
+/*
+There is deliberately no third page here. Every other refusal (a spent or
 forged state, a mismatched nonce, a cancelled consent screen) returns to the
 landing page carrying ?signin=failed rather than rendering copy this module
-would have to invent: section 9 owns every user-facing word, and 9.2 is the
-only page it gives the callback. The marker is the landing page's cue to say
-whatever section 9 eventually decides it says; since the polish pass the
+would have to invent: section 9 owns every user-facing word, and it gives the
+callback exactly the two pages above. The marker is the landing page's cue to
+say whatever section 9 eventually decides it says; since the polish pass the
 landing answers it with 9.1's global failure sentence.
 */
 export const SIGN_IN_FAILED_TARGET = '/?signin=failed'
+
