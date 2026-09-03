@@ -355,7 +355,15 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       */
       const claimed =
         error instanceof EmailAlreadyClaimedError ||
-        (await emailStanding(db, identity)).addressClaimed
+        // The second look is itself a database call, on a path a database
+        // fault is the likeliest reason for reaching. It answers "not a
+        // collision" rather than throwing, because a throw here would turn a
+        // handled refusal into a 500 on the one endpoint a person meets
+        // before they have an account.
+        (await emailStanding(db, identity).catch(() => ({
+          subjectKnown: false,
+          addressClaimed: false,
+        }))).addressClaimed
       if (claimed) {
         securityLog.authEvent('sign_in_failed', { reason: 'email_already_claimed' })
         refuseClaimedEmail(res)
