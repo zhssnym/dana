@@ -27,9 +27,9 @@ the presence on `components/page/IdentityHead.tsx`, retired at S27.
 
 **The fact rides the title's line; prose sits under it.** The folder page put
 its completion ratio on the baseline and its description below (DES-130 as
-Imran revised it), and the places divide the same way: "Starred tasks" is prose
-and a progress figure is the quiet figure beside the name. A page with nothing
-to count leaves that slot empty rather than inventing a number to fill it.
+Imran revised it), and the places divide the same way: their friendly sentence
+is prose and a progress figure is the quiet figure beside the name. A page with
+nothing to count leaves that slot empty rather than inventing a number to fill it.
 
 **Two of the head's five parts are deliberately absent, and this is the
 record.** The designer's `page-head.tsx` also carries a cover band, an "Add
