@@ -514,7 +514,7 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
         </div>
 
-        <div role="grid" aria-label="Planned calendar" className="bg-white" ref={grid}>
+        <div role="grid" aria-label="Scheduled calendar" className="bg-white" ref={grid}>
           <div
             role="row"
             className="grid border-b border-[var(--color-graphite-200)] bg-white"
