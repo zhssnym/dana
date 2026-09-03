@@ -15,6 +15,18 @@ catalog and the migration are allowed to change together in a single
 defective commit: the table list, transcribed here straight from section 4,
 and the composite assignee foreign key of 4.5, the one constraint in the
 schema whose exact on-delete behavior no P0 criterion proves behaviorally.
+
+Deferrability is asserted over every constraint the catalog names, not over
+the foreign keys alone, and it is section 4 that fixes it: 4.15 records
+comments_task_scope_fkey as DEFERRABLE INITIALLY IMMEDIATE since migration
+0007, so that 7.6's move can re-scope a conversation inside one transaction.
+A constraint that defers is one a transaction may hold broken across
+statements, so the absence of the flag is asserted here as firmly as its
+presence, and any other constraint quietly made deferrable is red. The same
+comparison exists in db/verify.ts, which no CI step and no test runs (issue
+#75); this is the copy that runs on both legs, so a fix-forward migration
+dropping DEFERRABLE from 0007's constraint now fails the suite rather than
+passing it.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -48,6 +60,7 @@ const SECTION_4_TABLES = [
   'steps',
   'tasks',
   'user_page_covers',
+  'user_page_descriptions',
   'user_settings',
   'user_views',
   'users',
@@ -79,6 +92,8 @@ interface ActualConstraint {
   refColumns: string[]
   onDelete: OnDelete | null
   onDeleteSetColumns: string[]
+  deferrable: boolean
+  deferred: boolean
 }
 
 interface ActualIndex {
@@ -121,6 +136,8 @@ async function constraintsOf(
         c.conname AS name,
         c.contype::text AS contype,
         c.confdeltype::text AS on_delete_code,
+        c.condeferrable AS deferrable,
+        c.condeferred AS deferred,
         ref.relname AS ref_table,
         (SELECT array_agg(a.attname ORDER BY k.ord)::text[]
            FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ord)
@@ -151,6 +168,8 @@ async function constraintsOf(
           ? (onDeleteByCode[String(row.on_delete_code)] ?? null)
           : null,
       onDeleteSetColumns: (row.set_cols as string[] | null) ?? [],
+      deferrable: Boolean(row.deferrable),
+      deferred: Boolean(row.deferred),
     })
   }
   return map
@@ -269,6 +288,31 @@ describe('AC-001: migrated schema matches the section 4 catalog', () => {
         expect([...(row?.onDeleteSetColumns ?? [])].sort(), fk.name).toEqual(
           [...(fk.onDeleteSetColumns ?? [])].sort(),
         )
+      }
+
+      // Deferrability, over every catalogued constraint rather than over the
+      // foreign keys alone: an absent flag asserts INITIALLY IMMEDIATE rather
+      // than skipping, so a constraint quietly made deferrable is as red as
+      // 4.15's deferrable one losing its flag. Postgres admits no deferrable
+      // CHECK, and a primary key or unique constraint can be made deferrable,
+      // which is why the map starts from every name and not from the foreign
+      // keys.
+      const expectedDeferral = new Map<
+        string,
+        { deferrable: boolean; deferred: boolean }
+      >(expectedNames.map((name) => [name, { deferrable: false, deferred: false }]))
+      for (const fk of expected.foreignKeys) {
+        expectedDeferral.set(fk.name, {
+          deferrable: fk.deferrable ?? false,
+          deferred: fk.initiallyDeferred ?? false,
+        })
+      }
+      for (const [name, want] of expectedDeferral) {
+        const row = actual.get(name)
+        expect(
+          { deferrable: row?.deferrable, deferred: row?.deferred },
+          name,
+        ).toEqual(want)
       }
     })
 

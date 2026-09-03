@@ -25,7 +25,7 @@ import type {
   GetFolderTasksOpenResponse,
 } from '../../shared/views.js'
 import { takeCapped } from '../../shared/views.js'
-import type { Executor } from '../domain/db.js'
+import type { Executor } from '../database.js'
 
 import { completedPage } from './done.js'
 import { folderScheduled, folderUnscheduled } from './lists.js'

@@ -28,18 +28,18 @@ Openverse (api.openverse.org) needs no key and no account. `OPENVERSE_BASE`
 exists so the contract test can stand a stub upstream; production never sets
 it.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
+import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
 import type { DbClient } from '../../../db/client.js'
-import { attachSession, requireCsrf, requireSession, sessionOf } from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import { MAX_FILE_BYTES, createFile } from '../domain/files.js'
 import type { CreateFileResult } from '../domain/files.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface CoverPhotosRouterOptions {
   dbClient?: DbClient
@@ -74,19 +74,8 @@ async function boundedBytes(response: globalThis.Response): Promise<Buffer | nul
 export function createCoverPhotosRouter(
   options: CoverPhotosRouterOptions = {},
 ): Router {
-  const router = Router()
+  const { router, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
 
   router.get(
     '/covers/photos',
@@ -116,7 +105,12 @@ export function createCoverPhotosRouter(
           title: item.title ?? 'Untitled',
           creator: item.creator ?? 'unknown',
           /* Painted from this origin, which is the whole reason this route
-             exists: img-src 'self' stays exactly as 10.8 wrote it. */
+             exists: img-src admits no third-party host, and this route is
+             what keeps that true. It gained `blob:` on 2026-09-03 for the
+             object URLs the client builds from bytes it already holds; a
+             scheme that reaches no network is not the widening this
+             sentence is about, and no host has been added for a search
+             result. */
           thumb: `/api/v1/covers/photos/${String(item.id)}/thumb`,
         }))
       res.json({ results })
@@ -127,14 +121,11 @@ export function createCoverPhotosRouter(
     '/covers/photos/:id/thumb',
     requireSession,
     async (req: Request, res: Response) => {
-      const id = uuidParam.safeParse(req.params.id)
-      if (!id.success) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
+      const id = parsedId(res, req.params.id)
+      if (id === null) return
       try {
         const upstream = await fetch(
-          `${upstreamBase()}/v1/images/${id.data}/thumb/`,
+          `${upstreamBase()}/v1/images/${id}/thumb/`,
           { signal: AbortSignal.timeout(10_000) },
         )
         if (!upstream.ok) throw new Error(String(upstream.status))
@@ -162,11 +153,8 @@ export function createCoverPhotosRouter(
         sendError(res, 500, 'internal_error', 'The application was constructed without a database.')
         return
       }
-      const folderId = uuidParam.safeParse(req.params.id)
-      if (!folderId.success) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
       const body = pickBody.safeParse(req.body)
       if (!body.success) {
         sendError(res, 422, 'validation_failed', 'photo_id: must be a uuid.')
@@ -208,10 +196,10 @@ export function createCoverPhotosRouter(
       const outcome = await createFile(
         options.dbClient.db,
         options.fileStore,
-        sessionOf(req)?.userId ?? '',
+        viewer(req),
         {
           kind: 'cover',
-          folderId: folderId.data,
+          folderId,
           name: source.title.slice(0, 120) || 'Photo',
           mime: source.mime,
           bytes: source.bytes,
@@ -221,7 +209,17 @@ export function createCoverPhotosRouter(
         refusal(res, outcome)
         return
       }
-      res.status(201).json({ id: outcome.id, bytes: outcome.bytes })
+      // The same answer 7.15's upload sends, because it is the same act: the
+      // shape comes back with the id (issue #27). It matters more here than
+      // there — the caller never held these bytes, the server fetched them
+      // from the upstream's record, so this response is the only thing that
+      // can tell it what was stored.
+      res.status(201).json({
+        id: outcome.id,
+        bytes: outcome.bytes,
+        width: outcome.width,
+        height: outcome.height,
+      })
     },
   )
 

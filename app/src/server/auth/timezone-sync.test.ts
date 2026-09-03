@@ -35,7 +35,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import { cleanupUsers, createTestDb, rows } from '../../../tests/helpers.js'
-import { inTransaction } from './provisioning.js'
+import { inTransaction } from '../database.js'
 import { writeTimezone } from './timezone-sync.js'
 
 let dbClient: DbClient

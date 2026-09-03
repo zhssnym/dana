@@ -31,8 +31,8 @@ the caller reaches for.
 range and computes no today at all, which is why AC-082 can assert it at
 literal dates and why two viewers a day apart must see the same ghosts.
 */
-import { addDays, compareDates } from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+import { addDays, compareDates } from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 import { instancesInRange } from './recurrence.js'
 
 /**

@@ -1,14 +1,24 @@
 /*
 The 7.13 Trash contract as the client reads it (RFC 0005, 9.11).
 
-**A boundary note, because this file is new and this directory is not the
-client arm's.** S3 built the 7.13 routes and typed the view in
+**A boundary note.** S3 built the 7.13 routes and typed the view in
 `src/server/domain/trash.ts`, where the client cannot reach it: `src/shared`
 is the contract both sides import, and `api/http.ts` parses every response
-through a zod schema. So the shapes are restated here rather than exported
-from the server tree, which is the same split every v1 surface already runs
-on. The alternative, importing a server domain type into the client, is the
-one thing the directory boundary exists to prevent.
+through a zod schema. So the shapes were restated here, which is the same
+split every v1 surface already runs on; the alternative, importing a server
+domain type into the client, is the one thing the directory boundary exists
+to prevent.
+
+**Restating them left them unlinked, and #39 closed that.** From 2026-08-24
+this file and `server/domain/trash.ts` carried the same six-and-five fields
+with nothing between them, so a field added to one alone would have compiled
+on both sides and arrived as a 200 the client could not parse. The server no
+longer declares the shape at all: `trashView` is annotated
+`Promise<GetTrashResponse>` and writes against these schemas directly, which
+is the only direction the boundary allows and the one that makes the
+duplication unnecessary rather than merely watched. **So these are now the
+server's types as well as the client's**, and a change here is a change to
+what the handler must produce.
 
 Recorded with the two additions in `shelves.ts` and `bundle.ts` as one change
 control item in RFC 0005: the three v2 backend packages published write

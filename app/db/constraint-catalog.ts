@@ -27,6 +27,15 @@ like users_id_not_null), on PGlite 18 and postgres:18 alike. Those rows are
 outside this catalog and outside AC-001's enumeration; compare against
 contype in ('p', 'u', 'c', 'f') only. Section 4's Null column is enforced by
 NOT NULL and asserted behaviorally, not by name.
+
+Deferrability is recorded on foreign keys only, and its absence means
+immediate, which is asserted rather than skipped: a constraint that quietly
+became deferrable would let a transaction hold a broken state across
+statements, which is the opposite of what section 4 promises. Migration 0007
+made one constraint deferrable on purpose and it is the only entry carrying
+the flag. Nothing else in this schema is deferrable, and Postgres does not
+admit a deferrable CHECK at all, so the other three kinds are compared
+against immediate without a field to say so.
 */
 
 export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action'
@@ -52,6 +61,11 @@ export interface ExpectedForeignKey {
   references: { table: string; columns: string[] }
   onDelete: OnDelete
   onDeleteSetColumns?: string[]
+  /** pg_constraint.condeferrable. Absent means false. */
+  deferrable?: boolean
+  /** pg_constraint.condeferred, meaningful only when deferrable. Absent
+   * means false, which is INITIALLY IMMEDIATE. */
+  initiallyDeferred?: boolean
 }
 
 export interface ExpectedIndex {
@@ -473,6 +487,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['folder_id', 'task_id'],
         references: { table: 'tasks', columns: ['folder_id', 'id'] },
         onDelete: 'cascade',
+        // Migration 0007: the pair holds (folder_id, task_id) against
+        // tasks (folder_id, id), so neither side's UPDATE can go first
+        // while the check is immediate and 7.6's move could not re-scope a
+        // conversation. DEFERRABLE INITIALLY IMMEDIATE, so it still fires
+        // per statement unless a transaction asks for the commit.
+        deferrable: true,
+        initiallyDeferred: false,
       },
     ],
     indexes: [
@@ -532,6 +553,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'files_bytes_positive_check', columns: ['bytes'] },
+      // Issue #27, migration 0009. Both CHECK expressions name width, so
+      // both column lists carry it; the header's rule sorts them.
+      { name: 'files_dimensions_kind_check', columns: ['kind', 'width'] },
+      { name: 'files_dimensions_pair_check', columns: ['height', 'width'] },
       { name: 'files_duration_voice_check', columns: ['duration_ms', 'kind'] },
       { name: 'files_kind_check', columns: ['kind'] },
       { name: 'files_name_length_check', columns: ['name'] },
@@ -688,6 +713,26 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     foreignKeys: [
       {
         name: 'sample_objects_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  user_page_descriptions: {
+    primaryKey: {
+      name: 'user_page_descriptions_pkey',
+      columns: ['user_id', 'place'],
+    },
+    uniques: [],
+    checks: [
+      { name: 'user_page_descriptions_length_check', columns: ['description'] },
+      { name: 'user_page_descriptions_place_check', columns: ['place'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'user_page_descriptions_user_id_fkey',
         columns: ['user_id'],
         references: { table: 'users', columns: ['id'] },
         onDelete: 'cascade',

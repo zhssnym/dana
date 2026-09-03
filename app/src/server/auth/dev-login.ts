@@ -24,7 +24,8 @@ import type { Request, Response } from 'express'
 
 import type { Db } from '../../../db/client.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
-import { provisionUser, syncTimezone } from './provisioning.js'
+import { sendError } from '../http/errors.js'
+import { EmailAlreadyClaimedError, provisionUser, syncTimezone } from './provisioning.js'
 
 interface DevLoginBody {
   email?: unknown
@@ -71,12 +72,35 @@ export async function handleDevLogin(
         ? false
         : sampleDefault
 
-  const user = await provisionUser(
-    db,
-    { sub, email, displayName: name, avatarUrl: null },
-    timezone,
-    { sample },
-  )
+  let user
+  try {
+    user = await provisionUser(
+      db,
+      { sub, email, displayName: name, avatarUrl: null },
+      timezone,
+      { sample },
+    )
+  } catch (error) {
+    /*
+    Issue #17's collision reaches this route too, and it reaches it as a
+    mistake in a seed rather than as a product event: a harness that names an
+    email already held by a different sub. Answered as a refusal a person can
+    read, because the alternative is a 500 in a Playwright log with nothing in
+    it about which of the two names collided. The callback's own answer is the
+    9.2 page; this route serves no browser and answers JSON like the rest of
+    the API.
+    */
+    if (error instanceof EmailAlreadyClaimedError) {
+      sendError(
+        res,
+        409,
+        'conflict',
+        `The email ${email} already belongs to a different account; name a different sub or email.`,
+      )
+      return
+    }
+    throw error
+  }
   await syncTimezone(db, user, timezone)
   await establish(res, user.id)
 

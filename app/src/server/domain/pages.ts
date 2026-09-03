@@ -15,6 +15,14 @@ lost-update this rule exists to refuse.
 
 One PUT is one mutation and one event (4.13), whatever it did to however
 many blocks.
+
+The read joins `files` for one thing only: 4.16's width and height, so that a
+reader who did not upload the picture can reserve its space before the bytes
+arrive (issue #27). It is a LEFT JOIN on the file's primary key, so a block
+with no file, and a file stored before migration 0009, both answer null and
+multiply no rows. Nothing about the write path knows these columns exist: the
+shape belongs to the file and a PUT that carried it would be a second record
+of one fact.
 */
 import { sql } from 'drizzle-orm'
 
@@ -24,9 +32,11 @@ import type {
   PageBlockWrite,
   PageView,
 } from '../../shared/pages.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { accessOf } from './folders.js'
+import { shelfView } from './shelves.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -38,6 +48,13 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value)
 }
 
+/** 4.16's dimensions as the join hands them over: absent for a block with no
+ * file, null for a file stored before migration 0009 (issue #27). Both read
+ * as null here, and the contract says null means unknown. */
+function nullableInt(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
 function blockFromRow(row: Record<string, unknown>): PageBlock {
   return {
     id: String(row.id),
@@ -45,6 +62,8 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     position: Number(row.position),
     text: nullableString(row.text),
     file_id: nullableString(row.file_id),
+    file_width: nullableInt(row.file_width),
+    file_height: nullableInt(row.file_height),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -56,19 +75,71 @@ export interface PageHome {
   shelfId: string | null
 }
 
-function homeCondition(home: PageHome) {
+/*
+Qualified with the block table's alias rather than bare, and the reason is a
+column collision rather than taste: the read below joins `files`, which
+carries a `folder_id` of its own (4.16's visibility scope), so an unqualified
+`folder_id` is ambiguous and the statement fails to parse. Every statement in
+this module aliases page_blocks `b` so this fragment reads the same in all
+three.
+
+**The viewer is part of the condition, since issue #35.** Until then these
+functions took no viewer at all, which made them the one place in this
+directory where authorization lived entirely in the caller: everywhere else
+the membership check is written inside the `FROM` clause, so a query that
+forgets it returns nothing rather than another person's rows, and a page read
+could not do that. Every caller had in fact gated — `routes/workshop.ts` calls
+`accessOf` before both folder-page routes and `shelfView` before both shelf-page
+routes, checked one by one — so this repairs a shape rather than a leak, and
+the route gates stay where they are because only they can tell 404 from an
+empty page.
+
+EXISTS rather than a join, so the scope multiplies no rows and adds no column
+to the ambiguity the paragraph above is about. A folder page is visible to its
+members while the folder is not trashed, which is `accessOf`'s own predicate; a
+shelf is its owner's alone (4.18).
+*/
+function homeCondition(home: PageHome, viewerId: string) {
   return home.folderId !== null
-    ? sql`folder_id = ${home.folderId}`
-    : sql`shelf_id = ${home.shelfId}`
+    ? sql`b.folder_id = ${home.folderId}
+          AND EXISTS (SELECT 1 FROM folders vf
+                        JOIN folder_members vm ON vm.folder_id = vf.id
+                       WHERE vf.id = b.folder_id
+                         AND vm.user_id = ${viewerId}
+                         AND vf.deleted_at IS NULL)`
+    : sql`b.shelf_id = ${home.shelfId}
+          AND EXISTS (SELECT 1 FROM shelves vs
+                       WHERE vs.id = b.shelf_id
+                         AND vs.user_id = ${viewerId})`
 }
 
-export async function pageView(db: Db, home: PageHome): Promise<PageView> {
+/** The page's home as the viewer can see it, by the same two functions the
+ * routes gate with, so "visible" has one definition rather than two. */
+async function homeIsVisible(
+  tx: Executor,
+  home: PageHome,
+  viewerId: string,
+): Promise<boolean> {
+  return home.folderId !== null
+    ? (await accessOf(tx, viewerId, home.folderId)) !== null
+    : home.shelfId !== null &&
+        (await shelfView(tx, viewerId, home.shelfId)) !== null
+}
+
+export async function pageView(
+  db: Db,
+  viewerId: string,
+  home: PageHome,
+): Promise<PageView> {
   const rows = await rowsOf(
     db,
-    sql`SELECT id, kind, position, text, file_id, ref_folder_id, width_pct,
-               updated_at
-        FROM page_blocks WHERE ${homeCondition(home)}
-        ORDER BY position ASC, id ASC`,
+    sql`SELECT b.id, b.kind, b.position, b.text, b.file_id, b.ref_folder_id,
+               b.width_pct, b.updated_at,
+               f.width AS file_width, f.height AS file_height
+        FROM page_blocks b
+        LEFT JOIN files f ON f.id = b.file_id
+        WHERE ${homeCondition(home, viewerId)}
+        ORDER BY b.position ASC, b.id ASC`,
   )
   return { blocks: rows.map(blockFromRow) }
 }
@@ -76,18 +147,29 @@ export async function pageView(db: Db, home: PageHome): Promise<PageView> {
 export type PutPageResult =
   | { kind: 'written'; page: PageView }
   | { kind: 'stale'; blockId: string }
+  | { kind: 'not_found' }
 
 export async function putPage(
   db: Db,
-  home: PageHome,
   viewerId: string,
+  home: PageHome,
   blocks: readonly PageBlockWrite[],
 ): Promise<PutPageResult> {
   return inTransaction(db, async (tx) => {
+    /* The insert below writes `home.folderId` as it was handed over, so the
+       scoped read alone would not stop a write into a folder the viewer
+       cannot see: an ungated caller would find no stored blocks, refuse
+       nothing, and insert. This is the check that makes that impossible, and
+       it is why the viewer had to be threaded rather than only joined. The
+       routes gate before they call, so this answers nobody today; it is here
+       so that a caller which forgets is refused rather than obeyed. */
+    if (!(await homeIsVisible(tx, home, viewerId))) {
+      return { kind: 'not_found' } as const
+    }
     const current = await rowsOf(
       tx,
-      sql`SELECT id, updated_at FROM page_blocks
-          WHERE ${homeCondition(home)} FOR UPDATE`,
+      sql`SELECT b.id, b.updated_at FROM page_blocks b
+          WHERE ${homeCondition(home, viewerId)} FOR UPDATE`,
     )
     const stored = new Map(
       current.map((row) => [String(row.id), toIso(row.updated_at)]),
@@ -156,19 +238,29 @@ export async function putPage(
       detail: 'edited the page',
     })
 
-    return { kind: 'written', page: await pageViewIn(tx, home) } as const
+    return {
+      kind: 'written',
+      page: await pageViewIn(tx, viewerId, home),
+    } as const
   })
 }
 
 /** The read again, on the transaction's own snapshot, so the response can
  * never describe blocks the write did not leave. */
-async function pageViewIn(tx: Executor, home: PageHome): Promise<PageView> {
+async function pageViewIn(
+  tx: Executor,
+  viewerId: string,
+  home: PageHome,
+): Promise<PageView> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT id, kind, position, text, file_id, ref_folder_id, width_pct,
-               updated_at
-        FROM page_blocks WHERE ${homeCondition(home)}
-        ORDER BY position ASC, id ASC`,
+    sql`SELECT b.id, b.kind, b.position, b.text, b.file_id, b.ref_folder_id,
+               b.width_pct, b.updated_at,
+               f.width AS file_width, f.height AS file_height
+        FROM page_blocks b
+        LEFT JOIN files f ON f.id = b.file_id
+        WHERE ${homeCondition(home, viewerId)}
+        ORDER BY b.position ASC, b.id ASC`,
   )
   return { blocks: rows.map(blockFromRow) }
 }

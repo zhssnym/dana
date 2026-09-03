@@ -15,6 +15,16 @@ payload that claims image/* and cannot be decoded is refused as the lying
 mime it is (AC-194's security half), and one that can is bounded to 2048px
 on its longest edge, which is 7.15's server-side downscale.
 
+That same pass now answers the shape of what it wrote (4.16's width and
+height, migration 0009, issue #27). The numbers are read off sharp's own
+report of the buffer it produced rather than off the bytes that arrived, so
+they describe the object the store holds: the rotation is already applied and
+the downscale has already happened, and a reader reserving a box from them is
+reserving it for the picture it will actually be served. They cost nothing
+extra because the pass was already being made. Only the image kinds have
+them; a voice note and a downloaded attachment keep null, which 0009's
+files_dimensions_kind_check enforces rather than trusts.
+
 No events: a file upload is not one of 4.13's subjects. The act that
 consumes the file (a page edit, a comment, a cover) records itself.
 */
@@ -22,7 +32,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
-import { inTransaction, rowsOf } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
 import { accessOf } from './folders.js'
 
 export type FileKind = 'image' | 'file' | 'voice' | 'cover' | 'avatar'
@@ -60,7 +70,15 @@ export interface UploadInput {
 }
 
 export type CreateFileResult =
-  | { kind: 'created'; id: string; bytes: number }
+  /** 4.16's dimensions ride back with the id (issue #27): null for every
+   *  kind that does not pass through the re-encode, and never a guess. */
+  | {
+      kind: 'created'
+      id: string
+      bytes: number
+      width: number | null
+      height: number | null
+    }
   | { kind: 'folder_not_found' }
   | { kind: 'kind_mime_mismatch' }
   | { kind: 'not_an_image' }
@@ -74,6 +92,14 @@ function mimeMatchesKind(kind: FileKind, mime: string): boolean {
   return true
 }
 
+/** What the re-encode produced: the bytes that will be stored, and the shape
+ * they have once `.rotate()` and the downscale have both been applied. */
+interface Reencoded {
+  bytes: Buffer
+  width: number
+  height: number
+}
+
 /** sharp is imported lazily so constructing the app never loads a native
  * module it might not use; the import cost is paid by the first upload.
  *
@@ -83,10 +109,10 @@ function mimeMatchesKind(kind: FileKind, mime: string): boolean {
  * library default rather than anything written below, so passing
  * limitInputPixels: false to this constructor would remove it with nothing
  * to notice (S14 security review F-7, RFC 0005 change control item 18). */
-async function downscaled(bytes: Buffer): Promise<Buffer | null> {
+async function downscaled(bytes: Buffer): Promise<Reencoded | null> {
   try {
     const { default: sharp } = await import('sharp')
-    return await sharp(bytes)
+    const { data, info } = await sharp(bytes)
       .rotate()
       .resize({
         width: MAX_IMAGE_EDGE,
@@ -94,7 +120,8 @@ async function downscaled(bytes: Buffer): Promise<Buffer | null> {
         fit: 'inside',
         withoutEnlargement: true,
       })
-      .toBuffer()
+      .toBuffer({ resolveWithObject: true })
+    return { bytes: data, width: info.width, height: info.height }
   } catch {
     return null
   }
@@ -129,10 +156,14 @@ export async function createFile(
   }
 
   let stored = input.bytes
+  let width: number | null = null
+  let height: number | null = null
   if (IMAGE_KINDS.has(input.kind)) {
     const scaled = await downscaled(input.bytes)
     if (scaled === null) return { kind: 'not_an_image' }
-    stored = scaled
+    stored = scaled.bytes
+    width = scaled.width
+    height = scaled.height
   }
 
   return inTransaction(db, async (tx) => {
@@ -153,18 +184,25 @@ export async function createFile(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO files (owner_id, folder_id, kind, name, mime, bytes,
-                             duration_ms)
+                             duration_ms, width, height)
           VALUES (${viewerId}::uuid,
                   ${input.folderId === null ? null : input.folderId},
                   ${input.kind}, ${input.name}, ${input.mime},
-                  ${stored.byteLength}, ${input.durationMs ?? null})
+                  ${stored.byteLength}, ${input.durationMs ?? null},
+                  ${width}, ${height})
           RETURNING id`,
     )
     const id = String(inserted[0]?.id)
     // Inside the transaction window: a store failure throws and takes the
     // row with it.
     await store.put(id, stored)
-    return { kind: 'created', id, bytes: stored.byteLength } as const
+    return {
+      kind: 'created',
+      id,
+      bytes: stored.byteLength,
+      width,
+      height,
+    } as const
   })
 }
 
