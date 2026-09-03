@@ -72,6 +72,8 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
       c.conname AS name,
       c.contype AS contype,
       c.confdeltype AS ondelete,
+      c.condeferrable AS deferrable,
+      c.condeferred AS deferred,
       rt.relname AS ref_table,
       (SELECT array_agg(a.attname ORDER BY k.ord)::text[]
          FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ord)
@@ -153,6 +155,45 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
     const expectedSetCols = fk.onDeleteSetColumns ?? []
     if (!sameList([...expectedSetCols].sort(), [...actualSetCols].sort())) {
       problem(`${table}.${fk.name}: on delete set columns [${actualSetCols.join(', ')}]`)
+    }
+  }
+
+  /*
+  Deferrability, over every constraint the catalog names rather than over
+  the foreign keys alone. Migration 0007 made comments_task_scope_fkey
+  DEFERRABLE INITIALLY IMMEDIATE so 7.6's move can re-scope a conversation
+  inside one transaction, and until this loop existed nothing anywhere
+  observed that: the migration could be reverted, or any other constraint
+  quietly made deferrable, and every check in this file and in AC-001 still
+  passed. A constraint that defers is a constraint a transaction may hold
+  broken across statements, so the absence of the flag is asserted as
+  firmly as its presence.
+
+  The same comparison now runs in tests/ac-001-constraint-catalog.test.ts,
+  which is the copy CI executes: nothing runs this file, which was issue #75.
+  It is kept here rather than deleted because this file is the data owner's
+  whole-catalog check and a half of it missing would make the two disagree
+  about what they cover; they read the same catalog, so they cannot disagree
+  about the answer.
+  */
+  const expectedDeferral = new Map<string, { deferrable: boolean; deferred: boolean }>(
+    expectedNames.map((name) => [name, { deferrable: false, deferred: false }]),
+  )
+  for (const fk of expected.foreignKeys) {
+    expectedDeferral.set(fk.name, {
+      deferrable: fk.deferrable ?? false,
+      deferred: fk.initiallyDeferred ?? false,
+    })
+  }
+  for (const [name, want] of expectedDeferral) {
+    const row = byName.get(name)
+    if (row === undefined) continue
+    const isDeferrable = row.deferrable === true
+    const isDeferred = row.deferred === true
+    if (isDeferrable !== want.deferrable || isDeferred !== want.deferred) {
+      problem(
+        `${table}.${name}: deferrable=${String(isDeferrable)} initially deferred=${String(isDeferred)}, expected deferrable=${String(want.deferrable)} initially deferred=${String(want.deferred)}`,
+      )
     }
   }
 

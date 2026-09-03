@@ -58,10 +58,14 @@ that forgets it returns nothing rather than someone else's rows; and there are a
 hand-written `accessOf(...)` gates across 9 files. **When you add a route, the gate is your
 job.** Nothing adds it for you.
 
-**The structural guard does not cover GET.** `app/tests/ac-236-structural-guard-sweep.test.ts`
-walks the mounted router and fails any mutating route missing a session or CSRF check. It
-checks POST, PATCH, PUT and DELETE only. **A new GET route with no session check passes the
-entire suite.** Nothing structural checks authorization at all.
+**The structural guard covers authentication, on every method, and authorization on none.**
+`app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
+mutating route missing a session or CSRF check, and since issue #33 any GET that answers
+something other than 401 without a session. Three reads are exempt by name — the health
+probe and the two OAuth legs — each with its reason written beside it, and an exemption
+that stops being true fails too. **Nothing structural checks authorization at all**: a GET
+that takes a session and then reads whatever id it is handed passes the entire suite, so
+the `accessOf(...)` gate above is still yours to write and nothing will miss it.
 
 **Route mount order is load-bearing and undocumented.** In `app/src/server/routes/bundle.ts`,
 `/views/:id` would shadow six page endpoints if anyone reordered it. Do not reorder mounts
