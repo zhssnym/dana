@@ -9,7 +9,7 @@ against each other; where they disagree, RFC 5545 adjudicates, never the
 oracle (section 13 item 4).
 
 **Nothing here touches an instant, and nothing here needs a zone.** Every
-value below is a floating civil date, the kind calendarDate.ts carries: 8.5
+value below is a floating civil date, the kind calendar-date.ts carries: 8.5
 anchors evaluation at DTSTART = the current occurrence's due_date, which 4.11
 stores as SQL DATE with no zone, and asks only for dates back. That is why
 11.15's Luxon hazard does not reach this file at all. It reaches the
@@ -55,8 +55,8 @@ import {
   civilMillis,
   compareDates,
   daysBetween,
-} from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+} from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 
 /** Indexed by the JavaScript weekday number, which is what a UTC midnight
  * reports: 0 is Sunday. The tokens are 4.11's. */
@@ -121,7 +121,7 @@ function dateOf(year: number, month: number, day: number): CalendarDate | null {
 }
 
 /** 0 for Sunday, the JavaScript numbering, read off the UTC midnight
- * calendarDate.ts carries a date as. */
+ * calendar-date.ts carries a date as. */
 function weekdayOf(date: CalendarDate): number {
   return new Date(civilMillis(date)).getUTCDay()
 }
@@ -286,7 +286,7 @@ export function nextInstance(
  * The range is the caller's and is not derived from the rule: 8.5's
  * projection intersects the rule's instances with the range a calendar
  * request asked for, and Q3C's range is inclusive at both ends (the reading
- * calendarDate.ts's withinInclusive fixes). An inverted range yields
+ * calendar-date.ts's withinInclusive fixes). An inverted range yields
  * nothing, because no date is both at or after the later end and at or
  * before the earlier one.
  */

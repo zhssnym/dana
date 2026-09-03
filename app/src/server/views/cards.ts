@@ -34,8 +34,8 @@ import type { SQL } from 'drizzle-orm'
 
 import type { TaskCard } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
-import { rowsOf } from '../domain/db.js'
-import type { Executor } from '../domain/db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization

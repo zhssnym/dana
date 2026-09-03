@@ -9,18 +9,11 @@ viewer cannot read 404, never 403, so existence never leaks; a malformed
 query 422 naming the field. The two read-state POSTs are idempotent through
 their no-op rows and carry the CSRF link like every mutation (11.3).
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import { eventsQuery, parseSubjectRef } from '../../shared/events.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   listFolderEvents,
   listNotifications,
@@ -34,43 +27,16 @@ import { accessibleTask } from '../domain/tasks.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface EventsRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-const uuidParam = z.uuid()
-
 export function createEventsRouter(options: EventsRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
 
   router.get('/events', requireSession, async (req: Request, res: Response) => {
     const db = database(res)
@@ -128,12 +94,13 @@ export function createEventsRouter(options: EventsRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = uuidParam.safeParse(req.params.id)
-      if (!parsed.success) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      const outcome = await markNotificationRead(db, viewer(req), parsed.data)
+      const notificationId = parsedId(res, req.params.id)
+      if (notificationId === null) return
+      const outcome = await markNotificationRead(
+        db,
+        viewer(req),
+        notificationId,
+      )
       if (outcome === 'not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
         return

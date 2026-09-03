@@ -26,7 +26,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import { DEFAULT_FOCAL_Y } from '../../shared/covers.js'
 import type { PlaceCover, PutPlaceCoverBody } from '../../shared/covers.js'
-import { rowsOf } from './db.js'
+import { rowsOf } from '../database.js'
 
 function coverFromRow(row: Record<string, unknown>): PlaceCover {
   return {

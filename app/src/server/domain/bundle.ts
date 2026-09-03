@@ -25,7 +25,7 @@ import type {
   SettingsBundle,
 } from '../../shared/bundle.js'
 import { DEFAULT_PINNED } from '../../shared/bundle.js'
-import { inTransaction, rowsOf } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date

@@ -25,7 +25,7 @@ import type { SQL } from 'drizzle-orm'
 import type { TaskCard } from '../../shared/tasks.js'
 import type { GetMyDayResponse } from '../../shared/views.js'
 import { takeCapped } from '../../shared/views.js'
-import type { Executor } from '../domain/db.js'
+import type { Executor } from '../database.js'
 import { localDayWindow, myDayGroup, qualifyDate, today } from '../time/index.js'
 
 import { CAP_PROBE, readCards } from './cards.js'

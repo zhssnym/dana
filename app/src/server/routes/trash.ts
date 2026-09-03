@@ -14,17 +14,10 @@ grammar throughout: a row that does not exist, is not trashed, or is out of
 the viewer's reach is one answer, 404. Restores answer the restored object
 so the client can place it without a second round trip.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
-import type { Db, DbClient } from '../../../db/client.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import type { DbClient } from '../../../db/client.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import { folderView } from '../domain/folders.js'
 import {
   destroyFolder,
@@ -38,6 +31,7 @@ import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface TrashRouterOptions {
   dbClient?: DbClient
@@ -47,46 +41,9 @@ export interface TrashRouterOptions {
   fileStore?: ObjectStore
 }
 
-const uuidParam = z.uuid()
-
-function parsedId(res: Response, raw: unknown): string | null {
-  const parsed = uuidParam.safeParse(raw)
-  if (!parsed.success) {
-    sendError(res, 404, 'not_found', 'Not found.')
-    return null
-  }
-  return parsed.data
-}
-
 export function createTrashRouter(options: TrashRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
 
   router.get('/trash', requireSession, async (req: Request, res: Response) => {
     const db = database(res)

@@ -31,7 +31,7 @@ import type { SQL } from 'drizzle-orm'
 
 import type { CompletedCursor, GetDoneResponse } from '../../shared/views.js'
 import { encodeCompletedCursor } from '../../shared/views.js'
-import type { Executor } from '../domain/db.js'
+import type { Executor } from '../database.js'
 import { localDateOf } from '../time/index.js'
 
 import { DONE_PAGE_SIZE, readCards, utcInstant } from './cards.js'

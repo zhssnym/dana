@@ -215,6 +215,11 @@ green on its own.
 
 ### Also owed, and not by the boot file: the 8.10 call swap
 
+*(The file this entry names was `src/server/domain/accountDeletion.ts` when
+the request was written and is `account-deletion.ts` since issue #38's
+filename pass. The entry below is left as it was written, being a record of
+a request that was made and fulfilled.)*
+
 `src/server/domain/accountDeletion.ts` now carries steps 1 to 6 of the account
 deletion transaction as `deleteAccountData(tx, userId)`. It opens no
 transaction and touches neither the sessions table nor the user row, because

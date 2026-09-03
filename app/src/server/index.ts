@@ -349,6 +349,39 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.use('/api/health', healthRouter)
 
+  /*
+  The mount order below is load-bearing in exactly one place, and issue #37
+  is that nothing said so. Everything else here is order-independent, which
+  is why the one exception is easy to lose: fifteen routers share the
+  `/api/v1` mount, Express matches whole paths rather than prefixes, and the
+  wiring ledger in routes/README.md checks path-by-path for each new router
+  that it meets no whole path an earlier one claims. The rule those checks
+  are for:
+
+  **`createViewsRouter` must stay ahead of `createBundleRouter`.** The views
+  router owns 7.10's six literal pages, `GET /views/my-day`, `/views/tasks`,
+  `/views/planned`, `/views/important`, `/views/all` and `/views/done`. The
+  bundle router owns 4.19's `GET /views/:id`, which matches any single
+  segment after `/views`, so mounted first it swallows all six: `parsedId`
+  refuses `my-day` as a uuid and the page answers 404 instead of a view.
+
+  Measured 2026-09-03 rather than reasoned, both halves. Swapping the two
+  mounts turns AC-045 and AC-130 red, 15 cases, every one on a page that no
+  longer answers. And a bare Express 5 application with those seven paths
+  answers `shadow` for the six and `page` for `/views/planned/calendar`,
+  which is the boundary: `/views/:id` is one segment and the calendar is two,
+  so it is the only 7.10 page the swap leaves standing.
+
+  **AC-236 does not catch this and cannot.** Both routes stay in the
+  enumeration and both still answer 401 bare, so the sweep's counts and its
+  statuses are unmoved; only the behavioural criteria go red. The guard
+  against reordering is this comment and the two markers below.
+
+  Anything mounted after these two is safe if its paths are literal or claim
+  a prefix no earlier router uses. A new router carrying a one-segment
+  `:param` under a prefix somebody else spells out is the shape to look for.
+  */
+
   // The frozen /api/v1 surface. The 7.1 auth and account endpoints mount
   // first, by the request recorded in src/server/auth/README.md; later
   // packages add their routers here, and every one of them stays ahead of
@@ -407,6 +440,9 @@ export function createApp(options: AppOptions = {}): express.Express {
   // prefix with the folders router but no whole path with it, and Express
   // matches on the whole path, so that pair is order-independent too; every
   // endpoint on it is a GET, which 7.0 makes safe, so it takes no CSRF link.
+  // Load-bearing position: ahead of the bundle router, whose `/views/:id`
+  // would shadow this router's six literal `/views/...` pages. See the
+  // block above `/api/v1`.
   app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient, rateLimits }))
 
   // The P5 invites and connections routers, by the fourth request in that same
@@ -473,6 +509,10 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   // The S7 bundle (4.19): the v2 /settings surface beside frozen 7.2's
   // /me/settings, and the saved views.
+  //
+  // Load-bearing position: behind the views router. Its `GET /views/:id`
+  // matches one segment after `/views` and would shadow that router's six
+  // literal pages if it moved ahead. See the block above `/api/v1`.
   app.use(
     '/api/v1',
     createBundleRouter({ dbClient: options.dbClient, rateLimits }),

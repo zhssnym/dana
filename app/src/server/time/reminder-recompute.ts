@@ -50,11 +50,11 @@ and it is what the ruling above asks for without a special case per trigger.
 */
 import { sql } from 'drizzle-orm'
 
-import type { CalendarDate } from './calendarDate.js'
-import { rowsOf } from './executor.js'
-import type { Executor } from './executor.js'
-import { resolveFireAt } from './reminderTime.js'
-import type { LocalTimeKind } from './reminderTime.js'
+import type { CalendarDate } from './calendar-date.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
+import { resolveFireAt } from './reminder-time.js'
+import type { LocalTimeKind } from './reminder-time.js'
 
 /** 4.8's three states. */
 export type ReminderState = 'scheduled' | 'sent' | 'skipped'

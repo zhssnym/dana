@@ -11,18 +11,12 @@ field. Since issue #22 a comment carries up to 10.3's ten files, named by
 `file_ids` sent beside `file_id` are all refused by the shared schema before
 this router reads anything.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
+import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import { patchCommentBody, postCommentBody } from '../../shared/comments.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   accessibleComment,
   createComment,
@@ -36,55 +30,20 @@ import { accessOf } from '../domain/folders.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface ConversationRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-const uuidParam = z.uuid()
 const threadQuery = z.object({ task: z.uuid().optional() })
 
 export function createConversationRouter(
   options: ConversationRouterOptions = {},
 ): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
-  const parsedId = (res: Response, raw: unknown): string | null => {
-    const parsed = uuidParam.safeParse(raw)
-    if (!parsed.success) {
-      sendError(res, 404, 'not_found', 'Not found.')
-      return null
-    }
-    return parsed.data
-  }
 
   router.get(
     '/folders/:id/comments',

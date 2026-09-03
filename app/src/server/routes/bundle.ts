@@ -16,11 +16,9 @@ person's own sentence under Today is the same kind of thing as their cover
 on it, and it shares this file's place parser rather than growing a second
 copy of 4.20's eight names.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import {
   patchSettingsBody,
   patchViewBody,
@@ -29,12 +27,7 @@ import {
 import { placeCoverPlace, putPlaceCoverBody } from '../../shared/covers.js'
 import type { PlaceCoverPlace } from '../../shared/covers.js'
 import { putPlaceDescriptionBody } from '../../shared/place-descriptions.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   createView,
   deleteView,
@@ -56,52 +49,16 @@ import {
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-const uuidParam = z.uuid()
-
 export function createBundleRouter(options: BundleRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
-
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
-  const parsedId = (res: Response, raw: unknown): string | null => {
-    const parsed = uuidParam.safeParse(raw)
-    if (!parsed.success) {
-      sendError(res, 404, 'not_found', 'Not found.')
-      return null
-    }
-    return parsed.data
-  }
 
   router.get(
     '/settings',
@@ -163,6 +120,15 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     },
   )
 
+  /* **This router must stay mounted behind `createViewsRouter`, and this is
+     the route that makes it so.** `/views/:id` matches one segment after
+     `/views`, so ahead of that router it swallows 7.10's six literal pages —
+     `/views/my-day`, `/views/tasks`, `/views/planned`, `/views/important`,
+     `/views/all` and `/views/done` — and `parsedId` answers each of them 404
+     for not being a uuid. `/views/planned/calendar` is two segments and is
+     the one page that survives. Measured 2026-09-03, and the mount block in
+     index.ts carries the same rule and the measurement. AC-236 cannot see
+     it: both routes stay enumerated and both still answer 401 bare. */
   router.get(
     '/views/:id',
     requireSession,
@@ -294,10 +260,11 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
    * 7.21 place descriptions
    * ---------------------------------------------------------------- */
 
-  /* Mounted after the /views family and beside the covers, deliberately: the
-     mount order in this file is load-bearing, `/views/:id` shadowing six
-     page endpoints if it ever moved, and a literal prefix added at the end
-     shadows nothing. The place parser above is 4.20's set and 4.22's is the
+  /* Mounted after the /views family and beside the covers, deliberately: a
+     literal prefix added at the end of this file shadows nothing. The
+     load-bearing order is not inside this file at all — it is this router's
+     position behind createViewsRouter in index.ts, written down at
+     `/views/:id` above and at both mounts there (issue #37). The place parser above is 4.20's set and 4.22's is the
      same set, so it is shared rather than copied.
 
      **The session check on the read is written here because nothing else
