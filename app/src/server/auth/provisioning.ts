@@ -1,5 +1,5 @@
 /*
-The 7.1 provisioning transaction: insert the user, the default Inbox folder
+The 7.1 provisioning transaction: insert the user, the default Desk folder
 with its owner membership and its default description, and the settings row,
 atomically, and idempotently under the google_sub unique constraint.
 
@@ -9,7 +9,7 @@ ON CONFLICT (google_sub) DO NOTHING RETURNING id, so of two concurrent first
 sign-ins one inserts and the other returns no row; Postgres makes the loser's
 insert wait on the winner's index tuple, so by the time it returns empty the
 winner has committed and the follow-up select sees it. The loser then adopts
-those rows and creates nothing, which is what keeps the account at one Inbox
+those rows and creates nothing, which is what keeps the account at one Desk
 (INV-2) and one settings row (INV-14).
 
 Atomicity is the caller's transaction. Everything here runs on one executor,
@@ -98,7 +98,7 @@ export async function provisionUser(
     if (winner === undefined) {
       // Lost the race, or simply a returning login: adopt the existing rows
       // and create nothing. Re-running provisioning here would give the
-      // account a second Inbox (INV-2) and second settings (INV-14).
+      // account a second Desk (INV-2) and second settings (INV-14).
       const existing = await rowsOf(
         tx,
         sql`SELECT id, timezone FROM users WHERE google_sub = ${identity.sub}`,
@@ -123,7 +123,7 @@ export async function provisionUser(
     )
     const folderId = String(folders[0]?.id)
     // INV-3 and INV-10: the owner is a member of their own default folder,
-    // or the account cannot see its own Inbox.
+    // or the account cannot see its own Desk.
     await tx.execute(
       sql`INSERT INTO folder_members (folder_id, user_id) VALUES (${folderId}, ${userId})`,
     )
