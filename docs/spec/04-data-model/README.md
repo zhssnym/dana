@@ -25,6 +25,15 @@ which is that the queries and the tables kept their names while the pages were r
 Every such name in this section is a citation of a query or a table and none of them is a
 claim about what Dana's pages are called.
 
+**Third, two amendments landed on 2026-09-03 and both are the freeze working rather than
+failing.** Issue #27 appended `width` and `height` to 4.16, and issue #30 changed 4.19's
+`task_open` default from `panel` to `dialog`. Each was ruled by the owner before it was
+written — #27 as a correctness fix rather than a feature, #30 as Imran's ruling that a task
+opens as a dialog, which 9.3 has carried since — so section 4 moved on a human decision,
+which is what the freeze asks. Neither drops or renames a column. The migrations are 0009 and
+0010, and 0010 carries a data statement as well as a DDL one; its reasoning is in the file
+because forward-only migrations have no other place to keep it.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |
