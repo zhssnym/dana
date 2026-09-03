@@ -73,7 +73,9 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      res.status(200).json(await pageView(db, { folderId, shelfId: null }))
+      res
+        .status(200)
+        .json(await pageView(db, viewer(req), { folderId, shelfId: null }))
     },
   )
 
@@ -98,10 +100,17 @@ export function createWorkshopRouter(
       }
       const outcome = await putPage(
         db,
-        { folderId, shelfId: null },
         viewer(req),
+        { folderId, shelfId: null },
         parsed.data.blocks,
       )
+      if (outcome.kind === 'not_found') {
+        // Unreachable behind the accessOf above, and kept because the module
+        // refuses a home the viewer cannot see rather than trusting its
+        // caller (issue #35).
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
       if (outcome.kind === 'stale') {
         // 5.1's copy for the lost half of a last-write-wins race.
         sendError(
@@ -233,7 +242,9 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      res.status(200).json(await pageView(db, { folderId: null, shelfId }))
+      res
+        .status(200)
+        .json(await pageView(db, viewer(req), { folderId: null, shelfId }))
     },
   )
 
@@ -258,10 +269,15 @@ export function createWorkshopRouter(
       }
       const outcome = await putPage(
         db,
-        { folderId: null, shelfId },
         viewer(req),
+        { folderId: null, shelfId },
         parsed.data.blocks,
       )
+      if (outcome.kind === 'not_found') {
+        // Unreachable behind the shelfView above, for the same reason.
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
       if (outcome.kind === 'stale') {
         sendError(
           res,

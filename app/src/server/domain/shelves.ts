@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 import { inTransaction, rowsOf } from './db.js'
+import type { Executor } from './db.js'
 import { recordEvent } from './events.js'
 
 function toIso(value: unknown): string {
@@ -49,8 +50,11 @@ export async function listShelves(db: Db, viewerId: string): Promise<Shelf[]> {
   return rows.map(shelfFromRow)
 }
 
+/** Widened from `Db` to `Executor` for domain/pages.ts, which asks the same
+ * question inside a transaction it already holds (issue #35). Every existing
+ * caller passes a `Db`, which is an `Executor`. */
 export async function shelfView(
-  db: Db,
+  db: Executor,
   viewerId: string,
   shelfId: string,
 ): Promise<Shelf | null> {
