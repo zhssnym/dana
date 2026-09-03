@@ -13,7 +13,7 @@ them (AC-069).
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
-import { rowsOf } from './db.js'
+import { rowsOf } from '../database.js'
 
 export interface RosterEntry {
   user: {

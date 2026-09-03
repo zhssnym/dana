@@ -33,7 +33,7 @@ import from a harness the acceptance suite might change.
 import { DateTime, Settings } from 'luxon'
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { computeFireAt, resolveFireAt, resolveLocalTime } from './reminderTime.js'
+import { computeFireAt, resolveFireAt, resolveLocalTime } from './reminder-time.js'
 
 /* ------------------------------------------------------------------ *
  * Fixtures, each a historical transition and each asserted first

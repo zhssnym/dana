@@ -58,8 +58,8 @@ import {
   today,
 } from '../time/index.js'
 import type { ReminderTrigger } from '../time/index.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
 

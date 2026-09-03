@@ -53,7 +53,11 @@ every assertion here then passes over a smaller surface than it claims.
 Verified 2026-09-03: all 15 Router() instances in src/server are mounted
 directly on the application in index.ts, and every router.use() call inside
 one attaches middleware rather than a router, so the walk does see the whole
-surface today. The counts are the only thing that would notice the day that
+surface today. **Grepping `Router()` no longer finds fifteen and that is not
+a change to this fact**: since issue #36 the thirteen routers under
+src/server/routes are constructed by routes/preamble.ts, which also registers
+their session middleware, so the literal call sites are three — that one,
+auth/router.ts and routes/health.ts — for the same fifteen instances. The counts are the only thing that would notice the day that
 stops being true, which is why they are exact numbers carrying a date rather
 than floors.
 

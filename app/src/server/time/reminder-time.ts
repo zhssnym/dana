@@ -33,20 +33,20 @@ oracle and none was sought.
   answers 00:30Z while the process clock sits in British Summer Time and
   01:30Z, the instant 8.6 refuses, while it sits in Greenwich Mean Time. The
   raw behavior is therefore not merely unspecified, it changes twice a year
-  under a clock the caller never passed it. reminderTime.test.ts pins both
+  under a clock the caller never passed it. reminder-time.test.ts pins both
   halves of that, which is why its anti-oracle case controls Luxon's clock
   rather than reading whichever answer today happens to produce.
 
 Nothing here reads a database or a process clock. The zone, the dates and the
 mode arrive as arguments, the answer is a function of them alone, and the row
-reading and the state decision live in reminderRecompute.ts. That split is the
+reading and the state decision live in reminder-recompute.ts. That split is the
 recurrence.ts and generation.ts split one module over, for the same reason:
 arithmetic that takes no transaction is arithmetic a test can corner.
 */
 import { DateTime } from 'luxon'
 
-import { assertCalendarDate, civilMillis, DAY_MS } from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+import { assertCalendarDate, civilMillis, DAY_MS } from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 import { assertIanaZone } from './today.js'
 
 /** Which of the three cases a local time fell into. Exported because the two
@@ -71,7 +71,7 @@ export interface LocalResolution {
  * arm requires it. */
 export interface FireAtInput {
   /** The IANA zone 8.6 names: the assignee's, or the reminder creator's when
-   * the task is unassigned. Which of the two is reminderRecompute.ts's
+   * the task is unassigned. Which of the two is reminder-recompute.ts's
    * decision, not this function's. */
   readonly zone: string
   readonly dueDate: CalendarDate

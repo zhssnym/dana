@@ -44,8 +44,8 @@ import type {
   GetPlannedCalendarResponse,
   VirtualInstance,
 } from '../../shared/views.js'
-import { rowsOf } from '../domain/db.js'
-import type { Executor } from '../domain/db.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { compareDates, virtualInstances } from '../time/index.js'
 import type { CalendarDate } from '../time/index.js'
 

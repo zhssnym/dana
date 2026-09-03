@@ -31,7 +31,7 @@ import type {
   PlaceDescription,
   PutPlaceDescriptionBody,
 } from '../../shared/place-descriptions.js'
-import { rowsOf } from './db.js'
+import { rowsOf } from '../database.js'
 
 /** Null, and the same for a string of nothing but whitespace: see the shared
  * schema's note on what a person who empties the field has done. */

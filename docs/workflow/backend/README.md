@@ -73,7 +73,23 @@ casually.
 
 **Migrations are forward only.** No down migration exists, and a migration runs against
 production the moment the merge deploys. Recovery is a fix-forward migration or a restore.
-Destructive changes split across two releases: expand, then contract.
+Destructive changes split across two releases: expand, then contract. Every constraint and
+index is explicitly named, because AC-001 asserts them by name, and
+`app/db/migrations/meta/_journal.json` must gain a matching entry whose `when` is strictly
+greater than every existing one — the drizzle migrator reads that value and not the
+filename.
+
+**Two numbers to pick, and the second has a rule the first did not (added 2026-09-03 from
+issue #65).** Acceptance criteria are numbered by `docs/spec/12-acceptance-criteria/README.md`,
+which tells you to take from the tail rather than from a gap when several branches are open,
+because two branches both picking "the next free gap" collide silently. **Nothing said the
+same thing about migration numbers, and they collide the same way**: two branches each
+adding `0011_` merge cleanly, leave two files with one prefix and two journal entries with
+one `idx`, and the fault does not appear until the migrator runs. So: **when you are one of
+several branches open at once, have your number assigned by whoever opened them, and if
+nobody did, take the next free one and say in your pull request that you took it
+unassigned.** A collision is trivial to fix before a merge and is a production incident
+after one.
 
 **A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
 Added 2026-09-03 from issue #27, where it cost a red run and would otherwise have cost a

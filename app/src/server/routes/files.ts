@@ -12,18 +12,12 @@ attachment, because bytes a member chose are served on the application's
 own origin and a text/html "document" inline would be a script with a
 session (the S4 security review's condition).
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
+import type { Request, Response, Router } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
 
-import type { Db, DbClient } from '../../../db/client.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import type { DbClient } from '../../../db/client.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   MAX_FILE_BYTES,
   clearAvatar,
@@ -41,14 +35,13 @@ import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface FilesRouterOptions {
   dbClient?: DbClient
   fileStore?: ObjectStore
   rateLimits?: RateLimits
 }
-
-const uuidParam = z.uuid()
 
 const uploadFields = z.object({
   kind: z.enum(['image', 'file', 'voice', 'cover']),
@@ -57,25 +50,13 @@ const uploadFields = z.object({
 })
 
 export function createFilesRouter(options: FilesRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const parseUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_FILE_BYTES, files: 1 },
   }).single('file')
 
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
   const storeOf = (res: Response): ObjectStore | null => {
     if (options.fileStore === undefined) {
       sendError(
@@ -88,19 +69,6 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
     }
     return options.fileStore
   }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
 
   /** Multer's size refusal arrives as an error, not a request; 10.3 makes
    * it a 422 naming the field, the quota alone being 413. */
@@ -241,12 +209,9 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       if (db === null) return
       const store = storeOf(res)
       if (store === null) return
-      const fileId = uuidParam.safeParse(req.params.id)
-      if (!fileId.success) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      const served = await serveFile(db, store, viewer(req), fileId.data)
+      const fileId = parsedId(res, req.params.id)
+      if (fileId === null) return
+      const served = await serveFile(db, store, viewer(req), fileId)
       if (served === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -279,12 +244,9 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       if (db === null) return
       const store = storeOf(res)
       if (store === null) return
-      const fileId = uuidParam.safeParse(req.params.id)
-      if (!fileId.success) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      const outcome = await deleteFile(db, store, viewer(req), fileId.data)
+      const fileId = parsedId(res, req.params.id)
+      if (fileId === null) return
+      const outcome = await deleteFile(db, store, viewer(req), fileId)
       if (outcome === 'not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
         return

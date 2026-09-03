@@ -20,9 +20,9 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import { accessOf } from './folders.js'
 import type { FolderAccess } from './folders.js'
-import { inTransaction, rowsOf } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
 import { recordEvent } from './events.js'
-import type { Executor } from './db.js'
+import type { Executor } from '../database.js'
 
 /** 10.3's members-per-folder limit, the number every 8.7 grant checks. It is
  * spelled here as well as in folders.ts because the two modules grant
