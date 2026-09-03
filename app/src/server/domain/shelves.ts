@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 import { inTransaction, rowsOf } from './db.js'
+import type { Executor } from './db.js'
 import { recordEvent } from './events.js'
 
 function toIso(value: unknown): string {
@@ -61,6 +62,58 @@ export async function shelfView(
   )
   const row = rows[0]
   return row === undefined ? null : shelfFromRow(row)
+}
+
+/**
+ * The shelf a label names, made if it is not there already (issue #65).
+ *
+ * 4.18's sentence is that the API "holds label and shelf name in step in one
+ * transaction", and until this function existed it held them in step in two
+ * directions out of three: a rename rewrote the matching labels, a delete
+ * cleared them, and a label written through frozen 7.4 named whatever string
+ * it liked. The third direction is the reported defect. 9.1 draws the Library
+ * as "the viewer's shelves and folders as one ordered list" and its roles
+ * table makes every shelf row a link, so a group heading whose label no
+ * shelves row names has no id to link to and no page to open; the client
+ * draws it as plain text and the shelf, in the person's words, "stays only as
+ * a sidebar group".
+ *
+ * Called inside the caller's transaction, so a folder that took a label and
+ * the shelf that label names commit together or not at all.
+ *
+ * ON CONFLICT DO NOTHING rather than a SELECT and then an INSERT: two
+ * requests filing two folders onto one new shelf race, and 4.18's UNIQUE
+ * (user_id, name) is the arbiter. The event is recorded only for the request
+ * that actually inserted, so a shelf has one 'created' line however many
+ * folders arrived at once.
+ *
+ * The lengths agree by contract and nothing here has to check: 10.3 gives the
+ * personal label and the shelf name the same 1 to 40 bound, and
+ * `shared/folders.ts` has already refused anything outside it with a 422
+ * before this runs.
+ */
+export async function ensureShelf(
+  tx: Executor,
+  viewerId: string,
+  name: string,
+): Promise<void> {
+  const inserted = await rowsOf(
+    tx,
+    sql`INSERT INTO shelves (user_id, name)
+        VALUES (${viewerId}::uuid, ${name})
+        ON CONFLICT (user_id, name) DO NOTHING
+        RETURNING id`,
+  )
+  const row = inserted[0]
+  if (row === undefined) return
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'created',
+    subjectKind: 'shelf',
+    subjectId: String(row.id),
+    subjectName: name,
+    folderId: null,
+  })
 }
 
 export type CreateShelfResult =
