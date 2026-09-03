@@ -120,6 +120,17 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/page-image.tsx',
     'components/quick-add.tsx',
     'components/search-overlay.tsx',
+    /* Moved into scope rather than newly offending, 2026-09-03 (#135). This is
+       the prototype's `screens/settings-screen.tsx`, and `screens/` is outside
+       this test's glob, as the Scope note above says. #129 moved it to
+       `components/`, where the rule reached its thirty-odd v1 spellings for the
+       first time. So it belongs on this list for the reason the list exists —
+       v1 code the rule was introduced around — and not as an exemption anybody
+       chose. The alternative tried first was substituting roles, and it is the
+       wrong trade: six steps map exactly, five have no role and would render a
+       step off, and nobody can see that from a terminal. #148 is the real gap,
+       which is that `screens/`, `pages/` and `shell/` are unguarded. */
+    'components/settings-page-content.tsx',
     'components/state-patterns.tsx',
     'components/task-assignee-invite.tsx',
     'components/task-board.tsx',
