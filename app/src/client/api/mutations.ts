@@ -110,13 +110,24 @@ import type {
   ImportWorkflowResponse,
 } from '../../shared/workflows.js'
 
+import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
 import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
-    mutationFn: (body: PostFoldersBody) =>
-      mutateApi(folder, { method: 'POST', path: '/folders', body }),
+    mutationFn: async (body: PostFoldersBody) => {
+      const made = await mutateApi(folder, {
+        method: 'POST',
+        path: '/folders',
+        body,
+      })
+      return mutateApi(patchFolderResponse, {
+        method: 'PATCH',
+        path: `/folders/${made.id}`,
+        body: { description: defaultFolderDescription(made.name) },
+      })
+    },
   })
 }
 

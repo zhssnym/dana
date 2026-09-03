@@ -51,6 +51,7 @@ import { getPlain, mutateApi } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
+import { defaultFolderDescription } from './folder-description.js'
 import { folderLibrary } from './folder-library.js'
 import { taskLink } from './nav-links.js'
 import type { ConceptStep } from './task-model.js'
@@ -110,28 +111,35 @@ export function duplicateTask(taskId: string, title: string): void {
  * one read is cheaper than a prop threaded through every list.
  */
 export function makeFolderOfTask(taskId: string, title: string): void {
+  const folderName = title.slice(0, 100)
   void getPlain(taskDetail, `/tasks/${taskId}`)
     .then((task) =>
       mutateApi(folderSchema, {
         method: 'POST',
         path: '/folders',
-        body: { name: title.slice(0, 100) },
+        body: { name: folderName },
       }).then((made) =>
-        mutateApi(null, {
+        mutateApi(folderSchema, {
           method: 'PATCH',
-          path: `/tasks/${taskId}`,
-          body: { folder_id: made.id },
-        }).then(() => {
-          settle()
-          showToast(`Moved "${title}" to "${made.name}"`)
-          pushUndo(undoLabel('Moved', title), () => {
-            void mutateApi(null, {
-              method: 'PATCH',
-              path: `/tasks/${taskId}`,
-              body: { folder_id: task.folder.id },
-            }).then(settle)
-          })
-        }),
+          path: `/folders/${made.id}`,
+          body: { description: defaultFolderDescription(made.name) },
+        }).then((described) =>
+          mutateApi(null, {
+            method: 'PATCH',
+            path: `/tasks/${taskId}`,
+            body: { folder_id: described.id },
+          }).then(() => {
+            settle()
+            showToast(`Moved "${title}" to "${described.name}"`)
+            pushUndo(undoLabel('Moved', title), () => {
+              void mutateApi(null, {
+                method: 'PATCH',
+                path: `/tasks/${taskId}`,
+                body: { folder_id: task.folder.id },
+              }).then(settle)
+            })
+          }),
+        ),
       ),
     )
     .catch((error: unknown) => showToast(writeFailureMessage(error)))

@@ -27,25 +27,14 @@ the presence on `components/page/IdentityHead.tsx`, retired at S27.
 
 **The fact rides the title's line; prose sits under it.** The folder page put
 its completion ratio on the baseline and its description below (DES-130 as
-Imran revised it), and the places divide the same way: "Starred tasks" is prose
-and a progress figure is the quiet figure beside the name. A page with nothing
-to count leaves that slot empty rather than inventing a number to fill it.
+Imran revised it), and the places divide the same way: their friendly sentence
+is prose and a progress figure is the quiet figure beside the name. A page with
+nothing to count leaves that slot empty rather than inventing a number to fill it.
 
-**Two of the head's five parts are deliberately absent, and this is the
-record.** The designer's `page-head.tsx` also carries a cover band, an "Add
-cover" affordance and a description a person can rewrite in place, all three
-backed in the prototype by a browser-local identity store keyed by the page's
-name. Dana has nowhere to put them: 4.19's bundle carries theme, density, the
-clock, where a task opens, the pin list, the sidebar order and the saved-view
-arrangements, and no column anywhere holds a native page's cover or a person's
-own wording for one. 9.4 does ask for an "editable description" in terms, so
-this is a gap between a numbered section and the schema rather than a choice,
-and adding the column is a change to a frozen section that protocol section 3
-puts with the owner. It is escalated to the Integration Steward with a
-recommendation rather than improvised here, and until that is ruled on the
-description renders as Dana's own sentence for the place, which is what every
-one of these pages showed before and what `routes.ts` calls the page's
-question.
+**This smaller head remains for People.** Native task pages use the shared
+`PageHead`, including its cover and editable 7.21 description. People is not
+one of 4.22's native description places, so it keeps this simpler fixed head
+without pretending that an edit can be saved.
 
 **It is a page's own header and never the application's.** A `header` element
 maps to `banner` only when it is not inside `article`, `aside`, `main`, `nav`
