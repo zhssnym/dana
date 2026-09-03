@@ -47,6 +47,8 @@ export const queryKeys = {
      viewer's covers", and eight keys would be eight requests for a response
      every place page already holds whole. */
   placeCovers: () => ['place-covers'] as const,
+  /** 7.21's dense list: one entry for every editable native page. */
+  placeDescriptions: () => ['place-descriptions'] as const,
   /** Item 60's sample workspace: present or not, and its counts. */
   sample: () => ['sample'] as const,
 } as const

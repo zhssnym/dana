@@ -34,10 +34,9 @@ points the other way from S24's.
    The prototype keys its browser store by the words on the screen; this
    client keys `user_page_covers` by `place`, and the two must be one string
    or a cover would move when a page was renamed.
-4. **`descriptionEditable={false}`**, whose reasoning is on that prop in
-   `components/page-head.tsx`: 9.4 asks for an editable description and 4.20
-   stores no wording, so the head draws Dana's sentence as prose rather than
-   as a field wired to nothing.
+4. **The description uses the shared identity seam.** It starts with Dana's
+   friendly sentence, saves a person's edit through 7.21, and returns to the
+   default when cleared.
 5. **The `pageBodyClass()` wrapper is the shell's here.** `app-shell.tsx`
    holds the measure for every page, on its own recorded reason that thirteen
    pages each choosing a width is thirteen chances to disagree, and it holds
@@ -117,7 +116,6 @@ export function ImportantScreen({
         icon={Star}
         title={PLACES.important.name}
         description={PLACES.important.question}
-        descriptionEditable={false}
       />
 
       <div className="mt-3">
