@@ -67,6 +67,56 @@ export async function shelfView(
   return row === undefined ? null : shelfFromRow(row)
 }
 
+/**
+ * The shelf a label names, made if it is not there already (issue #65).
+ *
+ * 4.18's sentence is that the API "holds label and shelf name in step in one
+ * transaction", and until this function existed it held them in step in two
+ * directions out of three: a rename rewrote the matching labels, a delete
+ * cleared them, and a label written through frozen 7.4 named whatever string
+ * it liked. The third direction is the reported defect. 9.1 draws the Library
+ * as "the viewer's shelves and folders as one ordered list" and its roles
+ * table makes every shelf row a link, so a group heading whose label no
+ * shelves row names has no id to link to and no page to open; the client
+ * draws it as plain text and the shelf, in the person's words, "stays only as
+ * a sidebar group".
+ *
+ * Called inside the caller's transaction, so a folder that took a label and
+ * the shelf that label names commit together or not at all.
+ *
+ * ON CONFLICT DO NOTHING rather than a SELECT and then an INSERT: two
+ * requests filing two folders onto one new shelf race, and 4.18's UNIQUE
+ * (user_id, name) is the arbiter.
+ *
+ * **No event, and it is deliberate rather than an omission.** `createShelf`
+ * records one because somebody asked for a shelf; here nobody did. The act
+ * was "put this folder on Work", the shelf is the server holding 4.18 in
+ * step, and a 'created' line in a history for something no one performed as
+ * its own act is the kind of noise `lib/history.ts` exists to keep out: "a
+ * history that logged every keystroke as its own line would be a diff". It
+ * also keeps the two ways a shelf can appear unasked-for in agreement, since
+ * migration 0011's rows cannot carry an event either, a migration having no
+ * actor. The consequence is that such a shelf's Activity line does not draw
+ * until something happens to it, which is the state that control already has
+ * a rule for ("nothing recorded yet means nothing to say", DES-144).
+ *
+ * The lengths agree by contract and nothing here has to check: 10.3 gives the
+ * personal label and the shelf name the same 1 to 40 bound, and
+ * `shared/folders.ts` has already refused anything outside it with a 422
+ * before this runs.
+ */
+export async function ensureShelf(
+  tx: Executor,
+  viewerId: string,
+  name: string,
+): Promise<void> {
+  await tx.execute(
+    sql`INSERT INTO shelves (user_id, name)
+        VALUES (${viewerId}::uuid, ${name})
+        ON CONFLICT (user_id, name) DO NOTHING`,
+  )
+}
+
 export type CreateShelfResult =
   | { kind: 'created'; shelf: Shelf }
   | { kind: 'name_taken' }
