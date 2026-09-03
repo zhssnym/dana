@@ -28,8 +28,10 @@ against a populated database rather than an empty one.
 Identifiers are fixed so end to end tests can reference rows; dates are
 relative to today so the day-scoped pages (My Day, Planned) have content
 whenever the seed runs. Reseeding wipes application rows first: it refuses to
-run when NODE_ENV is production, and beyond that guard, pointing it at a
-database asserts the data there is disposable.
+run when NODE_ENV is production, it refuses the database TEST_DATABASE_URL
+names unless asked for that in as many words (see refuseTheTestDatabase
+below), and beyond those two guards, pointing it at a database asserts the
+data there is disposable.
 */
 import { pathToFileURL } from 'node:url'
 
@@ -115,12 +117,65 @@ async function truncateEveryApplicationTable(db: Db): Promise<void> {
   )
 }
 
+/**
+ * Host and database only. The connection string carries a password, and this
+ * text goes into an error message and from there into a terminal and a log.
+ */
+function describeTarget(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.host}${parsed.pathname}`
+  } catch {
+    return 'an unparseable connection string'
+  }
+}
+
+/**
+ * Refuses the run that would empty the vitest Postgres leg's database.
+ *
+ * createDbClient() falls back to TEST_DATABASE_URL when it is handed no url,
+ * and on the development machine that variable is set in the user scope and
+ * names dana_test, the one database every file of the Postgres leg shares.
+ * So this seed, invoked with nothing else set, truncates a database a test
+ * run may be using right now. The failure it causes is worse than a crash:
+ * the reds are counts that climb across successive files, which is
+ * indistinguishable by eye from the known shared-database flake (issue #32)
+ * and is filed as it. Nothing about that mechanism is new, but package.json
+ * now carries db:seed, which is short enough to type by accident.
+ *
+ * Empty means unset, the same convention client.ts uses, which is what keeps
+ * the browser leg working: playwright.config.ts pins TEST_DATABASE_URL to ''
+ * for its webServer so the seed and the server share one .data directory. A
+ * developer running npm run e2e:app by hand with the variable set is the one
+ * caller whose behaviour changes, and it changes from silently seeding
+ * dana_test while the server serves .data - the drifting-fixture failure
+ * CLAUDE.md records - to an error that says so.
+ */
+function refuseTheTestDatabase(explicitUrl: string | undefined): void {
+  if (explicitUrl !== undefined) return
+  const testUrl =
+    process.env.TEST_DATABASE_URL === '' ? undefined : process.env.TEST_DATABASE_URL
+  if (testUrl === undefined) return
+  if (process.env.DANA_SEED_TEST_DATABASE === '1') return
+  const target = describeTarget(testUrl)
+  throw new Error(
+    `the seed empties every table in the public schema. No DATABASE_URL is set, ` +
+      `so it would have emptied ${target}, which is what TEST_DATABASE_URL names and ` +
+      `what every file of the Postgres test leg shares. Set DATABASE_URL to the ` +
+      `database you mean, or clear TEST_DATABASE_URL to seed the local PGlite .data ` +
+      `directory, or set DANA_SEED_TEST_DATABASE=1 to empty ${target} on purpose.`,
+  )
+}
+
 export async function seed(): Promise<void> {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('the seed truncates every table and refuses to run in production')
   }
+  const explicitUrl =
+    process.env.DATABASE_URL === '' ? undefined : process.env.DATABASE_URL
+  refuseTheTestDatabase(explicitUrl)
   const client = await createDbClient({
-    url: process.env.DATABASE_URL === '' ? undefined : process.env.DATABASE_URL,
+    url: explicitUrl,
     dataDir: '.data',
   })
   const { db } = client
