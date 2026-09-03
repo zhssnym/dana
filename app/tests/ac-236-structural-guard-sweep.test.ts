@@ -45,6 +45,18 @@ and the SPA fallback in index.ts are mounted only when clientDist is present,
 which a test application never sets, and they serve the built client rather
 than anything from the database. The landing page is the same static bundle.
 
+**Both counts below are pinned to equality, and the walk is one level deep.**
+It reads layer.route at the top of the application's stack and nested.route
+one stack down, so a router mounted inside another router contributes nothing
+and says nothing about it: its routes are absent from the enumeration and
+every assertion here then passes over a smaller surface than it claims.
+Verified 2026-09-03: all 15 Router() instances in src/server are mounted
+directly on the application in index.ts, and every router.use() call inside
+one attaches middleware rather than a router, so the walk does see the whole
+surface today. The counts are the only thing that would notice the day that
+stops being true, which is why they are exact numbers carrying a date rather
+than floors.
+
 Spec: 10.1, 10.2, 10.4, 11.6.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -134,6 +146,11 @@ function routesWith(
     }
   }
 
+  // One level, deliberately and not by omission: a top-level route, or a
+  // route on a router mounted on the application. A router mounted on a
+  // router is not descended into, and nothing here reports that it was
+  // skipped, so the counts in the two tests below are what stand between a
+  // hidden mount and a sweep that quietly proves less. See the header.
   for (const layer of stack as LayerShape[]) {
     if (layer.route !== undefined) {
       collect(layer.route, '')
@@ -178,12 +195,16 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     const [sweeper] = (await cast.of(app)) as [Actor]
     const routes = mutatingRoutes(app.application)
 
-    // A sweep over an empty enumeration proves nothing: the count guards
-    // the walker itself against an Express refactor hollowing it out.
+    // A sweep over an empty enumeration proves nothing, and a sweep over a
+    // hollowed-out one proves less than it appears to: this count guards the
+    // walker itself. Equality rather than a floor, because the floor it
+    // replaces was `> 20` against 65 actual routes, so two thirds of this
+    // surface could have gone missing from the walk without a word. Measured
+    // 2026-09-03, dev-login excluded by EXEMPT.
     expect(
       routes.length,
-      `the walker found only ${String(routes.length)} mutating routes, which is fewer than the surface has had since S7: the enumeration is broken, not the application`,
-    ).toBeGreaterThan(20)
+      `the walker found ${String(routes.length)} mutating routes and there were 65 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(65)
 
     const failures: string[] = []
     const jsonBody = {
@@ -213,10 +234,14 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
   test('bare answers 401 on every reading route but the named public ones', async () => {
     const routes = readingRoutes(app.application)
 
+    // Equality for the same reason as the mutating count: 36 when this half
+    // was written on 2026-09-02 and 36 again on 2026-09-03 when the floor
+    // became a number. A nested router hiding five GETs would have taken
+    // this to 31 and passed `> 25` in silence.
     expect(
       routes.length,
-      `the walker found only ${String(routes.length)} reading routes, and there were 36 on 2026-09-02 when this half was written: the enumeration is broken, not the application`,
-    ).toBeGreaterThan(25)
+      `the walker found ${String(routes.length)} reading routes and there were 36 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(36)
 
     const failures: string[] = []
     for (const { method, path } of routes) {
