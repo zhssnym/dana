@@ -67,7 +67,7 @@ asks for.
 */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../../lib/icons.js'
 
 /**
  * Which register a section's heading is drawn in.
@@ -82,9 +82,9 @@ import { ChevronRight } from 'lucide-react'
 export type HeadingTone = 'section' | 'page' | 'day'
 
 const HEADING_CLASS: Record<HeadingTone, string> = {
-  section: 'truncate text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
+  section: 'truncate text-[13px] leading-6 font-semibold text-section-foreground',
   page: 'truncate text-base leading-6 font-semibold text-foreground',
-  day: 'truncate text-[13px] leading-6 font-semibold text-[var(--color-graphite-700)]',
+  day: 'truncate text-[13px] leading-6 font-semibold text-section-foreground',
 }
 
 /** The band the heading sits on, the one thing the three tones differ in. */
@@ -95,7 +95,7 @@ const BAND_CLASS: Record<HeadingTone, string> = {
 }
 
 const BAND_HOVER =
-  'transition-colors outline-none hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-ring/30'
+  'transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30'
 
 interface PageSectionProps {
   /** The region's accessible name. 9.1's table decides it. */
@@ -146,8 +146,8 @@ export function PageSection({
           <ChevronRight
             className={
               open
-                ? 'size-4 shrink-0 rotate-90 text-[var(--color-graphite-400)] transition-transform'
-                : 'size-4 shrink-0 text-[var(--color-graphite-400)] transition-transform'
+                ? 'size-4 shrink-0 rotate-90 text-quiet-foreground transition-transform'
+                : 'size-4 shrink-0 text-quiet-foreground transition-transform'
             }
             strokeWidth={1.75}
             aria-hidden="true"
@@ -157,7 +157,7 @@ export function PageSection({
           {count === undefined ? null : (
             <span
               aria-hidden="true"
-              className="shrink-0 text-[12px] leading-4 font-normal text-[var(--color-graphite-400)] tabular-nums"
+              className="shrink-0 text-[12px] leading-4 font-normal text-quiet-foreground tabular-nums"
             >
               {count}
             </span>
@@ -212,7 +212,7 @@ export function CollapsibleSection({
       <h2>
         <button
           type="button"
-          className="group/collapse flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+          className="group/collapse flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
           aria-expanded={open}
           onClick={() => {
             const next = !open
@@ -234,7 +234,7 @@ export function CollapsibleSection({
           />
           {name}
           {count === undefined ? null : (
-            <span aria-hidden="true" className="font-normal text-[var(--color-graphite-500)]">
+            <span aria-hidden="true" className="font-normal text-supporting-foreground">
               ({count})
             </span>
           )}
