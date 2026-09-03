@@ -36,6 +36,16 @@ one that is still good against a folder that is not. The bare-invite case at
 the end is the guard's other edge: no folder means no Trash question, so an
 invite that carries none is unaffected by any deletion anywhere.
 
+**And the already-a-member case is the one that pins where the guard sits.**
+`domain/invites.ts` takes the folder lock and asks about `deleted_at` *before*
+it reads the membership, and 8.7 records why: the guard is about the invite's
+folder rather than about the membership it would create, so an acceptance that
+would grant nothing is still refused, because the 200 it would otherwise
+answer carries the folder and a client would be handed a folder it cannot
+open. Move the check one block down, inside the `if (already.length === 0)`
+that skips the insert for a current member, and the first case here still
+passes: only this one goes red.
+
 Spec: 8.7 (the acceptance transaction and its Trash paragraph), 5.2 (the
 accept row's second state guard), 7.5, 7.13, 8.8, 7.0 (the code), 10.2.
 */
@@ -45,6 +55,8 @@ import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
 import {
   Cast,
+  addMemberOk,
+  connect,
   createFolder,
   expectStatus,
   folderInList,
@@ -160,6 +172,82 @@ describe('AC-343: an invite into a folder sitting in Trash', () => {
       await folderInList(recipient, folderId),
       'the acceptor can see the folder they were let into (spec 5.4)',
     ).toBeDefined()
+  })
+
+  test('AC-343: an acceptor who is already a member is refused as well', async () => {
+    const [inviter] = (await cast.of(app)) as [Actor]
+    const folderId = await createFolder(inviter, 'w4 ac343 already a member')
+    const email = freshEmail('ac343-member')
+    // Created first: 7.5 refuses a folder invite whose target is already a
+    // member (409 "already a member"), so this order is the only one that
+    // reaches the state at all.
+    const { id: inviteId } = await createInviteOk(
+      inviter,
+      { email, folder_id: folderId },
+      'the invite parks while the recipient is not yet a member (spec 7.5)',
+    )
+
+    const recipient = await signInActorWithEmail(app, 'ac343-member', email)
+    cast.trackUser(recipient.id)
+    // Admitted the ordinary way, through the endpoint, which 5.3's add row
+    // gates on a roster connection.
+    await connect(app.db, inviter.id, recipient.id)
+    await addMemberOk(inviter, folderId, recipient.id)
+    const membershipsFor = async (): Promise<string[]> =>
+      (await membershipUserIds(app.db, folderId)).filter(
+        (id) => id === recipient.id,
+      )
+    expect(
+      await membershipsFor(),
+      'the acceptor is a member before the folder goes to Trash (spec 7.4)',
+    ).toHaveLength(1)
+
+    const deletion = await inviter.browser.json(`/folders/${folderId}`, 'DELETE')
+    expectStatus(
+      deletion,
+      200,
+      'the owner soft-deletes the folder into Trash (spec 7.13, 8.8)',
+    )
+
+    const refused = await acceptInvite(recipient, inviteId)
+    expectStatus(
+      refused,
+      409,
+      'the guard is about the invite’s folder, not about the membership it would create, so a no-op grant is refused too (spec 8.7)',
+    )
+    expect(
+      codeOf(refused.json()),
+      'and with the same code as any other acceptance into Trash (spec 7.0, 8.7)',
+    ).toBe('folder_deleted')
+    expect(
+      (await requireInviteRow(app.db, inviteId)).status,
+      'the refusal is not terminal here either (spec 8.7)',
+    ).toBe('pending')
+    expect(
+      await membershipsFor(),
+      'and the membership they already had is left exactly as it was',
+    ).toHaveLength(1)
+
+    const restore = await inviter.browser.json(`/folders/${folderId}/restore`, 'POST')
+    expect(
+      [200, 204].includes(restore.status),
+      `the owner restores the folder inside the 30-day window (spec 7.13); answered ${String(restore.status)}`,
+    ).toBe(true)
+
+    const accepted = await acceptInvite(recipient, inviteId)
+    expectStatus(
+      accepted,
+      200,
+      'once the folder is back the acceptance runs, granting nothing new (spec 8.7)',
+    )
+    expect(
+      (accepted.json() as { folder?: { id?: unknown } | null }).folder?.id,
+      'and the folder it names is one the acceptor can open, which is the whole reason the guard runs before the membership read (spec 7.5, 8.7)',
+    ).toBe(folderId)
+    expect(
+      await membershipsFor(),
+      'still one membership row: the grant is a no-op and not a second row (INV-10)',
+    ).toHaveLength(1)
   })
 
   test('AC-343: a bare invite carries no folder and no deletion touches it', async () => {
