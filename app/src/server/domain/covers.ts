@@ -10,18 +10,41 @@ another person's cover. That is the whole of this surface's authorization
 and it is why there is no separate access resolution: a place page is
 furniture, not an object somebody might or might not be a member of.
 
-**A named file must be one the caller can read**, and the predicate is
-`serveFile`'s — imported since issues #20 and #100 rather than transcribed.
-It used to be transcribed here, under a sentence saying it was "restated as a
-scope rather than re-derived", and the two then diverged in the way that
-sentence exists to warn about: the copy admitted **any** file with no folder
-to **anybody**, so a person could wear another person's folder-less picture on
-their own Today page. Measured before the fix: a second account's
-`PUT /place-covers/today { file_id: <the first account's folder-less file> }`
-answered **200**. `readableFileScope` in `domain/files.ts` is now the one
-definition, and the folder-less arm it carries is owner-or-avatar. A file the
-caller cannot read answers 404 rather than 403, which is 10.2's rule and the
-same answer a file that does not exist gets.
+**A named file must be a picture the caller can read**, which is two clauses
+and 7.16's shelf gate exactly.
+
+*Readable* is `serveFile`'s own predicate — imported since issues #20 and #100
+rather than transcribed. It used to be transcribed here, under a sentence
+saying it was "restated as a scope rather than re-derived", and the two then
+diverged in the way that sentence exists to warn about: the copy admitted
+**any** file with no folder to **anybody**, so a person could wear another
+person's folder-less picture on their own Today page. Measured before the fix:
+a second account's `PUT /place-covers/today { file_id: <the first account's
+folder-less file> }` answered **200**. `readableFileScope` in
+`domain/files.ts` is now the one definition, and the folder-less arm it
+carries is owner-or-avatar.
+
+*A picture* is `kind IN ('cover', 'image')`, and this clause was missing until
+2026-09-03 while both other callers of that predicate carried it. **The gap
+was not a confidentiality one and must not be described as one**:
+`readableFileScope` admits every **avatar** to every signed-in account on
+purpose (7.15, a member list renders other people's pictures), so what got
+through was bytes the caller could already `GET`. What it cost was the other
+two things a gate is for. A person could wear **another person's avatar** on
+their own Today page — measured at 200, against 422 for the same file on a
+shelf — which is precisely the defect this module's history above says was
+closed, still open for the one folder-less kind that is not its owner's alone.
+And a `voice` note or a plain attachment could be stored as a cover and drawn
+as a broken image with the wrong mime, which is the reason `patchShelf`'s own
+comment gives for the identical clause. AC-374 asserts both, and the arms that
+must survive it: a folder-less `cover` of the caller's own, and an `image`
+from a folder they are in.
+
+A file this endpoint will not take answers 404 rather than 403 or 422, one
+sentence for all three faults — absent, unreadable, not a picture — which is
+10.2's rule and the answer 7.19 has always given. A shelf answers 422 for the
+same body because its own PATCH found the shelf and faults one field of it;
+that difference is 7.16's and 7.19's respectively, and neither moved here.
 
 **Removal is the row's deletion**, because 4.20 admits no row with neither a
 file nor a preset. That is also why the migration's foreign key cascades
@@ -61,7 +84,8 @@ export async function listPlaceCovers(
 
 export type PutPlaceCoverResult =
   | { kind: 'written'; cover: PlaceCover }
-  /** The named file does not exist or is not the caller's to read (10.2). */
+  /** The named file does not exist, is not the caller's to read, or is not a
+   * picture; one answer for all three, so no refusal names which (10.2). */
   | { kind: 'file_not_found' }
 
 export async function putPlaceCover(
@@ -74,7 +98,9 @@ export async function putPlaceCover(
     const readable = await rowsOf(
       db,
       sql`SELECT f.id FROM files f
-          WHERE f.id = ${body.file_id} AND ${readableFileScope(viewerId)}`,
+          WHERE f.id = ${body.file_id}
+            AND f.kind IN ('cover', 'image')
+            AND ${readableFileScope(viewerId)}`,
     )
     if (readable.length === 0) return { kind: 'file_not_found' } as const
   }

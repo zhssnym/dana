@@ -2,7 +2,8 @@
 AC-371: given a picture stored with no folder, when its owner asks for it,
 then the bytes; when anybody else does, then the 10.2 not-found shape; and an
 avatar, which is also folder-less, stays readable by any signed-in account.
-The same three arms decide which file id a person may point a cover at.
+The same three arms decide which file id a person may point a cover at, one
+clause narrower.
 
 **This is the definition issue #20 actually turns on, and it did not exist
 before this change.** Imran ruled that "pictures should belong to the user
@@ -33,6 +34,16 @@ drifted — `domain/covers.ts` carried a copy under a comment claiming it was
 folder-less file to anyone. Measured before the fix: a second account's
 `PUT /place-covers/today { file_id: <the first's folder-less file> }` answered
 **200**.
+
+**What this file asserts of the cover gate is the predicate's half of it and
+not the whole gate, and the difference is AC-374's.** The two cover callers
+carry `kind IN ('cover', 'image')` beside the predicate, because the predicate
+admits every **avatar** to every account by the middle arm above — so a gate
+that were this predicate alone would let a person wear another person's face,
+which is the same sentence as the one measured at 200 above with a different
+kind in it. The case below therefore uses a `cover`, where the predicate is
+the only thing that can refuse; the avatar and the not-a-picture cases are
+AC-374's, one file over.
 
 Spec: 4.16 and 7.15 as widened for issues #20 and #100, 7.19, 10.2.
 */

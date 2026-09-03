@@ -15,7 +15,7 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **343 criteria carry their text in the files below.** Every number from AC-001 to AC-373
+- **344 criteria carry their text in the files below.** Every number from AC-001 to AC-374
   not named below is one of them.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
@@ -29,6 +29,10 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
+  it: the place-cover gate was the only one of the three callers of 7.15's serving predicate
+  with no `kind` clause, so another person's avatar could be worn on a person's own Today
+  page and a voice note could be stored as a picture. The criterion is 12.9's.
 - **AC-368 to AC-373 were taken from the tail on 2026-09-03** (issues #20 and #100), on the
   rule two bullets below, and they are the cover work: a shelf that can wear one at all, the
   gate on the file it names, the folder-less upload, who may read a picture that belongs to a
@@ -61,7 +65,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
 | 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 32 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 16 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 17 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 10 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
