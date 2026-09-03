@@ -203,8 +203,8 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // 2026-09-03, dev-login excluded by EXEMPT.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 65 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(65)
+      `the walker found ${String(routes.length)} mutating routes and there were 66 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(66)
 
     const failures: string[] = []
     const jsonBody = {
@@ -240,8 +240,8 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // this to 31 and passed `> 25` in silence.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 36 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(36)
+      `the walker found ${String(routes.length)} reading routes and there were 37 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(37)
 
     const failures: string[] = []
     for (const { method, path } of routes) {
