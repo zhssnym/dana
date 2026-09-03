@@ -28,6 +28,8 @@ the server's own message (5.1's conflict copy, which 9.1 requires verbatim),
 and everything else (the 9.1 error toast). Which toast a failure earns is
 decided once, in `queryClient.ts`, off these three types.
 */
+import type { z } from 'zod'
+
 import { errorEnvelope } from '../../shared/error-envelope.js'
 import { postAvatarResponse, postFilesResponse } from '../../shared/files.js'
 import type { PostAvatarResponse, PostFilesResponse } from '../../shared/files.js'
