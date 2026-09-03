@@ -142,6 +142,9 @@ that matches nothing while the attribute reads `light`.
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-quiet-foreground: var(--quiet-foreground);
+  --color-supporting-foreground: var(--supporting-foreground);
+  --color-section-foreground: var(--section-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -356,6 +359,11 @@ that matches nothing while the attribute reads `light`.
   --secondary-foreground: var(--color-graphite-800);
   --muted: var(--color-graphite-50);
   --muted-foreground: var(--color-graphite-600);
+  /* Reusable page text roles. These preserve the existing colours while
+     naming what they do instead of leaking ramp steps into components. */
+  --quiet-foreground: var(--color-graphite-400);
+  --supporting-foreground: var(--color-graphite-500);
+  --section-foreground: var(--color-graphite-700);
   --accent: var(--color-graphite-50);
   --accent-foreground: var(--color-graphite-800);
   --destructive: var(--color-danger-600);

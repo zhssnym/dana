@@ -10,7 +10,7 @@ and Done cannot each grow their own.
 **The mark is optional in the honest sense.** Imran's constraint of
 2026-08-22, in the designer's transcription: "if a section does not carry an
 icon, the section should not feel like it's lacking something." A date rung
-has no mark, this returns `undefined`, and `states/PageSection.tsx` renders no
+has no mark, this returns `undefined`, and `components/page/PageSection.tsx` renders no
 slot at all, so that heading simply starts its name earlier.
 
 **Both marks come from the resolvers the rest of the product uses**, which is

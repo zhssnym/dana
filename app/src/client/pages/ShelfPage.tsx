@@ -48,7 +48,7 @@ import { ShelfPage as ShelfScreen } from '../screens/shelf-page.js'
 import type { ShelfFolder, ShelfItem } from '../screens/shelf-page.js'
 import { openNewFolder } from '../shell/overlays.js'
 import { openInNewTab } from '../shell/tabs.js'
-import { PageBody } from '../states/PageStates.js'
+import { PageBody } from '../components/page/PageStates.js'
 import type { Folder } from '../../shared/folders.js'
 import type { PageBlock } from '../../shared/pages.js'
 

@@ -35,7 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/toolti
 import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { presenterToday, initialsOf } from '../parts/presenters.js'
 import { PageHeading } from './page-heading.js'
-import { PageBody } from '../states/PageStates.js'
+import { PageBody } from '../components/page/PageStates.js'
 import { PersonFace } from '../components/person-face.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */

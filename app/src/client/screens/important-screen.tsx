@@ -49,7 +49,7 @@ points the other way from S24's.
    own rule; Q6 is keyset-paginated and this client reads it only while the
    section is open, so filling this prop would mean fetching every page of
    everything the viewer has ever finished in order to draw a collapsed
-   heading. `states/CompletedFoot.tsx` draws the same section with the read
+   heading. `components/page/CompletedFoot.tsx` draws the same section with the read
    the client already had, and `pages/ImportantPage.tsx` says so too.
 7. **The failed-read line gets a retry.** 9.1 gives that line a "Try again"
    control and the prototype's lab has nothing to retry, so it renders one

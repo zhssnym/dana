@@ -35,7 +35,7 @@ lifted screen is where it comes from now: it passes `given={{ important: true
 }}` on every row, which is the row's own rule for a fact its page has already
 stated.
 
-**The completed foot is `states/CompletedFoot.tsx`'s and not the screen's**,
+**The completed foot is `components/page/CompletedFoot.tsx`'s and not the screen's**,
 which is the screen's sixth seam and the one place this page does not take the
 prototype's arrangement. The lifted `CompletedSection` takes a list of rows and
 renders nothing when it is empty; Q6 is keyset-paginated and this client reads
@@ -53,9 +53,9 @@ import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
-import { PageSection } from '../states/PageSection.js'
-import { CompletedFoot } from '../states/CompletedFoot.js'
-import { PageBody, TruncationNotice } from '../states/PageStates.js'
+import { PageSection } from '../components/page/PageSection.js'
+import { CompletedFoot } from '../components/page/CompletedFoot.js'
+import { PageBody, TruncationNotice } from '../components/page/PageStates.js'
 import { ImportantScreen } from '../screens/important-screen.js'
 import { ABANDON_CONFIRM, DELETE_TASK_CONFIRM } from '../components/ui/copy.js'
 import { IMPORTANT_EMPTY } from './empty-states.js'

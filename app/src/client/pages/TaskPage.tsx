@@ -34,7 +34,7 @@ import {
 import { TaskWriter } from '../lib/task-writer.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
-import { PageBody } from '../states/PageStates.js'
+import { PageBody } from '../components/page/PageStates.js'
 
 interface PendingAct {
   readonly message: string
