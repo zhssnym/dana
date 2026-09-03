@@ -35,8 +35,8 @@ import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
-import { inTransaction, rowsOf } from '../domain/db.js'
-import type { Executor } from '../domain/db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
@@ -442,22 +442,49 @@ export async function removeSampleWorkspace(
   })
 }
 
+export type RestoreSampleResult =
+  | { kind: 'restored'; status: SampleStatus }
+  | { kind: 'shelf_name_taken' }
+
 /**
  * POST /sample: the workspace again for an account that no longer has one.
  * Idempotent while it is present, which is what lets the undo bar and a
  * double press both land on one workspace.
+ *
+ * The person's zone is read here rather than handed in, under the same lock
+ * that serialises the restore, and the refusal below is classified here
+ * rather than in the route (issue #38): `routes/sample.ts` held both, and it
+ * was the only route file in the directory issuing SQL of its own or reading
+ * a driver's error code. A route parses, calls, and maps a result to a
+ * status; this is the result for it to map.
  */
 export async function restoreSampleWorkspace(
   db: Db,
   userId: string,
-  zone: string,
-): Promise<SampleStatus> {
-  return inTransaction(db, async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`)
-    const current = await sampleStatus(tx, userId)
-    if (current.present) return current
-    await tx.execute(sql`DELETE FROM sample_objects WHERE user_id = ${userId}::uuid`)
-    const counts = await createSampleWorkspace(tx, userId, zone)
-    return { present: true, counts }
-  })
+): Promise<RestoreSampleResult> {
+  try {
+    const status = await inTransaction(db, async (tx) => {
+      const locked = await rowsOf(
+        tx,
+        sql`SELECT timezone FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
+      )
+      const current = await sampleStatus(tx, userId)
+      if (current.present) return current
+      await tx.execute(sql`DELETE FROM sample_objects WHERE user_id = ${userId}::uuid`)
+      const counts = await createSampleWorkspace(
+        tx,
+        userId,
+        String(locked[0]?.timezone ?? 'UTC'),
+      )
+      return { present: true, counts }
+    })
+    return { kind: 'restored', status }
+  } catch (error) {
+    // 4.18's (user_id, name) unique: the person has a shelf of their own by
+    // one of the sample's names, and the sample will not rename theirs to
+    // make room for its own.
+    const message = String((error as { message?: string })?.message ?? error)
+    if (/23505|unique/i.test(message)) return { kind: 'shelf_name_taken' }
+    throw error
+  }
 }

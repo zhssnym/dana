@@ -75,9 +75,12 @@ Environment specifics, hard-won and non-obvious. This file is their home; the
 protocol points here rather than repeating them.
 
 - Scope the suite while you iterate and run it whole before you report. **Measured
-  2026-09-01 in CI: 279 files and 1899 tests.** The proportions below were measured
-  2026-08-13 at 189 files and 1530 tests and still hold: the PGlite leg is about 200 seconds and
-  the Postgres leg about 60, a range of criteria about 33. The full run is not
+  2026-09-03 on this machine, both legs green: 295 files and 1961 tests.** It was 279 and
+  1899 on 2026-09-01, so read every count in this file as a dated measurement rather than
+  a target. Wall clock that night on a quiet machine: the PGlite leg **291 seconds**, the
+  Postgres leg **94** (it was about 240 before issue #32 gave each worker its own
+  database, so that leg got *faster*), the browser leg **9.7 minutes for 289 cases**, and
+  a range of criteria about 33. The full run is not
   ceremony, it is the only one that sees a cross-package regression, and a change
   under `app/src/shared/**` or `app/src/server/domain/**` reaches criteria in
   packages nobody was thinking about. Both scoped forms cost the same wall clock:
@@ -350,24 +353,79 @@ protocol points here rather than repeating them.
   branch with no pull request gets no verdict, which is correct under a workflow where
   nothing reaches `main` except through one, and it stops a single runner starting two
   jobs for one change.
-- **Three flake classes now, and only two of them are answered by re-running.** Every
-  one was measured in CI on 2026-08-31 and 2026-09-01, on the first runs this
-  repository has ever had.
-  - **The Postgres leg shares one `dana_test` across all 279 files, so they see each
-    other's rows.** PGlite gives each worker its own. The fingerprint is a count that
-    climbs across successive tests, `expected 2 to be 1`, then 3, then 4: a logic error
-    gives a constant wrong number, accumulation climbs. Re-run the file alone before
-    believing it. Tracked as issue #32.
+- **The CI runner and your own agents cannot share this machine, and the way that
+  fails reads exactly like broken code.** Measured 2026-09-03 across a night of eight
+  branches. A CI job holds about **7.7 GB of this machine's 15.8**: killing the runner
+  mid-job took free memory from **2.0 GB to 9.7 GB** in one step. With five or six
+  agents running vitest beside it, the job goes red with
+  `Hook timed out in 60000ms` in `startAuthTestApp` and
+  `[vitest-pool]: Timeout terminating forks worker`, **and zero assertion failures** —
+  the tell, and the thing to check first. One run lost 20 files that way and every one
+  passed alone. A second job died with **no steps recorded and no log at all**, which is
+  the runner losing the job rather than the job failing.
+  **So run agents or run CI, not both.** Queue the work: stopping the runner leaves jobs
+  queued at GitHub harmlessly, and they run clean afterwards. Three things about doing
+  that, all learned the hard way the same night. `Stop-ScheduledTask` does **not** stop
+  it — `run.cmd` detaches, the task reports `Ready` while `Runner.Listener` keeps
+  running; stop the processes. Killing it mid-job leaves GitHub believing the runner is
+  `busy=true` with a session that no longer exists, and it dispatches nothing to a busy
+  runner, so **cancel the stuck run** to free it. And the job it was running is lost, so
+  stop it between jobs where you can.
+- **A fourth flake class, and it is this one wearing a different hat.** The
+  `beforeAll` hook timeout above is **not** the worker-fork class the bullets further up
+  describe, and a session reading only those will not recognise it: no fork dies, no file
+  is skipped, whole files fail with `Hook timed out in 60000ms` and no test fails an
+  assertion. It is starvation, it is caused by load, and unlike the fork class it is
+  answered by re-running on a quiet machine. Four agents hit it independently that night.
+- **Four classes now, counting the starvation one above, and only two of them are
+  answered by re-running.** These three were measured in CI on 2026-08-31 and
+  2026-09-01, on the first runs this repository has ever had.
+  - **The Postgres leg used to share one `dana_test`, and does not any more. Closed
+    2026-09-03 by issue #32.** Every file pointed at one database and they saw each
+    other's rows; the fingerprint was a count that climbed across successive tests,
+    `expected 2 to be 1`, then 3, then 4. Each vitest pool slot now gets its own
+    `dana_test_r<run>_w<slot>`, created with 11.10's locale statement, migrated at run
+    start and emptied before every file. **So a climbing count on that leg is now a
+    defect rather than a flake — read it.** Two things follow. `TEST_DATABASE_URL` names
+    the *base* database the worker ones are derived from, not the one your test runs in.
+    And `ac-001` alone still runs against that base, because it asserts the English text
+    of a server message and only a superuser can give a created database
+    `lc_messages = C` (issue #92); `tests/postgres-leg-isolation.test.ts` fails by name
+    if a second test ever grows a prose assertion.
   - **The browser leg loses about one case a run** under memory pressure, and the
     bullets above cover it. Re-run the case alone, and read the note on when isolation
     lies.
-  - **A test that reads the clock twice fails when a run crosses midnight.** Caught at
-    23:59:39Z: `ac-277` expected 2026-08-31 and got 2026-09-01, then passed unchanged at
-    02:00. **Re-running is not the fix and the red is real**, in the sense that the same
-    run at the same hour tomorrow fails again. Tracked as issue #46.
+  - **A test comparing two clocks in two zones. Corrected 2026-09-03, and the
+    correction is the point of the bullet rather than an embarrassment to it.** This
+    said "a test that reads the clock twice fails when a run crosses midnight", caught
+    once at 23:59:39Z. **It is not a midnight race.** `duplicateTask` re-anchors with
+    SQL `current_date`, which reads in the **database session's** timezone, while the
+    criterion read the process clock at UTC. Measured: PGlite reports `Etc/GMT-1` here
+    and the local cluster `Europe/Paris`, so it was false for **the whole window in
+    which local date leads UTC date** — one to two hours every evening, not a fraction
+    of a second. Proved three ways on unchanged code: red at 23:16Z, **green under
+    `TZ=UTC` at the same minute**, green again in local TZ at 00:31Z. Note `TZ=UTC`
+    settles only the **PGlite** leg; on Postgres the cluster's own zone governs and the
+    process variable changes nothing. Three agents reached this independently. The
+    criterion is fixed (#46); the product defect underneath it — an endpoint that
+    anchors on the database's day rather than the viewer's, which spec 8.1 forbids by
+    name — is **#76**, and when that lands the criterion's oracle must move with it.
 - **Between them these are why a red is not evidence until you have named which class it
   is.** In three CI runs of one commit, every step passed at least once and no run passed
   all of them together, with nothing wrong in the commit.
+- **Two migrations authored in parallel can silently not run, and nothing reports it.**
+  Verified 2026-09-03 in the installed drizzle source rather than recalled:
+  `node_modules/drizzle-orm/pg-core/dialect.js` applies a file only when
+  `Number(lastDbMigration.created_at) < migration.folderMillis`. So the **`when` in
+  `app/db/migrations/meta/_journal.json` is the apply gate, not decoration** — `idx` is
+  decorative and the migrator reads only `tag`, `when` and `breakpoints`. If a
+  migration with a **higher** `when` deploys first, every lower one is treated as
+  already applied and skipped: no error, no columns, and the application then throws on
+  every read that wanted them. Two agents on two branches picking "the next number"
+  independently is exactly how you get there. Assign the numbers **and** the `when`
+  values up front when branches overlap, check them against each other before merging,
+  and keep the journal entries in ascending order when resolving that conflict, because
+  array order is the apply order on a fresh database.
 - The Postgres tooling here answers in French, `initdb --help` and `pg_controldata`
   included, and one translated flag name is wrong: the option is `--builtin-locale`,
   which the French help prints as `--builtin-provider`. Read option names from the

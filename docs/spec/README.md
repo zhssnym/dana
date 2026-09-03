@@ -48,10 +48,13 @@ and a retired criterion is marked rather than removed.
 | 9 | [`09-ui/`](09-ui/) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
-| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 324 numbered criteria, the definition of done |
+| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 335 numbered criteria, the definition of done |
 | 13 | [`13-open-questions/`](13-open-questions/) | **Retired 2026-09-01.** A forwarding address only: open questions are GitHub issues now, its recorded assumptions moved into the sections they constrain, and its table maps all 57 old item numbers to where each went. The number is not reused. |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by number and
 is a human decision, never an agent's. Both carry an annotation at their head naming the
 RFC 0005 units the owner ruled into them and the date they were folded (S29a, 2026-08-30),
-which is the freeze's audit trail.
+which is the freeze's audit trail. Both gained a further annotation on 2026-09-03, for
+issues #27 and #30, and it is the same trail rather than an exception to it: the owner
+ruled each change before it was written, and the annotation names the ruling, the migration
+and what the change does not do.

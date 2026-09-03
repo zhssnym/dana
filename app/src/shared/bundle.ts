@@ -7,7 +7,19 @@ user_views exists as a table rather than a bookmark.
 */
 import { z } from 'zod'
 
-/** The native views 9.7's pin list governs; Desk is locked pinned. */
+/**
+ * The native views 9.7's pin list governs; Desk is locked pinned.
+ *
+ * **There is a second list of these keys, and it is not here.**
+ * `src/client/routes.ts` restates them as the `NativeViewKey` union and again
+ * as `navPages`, which is what the sidebar actually draws, and nothing links
+ * either to this array (#39). So a tenth view added here compiles on both
+ * sides, is accepted by `patchSettingsBody` below, is stored, is returned by
+ * `GET /settings` — and never draws, because `pinnedNavPages` filters
+ * `navPages` and `navPages` has no row for it. Closing that is a client
+ * change and is tracked separately; until it lands, **a view added here is
+ * half a view**, and whoever adds one owes `routes.ts` the same edit.
+ */
 export const NATIVE_VIEWS = [
   'desk',
   'today',
@@ -36,7 +48,11 @@ export const patchSettingsBody = z.object({
   row_density: z.enum(['comfortable', 'compact']).optional(),
   clock: z.enum(['12h', '24h']).optional(),
   task_open: z.enum(['dialog', 'panel', 'tab']).optional(),
-  pinned_views: z.array(z.enum(NATIVE_VIEWS)).max(9).optional(),
+  /* The cap is "every native view, and no more", so it is the array's own
+     length rather than the 9 that was written here: a tenth view added above
+     used to make a full pin list a 422, which is the second way that array
+     was load-bearing at a distance (#39). */
+  pinned_views: z.array(z.enum(NATIVE_VIEWS)).max(NATIVE_VIEWS.length).optional(),
   sidebar_order: z.array(z.uuid()).max(300).optional(),
   arrangements: z.record(z.uuid(), z.string().max(40)).optional(),
 })

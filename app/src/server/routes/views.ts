@@ -9,7 +9,8 @@ Mounted under /api/v1 by the boot file, which is the Platform engineer's; the
 wiring request is recorded in README.md beside this file. The router carries
 its own session attachment and steps aside when another router's already ran,
 the P2 folders router's arrangement, so it composes whichever order routers
-mount in behind the same 11.3 links.
+mount in behind the same 11.3 links. That block is `preamble.ts` since issue
+#36.
 
 GET /folders/:id/tasks lives here rather than in folders.ts, by the P2 merge
 ruling that this directory is shared by file with each route file belonging
@@ -26,9 +27,7 @@ and section and cursor where they are taken.
 Every endpoint is a GET, so there is no CSRF link on this router: 7.0 makes
 GETs safe and requires the token on mutations, and this package has none.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import {
@@ -38,11 +37,7 @@ import {
   searchQuery,
   viewQuery,
 } from '../../shared/views.js'
-import {
-  attachSession,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireSession } from '../auth/index.js'
 import { accessOf } from '../domain/folders.js'
 import {
   sendError,
@@ -64,49 +59,16 @@ import {
   searchView,
   tasksView,
 } from '../views/index.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface ViewsRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
 }
 
-/* A path id that is not a uuid names nothing that exists, and letting it
-reach a query would surface as a cast error, a 500 wearing a taxonomy the
-contract does not have. 404 is 7.0's word for nonexistent (the P2 router's
-rule). */
-const uuidParam = z.uuid()
-
 export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const searchLimit = optionalLimit(options.rateLimits?.search)
-
-  // 11.10: routes that touch the database require options.dbClient and fail
-  // only when called without it (the auth router's convention).
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
 
   /**
    * The tz every view takes (7.0), and the whole of what six of the nine
@@ -236,12 +198,10 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
       request answers the same 422 whoever sent it and a caller cannot read
       a folder's existence off the order the two checks run in.
       */
-      const folderId = uuidParam.safeParse(req.params.id)
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
       const viewerId = viewer(req)
-      if (
-        !folderId.success ||
-        (await accessOf(db, viewerId, folderId.data)) === null
-      ) {
+      if ((await accessOf(db, viewerId, folderId)) === null) {
         // Q7 is "member only, else 404", and 7.0 makes inaccessible read as
         // 404 rather than 403 so nothing leaks that the folder exists.
         sendError(res, 404, 'not_found', 'Not found.')
@@ -252,8 +212,8 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
         .status(200)
         .json(
           section === 'completed'
-            ? await folderCompletedView(db, viewerId, folderId.data, tz, cursor)
-            : await folderOpenView(db, viewerId, folderId.data),
+            ? await folderCompletedView(db, viewerId, folderId, tz, cursor)
+            : await folderOpenView(db, viewerId, folderId),
         )
     },
   )

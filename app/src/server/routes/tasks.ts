@@ -9,7 +9,8 @@ wiring request is recorded in README.md beside this file. The router carries
 its own session attachment and steps aside when another router's already ran,
 the P2 folders router's arrangement, so it composes whichever order routers
 mount in behind the same 11.3 links (session, CSRF on mutations, then the
-handler; rate limiting joins at P9).
+handler; rate limiting joins at P9). That block is `preamble.ts` since issue
+#36.
 
 Status grammar, uniform across the surface (5.4, 7.0, 10.2): no session 401;
 a task or folder that does not exist, or that the viewer is not a member of,
@@ -23,11 +24,10 @@ owner entered it, so what was provisional when this router landed is contract.
 The shapes carry their grounds and their names in src/shared/tasks.ts, and the
 handlers below answer them.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
+import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
-import type { Db, DbClient } from '../../../db/client.js'
+import type { DbClient } from '../../../db/client.js'
 import {
   carriesStatus,
   patchStepBody,
@@ -39,12 +39,7 @@ import {
 } from '../../shared/tasks.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { viewTz } from '../../shared/views.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -68,27 +63,12 @@ import {
 import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
 import { placeTaskInOrder } from '../domain/task-order.js'
 import { restoreTask } from '../domain/trash.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface TasksRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
-}
-
-/*
-A path id that is not a uuid names nothing that exists, and letting it reach
-a query would surface as a cast error, a 500 wearing a taxonomy the contract
-does not have. 404 is 7.0's word for nonexistent (the P2 router's rule).
-*/
-const uuidParam = z.uuid()
-
-function parsedId(res: Response, raw: unknown): string | null {
-  const parsed = uuidParam.safeParse(raw)
-  if (!parsed.success) {
-    sendError(res, 404, 'not_found', 'Not found.')
-    return null
-  }
-  return parsed.data
 }
 
 function notFound(res: Response): void {
@@ -132,38 +112,12 @@ function transitionBody(
 }
 
 export function createTasksRouter(options: TasksRouterOptions = {}): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
   // 11.10: routes that touch the database require options.dbClient and fail
   // only when called without it (the auth router's convention).
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
   /* ---------------------------------------------------------------- *
    * Tasks
    * ---------------------------------------------------------------- */

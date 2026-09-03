@@ -11,12 +11,14 @@ layer owns the mapping onto 7.0's taxonomy and this file stays testable
 without HTTP.
 */
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { Folder } from '../../shared/folders.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { ensureShelf } from './shelves.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -406,23 +408,48 @@ export interface MyMembershipPatch {
   color?: string | null
 }
 
-/** Any subset semantics from the shared schema: absent leaves the column
+/**
+ * Any subset semantics from the shared schema: absent leaves the column
  * alone, null clears it (4.4 stores null for both). An empty patch is a
- * no-op by construction. */
+ * no-op by construction.
+ *
+ * **A label written here names a shelf, and makes it if there is not one
+ * (issue #65).** 4.18's membership *is* this column, and its own sentence is
+ * that the API holds the label and the shelf's name in step in one
+ * transaction; `patchShelf` and `deleteShelf` have always done that in their
+ * direction and this is the direction that was missing. Without it a person
+ * can hold a folder group the Library draws as a heading with nothing behind
+ * it: no id, so no `/app/shelves/:id` to link to, no page, no mark and none
+ * of 9.10's acts. The one-off repair for the labels already stored is
+ * migration 0011; this is what stops the state being reachable again.
+ *
+ * Clearing a label leaves the shelf standing, which is deliberate and is
+ * 9.1's model since S17b: "a shelf outlives its folders", the shelf being the
+ * thing and the label its membership. Taking the last folder off a shelf
+ * therefore empties it rather than deleting it, exactly as it already did for
+ * a shelf made through 7.16.
+ *
+ * The UPDATE and the INSERT ride one transaction so that a folder never
+ * carries a label whose shelf is not there.
+ */
 export async function setMyMembership(
   db: Db,
   viewerId: string,
   folderId: string,
   patch: MyMembershipPatch,
 ): Promise<void> {
-  const sets = []
+  const sets: SQL[] = []
   if (patch.label !== undefined) sets.push(sql`label = ${patch.label}`)
   if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
   if (sets.length === 0) return
-  await db.execute(
-    sql`UPDATE folder_members SET ${sql.join(sets, sql`, `)}
-        WHERE folder_id = ${folderId} AND user_id = ${viewerId}`,
-  )
+  const label = patch.label
+  await inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`UPDATE folder_members SET ${sql.join(sets, sql`, `)}
+          WHERE folder_id = ${folderId} AND user_id = ${viewerId}`,
+    )
+    if (typeof label === 'string') await ensureShelf(tx, viewerId, label)
+  })
 }
 
 /* ------------------------------------------------------------------ *

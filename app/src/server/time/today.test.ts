@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { addDays } from './calendarDate.js'
+import { addDays } from './calendar-date.js'
 import { localDateOf, localDayWindow, today } from './today.js'
 
 const HOUR_MS = 3_600_000

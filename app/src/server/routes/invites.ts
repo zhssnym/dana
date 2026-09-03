@@ -7,14 +7,18 @@ logic lives here (the API role's route convention).
 Mounted under /api/v1 by the boot file, which is the Platform engineer's; the
 wiring request is recorded in README.md beside this file. The router carries
 its own session attachment so it composes whichever order routers mount in,
-the folders router's arrangement exactly.
+the folders router's arrangement exactly; that block is `preamble.ts` since
+issue #36.
 
 Status grammar, uniform with the rest of the surface (5.2, 5.4, 7.0, 10.2):
 no session 401; an invite the caller cannot act on or see reads 404, never
 403, so nothing leaks; an actor who can see the invite but may not take this
 action gets 403; a transition against a terminal invite is 409, as is every
 V-INV rule conflict; limits and field failures are 422; and the resend window
-of 5.2 is this package's one 429, with Retry-After.
+of 5.2 is this package's one 429, with Retry-After. One 409 here carries a
+code of its own rather than `conflict`: accepting into a folder that is
+sitting in Trash answers `folder_deleted` (issue #28), because a client has
+to say something different for it than for an invite that is merely spent.
 
 Two response shapes here are wider than frozen 7.5 enumerates, and both are
 recorded for the endpoint shape review the RFC 0001 P5 row places after this
@@ -23,18 +27,11 @@ invite element the domain module produces, which is also what GET
 /invites/sent lists, and the conversion answers { converted_to_share,
 membership } with the member element 7.4's own mutation already answers.
 */
-import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
-import { z } from 'zod'
+import type { Request, Response, Router } from 'express'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import { postInvitesBody } from '../../shared/invites.js'
-import {
-  attachSession,
-  requireCsrf,
-  requireSession,
-  sessionOf,
-} from '../auth/index.js'
+import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   sendError,
   sendFieldValidationError,
@@ -58,14 +55,13 @@ import {
   settleInvite,
 } from '../domain/invites.js'
 import type { InviteActorFacts, InviteElement } from '../domain/invites.js'
+import { routerWithPreamble } from './preamble.js'
 
 export interface InvitesRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
 }
-
-const uuidParam = z.uuid()
 
 /*
 Which invitation this is, decided from the row rather than from the request.
@@ -110,19 +106,10 @@ function inviteMessage(
   }
 }
 
-function parsedId(res: Response, raw: unknown): string | null {
-  const parsed = uuidParam.safeParse(raw)
-  if (!parsed.success) {
-    sendError(res, 404, 'not_found', 'Not found.')
-    return null
-  }
-  return parsed.data
-}
-
 export function createInvitesRouter(
   options: InvitesRouterOptions = {},
 ): Router {
-  const router = Router()
+  const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
   const inviteMinuteLimit = optionalLimit(options.rateLimits?.invitesPerMinute)
   const inviteDayLimit = optionalLimit(options.rateLimits?.invitesPerDay)
@@ -130,32 +117,6 @@ export function createInvitesRouter(
 
   // 11.10: routes that touch the database require options.dbClient and fail
   // only when called without it (the auth and folders routers' convention).
-  const database = (res: Response): Db | null => {
-    if (options.dbClient === undefined) {
-      sendError(
-        res,
-        500,
-        'internal_error',
-        'The application was constructed without a database.',
-      )
-      return null
-    }
-    return options.dbClient.db
-  }
-
-  if (options.dbClient !== undefined) {
-    const attach = attachSession(options.dbClient.db)
-    router.use((req: Request, res: Response, next: NextFunction) => {
-      if (sessionOf(req) !== undefined) {
-        next()
-        return
-      }
-      attach(req, res, next)
-    })
-  }
-
-  const viewer = (req: Request): string => sessionOf(req)?.userId ?? ''
-
   /* ---------------------------------------------------------------- *
    * Creating an invite: V-INV and the conversion (8.7)
    * ---------------------------------------------------------------- */
@@ -380,6 +341,30 @@ export function createInvitesRouter(
           422,
           'validation_failed',
           'This folder already has 25 members, the most a folder can hold.',
+        )
+        return
+      }
+      if (result.kind === 'folder_in_trash') {
+        /*
+        Issue #28, and 5.2's accept row as amended: the invite is still
+        pending and the folder is in Trash, so this is a state conflict
+        rather than a validation failure, which is 7.0's 409.
+
+        The code is its own rather than the bare `conflict` the not-pending
+        refusal answers, because a client has three different things to say
+        here and only the code tells them apart: `not_found` is an invite
+        that is not this caller's, `conflict` is an invite already settled,
+        and `folder_deleted` is an invite that is still good and a folder
+        that is not. A restore inside the thirty days makes this one
+        acceptable and makes neither of the others so. 7.0 provides for
+        exactly this, "409's rule conflicts gain their specific codes as the
+        section 5 tables land".
+        */
+        sendError(
+          res,
+          409,
+          'folder_deleted',
+          'This folder was deleted. It can be restored from Trash for 30 days, and the invite waits until then.',
         )
         return
       }

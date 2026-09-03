@@ -859,13 +859,64 @@ export async function myDayAddedOn(
 }
 
 /** today in UTC, which is today(V) for every actor in this package: the
- * harness signs in without the 7.1 tz parameter, so 7.1 provisions UTC. */
+ * harness signs in without the 7.1 tz parameter, so 7.1 provisions UTC.
+ *
+ * **This is the process clock, and it is the right oracle only where the
+ * server computed the date from the request's tz with V = UTC.** Where the
+ * server computed a date in SQL, from current_date, the oracle is
+ * databaseToday() below and never this one: they are two clocks in two
+ * zones, and they disagree for whole hours of every day rather than for an
+ * instant at midnight. Issue #46 was that mistake made in AC-277.
+ */
 export function todayInUtc(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
 export function yesterdayInUtc(): string {
   return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+}
+
+/**
+ * today as the database reads it: current_date, in the session's TimeZone.
+ *
+ * Not the same value as todayInUtc(), and the gap is not a rounding error.
+ * The session zone is the host's, so on this machine PGlite reports
+ * Etc/GMT-1 and the local PostgreSQL 18 cluster reports Europe/Paris, both
+ * measured 2026-09-02; each is ahead of UTC, so current_date turns over an
+ * hour or two before the UTC date does and every day contains a window of
+ * that width in which the two answers differ. A test asserting a date the
+ * server took from current_date must read it from here. That is AC-200's
+ * rule, "the assertion and the implementation share a clock", expressed as a
+ * value rather than as a comparison folded into the assertion's own SQL.
+ */
+export async function databaseToday(db: Db): Promise<string> {
+  const found = await rows(
+    db,
+    sql`SELECT ${sql.raw(`to_char(current_date, '${DATE_FORMAT}') AS today`)}`,
+  )
+  return String(found[0]?.today)
+}
+
+/**
+ * Run something, and report every civil date the database's clock stood on
+ * while it ran.
+ *
+ * Sharing the clock is not by itself enough: reading current_date after the
+ * endpoint has read its own is still two readings, and the day can turn
+ * between them. This returns the interval the operation actually occupied
+ * instead. One date in every run that does not straddle the database's
+ * midnight, so an assertion against it is exact rather than loosened; two in
+ * the run that does, which is the only run in which a single captured date
+ * could have been the wrong one.
+ */
+export async function databaseDaysAcross<T>(
+  db: Db,
+  run: () => Promise<T>,
+): Promise<{ result: T; days: string[] }> {
+  const opened = await databaseToday(db)
+  const result = await run()
+  const closed = await databaseToday(db)
+  return { result, days: opened === closed ? [opened] : [opened, closed] }
 }
 
 /* ------------------------------------------------------------------ *

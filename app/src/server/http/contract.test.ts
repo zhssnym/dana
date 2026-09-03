@@ -83,8 +83,9 @@ afterAll(async () => {
 async function signIn(tz?: string): Promise<TestBrowser> {
   const sub = `contract-${randomUUID()}`
   // One address per account. Reusing one across subjects walks into the
-  // unruled collision on users_email_active_idx, which refuses the sign-in,
-  // and every assertion after it would then be measuring the refusal.
+  // collision on users_email_active_idx, which refuses the sign-in with 9.2's
+  // claimed-email page (issue #17), and every assertion after it would then be
+  // measuring the refusal.
   stub.nextIdentity({
     sub,
     email: `${sub}@${domain}`,

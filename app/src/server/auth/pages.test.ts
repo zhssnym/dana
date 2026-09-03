@@ -27,9 +27,11 @@ source), 10.8.
 */
 import { describe, expect, test } from 'vitest'
 
-import { unverifiedEmailPage } from './pages.js'
+import { SUPPORT_EMAIL } from '../../shared/support.js'
+import { emailAlreadyClaimedPage, unverifiedEmailPage } from './pages.js'
 
 const page = unverifiedEmailPage()
+const claimed = emailAlreadyClaimedPage()
 
 describe('the unverified-email page draws prototype-v2 gate card', () => {
   test('the nine values v2 moved', () => {
@@ -104,5 +106,61 @@ describe('the unverified-email page draws prototype-v2 gate card', () => {
     // them passes a provider-supplied string, which is the day it is needed.
     expect(page, "9.2's apostrophe is served escaped").toContain('&#39;')
     expect(page).not.toContain("can't sign you in")
+  })
+})
+
+/*
+The second gate card, added for issue #17. It shares the template above, so
+what is pinned here is only what differs: the extra action, and the fact that
+the support address is one constant rather than a literal typed twice.
+
+AC-346 owns the copy, as AC-008 owns the other page's, and it is deliberately
+not repeated here.
+*/
+describe('the claimed-email page is the same card with one more action', () => {
+  test('it draws the gate card', () => {
+    expect(claimed, 'the dark panel carrying the mark').toContain('class="brand"')
+    expect(claimed, 'the light panel carrying the words').toContain('class="content"')
+    expect(claimed, 'and it goes back to the landing page').toContain('href="/"')
+  })
+
+  test('it offers exactly two actions, the second being support', () => {
+    expect(
+      claimed.match(/<a\s/g) ?? [],
+      "Imran's ruling gives this page a way back and a way to reach a person, and no third thing",
+    ).toHaveLength(2)
+    expect(
+      claimed,
+      'the support action is a mailto to the one address the product uses (issue #23)',
+    ).toContain(`href="mailto:${SUPPORT_EMAIL}"`)
+    expect(
+      claimed,
+      'and the address is legible in the words too, for a reader who cannot follow the link',
+    ).toContain(SUPPORT_EMAIL)
+  })
+
+  test('it fetches no stylesheet and runs no script either', () => {
+    expect(claimed).not.toMatch(/<link\b/i)
+    expect(claimed).not.toMatch(/<script\b/i)
+  })
+
+  test('every colour is still a graphite token written out', () => {
+    const ramp = new Set([
+      '#ffffff',
+      '#fafafb',
+      '#dddee2',
+      '#585a60',
+      '#44464c',
+      '#2f3136',
+      '#1b1c20',
+      '#0a0a0a',
+      '#3c5bbf',
+    ])
+    for (const colour of new Set(claimed.match(/#[0-9a-f]{6}\b/g) ?? [])) {
+      expect(
+        ramp.has(colour),
+        `${colour} is in this page and in no token (spec 11.4, RFC 0005 change control item 34)`,
+      ).toBe(true)
+    }
   })
 })

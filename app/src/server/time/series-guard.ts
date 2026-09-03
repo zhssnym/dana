@@ -38,8 +38,8 @@ lock prevents, which is the same shape the 10.3 cap guards carry.
 */
 import { sql } from 'drizzle-orm'
 
-import { rowsOf } from './executor.js'
-import type { Executor } from './executor.js'
+import { rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 
 /** 5.1's three branches, plus the case that is not a series at all. */
 export type SeriesGuardOutcome =

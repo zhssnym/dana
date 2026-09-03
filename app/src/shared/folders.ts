@@ -238,3 +238,21 @@ export const duplicateFolderResponse = z.object({
   shifted_days: z.int().nonnegative(),
 })
 export type DuplicateFolderResponse = z.infer<typeof duplicateFolderResponse>
+
+/*
+POST /folders/:id/transfer-ownership (7.16, 8.9's direct form) answers the
+folder's new owner and nothing else; the client refetches the folder for the
+rest.
+
+Written here at #39, where it was a fifth restatement of a server literal: the
+schema lived in `client/api/mutations.ts` and the object in
+`routes/workshop.ts`, with nothing between them. It sits beside the duplicate
+response above because both are 7.16 acts on a folder and this file already
+owns that surface's answers.
+*/
+export const transferOwnershipResponse = z.object({
+  owner_id: z.uuid(),
+})
+export type TransferOwnershipResponse = z.infer<
+  typeof transferOwnershipResponse
+>

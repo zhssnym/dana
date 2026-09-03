@@ -10,3 +10,4 @@
 | 10.6 | [`10.6-pwa-requirements.md`](10.6-pwa-requirements.md) | 10.6 PWA requirements |
 | 10.7 | [`10.7-email-deliverability.md`](10.7-email-deliverability.md) | 10.7 Email deliverability |
 | 10.8 | [`10.8-response-security-headers.md`](10.8-response-security-headers.md) | 10.8 Response security headers |
+| 10.9 | [`10.9-google-platform-obligations.md`](10.9-google-platform-obligations.md) | 10.9 Google platform obligations |

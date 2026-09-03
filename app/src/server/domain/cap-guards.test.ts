@@ -30,7 +30,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
 import { createTestDb, rows } from '../../../tests/helpers.js'
-import type { Executor } from './db.js'
+import type { Executor } from '../database.js'
 import { addMember, createFolder } from './folders.js'
 import { acceptInvite, createInvite } from './invites.js'
 import { addStep } from './tasks.js'

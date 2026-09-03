@@ -24,8 +24,8 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
-import { inTransaction, rowsOf } from './db.js'
-import type { Executor } from './db.js'
+import { inTransaction, rowsOf } from '../database.js'
+import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { upsertReminder } from './tasks.js'
 

@@ -31,8 +31,11 @@ who wrote it.
 
 ## The specific traps in this codebase
 
-- A new route with no `accessOf(...)` gate. `ac-236` only checks mutating routes, so a GET
-  with no session check passes the whole suite.
+- A new route with no `accessOf(...)` gate. `ac-236` now checks that every route has a
+  session, GET included, but it checks nothing about authorization on any method, so a
+  route that takes a session and then reads whatever id it is handed passes the whole
+  suite. A new entry in that test's `PUBLIC_READS` allowlist is the same trap wearing a
+  reason: read the reason and decide whether it is true.
 - A request-schema field with no server code reading it: accepted, dropped, answers 200.
 - A migration, which cannot be rolled back and runs on merge.
 - A new external image or script source, which the CSP refuses silently.
