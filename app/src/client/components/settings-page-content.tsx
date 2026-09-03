@@ -1,7 +1,8 @@
 /*
-`docs/design/prototype-v2/src/screens/settings-screen.tsx`, lifted whole at
-RFC 0004's S27 and bound through the adapter seam. It diffs empty against its
-original except at the seams named here, each marked `Seam` in the body.
+Originally lifted from `docs/design/prototype-v2/src/screens/settings-screen.tsx`
+at RFC 0004's S27. Issue #129 moved the presentation into `components/` and
+made the route page own its settings read; the seams below remain the reasons
+this production component differs from the prototype.
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4), the
    mechanical seam every lifted file takes, and the em dashes leave under
@@ -48,7 +49,7 @@ original except at the seams named here, each marked `Seam` in the body.
    measure. Imran, 2026-08-30. The number and its reason are the prototype's,
    unchanged; what moves is which element carries the cap. 9.7 records it.
 
-Nothing else moves.
+The cleanup changes no visible behavior.
 */
 import { useRef, useState, type ReactNode } from "react"
 import {
@@ -66,7 +67,7 @@ import {
 /* Seam 3 and seam 4: the marks the two additions wear. */
 import { Bookmark, Clock3, PanelRight } from "../lib/icons.js"
 
-import { InlineError } from "../components/state-patterns.js"
+import { InlineError } from "./state-patterns.js"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,12 +77,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "../components/ui/alert-dialog.js"
-import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar.js"
-import { Button } from "../components/ui/button.js"
-import { Input } from "../components/ui/input.js"
-import { Skeleton } from "../components/ui/skeleton.js"
-import { Switch } from "../components/ui/switch.js"
+} from "./ui/alert-dialog.js"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar.js"
+import { Button } from "./ui/button.js"
+import { Input } from "./ui/input.js"
+import { Skeleton } from "./ui/skeleton.js"
+import { Switch } from "./ui/switch.js"
 import { NAV_PAGES, pageQuestion } from "../lib/nav-model.js"
 import { isPagePinned, setPagePinned, usePagePins } from "../lib/page-pins.js"
 import { setRowDensity, useRowDensity } from "../lib/row-density.js"
@@ -93,12 +94,11 @@ import {
   squareImageFile,
   useViewer,
 } from "../lib/viewer.js"
-import { cn } from "../components/ui/utils.js"
+import { cn } from "./ui/utils.js"
 /* Seam 4: the two writers 9.7's other two rows need. */
 import { setClock, useTimeFormat } from "../lib/time-format.js"
 import { setTaskOpen } from "../lib/task-surface-preference.js"
-import { useBundle } from "../api/queries.js"
-import type { SavedView } from "../../shared/bundle.js"
+import type { SavedView, SettingsBundle } from "../../shared/bundle.js"
 
 export type PageVisibility = {
   Important: boolean
@@ -310,9 +310,10 @@ function Segmented<T extends string>({
   )
 }
 
-export function SettingsScreen({
+export function SettingsPageContent({
   onOpenPeople: _onOpenPeople,
   previewState,
+  taskOpen,
   savedViews = [],
   onPinSavedView,
   onSignOut: _onSignOut,
@@ -323,6 +324,7 @@ export function SettingsScreen({
 }: {
   onOpenPeople: () => void
   previewState?: string | null
+  taskOpen: SettingsBundle['task_open']
   /* Seam 3. */
   savedViews?: readonly SavedView[]
   onPinSavedView?: (id: string, pinned: boolean) => void
@@ -340,7 +342,6 @@ export function SettingsScreen({
   const theme = useTheme()
   /* Seam 4: 9.7's other two values, from the same bundle. */
   const clock = useTimeFormat()
-  const taskOpen = useBundle().data?.task_open ?? "dialog"
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
