@@ -107,7 +107,7 @@ import { SidebarInset, SidebarProvider, useSidebar } from '../components/ui/side
 import { DanaMark } from '../components/dana-mark.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
 import { InviteGate } from '../pages/InviteGate.js'
-import { folderMark } from '../parts/presenters.js'
+import { folderMark, shelfMark } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { navPages, paths } from '../routes.js'
 import { placeAt, surfaceDefaults } from '../views/place-pages.js'
@@ -266,7 +266,12 @@ function currentPage(
   if (pathname.startsWith(SHELF_PREFIX)) {
     const id = pathname.slice(SHELF_PREFIX.length)
     const shelf = shelves?.find((candidate) => candidate.id === id)
-    return { title: shelf?.name ?? '', icon: FolderIcon, iconColor: undefined }
+    const mark = shelf === undefined ? null : shelfMark(shelf)
+    return {
+      title: shelf?.name ?? '',
+      icon: mark?.icon ?? FolderIcon,
+      iconColor: mark?.color,
+    }
   }
   /* A task tab: the title would need the task read, which only the page
      holds; "Task" keeps the tab honest without a second fetch path. */
