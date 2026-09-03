@@ -60,6 +60,7 @@ const SECTION_4_TABLES = [
   'steps',
   'tasks',
   'user_page_covers',
+  'user_page_descriptions',
   'user_settings',
   'user_views',
   'users',

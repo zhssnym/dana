@@ -118,27 +118,44 @@ PGlite. Running `npm test` twice measures one leg twice and reports two greens.
 
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
-to be measurement rather than code. Two known flake classes will cost you time if you do not
-know them:
+to be measurement rather than code. Three known flake classes will cost you time if you do
+not know them, and **only two of them are answered by re-running**:
 
 - **The browser leg loses about one case a run.** Re-run the case alone, and read
   `CLAUDE.md`'s note on when isolation lies.
-- **A test that reads the clock twice fails when a run crosses midnight**, and re-running is
-  not the fix: the same run at the same hour tomorrow fails again. Issue #46.
+- **A test comparing a date the server computed against a date the test computed is red for
+  the hours when this machine's date is already tomorrow, and re-running does not help.**
+  `ac-277` was the one that fired. It read the duplicate's re-anchored due date, which the
+  server takes from the database's `current_date`, against `todayInUtc()`, which the test
+  took from `new Date().toISOString()`. Measured 2026-09-02 at 23:10Z, already the 3rd here:
+  PGlite's session zone is `Etc/GMT-1` and the local cluster's is `Europe/Paris`, so
+  `current_date` read `2026-09-03` while UTC was still the 2nd. **It is not the fork flake
+  and isolation confirms nothing**: on one commit, `TZ=UTC env -u TEST_DATABASE_URL npx
+  vitest run tests/ac-277-task-duplicate-copy-rules.test.ts` was 2 of 2 while the same
+  command without `TZ=UTC` was 1 of 2. **So the check that separates this class from a
+  defect is the timezone, not a second run** — force the zone, and if it goes green the red
+  is the clock. Note `TZ=UTC` settles only the PGlite leg; on Postgres the cluster's own
+  zone governs and the process variable changes nothing.
+
+  **The criterion is fixed as of 2026-09-03 (issue #46)** — its oracle is now the database's
+  own clock, bracketed across the operation. What is *not* fixed is the product defect
+  underneath: the endpoint anchors on the database's day rather than the viewer's, which
+  spec 8.1 forbids by name. That is **issue #76**, and when it lands the criterion's oracle
+  has to move in the same commit or this class comes straight back.
 
 **The Postgres leg used to be a third one, and is not any more (issue #32, 2026-09-03).**
 It pointed all 282 files at one `dana_test`, they saw each other's rows, and the fingerprint
 was a count that climbed across successive tests, `expected 2 to be 1`, then 3, then 4.
-`CLAUDE.md` still describes that state in two places and is stale there. Each Vitest pool
-slot now gets a database of its own, `dana_test_r<run>_w<slot>`, created and migrated at run
-start and emptied before every file; the machinery is `app/tests/postgres-leg*.ts` and the
-contract is spec 11.10. Three things follow for you. A count that climbs on that leg is now
-a defect rather than a flake, so read it. `TEST_DATABASE_URL` names the base database the
-worker ones are derived from rather than the one your test runs in. And one file,
-`ac-001-constraint-catalog.test.ts`, still runs against the base database, because it asserts
-the English text of a server message and only a superuser can give a created database
-`lc_messages = C`; if you write a second test that reads server prose rather than a
-constraint name, `tests/postgres-leg-isolation.test.ts` will tell you so by name.
+Each Vitest pool slot now gets a database of its own, `dana_test_r<run>_w<slot>`, created and
+migrated at run start and emptied before every file; the machinery is
+`app/tests/postgres-leg*.ts` and the contract is spec 11.10. Three things follow for you. A
+count that climbs on that leg is now a defect rather than a flake, so read it.
+`TEST_DATABASE_URL` names the base database the worker ones are derived from rather than the
+one your test runs in. And one file, `ac-001-constraint-catalog.test.ts`, still runs against
+the base database, because it asserts the English text of a server message and only a
+superuser can give a created database `lc_messages = C`; if you write a second test that
+reads server prose rather than a constraint name, `tests/postgres-leg-isolation.test.ts`
+will tell you so by name.
 
 ## When the work needs the frontend
 
