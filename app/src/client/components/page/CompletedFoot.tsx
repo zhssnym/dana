@@ -46,13 +46,13 @@ client-side estimate of a total it cannot know.
 */
 import { useState } from 'react'
 
-import { mergeCompletedDays, useDoneView } from '../api/queries.js'
-import type { RowContext } from '../parts/presenters.js'
-import type { RowActions } from '../parts/useRowActions.js'
+import { mergeCompletedDays, useDoneView } from '../../api/queries.js'
+import type { RowContext } from '../../parts/presenters.js'
+import type { RowActions } from '../../parts/useRowActions.js'
 import { MorePages } from './PageStates.js'
 import { CollapsibleSection, PageSection } from './PageSection.js'
-import { TaskRows } from '../pages/task-rows.js'
-import type { TaskCard } from '../../shared/tasks.js'
+import { TaskRows } from '../../pages/task-rows.js'
+import type { TaskCard } from '../../../shared/tasks.js'
 
 export function CompletedFoot({
   keep,

@@ -51,17 +51,17 @@ not this file's.
 */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { LucideIcon } from '../lib/icons.js'
+import type { LucideIcon } from '../../lib/icons.js'
 
-import { ApiError } from '../api/http.js'
-import { InlineError, SkeletonList } from '../components/state-patterns.js'
-import { Button } from '../components/ui/button.js'
+import { ApiError } from '../../api/http.js'
+import { InlineError, SkeletonList } from '../state-patterns.js'
+import { Button } from '../ui/button.js'
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
-} from '../components/ui/empty.js'
+} from '../ui/empty.js'
 
 /**
  * An icon, taken by type rather than as an element so a caller passes
