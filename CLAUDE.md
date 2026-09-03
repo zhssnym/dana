@@ -388,10 +388,13 @@ protocol points here rather than repeating them.
     start and emptied before every file. **So a climbing count on that leg is now a
     defect rather than a flake — read it.** Two things follow. `TEST_DATABASE_URL` names
     the *base* database the worker ones are derived from, not the one your test runs in.
-    And `ac-001` alone still runs against that base, because it asserts the English text
-    of a server message and only a superuser can give a created database
-    `lc_messages = C` (issue #92); `tests/postgres-leg-isolation.test.ts` fails by name
-    if a second test ever grows a prose assertion.
+    And no file runs against that base, `ac-001` included: it did until issue #92, because
+    it asserted the English text of a server message and only a superuser can give a
+    created database `lc_messages = C`, and a migration any branch ran into `dana_test`
+    stayed there and failed `ac-001` for every branch behind it. It now asserts the
+    SQLSTATE and the `column` field of the server's error, which no locale translates;
+    never assert server prose, and `tests/postgres-leg-isolation.test.ts` fails by name
+    any test that does.
   - **The browser leg loses about one case a run** under memory pressure, and the
     bullets above cover it. Re-run the case alone, and read the note on when isolation
     lies.
