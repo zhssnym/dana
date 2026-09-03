@@ -51,17 +51,17 @@ not this file's.
 */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { LucideIcon } from '../lib/icons.js'
+import type { LucideIcon } from '../../lib/icons.js'
 
-import { ApiError } from '../api/http.js'
-import { InlineError, SkeletonList } from '../components/state-patterns.js'
-import { Button } from '../components/ui/button.js'
+import { ApiError } from '../../api/http.js'
+import { InlineError, SkeletonList } from '../state-patterns.js'
+import { Button } from '../ui/button.js'
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
-} from '../components/ui/empty.js'
+} from '../ui/empty.js'
 
 /**
  * An icon, taken by type rather than as an element so a caller passes
@@ -140,7 +140,7 @@ function EmptyState({
   return (
     <Empty className="min-h-72">
       {Icon === undefined ? null : (
-        <EmptyMedia className="text-[var(--color-graphite-400)]">
+        <EmptyMedia className="text-quiet-foreground">
           <Icon className="size-9" strokeWidth={1.6} aria-hidden="true" />
         </EmptyMedia>
       )}
@@ -259,7 +259,7 @@ export function MorePages({ query }: { readonly query: InfinitePageState }): Rea
         type="button"
         ref={button}
         variant="outline"
-        className="h-[var(--control-height)] border-[var(--color-graphite-200)] bg-white px-3 text-[13px] font-medium text-[var(--color-graphite-700)] shadow-none hover:bg-[var(--color-graphite-50)]"
+        className="h-[var(--control-height)] border-border bg-white px-3 text-[13px] font-medium text-section-foreground shadow-none hover:bg-muted"
         disabled={isFetchingNextPage}
         onClick={() => {
           void fetchNextPage()

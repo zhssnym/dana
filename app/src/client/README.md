@@ -18,7 +18,7 @@ provisional.
 | - | - | - |
 | `api/` | The API client, the query layer, the query keys, the 8.3 policy | Frontend Architect |
 | `state/` | Connectivity, the toast bus, the toast region | Frontend Architect |
-| `states/` | The shared loading, empty, error states and the named regions | Frontend Architect |
+| `components/page/` | Shared page UI: identity controls, blocks, loading, empty and error states, and named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
 | `pages/` | One file per surface of 9.2 and 9.4 to 9.8, and since S25 the wiring rather than the markup wherever a screen has been lifted | Frontend Architect |
 | `screens/` | **Lifted `prototype-v2` screens**, added at S25 with `important-screen.tsx`, which is RFC 0005 change control item 45's proof. A screen here is presentational and takes rows and callbacks, which is the architecture item 45 measured in the prototype and this client already had; its page beside it is the wiring. Each carries the named seams it crosses at the head of its own file | Frontend Architect |
@@ -82,7 +82,7 @@ error state rather than being rendered around.
 
 ## Loading, empty, error: the four states
 
-**Settled.** They are `states/PageStates.tsx` and a page never writes one.
+**Settled.** They are `components/page/PageStates.tsx` and a page never writes one.
 Section 9 gives every page five states and the fifth is the global banner; the
 other four are `PageBody`, which takes the query, whether the successful result
 is empty, and the normative empty copy of section 6.
@@ -250,7 +250,7 @@ recommendation, and it is role 08's file rather than a page's to change.
 
 **Settled**, by the sections ruling added to 9.1 on 2026-08-11. Every section a
 page's structure names is a named region, and a control inside one is addressed
-as that control within that region. Use `states/PageSection.tsx`:
+as that control within that region. Use `components/page/PageSection.tsx`:
 
 - `PageSection` renders `<section aria-label={name}>` with an optional visible
   heading. The name is 9.1's table where the section fixes one, and the datum
@@ -602,7 +602,7 @@ day split across a page boundary back into one group. Two regions cannot carry
 one name, and 9.1 names Done's regions by the day each one groups. It merges
 and never reorders, which section 6's preamble forbids.
 
-**`MorePages` in `states/PageStates.tsx` is the end of an infinite list**, and
+**`MorePages` in `components/page/PageStates.tsx` is the end of an infinite list**, and
 it is one control doing two jobs deliberately: a button, so the next page is
 reachable by keyboard and addressable at all, and an intersection observer on
 that button, so an ordinary reader never sees it and 9.5's "infinite scroll"
@@ -933,7 +933,7 @@ specification.
 The designer's six list screens are ported onto our view hooks through
 `parts/presenters.ts`: `pages/MyDayPage.tsx`, `TasksPage.tsx`, `PlannedPage.tsx`
 (its list mode alone; the calendar is R9's), `ImportantPage.tsx`, `AllPage.tsx`
-and `DonePage.tsx`, plus the shared page states in `states/`.
+and `DonePage.tsx`, plus the shared page states in `components/page/`.
 
 Three files are new or changed beyond the six pages.
 
@@ -944,7 +944,7 @@ Three files are new or changed beyond the six pages.
   text run in the dialog's title, with 9.1's "Continue" and "Cancel" beneath it.
 - `pages/page-heading.tsx` is the glyph, name and subtitle every one of his six
   screens opens with. The subtitles are his own words and section 9 writes none.
-- `states/PageStates.tsx` and `states/PageSection.tsx` are restyled onto his
+- `components/page/PageStates.tsx` and `components/page/PageSection.tsx` are restyled onto his
   `SkeletonList`, `InlineError` and `Empty`, and onto his group heading. The
   rule they existed for did not move: a page renders rows and declares its
   empty copy, and no page writes a loading or an error treatment of its own.
