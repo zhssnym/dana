@@ -43,11 +43,38 @@ export interface FilesRouterOptions {
   rateLimits?: RateLimits
 }
 
-const uploadFields = z.object({
-  kind: z.enum(['image', 'file', 'voice', 'cover']),
-  folder_id: z.uuid(),
-  duration_ms: z.coerce.number().int().positive().optional(),
-})
+/*
+7.15's multipart fields.
+
+**`folder_id` became optional for `cover` alone on 2026-09-03 (issues #20 and
+#100).** Imran ruled that folders, shelves and the built-in pages get the same
+four cover options and that "pictures should belong to the user instead of
+only a folder"; a shelf and a place page are not folders, so a cover has to be
+storable without one. Every other kind still requires it and the refusal is
+422 naming the field, not the 404 a folder the caller cannot see would get:
+an absent `folder_id` on a page image is a malformed request rather than a
+scope failure, and it was 422 before this change too.
+
+`superRefine` rather than a check in the handler so the rule is stated once,
+in the shape the message comes from, and so `createFile`'s own restatement of
+it (migration 0012's files_folderless_kind_check) is a second line of defence
+rather than the only one.
+*/
+const uploadFields = z
+  .object({
+    kind: z.enum(['image', 'file', 'voice', 'cover']),
+    folder_id: z.uuid().optional(),
+    duration_ms: z.coerce.number().int().positive().optional(),
+  })
+  .superRefine((fields, ctx) => {
+    if (fields.folder_id === undefined && fields.kind !== 'cover') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['folder_id'],
+        message: 'is required for every kind but cover',
+      })
+    }
+  })
 
 export function createFilesRouter(options: FilesRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
@@ -152,11 +179,16 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       if (store === null) return
       const fields = uploadFields.safeParse(req.body)
       if (!fields.success) {
+        /* One sentence for the whole shape, as before, rather than the
+           per-field formatter: the parts of a multipart body are not the
+           JSON fields `sendFieldValidationError` builds its paths from.
+           The wording moved with the rule above — `folder_id` is a uuid
+           where it is sent, and required for every kind but cover. */
         sendError(
           res,
           422,
           'validation_failed',
-          'kind: must be image, file, voice or cover, with folder_id a uuid.',
+          'kind: must be image, file, voice or cover; folder_id must be a uuid, and is required for every kind but cover.',
         )
         return
       }
@@ -166,7 +198,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       }
       const outcome = await createFile(db, store, viewer(req), {
         kind: fields.data.kind as FileKind,
-        folderId: fields.data.folder_id,
+        folderId: fields.data.folder_id ?? null,
         name: req.file.originalname || 'file',
         mime: req.file.mimetype,
         bytes: req.file.buffer,

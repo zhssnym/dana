@@ -558,6 +558,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'files_dimensions_kind_check', columns: ['kind', 'width'] },
       { name: 'files_dimensions_pair_check', columns: ['height', 'width'] },
       { name: 'files_duration_voice_check', columns: ['duration_ms', 'kind'] },
+      // Issues #20 and #100, migration 0012: which kinds may stand outside a
+      // folder. The expression names folder_id and kind, so both are listed
+      // and the header's rule sorts them.
+      { name: 'files_folderless_kind_check', columns: ['folder_id', 'kind'] },
       { name: 'files_kind_check', columns: ['kind'] },
       { name: 'files_name_length_check', columns: ['name'] },
     ],
@@ -643,6 +647,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [{ name: 'shelves_user_id_name_key', columns: ['user_id', 'name'] }],
     checks: [
       { name: 'shelves_color_format_check', columns: ['color'] },
+      // Issues #20 and #100, migration 0012: 0006's folder cover columns
+      // transcribed one object over, so a shelf can wear every tier a folder
+      // can. The one-source CHECK names both columns.
+      { name: 'shelves_cover_focal_y_range_check', columns: ['cover_focal_y'] },
+      { name: 'shelves_cover_one_source_check', columns: ['cover_file_id', 'cover_preset'] },
+      { name: 'shelves_cover_preset_format_check', columns: ['cover_preset'] },
       { name: 'shelves_description_length_check', columns: ['description'] },
       { name: 'shelves_name_length_check', columns: ['name'] },
     ],

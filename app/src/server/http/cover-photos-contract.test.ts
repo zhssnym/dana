@@ -10,12 +10,14 @@ here touches the network, so the suite stays offline-honest.
 */
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../../../tests/auth-harness.js'
 import type { AuthTestApp } from '../../../tests/auth-harness.js'
 import { Cast, createFolder } from '../../../tests/folders-harness.js'
 import type { Actor } from '../../../tests/folders-harness.js'
+import { rows } from '../../../tests/helpers.js'
 
 let app: AuthTestApp
 const cast = new Cast(['picker'], 'coverphoto')
@@ -129,6 +131,46 @@ describe('the photo tier stays on this origin', () => {
     expect(served.status, served.body).toBe(200)
 
     const refused = await picker.browser.json(`/folders/${folder}/cover/photo`, 'POST', {
+      photo_id: 'not-a-uuid',
+    })
+    expect(refused.status, 'photo_id is a uuid or nothing').toBe(422)
+  })
+
+  /*
+  The folder-less arm, added 2026-09-03 for issues #20 and #100: the same act
+  for a shelf or a place page, which are not folders and so have no id to put
+  in the URL. It shares `storePhoto` with the route above, so what is worth
+  asserting here is the one thing that differs — where the picture lands — and
+  that the shared half still runs.
+  */
+  test('the same photograph becomes a folder-less cover for a shelf or a place', async () => {
+    const [picker] = (await cast.of(app)) as [Actor]
+    upstreamHits = []
+    const stored = await picker.browser.json('/covers/photo', 'POST', {
+      photo_id: PHOTO_ID,
+    })
+    expect(stored.status, stored.body).toBe(201)
+    const file = stored.json() as { id: string; bytes: number }
+    expect(file.bytes, 'the stored cover has real bytes').toBeGreaterThan(0)
+    expect(
+      upstreamHits[0],
+      'the download URL still comes from the upstream record the route fetched itself, never from the client',
+    ).toBe(`/v1/images/${PHOTO_ID}/`)
+
+    const row = await rows(
+      app.db,
+      sql`SELECT folder_id, owner_id, kind FROM files WHERE id = ${file.id}::uuid`,
+    )
+    const record = row[0] as Record<string, unknown> | undefined
+    expect(record?.folder_id, 'it belongs to the person, not to a folder').toBeNull()
+    expect(String(record?.owner_id), 'and the person is the caller').toBe(picker.id)
+    expect(String(record?.kind), 'stored as 4.16’s cover kind').toBe('cover')
+
+    /* Served back to its owner, which is what makes it usable as a cover. */
+    const served = await picker.browser.api(`/files/${file.id}`, { method: 'GET' })
+    expect(served.status, served.body).toBe(200)
+
+    const refused = await picker.browser.json('/covers/photo', 'POST', {
       photo_id: 'not-a-uuid',
     })
     expect(refused.status, 'photo_id is a uuid or nothing').toBe(422)

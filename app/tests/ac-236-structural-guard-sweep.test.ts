@@ -204,11 +204,14 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // walker itself. Equality rather than a floor, because the floor it
     // replaces was `> 20` against 65 actual routes, so two thirds of this
     // surface could have gone missing from the walk without a word. Measured
-    // 2026-09-03, dev-login excluded by EXEMPT.
+    // 2026-09-03, dev-login excluded by EXEMPT. 66 to 67 the same day, for
+    // POST /covers/photo (issues #20 and #100), which is this sentence's own
+    // instruction followed rather than an exception to it: the sweep already
+    // passed on the new route, and only the count moved.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 66 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(66)
+      `the walker found ${String(routes.length)} mutating routes and there were 67 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(67)
 
     const failures: string[] = []
     const jsonBody = {
