@@ -349,6 +349,25 @@ protocol points here rather than repeating them.
   Actions minutes and has no time limit; the 40 in the workflow is a hang killer.**
   Manage it with `Start-ScheduledTask` and `Stop-ScheduledTask` on
   `'GitHub Actions Runner (dana)'`.
+- **`gh run rerun` re-uses the stale merge commit, and the failure is silent and
+  self-consistent.** CI checks `refs/pull/N/merge`, which is right and is what `ci.yml`
+  says it does. But **re-running a run does not recompute that merge commit** — it replays
+  the SHA the run was created against. So after a fix lands on `main`, re-running a pull
+  request's failed job measures the branch against the **old** `main` and fails identically.
+  Measured 2026-09-03: eight pull requests re-run after the fix in #127 merged, all eight
+  failing on `ac-001` exactly as before, the catalog expecting 6 `shelves` constraints
+  against a database holding 9 — the pre-fix state. **The re-run fails the same way, which
+  reads as "the fix did not work" rather than "you measured the wrong thing"**, and that
+  reading sends you back to a fix that was already correct. What does work is **closing and
+  reopening the pull request**, which fires a `pull_request` event and makes GitHub
+  recompute the merge ref against current `main`; verified the same day.
+- **The runner can sit idle with work queued, and there is no explanation here.** Observed
+  2026-09-03: a job queued at 07:59Z did not start until 09:08Z, seventy minutes later, with
+  the runner online and nothing else executing for most of that window. **The cause is
+  deliberately not guessed at**, on the same rule the `.data` bullet keeps. It is recorded
+  because the next person to meet a long queue will otherwise assume something is running
+  that is not, and start cancelling or restarting things that were fine. `Get-Process
+  Runner.Worker` settles it: a listener with no worker, and a job queued, is this state.
 - **CI triggers on pull requests and on pushes to `main`, not on every push.** A
   branch with no pull request gets no verdict, which is correct under a workflow where
   nothing reaches `main` except through one, and it stops a single runner starting two
