@@ -121,11 +121,24 @@ PGlite worker crashes, the port collisions on the browser leg, and the counts th
 to be measurement rather than code. Two known flake classes will cost you time if you do not
 know them:
 
-- **The Postgres leg shares one database across all 278 files.** Files see each other's rows.
-  The fingerprint is a count that climbs across successive tests, `expected 2 to be 1`, then
-  3, then 4. Re-run the file alone before believing it.
 - **The browser leg loses about one case a run.** Re-run the case alone, and read
   `CLAUDE.md`'s note on when isolation lies.
+- **A test that reads the clock twice fails when a run crosses midnight**, and re-running is
+  not the fix: the same run at the same hour tomorrow fails again. Issue #46.
+
+**The Postgres leg used to be a third one, and is not any more (issue #32, 2026-09-03).**
+It pointed all 282 files at one `dana_test`, they saw each other's rows, and the fingerprint
+was a count that climbed across successive tests, `expected 2 to be 1`, then 3, then 4.
+`CLAUDE.md` still describes that state in two places and is stale there. Each Vitest pool
+slot now gets a database of its own, `dana_test_r<run>_w<slot>`, created and migrated at run
+start and emptied before every file; the machinery is `app/tests/postgres-leg*.ts` and the
+contract is spec 11.10. Three things follow for you. A count that climbs on that leg is now
+a defect rather than a flake, so read it. `TEST_DATABASE_URL` names the base database the
+worker ones are derived from rather than the one your test runs in. And one file,
+`ac-001-constraint-catalog.test.ts`, still runs against the base database, because it asserts
+the English text of a server message and only a superuser can give a created database
+`lc_messages = C`; if you write a second test that reads server prose rather than a
+constraint name, `tests/postgres-leg-isolation.test.ts` will tell you so by name.
 
 ## When the work needs the frontend
 

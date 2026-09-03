@@ -134,6 +134,18 @@ jobs:
       # stored at GitHub. The database it names is the one 11.10's CREATE
       # DATABASE statement fixes to the builtin C.UTF-8 locale.
       #
+      # Since 2026-09-03 (issue #32) it names the *base* database rather than the
+      # one the tests run in: the suite derives one database per Vitest worker
+      # from it, creates them at the start of the run and drops them at the end,
+      # because all 282 files sharing one database could see each other's rows.
+      # That is job configuration in 11.11's own terms, "where the postgres leg's
+      # database comes from", and it moves without amending 11.11. Nothing about
+      # this step's position, its name, or the guard below changes with it, and
+      # the guard is if anything load-bearing in one more way now: the derivation
+      # happens in a Vitest globalSetup that returns immediately when the variable
+      # is unset or empty, so an empty value would produce a PGlite run *and* no
+      # isolation, and still report green.
+      #
       # The guard is what stops this step passing by running PGlite twice.
       # Because the string arrives from outside this file, a missing .env, a
       # misspelled name, or a service started before the file was written all
