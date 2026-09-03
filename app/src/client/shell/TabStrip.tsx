@@ -24,15 +24,15 @@ Import closes the set later the same day through `overlays.ts`'s seam: the
 strip asks, the sidebar presses the one file input it owns. The menu grows
 those entries rather than the strip growing a second control.
 
-**The row's geometry is the prototype's, measured rather than recalled.**
-Serving `docs/design/prototype-v2` and reading the boxes back gives tabs of
+**The row's geometry began with the prototype, measured rather than recalled.**
+Serving `docs/design/prototype-v2` and reading the boxes back gave tabs of
 128px flush against one another in a strip of 24px, no gap between them and
 no inset at the sidebar's edge. The port had none of that: `gap-1` on the
 row, `px-2` on the strip and no minimum width at all, so tabs were pills
 sized to their own words, about 80px for "Desk", separated by a gutter. That
-is what "they feel separated from each other" and "too condensed" name, and
-the floor is what fixes both. The comments at the two class strings carry the
-arithmetic.
+is what "they feel separated from each other" and "too condensed" name. The
+floor fixes both, and the strip is now 28px high after Imran found the shipped
+24px result too thin. The comments at the two class strings carry the arithmetic.
 
 **The drag runs on the one engine, since S11.** 9.1 says tabs are "reorderable
 by drag", and this file answered that at S9 with a pointer drag of its own:
@@ -177,17 +177,21 @@ export function TabStrip({
       turned a tab strip into a row of separate pills, and pills are what
       "they feel separated from each other" describes.
 
-      **The scrollbar is hidden rather than absent.** Tabs stop shrinking at
-      the floor below, so enough of them overflow and the row scrolls; a
-      scrollbar drawn inside a 24px strip would take a third of the tab's
-      height to say so. Its buttons are hidden explicitly too, because
-      Chromium on Windows can leave them visible after hiding the track.
-      Every browser's own strip scrolls without one.
+      **The horizontal scrollbar is hidden rather than scrolling being
+      absent.** Tabs stop shrinking at the floor below, so enough of them
+      overflow and the row still scrolls. `overflow-x-auto` otherwise computes
+      the other axis to `auto`; the tab contents are two pixels taller than the
+      strip's client box in Windows Chromium, so that produced a thin vertical
+      scrollbar between the last tab and New tab even with the WebKit track
+      hidden. The explicit hidden y-axis prevents that gutter. The inline
+      standard property is deliberate: the global `*` scrollbar rule comes
+      after Tailwind utilities and otherwise changes `none` back to `thin`.
       */}
       <div
         role="tablist"
         aria-label="Open tabs"
-        className="flex min-w-0 shrink items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar-button]:hidden [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 shrink items-stretch overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar-button]:hidden [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: 'none' }}
       >
         {tabs.map((tab, index) => {
           const { title, icon: Icon, iconColor } = face(tab.path)
