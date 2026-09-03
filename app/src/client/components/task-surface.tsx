@@ -782,7 +782,9 @@ export function TaskSurface({
       style={{ width: isMobile ? "100%" : panelWidth }}
       className={cn(
         "fixed right-0 bottom-0 z-50 flex max-w-full flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right",
-        isMobile ? "top-0" : "top-[calc(var(--shell-pagebar-height)+var(--shell-windowbar-height))]",
+        /* Keep the tab strip visible, then let the panel provide its own
+           window bar instead of leaving the page's bar as an empty cap. */
+        isMobile ? "top-0" : "top-[var(--shell-pagebar-height)]",
       )}
     >
       {isMobile ? null : (
