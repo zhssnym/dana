@@ -135,8 +135,18 @@ function defaultDiskStore(): ObjectStore {
  * performs no I/O (11.10) and because the file it would read does not exist
  * in a source checkout that has never built. What keeps it honest is
  * `tests/ac-238-response-security-headers.test.ts`, which recomputes the
- * digest from `app/index.html` and fails if the served policy does not carry
- * it: edit the script without editing this line and the suite says so.
+ * digest from the shell document itself, preferring the built
+ * `dist/client/index.html` the browser is actually served and falling back
+ * to `app/index.html` when nothing has been built, and fails if `script-src`
+ * does not name every inline script it finds there: edit the script without
+ * editing this line and the suite says so. Its one gap is that CI reaches
+ * the vitest legs before the build step, so there the fallback is what runs;
+ * issue #96 carries the version that reads a freshly built document.
+ *
+ * And the digest is stable across checkouts only because `.gitattributes`
+ * sets `* text=auto eol=lf`. `core.autocrlf` is true on at least one machine
+ * here, and a CRLF working copy of `app/index.html` hashes to something else
+ * entirely, which would ship a policy refusing the very script it names.
  */
 const THEME_SCRIPT_HASH = 'sha256-Dj3RFqRnuo6lgqd0HI36Wj2p9AqPZv5+ymGddn+OUjw='
 
@@ -206,8 +216,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     and over 'unsafe-inline' because widening the one directive that decides
     whether an injected script runs, in order to remove a flash, is not a
     trade worth making. The literal below is the digest of that script's
-    body, and `tests/ac-238` recomputes it from `index.html` rather than
-    importing it, so an edit to the script fails the suite instead of
+    body, and `tests/ac-238` recomputes it from the shell document rather
+    than importing it, so an edit to the script fails the suite instead of
     silently restoring the flash.
   - img-src blob:: the client turns a chosen File into an object URL and
     loads it into an Image to crop it (`lib/viewer.ts` squareImageFile), and
