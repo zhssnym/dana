@@ -188,23 +188,9 @@ export function PickerChip({
   field?: string
   muted?: boolean
   color?: string
-  /*
-  **Seam, S23: 9.3's two date-dependent rows are visible and inoperable.**
-
-  The prototype's chip is always pressable and its reminder panel explains
-  itself once opened, "This task has no due date yet. These are measured from
-  one." 9.3's field table asks for the state one step earlier: reminder and
-  repeat each "requires a due date", and the disable column carries a helper,
-  "Set a due date first". AC-092 reads exactly that pair, the chip visible and
-  `toBeDisabled()`, "disabled means visible but inoperable, so it is still on
-  the strip", and "a disabled control with no helper is what that column
-  exists to forbid".
-
-  The helper is not drawn here, and that is the second half of the same
-  criterion: it asserts one helper on the surface while either chip is
-  disabled, so a chip that carried its own would put two on a strip that has
-  two disabled chips. `components/task-card.tsx` draws it once beside them.
-  */
+  /* Reminder and repeat stay visible but inoperable until the task has a due
+     date. Their position immediately after the due-date control communicates
+     the dependency without adding a permanent instruction below the strip. */
   disabled?: boolean
   children: ReactNode
 }) {
