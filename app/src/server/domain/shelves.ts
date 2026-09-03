@@ -83,9 +83,19 @@ export async function shelfView(
  *
  * ON CONFLICT DO NOTHING rather than a SELECT and then an INSERT: two
  * requests filing two folders onto one new shelf race, and 4.18's UNIQUE
- * (user_id, name) is the arbiter. The event is recorded only for the request
- * that actually inserted, so a shelf has one 'created' line however many
- * folders arrived at once.
+ * (user_id, name) is the arbiter.
+ *
+ * **No event, and it is deliberate rather than an omission.** `createShelf`
+ * records one because somebody asked for a shelf; here nobody did. The act
+ * was "put this folder on Work", the shelf is the server holding 4.18 in
+ * step, and a 'created' line in a history for something no one performed as
+ * its own act is the kind of noise `lib/history.ts` exists to keep out: "a
+ * history that logged every keystroke as its own line would be a diff". It
+ * also keeps the two ways a shelf can appear unasked-for in agreement, since
+ * migration 0011's rows cannot carry an event either, a migration having no
+ * actor. The consequence is that such a shelf's Activity line does not draw
+ * until something happens to it, which is the state that control already has
+ * a rule for ("nothing recorded yet means nothing to say", DES-144).
  *
  * The lengths agree by contract and nothing here has to check: 10.3 gives the
  * personal label and the shelf name the same 1 to 40 bound, and
@@ -97,23 +107,11 @@ export async function ensureShelf(
   viewerId: string,
   name: string,
 ): Promise<void> {
-  const inserted = await rowsOf(
-    tx,
+  await tx.execute(
     sql`INSERT INTO shelves (user_id, name)
         VALUES (${viewerId}::uuid, ${name})
-        ON CONFLICT (user_id, name) DO NOTHING
-        RETURNING id`,
+        ON CONFLICT (user_id, name) DO NOTHING`,
   )
-  const row = inserted[0]
-  if (row === undefined) return
-  await recordEvent(tx, {
-    actorId: viewerId,
-    verb: 'created',
-    subjectKind: 'shelf',
-    subjectId: String(row.id),
-    subjectName: name,
-    folderId: null,
-  })
 }
 
 export type CreateShelfResult =
