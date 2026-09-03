@@ -34,8 +34,6 @@ both of those pay for those modules anyway.
 export const RUN_ID_ENV = 'DANA_PG_LEG_RUN'
 /** The unmodified connection string, kept because workers overwrite TEST_DATABASE_URL. */
 export const BASE_URL_ENV = 'DANA_PG_LEG_BASE'
-/** '1' when a database this leg creates reports lc_messages = C, '0' otherwise. */
-export const ENGLISH_ENV = 'DANA_PG_LEG_ENGLISH'
 
 /*
 The advisory lock class that says "this run is alive".
@@ -55,40 +53,6 @@ from this two argument form, so the numbers could not collide even if they were
 equal.
 */
 export const RUN_LOCK_CLASS = 727002
-
-/**
- * Test files that assert the text of a PostgreSQL server message rather than
- * an identifier, and therefore need `lc_messages = C`.
- *
- * **This list exists because of a privilege, not a preference.** `lc_messages`
- * is a superuser-context GUC: the role the leg authenticates as owns the
- * database it creates and still cannot set that parameter, at session level,
- * through the startup packet, or with ALTER DATABASE, and CREATE DATABASE with
- * a TEMPLATE does not copy it, because pg_db_role_setting is a shared catalog
- * keyed by the database's own oid. All four were measured on 2026-09-03 rather
- * than assumed. So a database this leg creates answers in the cluster's
- * language, which on this machine is French, and the one assertion in the
- * repository that reads server prose, AC-001's adversarial NOT NULL case
- * asserting `null value in column "folder_id"`, would fail on it.
- *
- * The file named here therefore runs against the base database, which a
- * superuser did set `lc_messages = C` on when it was created. That costs
- * nothing in isolation: no other file is on the base database, so AC-001 has it
- * to itself, which is more isolation than it had before rather than less.
- *
- * **One statement removes this list.** Either of these, run once by a
- * superuser, makes every database this leg creates answer in English, at which
- * point ENGLISH_ENV is '1' and the routing never fires:
- *
- *     ALTER ROLE dana_ci SET lc_messages = 'C';
- *     GRANT SET ON PARAMETER lc_messages TO dana_ci;
- *
- * `tests/postgres-leg-isolation.test.ts` fails if a file outside this list
- * grows an assertion on server prose, so the list cannot rot quietly.
- */
-export const SERVER_MESSAGE_PROSE_FILES: readonly string[] = [
-  'ac-001-constraint-catalog.test.ts',
-]
 
 /** The connection string for the leg, or undefined when this is the PGlite leg. */
 export function legBaseUrl(): string | undefined {
@@ -168,25 +132,31 @@ export function createDatabaseSql(name: string): string {
 /**
  * The database one test file runs against, or undefined on the PGlite leg.
  *
- * Everything gets its pool slot's own database. The exception is a file that
- * asserts the text of a server message: those need `lc_messages = C`, which
- * only a superuser can give a created database, so when the run has measured
- * that its own databases answer in the cluster's language those files go to the
- * base database instead. SERVER_MESSAGE_PROSE_FILES carries the whole argument
- * and the one statement that retires it.
+ * Every file gets its pool slot's own database, and nothing is routed anywhere
+ * else. One file was, for the hours between issue #32 and issue #92: AC-001
+ * asserted the prose of a server message, prose needs `lc_messages = C`, and
+ * that is a superuser-context GUC the role this leg runs as cannot set on a
+ * database it creates, at session level, through the startup packet, with
+ * ALTER DATABASE, or by inheriting it from a TEMPLATE, all four measured on
+ * 2026-09-03. So that file ran on the base database, which a superuser had set
+ * it on, and that made it the one file whose schema another branch's
+ * forward-only migrations could change underneath it. The assertion now reads
+ * the SQLSTATE and the column field of the server's error, which no locale
+ * translates (helpers.ts, serverErrorFields), the routing is gone, and
+ * `postgres-leg-isolation.test.ts` fails any file that grows a prose assertion
+ * so it has no reason to return.
  */
-export function targetDatabaseUrl(testFileName: string): string | undefined {
+export function targetDatabaseUrl(): string | undefined {
   const runId = process.env[RUN_ID_ENV]
   const baseUrl = process.env[BASE_URL_ENV]
   if (runId === undefined || baseUrl === undefined || baseUrl === '') return undefined
-
-  const baseName = databaseNameOf(baseUrl)
-  if (SERVER_MESSAGE_PROSE_FILES.includes(testFileName) && process.env[ENGLISH_ENV] === '0') {
-    return withDatabase(baseUrl, baseName)
-  }
   const poolId = Number(process.env.VITEST_POOL_ID ?? '1')
   return withDatabase(
     baseUrl,
-    workerDatabaseName(baseName, Number(runId), Number.isFinite(poolId) ? poolId : 1),
+    workerDatabaseName(
+      databaseNameOf(baseUrl),
+      Number(runId),
+      Number.isFinite(poolId) ? poolId : 1,
+    ),
   )
 }
