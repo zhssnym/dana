@@ -49,7 +49,7 @@ commands and this machine's failure modes.
 `app/db/` holds `client.ts` (the one seam that chooses PGlite or Postgres), `migrate.ts`,
 `seed.ts`, `verify.ts` and `constraint-catalog.ts`.
 
-## Four things that are true and not obvious
+## Five things that are true and not obvious
 
 **There is no authorization chokepoint, despite what spec 10.2 says.** There cannot be one,
 because what counts as authorized depends on what is being asked for. What exists instead is
@@ -70,6 +70,20 @@ casually.
 **Migrations are forward only.** No down migration exists, and a migration runs against
 production the moment the merge deploys. Recovery is a fix-forward migration or a restore.
 Destructive changes split across two releases: expand, then contract.
+
+**A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
+Added 2026-09-03 from issue #27, where it cost a red run and would otherwise have cost a
+fix-forward migration. A CHECK fails only on FALSE; UNKNOWN is as good as TRUE to it. So the
+obvious spelling of a both-or-neither rule,
+`((a IS NULL AND b IS NULL) OR (a > 0 AND b > 0))`, admits exactly the row it was written to
+refuse: with `a` null and `b` set, the first branch is FALSE and the second is NULL, because
+`NULL > 0` is NULL, and `FALSE OR NULL` is NULL. Write it so no possibly-null value is
+compared until both are known to be present — `(a IS NULL) = (b IS NULL) AND (a IS NULL OR
+(a > 0 AND b > 0))`, `IS NULL` always yielding a real boolean. **The reason this is worth a
+bullet rather than a footnote is the second half: AC-001 asserts constraints by name and by
+which columns they mention, never by what the expression does**, so a toothless CHECK is
+green across the whole suite. Only a behavioural case that tries the bad row catches it, and
+if your migration adds a CHECK, writing that case is your job.
 
 ## `app/src/shared/` is the contract
 

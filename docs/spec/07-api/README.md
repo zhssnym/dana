@@ -30,6 +30,18 @@ decision, holds through the fold. 7.13 is folded as RFC 0005 accepted it and is 
 amended in parallel by RFC 0004's S28a, whose Replace unit lands on it, and item 36's
 permanent delete; read that row's outcome before relying on 7.13's last sentence.
 
+**Third, three read shapes gained fields on 2026-09-03 under issue #27, and the addition is
+recorded here because section 7 is frozen and a change to it must be visible from its front
+door.** 7.14's comment file, 7.15's upload answer and 7.16's block read each carry the width
+and height migration 0009 added to 4.16. **Every one is additive**: no field changed meaning,
+no field became stricter, nothing that parsed before stops parsing, and the shared zod
+schemas both sides import are the compiler's business on both sides. The authority is the
+ruling the issue records, that a page which jumps by the height of an image is a correctness
+fault rather than a feature; the columns are useless without a way to read them, so serving
+them is not a second decision but the same one. **The owner's confirmation of the section 7
+half is nonetheless owed**, the ruling having named section 4 explicitly and this section
+only by implication.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |

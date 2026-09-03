@@ -221,7 +221,17 @@ export function createCoverPhotosRouter(
         refusal(res, outcome)
         return
       }
-      res.status(201).json({ id: outcome.id, bytes: outcome.bytes })
+      // The same answer 7.15's upload sends, because it is the same act: the
+      // shape comes back with the id (issue #27). It matters more here than
+      // there — the caller never held these bytes, the server fetched them
+      // from the upstream's record, so this response is the only thing that
+      // can tell it what was stored.
+      res.status(201).json({
+        id: outcome.id,
+        bytes: outcome.bytes,
+        width: outcome.width,
+        height: outcome.height,
+      })
     },
   )
 

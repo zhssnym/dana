@@ -57,6 +57,13 @@
       "when": 1788200000000,
       "tag": "0007_sample_objects",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0009_file_dimensions",
+      "breakpoints": true
     }
   ]
 }

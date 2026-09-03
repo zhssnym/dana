@@ -204,7 +204,21 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      res.status(201).json({ id: outcome.id, bytes: outcome.bytes })
+      // 4.16's width and height ride back with the id (issue #27). This
+      // caller is holding the file and already knows its shape, so the pair
+      // is here for completeness and for one real use: 7.15 downscales
+      // anything past 2048px, and this is the only place the answer says
+      // what the store actually kept. The reader who genuinely needs the
+      // numbers is a different person entirely, and reaches them through the
+      // page and thread reads. Null for every kind that carries no
+      // dimensions. `routes/cover-photos.ts` answers the same four for the
+      // same act, where the caller never held the bytes at all.
+      res.status(201).json({
+        id: outcome.id,
+        bytes: outcome.bytes,
+        width: outcome.width,
+        height: outcome.height,
+      })
     }),
   )
 
