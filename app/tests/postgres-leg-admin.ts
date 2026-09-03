@@ -51,6 +51,11 @@ export async function ensureDatabase(
   try {
     await admin.query(createDatabaseSql(name))
   } catch (error) {
+    // 42P04 is duplicate_database, which is the answer this wanted. Nothing
+    // migrates on this path and nothing needs to: the caller is createTestDb(),
+    // which runs the migrator itself immediately afterwards under its advisory
+    // lock, so a database left half-built by a run that died between the CREATE
+    // and the migration is finished rather than trusted.
     if (errorCode(error) !== '42P04') throw error
     return false
   }
