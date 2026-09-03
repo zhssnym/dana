@@ -52,11 +52,13 @@ and teardown are the same module instance in the same process.
 let registry: pg.Client | undefined
 let runId = 0
 let baseName = ''
+let baseConnection = ''
 
 export async function setup(): Promise<void> {
   const baseUrl = legBaseUrl()
   if (baseUrl === undefined) return
 
+  baseConnection = baseUrl
   baseName = databaseNameOf(baseUrl)
   registry = await connect(baseUrl)
   runId = await claimRunId(registry)
@@ -70,7 +72,20 @@ export async function setup(): Promise<void> {
   create anyway. Every other slot is created by the worker that first needs it.
   */
   const first = workerDatabaseName(baseName, runId, 1)
-  await ensureDatabase(registry, baseUrl, first)
+  try {
+    await ensureDatabase(registry, baseUrl, first)
+  } catch (error) {
+    if ((error as { code?: unknown }).code === '42501') {
+      throw new Error(
+        'the Postgres leg cannot create its per-worker databases: the role ' +
+          'TEST_DATABASE_URL authenticates as has no CREATEDB privilege. One ' +
+          'statement from a superuser fixes it, ALTER ROLE <that role> CREATEDB, ' +
+          'and spec 11.10 records why the leg needs it.',
+        { cause: error },
+      )
+    }
+    throw error
+  }
   const probe = await connect(withDatabase(baseUrl, first))
   let english: boolean
   try {
@@ -98,9 +113,24 @@ export async function setup(): Promise<void> {
 
 export async function teardown(): Promise<void> {
   if (registry === undefined) return
+  const started = Date.now()
   try {
-    await dropRunDatabases(registry, baseName, runId)
+    const { dropped, failed } = await dropRunDatabases(registry, baseConnection, baseName, runId)
     await releaseRunId(registry, runId)
+    /*
+    The elapsed time is printed because it is the one part of this scheme whose
+    cost is not visible in Vitest's own Duration, which stops at the last test.
+    DROP DATABASE is fsync bound, so on a machine whose disk is busy it is the
+    difference between a leg that took six minutes and a command that took
+    eighteen, and a number nobody can see is a number nobody will believe.
+    Anything left undropped is the next run's sweep to collect, not a failure.
+    */
+    process.stdout.write(
+      `[postgres leg] dropped ${dropped} worker database(s) in ` +
+        `${((Date.now() - started) / 1000).toFixed(1)}s` +
+        (failed > 0 ? `; ${failed} left for the next run's sweep` : '') +
+        '\n',
+    )
   } finally {
     await registry.end()
     registry = undefined

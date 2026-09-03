@@ -243,14 +243,42 @@ export async function sweepDeadRuns(
   return dropped
 }
 
-/** Drops what this run created. Called once, from the global teardown. */
+/**
+ * Drops what this run created, and answers how many. Called once, from the
+ * global teardown.
+ *
+ * Concurrently, on a connection each, because DROP DATABASE is fsync bound and
+ * the first one on a busy cluster pays for a checkpoint the rest then ride:
+ * measured 2026-09-03 under heavy load at 22.8 seconds for the first and 0.8
+ * and 0.5 for the two behind it. Serially that cost is the whole run's, at the
+ * end, where nothing else is happening. A failure to drop is reported and not
+ * raised: the databases of a run that has ended are exactly what the next run's
+ * sweep is for, so a teardown that cannot finish must not turn a green run red.
+ */
 export async function dropRunDatabases(
   admin: pg.Client,
+  baseUrl: string,
   base: string,
   runId: number,
-): Promise<void> {
-  for (const entry of await ownedDatabases(admin, base)) {
-    if (entry.runId !== runId) continue
-    await admin.query(`DROP DATABASE IF EXISTS ${quoteIdent(entry.name)} WITH (FORCE)`)
+): Promise<{ dropped: number; failed: number }> {
+  const mine = (await ownedDatabases(admin, base)).filter((entry) => entry.runId === runId)
+  const results = await Promise.all(
+    mine.map(async (entry) => {
+      // DROP DATABASE cannot run from a connection to the database it drops, so
+      // every one of these is a connection to the base database, as `admin` is.
+      const client = await connect(withDatabase(baseUrl, base))
+      try {
+        await client.query(`DROP DATABASE IF EXISTS ${quoteIdent(entry.name)} WITH (FORCE)`)
+        return true
+      } catch {
+        return false
+      } finally {
+        await client.end()
+      }
+    }),
+  )
+  return {
+    dropped: results.filter(Boolean).length,
+    failed: results.length - results.filter(Boolean).length,
   }
 }
