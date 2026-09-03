@@ -79,6 +79,7 @@ import { PendingAuthorizations } from './pending.js'
 import {
   EmailAlreadyClaimedError,
   emailStanding,
+  isEmailCollision,
   provisionUser,
   syncTimezone,
 } from './provisioning.js'
@@ -355,15 +356,23 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       */
       const claimed =
         error instanceof EmailAlreadyClaimedError ||
-        // The second look is itself a database call, on a path a database
-        // fault is the likeliest reason for reaching. It answers "not a
-        // collision" rather than throwing, because a throw here would turn a
-        // handled refusal into a 500 on the one endpoint a person meets
-        // before they have an account.
-        (await emailStanding(db, identity).catch(() => ({
-          subjectKnown: false,
-          addressClaimed: false,
-        }))).addressClaimed
+        // One predicate, shared with the read inside the transaction, because
+        // the two are asking the same question and were briefly written as two
+        // different rules: this site read `addressClaimed` alone, which showed
+        // the claimed-email page to a returning person whose address at Google
+        // had moved onto a live account and who then met any unrelated fault.
+        // syncTimezone is inside this same try, so that is reachable.
+        isEmailCollision(
+          // The second look is itself a database call, on a path a database
+          // fault is the likeliest reason for reaching. It answers "not a
+          // collision" rather than throwing, because a throw here would turn a
+          // handled refusal into a 500 on the one endpoint a person meets
+          // before they have an account.
+          await emailStanding(db, identity).catch(() => ({
+            subjectKnown: false,
+            addressClaimed: false,
+          })),
+        )
       if (claimed) {
         securityLog.authEvent('sign_in_failed', { reason: 'email_already_claimed' })
         refuseClaimedEmail(res)

@@ -112,7 +112,13 @@ which P9 extends rather than replaces.
   stands and now renders 9.2's claimed-email page instead of bouncing to the
   landing page unexplained. `provisioning.ts`'s `emailStanding` names the
   collision before the insert and the callback re-reads it after any
-  provisioning fault, which covers the race. The Gmail dotted-variant half of
+  provisioning fault, which covers the race. **Both sites call one predicate,
+  `isEmailCollision`, and that is load-bearing rather than tidy:** the
+  `!subjectKnown` half looks like it does nothing from either site alone,
+  because the standing query already excludes the subject's own row, and
+  deleting it passed the whole suite until AC-346 gained the case that only it
+  decides, a returning subject whose address at Google has moved onto a live
+  account. The Gmail dotted-variant half of
   the same issue is deferred by the same ruling and specified as current
   behaviour at 10.1: no normalisation of any kind, in either direction.
   AC-346.

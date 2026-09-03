@@ -151,6 +151,33 @@ export async function emailStanding(
 }
 
 /**
+ * The refusal's whole condition, written once because it is read twice.
+ *
+ * `provisionUser` asks it before the insert and the callback asks it again
+ * after any provisioning fault, and the two questions are the same question:
+ * a subject Dana has never seen, on an address a live account already holds.
+ * Until 2026-09-03 the second site wrote it as `addressClaimed` alone, which
+ * is a different rule and a wrong one, and it showed the claimed-email page to
+ * a returning person whose address at Google had moved onto somebody else's
+ * account and who then met any unrelated fault.
+ *
+ * **It is a function rather than two expressions because of what the two
+ * expressions were about to cost.** `subjectKnown` looks like it does nothing
+ * from either site alone: `emailStanding`'s `theirs` count already excludes
+ * the subject's own row, so every ordinary returning login is unclaimed
+ * whether the term is there or not, and deleting it passed the whole suite on
+ * the day it was written. Only a returning subject whose address has since
+ * moved onto a live account tells the two apart, and refusing that person is
+ * the one dead end this product has: no password reset, no second factor, and
+ * a page saying the account is somebody else's. AC-346 carries the case; this
+ * function is what keeps a later reader from correcting one site to match the
+ * other.
+ */
+export function isEmailCollision(standing: EmailStanding): boolean {
+  return !standing.subjectKnown && standing.addressClaimed
+}
+
+/**
  * Runs the transaction for one identity. The reported zone is stored at
  * creation and UTC when none was reported (7.1); an existing account's zone
  * is left to syncTimezone, which is 8.1's rule rather than this one's.
@@ -165,8 +192,7 @@ export async function provisionUser(
     // Issue #17: a subject Dana has never seen, on an address a live account
     // already holds, is refused here rather than at the index. The whole of
     // the reasoning is on emailStanding below.
-    const standing = await emailStanding(tx, identity)
-    if (!standing.subjectKnown && standing.addressClaimed) {
+    if (isEmailCollision(await emailStanding(tx, identity))) {
       throw new EmailAlreadyClaimedError()
     }
 
