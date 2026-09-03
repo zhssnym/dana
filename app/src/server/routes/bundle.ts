@@ -10,6 +10,11 @@ choice about one of Dana's own pages, which is the same kind of thing as a
 saved view and a row of 4.19's settings. A router of its own would have
 needed a line in the boot file, which is another owner's, for a surface with
 no other claim to be separate.
+
+7.21's place descriptions joined it on the same reasoning (issue #68): a
+person's own sentence under Today is the same kind of thing as their cover
+on it, and it shares this file's place parser rather than growing a second
+copy of 4.20's eight names.
 */
 import { Router } from 'express'
 import type { NextFunction, Request, Response } from 'express'
@@ -22,6 +27,8 @@ import {
   postViewBody,
 } from '../../shared/bundle.js'
 import { placeCoverPlace, putPlaceCoverBody } from '../../shared/covers.js'
+import type { PlaceCoverPlace } from '../../shared/covers.js'
+import { putPlaceDescriptionBody } from '../../shared/place-descriptions.js'
 import {
   attachSession,
   requireCsrf,
@@ -42,6 +49,10 @@ import {
   listPlaceCovers,
   putPlaceCover,
 } from '../domain/covers.js'
+import {
+  listPlaceDescriptions,
+  putPlaceDescription,
+} from '../domain/place-descriptions.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -218,7 +229,10 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   /** 4.20's set and nothing else. A place page is furniture rather than a
    * resource that might exist somewhere the caller cannot see, so an
    * unknown name is 404 and says nothing further. */
-  const parsedPlace = (res: Response, raw: unknown): string | null => {
+  const parsedPlace = (
+    res: Response,
+    raw: unknown,
+  ): PlaceCoverPlace | null => {
     const parsed = placeCoverPlace.safeParse(raw)
     if (!parsed.success) {
       sendError(res, 404, 'not_found', 'Not found.')
@@ -273,6 +287,53 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (place === null) return
       await deletePlaceCover(db, viewer(req), place)
       res.status(204).end()
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * 7.21 place descriptions
+   * ---------------------------------------------------------------- */
+
+  /* Mounted after the /views family and beside the covers, deliberately: the
+     mount order in this file is load-bearing, `/views/:id` shadowing six
+     page endpoints if it ever moved, and a literal prefix added at the end
+     shadows nothing. The place parser above is 4.20's set and 4.22's is the
+     same set, so it is shared rather than copied.
+
+     **The session check on the read is written here because nothing else
+     writes it.** AC-236 sweeps mutating routes only, so a GET that forgot
+     `requireSession` would answer every caller with the empty viewer's rows
+     and pass the whole suite. */
+  router.get(
+    '/place-descriptions',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      res
+        .status(200)
+        .json({ descriptions: await listPlaceDescriptions(db, viewer(req)) })
+    },
+  )
+
+  router.put(
+    '/place-descriptions/:place',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const place = parsedPlace(res, req.params.place)
+      if (place === null) return
+      const parsed = putPlaceDescriptionBody.safeParse(req.body)
+      if (!parsed.success) {
+        sendValidationError(res, parsed.error)
+        return
+      }
+      res
+        .status(200)
+        .json(await putPlaceDescription(db, viewer(req), place, parsed.data))
     },
   )
 

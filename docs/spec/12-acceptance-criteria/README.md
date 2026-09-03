@@ -15,14 +15,22 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **324 criteria carry their text in the files below.** Every number from AC-001 to AC-360
+- **335 criteria carry their text in the files below.** Every number from AC-001 to AC-365
   not named below is one of them.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
-- **Never spent, and free to take: 286 to 289, 304 to 309, 314 to 329, 343 to 349, 358 and
-  359.** Thirty-five numbers. Each gap is a range that was allocated ahead of the work and
-  only partly used, which is the ordinary cost of allocating a range before writing it.
+- **Never spent, and free to take: 229, 286 to 289, 304 to 309, 316 to 329, 347 to 349, 358 to 359.** Thirty numbers. Each gap is a range
+  that was allocated ahead of the work and only partly used, which is the ordinary cost of
+  allocating a range before writing it.
+- **AC-361 to AC-365 were taken from the tail on 2026-09-03** (issues #27 and #30) rather
+  than out of the gaps above, because several branches were open at once and **a gap is the
+  one place two of them silently collide**. A branch that spends a gap and a branch that
+  spends the tail cannot pick the same number; two branches both picking "the next free
+  gap" can. AC-314 and AC-315 (issue #68) and AC-343 to AC-346 (issues #17, #22, #28) were
+  spent out of the gaps on the same night, which is why those ranges have moved.
+  **Whoever merges last re-derives the total** rather than taking either side of the
+  conflict: it is arithmetic over the files, not a preference between two diffs.
 
 The subsection numbers obey the same rule. 12.1 to 12.23 are addresses rather than an
 ordering: a group that dies becomes a tombstone row in the table below, and a new topic takes
@@ -33,22 +41,22 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | | File | Covers |
 | - | - | - |
 | 12.1 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | 12.1 Schema and migrations, 5 criteria |
-| 12.2 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | 12.2 Sign-in and sessions, 17 criteria |
-| 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 19 criteria |
+| 12.2 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | 12.2 Sign-in and sessions, 18 criteria |
+| 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 20 criteria |
 | 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 19 criteria |
-| 12.5 | [`12.5-sharing-roster-and-people.md`](12.5-sharing-roster-and-people.md) | 12.5 Sharing, the roster and people, 17 criteria |
+| 12.5 | [`12.5-sharing-roster-and-people.md`](12.5-sharing-roster-and-people.md) | 12.5 Sharing, the roster and people, 18 criteria |
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
 | 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 32 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 13 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 15 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 6 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
 | 12.13 | [`12.13-events-history-and-notifications.md`](12.13-events-history-and-notifications.md) | 12.13 Events, history and notifications, 9 criteria |
-| 12.14 | [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | 12.14 Comments and likes, 5 criteria |
-| 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 10 criteria |
+| 12.14 | [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | 12.14 Comments and likes, 8 criteria |
+| 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 12 criteria |
 | 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 10 criteria |
-| 12.17 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | 12.17 First run and the sample workspace, 8 criteria |
+| 12.17 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | 12.17 First run and the sample workspace, 9 criteria |
 | 12.18 | [`12.18-the-application-shell.md`](12.18-the-application-shell.md) | 12.18 The application shell, 15 criteria |
 | 12.19 | [`12.19-drag-drop-selection-and-undo.md`](12.19-drag-drop-selection-and-undo.md) | 12.19 Drag, drop, selection and undo, 12 criteria |
 | 12.20 | [`12.20-deletion-trash-and-restore.md`](12.20-deletion-trash-and-restore.md) | 12.20 Deletion, Trash and restore, 17 criteria |

@@ -29,7 +29,16 @@ export default defineConfig({
     comment exists to argue against.
     */
     testTimeout: 30_000,
-    setupFiles: ['./tests/vitest-setup.ts'],
+    /*
+    The Postgres leg's isolation, in two halves. The global setup claims a run
+    id once, in Vitest's own process, and sweeps the databases dead runs left
+    behind; the setup file then points each test file at the database its pool
+    slot owns and empties it first. Both are inert on the PGlite leg, where
+    every createTestDb() already gets a database of its own. tests/postgres-leg.ts
+    carries the reasoning, and spec 11.10 the contract.
+    */
+    globalSetup: ['./tests/postgres-leg-global.ts'],
+    setupFiles: ['./tests/vitest-setup.ts', './tests/postgres-leg-setup.ts'],
     include: [
       'src/**/*.test.{ts,tsx}',
       'db/**/*.test.{ts,tsx}',

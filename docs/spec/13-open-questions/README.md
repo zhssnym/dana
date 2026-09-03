@@ -16,13 +16,15 @@ item 16" still resolves, to the row below.
 
 - **closed** means the thing it worried about was decided, shipped, or made moot. The text
   is in git.
-- **a section number** means it was never a question but a recorded assumption, and it now
-  sits in the section that states the behaviour it constrains, marked **Assumption:**.
+- **a section number** means it now sits in the section that states the behaviour it
+  constrains: marked **Assumption:** where it was a recorded assumption rather than a
+  question, and as ordinary normative text where the behaviour was simply never written
+  down.
 - **an issue number** means it is genuinely open and someone owns it.
 
 | # | Subject | Now |
 | - | - | - |
-| 1 | Gmail dotted-variant email claim | issue #17 |
+| 1 | Gmail dotted-variant email claim | issue #17, ruled 2026-09-03: deferred, and the current no-normalisation behaviour is specified at 10.1 |
 | 2 | Google account-deletion policy wording | issue #25 |
 | 3 | Hosting cron frequency tiers | closed |
 | 4 | rrule library conformance | closed |
@@ -36,14 +38,14 @@ item 16" still resolves, to the row below.
 | 12 | Invites never expire | section 8.7 |
 | 13 | UNTIL only, no COUNT | closed |
 | 14 | Landing copy | closed |
-| 15 | Yearly repeat anchored on 29 February | issue #26 |
+| 15 | Yearly repeat anchored on 29 February | section 4.11 |
 | 16 | Drizzle migrator transaction scope | section 11.15 |
 | 17 | openid-client signature verification | section 11.15 |
 | 18 | Drizzle errors embed bound parameters | section 11.15 |
-| 19 | Two Google accounts, one email address | issue #17 |
+| 19 | Two Google accounts, one email address | issue #17, ruled 2026-09-03: section 10.1 |
 | 20 | Folder list deliberately uncapped | section 10.3 |
 | 21 | Important page has no index | section 4.12 |
-| 22 | Monthly repeat on the 29th to 31st | issue #26 |
+| 22 | Monthly repeat on the 29th to 31st | section 4.11 |
 | 23 | Calendar response bounded only by 62 days | section 7.10 |
 | 24 | Calendar projection has no index | section 4.12 |
 | 25 | DST rules have no oracle | section 11.15 |
@@ -70,12 +72,12 @@ item 16" still resolves, to the row below.
 | 46 | Duplicate a task | closed |
 | 47 | Images have no stored dimensions | issue #27 |
 | 48 | Where a task opens does not follow you | issue #30 |
-| 49 | Invite into a folder sitting in Trash | issue #28 |
+| 49 | Invite into a folder sitting in Trash | issue #28, ruled 2026-09-03: section 8.7 |
 | 50 | Old page names still shown to people | issue #19 |
 | 51 | Editable description on a place page | issue #21 |
 | 52 | A place page cannot wear a photograph | issue #20 |
 | 53 | A folder cannot wear a gradient | closed |
-| 54 | One file per comment against a cap of ten | issue #22 |
+| 54 | One file per comment against a cap of ten | issue #22, ruled 2026-09-03: section 7.14 |
 | 55 | Object-store provider | issue #15 |
 | 56 | Email digests for notifications | issue #24 |
 | 57 | A shelf cover can never be set | issue #20 |

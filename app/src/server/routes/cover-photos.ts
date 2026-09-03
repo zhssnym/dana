@@ -116,7 +116,12 @@ export function createCoverPhotosRouter(
           title: item.title ?? 'Untitled',
           creator: item.creator ?? 'unknown',
           /* Painted from this origin, which is the whole reason this route
-             exists: img-src 'self' stays exactly as 10.8 wrote it. */
+             exists: img-src admits no third-party host, and this route is
+             what keeps that true. It gained `blob:` on 2026-09-03 for the
+             object URLs the client builds from bytes it already holds; a
+             scheme that reaches no network is not the widening this
+             sentence is about, and no host has been added for a search
+             result. */
           thumb: `/api/v1/covers/photos/${String(item.id)}/thumb`,
         }))
       res.json({ results })
@@ -221,7 +226,17 @@ export function createCoverPhotosRouter(
         refusal(res, outcome)
         return
       }
-      res.status(201).json({ id: outcome.id, bytes: outcome.bytes })
+      // The same answer 7.15's upload sends, because it is the same act: the
+      // shape comes back with the id (issue #27). It matters more here than
+      // there — the caller never held these bytes, the server fetched them
+      // from the upstream's record, so this response is the only thing that
+      // can tell it what was stored.
+      res.status(201).json({
+        id: outcome.id,
+        bytes: outcome.bytes,
+        width: outcome.width,
+        height: outcome.height,
+      })
     },
   )
 

@@ -27,6 +27,11 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import type {
+  GetTrashResponse,
+  TrashedFolder,
+  TrashedTask,
+} from '../../shared/trash.js'
 import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from './db.js'
 import type { Executor } from './db.js'
@@ -38,30 +43,33 @@ function toIso(value: unknown): string {
     : new Date(String(value)).toISOString()
 }
 
-export interface TrashedTask {
-  id: string
-  title: string
-  folder_id: string
-  folder_name: string
-  deleted_at: string
-  /** The viewer owns the folder: 7.13's permanent delete is theirs (S28b). */
-  is_owner: boolean
-}
+/*
+The view's shape is `shared/trash.ts`'s and is not restated here (#39).
 
-export interface TrashedFolder {
-  id: string
-  name: string
-  task_count: number
-  deleted_at: string
-  is_owner: boolean
-}
+It used to be: this file declared `TrashedTask`, `TrashedFolder` and
+`TrashView` with the same fields the shared schemas carry, and nothing linked
+the two, so `is_owner` could have been added on one side alone and the client
+would have parsed a 200 into a missing field. `GET /trash` sends this value
+verbatim (`routes/trash.ts`), and `api/http.ts` parses it through
+`getTrashResponse`, so the parser is the contract and the server writes
+against it.
 
-export interface TrashView {
-  tasks: TrashedTask[]
-  folders: TrashedFolder[]
-}
-
-export async function trashView(db: Db, viewerId: string): Promise<TrashView> {
+Both drift directions were checked by breaking them, not reasoned about, and
+the first attempt at this caught only one. A field added to the schema and
+not to the mapping fails the return annotation on its own. A field added to
+the mapping and not to the schema does **not**: excess-property checking
+needs a fresh object literal in an annotated position, and a literal returned
+from a `.map` callback loses that freshness, so `Promise<GetTrashResponse>`
+alone accepted a row carrying an undeclared field that the client's
+`z.object` would then have stripped in silence. The `(row): TrashedTask`
+annotations on the two callbacks are what close that second direction; they
+are load-bearing rather than decorative, and removing them removes half the
+guard without changing a line of behaviour.
+*/
+export async function trashView(
+  db: Db,
+  viewerId: string,
+): Promise<GetTrashResponse> {
   const tasks = await rowsOf(
     db,
     sql`SELECT t.id, t.title, t.folder_id, f.name AS folder_name, t.deleted_at,
@@ -86,7 +94,7 @@ export async function trashView(db: Db, viewerId: string): Promise<TrashView> {
         ORDER BY f.deleted_at DESC, f.id DESC`,
   )
   return {
-    tasks: tasks.map((row) => ({
+    tasks: tasks.map((row): TrashedTask => ({
       id: String(row.id),
       title: String(row.title),
       folder_id: String(row.folder_id),
@@ -94,7 +102,7 @@ export async function trashView(db: Db, viewerId: string): Promise<TrashView> {
       deleted_at: toIso(row.deleted_at),
       is_owner: Boolean(row.is_owner),
     })),
-    folders: folders.map((row) => ({
+    folders: folders.map((row): TrashedFolder => ({
       id: String(row.id),
       name: String(row.name),
       task_count: Number(row.task_count),

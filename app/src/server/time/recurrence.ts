@@ -32,9 +32,10 @@ tested against the oracle:
   one", and February, April, June, September and November have none. The
   instance is skipped, not moved, which is the RFC's rule and the one the
   spec's exclusion was avoiding having to explain to a user.
-- **29 February is a leap-year rule.** Section 13 item 15 records the
-  decision for FREQ=YEARLY anchored there: instances occur only in leap
-  years, which is RFC behavior and falls out of the same existence check.
+- **29 February is a leap-year rule.** 4.11 states it for FREQ=YEARLY
+  anchored there: instances occur only in leap years, which is RFC behavior
+  and falls out of the same existence check. (Written into 4.11 on 2026-09-03
+  by issue #26; before that it lived in retired section 13, item 15.)
 
 **Weeks start on Monday.** RFC 5545's WKST defaults to MO, and WKST is not in
 the subset, so it cannot be set. It is visible only through INTERVAL above 1

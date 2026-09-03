@@ -279,6 +279,23 @@ export const importWorkflowBody = z.preprocess(
 )
 export type ImportWorkflowBody = z.infer<typeof canonicalWorkflowBody>
 
+/*
+POST /workflows/import → 201: the folders the file created, id and name each,
+which 9.13's starter offer places in the sidebar without a second read.
+
+**This is the move `client/api/mutations.ts` asked for and did not make.** Its
+comment there says the schema was declared in the client "rather than in
+`src/shared/`" because this file "belongs to the API role, so this session
+declares what it needs to parse and leaves the move to the Steward". The move
+is this, at #39. The client copy is still the one the mutation parses with,
+because `api/http.ts` and its neighbours are not a backend session's to edit;
+the handoff is a one-line import swap and deletes eight lines there.
+*/
+export const importWorkflowResponse = z.object({
+  folders: z.array(z.object({ id: z.uuid(), name: z.string() })),
+})
+export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
+
 /** Whether the file asks the endpoint to evaluate a date, which is the
  * condition frozen 7.6's own tz ruling of 2026-08-10 puts a required
  * parameter behind: a repeat needs 4.5's anchor and a reminder needs 8.6's,

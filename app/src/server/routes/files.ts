@@ -33,6 +33,10 @@ import {
   setAvatar,
 } from '../domain/files.js'
 import type { CreateFileResult, FileKind } from '../domain/files.js'
+import type {
+  PostAvatarResponse,
+  PostFilesResponse,
+} from '../../shared/files.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
@@ -204,7 +208,28 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      res.status(201).json({ id: outcome.id, bytes: outcome.bytes })
+      /* Annotated, not inlined into `res.json`, which takes `any`: the
+         annotation is the only thing tying this literal to the schema the
+         client parses it with (#39). It catches both directions — a field
+         the schema requires and this omits, and a field this sends and the
+         schema does not declare.
+
+         4.16's width and height ride back with the id (#27). This caller is
+         holding the file and already knows its shape, so the pair is here for
+         completeness and for one real use: 7.15 downscales anything past
+         2048px, and this is the only place the answer says what the store
+         actually kept. The reader who genuinely needs the numbers is a
+         different person entirely, and reaches them through the page and
+         thread reads. Null for every kind that carries no dimensions.
+         `routes/cover-photos.ts` answers the same four for the same act,
+         where the caller never held the bytes at all. */
+      const body: PostFilesResponse = {
+        id: outcome.id,
+        bytes: outcome.bytes,
+        width: outcome.width,
+        height: outcome.height,
+      }
+      res.status(201).json(body)
     }),
   )
 
@@ -291,9 +316,12 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         refusal(res, outcome)
         return
       }
-      res
-        .status(200)
-        .json({ avatar_url: `/api/v1/files/${outcome.id}` })
+      /* As above: the shared schema is the contract, this is checked
+         against it (#39). */
+      const body: PostAvatarResponse = {
+        avatar_url: `/api/v1/files/${outcome.id}`,
+      }
+      res.status(200).json(body)
     }),
   )
 
