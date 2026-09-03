@@ -20,9 +20,15 @@ default, so read this list before spending one.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
-- **Never spent, and free to take: 229, 286 to 289, 304 to 309, 316 to 329, 347 to 349, 358 to 359.** Thirty numbers. Each gap is a range
+- **Never spent, and free to take: 286 to 289, 304 to 309, 316 to 329, 347 to 349, 358 to 359.** Twenty-nine numbers. Each gap is a range
   that was allocated ahead of the work and only partly used, which is the ordinary cost of
   allocating a range before writing it.
+
+  **229 was in this list until 2026-09-03 and contradicted the bullet directly above it**,
+  which says the number is spent and must not be taken again. The count said thirty because
+  it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
+  #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
+  a second time and found out from a duplicate test filename.
 - **AC-368 to AC-373 were taken from the tail on 2026-09-03** (issues #20 and #100), on the
   rule two bullets below, and they are the cover work: a shelf that can wear one at all, the
   gate on the file it names, the folder-less upload, who may read a picture that belongs to a
