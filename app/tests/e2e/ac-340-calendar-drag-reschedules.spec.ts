@@ -65,6 +65,14 @@ a stale date.
 The browser is pinned to UTC, as `harness.ts` asks of every spec that reads
 `seedDate()`, so the week computed here is the week the client lays out.
 
+The grid's accessible name read "Planned calendar" here until 2026-09-03
+(issue #146). 9.5 fixes no name for the grid, so the one addressed is the
+client's, and the client said the v1 page name until issue #19 (PR #69) took
+it to the page's 9.1 name, "Scheduled calendar"; this case had pinned the old
+string and was one of the three reds that day on `main`'s browser leg, the
+other two being AC-099's, which asserted the same rename's tooltip. The
+criterion's text already said "Scheduled" and did not move.
+
 Spec: 9.5 (the calendar), 7.6 (PATCH due_date).
 */
 import { expect, test } from '@playwright/test'
@@ -109,7 +117,7 @@ test('AC-340: a row dragged to another day takes that date', async ({ page }) =>
 
   await page.goto(routesV2.scheduled)
   await chooseView(page, 'Calendar', 'spec 9.5: Scheduled offers the calendar')
-  const grid = page.getByRole('grid', { name: 'Planned calendar' })
+  const grid = page.getByRole('grid', { name: 'Scheduled calendar' })
   await expect(grid).toBeVisible()
   await expect(
     grid.locator('[role="gridcell"][data-today="true"]'),
