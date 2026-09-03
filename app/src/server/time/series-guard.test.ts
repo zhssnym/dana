@@ -19,8 +19,8 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { createTestDb, rows } from '../../../tests/helpers.js'
 import { inTransaction } from '../database.js'
 
-import { applySeriesGuard, SERIES_MOVED_ON } from './seriesGuard.js'
-import type { SeriesGuardOutcome } from './seriesGuard.js'
+import { applySeriesGuard, SERIES_MOVED_ON } from './series-guard.js'
+import type { SeriesGuardOutcome } from './series-guard.js'
 
 let client: DbClient
 let db: Db

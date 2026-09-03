@@ -52,7 +52,7 @@ import { plannedCalendarView } from './calendar.js'
 import { completedPage } from './done.js'
 import { folderOpenView } from './folder.js'
 import { allView, importantView, plannedView, tasksView } from './lists.js'
-import { myDayView } from './myDay.js'
+import { myDayView } from './my-day.js'
 import { searchView } from './search.js'
 
 const TASKS_PER_FOLDER = 4_000

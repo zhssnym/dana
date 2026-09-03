@@ -17,5 +17,5 @@ export {
   plannedView,
   tasksView,
 } from './lists.js'
-export { myDayView } from './myDay.js'
+export { myDayView } from './my-day.js'
 export { searchPattern, searchView } from './search.js'

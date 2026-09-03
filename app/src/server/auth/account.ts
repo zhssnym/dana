@@ -14,8 +14,8 @@ import type { Db } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { patchMeBody } from '../../shared/me.js'
 import type { MeResponse } from '../../shared/me.js'
-import { deleteAccountData } from '../domain/accountDeletion.js'
-import type { AccountDeletionCounts } from '../domain/accountDeletion.js'
+import { deleteAccountData } from '../domain/account-deletion.js'
+import type { AccountDeletionCounts } from '../domain/account-deletion.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { clearSessionCookies } from './cookies.js'
 import { inTransaction, rowsOf } from '../database.js'
@@ -149,7 +149,7 @@ export async function handlePatchMe(
 DELETE /me runs the section 8.10 transaction, and from P5 it runs all of it.
 Steps 1 to 6 (invalidating sent invites, transferring or deleting owned
 folders, cleaning memberships, clearing connections, sweeping My Day) are the
-Collaboration engineer's module, src/server/domain/accountDeletion.ts, called
+Collaboration engineer's module, src/server/domain/account-deletion.ts, called
 below with this transaction's executor. The last two are this role's and stay
 here:
 

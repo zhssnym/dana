@@ -37,12 +37,12 @@ which 8.5 states and 8.2 explains: a pull is one decision about one occurrence.
 */
 import { sql } from 'drizzle-orm'
 
-import { assertCalendarDate, compareDates } from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+import { assertCalendarDate, compareDates } from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { nextInstance } from './recurrence.js'
-import { copyReminderToSuccessor } from './reminderRecompute.js'
+import { copyReminderToSuccessor } from './reminder-recompute.js'
 import { today } from './today.js'
 
 /** What generation did, for the caller that has to answer 7.6's envelope. */

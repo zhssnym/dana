@@ -11,8 +11,8 @@ Nothing in this file decides an HTTP status or names a field in an error
 body: those belong to the route, and checkCalendarRange hands it which rule
 broke so it can say so.
 */
-import { compareDates, daysBetween, earliestDate } from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+import { compareDates, daysBetween, earliestDate } from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 
 /** Section 8.1's boundary statement, in its own words: a task with due_date D
  * is due today when D = today(V), overdue when D < today(V), future when

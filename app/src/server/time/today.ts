@@ -22,8 +22,8 @@ import { DateTime } from 'luxon'
 
 import { isIanaTimezone } from '../../shared/timezone.js'
 
-import { civilMillis, DAY_MS } from './calendarDate.js'
-import type { CalendarDate } from './calendarDate.js'
+import { civilMillis, DAY_MS } from './calendar-date.js'
+import type { CalendarDate } from './calendar-date.js'
 
 /** A window of absolute time, half open: an instant belongs to the day when
  * startInclusive <= t < endExclusive.
@@ -57,7 +57,7 @@ const SEARCH_SPAN_MS = 36 * 3_600_000
 const validatedZones = new Set<string>()
 
 /**
- * The zone guard, shared with reminderTime.ts so one cache serves both and one
+ * The zone guard, shared with reminder-time.ts so one cache serves both and one
  * message describes the failure. 11.15 names app/src/shared/timezone.ts as the
  * single IANA validation and the fire-instant module needs it for the same
  * reason this file does: without it, an identifier Luxon cannot use produces
