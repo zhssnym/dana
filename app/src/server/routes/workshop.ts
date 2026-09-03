@@ -199,6 +199,19 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      /* 422 rather than 404, matching 7.4's answer for the same field on a
+         folder, because the shelf itself was found and the fault is in one
+         value of the body. It leaks nothing: a file that does not exist and a
+         file the caller cannot reach get this same sentence (10.2). */
+      if (outcome.kind === 'cover_not_readable') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'cover_file_id: must name a picture you can reach.',
+        )
+        return
+      }
       if (outcome.kind === 'name_taken') {
         sendError(
           res,
