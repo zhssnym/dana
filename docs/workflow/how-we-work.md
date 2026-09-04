@@ -48,27 +48,34 @@ How much the issue says depends on the size of the work:
 Writing long documents for small changes wasted a great deal of time in version 1. Do not
 repeat it.
 
-### What an agent may open, and it is three things
+### What an agent may open, and it is five things
 
-An agent opens an issue in exactly three cases:
+An agent opens an issue in exactly five cases:
 
 1. **The task it was given**, when no issue exists for it yet. Open it first, then branch.
 2. **A blocker it cannot resolve**, which is the same moment rule 9 applies: say you are
    blocked, and the issue is where that gets recorded.
 3. **A defect it found outside the task it was given.** One issue per defect, and do not fix
    it here; see the end of section 6.
+4. **A decision a person must make**, on the `Decision needed` template, whether or not the
+   work is blocked on the answer. Section 6 says what counts as one, and the bar is high.
+5. **The workflow itself being wrong** in a way the agent cannot simply fix in the pull
+   request that hit it. That is rule 12, and it is labelled `documentation`.
 
 **Not for anything else.** Never to park a thought, never to ask a question the agent could
 have decided, never to split its own task into pieces so that some of them can be somebody
 else's, and never because a file it needed belongs to someone — no file does.
 
-Three shapes, every time. **Always through a template**, because a blank issue is a
+Five shapes, every time. **Always through a template**, because a blank issue is a
 paragraph nobody can triage. **Always an area label and a type label.** **One issue per
 defect**, because an issue with three defects in it closes when one is fixed.
 
 *Added 2026-09-04 from issue #180, where two overnight runs produced a study branch named
 after a tool, issues opened to park a thought, and issues opened to hand work over a boundary
-that no longer exists.*
+that no longer exists. **The list read three cases when it was first written that day, and
+was missing two this same document asks for elsewhere**, sections 6 and rule 12; a list of
+permitted cases that excludes the cases its own workflow requires is a list that teaches
+people to stop reading it.*
 
 ## 3. Label it
 
@@ -272,16 +279,23 @@ never for a pull request.
 gets written after watching code compile. A record naming 295 files and 1961 tests against a
 sha is not.
 
-Three things about it:
+Four things about it:
 
 - **It must be green on the head commit.** A record whose sha is not the tip of your branch
   measured something else, and one that says `tree dirty at <sha>` measured a tree nobody can
   reconstruct.
-- **The Postgres leg needs `TEST_DATABASE_URL` set in the process that runs the gate.**
-  Without it the record says so, in those words, and the run continues; the run on `main`
-  after the merge is then the authority for that leg. `CLAUDE.md` is emphatic that this
-  variable is ambient here and has changed more than once, so read what the record printed
-  rather than what you expected.
+- **There are three verdicts and only `green` opens a pull request.** `red at <step>` means a
+  step failed. **`incomplete` means a step of the seven did not run**, and it is neither: not
+  red, because there is no defect to point at, and not green, because 11.11 fixes seven steps
+  and this record is the evidence they were answered for.
+- **So the Postgres leg is not optional.** It needs `TEST_DATABASE_URL` set in the process
+  that runs the gate, and without it the record ends
+  `GATE: incomplete (Postgres leg not available on this machine)` and the gate exits non-zero.
+  **A machine that cannot run that leg cannot open a pull request.** The fix is a one-time
+  setup rather than an exemption: spec 11.10 carries the `CREATE DATABASE` statement that
+  fixes the locale, and it is the same database on every machine. `CLAUDE.md` is emphatic
+  that the variable is ambient here and has changed more than once, so read what the record
+  printed rather than what you expected.
 - **A red is not evidence until you have named which class it is.** `CLAUDE.md` enumerates
   four flake classes and only two are answered by re-running. Say in the pull request which
   one you decided it was, and why.
@@ -298,14 +312,17 @@ full before every pull request. Only the order moves.**
 
 CI is the safety net, not the gate.
 
-- **On a pull request**: the branch name, `npm ci`, lint, typecheck, build. Minutes, not
-  half an hour, and light enough to run beside the agents that are working on this machine.
-  It exists to catch a pull request opened without a gate run, not to be that run.
+- **On every pull request, without exception**: the branch name, `npm ci`, lint, typecheck,
+  build. Minutes, not half an hour, and light enough to run beside the agents that are
+  working on this machine. It exists to catch a pull request opened without a gate run, not
+  to be that run. **A documentation-only pull request gets it too**, because a branch is
+  misnamed whatever files it touches.
 - **On a push to `main`**: all seven steps of 11.11, unchanged. That is the run that matters,
   because it measures what was actually merged.
-- **Documentation-only changes skip both.** `paths-ignore` in `.github/workflows/ci.yml`
-  keeps the job off `docs/`, `.claude/`, `.vscode/`, the issue and pull request templates and
-  the root markdown files, with the reasoning beside it.
+- **A documentation-only push to `main` skips that one.** `paths-ignore` in
+  `.github/workflows/ci.yml` keeps the seven-step job off `docs/`, `.claude/`, `.vscode/`,
+  the issue and pull request templates and the root markdown files, with the reasoning beside
+  it. It is on that trigger alone.
 
 **Commit as small and as often as you like.** Successive pushes to an open pull request
 collapse into one, `concurrency` cancelling the run in progress when the next arrives, and
@@ -316,11 +333,13 @@ collapse into one, `concurrency` cancelling the run in progress when the next ar
 **A pull request exists only when the work is finished**, which means all of this is already
 true:
 
-- `npm run gate` is **green on the head commit**, and its record goes in the body;
+- `npm run gate` says **`GATE: green` on the head commit**, and its record goes in the body.
+  Green and not `incomplete`: a record missing one of the seven has not answered for the
+  seven, whatever the reason it gives;
 - the **`reviewer` agent has run** on the branch, and its verdict goes in the body;
 - every **hard stop** the change touched is named, with the rule that was met;
 - every **criterion** the change moved is named, with the decision that moved;
-- the branch name matches the shape in section 4, which CI checks.
+- the branch name matches the shape in section 4, which CI checks on every pull request.
 
 **Never a draft.** A draft pull request is a way of asking for attention before the work is
 worth attention, and the whole of section 7 exists so that it does not have to be.

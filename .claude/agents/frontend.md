@@ -43,11 +43,18 @@ commit. It is not an escalation and it needs no issue.
 **Invoke the `reviewer` agent before any pull request exists**, on your own branch, and put
 its verdict in the pull request in one paragraph. It has no write tools by design.
 
+**Stage with explicit pathspecs. Never `git add -A`, never `git add .`, never
+`git commit -a`.** One checkout has one working tree and one index, and a second session in
+it shares both, so a sweeping `add` puts somebody else's half-finished work into your commit
+and nothing announces it. **When you are the sub-agent, commit only the files you touched and
+name every one of them in your report**, so that whoever invoked you can read that list
+against `git show --stat`.
+
 **An issue exists when a person must decide something**, and only then: a product decision is
 Imran's, a technical one is Hassan's. Use the `Decision needed` template, say what you will do
 in each case, and carry on with whatever does not depend on the answer. Never open one to park
 a thought, to ask a question you could decide, or to split your own task. `docs/workflow/how-we-work.md`
-section 2 has the three cases in which you may open an issue at all.
+section 2 has the five cases in which you may open an issue at all.
 
 When what is wrong is the workflow rather than the code, `docs/workflow/` is yours like
 everything else: fix it in the pull request that hit the problem, or open an issue labelled

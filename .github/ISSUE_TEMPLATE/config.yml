@@ -7,8 +7,9 @@
 # boundary and nothing is handed over; what is left is a decision a person owes,
 # which is what Decision needed is for.
 #
-# An agent opens an issue in exactly three cases - the task it was given, a
-# blocker it cannot resolve, and a defect it found outside its task - and
+# An agent opens an issue in exactly five cases - the task it was given, a
+# blocker it cannot resolve, a defect it found outside its task, a decision a
+# person must make, and the workflow itself being wrong - and
 # docs/workflow/how-we-work.md section 2 is the authority on that.
 blank_issues_enabled: false
 contact_links:

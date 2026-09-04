@@ -8,9 +8,10 @@ derived from.
   refactor: one router preamble, not thirteen
   feat!: folders are now shelves          <- the ! means breaking
 
-This pull request should not exist yet unless `npm run gate` is green on the
-head commit and the reviewer agent has run. Never a draft: docs/workflow/
-how-we-work.md section 8 says why.
+This pull request should not exist yet unless `npm run gate` printed GATE: green
+on the head commit and the reviewer agent has run. Green, not "incomplete": a
+record missing one of the seven steps has not answered for the seven. Never a
+draft: docs/workflow/how-we-work.md section 8 says why.
 -->
 
 ## What and why
@@ -48,8 +49,10 @@ None.
 ## Gate record
 
 <!--
-Required. Paste the block `npm run gate` printed, unedited. The sha in it must
-be the head commit of this branch, and it must not say the tree was dirty.
+Required. Paste the block `npm run gate` printed, unedited. It must end
+GATE: green, the sha in it must be the head commit of this branch, and it must
+not say the tree was dirty. "GATE: incomplete" is not a gate: it means a step of
+the seven did not run, and the record names which.
 
 If a step went red for a reason that is not this change, say which of CLAUDE.md's
 four flake classes it was and what you did about it.

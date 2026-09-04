@@ -232,6 +232,14 @@ that selection explicitly — empty for the PGlite leg, the parent process's val
 Postgres one — and writes into the record which of the two it got, which is the answer to
 read rather than any file's.
 
+**A gate that could not run the Postgres leg is `incomplete`, not green, and exits non-zero.**
+Green means all seven of 11.11's steps ran, and a pull request needs green, so a machine with
+no `TEST_DATABASE_URL` cannot open one. **The setup is one-time and lives in spec 11.10**: its
+`CREATE DATABASE` statement fixes the builtin `C.UTF-8` locale so the two legs order text
+identically, and `CLAUDE.md` describes this cluster, whose own locale is French and must never
+become the suite's. Point the variable at a database that inherited the cluster default and
+the two legs stop agreeing.
+
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
 to be measurement rather than code. Three known flake classes will cost you time if you do

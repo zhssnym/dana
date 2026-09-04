@@ -46,32 +46,43 @@ name: CI
 # gets no verdict, which is correct under a workflow where nothing reaches main
 # except through one.
 #
-# `paths-ignore` keeps the job off changes no step of it can read. Measured on
-# PR #52: five markdown files started all seven steps, twenty minutes of the one
-# runner, and a docs job holding that runner is a code job not running. The
-# second cost is the one that decided it. Every run is a fresh roll against the
-# flake classes CLAUDE.md enumerates, and the merge of #49 (run 33495895742) went
-# red on `ac-022` with `Hook timed out in 10000ms` having nothing to do with the
-# commit. A prose change that can produce a meaningless red is how a team learns
-# to skim past red.
+# `paths-ignore` keeps the seven-step job off changes no step of it can read.
+# Measured on PR #52: five markdown files started all seven steps, twenty minutes
+# of the one runner, and a docs job holding that runner is a code job not
+# running. The second cost is the one that decided it. Every run is a fresh roll
+# against the flake classes CLAUDE.md enumerates, and the merge of #49 (run
+# 33495895742) went red on `ac-022` with `Hook timed out in 10000ms` having
+# nothing to do with the commit. A prose change that can produce a meaningless
+# red is how a team learns to skim past red.
 #
 # The list is only paths nothing in app/ opens. Checked rather than assumed:
 # no file under app/tests/, app/src/, app/db/ or app/scripts/ reads a `docs/`
 # path or any `.md`. `*` does not match `/` in these patterns, so `*.md` is the
 # four root files and not app/src/client/components/README.md.
 #
-# **It is written twice on purpose.** GitHub Actions does not honour YAML
-# anchors, so the two triggers cannot share one list. They must stay in step;
-# a path ignored on `pull_request` and not on `push` means main re-runs what the
-# pull request already skipped.
+# **It is on `push` only, and that is a change of 2026-09-04.** It used to be
+# written twice, once per trigger, with a comment saying the two lists had to be
+# kept in step. Both are gone, because the two triggers no longer run the same
+# job. The `pull_request` job checks the branch name, and **a pull request whose
+# branch is misnamed is misnamed whatever files it touches** — filtering that
+# check by path means a docs-only pull request can carry any branch name at all,
+# which is the one thing this job exists to catch and the exact shape of it that
+# happened (a study branch named after a tool, issue #180). The job is `npm ci`,
+# lint, typecheck and build: minutes, not the twenty that decided the filter.
 #
-# **The gotcha, recorded before it bites.** A workflow skipped this way reports
-# no check at all, not a green one. That is fine while branch protection is
-# unavailable on this plan (the API answers 403, "Upgrade to GitHub Pro"), so
-# nothing waits on a required check. The day this repository goes to Pro and main
-# gets required checks, a docs-only pull request will block forever on a check
-# that never reports, and the fix then is a second always-running job that exists
-# only to report the required name.
+# The reasoning that kept it on `push` is untouched: that job is the seven steps,
+# it is where the twenty minutes and the flake roll live, and a merge of five
+# markdown files has nothing for it to measure.
+#
+# **The gotcha, recorded before it bites, and narrowed with the filter.** A
+# workflow skipped by paths-ignore reports no check at all, not a green one. That
+# is fine while branch protection is unavailable on this plan (the API answers
+# 403, "Upgrade to GitHub Pro"), so nothing waits on a required check. Since the
+# filter is now on `push` only, a pull request always reports, so the case that
+# would have bitten on Pro — a docs-only pull request blocking forever on a check
+# that never ran — no longer exists. A docs-only merge to main still reports
+# nothing, which is a branch protection question about main and not about any
+# pull request.
 #
 # What is deliberately NOT done here: choosing which tests to run from which
 # files changed. CLAUDE.md is explicit that a change under app/src/shared/** or
@@ -89,15 +100,9 @@ on:
       - '.github/pull_request_template.md'
       - '*.md'
       - 'LICENSE'
+  # No paths-ignore: every pull request gets the branch-name check, including a
+  # docs-only one. See the header.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '.claude/**'
-      - '.vscode/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
-      - '*.md'
-      - 'LICENSE'
   workflow_dispatch:
 
 # One machine serves every branch, so a second push supersedes the first rather

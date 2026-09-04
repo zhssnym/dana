@@ -152,11 +152,14 @@ npm run e2e:install     once
 npm run e2e             about 11 minutes
 ```
 
-**The Postgres leg needs a database created with an exact locale**, which spec 11.10 fixes
-and `CLAUDE.md` describes. Where the machine has one, `TEST_DATABASE_URL` names it and the
-gate runs that leg; where it does not, the gate records "not available on this machine;
-main's run is the authority" and carries on. That variable is ambient here and has changed
-more than once, so read what the gate record printed rather than what you expected.
+**The Postgres leg needs a database created with an exact locale, and setting it up is a
+one-time job rather than a reason to skip the leg.** Spec 11.10 carries the `CREATE DATABASE`
+statement and `CLAUDE.md` describes the cluster here. Where the machine has one,
+`TEST_DATABASE_URL` names it and the gate runs that leg. **Where it does not, the gate ends
+`GATE: incomplete (Postgres leg not available on this machine)` and exits non-zero**, because
+green means all seven of 11.11's steps ran — so a machine without that database cannot open a
+pull request until it has one. That variable is ambient here and has changed more than once,
+so read what the gate record printed rather than what you expected.
 
 **Know what `npm test` mostly proves about your work: that the client compiles.**
 `app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite, and 343 of the 349

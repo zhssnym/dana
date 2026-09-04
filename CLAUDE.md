@@ -410,16 +410,24 @@ protocol points here rather than repeating them.
   Added 2026-09-04 with issue #180. It runs lint, typecheck, the PGlite leg with
   `TEST_DATABASE_URL` empty, the Postgres leg with whatever this process has, build, and
   Playwright, stops at the first failure, and prints a record naming the head sha, whether
-  `git status --porcelain` was empty, the machine, the clock and each step's tally. Three
-  things worth knowing before you run it. It **refuses to start the browser leg when
-  anything answers on 3100**, which is the port collision two bullets below written as a
-  precondition rather than as a postmortem, and it deletes `test-results/` first. It
-  reaches the vitest legs through `npm test`, so `run-suite.mjs`'s false-green guard is in
-  the path and the record prints the file count that guard checks. And it **does not
-  re-run `npm ci`**, that step being recorded rather than executed, because `npm ci`
-  deletes `node_modules` and that is right for a fresh runner and wrong for a working
-  tree. `npm run gate -- --quick` is lint, typecheck and build, for the middle of the
-  work and never for a pull request.
+  `git status --porcelain` was empty at **either end** of the run, the machine, the clock
+  and each step's tally. Five things worth knowing before you run it. **It prints three
+  verdicts and only `GATE: green` opens a pull request**: `red at <step>` is a failure, and
+  **`incomplete` is a step of the seven that did not run** — this machine without
+  `TEST_DATABASE_URL`, or `--quick`. Incomplete exits non-zero for the first and zero for
+  the second, because the exit code answers "did you get what you asked for" while the
+  verdict line answers "is this a pull request's gate". **A leg that reports no tally at
+  all is red rather than ok**, an exit code with no summary behind it being the same false
+  green one layer up. It **refuses to start the browser leg when anything answers on
+  3100**, which is the port collision two bullets below written as a precondition rather
+  than as a postmortem, and it deletes `test-results/` first. It reaches the vitest legs
+  through `npm test`, so `run-suite.mjs`'s false-green guard is in the path and the record
+  prints the file count that guard checks. And it runs **`npm ci` only when
+  `package-lock.json` moved since `git merge-base HEAD origin/main`**, since that command
+  deletes `node_modules`, which is right for a fresh runner and expensive for a working
+  tree that never touched the lockfile; the record says which of the two happened.
+  `npm run gate -- --quick` is lint, typecheck and build, for the middle of the work and
+  never for a pull request.
 - **A fourth flake class, and it is this one wearing a different hat.** The
   `beforeAll` hook timeout above is **not** the worker-fork class the bullets further up
   describe, and a session reading only those will not recognise it: no fork dies, no file

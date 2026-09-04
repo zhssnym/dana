@@ -124,6 +124,12 @@ now stand where the list used to.
 the gate, and say in the pull request what you were unsure about. Whoever merges reads that
 sentence first.
 
+**And a gate that could not run all seven steps is not a green one.** `npm run gate` says
+`GATE: incomplete` rather than green when a step of 11.11's seven did not run — the usual
+reason being a machine with no `TEST_DATABASE_URL` — and a pull request needs green. That is
+a one-time setup rather than a hard stop: spec 11.10 carries the `CREATE DATABASE` statement,
+and once it is run the leg runs with everything else.
+
 ---
 
 ## When one side's work needs the other side
@@ -135,3 +141,21 @@ branch, and integrate its commit. That is not an escalation and it does not need
 Imran's, a technical one is Hassan's. Use the `Decision needed` template, say what must be
 decided and what you will do in each case, and carry on with whatever does not depend on the
 answer. A file belonging to someone else is not a reason to open one, because no file does.
+
+---
+
+## Staging, because the index is shared
+
+**Stage with explicit pathspecs. Never `git add -A`, never `git add .`, never
+`git commit -a`.** A checkout has one working tree and one index, and two sessions in it share
+both, so a sweeping `add` takes whatever the other session had half-finished and puts it in
+your commit. Nothing announces that: the commit succeeds, the diff looks like yours plus
+something, and the work it swept up is now attributed to your pull request.
+
+**A sub-agent invoked on the same branch commits only the files it touched, and names every
+one of them in its report.** Whoever invoked it reads that list against `git show --stat`.
+Where the two disagree, the extra files came from somewhere else and belong to somebody
+else's work — put them back before anything else happens.
+
+This is the one item on this page that is not about the product. It is here because it is the
+only place every agent is told to read before it starts.

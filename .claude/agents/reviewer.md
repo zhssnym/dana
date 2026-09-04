@@ -21,12 +21,14 @@ whoever merges arrives.
    renamed `localStorage` or `sessionStorage` key, a deleted or weakened criterion, and a
    value in `tokens.css` or anything in `parts/presenters.ts`. **An undeclared one is the
    single thing nothing else in this project catches.**
-2. **Does the gate record match the head commit?** The pull request carries a block printed
-   by `npm run gate`. Check the sha in it against the tip of the branch, and check whether it
-   says the tree was dirty. **A record for a different commit measured something else, and a
-   record from a dirty tree measured a tree nobody can reconstruct.** Check the tallies too:
-   a leg reported with no file count, or a Postgres leg recorded as unavailable, is a smaller
-   claim than a green.
+2. **Does the gate record match the head commit, and does it say green?** The pull request
+   carries a block printed by `npm run gate`. Check the sha in it against the tip of the
+   branch, and check whether it says the tree was dirty. **A record for a different commit
+   measured something else, and a record from a dirty tree measured a tree nobody can
+   reconstruct.** The last line must read `GATE: green`: `GATE: incomplete` means a step of
+   the seven did not run, and it is not a gate however good its reason. Read the tallies
+   rather than the word beside them — a row with a file count is a measurement, and a row
+   without one should not have been `ok` at all.
 3. **Do the claims match the evidence?** A criterion the pull request says it moved, and the
    decision it says moved with it — is that decision real, and is it linked? A red the pull
    request calls a flake — does it match one of `CLAUDE.md`'s four classes, and is it one of
