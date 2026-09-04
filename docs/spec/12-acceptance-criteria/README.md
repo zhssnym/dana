@@ -68,6 +68,13 @@ default, so read this list before spending one.
   bullets below: `putPage` stored whatever `file_id` it was handed, so a member of one folder could
   plant another folder's id and everyone learned that a file with it exists. The gate is two
   clauses because the block has two homes, and the criterion asserts both. It is 12.9's.
+- **AC-394 to AC-396 were taken from the tail on 2026-09-04** (issue #99), on the rule
+  three bullets below and with the number assigned rather than chosen — several branches
+  were open that night and the tail is only collision-proof when one party hands out the
+  ranges. They are the CSP reporting endpoint: the policy naming somewhere to report a
+  refusal to, what a report from Dana's own origin writes and what it must never write,
+  and what the endpoint drops before it writes anything. The criteria are 12.23's, and
+  that file's count moves from 9 to 12 with them.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today
@@ -118,4 +125,4 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.20 | [`12.20-deletion-trash-and-restore.md`](12.20-deletion-trash-and-restore.md) | 12.20 Deletion, Trash and restore, 17 criteria |
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
-| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 9 criteria |
+| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 12 criteria |

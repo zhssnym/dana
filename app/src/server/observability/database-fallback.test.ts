@@ -108,7 +108,13 @@ describe('reportDatabaseFallback', () => {
       messages[0]?.message,
       'one sentence, written once, so the log and the alert cannot drift',
     ).toBe(DATABASE_FALLBACK_MESSAGE)
-    expect(messages[0]?.context?.event).toBe(DATABASE_FALLBACK_EVENT)
+    /* The event name moved from a field of its own to a tag when the wave-1
+       merge kept one shape of MessageContext (issues #80 and #99). What this
+       criterion is about did not move: the alert carries the same event name
+       the log line does. The level is asserted beside it because the merged
+       tracker defaults to warning and this condition is an error. */
+    expect(messages[0]?.context?.tags?.event).toBe(DATABASE_FALLBACK_EVENT)
+    expect(messages[0]?.context?.level).toBe('error')
   })
 
   test('production on Postgres is silent, and so is every other environment', () => {

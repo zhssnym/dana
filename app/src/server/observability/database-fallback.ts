@@ -70,8 +70,14 @@ export function reportDatabaseFallback(report: DatabaseFallbackReport): boolean 
     database: report.kind,
     note: DATABASE_FALLBACK_MESSAGE,
   })
+  /* `level` is named rather than defaulted: the tracker's default is warning,
+     which is right for the CSP refusals that share this method (issue #99),
+     and wrong for this, which is a production database that loses everything
+     on the next restart. The event name travels as a tag so that this
+     condition is one string in Sentry and in the log line above. */
   report.tracker.captureMessage(DATABASE_FALLBACK_MESSAGE, {
-    event: DATABASE_FALLBACK_EVENT,
+    level: 'error',
+    tags: { event: DATABASE_FALLBACK_EVENT },
   })
   return true
 }
