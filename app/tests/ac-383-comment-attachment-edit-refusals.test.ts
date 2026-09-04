@@ -33,6 +33,8 @@ Spec: 7.14 as annotated 2026-09-04, 10.2, 10.3, 11.14 (`z.never` rather than
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { accessibleComment, editComment } from '../src/server/domain/comments.js'
+import type { CommentAccess } from '../src/server/domain/comments.js'
 import { COMMENT_FILE_CAP } from '../src/shared/comments.js'
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
@@ -210,6 +212,67 @@ describe('AC-383: what an attachment edit refuses', () => {
       await attachedIds(commentId),
       'none of the three refusals moved anything: the ten from the successful edit are still exactly the attachments',
     ).toEqual(ten)
+  })
+
+  test('a comment deleted underneath the edit answers not-found, never a 500', async () => {
+    const [author, , bystander] = (await cast.of(app)) as [Actor, Actor, Actor]
+    await connect(app.db, author.id, bystander.id)
+    /* The folder is the bystander's, so 4.15's other grant applies: a folder
+       owner may delete a comment they did not write, which is how a comment
+       vanishes from under its own author. */
+    const folderId = await createFolder(bystander, 'i94c ac383 deleted underneath')
+    await addMemberOk(bystander, folderId, author.id)
+    const picture = await uploadImageOk(author, folderId, 'i94c-383-vanishing.png')
+
+    const posted = await author.browser.json(`/folders/${folderId}/comments`, 'POST', {
+      body: 'i94c ac383 about to be removed',
+    })
+    expectStatus(posted, 201, 'the author comments (spec 7.14)')
+    const commentId = (posted.json() as ThreadComment).id
+
+    // The route's own guard, sequentially: accessibleComment finds nothing and
+    // answers 404 before the domain module is reached at all.
+    const removed = await bystander.browser.json(`/comments/${commentId}`, 'DELETE')
+    expectStatus(removed, 204, '4.15: the folder owner may remove another author’s comment')
+    const afterDelete = await author.browser.json(`/comments/${commentId}`, 'PATCH', {
+      file_ids: [picture],
+    })
+    expectStatus(
+      afterDelete,
+      404,
+      'a comment that is gone is not found, and an attachment edit must not answer anything else',
+    )
+
+    /*
+    And the branch the sequential case above cannot reach: the row going
+    *between* the route resolving access and the transaction opening. The
+    domain is called directly with an access record that has gone stale,
+    because that window cannot be opened through the endpoint — and it cannot
+    be opened with two concurrent transactions either, PGlite being
+    single-connection (11.15), so this is the only honest way to assert it.
+
+    Before the review of #94 this answered a foreign-key violation rather than
+    `gone`: the attachment rewrite ran before the existence check, so a
+    non-empty `file_ids` inserted against a comment that no longer existed and
+    the caller was handed a 500 where 404 was meant.
+    */
+    const second = await author.browser.json(`/folders/${folderId}/comments`, 'POST', {
+      body: 'i94c ac383 the racing one',
+    })
+    expectStatus(second, 201, 'a second comment, to be caught mid-edit (spec 7.14)')
+    const racingId = (second.json() as ThreadComment).id
+
+    const access = await accessibleComment(app.db, author.id, racingId)
+    expect(access, 'the author can reach their own comment before it goes').not.toBeNull()
+    await app.db.execute(sql`DELETE FROM comments WHERE id = ${racingId}::uuid`)
+
+    const outcome = await editComment(app.db, author.id, access as CommentAccess, {
+      file_ids: [picture],
+    })
+    expect(
+      outcome.kind,
+      'the existence check runs before anything is written, so the answer is the one the route maps to 404 rather than a foreign-key violation wearing a 500',
+    ).toBe('gone')
   })
 
   test('a member who is not the author still cannot touch the attachments', async () => {

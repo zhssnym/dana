@@ -425,6 +425,32 @@ export async function editComment(
   patch: PatchCommentBody,
 ): Promise<EditCommentResult> {
   return inTransaction(db, async (tx) => {
+    /*
+    Is the comment still there, decided before anything is written and under a
+    row lock (review of #94).
+
+    The route resolves `access` before this transaction opens, and 4.15 lets a
+    folder owner delete another author's comment, so the row can go in between.
+    That used to be caught only by the UPDATE below returning nothing — after
+    the attachment rewrite had already run, which meant a non-empty `file_ids`
+    hit `comment_files_comment_id_fkey` first and the caller was answered 500
+    where the `gone` branch means 404.
+
+    **Reordering the UPDATE would not have fixed it and would have cost more.**
+    `inTransaction` is drizzle's `transaction()`, so a plain `return` commits:
+    an UPDATE run before the two refusal paths would leave a `file_not_here`
+    or a `nothing_left` having changed the words, which is exactly the
+    all-or-nothing this endpoint promises. A lock-and-check writes nothing, and
+    it does better than reordering as well — the lock is held for the rest of
+    the transaction, so a delete racing us blocks rather than being merely
+    noticed earlier.
+    */
+    const present = await rowsOf(
+      tx,
+      sql`SELECT id FROM comments WHERE id = ${access.id}::uuid FOR UPDATE`,
+    )
+    if (present[0] === undefined) return { kind: 'gone' } as const
+
     const nextBody = patch.body ?? access.body
     let firstFileName: string | null = null
 
@@ -468,8 +494,8 @@ export async function editComment(
           WHERE id = ${access.id}::uuid
           RETURNING id`,
     )
-    // The route resolved access before this transaction opened, so the row can
-    // have been deleted in between. Saying so beats answering "edited".
+    // Unreachable behind the lock above and kept as its backstop: if the row
+    // ever stops being held, this answers 404 rather than "edited".
     if (updated[0] === undefined) return { kind: 'gone' } as const
 
     await recordEvent(tx, {

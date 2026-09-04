@@ -30,6 +30,7 @@ Spec: 7.14 as annotated 2026-09-04, 4.15, 4.16, 10.3, 12.14.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { patchCommentResponse } from '../src/shared/comments.js'
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
 import { Cast, createFolder, expectStatus } from './folders-harness.js'
@@ -95,6 +96,16 @@ describe('AC-381: an existing comment’s attachments can be replaced', () => {
       200,
       'attachment editing exists (Imran’s ruling on issue #94); a 200 that changed nothing is what this criterion was opened about',
     )
+
+    /* The client parses every PATCH answer through this schema before it
+       renders anything (`api/mutations.ts`), so a shape the browser would
+       refuse has to fail here first rather than in somebody's tab. Nothing
+       else in the suite parses this response at all. */
+    const shape = patchCommentResponse.safeParse(edited.json())
+    expect(
+      shape.success,
+      `the answer must satisfy the shared patchCommentResponse schema, which is what api/http.ts runs it through; zod said: ${JSON.stringify(shape.error?.issues ?? [])}`,
+    ).toBe(true)
 
     const answer = edited.json() as { edited?: unknown; comment?: ThreadComment }
     expect(
