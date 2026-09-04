@@ -59,6 +59,7 @@ import {
 import { InlineInput, InlineTextarea } from "../components/ui/inline-field.js"
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover.js"
 import { PageImage, type PageImageModel } from "../components/page-image.js"
+import { FALLBACK_RATIO } from "../lib/page-images.js"
 import { WindowActivity, WindowBarActions } from "../components/window-bar.js"
 import { useHistory } from "../lib/history.js"
 import {
@@ -246,7 +247,14 @@ export function ShelfPage({
       kind === "section"
         ? { kind: "section", section: { id, name: "New section" } }
         : kind === "image"
-          ? { kind: "image", image: { id: "", ratio: 16 / 9, caption: "" } }
+          ? {
+              kind: "image",
+              /* A block nobody has filled yet has no file and therefore no
+                 measured shape, which is exactly the case `FALLBACK_RATIO`
+                 answers (issue #108). Spelled once in `lib/page-images.ts` so
+                 that this page and a folder page reserve the same box. */
+              image: { id: "", ratio: FALLBACK_RATIO, caption: "" },
+            }
           : { kind: "paragraph", paragraph: { id, text: "" } }
     setItems((current) => {
       const next = [...current]

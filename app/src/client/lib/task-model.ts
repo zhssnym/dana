@@ -188,6 +188,19 @@ export interface Attachment {
   kind: 'image' | 'video' | 'document' | 'file' | 'link'
   /* A thumbnail, where there is something to see. */
   preview?: string
+  /*
+  Width over height for the picture `preview` points at, so a surface that
+  draws it at its own size can hold the space before the bytes land (issue
+  #108).
+
+  Absent means the file was never measured, which is every attachment stored
+  before migration 0009 and every kind that is not a picture; a surface reads
+  it through `lib/page-images.ts`'s `reservedRatio`, which turns absent into
+  the same 16 by 9 those surfaces already drew. It is a number rather than the
+  pair 4.16 carries because that is what CSS takes and because a ratio is the
+  only thing any of these surfaces wants from the pair.
+  */
+  ratio?: number
   /* Where the link goes. Set only on `kind: "link"`; a file has no address
      that outlives the session. */
   url?: string
