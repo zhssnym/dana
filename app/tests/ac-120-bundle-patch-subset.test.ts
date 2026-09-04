@@ -142,6 +142,63 @@ describe('AC-120: any subset of the 7.23 bundle, the empty one included', () => 
     ).toEqual(before)
   })
 
+  test('repeating a subset is 200 both times and stores the same thing', async () => {
+    // Idempotence, carried over from the criterion's `/me/settings` form.
+    // A PATCH is not required to be idempotent in general, but a subset of
+    // literal values is: the second call names the same columns with the same
+    // values, so the only way for the two to differ is an implementation that
+    // toggles rather than assigns, or one that refuses a write it decides is
+    // redundant. Both answer 200 and both leave one state.
+    const actor = await writer()
+    const first = await patchBundleOk(
+      actor,
+      { row_density: 'compact', task_open: 'panel' },
+      'the first of two identical subsets must answer 200',
+    )
+    const second = await patchBundleOk(
+      actor,
+      { row_density: 'compact', task_open: 'panel' },
+      'and so must the second, unchanged though it is (spec 7.23)',
+    )
+    expect(second, 'the two answers are one object').toEqual(first)
+    expect(
+      (await storedBundle(app.db, actor.id)).row_density,
+      'and the row says what both answers said',
+    ).toBe('compact')
+  })
+
+  test('unknown fields beside a valid one are ignored and the valid one lands', async () => {
+    // 7.0 tolerates a key nobody declared and 11.14 rules that no schema in
+    // app/src/shared becomes strict, so the undeclared keys are stripped and
+    // the request is processed as if they were absent. Carried over from the
+    // criterion's `/me/settings` form, where the extras were the row's own
+    // `user_id` and `updated_at` — the two most likely to be sent by accident
+    // and the two it would be worst to honour.
+    const actor = await writer()
+    const answered = await patchBundleOk(
+      actor,
+      {
+        theme: 'light',
+        user_id: '3f1a2b4c-5d6e-4f70-8901-234567890abc',
+        updated_at: 'yesterday',
+        calender_zoom: 'day',
+      },
+      'unknown fields are tolerated, not refused (spec 7.0, 11.14)',
+    )
+    expect(answered.theme, 'the declared field still lands').toBe('light')
+    expect(
+      Object.keys(answered).includes('user_id'),
+      'and nothing undeclared appears in the answer',
+    ).toBe(false)
+    const stored = await storedBundle(app.db, actor.id)
+    expect(stored.theme, 'the row moved for the declared field').toBe('light')
+    expect(
+      stored.calendar_zoom,
+      'and the misspelling wrote nothing: `calender_zoom` is not a field, which is why ' +
+        'issue #104 has parseBody log it rather than leave it silent',
+    ).not.toBe('day')
+  })
+
   test('AC-120 adversarial: concurrent disjoint subsets both persist', async () => {
     const actor = await writer()
     // A known base, so every round's expectation is closed-form.

@@ -47,14 +47,16 @@ Spec: 10.4, 11.6, 11.11, 7.0. Issue #168.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { createRateLimits } from '../src/server/security/rate-limit.js'
+import { RATE_LIMIT_POLICY, createRateLimits } from '../src/server/security/rate-limit.js'
 
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
 import { rawRequest } from './http-client.js'
 
-/** Small enough to drive quickly, and the shape is what is under test rather
- * than the number; 10.4's own 20 is asserted against the policy below. */
+/** Small enough to drive quickly. The *shape* is what the cases below are
+ * for; 10.4's own twenty is pinned against the policy in its own case, the
+ * way AC-392 and AC-396 pin theirs, so an edit to either number fails here
+ * rather than silently changing what this contract promises. */
 const LIMIT = 3
 
 /** RFC 5737 documentation addresses, which can never be a real peer. */
@@ -91,6 +93,20 @@ async function knock(path: string, from: string): Promise<{ status: number; retr
 }
 
 describe('AC-412: the sign-in doors are limited, per client', () => {
+  test('10.4 fixes both rows at twenty a minute', () => {
+    // The header of this file used to claim the policy was asserted below
+    // and nothing asserted it, which is exactly the kind of comment this
+    // repository treats as a claim rather than a fact. It is a fact now.
+    expect(
+      RATE_LIMIT_POLICY.signInBeginsPerMinute,
+      '10.4 fixes sign-in begins at twenty a minute per client (issue #168)',
+    ).toBe(20)
+    expect(
+      RATE_LIMIT_POLICY.signInCallbacksPerMinute,
+      '10.4 fixes sign-in callbacks at twenty a minute per client, counted separately',
+    ).toBe(20)
+  })
+
   test('the begin past the limit is 429 with Retry-After and the envelope', async () => {
     const accepted: number[] = []
     for (let index = 0; index < LIMIT; index += 1) {

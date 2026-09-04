@@ -876,9 +876,11 @@ need, `http-client.ts` carries the transport, `oidc-stub.ts` is the stub
 identity provider, and `folders-harness.ts` adds the P2 layer: lazily
 signed-in casts, setup through the package's own endpoints, direct seeding
 only for surfaces later packages own, and an invariant sweep scoped to named
-rows. `settings-harness.ts` is the thin P2S layer over both: the exact 7.2
-shape stated once, wire-beside-row state assertions, and the one place the
-ruled PATCH response body is judged. `tasks-harness.ts` is the P3 layer over
+rows. `bundle-harness.ts` is the thin layer over both for 7.23's settings bundle:
+the exact eight-field shape stated once, wire-beside-row state assertions, and
+the one place the ruled PATCH response body is judged. It was
+`settings-harness.ts` and frozen 7.2's three booleans until issue #113 retired
+that endpoint on 2026-09-04. `tasks-harness.ts` is the P3 layer over
 the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
 asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
 and P7's reminders, and the task half of the invariant sweep, which
