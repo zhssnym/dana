@@ -110,6 +110,7 @@ import type {
   ImportWorkflowResponse,
 } from '../../shared/workflows.js'
 
+import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
 import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 
@@ -126,19 +127,21 @@ none". Every folder made anywhere in the client comes through here, the hold's
 panel included (`pages/task-rows.tsx`'s `onMerge`), so the extra call failed
 that criterion from every door.
 
-**The wording cannot ride the POST from this side.** Frozen 7.4's create body
-is `{ name }` alone: `shared/folders.ts`'s `postFoldersBody` carries one field,
-the route reads `parsed.data.name`, and `domain/folders.ts` inserts
-`(owner_id, name)`. Adding `description` there is a request-schema change to a
-frozen section, which is the owner's rather than this side's, and a field the
-server does not read is accepted, dropped and answered 200, which looks exactly
-like the feature working. `lib/folder-description.ts` keeps the sentence, and
-its test keeps it honest, for the day the endpoint can take it.
+**The wording rides the POST now** (7.4's dated paragraph of 2026-09-04,
+issues #21 and #70, and AC-377): `postFoldersBody` takes `description`, the
+route reads it and `domain/folders.ts` inserts it, so the sentence a new
+folder opens with costs no second call. The default is written here rather
+than at each door, because here is the one door: a caller that has its own
+wording still wins, the spread reading its key when it carries one.
 */
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
     mutationFn: (body: PostFoldersBody) =>
-      mutateApi(folder, { method: 'POST', path: '/folders', body }),
+      mutateApi(folder, {
+        method: 'POST',
+        path: '/folders',
+        body: { description: defaultFolderDescription(body.name), ...body },
+      }),
   })
 }
 

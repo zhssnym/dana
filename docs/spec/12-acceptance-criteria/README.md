@@ -15,8 +15,8 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **344 criteria carry their text in the files below.** Every number from AC-001 to AC-374
-  not named below is one of them.
+- **345 criteria carry their text in the files below.** Every number from AC-001 to AC-374
+  not named below is one of them, and AC-377, taken from the tail below, is the 345th.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
@@ -29,6 +29,15 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-377 was taken from the tail on 2026-09-04** (issues #21 and #70), on the tail rule
+  the AC-361 to AC-365 bullet below states rather than out of the gaps above, several
+  branches of one batch being open that night. It is 12.4's, and it is the sentence a new
+  folder starts with, which `POST /folders` now takes in its body. **375 and 376 are
+  deliberately not added to the free list above.** The branches beside this one were
+  choosing from the same tail while this was written, so whether either is spent is not
+  known here, and listing a number free that a sibling branch has just spent is the
+  collision this rule exists to prevent, made by the fix rather than by the mistake.
+  Whoever merges last re-derives the total and says what became of the two.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today
@@ -60,7 +69,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.1 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | 12.1 Schema and migrations, 6 criteria |
 | 12.2 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | 12.2 Sign-in and sessions, 18 criteria |
 | 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 20 criteria |
-| 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 19 criteria |
+| 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 20 criteria |
 | 12.5 | [`12.5-sharing-roster-and-people.md`](12.5-sharing-roster-and-people.md) | 12.5 Sharing, the roster and people, 18 criteria |
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
