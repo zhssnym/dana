@@ -1,9 +1,13 @@
 /*
 The single door between this client and the section 7 API.
 
-Nothing in `src/client` calls `fetch` except this file, and the reason is that
-two of section 7's obligations are properties of every request rather than of
-any one call site:
+Nothing in `src/client` calls `fetch` except this file, and since issue #72 a
+lint rule says so rather than this comment: `no-restricted-syntax` in
+`app/eslint.config.ts` fails a `fetch` call anywhere in `src/client` but here.
+One file is exempt by a disable comment, `lib/viewer.ts`, which round-trips a
+`data:` URL into a Blob and reaches no network. The reason for the rule is
+that two of section 7's obligations are properties of every request rather
+than of any one call site:
 
 - **Every view request carries tz** (7.0, and its absent half ruled on
   2026-08-07). `getView` appends it; there is no way to read a view without

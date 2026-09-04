@@ -35,9 +35,12 @@ provisional.
 `parts/` is not a component library and must not become one. It was the shell
 session's holding pen for the least that let a page render, and it did shrink
 to nothing once the component library landed. What it holds now is the page
-layer: the code every page calls and no component does. Two files, the row
-callbacks of `useRowActions.ts` and the presenters of `presenters.ts`, and
-the section at the end of this file is what the second one is for.
+layer: the code every page calls and no component does. Five files as of
+2026-09-04, `find app/src/client/parts -type f | wc -l` reading 7 with the two
+tests: the row callbacks of `useRowActions.ts`, the presenters of
+`presenters.ts` and its `format-dates.ts`, and the two palettes
+`person-tint.ts` and `identity-colors.ts` that the row above explains. The
+section at the end of this file is what `presenters.ts` is for.
 
 ## How a page declares its data
 
@@ -279,6 +282,19 @@ region's name is announced and addressed, not rendered.
 **Settled**, from 9.1's control table, and exact. Three of the eight names in
 that table begin with "add" and two of them are "More actions", so a loose
 match puts back precisely the collision the naming removed.
+
+**Eight of the ten "Where" cells below name a file that no longer exists**,
+five distinct files, checked 2026-09-04. The roles are the settled part; the
+locations are superseded by "Accessible names, corrected here" further down
+this file, which is the table to read, and one of the names moved with them:
+the un-pull control is `Remove from Today`, which is 9.1's own word and what
+`components/task-row.tsx` renders as `REMOVE_FROM_TODAY`. Of the rest,
+`parts/TaskRow.tsx` is `components/task-row.tsx` and
+`components/task-board.tsx`; `parts/QuickAddRow.tsx` is
+`components/quick-add.tsx`, its string in `components/ui/copy.ts`; and
+`pwa/UpdatePrompt.tsx` is `shell/app-shell.tsx`. **This is how the whole file
+works: an early section is superseded by a later one rather than edited, so
+check a path with `ls` before following it.**
 
 | Control | Name | Role | Where |
 | - | - | - | - |
@@ -888,7 +904,7 @@ because two of the strings changed with them.
 | Floating add button | `Add task` | button | `shell/FloatingAddButton.tsx` |
 | The sidebar's rail control | `Collapse sidebar`, `Expand sidebar` | button | `components/ui/sidebar.tsx` |
 | The sidebar's resize handle | `Resize sidebar` | separator | `shell/SidebarResizeHandle.tsx` |
-| Update affordance | `Update available, reload` | button | `shell/WindowBar.tsx` |
+| Update affordance | `Update available, reload` | button | `shell/app-shell.tsx` |
 | A sidebar page | its 9.1 name | link | `shell/app-sidebar.tsx` |
 | A label group | the label alone | button, `aria-expanded` | `shell/app-sidebar.tsx` |
 
