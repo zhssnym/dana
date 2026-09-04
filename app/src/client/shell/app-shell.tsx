@@ -236,6 +236,15 @@ function currentPage(
   folders: readonly Folder[] | undefined,
   shelves: readonly Shelf[] | undefined,
 ): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
+  /* Issue #145's study is a real Dana page while Vite is serving it: it uses
+     the same tab, window bar, sidebar and content measure as every other
+     route. The branch and route are both absent from production. */
+  if (import.meta.env.MODE !== 'production' && pathname === '/app/labs/composer') {
+    return { title: 'Writing-first study', icon: Layers3, iconColor: undefined }
+  }
+  if (import.meta.env.MODE !== 'production' && pathname === '/app/labs/composer-2') {
+    return { title: 'Writing-first canvas', icon: Layers3, iconColor: undefined }
+  }
   const page = navPages.find((candidate) => pathname === candidate.path)
   if (page !== undefined) {
     return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }

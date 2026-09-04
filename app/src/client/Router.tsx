@@ -30,6 +30,8 @@ The list, board and calendar of a page are `?mode=` and a client preference
 rather than routes of their own, which `routes.ts` records and this table
 therefore does not show.
 */
+import { lazy, Suspense } from 'react'
+import type { ComponentType } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 
 import { AbandonedPage } from './pages/AbandonedPage.js'
@@ -53,7 +55,62 @@ import { TrashPage } from './pages/TrashPage.js'
 import { paths, retiredPaths } from './routes.js'
 import { AppShell } from './shell/app-shell.js'
 
+/* Keep issue #145's research surface out of the production bundle as well as
+   out of the production route table. Static-importing it behind a DEV check
+   left the whole prototype in the main chunk even though no path reached it. */
+const composerExplorationModule = '/src/client/pages/ComposerExplorationPage.tsx'
+const composerExplorationModule2 = '/src/client/pages/ComposerExplorationPage2.tsx'
+const ComposerExplorationPage = import.meta.env.MODE !== 'production'
+  ? lazy(async () => {
+      const module = (await import(
+        /* @vite-ignore */
+        composerExplorationModule
+      )) as { readonly ComposerExplorationPage: ComponentType }
+      return { default: module.ComposerExplorationPage }
+    })
+  : null
+const ComposerStudyGate = import.meta.env.MODE !== 'production'
+  ? lazy(async () => {
+      const module = (await import(
+        /* @vite-ignore */
+        composerExplorationModule
+      )) as { readonly ComposerStudyGate: ComponentType }
+      return { default: module.ComposerStudyGate }
+    })
+  : null
+const ComposerExplorationPage2 = import.meta.env.MODE !== 'production'
+  ? lazy(async () => {
+      const module = (await import(
+        /* @vite-ignore */
+        composerExplorationModule2
+      )) as { readonly ComposerExplorationPage2: ComponentType }
+      return { default: module.ComposerExplorationPage2 }
+    })
+  : null
+const ComposerStudyGate2 = import.meta.env.MODE !== 'production'
+  ? lazy(async () => {
+      const module = (await import(
+        /* @vite-ignore */
+        composerExplorationModule2
+      )) as { readonly ComposerStudyGate2: ComponentType }
+      return { default: module.ComposerStudyGate2 }
+    })
+  : null
+
 export function Router(): React.JSX.Element {
+  const composerExploration = ComposerExplorationPage === null
+    ? null
+    : <Suspense fallback={null}><ComposerExplorationPage /></Suspense>
+  const composerGate = ComposerStudyGate === null
+    ? null
+    : <Suspense fallback={null}><ComposerStudyGate /></Suspense>
+  const composerExploration2 = ComposerExplorationPage2 === null
+    ? null
+    : <Suspense fallback={null}><ComposerExplorationPage2 /></Suspense>
+  const composerGate2 = ComposerStudyGate2 === null
+    ? null
+    : <Suspense fallback={null}><ComposerStudyGate2 /></Suspense>
+
   return (
     <BrowserRouter>
       <Routes>
@@ -77,6 +134,15 @@ export function Router(): React.JSX.Element {
         */}
         <Route path={paths.privacy} element={<LegalPage page="privacy" />} />
         <Route path={paths.terms} element={<LegalPage page="terms" />} />
+        {composerGate === null ? null : (
+          /* The local entry only establishes the development session the
+             existing shell requires, then replaces itself with the study's
+             nested route. It is absent from production with the study. */
+          <Route path="/labs/composer" element={composerGate} />
+        )}
+        {composerGate2 === null ? null : (
+          <Route path="/labs/composer-2" element={composerGate2} />
+        )}
         <Route path="/app" element={<AppShell />}>
           {/* Desk, the default folder and the installed app's start_url. */}
           <Route index element={<DeskPage />} />
@@ -101,6 +167,20 @@ export function Router(): React.JSX.Element {
           <Route path="tasks/:id" element={<TaskPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="people" element={<PeoplePage />} />
+          {composerExploration === null ? null : (
+            /*
+            Issue #145's browser-only research surface. It deliberately has
+            no entry in routes.ts: that file is the production route table
+            from 9.1, while this path exists only in Vite development builds.
+            The page uses local state and the real shell/components, so the
+            interaction can be judged in Dana without creating a second app
+            or widening any server contract.
+            */
+            <Route path="labs/composer" element={composerExploration} />
+          )}
+          {composerExploration2 === null ? null : (
+            <Route path="labs/composer-2" element={composerExploration2} />
+          )}
           {retiredPaths.map(({ from, to }) => (
             <Route
               key={from}
