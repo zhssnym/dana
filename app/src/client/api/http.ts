@@ -280,14 +280,29 @@ async function postMultipart(path: string, form: FormData): Promise<unknown> {
   return payload
 }
 
+/**
+ * 7.15's upload.
+ *
+ * **`folderId` takes null, and null means the part is not sent at all**
+ * (issues #20, #100, #118). 7.15 made `folder_id` optional for `kind: cover`
+ * alone on 2026-09-03, so a shelf and a built-in place page — neither of which
+ * is a folder — can hold a picture of their own; every other kind still
+ * requires it and is refused 422 naming the field.
+ *
+ * The distinction belongs at this line rather than at the call site, because
+ * the wrong way to say it is available and looks right: `form.set('folder_id',
+ * '')` sends a part carrying the empty string, which is not a uuid, so the
+ * upload is refused 422 rather than stored folder-less. Omitting the part is
+ * the only spelling 7.15 reads as "no folder".
+ */
 export async function uploadFile(
   kind: 'image' | 'file' | 'voice' | 'cover',
-  folderId: string,
+  folderId: string | null,
   file: File,
 ): Promise<PostFilesResponse> {
   const form = new FormData()
   form.set('kind', kind)
-  form.set('folder_id', folderId)
+  if (folderId !== null) form.set('folder_id', folderId)
   form.set('file', file)
   return parsed(
     postFilesResponse,

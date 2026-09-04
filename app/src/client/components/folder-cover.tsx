@@ -41,19 +41,24 @@ so the bytes are stored and the cover survives a reload. The prop is optional
 and its absence is the prototype's behaviour unchanged, which is what keeps
 every other call site as it was.
 
-**`tiers` is new, and it is a measurement rather than a preference.** 4.20
-holds a cover as a `preset` or a `file_id`, and a file has to exist for the
-second: `POST /api/v1/files` requires `folder_id` as a uuid
-(`server/routes/files.ts:48-52`), so there is today no way to make a file
-that is not some folder's, and a place page is not a folder. So the Upload,
-Link and Photos tabs have nothing behind them here, and a control that is
-drawn and does nothing is the false green protocol section 4 forbids. The
-tab list is a prop, defaulting to all four so the folder page's own call at
-S26 is unchanged, and the place head passes the two B1 supplies. DES-144 is
-the rule and this file's own author states it: a tier a surface cannot
-honestly draw is a tier it does not draw, never a disabled one. **B8 is what
-lifts the other two**, with the provider, its key and its attribution, and
-7.15 owes it a folderless file or 4.20's `file_id` owes it another home.
+**`tiers` is a measurement rather than a preference, and what it measures has
+moved.** The rule is DES-144's and does not move: a tier a surface cannot
+honestly draw is a tier it does not draw, never a disabled one, because a
+control that is drawn and does nothing is the false green protocol section 4
+forbids. What was measured against it in this header was that 4.20 holds a
+cover as a `preset` or a `file_id`, that a file needed a folder — "`POST
+/api/v1/files` requires `folder_id` as a uuid (`server/routes/files.ts:48-52`)"
+— and that a place page is not a folder, so Upload, Link and Photos had nothing
+behind them on any page but a folder's. **That was true when it was written and
+is false since issues #20, #100 and #118**: `folder_id` is optional for
+`kind: cover`, `POST /api/v1/covers/photo` stores a photograph for a page that
+has no folder, and a shelf carries the same three cover columns a folder does.
+The cited line numbers are stale too, and now point at the `superRefine` that
+says the opposite. So `lib/page-identity.ts`'s `coverTiersFor` answers Gallery,
+Upload and Photos for all three kinds of page. **Link alone is still unlisted**,
+and its reason is 10.8's `img-src` rather than storage; issue #115 holds it. The
+tab list stays a prop defaulting to all four, so a caller with no seam — the
+lab build — is unchanged.
 
 **The photo tier is Openverse and not Lorem Picsum.** Recorded because B8 is
 written against "the prototype's photo tier" and would otherwise build the

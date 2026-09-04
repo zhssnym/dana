@@ -54,6 +54,20 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-406 to AC-408 were taken from the tail on 2026-09-04** (issues #118, #117 and #79),
+  on the rule the AC-361 to AC-365 bullet below states, and with the numbers **assigned
+  rather than chosen**: several branches were open that night and 401 to 405 belong to
+  siblings, so this one was handed three rather than reading "the next free number" off the
+  bullet above, which is the only way the tail is collision-proof while more than one party
+  is spending it. They are the client half of the cover work whose API half spent AC-368 to
+  AC-373 and AC-384 to AC-389. AC-406 and AC-408 are 12.9's — the cover picker's Upload tab
+  reaching a shelf and a built-in place page and the picture surviving a reload, and the
+  page image that could not be uploaded in Desk or a folder — and AC-407 is 12.10's, the
+  shelf duplicate carrying a picture the two shelves then hold independently. **The count,
+  the range sentence at the top of this list and the per-file rows in the table below are
+  deliberately not moved**, on the AC-390 to AC-393 bullet's precedent: several branches are
+  open on these files at once and the arithmetic is the last merge's to re-derive rather
+  than any one branch's to carry forward.
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
   branch by the session that opened several at once, which is the backend README's rule for
