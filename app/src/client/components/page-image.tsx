@@ -132,8 +132,12 @@ export function PageImage({
   image: PageImageModel
   onChange: (next: PageImageModel) => void
   onRemove: () => void
-  /* Seam one: 7.15 scopes an upload to a folder, and the page knows which. */
-  folderId: string
+  /* Seam one: 7.15 scopes an upload to a folder, and the page knows which —
+     or knows there is none. Null is a shelf page, whose picture belongs to the
+     person rather than to a folder (7.15 as amended for issue #167), and it
+     sends no `folder_id` part at all; the empty string this took before was
+     sent as an empty part and refused 422, which is the fault #167 reports. */
+  folderId: string | null
 }) {
   const [src, setSrc] = useState<string | undefined>(() => readPageImage(image.id))
   const [dropping, setDropping] = useState(false)
