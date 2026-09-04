@@ -113,6 +113,14 @@ async function memberships(page: Page): Promise<Membership[]> {
  * rendering and writes nothing. So each release below takes a `watchCommit`
  * barrier of its own first, and this wait is what covers the refetch behind
  * it and the reads taken after a reload, where there is no edit to order.
+ *
+ * **`watchCommit` orders the read and does not prove the write**, and the
+ * distinction matters here because 7.4 is what this function reads. That
+ * barrier counts every request to `/api/v1/`, GETs included, so what it
+ * establishes is that the page said something after the release and then went
+ * quiet — enough to put this read on the far side of the traffic the release
+ * caused, and not enough to say a label was written. The oracle for that is
+ * the value returned below, compared against the group the case dropped into.
  */
 async function labelOf(page: Page, name: string): Promise<string | null> {
   await waitForApiIdle(

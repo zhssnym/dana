@@ -862,7 +862,9 @@ export function sidebarLink(page: Page, name: string): Locator {
   time; an account whose default folder has nothing pending in it has no
   badge, and then it is. Pinning the destination costs nothing and removes the
   case rather than leaving it to be met once, in a leg, by whoever emptied
-  that folder. See `linkTo` below for the same reasoning at greater length.
+  that folder. It also hides the collision from this leg by design, which is
+  issue #158's to answer and not this file's. See `linkTo` below for the same
+  reasoning at greater length.
   */
   return name === 'Desk'
     ? named.and(page.locator(`[href="${routesV2.desk}"]`))
@@ -1004,9 +1006,24 @@ export function regionOf(page: Page, name: string): Locator {
  * until #98, so the collision was invisible to a leg that runs entirely on
  * the seed, and every provisioned account has had it all along.
  *
+ * **Say plainly what this helper does to that: it makes the collision
+ * invisible to the browser leg again, on purpose, and issue #158 is where the
+ * collision itself is answered.** Two links of one name in one navigation
+ * landmark is a product question - a person using a screen reader in the rail
+ * hears "Desk" twice with nothing to separate them - and it is Imran's to
+ * rule on, the answer being a name or a label rather than a locator. What
+ * this file may decide is only how a criterion addresses a control while that
+ * ruling is outstanding, and pinning the destination is the answer that
+ * measures the criterion the case is about instead of failing on a different
+ * one. When #158 lands this helper is what to revisit: if the two names stop
+ * colliding it becomes unnecessary, and if they are deliberately kept the
+ * same it becomes the documented way to address either.
+ *
  * Expanded, the two are told apart by name after all, the folder row carrying
  * its pending badge and reading "Desk 7"; collapsed to the rail the badge is
- * gone and both read exactly "Desk". So a name is not enough, and the thing
+ * gone and both read exactly "Desk". That separation is an accident of the
+ * badge rather than a design, which is the other half of why #158 exists. So
+ * a name is not enough, and the thing
  * that separates them is the one the section fixes normatively: the routes
  * table gives each page and each folder page a URL of its own. Addressing by
  * `href` is therefore reading 9.1 rather than reaching around it, which is

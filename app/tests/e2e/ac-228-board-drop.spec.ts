@@ -66,12 +66,25 @@ causes, React having to render before the mutation is issued, so a read
 ordered by quiet alone can ask the server about a write that has not left the
 browser. What that produces here is a stored folder still reading Groceries,
 which is indistinguishable from the product defect this case exists to find,
-a board that repaints without writing. The positive barrier says instead that
-this gesture's own request went out and that everything behind it has been
-answered, and it fails in as many words when a release reaches no endpoint at
-all. Unmeasured when the issue was filed and still not observed here: ten
-repeats were green both before the change and after it, so what this removes
-is a known-wrong barrier rather than a known red.
+a board that repaints without writing.
+
+**What the barrier delivers, stated exactly, because it is less than its name
+suggests.** `watchCommit` counts requests to `/api/v1/`, and it counts all of
+them: the tracker it reads makes no distinction between a GET and a mutation,
+so what `settled` waits for is that *a* request went out after the watch began
+and that the wire then went quiet. It is a barrier and not an oracle. A
+release that issued only 8.3's refetch would satisfy it, and the reason that
+is still worth having is ordering rather than proof: the read below cannot now
+run in the window between the release and the traffic the release causes,
+which is the window `waitForApiIdle` returns inside. **What says the write
+happened is the assertion after it** — the stored folder read through frozen
+7.2, and the reload. The barrier's own failure is narrower still and worth
+knowing: it fires when a release reaches no endpoint at all, which is a client
+holding an edit in local state.
+
+Unmeasured when the issue was filed and still not observed here: ten repeats
+were green both before the change and after it, so what this removes is a
+known-wrong barrier rather than a known red.
 
 **The refusal case below keeps `waitForApiIdle`, and that is deliberate.**
 `watchCommit` asserts that a request went out, which is the exact thing a
