@@ -32,18 +32,35 @@ default, so read this list before spending one.
   asks the last merge for.** 375 to 396 were all spent on 2026-09-04 by the six branches of
   the wave-1 batch and by 7.22's export before them, 375 and 376 included — they were taken
   by issues #107 and #76, which is what the sibling branches could not know while they were
-  open. **397 was reserved rather than free** while the authorization sweep held it on a
-  branch that had not merged when this was written; that branch has merged, and it spent 397
-  and 398. So **the next number to take from the tail is 399**, and the twenty-nine gaps above
-  are the only free numbers below it. The reservation is left standing rather than deleted
-  because it is the only record of why 397 sat unspent for a day, and because a reserved
-  number is the one shape this list has for a branch in flight.
+  open. **397 to 400 are all spent**, and this sentence is the four of them reconciled by the
+  merge that came last, which is what the AC-361 bullet asks for. 397 was reserved for the
+  authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
+  400 taken unassigned beside it. Neither branch could see the other's, which is why each
+  wrote a different "next number" and why this list, rather than either bullet, is where the
+  answer is. **The next number to take from the tail is 401**, and the twenty-nine gaps above
+  are the only free numbers below it. The reservation language is left standing in the
+  bullets below rather than tidied away, because it is the only record of why 397 sat unspent
+  for a day and of why #104 deliberately stepped over 398.
 
   **229 was in this list until 2026-09-03 and contradicted the bullet directly above it**,
   which says the number is spent and must not be taken again. The count said thirty because
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
+  #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
+  branch by the session that opened several at once, which is the backend README's rule for
+  parallel branches; 400 was **taken unassigned**, that README's other half, because the
+  work turned out to need a behavioural criterion beside the structural one and nobody was
+  awake to hand out a second number. 398 is left alone rather than taken: this branch has
+  no way to know whether it belongs to a sibling, and the bullet above says 397 was already
+  reserved when it was written, so **the next number to take from the tail is 401** unless a
+  branch holding 398 says otherwise. Both criteria are 12.23's. They are issue #104's
+  `parseBody`: the structural sweep that no route parses a body without it, and the line it
+  writes when a body carries a key nobody declared — what is in that line, and its silence
+  for a body that carries none. **The count in the table below is not re-derived here**, on
+  the AC-394 bullet's precedent: several branches were open the same night and the
+  arithmetic belongs to the last merge rather than to any one of them.
 - **AC-397 and AC-398 were taken from the tail on 2026-09-04** (issue #74), on the rule four
   bullets below. AC-397 is the authorization sweep: every route on the mounted router whose
   path carries a parameter, driven as a person with no relationship to the row that id names.

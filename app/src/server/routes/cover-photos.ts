@@ -41,6 +41,9 @@ import { MAX_FILE_BYTES, createFile } from '../domain/files.js'
 import type { CreateFileResult } from '../domain/files.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -49,6 +52,7 @@ export interface CoverPhotosRouterOptions {
   dbClient?: DbClient
   fileStore?: ObjectStore
   rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 const uuidParam = z.uuid()
@@ -80,6 +84,7 @@ export function createCoverPhotosRouter(
 ): Router {
   const { router, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   router.get(
     '/covers/photos',
@@ -168,18 +173,22 @@ export function createCoverPhotosRouter(
       sendError(res, 500, 'internal_error', 'The application was constructed without a database.')
       return
     }
-    const body = pickBody.safeParse(req.body)
-    if (!body.success) {
-      sendError(res, 422, 'validation_failed', 'photo_id: must be a uuid.')
-      return
-    }
+    const body = parseBody(pickBody, req, res, securityLog, {
+      /* One field, one sentence, as before: this endpoint's 422 predates the
+         per-field formatter and using the helper is not a reason to reword
+         what a caller reads. */
+      onInvalid: () => {
+        sendError(res, 422, 'validation_failed', 'photo_id: must be a uuid.')
+      },
+    })
+    if (body === null) return
 
     /* The upstream URL comes from Openverse's own record for that id,
        fetched here -- never from the client -- so this cannot be pointed at
        an arbitrary host. */
     let source: { url: string; title: string; mime: string; bytes: Buffer }
     try {
-      const detail = await fetch(`${upstreamBase()}/v1/images/${body.data.photo_id}/`, {
+      const detail = await fetch(`${upstreamBase()}/v1/images/${body.photo_id}/`, {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(10_000),
       })

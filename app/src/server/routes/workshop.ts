@@ -46,8 +46,10 @@ import type { ObjectStore } from '../files/store.js'
 import {
   sendError,
   sendFieldValidationError,
-  sendValidationError,
 } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -60,6 +62,7 @@ export interface WorkshopRouterOptions {
    * 7.16). Optional beside the other two for `routes/files.ts`'s reason, and
    * guarded the same way. */
   fileStore?: ObjectStore
+  securityLog?: SecurityLogger
 }
 
 /*
@@ -103,6 +106,7 @@ export function createWorkshopRouter(
 ): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   /** `routes/files.ts`'s guard, one router over: an application constructed
    * without a store cannot copy a cover's bytes, and saying so is better than
@@ -167,16 +171,13 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      const parsed = putPageBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(putPageBody, req, res, securityLog)
+      if (parsed === null) return
       const outcome = await putPage(
         db,
         viewer(req),
         { folderId, shelfId: null },
-        parsed.data.blocks,
+        parsed.blocks,
       )
       if (outcome.kind === 'not_found') {
         // Unreachable behind the accessOf above, and kept because the module
@@ -234,12 +235,9 @@ export function createWorkshopRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = postShelvesBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const outcome = await createShelf(db, viewer(req), parsed.data)
+      const parsed = parseBody(postShelvesBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await createShelf(db, viewer(req), parsed)
       if (outcome.kind === 'name_taken') {
         sendError(
           res,
@@ -280,11 +278,8 @@ export function createWorkshopRouter(
       if (db === null) return
       const shelfId = parsedId(res, req.params.id)
       if (shelfId === null) return
-      const parsed = patchShelfBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(patchShelfBody, req, res, securityLog)
+      if (parsed === null) return
       const store = storeOf(res)
       if (store === null) return
       const outcome = await patchShelf(
@@ -292,7 +287,7 @@ export function createWorkshopRouter(
         store,
         viewer(req),
         shelfId,
-        parsed.data,
+        parsed,
       )
       if (outcome.kind === 'quota_exceeded') {
         overQuota(res)
@@ -429,16 +424,13 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      const parsed = putPageBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(putPageBody, req, res, securityLog)
+      if (parsed === null) return
       const outcome = await putPage(
         db,
         viewer(req),
         { folderId: null, shelfId },
-        parsed.data.blocks,
+        parsed.blocks,
       )
       if (outcome.kind === 'not_found') {
         // Unreachable behind the shelfView above, for the same reason.
@@ -562,11 +554,8 @@ export function createWorkshopRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = importWorkflowBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(importWorkflowBody, req, res, securityLog)
+      if (parsed === null) return
       /*
       tz on frozen 7.6's own precedent of 2026-08-10 rather than on 7.0's
       view-endpoint rule: a present value that fails IANA validation is 422
@@ -583,7 +572,7 @@ export function createWorkshopRouter(
       */
       const anchor = anchorOf(req, res)
       if (anchor === REFUSED) return
-      if (anchor === null && needsImportAnchor(parsed.data)) {
+      if (anchor === null && needsImportAnchor(parsed)) {
         sendError(
           res,
           422,
@@ -592,7 +581,7 @@ export function createWorkshopRouter(
         )
         return
       }
-      const outcome = await importWorkflow(db, viewer(req), parsed.data, anchor)
+      const outcome = await importWorkflow(db, viewer(req), parsed, anchor)
       if (outcome.kind === 'folder_cap') {
         sendError(
           res,
@@ -619,11 +608,8 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      const parsed = z.object({ to: z.uuid() }).safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(z.object({ to: z.uuid() }), req, res, securityLog)
+      if (parsed === null) return
       const access = await accessOf(db, viewer(req), folderId)
       if (access === null) {
         sendError(res, 404, 'not_found', 'Not found.')
@@ -653,7 +639,7 @@ export function createWorkshopRouter(
         db,
         viewer(req),
         folderId,
-        parsed.data.to,
+        parsed.to,
       )
       if (outcome.kind === 'target_not_member') {
         sendError(

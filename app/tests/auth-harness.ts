@@ -31,6 +31,7 @@ import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 
 import { createApp } from '../src/server/index.js'
+import type { SecurityLogger } from '../src/server/security/log.js'
 import type { Db, DbClient } from '../db/client.js'
 import { cleanupUsers, createTestDb, rows } from './helpers.js'
 import { TestBrowser, parseSetCookie, rawRequest } from './http-client.js'
@@ -94,6 +95,19 @@ export interface AppOptions {
   /** RFC 0005 change control item 60: the sample workspace at first
    * sign-in, off under this suite by its setup file. */
   sampleWorkspace?: boolean
+  /**
+   * The 10.5 logger, so a criterion can read the lines the application wrote
+   * rather than the ones a route module would write in isolation (issue #104,
+   * AC-400).
+   *
+   * Typed from the module rather than restated structurally, which is the
+   * exception the comment below explains and not a lapse from it: that rule
+   * is about the 11.10 seam this suite measures, and a logging policy of a
+   * dozen methods is neither a seam nor something any criterion here asserts
+   * the shape of. Restating it would be twelve more signatures to keep in
+   * step for no assertion's benefit.
+   */
+  securityLog?: SecurityLogger
 }
 
 type AppFactory = (
@@ -224,7 +238,11 @@ opposite of this suite's job.
 const AUTH_BASE = '/api/v1'
 
 export async function startAuthTestApp(
-  options: { fileStore?: AppOptions['fileStore']; sampleWorkspace?: boolean } = {},
+  options: {
+    fileStore?: AppOptions['fileStore']
+    sampleWorkspace?: boolean
+    securityLog?: SecurityLogger
+  } = {},
 ): Promise<AuthTestApp> {
   const dbClient = await createTestDb()
   const stub = await startOidcStub()
@@ -262,6 +280,7 @@ export async function startAuthTestApp(
     dbClient,
     auth,
     notifications: emails.sink,
+    ...(options.securityLog === undefined ? {} : { securityLog: options.securityLog }),
     ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
     // Item 60: off for every file but the one that measures the sample.
     ...(options.sampleWorkspace === undefined ? {} : { sampleWorkspace: options.sampleWorkspace }),
