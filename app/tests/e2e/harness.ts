@@ -1602,6 +1602,68 @@ export async function expectServiceWorkerControl(page: Page): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ *
+ * The page's insert control (9.6, 9.10)
+ * ------------------------------------------------------------------ */
+
+/**
+ * What the page's insert menu offers. Paragraph is deliberately absent: it
+ * is written by typing on the line and pressing Enter, not chosen from a
+ * menu, which is the whole of what "writing-first" meant in #178.
+ */
+export type InsertKind = 'Task' | 'Section' | 'Image'
+
+/**
+ * The `Insert into page` trigger on one of the page's insert lines.
+ *
+ * There is one per gap between blocks, so which one is asked for matters:
+ * `'last'` is the resting line at the foot of the page, which is the one
+ * drawn at reduced opacity rather than at zero, and `'first'` is the line
+ * above every block, which is where a shelf page's section has to land to
+ * stand above its folder rows.
+ */
+export function insertTrigger(page: Page, at: 'first' | 'last' = 'last'): Locator {
+  const triggers = page
+    .getByRole('main')
+    .getByRole('button', { name: 'Insert into page', exact: true })
+  return at === 'first' ? triggers.first() : triggers.last()
+}
+
+/**
+ * Inserts a block of `kind` through the page's insert menu.
+ *
+ * **The control this drives moved on 2026-09-04, and this helper exists so
+ * that the next move of it costs one edit rather than four.** Until #145 and
+ * #178 the page carried a row of chips at its foot, one button per kind,
+ * named `Section`, `Paragraph` and `Image`; three criteria pinned those
+ * names and went red the moment the writing-first composer shipped. Hassan's
+ * ruling on #181 is that the product decision stands and the criteria follow
+ * it, so what changed in each of them is the way the insert is reached and
+ * nothing that is asserted afterwards.
+ *
+ * The shipped control is one `Insert into page` button per insert line whose
+ * menu items are named for the kind and then for what it does -- `Task Add to
+ * No section`, `Section Begin a new part of the page`, `Image Choose, paste,
+ * or drop` -- so the kind is matched as a prefix. An exact match on `Section`
+ * finds nothing, which is exactly how the three criteria failed.
+ *
+ * `force` on the trigger because a line that is not the resting one is drawn
+ * at opacity zero until its row is hovered, which is 9.6's quiet affordance
+ * rather than a control that is missing.
+ */
+export async function insertBlock(
+  page: Page,
+  kind: InsertKind,
+  options: { readonly at?: 'first' | 'last'; readonly why?: string } = {},
+): Promise<void> {
+  const why = options.why ?? `spec 9.6: the page's insert affordance offers ${kind}`
+  await clickControl(insertTrigger(page, options.at ?? 'last'), why, { force: true })
+  await clickControl(
+    page.getByRole('menuitem', { name: new RegExp(`^${kind}`) }),
+    `${why}: the menu names it "${kind}" and then says what it does`,
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * Reading what the browser computed
  * ------------------------------------------------------------------ */
 

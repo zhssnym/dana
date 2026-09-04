@@ -1,13 +1,18 @@
 /*
-AC-335: given a folder page, then the Section, Paragraph and Image tools at
-the foot of the page are drawn at rest; when Section is pressed, then the
-name field opens empty with "New section" as its placeholder and what is
-typed becomes the name; and when the section's delete is pressed, then a
-dialog asks, says where the tasks go, and offers "Keep it" and "Delete
-section".
+AC-335: given a folder page, then its "Insert into page" control at the foot
+of the page is drawn at rest; when Section is chosen from it, then the name
+field opens empty with "New section" as its placeholder and what is typed
+becomes the name; and when the section's delete is pressed, then a dialog
+asks, says where the tasks go, and offers "Keep it" and "Delete section".
 
 Authored 2026-08-30 at the polish round (folderpage F2, a blocker on touch;
 F4; F5).
+
+The control moved with #145 (2026-09-04): the row of Section, Paragraph and
+Image chips this case used to press became one "Insert into page" menu when
+#178 shipped the writing-first composer, so the insert is reached through
+`insertBlock` and F2's resting-opacity rule is asserted of the trigger the
+chip row became. Nothing after the insert changed. Issues #145, #178, #181.
 
 Spec: 9.6 (the insert affordance between blocks; sections), 4.17.
 */
@@ -18,6 +23,8 @@ import {
   clickControl,
   createFolder,
   effectiveOpacity,
+  insertBlock,
+  insertTrigger,
   routesV2,
   seedSubs,
   signIn,
@@ -35,14 +42,14 @@ test('AC-335: page tools rest visible, a new section opens empty, deleting one a
   await page.goto(routesV2.folder(folder.id))
   await page.mouse.move(4, 4)
 
-  const sectionTool = page.getByRole('main').getByRole('button', { name: 'Section', exact: true }).last()
-  await expect(sectionTool, 'spec 9.6: the insert affordance').toBeVisible()
+  const insert = insertTrigger(page)
+  await expect(insert, 'spec 9.6: the insert affordance').toBeVisible()
   expect(
-    await effectiveOpacity(sectionTool),
-    'folderpage F2: the tools at the foot are drawn at rest, at reduced opacity, rather than at zero until hovered',
+    await effectiveOpacity(insert),
+    'folderpage F2: the control at the foot is drawn at rest, at reduced opacity, rather than at zero until hovered',
   ).toBeGreaterThan(0.3)
 
-  await clickControl(sectionTool, 'spec 9.6: a section is inserted')
+  await insertBlock(page, 'Section', { why: 'spec 9.6: a section is inserted' })
   const field = page.getByLabel('Section name')
   await expect(field, 'folderpage F4: the section opens as a field').toBeVisible()
   await expect(field, 'folderpage F4: empty, with the placeholder').toHaveValue('')

@@ -1,14 +1,20 @@
 /*
 AC-336: given a shelf holding a folder, when its page is opened and opened
 again, then no "Someone else changed this block" toast is raised; and when
-Section is pressed at the top of the page, then the section lands there,
-its field open, empty and focused, with "New section" as its placeholder;
-and Escape while renaming the shelf puts the saved name back.
+Section is chosen at the top of the page, then the section lands there, its
+field open, empty and focused, with "New section" as its placeholder; and
+Escape while renaming the shelf puts the saved name back.
 
 Authored 2026-08-30 at the polish round (shelves F2, a blocker: the screen
 mounted before its folder list, wrote an empty arrangement, then wrote the
 folders back with stale evidence, so every shelf page opened with a 409
 nobody caused; F9; F11).
+
+The control moved with #145 (2026-09-04): the Section chip at the top of the
+page became the "Insert into page" menu on the same line when #178 shipped
+the writing-first composer, so the insert is reached through `insertBlock` at
+that line. Where the section lands, and everything read after it, is
+unchanged. Issues #145, #178, #181.
 
 Spec: 9.10 (the shelf page), 4.17 (the page's blocks and their evidence).
 */
@@ -19,6 +25,7 @@ import {
   createFolder,
   createShelf,
   deleteShelf,
+  insertBlock,
   labelFolder,
   routesV2,
   seedSubs,
@@ -58,7 +65,10 @@ test('AC-336: a shelf page opens without a conflict, a section lands where it wa
   await waitForApiIdle(page, 'the page has settled again')
   await expect(page.getByText(CONFLICT), 'shelves F2: nor after a reload').toHaveCount(0)
 
-  await page.getByRole('main').getByRole('button', { name: 'Section', exact: true }).first().click({ force: true })
+  await insertBlock(page, 'Section', {
+    at: 'first',
+    why: 'shelves F11: a section is made at the top of the page',
+  })
   const field = page.getByLabel('Section name')
   await expect(field, 'shelves F11: the section opens as a field').toBeVisible()
   await expect(field, 'shelves F11: focused, so typing goes into it').toBeFocused()
