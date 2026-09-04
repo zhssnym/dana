@@ -15,12 +15,19 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **368 criteria carry their text in the files below.** Every number from AC-001 to AC-398
-  not named below is one of them. Re-derived on 2026-09-04 at the wave-1 integration merge,
-  by counting the criterion bullets in the files rather than by adding up what six branches
-  each believed: 398 numbers in the run, less AC-229 and the twenty-nine free ones named
-  below, is 368. Re-derived again on the authorization-sweep branch, which merged after
-  wave 1 and added AC-397 and AC-398.
+- **370 criteria carry their text in the files below.** Every number from AC-001 to AC-400
+  not named below is one of them. Re-derived on 2026-09-04 by the last merge of that night,
+  the authorization-sweep branch (#74), by **counting the `- AC-` bullets across the files**
+  rather than by adding up what eight branches each believed: 370, with no number appearing
+  twice, which the arithmetic then agrees with — 400 numbers in the run, less AC-229 and the
+  twenty-nine free ones named below, is 370.
+
+  **Only one per-file row moved with it and that is the point of counting rather than
+  adding.** Twenty-two of the twenty-three rows in the table below already matched their
+  files, because each night's branches had left the arithmetic alone as this bullet asks;
+  12.23 was two behind, having gained AC-399 and AC-400 from issue #104 in the last merge
+  before this one. A count derived once at the end is one number to check. A count carried
+  forward is twenty-three.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
@@ -73,11 +80,13 @@ default, so read this list before spending one.
   than free — and 398 is the tail as that merge left it.
 
   **This branch merged after wave 1 and so it is the one that re-derives**, which the AC-361
-  bullet makes the last merge's job rather than either side's: 366 to 368, the run to AC-398,
-  12.15 from 14 to 15 and 12.23 from 13 to 14, and row 12 of `docs/spec/README.md` with them.
-  The arithmetic is unchanged in shape — 398 numbers in the run, less AC-229 and the
-  twenty-nine free ones, is 368 — and it was counted off the bullets in the files rather than
-  added up from what two branches each believed.
+  bullet makes the last merge's job rather than either side's. It did that twice, and the
+  second time is why the first is recorded rather than corrected: at the wave-1 merge it took
+  the count to 368 with the run ending at AC-398, and an hour later #104 landed with AC-399
+  and AC-400 and this branch merged again, so **the number that stands is 370 and it is the
+  top bullet's**. Nothing was wrong with the first derivation; it was simply not last. That is
+  the ordinary shape of this rule rather than a failure of it, and it is the argument for
+  deriving from the files every time instead of adding to whatever the previous merge wrote.
 - **AC-394 to AC-396 were taken from the tail on 2026-09-04** (issue #99), on the rule the
   AC-361 to AC-365 bullet below states, and with the number assigned rather than chosen —
   several branches were open that night and the tail is only collision-proof when one party
@@ -194,4 +203,4 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.20 | [`12.20-deletion-trash-and-restore.md`](12.20-deletion-trash-and-restore.md) | 12.20 Deletion, Trash and restore, 17 criteria |
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
-| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 14 criteria |
+| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 16 criteria |
