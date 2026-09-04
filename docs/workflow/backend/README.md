@@ -35,16 +35,26 @@ commands and this machine's failure modes.
 
 ## The server, folder by folder
 
+**Every count below is `find app/src/server/<folder> -type f | wc -l`, measured 2026-09-04,
+and it counts the tests that live beside the code.** Re-measure rather than trusting the
+number; the previous table was measured without them and read about half of this.
+
 | Folder | Files | What it is |
 | - | - | - |
-| `domain/` | 17 | The rules. Business logic and the database work behind it. |
-| `routes/` | 14 | HTTP handlers. **They make no decisions**; they parse, call domain, map the result to a status. |
-| `auth/` | 14 | Sign-in, sessions, provisioning. `auth/router.ts` attaches the session for every `/api/v1` request. |
-| `time/` | 11 | Timezones, recurrence, DST. Luxon lives here. |
-| `views/` | 9 | The read path for saved and native views. |
-| `scheduler/` | 3 | The in-process 60 second reminder tick. |
-| `notify/`, `observability/` | 6 | Email, logging, error tracking. |
-| `security/`, `http/`, `files/`, `sample/` | 6 | Headers, helpers, uploads, sample data. |
+| `domain/` | 23 | The rules. Business logic and the database work behind it. |
+| `routes/` | 23 | HTTP handlers. **They make no decisions**; they parse, call domain, map the result to a status. |
+| `time/` | 20 | Timezones, recurrence, DST. Luxon lives here. |
+| `auth/` | 19 | Sign-in, sessions, provisioning. `auth/router.ts` attaches the session for every `/api/v1` request. |
+| `http/` | 12 | The request and response plumbing: `parse-body.ts`, the error envelope, and ten contract tests over the wire shapes. |
+| `views/` | 11 | The read path for saved and native views. |
+| `observability/` | 7 | Logging, error tracking, and the database fallback. |
+| `security/` | 6 | Rate limiting, the security log, the CSP report endpoint. |
+| `notify/` | 5 | Email: the four 11.8 templates and the Resend transport. |
+| `scheduler/` | 5 | The in-process 60 second reminder tick. |
+| `sample/` | 2 | The sample workspace a new account is offered. |
+| `files/` | 1 | `store.ts`, the upload store. |
+
+`index.ts` and `database.ts` sit at the root of `app/src/server/` and are in none of those.
 
 `app/db/` holds `client.ts` (the one seam that chooses PGlite or Postgres), `migrate.ts`,
 `seed.ts`, `verify.ts` and `constraint-catalog.ts`.
@@ -154,7 +164,9 @@ if your migration adds a CHECK, writing that case is your job.
 
 ## `app/src/shared/` is the contract
 
-19 files of zod schemas that both the browser and the server import (measured 2026-09-03; it was 18 before `files.ts` landed at #39). The client validates
+22 modules of zod schemas that both the browser and the server import, with 10 test files
+beside them, 32 files in all (`find app/src/shared -type f | wc -l`, measured 2026-09-04; the
+sentence this replaces read 19 on 2026-09-03 and counted only the schema modules). The client validates
 every response against them before rendering, so a mismatch surfaces as a visible error
 rather than a blank field.
 

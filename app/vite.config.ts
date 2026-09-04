@@ -41,7 +41,8 @@ export default defineConfig({
         docs/design/visual-foundation.html, replacing a value that was the
         placeholder token file's and outlived it: theme_color read #1f2933,
         which was the old --color-text and is a colour the design no longer
-        contains.
+        contains. That document is deleted (`a7886df`, 2026-09-01) and is in
+        git history before that commit.
 
         Both rest on DES-029, approved during the design sign-off. They are
         settled values rather than an open proposal.

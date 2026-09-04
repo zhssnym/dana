@@ -1,8 +1,15 @@
 # The acceptance suite
 
-The numbered behaviors of spec section 12, written by the Adversarial Test
-role and by nobody else (protocol section 8). Implementers do not edit these
-files; an acceptance test that seems wrong is an escalation, not a patch.
+The numbered behaviors of spec section 12. These files are Hassan's by
+`CODEOWNERS`, and nobody edits one to make their code pass: an acceptance test
+that seems wrong is a finding you report and leave failing, which is
+`docs/workflow/README.md`'s rule 7. `docs/workflow/backend/README.md` records
+the two counts in this suite that are fixtures over the shape of the server
+rather than behaviours, and the conditions for moving one.
+
+*(The "Adversarial Test role" and the "protocol section 8" this paragraph used
+to name were deleted at the workflow restructure, `a7886df` on 2026-09-01, and
+are in git history before that commit. The rule they carried is unchanged.)*
 
 Run one criterion by its number, which matches on the test name rather than the
 file name:
@@ -22,6 +29,12 @@ npx playwright test -g "AC-095"
 ```
 
 ## Coverage
+
+**The State column is the build-era record and is not re-measured (noted
+2026-09-04).** Each row says what that package's criteria did at the merge
+that wrote it, including several written red by design against routes that had
+not been mounted yet, all of which have long since landed. Read it as history;
+read a current verdict off a run or off CI.
 
 | Package | Criteria | State |
 | - | - | - |

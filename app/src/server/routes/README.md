@@ -1,16 +1,18 @@
 # Wiring requests for the routers in this directory
 
-The boot file (`src/server/index.ts`) belongs to the Platform engineer;
-routers here are mounted by request, never by their authors (shared
-protocol, section 3). This file is where those requests live, the same
-convention as `src/server/auth/README.md` at P1. `health.ts` is Platform's
-own and already mounted; entries below concern the rest.
+**This file is a record, and the process it describes no longer exists (noted
+2026-09-04).** It was the wiring ledger of the thirteen-persona build: routers
+were mounted by request rather than by their authors, each role appended the
+section for its own router, and a Platform engineer executed and annotated the
+requests. Those personas and the shared protocol behind them were deleted at
+the workflow restructure (`a7886df`, 2026-09-01) and are in git history before
+that commit. Every request below was fulfilled; the entries are kept because
+each records why a mount is where it is, and `bundle.ts`'s mount order is
+load-bearing. **Who owns what today is `CODEOWNERS`, and how work flows is
+`docs/workflow/backend/README.md`: a router you add, you mount.** Read every
+role name below as the name of a session that has ended.
 
-Ownership, ruled at the P2 merge: this directory is shared by file, each
-route file belonging to its route's owner, and this README is the shared
-wiring ledger. Each role appends the section for its own router; the
-Platform engineer, who executes the requests, may annotate or prune an
-entry once it is fulfilled.
+The boot file is `src/server/index.ts`, and `health.ts` was mounted first.
 
 ## folders router (P2, Collaboration and Permissions)
 
@@ -223,7 +225,8 @@ a request that was made and fulfilled.)*
 `src/server/domain/accountDeletion.ts` now carries steps 1 to 6 of the account
 deletion transaction as `deleteAccountData(tx, userId)`. It opens no
 transaction and touches neither the sessions table nor the user row, because
-the seam `docs/team/README.md` fixes puts the DELETE /me route and steps 7 and
+the seam the build-era plan fixed (`docs/team/README.md`, deleted with the
+personas at `a7886df` on 2026-09-01) puts the DELETE /me route and steps 7 and
 8 in the auth module. The swap is one line inside the transaction
 `handleDeleteMe` already opens, ahead of the scrub:
 

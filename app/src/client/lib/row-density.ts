@@ -2,8 +2,10 @@
 Whether a task row is one line or two. DES-113, and ledger entry L-076.
 
 Lifted from `docs/design/prototype-v2/src/lib/row-density.ts` at S21, read on
-`v2-build` at `db6f837`. **This is the half L-076 gives S21: "S21 writes it,
-S23 gives the row its two shapes."** Nothing in this client asks the question
+`v2-build` at `db6f837`. That prototype is deleted (`a7886df`, 2026-09-01);
+read it in git history before that commit. **This is the half L-076 gives S21:
+"S21 writes it, S23 gives the row its two shapes."** Nothing in this client
+asks the question
 yet, because the row that answers it differently is `task-row.tsx` and that
 file arrives at S23. This module exists now so that when it does, it crosses
 verbatim: `components/task-row.tsx:103` imports `useRowDensity` and switches

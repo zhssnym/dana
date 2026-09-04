@@ -1,5 +1,7 @@
 /*
 `docs/design/prototype-v2/src/screens/important-screen.tsx`, lifted whole.
+That prototype is deleted (`a7886df`, 2026-09-01); read it in git history
+before that commit.
 
 **This is the proof RFC 0005 change control item 45 asked for and item 47(l)
 could not produce.** Item 45 measured that no prototype screen could run end

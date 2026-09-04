@@ -27,7 +27,9 @@ those entries rather than the strip growing a second control.
 **The row's geometry began with the prototype, measured rather than recalled.**
 Serving `docs/design/prototype-v2` and reading the boxes back gave tabs of
 128px flush against one another in a strip of 24px, no gap between them and
-no inset at the sidebar's edge. The port had none of that: `gap-1` on the
+no inset at the sidebar's edge. That prototype is deleted (`a7886df`,
+2026-09-01) and is in git history before that commit, so the numbers here are
+the measurement rather than something to re-take. The port had none of that: `gap-1` on the
 row, `px-2` on the strip and no minimum width at all, so tabs were pills
 sized to their own words, about 80px for "Desk", separated by a gutter. That
 is what "they feel separated from each other" and "too condensed" name. The

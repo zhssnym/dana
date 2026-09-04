@@ -13,11 +13,11 @@ first pass is one engineer's answer to something nothing has ruled on.
 
 | Path | What it is |
 | - | - |
-| the lower-case files in this directory | The designer's presentational components. Six came from `docs/design/prototype/src/components/` at P8R session R3, relabelled to section 9's names and corrected to 9.1's roles table; `page-bar.tsx` was the seventh and was retired at S17a, dead since S9 moved 10.6's update offer to the window bar. `person-face.tsx` and `object-menu.tsx` came from `docs/design/prototype-v2/src/components/` at S17a |
+| the lower-case files in this directory | The designer's presentational components. Six came from `docs/design/prototype/src/components/` at P8R session R3, relabelled to section 9's names and corrected to 9.1's roles table; `page-bar.tsx` was the seventh and was retired at S17a, dead since S9 moved 10.6's update offer to the window bar. `person-face.tsx` and `object-menu.tsx` came from `docs/design/prototype-v2/src/components/` at S17a. Both prototypes are deleted (`a7886df`, 2026-09-01) and are in git history before that commit |
 | `person-face.tsx` | One disc for the whole product, tinted from the person's name so one person is one colour everywhere (`../parts/person-tint.ts`, AC-244). It replaced seven independently written neutral avatars |
 | `object-menu.tsx`, `../lib/object-acts.ts` | DES-201's contract: the acts an object has, their words, their glyphs and their order declared once, and the menu that draws them. A folder's menu is the same menu in the Library and on its own page, differing only in what each surface hands over (AC-246). An act with no handler is not drawn, which is the safety property that also does the role split of 9.6 |
 | `index.ts` | The ported set's entry point, and the second import of `styles/tokens.css` |
-| `ui/`, the lower-case files | The shadcn primitives of 11.4: twenty copied from `docs/design/prototype/src/components/ui/` at P8R session R2, re-ported and joined by six more from `docs/design/prototype-v2/src/components/ui/` at S8. Behaviour under them is @base-ui/react |
+| `ui/`, the lower-case files | The shadcn primitives of 11.4: twenty copied from `docs/design/prototype/src/components/ui/` at P8R session R2, re-ported and joined by six more from `docs/design/prototype-v2/src/components/ui/` at S8; both prototypes are deleted (`a7886df`, 2026-09-01) and are in git history before that commit. Behaviour under them is @base-ui/react |
 | `../lib/icons.tsx`, `../lib/time-format.ts` | The animated icon module of DES-125 and the time-format store it and the calendar read, ported at S8. Every icon Dana uses is an export of that module and nothing imports `lucide-react` directly; the v1 files still doing so are the named exemption lists in `ui/foundation.test.ts`, shrinking to empty as S9 to S13 land |
 | `ui/utils.ts`, `ui/use-mobile.ts` | The designer's `cn` and his viewport predicate, which those primitives import |
 | `ui/copy.ts` | The strings section 9 writes word for word and a component renders |
@@ -26,12 +26,16 @@ first pass is one engineer's answer to something nothing has ruled on.
 | the calendar, task form and search directories | Complex Interaction's, and not this role's |
 
 The ported files keep his file names, `task-row.tsx` and its siblings, so that
-a reader can put each beside the prototype file it came from. That is
-11.13 as RFC 0002 amends it: his prototype is the source this client is built
-from rather than a reference it is compared against, so a difference between
-the two files is a defect in the port unless a numbered section says otherwise.
-Each departure is therefore named in the file that makes it, at the top, with
-the numbered sentence that forced it. His `task-form`, `search-overlay`,
+a reader can put each beside the prototype file it came from in git history.
+That was 11.13 as RFC 0002 amended it: his prototype was the source this
+client is built from rather than a reference it is compared against, so a
+difference between the two files was a defect in the port unless a numbered
+section said otherwise. **11.13 was amended again on 2026-08-31 and the
+prototype is deleted** (`a7886df`, 2026-09-01, and in git history before that
+commit), so there is no second file to differ from and no standalone prototype
+may be built again. What survives is the naming convention and the departure
+notes: each is named in the file that makes it, at the top, with the numbered
+sentence that forced it. His `task-form`, `search-overlay`,
 `sharing-panel`, `app-shell` and `app-sidebar` are not here: the first three
 are Complex Interaction's and the last two are the Frontend Architect's, and
 they arrive at R5 to R9.
@@ -46,9 +50,10 @@ request at the end of this file.
 
 `../styles/tokens.css` is the single token file of 11.4 and has one owner.
 **Since P8R session R2 it is the designer's `tokens.css` and his `app.css`
-carried in as one file**, which is what RFC 0002 means by making his prototype
-the source the client is built from rather than a reference it is compared
-against. The two became one because 11.4 says tokens live in exactly one file
+carried in as one file**, which is what RFC 0002 meant by making his prototype
+the source the client was built from. Under 11.13 as amended on 2026-08-31
+that prototype is deleted and this file is the only source of a token value
+there is. The two became one because 11.4 says tokens live in exactly one file
 and that this is the only place raw values may appear, and his `app.css`
 carries a sheet width, four type sizes and a selection colour.
 

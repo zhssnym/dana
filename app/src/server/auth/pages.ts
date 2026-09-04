@@ -25,8 +25,9 @@ is 11.4's rule read rather than broken, and the reading is recorded at RFC
 **Which gate card, corrected at S19.** It was transcribed from the **v1**
 prototype at ef6f39a, and change control item 20 moved the standard to
 `docs/design/prototype-v2/`, whose counterpart is `public-auth-screen.tsx`'s
-`UnverifiedEmailScreen`. Measured against it rather than assumed: the two
-already agreed on the 940 by 520 frame, the 320 pixel dark panel, the 48 pixel
+`UnverifiedEmailScreen`. Both prototypes are deleted (`a7886df`, 2026-09-01)
+and are in git history before that commit. Measured against it rather than
+assumed: the two already agreed on the 940 by 520 frame, the 320 pixel dark panel, the 48 pixel
 icon tile at radius 12, the 44 pixel action at 20 pixels of side padding, and
 every colour. Nine values were v1's and are now v2's: the card's radius,
 border and shadow, the dark panel's padding and its closing hairline, the

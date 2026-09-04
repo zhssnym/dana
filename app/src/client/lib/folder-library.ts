@@ -2,14 +2,15 @@
 Every folder a person actually has, in one list.
 
 `docs/design/prototype-v2/src/lib/folder-library.ts`, read at `7d2064c`, over
-this client's query layer. Its own header states the fault it exists to fix
-and the fault is not a fixture problem, so it survives the port intact:
-`FOLDERS` in `task-model.ts` was four hardcoded names written for the row lab,
-the shell shipped that lab constant into the real row and the real card, and
-"the menu you moved a task with disagreed with the sidebar two centimetres
-away: it omitted Business, Ideas and Reading list, omitted every folder the
-person had made, kept showing any they had deleted, and used the pre-rename
-name for any they had renamed."
+this client's query layer. That prototype is deleted (`a7886df`, 2026-09-01);
+read it in git history before that commit. Its own header states the fault it
+exists to fix and the fault is not a fixture problem, so it survives the port
+intact: `FOLDERS` in `task-model.ts` was four hardcoded names written for the
+row lab, the shell shipped that lab constant into the real row and the real
+card, and "the menu you moved a task with disagreed with the sidebar two
+centimetres away: it omitted Business, Ideas and Reading list, omitted every
+folder the person had made, kept showing any they had deleted, and used the
+pre-rename name for any they had renamed."
 
 Imran, 2026-08-22, on the folder chip's menu: "that list should be the real
 existing folder library plus the 'New folder' option. It should be also in
