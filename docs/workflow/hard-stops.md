@@ -35,7 +35,8 @@ and finding that out costs a minute.
 **A migration is forward only.** There is no down migration, and a migration runs against
 production the moment the merge deploys. Recovery is a fix-forward migration or a restore, so
 a wrong one is not undone by reverting the pull request. Two numbers collide silently and in
-different ways: two branches each adding `0017_` merge cleanly and leave one prefix on two
+different ways: two branches each adding `0016_` — the next free prefix as of 2026-09-04, the
+tree holding `0000_` to `0015_` — merge cleanly and leave one prefix on two
 files, and the drizzle migrator applies a file only when its journal `when` is greater than
 the last applied one, so a migration that deploys with a **higher** `when` than a sibling
 makes that sibling be skipped with no error and no columns. `CLAUDE.md` carries the reading

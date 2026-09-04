@@ -159,18 +159,22 @@ main's run is the authority" and carries on. That variable is ambient here and h
 more than once, so read what the gate record printed rather than what you expected.
 
 **Know what `npm test` mostly proves about your work: that the client compiles.**
-`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite, and 338 of the 343
-files it collects run under it. **Five opt into `jsdom` and Testing Library per file** and
+`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite, and 343 of the 349
+files it collects run under it. **Six opt into `jsdom` and Testing Library per file** and
 are the only cases in the suite that render anything —
 `components/person-face.test.tsx`, `components/folder-cover.test.tsx`,
-`lib/calendar-zoom.test.tsx`, `lib/page-identity.test.tsx` and `views/usePlace.test.tsx`.
+`components/page/BlocksEditor.test.tsx`, `lib/calendar-zoom.test.tsx`,
+`lib/page-identity.test.tsx` and `views/usePlace.test.tsx`.
 Writing more of them is the "Component tests exist now" section below. Everything else your
 screen *does* is covered by the 117 Playwright specs, and nothing else.
 
 *(Corrected 2026-09-04. This said `jsdom` and the `@testing-library` packages were installed
 and **nothing imported them**, which the section further down this same file already
-contradicted. Counts measured with `npx vitest list --filesOnly` and
-`find app/tests/e2e -name '*.spec.ts'`.)*
+contradicted. Counts re-measured the same day at 343 of 349 and six, having been written
+that morning as 338 of 343 and five: `npx vitest list --filesOnly`,
+`grep -rl "@vitest-environment jsdom" app/src/client`, and
+`find app/tests/e2e -name '*.spec.ts'`. **Re-measure rather than trusting the numbers** —
+they moved twice in one day.)*
 
 So for a visual or behavioural change, say honestly how you checked it:
 

@@ -288,8 +288,8 @@ second, and `tests/postgres-leg-isolation.test.ts` fails by name any test that r
 **Most of the client is as silent as a migration from a terminal**, and this is the one thing
 to know before you touch it. `app/vitest.config.ts:5` sets `environment: 'node'` for the
 whole suite, so `npm test` proves the client **compiles** and almost nothing about what it
-does; five files opt into `jsdom` per file and are the only ones in the suite that render
-anything. Everything a screen actually does is covered by the Playwright specs and by nothing
+does; six files opt into `jsdom` per file and are the only ones in the suite that render
+anything (measured 2026-09-04, and the count moved twice that day). Everything a screen actually does is covered by the Playwright specs and by nothing
 else. A person with a browser would see the broken screen; you will not.
 
 So say honestly how you checked a client change: you ran the Playwright spec that covers it
