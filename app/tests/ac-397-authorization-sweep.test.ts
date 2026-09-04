@@ -170,10 +170,21 @@ const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
  * `/api` catch-all, which answers the same 404 the table expects. The bad
  * outcome is not a red run, it is a green one over routes nobody swept. So
  * this list holds only mounts that are unambiguous, `ROUTE_BASE` below fixes
- * the one prefix rows are written against, and a router matching neither is
- * reported by name rather than silently keyed at the root.
+ * the one prefix rows are written against, a router matching none of them is
+ * reported by name rather than silently keyed at the root, and the
+ * no-mount-is-a-prefix-of-another rule the attribution rests on is asserted in
+ * the enumeration test rather than left to whoever edits this line.
+ *
+ * **`/api/csp-report` was added by that guard rather than by foresight**, on
+ * 2026-09-04 at the wave-1 integration merge: issue #99's router is mounted at
+ * its own path, the walk had no name for it, and the run went red naming a
+ * route path of `/`. That is the whole of what the guard is for, and it is
+ * worth recording that its first firing was a true one. The route carries no
+ * parameter, so it enumerates and is then filtered out; what would have
+ * happened without the guard is that it, and anything later mounted beside it,
+ * would have been keyed under whichever mount matched first.
  */
-const MOUNTS = ['/api/v1', '/api/health']
+const MOUNTS = ['/api/v1', '/api/health', '/api/csp-report']
 
 /** The prefix `drive` sends every row through, via `TestBrowser.api`. Rows
  * are written relative to it and the enumeration test asserts every table key
@@ -387,12 +398,14 @@ interface Row {
 }
 
 /*
-Adding a route is adding one line here. Three id-bearing routes were being
-written on other branches the night this landed and are deliberately absent:
-`POST /api/v1/shelves/:id/duplicate` is one of them and takes one row, owner
-only and 404 for anyone else, at which point the count below moves to 60.
-(`GET /api/v1/me/export` and `POST /api/csp-report` carry no id and are
-outside this enumeration entirely.)
+Adding a route is adding one line here, and the wave-1 integration merge of
+2026-09-04 is the first time that was measured rather than asserted. Three
+routes it carried were named in this comment while they were still on other
+branches: `POST /api/v1/shelves/:id/duplicate` arrived, cost exactly the one
+row below it, and took the count from 59 to 60; `GET /api/v1/me/export` and
+`POST /api/csp-report` carry no id and are outside this enumeration, which is
+also why neither appears here. Nothing else about the table moved for a merge
+that touched sixteen issues, which is the property the count is pinned for.
 */
 const TABLE = new Map<string, Row>([
   /* -------------------------------------------------------------- *
@@ -808,6 +821,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/shelves/:id/duplicate',
+    {
+      attempt: (fx) => ({ path: `/shelves/${fx.shelfId}/duplicate`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.16 as amended 2026-09-04 (issues #117, #128): `duplicateShelf` selects `WHERE id = ? AND user_id = viewer`, so a shelf that is not the caller\'s is not-found rather than forbidden — 4.18 makes a shelf private by construction, and 10.2 keeps ownership invisible to those without it. **The 404 is doing two jobs here and the second is why this row reads differently from the others**: a copy is a create, so a status other than 404 would not only leak the shelf, it would leave a copy of it in the stranger\'s Library that this sweep never cleans up',
+      },
+    },
+  ],
+  [
     'GET /api/v1/shelves/:id/page',
     {
       attempt: (fx) => ({ path: `/shelves/${fx.shelfId}/page` }),
@@ -1178,18 +1201,32 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     silence. A floor would give that up — a walker that lost sight of half
     the surface, a router mounted inside another router, would satisfy
     `> 40` while proving nothing about the routes it no longer saw. Measured
-    2026-09-04 at 59, and it moves in the same change as the route that
+    2026-09-04 at 59 and again at 60 an hour later, when the wave-1 merge brought
+    `POST /shelves/:id/duplicate`; it moves in the same change as the route that
     moves it.
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 59 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(59)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 60 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(60)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(
       missing,
       'id-bearing routes with no row in the table. Add one: what does a signed-in person with no relationship to this id get, and which rule says so',
+    ).toEqual([])
+
+    /* The attribution in the walk takes the first mount a layer accepts, and
+       `match` is a prefix test, so that is only exact while no mount is a
+       prefix of another. It was not, once: `/api` sat in that list beside
+       `/api/v1`. Asserted rather than commented, because the list is edited by
+       whoever adds a router and the failure is silent. */
+    const shadowed = MOUNTS.filter((mount) =>
+      MOUNTS.some((other) => other !== mount && mount.startsWith(`${other}/`)),
+    )
+    expect(
+      shadowed,
+      'mounts shadowed by an earlier, shorter one in MOUNTS. A layer matches on prefix, so the shorter one would claim the longer one\'s routes and key them under the wrong name',
     ).toEqual([])
 
     // `drive` sends every row through TestBrowser.api, which prepends
