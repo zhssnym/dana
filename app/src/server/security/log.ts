@@ -40,6 +40,18 @@ export interface DeletionLogFields {
   sessions?: number
 }
 
+/**
+ * 7.22's data export (10.5, amended 2026-09-04 for issue #77). Two fields and
+ * there is deliberately no third: who exported, and how many bytes left.
+ * The size is the one thing worth knowing after the fact — it is how anyone
+ * would notice the endpoint growing past what building a document in memory
+ * can carry — and it says nothing whatever about what was in it.
+ */
+export interface ExportLogFields {
+  actorId: string
+  bytes: number
+}
+
 export interface RequestErrorLogFields {
   method: string
   path: string
@@ -96,6 +108,7 @@ export interface SecurityLogger {
     event: 'reminder_sent' | 'reminder_skipped' | 'reminder_send_failed',
     fields: { taskId: string; reason?: string },
   ): void
+  exportEvent(fields: ExportLogFields): void
   requestError(fields: RequestErrorLogFields): void
   operation(
     level: 'info' | 'warn' | 'error',
@@ -215,6 +228,16 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
             : { reason: safeReason(fields.reason) }),
         },
         'reminder',
+      )
+    },
+    exportEvent(fields) {
+      sink.info(
+        {
+          event: 'data_exported',
+          actor_id: fields.actorId,
+          bytes: fields.bytes,
+        },
+        'data export',
       )
     },
     requestError(fields) {

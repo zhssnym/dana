@@ -13,6 +13,7 @@ import { sessionOf } from '../auth/middleware.js'
 import { sendError } from '../http/errors.js'
 
 const MINUTE_MS = 60_000
+const HOUR_MS = 60 * 60 * 1_000
 const DAY_MS = 24 * 60 * 60 * 1_000
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -21,6 +22,19 @@ export const RATE_LIMIT_POLICY = {
   invitePerDay: 20,
   searchPerMinute: 30,
   mutationsPerMinute: 120,
+  /*
+  7.22's data export, added 2026-09-04 with the endpoint (issue #77) and
+  written into 10.4's sentence in the same change.
+
+  **It is the first limit here on a read, and the ground is cost rather than
+  abuse.** Every other GET in this API answers one page of one surface; this
+  one walks nine tables for one person and builds the whole document in
+  memory before a byte goes out. Five per hour is far above what the act is
+  for — a person exports when they are leaving, or once out of curiosity —
+  and far below what it would take to make the endpoint a way of loading the
+  process.
+  */
+  exportPerHour: 5,
 } as const
 
 export interface RateLimits {
@@ -28,6 +42,7 @@ export interface RateLimits {
   invitesPerMinute: RequestHandler
   invitesPerDay: RequestHandler
   search: RequestHandler
+  dataExport: RequestHandler
 }
 
 interface RateLimitOverrides {
@@ -35,6 +50,7 @@ interface RateLimitOverrides {
   invitePerDay?: number
   searchPerMinute?: number
   mutationsPerMinute?: number
+  exportPerHour?: number
 }
 
 export interface CreateRateLimitsOptions {
@@ -129,6 +145,16 @@ export function createRateLimits(
       limit: configured.searchPerMinute,
       identifier: 'searches-per-minute',
       requestPropertyName: 'searchRateLimit',
+      keyFor,
+    }),
+    /** 7.22, and the only limiter here with no `skip`: the route it guards
+     * is a GET, so the SAFE_METHODS skip the mutation quota carries would
+     * turn this one off entirely. */
+    dataExport: limiter({
+      windowMs: HOUR_MS,
+      limit: configured.exportPerHour,
+      identifier: 'data-exports-per-hour',
+      requestPropertyName: 'exportRateLimit',
       keyFor,
     }),
   }
