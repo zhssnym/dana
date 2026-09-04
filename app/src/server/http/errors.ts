@@ -32,11 +32,18 @@ export function sendError(
 }
 
 /**
+ * What a caller is told about a key no schema declares. Written here rather
+ * than taken from zod, whose own sentence repeats the key it is already
+ * prefixed with and reads as a validator talking to itself.
+ */
+const UNRECOGNIZED_KEY_MESSAGE = 'is not a field this endpoint accepts'
+
+/**
  * 10.3's 422, with every failing field named in one message.
  *
- * An issue with an empty path is not about a field, and there are two reasons
- * it can be one, which P7 separated because the second acquired its first
- * caller there.
+ * An issue with an empty path is not about a field, and there are three
+ * reasons it can be one. P7 separated the first two because the second
+ * acquired its first caller there; the third is below and had none.
  *
  * It is usually the body itself being something other than the object the
  * endpoint takes, which is what a request with no JSON content type produces,
@@ -53,14 +60,36 @@ export function sendError(
  * reaches the caller as written. Sending the missing-body sentence for it
  * would tell a caller who sent a JSON object that a JSON object is required,
  * which is the one answer they can prove wrong.
+ *
+ * Or it is a key the schema does not recognise. zod 4 reports one
+ * `unrecognized_keys` issue per object rather than one per key, and gives the
+ * issue the path of the object the keys sat in, which is empty for the body
+ * itself. Read literally that is both wrong ways at once: at the root the
+ * issue is dropped for having no path and the caller is told a JSON object is
+ * required, having sent one, and one level down the field named is the
+ * containing object rather than the key, carrying the validator's own
+ * phrasing. So the keys are expanded here, one problem each, addressed from
+ * the root the way every other field in this message is. Nothing in
+ * `app/src/shared/` is strict and 11.14 rules that none of it becomes strict,
+ * so this branch exists for a schema that declares its own refusal; it is
+ * covered by a strict schema that lives in this module's test (#105).
  */
 export function sendValidationError(res: Response, error: ZodError): void {
-  const problems = error.issues
-    .filter((issue) => issue.path.length > 0)
-    .map((issue) => ({
-      field: issue.path.map(String).join('.'),
-      message: issue.message,
-    }))
+  const problems = error.issues.flatMap((issue) => {
+    if (issue.code === 'unrecognized_keys') {
+      return issue.keys.map((key) => ({
+        field: [...issue.path.map(String), key].join('.'),
+        message: UNRECOGNIZED_KEY_MESSAGE,
+      }))
+    }
+    if (issue.path.length === 0) return []
+    return [
+      {
+        field: issue.path.map(String).join('.'),
+        message: issue.message,
+      },
+    ]
+  })
   if (problems.length === 0) {
     const bodyRule = error.issues.find((issue) => issue.code === 'custom')
     sendError(

@@ -95,11 +95,13 @@ cell is empty whatever day this suite runs on; 9.5 creates from an empty cell,
 a click on a row opening that row instead.
 
 **Desk is asserted as the account's default folder rather than by a name.**
-4.3's default folder is named Desk for accounts created since RFC 0005 and
-the migration renamed the defaults that still read Inbox; this seed's row was
-written as Inbox and kept it. Reading the stored `folder_id` rather than a
-rendered name takes the question away entirely: what the row fixes is that
-the folder is the viewer's default one, and the seed says which id that is.
+4.3's default folder is named Desk for accounts created since RFC 0005, and
+the migration renamed the defaults that still read Inbox. This seed's row was
+written as Inbox and kept it until issue #98 renamed the seed too, so the two
+now agree; the reasoning below is what made this case survive the years in
+which they did not. Reading the stored `folder_id` rather than a rendered name
+takes the question away entirely: what the row fixes is that the folder is the
+viewer's default one, and the seed says which id that is.
 
 Spec: 9.3 (the v2 entry table and the v2 field rules), 9.1 (the v2 capture
 rule, the floating add button, the quick-add and its two states, the v2 route
@@ -263,7 +265,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, 'Desk', title, {
       dueDate: null,
       important: false,
-      folderId: seedIds.hassanInbox,
+      folderId: seedIds.hassanDesk,
     })
   })
 
@@ -282,7 +284,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, 'Today', title, {
       dueDate: seedDate(0),
       important: false,
-      folderId: seedIds.hassanInbox,
+      folderId: seedIds.hassanDesk,
     })
   })
 
@@ -293,7 +295,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, 'the Scheduled list', title, {
       dueDate: seedDate(0),
       important: false,
-      folderId: seedIds.hassanInbox,
+      folderId: seedIds.hassanDesk,
     })
   })
 
@@ -332,7 +334,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, 'a calendar cell', title, {
       dueDate: CELL_DATE,
       important: false,
-      folderId: seedIds.hassanInbox,
+      folderId: seedIds.hassanDesk,
     })
   })
 
@@ -351,7 +353,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, 'Important', title, {
       dueDate: null,
       important: true,
-      folderId: seedIds.hassanInbox,
+      folderId: seedIds.hassanDesk,
     })
   })
 
@@ -369,7 +371,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     await expectDefaults(page, "All's undated capture", title, {
       dueDate: null,
       important: false,
-      folderId: seedIds.hassanInbox,
+      folderId: seedIds.hassanDesk,
     })
   })
 

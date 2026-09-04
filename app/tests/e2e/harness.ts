@@ -766,8 +766,6 @@ export const copy = {
   // AC-225 reads the undo bar that replaced it.
   /** 9.3, the 8.4 warning shown before a date is cleared. */
   clearDateWarning: 'Clearing the date also ends the repeat and removes the reminder.',
-  /** 9.3, the helper text on each of the three date-dependent fields. */
-  dateDependentHelper: 'Set a due date first',
   /** 9.3, empty title. */
   titleRequired: 'Give it a title',
   /** 9.3, the steps editor's cap notice, spelled at the P8 change control. */
@@ -852,7 +850,23 @@ export const conflictCopy = {
  * half meaningful.
  */
 export function sidebarLink(page: Page, name: string): Locator {
-  return page.getByRole('link', { name, exact: true })
+  const named = page.getByRole('link', { name, exact: true })
+  /*
+  Desk names two of them, and only Desk does (issue #98). 9.1's page block
+  opens with a page called Desk at `/app`, and 4.3 names the viewer's default
+  folder Desk too, so its row is a second link of that name pointing at
+  `/app/folders/:id`. The row usually carries its pending badge and so reads
+  "Desk 7" rather than "Desk", which is why this is not ambiguous most of the
+  time; an account whose default folder has nothing pending in it has no
+  badge, and then it is. Pinning the destination costs nothing and removes the
+  case rather than leaving it to be met once, in a leg, by whoever emptied
+  that folder. It also hides the collision from this leg by design, which is
+  issue #158's to answer and not this file's. See `linkTo` below for the same
+  reasoning at greater length.
+  */
+  return name === 'Desk'
+    ? named.and(page.locator(`[href="${routesV2.desk}"]`))
+    : named
 }
 
 /**
@@ -975,6 +989,60 @@ export async function openQuickAdd(page: Page, why: string): Promise<Locator> {
  */
 export function regionOf(page: Page, name: string): Locator {
   return page.getByRole('region', { name, exact: true })
+}
+
+/**
+ * A link addressed by its accessible name and by the destination 9.1's routes
+ * table gives it, for the places where a name alone names two of them.
+ *
+ * **The sidebar holds two links called Desk and always has** (issue #98,
+ * 2026-09-04). One is the page entry of 9.1's page block, whose name is a
+ * fixed string and whose destination is `/app`. The other is the row of the
+ * viewer's default folder, which 4.3 names Desk on every account provisioned
+ * since RFC 0005 and which points at `/app/folders/:id`. Nothing was wrong
+ * with the four cases that broke on this: the seed called that folder Inbox
+ * until #98, so the collision was invisible to a leg that runs entirely on
+ * the seed, and every provisioned account has had it all along.
+ *
+ * **Say plainly what this helper does to that: it makes the collision
+ * invisible to the browser leg again, on purpose, and issue #158 is where the
+ * collision itself is answered.** Two links of one name in one navigation
+ * landmark is a product question - a person using a screen reader in the rail
+ * hears "Desk" twice with nothing to separate them - and it is Imran's to
+ * rule on, the answer being a name or a label rather than a locator. What
+ * this file may decide is only how a criterion addresses a control while that
+ * ruling is outstanding, and pinning the destination is the answer that
+ * measures the criterion the case is about instead of failing on a different
+ * one. When #158 lands this helper is what to revisit: if the two names stop
+ * colliding it becomes unnecessary, and if they are deliberately kept the
+ * same it becomes the documented way to address either.
+ *
+ * Expanded, the two are told apart by name after all, the folder row carrying
+ * its pending badge and reading "Desk 7"; collapsed to the rail the badge is
+ * gone and both read exactly "Desk". That separation is an accident of the
+ * badge rather than a design, which is the other half of why #158 exists. So
+ * a name is not enough, and the thing
+ * that separates them is the one the section fixes normatively: the routes
+ * table gives each page and each folder page a URL of its own. Addressing by
+ * `href` is therefore reading 9.1 rather than reaching around it, which is
+ * the distinction this file's addressing rule draws when it refuses class,
+ * DOM shape and test identifier. It refuses those because none of them is in
+ * the section; this is.
+ *
+ * Both halves are kept rather than the destination alone, so that a link with
+ * the right URL and the wrong name still fails.
+ */
+export function linkTo(
+  within: Locator,
+  name: string | RegExp,
+  href: string,
+  options: { exact?: boolean } = {},
+): Locator {
+  const named =
+    options.exact === undefined
+      ? within.getByRole('link', { name })
+      : within.getByRole('link', { name, exact: options.exact })
+  return named.and(within.locator(`[href="${href}"]`))
 }
 
 /**

@@ -11,6 +11,7 @@ const pkg = JSON.parse(
 ) as { version: string }
 
 let lastPassAt: number | null = null
+let databaseKind: 'postgres' | 'pglite' | null = null
 
 // Called by the reminder scheduler (P7) after each completed pass; health
 // reports the age so tick liveness is observable separately from process
@@ -24,6 +25,25 @@ export function secondsSinceLastPass(): number | null {
   return Math.round((Date.now() - lastPassAt) / 1000)
 }
 
+/*
+Which engine the seam chose, reported here so that a production instance
+running on the embedded database can be seen from outside without reaching for
+Render's logs (issue #80). The boot calls this after `createDbClient`, exactly
+as the scheduler calls `recordSchedulerPass` after a pass: health reports what
+the process has told it rather than holding a database handle of its own.
+
+Null means nothing has declared one, which is every app constructed without a
+client — this file's own tests included. A production boot always declares, so
+a null here in production would itself be the finding.
+*/
+export function recordDatabaseKind(kind: 'postgres' | 'pglite'): void {
+  databaseKind = kind
+}
+
+export function reportedDatabaseKind(): 'postgres' | 'pglite' | null {
+  return databaseKind
+}
+
 export const healthRouter: Router = Router()
 
 healthRouter.get('/', (_req, res) => {
@@ -32,5 +52,6 @@ healthRouter.get('/', (_req, res) => {
     version: pkg.version,
     commit: process.env.RENDER_GIT_COMMIT ?? null,
     secondsSinceLastPass: secondsSinceLastPass(),
+    database: reportedDatabaseKind(),
   })
 })

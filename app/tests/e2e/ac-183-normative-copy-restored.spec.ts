@@ -142,9 +142,9 @@ test.describe('AC-183: section 9\'s copy arrives whole', () => {
     )
     await page.unroute('**/api/v1/views/tasks**')
 
-    // The other seeded user's Inbox exists and this viewer is not a member,
+    // The other seeded user's Desk exists and this viewer is not a member,
     // so 10.2 answers 404 without anything being broken.
-    await page.goto(routesV2.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranDesk))
     await expectOneTextRun(
       page,
       copy.notFound,

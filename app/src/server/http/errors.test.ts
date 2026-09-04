@@ -34,6 +34,22 @@ const rangeShaped = z.object({
 })
 
 /*
+The strict schema #105 is about, and it lives here rather than in
+app/src/shared/ on purpose: 11.14 rules that no request schema in the contract
+becomes strict, so the only honest way to drive a real `unrecognized_keys`
+issue through the real formatter is to declare one in the test that needs it.
+Nested as well as root, because zod 4 reports one issue per object and gives it
+the path of the object rather than of the key, so the two levels take different
+branches of the same expansion.
+*/
+const strictShaped = z
+  .object({
+    name: z.string(),
+    inner: z.object({ ok: z.string() }).strict(),
+  })
+  .strict()
+
+/*
 The helpers are driven through a real express app, the way route modules
 will call them, so the wire shape is what gets asserted. The demo routes
 follow the errors.ts convention: safeParse, sendValidationError, delegate.
@@ -74,6 +90,20 @@ beforeAll(() => {
   */
   app.put('/body-rule-demo', (req, res) => {
     const parsed = putTaskReminderBody.safeParse(req.body)
+    if (!parsed.success) {
+      sendValidationError(res, parsed.error)
+      return
+    }
+    res.status(200).json(parsed.data)
+  })
+  /*
+  A body carrying keys the schema does not declare, through a schema that
+  declares itself strict. Before #105 this answered "A JSON object body is
+  required." for a caller who had sent a perfectly good object, because zod 4
+  gives the root issue an empty path and the formatter dropped it.
+  */
+  app.post('/strict-demo', (req, res) => {
+    const parsed = strictShaped.safeParse(req.body)
     if (!parsed.success) {
       sendValidationError(res, parsed.error)
       return
@@ -186,6 +216,63 @@ describe('sendValidationError', () => {
       await res.json(),
       '4.8 is two columns and the parsed value is both of them, whichever spelling arrived',
     ).toEqual({ offset_minutes: 30, time_of_day: null })
+  })
+
+  test('an unrecognized key is named, not dropped for having no path (#105)', async () => {
+    const res = await fetch(`${baseUrl}/strict-demo`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'a', inner: { ok: 'b' }, colour: 'red' }),
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: { code: string; message: string } }
+    expect(body.error.code).toBe('validation_failed')
+    expect(
+      body.error.message,
+      '7.0 requires the 422 to name the field, and the key is the field here',
+    ).toBe('colour: is not a field this endpoint accepts.')
+    expect(
+      body.error.message,
+      'the caller sent a JSON object, so the missing-body sentence is the one answer they can prove wrong',
+    ).not.toContain('A JSON object body is required')
+  })
+
+  test('every unrecognized key is named, at whatever depth it sat (#105)', async () => {
+    const res = await fetch(`${baseUrl}/strict-demo`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'a',
+        inner: { ok: 'b', deep: 1 },
+        colour: 'red',
+        size: 2,
+      }),
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: { message: string } }
+    /*
+    zod raises one issue per object, so two issues carry three keys, and 10.3
+    wants all three in one answer. The nested key is addressed from the root
+    the way every other field in this message is, rather than naming the
+    object it sat in.
+    */
+    expect(body.error.message).toContain('inner.deep:')
+    expect(body.error.message).toContain('colour:')
+    expect(body.error.message).toContain('size:')
+    expect(
+      body.error.message,
+      "zod's own phrasing repeats the key it is already prefixed with, and never reaches a caller",
+    ).not.toContain('Unrecognized key')
+  })
+
+  test('a strict schema still lets a body it recognises through', async () => {
+    const res = await fetch(`${baseUrl}/strict-demo`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'a', inner: { ok: 'b' } }),
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ name: 'a', inner: { ok: 'b' } })
   })
 
   test('every failing field is named in one answer', async () => {

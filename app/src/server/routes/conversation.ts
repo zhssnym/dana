@@ -10,6 +10,13 @@ field. Since issue #22 a comment carries up to 10.3's ten files, named by
 `file_ids` in the order they are to be attached; eleven, a repeated id, and
 `file_ids` sent beside `file_id` are all refused by the shared schema before
 this router reads anything.
+
+Since issue #94 the edit takes `file_ids` too, meaning the full new set:
+omitted leaves the attachments alone, `[]` removes them, anything else makes
+the set exactly those ids. The gate is the one the words already had — the
+author, and nobody widened — and the answer carries the fresh comment beside
+the `edited` flag it always carried, because the resolved file rows are
+something the caller cannot compute from what it sent.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
@@ -175,8 +182,37 @@ export function createConversationRouter(
         )
         return
       }
-      await editComment(db, viewer(req), access, parsed.data.body)
-      res.status(200).json({ edited: true })
+      /* Issue #94: one gate covers the words and the attachments. A person
+         who may edit their own comment may change what it carries, and
+         nobody else gains anything here. */
+      const outcome = await editComment(db, viewer(req), access, parsed.data)
+      switch (outcome.kind) {
+        case 'file_not_here':
+          // Names the field and nothing about the other side of the
+          // membership: an id outside this folder and an id that does not
+          // exist read identically (10.2, DES-225).
+          sendError(
+            res,
+            422,
+            'validation_failed',
+            'file_ids: every id must name a file stored in this folder.',
+          )
+          return
+        case 'nothing_left':
+          sendError(
+            res,
+            422,
+            'validation_failed',
+            'file_ids: a comment carries words or a file, at least one; removing every attachment would leave neither.',
+          )
+          return
+        case 'gone':
+          sendError(res, 404, 'not_found', 'Not found.')
+          return
+        case 'edited':
+          res.status(200).json({ edited: true, comment: outcome.comment })
+          return
+      }
     },
   )
 

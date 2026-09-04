@@ -138,10 +138,10 @@ test.describe('AC-171: the two inline page states', () => {
   test('AC-171: a 404 renders the not-found copy rather than the error state', async ({
     page,
   }) => {
-    // The other seeded user's Inbox exists and this viewer is not a member,
+    // The other seeded user's Desk exists and this viewer is not a member,
     // so 10.2 answers 404 without anything being broken and without this case
     // faking a response.
-    await page.goto(routesV2.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranDesk))
 
     await expect(
       page.getByText(copy.notFound),
@@ -188,7 +188,7 @@ test.describe('AC-171: the two inline page states', () => {
     ).toBeVisible()
 
     await page.unroute('**/api/v1/views/important**')
-    await page.goto(routesV2.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranDesk))
     await expect(
       page.getByText(copy.notFound),
       'spec 9.1: the 404 renders its copy',
