@@ -51,6 +51,16 @@ write to wait for now, so the read after the press is ordered by `watchCommit`
 taken before it, which is rule one of the #159 sweep and the rule whose
 application found the defect.
 
+**The held-open arm was rewritten once in review before it was deleted, and one
+sentence of that review survives the deletion** (commit `00584a7`, #159, merged
+into the integration branch after #169's fix). It replaced this case's stored-row
+read behind API quiet with a wire recorder, on the ground that a read of
+`GET /tasks/:id` behind quiet races any write that is on its way, so an arm
+holding a finding open could stay green past its own fix. The finding is closed,
+so the recorder and the two settle windows behind it are gone with it; the reason
+is not, and it is why the read below sits behind `watchCommit` taken before the
+press rather than behind quiet.
+
 Spec: 9.3 (the assignee chip), 9.1 (the addressing sentence), DES-194,
 AC-094 (the API sibling), INV-5.
 */

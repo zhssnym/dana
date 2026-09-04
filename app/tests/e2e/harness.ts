@@ -404,7 +404,13 @@ export async function patchSettings(
  * this is generous by two orders of magnitude and costs a quarter second per
  * barrier.
  */
-const API_SETTLE_MS = 250
+/**
+ * How long the page has to have been quiet before `waitForApiIdle` believes
+ * it. Exported since 2026-09-04 so that a case needing a settle wide enough
+ * for a request to have appeared can express it in this number rather than in
+ * a literal that would drift away from it; `ac-220` is the one that does.
+ */
+export const API_SETTLE_MS = 250
 
 interface ApiTraffic {
   inFlight: number
@@ -496,11 +502,21 @@ export function trackApi(page: Page): void {
  *   `page.waitForResponse` on the call itself, or a toast the client only
  *   draws on the response — this covers the reading behind it and nothing is
  *   gained by counting requests as well.
+ * - **Where the value read is the client's own** and no endpoint is meant to
+ *   hear about it, the barrier is this one, and often nothing at all is
+ *   needed. `ac-226`'s starter dismissal lives in `localStorage` on purpose
+ *   and `ac-332`'s cleared filter is a re-render; `watchCommit` on either
+ *   fails saying the page sent nothing, which is correct and is not a defect.
+ *   **This case was missing from the list when the sweep ran**, which is how
+ *   the sweep put a barrier on the dismissal and had to take it out again; it
+ *   is written down now so the next reader does not repeat the same afternoon.
  *
- * Sixty-five call sites were read against those four rules on 2026-09-04;
- * forty-one moved and twenty-four stayed, each of the twenty-four now saying
- * beside itself which rule keeps it there. A barrier with no reason next to it
- * is the thing that cost #138 and #141 a day between them.
+ * Sixty-five call sites were read against those rules on 2026-09-04;
+ * **thirty-nine moved and twenty-six stayed** — measured from the files rather
+ * than added up, an earlier draft of this paragraph having said forty-one and
+ * twenty-four — and each of the twenty-six says beside itself which rule keeps
+ * it there. A barrier with no reason next to it is the thing that cost #138
+ * and #141 a day between them.
  */
 export async function waitForApiIdle(page: Page, why: string): Promise<void> {
   trackApi(page)

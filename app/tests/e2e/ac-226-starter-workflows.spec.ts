@@ -205,8 +205,10 @@ test.describe('AC-226: the starter workflows of 9.13', () => {
        it in `localStorage` under `dana.starters.dismissed`, deliberately and
        with its reason beside it, because a dismissal is not something the
        account owes anybody. `watchCommit` failed here saying the page had
-       sent nothing at all, which was true and correct. Rule three of that
-       sweep: a read of a client-only value has no commit to wait for. */
+       sent nothing at all, which was true and correct. That is the fifth of
+       `waitForApiIdle`'s rules in the harness, "where the value read is the
+       client's own" -- a rule that did not exist until this barrier was tried
+       here, and which this case is half the reason for. */
     await offer.getByRole('button', { name: OFFER.dismiss }).click()
 
     await expect(
