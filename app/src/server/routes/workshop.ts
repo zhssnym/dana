@@ -41,6 +41,7 @@ import {
   shelfView,
 } from '../domain/shelves.js'
 import { accessibleTask, taskView } from '../domain/tasks.js'
+import type { ObjectStore } from '../files/store.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -49,6 +50,11 @@ import { routerWithPreamble } from './preamble.js'
 export interface WorkshopRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  /** The S4 object store, needed since 2026-09-04: a shelf cover and a
+   * cover set may copy the picture it names (issue #116, spec 7.19).
+   * Optional beside the other two for `routes/files.ts`'s reason, and guarded
+   * the same way. */
+  fileStore?: ObjectStore
 }
 
 export function createWorkshopRouter(
@@ -56,6 +62,33 @@ export function createWorkshopRouter(
 ): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+
+  /** `routes/files.ts`'s guard, one router over: an application constructed
+   * without a store cannot copy a cover's bytes, and saying so is better than
+   * storing a row whose picture was never written. */
+  const storeOf = (res: Response): ObjectStore | null => {
+    if (options.fileStore === undefined) {
+      sendError(
+        res,
+        500,
+        'internal_error',
+        'The application was constructed without an object store.',
+      )
+      return null
+    }
+    return options.fileStore
+  }
+
+  /** 10.3's one limit that is not a 422, with section 9's copy, because a
+   * cover set here can now spend the quota through a copy (issue #116). */
+  const overQuota = (res: Response): void => {
+    sendError(
+      res,
+      413,
+      'quota_exceeded',
+      "You've used your 1 GB of storage. Delete some files to add more.",
+    )
+  }
 
   /* ---------------------------------------------------------------- *
    * The folder page (4.17): any member reads, any member edits (D1)
@@ -194,7 +227,19 @@ export function createWorkshopRouter(
         sendValidationError(res, parsed.error)
         return
       }
-      const outcome = await patchShelf(db, viewer(req), shelfId, parsed.data)
+      const store = storeOf(res)
+      if (store === null) return
+      const outcome = await patchShelf(
+        db,
+        store,
+        viewer(req),
+        shelfId,
+        parsed.data,
+      )
+      if (outcome.kind === 'quota_exceeded') {
+        overQuota(res)
+        return
+      }
       if (outcome.kind === 'not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
         return

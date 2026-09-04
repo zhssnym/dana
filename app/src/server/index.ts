@@ -498,7 +498,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // earlier routers claim, Express matching whole paths.
   app.use(
     '/api/v1',
-    createWorkshopRouter({ dbClient: options.dbClient, rateLimits }),
+    createWorkshopRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
   // The S6 conversation (7.14): threads, replies, likes.
@@ -515,7 +515,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // literal pages if it moved ahead. See the block above `/api/v1`.
   app.use(
     '/api/v1',
-    createBundleRouter({ dbClient: options.dbClient, rateLimits }),
+    createBundleRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {
