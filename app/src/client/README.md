@@ -27,7 +27,7 @@ provisional.
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |
 | `parts/` | **The page layer.** The row callbacks, and since P8R session R4 the presenters that map our API shapes onto the designer's display props | Frontend Architect |
-| `parts/person-tint.ts`, `parts/identity-colors.ts` | The two palettes that must name swatches, kept out of `components/` for the reason the second records: the S8 foundation test forbids a ramp step or a literal colour there. The first is S17a's, a person's colour as a function of their name | Frontend Architect |
+| `parts/person-tint.ts`, `parts/identity-colors.ts` | The two palettes that must name swatches, kept out of `components/` for the reason the second records: the S8 foundation test forbids a ramp step or a literal colour there. **Half of that stopped being true on 2026-09-04 (#148):** the ramp rule now reads the whole client, so it reaches `parts/` and both files are named on its list in `components/ui/foundation.test.ts`; only the literal-colour rule still stops at `components/` and `lib/`, and whether the hexes in `identity-colors.ts` move to `tokens.css` or get a named home is the question #41 leaves with the owner. The first is S17a's, a person's colour as a function of their name | Frontend Architect |
 | `components/ui/` | The component library of 11.4 | Component and Design System |
 | `styles/tokens.css` | The single token file of 11.4 | Component and Design System |
 | the calendar, task form and search overlay directories | 9.3, 9.5's calendar, 9.9 | Complex Interaction |
