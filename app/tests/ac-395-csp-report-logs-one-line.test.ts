@@ -37,6 +37,18 @@ world: 10.4's thirty requests a minute times ten violations a body was 300
 events a minute from one stranger against a plan that allows about 5,000 a
 month (11.12). So a fingerprint is sent at most once per ten-minute window.
 
+**And per-fingerprint alone is still not a bound, which is the case the
+last test here exists for.** The fingerprint contains the blocked URI, and
+the blocked URI is a stranger's string: varying one character varies the
+key. Two things answer that together. The values in the fingerprint are the
+whitelisted ones the log line carries, so the key space is the directive
+crossed with a keyword, a `scheme://host` or `other`; and a hard budget of
+twenty events per window sits over the top, after which reports are logged
+and not captured. The budget sends exactly one message saying so, because a
+channel that simply went quiet under load would be indistinguishable from a
+deployment with nothing wrong — which is the disease this whole issue was
+opened about, reproduced one level up.
+
 **The log line is not throttled, and the asymmetry is the design.** The log
 is the complete record of how often a refusal happens; Sentry is how anyone
 finds out that it does at all. A case below posts the same report twice and
@@ -46,6 +58,8 @@ catch either half being wired to the other.
 Spec: 10.5, 10.8, 11.12.
 */
 import { afterEach, describe, expect, test } from 'vitest'
+
+import { SENTRY_BUDGET_PER_WINDOW } from '../src/server/security/csp-report.js'
 
 import {
   REPORTS_JSON_TYPE,
@@ -205,6 +219,119 @@ describe('AC-395 a report from this origin is one line and one Sentry message', 
       'img-src',
       'blob:',
     ])
+  })
+
+  test('the budget stops Sentry and says so, and the log keeps everything', async () => {
+    app = await startCspReportApp()
+    const overBudget = SENTRY_BUDGET_PER_WINDOW + 2
+    // Distinct fingerprints, which is what defeats the per-fingerprint
+    // throttle: a stranger varying the blocked host produces a new key
+    // every time, and only an absolute budget answers that.
+    for (let index = 0; index < overBudget; index += 1) {
+      const response = await app.report(
+        REPORT_URI_TYPE,
+        reportUriBody({
+          documentUri: `${app.origin}/app`,
+          effectiveDirective: 'script-src-elem',
+          blockedUri: `https://host-${String(index)}.example.test/x.js`,
+        }),
+      )
+      expect(response.status).toBe(204)
+    }
+
+    expect(
+      app.violationLines(),
+      'the log is the complete record and the budget does not touch it: every refusal that happened is here',
+    ).toHaveLength(overBudget)
+
+    const violationMessages = app.messages.filter(
+      (message) => message.context?.fingerprint?.[0] === 'csp-violation',
+    )
+    expect(
+      violationMessages,
+      `at most ${String(SENTRY_BUDGET_PER_WINDOW)} Sentry events a window from this endpoint, whoever asks and however varied the fingerprints`,
+    ).toHaveLength(SENTRY_BUDGET_PER_WINDOW)
+
+    const spent = app.messages.filter(
+      (message) => message.context?.fingerprint?.[0] === 'csp-violation-budget-spent',
+    )
+    expect(
+      spent,
+      'exactly one message per window saying the channel has gone blind, because a quiet alert channel and a healthy deployment look identical and that is the disease this issue was opened about',
+    ).toHaveLength(1)
+    expect(app.messages).toHaveLength(SENTRY_BUDGET_PER_WINDOW + 1)
+  })
+
+  test('the Sentry copy carries only what the log line carries', async () => {
+    /* The fingerprint, the message and the tags are built from the
+       whitelisted values and never from the report. A blocked URI is a
+       caller-supplied string: unsanitised it was both a 10.5 leak into the
+       tracker and an unbounded fingerprint key space, which is what made
+       the budget above necessary as well as this assertion. */
+    app = await startCspReportApp()
+    await app.report(
+      REPORT_URI_TYPE,
+      reportUriBody({
+        documentUri: `${app.origin}/app`,
+        effectiveDirective: 'script-src-elem',
+        blockedUri: 'https://cdn.example.test/a/b.js?token=A_LONG_SECRET_VALUE',
+        scriptSample: SCRIPT_SAMPLE,
+      }),
+    )
+
+    const [message] = app.messages
+    expect(message?.context?.fingerprint).toEqual([
+      'csp-violation',
+      'script-src-elem',
+      'https://cdn.example.test',
+    ])
+    expect(message?.message).toBe(
+      'CSP refused script-src-elem: https://cdn.example.test',
+    )
+    expect(message?.context?.tags).toEqual({
+      csp_directive: 'script-src-elem',
+      csp_blocked_uri: 'https://cdn.example.test',
+    })
+    const [line] = app.violationLines()
+    expect(
+      [message?.context?.fingerprint?.[1], message?.context?.fingerprint?.[2]],
+      'the two destinations receive the same two values, or one of them is not whitelisted',
+    ).toEqual([line?.fields.directive, line?.fields.blocked_uri])
+  })
+
+  test('a value the whitelist refuses reaches neither destination', async () => {
+    /* The case above cannot tell a whitelisted value from an unwhitelisted
+       one, because for an ordinary report the two are the same string. This
+       one is a value the report reader passes through and the 10.5
+       whitelist refuses: `url.host` keeps the brackets of an IPv6 literal
+       and `safeBlockedUri` admits no bracket, so the log says `other`. If
+       the Sentry payload were built from the report rather than from the
+       whitelisted fields, this is where the difference would show — and it
+       is a real shape, not a contrived one: any blocked host outside the
+       admitted characters lands here. */
+    app = await startCspReportApp()
+    await app.report(
+      REPORT_URI_TYPE,
+      reportUriBody({
+        documentUri: `${app.origin}/app`,
+        effectiveDirective: 'script-src-elem',
+        blockedUri: 'https://[2001:db8::1]/payload.js',
+      }),
+    )
+
+    const [line] = app.violationLines()
+    expect(line?.fields.blocked_uri, 'the 10.5 whitelist refuses it').toBe('other')
+    const [message] = app.messages
+    expect(
+      message?.context?.fingerprint,
+      'and the fingerprint is built from the same refused value, so the tracker sees exactly what the log saw',
+    ).toEqual(['csp-violation', 'script-src-elem', 'other'])
+    expect(message?.message).toBe('CSP refused script-src-elem: other')
+    expect(message?.context?.tags?.csp_blocked_uri).toBe('other')
+    expect(
+      JSON.stringify(app.messages),
+      'nothing the whitelist refused is anywhere in what reached Sentry',
+    ).not.toContain('2001:db8')
   })
 
   test('one posted body of several reports is several lines', async () => {

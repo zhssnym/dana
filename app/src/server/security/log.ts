@@ -164,6 +164,30 @@ function safeDocumentPath(value: string): string {
   return /^\/[A-Za-z0-9/_.~-]{0,255}$/.test(value) ? value : 'other'
 }
 
+/**
+ * The three fields reduced to what 10.5 admits, exported because **the
+ * Sentry copy of a violation has to be the same values and not merely
+ * similar ones** (issue #99, reviewer finding 2). The route sent
+ * `blockedUri` verbatim into a fingerprint, a message and a tag, so a
+ * caller-supplied string reached the tracker unwhitelisted and the key
+ * space of the fingerprint was unbounded — one changed character was one
+ * more Sentry event. Sanitising here and handing the result to both is the
+ * only shape in which the two cannot drift.
+ *
+ * Idempotent: every output of this function is a fixed point of it, so
+ * `cspViolation` applying it again to an already-safe value is free and the
+ * logger keeps its own guarantee whoever calls it.
+ */
+export function safeCspViolation(
+  fields: CspViolationLogFields,
+): CspViolationLogFields {
+  return {
+    directive: safeDirective(fields.directive),
+    blockedUri: safeBlockedUri(fields.blockedUri),
+    documentPath: safeDocumentPath(fields.documentPath),
+  }
+}
+
 function safeMissing(value: string): string {
   const names = value.split(',').map((name) => name.trim())
   return names.length > 0 && names.every((name) => /^[A-Z][A-Z0-9_]{0,63}$/.test(name))
@@ -258,12 +282,13 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
       )
     },
     cspViolation(fields) {
+      const safe = safeCspViolation(fields)
       sink.warn(
         {
           event: 'csp_violation',
-          directive: safeDirective(fields.directive),
-          blocked_uri: safeBlockedUri(fields.blockedUri),
-          document_path: safeDocumentPath(fields.documentPath),
+          directive: safe.directive,
+          blocked_uri: safe.blockedUri,
+          document_path: safe.documentPath,
         },
         'csp violation',
       )

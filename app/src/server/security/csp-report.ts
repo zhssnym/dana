@@ -70,6 +70,70 @@ export const SENTRY_WINDOW_MS = 10 * 60 * 1_000
  */
 export const SENTRY_FINGERPRINT_CAPACITY = 500
 
+/**
+ * The most Sentry events this endpoint may spend in one window, whatever
+ * arrives.
+ *
+ * **The per-fingerprint throttle below is not a bound, and the reviewer was
+ * right about why** (issue #99, finding 1): the fingerprint contains the
+ * blocked URI, which is a stranger's string, so varying one character
+ * varied the key and 10.4's thirty requests a minute times ten violations a
+ * body was still 300 events a minute. Two changes answer it and neither is
+ * sufficient alone. The values in the fingerprint are now the whitelisted
+ * ones the log line carries, so the key space is the directive crossed with
+ * a keyword, a `scheme://host`, or `other` — narrow, but a host is still a
+ * stranger's string. So this second bound is absolute and counts events
+ * rather than keys: twenty in ten minutes, whoever asks and however varied.
+ *
+ * That is about 8,600 a month at worst, against a free tier of roughly
+ * 5,000, so it is not a guarantee on its own either — but a flood now has
+ * to be sustained for a month to matter rather than for twenty minutes, and
+ * the message below means anyone watching finds out on the first window.
+ */
+export const SENTRY_BUDGET_PER_WINDOW = 20
+
+/**
+ * `send` for a message that fits the budget, `exhausted` for the one
+ * message that says the budget is spent, `silent` for everything after it.
+ *
+ * The middle case exists because **a quiet alert channel and a healthy one
+ * look identical**, which is the whole disease issue #99 was opened about.
+ * A throttle that simply stopped sending would reproduce it one level up.
+ */
+export type BudgetVerdict = 'send' | 'exhausted' | 'silent'
+
+export interface SendBudget {
+  take(): BudgetVerdict
+}
+
+export function createSendBudget(options: {
+  limit?: number
+  windowMs?: number
+  now?: () => number
+} = {}): SendBudget {
+  const limit = options.limit ?? SENTRY_BUDGET_PER_WINDOW
+  const windowMs = options.windowMs ?? SENTRY_WINDOW_MS
+  const now = options.now ?? (() => Date.now())
+  // A fixed window rather than a sliding one: the counter is a number and
+  // not a list of timestamps, which is the property that matters for
+  // something an unauthenticated caller drives.
+  let windowStart = Number.NEGATIVE_INFINITY
+  let spent = 0
+
+  return {
+    take() {
+      const at = now()
+      if (at - windowStart >= windowMs) {
+        windowStart = at
+        spent = 0
+      }
+      if (spent >= limit + 1) return 'silent'
+      spent += 1
+      return spent <= limit ? 'send' : 'exhausted'
+    },
+  }
+}
+
 export interface SendThrottle {
   /** True at most once per key per window, and it records the send. */
   allow(key: string): boolean

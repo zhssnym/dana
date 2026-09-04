@@ -79,7 +79,11 @@ function directiveOf(csp: string, name: string): string | undefined {
     .trim()
 }
 
-function reportingFailures(response: RawResponse, surface: string): string[] {
+function reportingFailures(
+  response: RawResponse,
+  surface: string,
+  origin: string,
+): string[] {
   const failures: string[] = []
   const csp = String(response.headers['content-security-policy'] ?? '')
 
@@ -103,9 +107,18 @@ function reportingFailures(response: RawResponse, surface: string): string[] {
       `${surface}: Reporting-Endpoints is ${endpoints || 'absent'}, so report-to above names an endpoint nothing defines`,
     )
   }
-  if (!endpoints.endsWith(`${CSP_REPORT_PATH}"`)) {
+  /* And absolute under APP_ORIGIN rather than merely ending at the right
+     path. The header's value is defined to be parsed against the document's
+     URL, so a relative path resolves correctly in principle — but this is a
+     header whose misconfiguration reports nothing and says nothing, and a
+     deployment reachable on more than one host would then be inviting
+     reports to whichever host the document happened to be served on, while
+     the endpoint's origin filter drops everything but APP_ORIGIN's. An
+     assertion that only checked the suffix would pass on the relative form
+     and could not tell the two apart. */
+  if (endpoints !== `csp-endpoint="${origin}${CSP_REPORT_PATH}"`) {
     failures.push(
-      `${surface}: Reporting-Endpoints does not end at ${CSP_REPORT_PATH}, so the two headers disagree about where a report goes (got: ${endpoints || 'absent'})`,
+      `${surface}: Reporting-Endpoints is ${endpoints || 'absent'} and should be csp-endpoint="${origin}${CSP_REPORT_PATH}", absolute under APP_ORIGIN`,
     )
   }
   return failures
@@ -123,13 +136,19 @@ describe('AC-394 the policy names somewhere to report a refusal to', () => {
       'the surface under test must be the document, which is the response class a refusal happens on',
     ).toContain('text/html')
 
-    expect(reportingFailures(response, 'document'), 'the 10.8 reporting pair').toEqual([])
+    expect(
+      reportingFailures(response, 'document', app.origin),
+      'the 10.8 reporting pair',
+    ).toEqual([])
   })
 
   test('and so does an API response, so neither surface can lose it alone', async () => {
     const response = await app.get('/api/health')
     expect(response.status).toBe(200)
-    expect(reportingFailures(response, 'health'), 'the 10.8 reporting pair').toEqual([])
+    expect(
+      reportingFailures(response, 'health', app.origin),
+      'the 10.8 reporting pair',
+    ).toEqual([])
   })
 
   test('nothing else in the policy moved', async () => {

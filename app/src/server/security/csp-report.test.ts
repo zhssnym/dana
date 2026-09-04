@@ -16,6 +16,7 @@ give this project two places to change when one of them moves.
 import { describe, expect, test } from 'vitest'
 
 import {
+  createSendBudget,
   createSendThrottle,
   MAX_VIOLATIONS_PER_BODY,
   normalizeBlockedUri,
@@ -179,5 +180,40 @@ describe('the Sentry send throttle', () => {
     expect(throttle.allow('d')).toBe(true)
     expect(throttle.allow('a'), 'evicted as the oldest, so it may send again').toBe(true)
     expect(throttle.allow('c'), 'still held').toBe(false)
+  })
+})
+
+/*
+The budget over the top of the throttle. AC-395 drives it through the
+endpoint to the point of exhaustion; what only an injected clock can reach
+is the window rolling over, which is the difference between a budget and a
+one-shot.
+*/
+describe('the Sentry send budget', () => {
+  test('spends its limit, says so once, then goes quiet until the window rolls', () => {
+    let now = 0
+    const budget = createSendBudget({ limit: 3, windowMs: 1_000, now: () => now })
+
+    expect([budget.take(), budget.take(), budget.take()]).toEqual([
+      'send',
+      'send',
+      'send',
+    ])
+    expect(
+      budget.take(),
+      'the one message that says the channel has gone blind, which a caller must not be able to miss',
+    ).toBe('exhausted')
+    expect([budget.take(), budget.take()], 'and exactly one of it').toEqual([
+      'silent',
+      'silent',
+    ])
+
+    now += 999
+    expect(budget.take(), 'still inside the window').toBe('silent')
+    now += 1
+    expect(
+      budget.take(),
+      'a budget that never refills is a mute, and the next real defect would never be seen',
+    ).toBe('send')
   })
 })
