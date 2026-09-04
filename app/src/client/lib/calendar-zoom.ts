@@ -20,12 +20,27 @@ column, migration 0013's named CHECK, the field on the v2 bundle, and AC-378 to
 AC-380 over the wire. This module is the client half, and until it landed the
 column was inert in production.
 
+**Peeking is not choosing, and that is Imran's ruling of 2026-09-04 on the
+review of #140 rather than an implementation nicety.** 9.5's "+N more" control
+switches to the day zoom to show a crowded day whole. The first build of this
+module wrote that to the account, on the reasoning that a calendar at the day
+zoom is a calendar at the day zoom. The ruling is the other way and it is
+right: a person pressing "+N more" is looking at one day, not changing what
+their calendar is, and a look that silently rewrites a preference on every
+device they own is a control with a side effect nobody asked for. So the reveal
+sets a **transient** zoom, local to this visit and to this browser: it is not
+written, not mirrored, and it is dropped the moment the person chooses a zoom
+from the strip or leaves the page. The next visit, anywhere, opens on what they
+last chose. `revealCalendarZoom` is the reveal's and `setCalendarZoom` is the
+strip's, and nothing else may call the second.
+
 **Three constraints, the same three item 43 gave the theme, and each is a line
 below.**
 
 - **The column stays the truth and the mirror is a cache.** `useCalendarZoom`
-  answers the bundle when it has landed and the mirror only until then, so a
-  stale or absent mirror costs one frame and never a wrong preference.
+  answers a transient reveal first, then the bundle when it has landed, and the
+  mirror only until then, so a stale or absent mirror costs one frame and never
+  a wrong preference.
 - **Write-through and single-direction.** The mirror is refreshed wherever the
   bundle's value is read and wherever a person chooses; nothing reads the
   mirror back into the column.
@@ -100,6 +115,15 @@ function read(): CalendarZoom {
 }
 
 let current: CalendarZoom = read()
+/*
+The reveal's zoom, which is a look rather than a preference (see the header).
+
+Module state and not React state, so that one subscription serves both it and
+the mirror, and so that `setCalendarZoom` can drop it from outside the
+component. Null means nobody is peeking, which is every visit that has not
+pressed "+N more".
+*/
+let revealed: CalendarZoom | null = null
 const listeners = new Set<() => void>()
 /* Serialize writes so two quick choices cannot reach the server out of order
    and leave the account on the older one. The interface still updates at once. */
@@ -114,6 +138,14 @@ function mirrorCalendarZoom(next: CalendarZoom): void {
     /* The server remains the record when browser storage is unavailable. */
   }
   if (!changed) return
+  notifyAll()
+}
+
+/* Broken out because `mirrorCalendarZoom` notifies only when the mirror moved,
+   and a choice that merely ends a reveal (Month pressed while peeking at a day)
+   has to notify on its own account. The alternative is a control that looks
+   dead. */
+function notifyAll(): void {
   listeners.forEach((notify) => {
     notify()
   })
@@ -122,31 +154,62 @@ function mirrorCalendarZoom(next: CalendarZoom): void {
 /** A shared device must not borrow the previous person's first-paint zoom. */
 export function clearCalendarZoomMirror(): void {
   current = DEFAULT_CALENDAR_ZOOM
+  revealed = null
   try {
     localStorage.removeItem(CALENDAR_ZOOM_KEY)
   } catch {
     /* Nothing stored is nothing to clear. */
   }
-  listeners.forEach((notify) => {
-    notify()
-  })
+  notifyAll()
 }
 
 /**
- * The zoom the calendar draws: 4.10's column once the bundle has answered, and
- * the browser's mirror for the frames before that.
+ * 9.5's "+N more": show this day whole, for this visit, changing nothing.
+ *
+ * Nothing is written and nothing is mirrored. `PlannedCalendar` drops it when
+ * it unmounts, which is 9.5's "leaves the page", and `setCalendarZoom` drops it
+ * because an explicit choice is what a reveal defers to.
+ */
+export function revealCalendarZoom(zoom: CalendarZoom): void {
+  if (revealed === zoom) return
+  revealed = zoom
+  notifyAll()
+}
+
+/** Stop peeking: the calendar goes back to the zoom the person chose. */
+export function clearRevealedZoom(): void {
+  if (revealed === null) return
+  revealed = null
+  notifyAll()
+}
+
+function subscribe(notify: () => void): () => void {
+  listeners.add(notify)
+  return () => {
+    listeners.delete(notify)
+  }
+}
+
+/**
+ * The zoom the calendar draws, in the order the three answers rank: a reveal
+ * this visit, then 4.10's column once the bundle has answered, then the
+ * browser's mirror for the frames before that.
+ *
+ * Two subscriptions to one listener set rather than one snapshot returning
+ * both, because `useSyncExternalStore` compares snapshots by identity and a
+ * fresh object every call is an infinite render. Both snapshots are primitives.
  */
 export function useCalendarZoom(): CalendarZoom {
   const bundle = useBundle()
   const mirrored = useSyncExternalStore<CalendarZoom>(
-    (notify) => {
-      listeners.add(notify)
-      return () => {
-        listeners.delete(notify)
-      }
-    },
+    subscribe,
     () => current,
     () => DEFAULT_CALENDAR_ZOOM,
+  )
+  const peeked = useSyncExternalStore<CalendarZoom | null>(
+    subscribe,
+    () => revealed,
+    () => null,
   )
   const recorded = bundle.data?.calendar_zoom
 
@@ -154,20 +217,21 @@ export function useCalendarZoom(): CalendarZoom {
     if (recorded !== undefined) mirrorCalendarZoom(recorded)
   }, [recorded])
 
-  return recorded ?? mirrored
+  return peeked ?? recorded ?? mirrored
 }
 
 /**
- * 9.5's zoom strip, and the "+N more" reveal that switches to the day zoom.
+ * 9.5's zoom strip, and the only thing in this client that writes the zoom.
  *
- * Both are a person choosing a zoom, so both write. The reveal is not an
- * exception hiding inside the mechanism: a calendar left at the day zoom by
- * pressing "+N more" is a calendar at the day zoom, and the next visit opening
- * there is what "the zoom persists" means.
+ * A choice ends a reveal, which is why the transient value is dropped here and
+ * not only on unmount: pressing Month while peeking at a day has to leave the
+ * calendar on Month.
  */
 export function setCalendarZoom(zoom: CalendarZoom): void {
   const previous = current
+  revealed = null
   mirrorCalendarZoom(zoom)
+  notifyAll()
   const client = queryClient()
   const previousBundle = client?.getQueryData<GetSettingsResponse>(queryKeys.bundle())
   client?.setQueryData<GetSettingsResponse>(queryKeys.bundle(), (bundle) =>

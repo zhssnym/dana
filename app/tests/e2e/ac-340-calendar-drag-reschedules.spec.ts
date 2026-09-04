@@ -118,8 +118,16 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
    handed back at 9.5's default rather than left for the next file. Through the
    API rather than by pressing Month again: a restore that depends on the
    control under test is a restore that stops running the day that control
-   breaks, and this one runs even when the case has already failed. */
+   breaks, and this one runs even when the case has already failed.
+
+   Guarded on the session, because that is the failure it would otherwise make
+   worse: a case that dies before `signIn` has no cookie, `patchBundle` then
+   reads no CSRF token and fails its own assertion, and the report names the
+   cleanup instead of the thing that broke. There is nothing to restore in that
+   state anyway, the zoom never having been touched. */
 test.afterEach(async ({ page }) => {
+  const signedIn = (await page.context().cookies()).length > 0
+  if (!signedIn) return
   await patchBundle(page, { calendar_zoom: 'month' })
 })
 

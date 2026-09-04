@@ -3,7 +3,9 @@ AC-405: given the Scheduled calendar at 9.5's default zoom, when the week zoom
 is chosen and the page is reloaded, then the calendar is at the week zoom
 rather than back at month; and when a second browser context signs in to the
 same account and opens the same calendar, then it is at the week zoom too, the
-preference following the person rather than the browser.
+preference following the person rather than the browser; and given the
+crowded-day reveal pressed instead, then the calendar draws that day and the
+stored zoom is untouched, so a reload lands on the chosen zoom and not on day.
 
 Taken from the tail on 2026-09-04 for issue #140, the number assigned rather
 than chosen; section 12's README carries the bullet.
@@ -42,19 +44,26 @@ the wrong grid would pass an assertion made on the control. The count is
 asserted at both ends so the case cannot pass by finding week where week was
 already the state.
 
+**The reveal is the third case and it is the one that says what this
+preference is not.** Imran ruled on the review of #140 that pressing "+N more"
+is a look rather than a choice: it draws the crowded day whole and writes
+nothing, so a person who peeked at a day and came back tomorrow opens on the
+zoom they chose. The obvious build is the other one, and it was the first one
+here, so the arm is asserted rather than assumed. It is asserted **through a
+reload** rather than by reading the bundle, because what is at stake is what
+the person meets next time; AC-177 reads the bundle directly, which is the
+same rule measured at the control instead of at the consequence.
+
 **The account is put back in `afterEach`, as AC-261 does for the four
 Appearance fields.** This leg shares one seeded database in one worker and the
 bundle is account state that outlives a case, so a zoom left at week is a
-change every later spec inherits. Two things follow, and the second is a
-finding rather than a rule: **`ac-340` chooses the week zoom and puts nothing
-back**, which was harmless while the zoom was component state and is not any
-more. Measured on 2026-09-04 with a throwaway spec sorting after it: a later
-case opening the Scheduled calendar reads **7 cells**, the week zoom, rather
-than 42. Nothing between `ac-340` and this file reads that calendar today, and
-`ac-093`, which does and needs the month zoom, sorts before it, so the leg is
-green in its file order. That is the ordering being lucky rather than the spec
-being safe, and it is left as a finding for the suite's owner rather than
-edited from here: a criterion is not a frontend agent's to change.
+change every later spec inherits. **`ac-340` had the same leak and did not
+restore**, which was harmless while the zoom was component state and stopped
+being so with this change: measured on 2026-09-04 with a throwaway spec sorting
+after it, a later case opening the Scheduled calendar read **7 cells**, the
+week zoom, rather than 42. It was fixed on this branch under the owner's
+authorisation and declared, and `ac-340` now hands the zoom back the same way
+this file does. Its own header carries the measurement and the reasoning.
 
 Spec: 9.5 as amended 2026-09-04 (the zoom persisting on the account), 4.10
 (`calendar_zoom` and migration 0013's CHECK), 7.2 as annotated (the v2 bundle's
@@ -66,10 +75,15 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  caseTitle,
   chooseView,
   clickControl,
+  createFolder,
+  createTask,
+  deleteFolder,
   patchBundle,
   routesV2,
+  seedDate,
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
@@ -179,6 +193,76 @@ test.describe('AC-405: the calendar zoom follows the account', () => {
         .toBe(WEEK_CELLS)
     } finally {
       await second.close()
+    }
+  })
+
+  test('AC-405: the crowded-day reveal is a look and writes nothing', async ({ page }) => {
+    await signIn(page, seedSubs.hassan)
+    await patchBundle(page, { calendar_zoom: 'week' })
+
+    /*
+    A day with more rows than a month cell draws, so the reveal has something
+    to reveal. It is dated inside the week the zoom already shows, so the case
+    can press the control at the week zoom rather than navigating a month.
+    */
+    const folder = await createFolder(page, caseTitle('AC-405 crowded'))
+    const crowded = seedDate(0)
+    for (let i = 0; i < 12; i += 1) {
+      await createTask(page, {
+        title: caseTitle(`AC-405 crowded ${String(i)}`),
+        folder_id: folder.id,
+        due_date: crowded,
+      })
+    }
+
+    try {
+      await openCalendar(page)
+      await clickControl(
+        zoomControl(page, 'Month'),
+        'spec 9.5: the month grid is where the constant height puts rows behind a reveal',
+      )
+      const grid = page.getByRole('grid', { name: 'Scheduled calendar' })
+      const cell = grid.locator(`[role="gridcell"][data-date="${crowded}"]`)
+      await clickControl(
+        cell.getByRole('button', { name: /^\+\d+ more$/ }),
+        'spec 9.5: "+N more" is a control opening the day',
+      )
+      await expect(
+        grid.getByRole('gridcell'),
+        'spec 9.5: the reveal draws that day at the day zoom, which is one cell',
+      ).toHaveCount(1)
+
+      const stored = await page.request.get('/api/v1/settings')
+      expect(
+        ((await stored.json()) as { calendar_zoom: string }).calendar_zoom,
+        'spec 9.5 as amended and Imran on the review of issue #140: a look is not a choice, ' +
+          'so the reveal leaves 4.10 alone. Month was pressed last and Month is what the ' +
+          'account holds',
+      ).toBe('month')
+
+      /* And what the person meets next time is the zoom they chose, which is
+         the half a bundle read cannot see: a build that kept the reveal in the
+         page and wrote the account would fail above, and one that wrote
+         neither but never dropped the reveal would fail here. */
+      await page.reload()
+      await chooseView(page, 'Calendar', 'spec 9.5: back to the calendar after the reload')
+      await expect
+        .poll(
+          () =>
+            page
+              .getByRole('grid', { name: 'Scheduled calendar' })
+              .getByRole('gridcell')
+              .count(),
+          {
+            message:
+              'spec 9.5 as amended: the reveal is dropped when the calendar leaves the ' +
+              'screen, so a reload opens on the chosen zoom rather than on the day somebody ' +
+              'looked at',
+          },
+        )
+        .toBe(MONTH_CELLS)
+    } finally {
+      await deleteFolder(page, folder.id)
     }
   })
 })

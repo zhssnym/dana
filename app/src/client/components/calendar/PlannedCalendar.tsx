@@ -99,7 +99,12 @@ import type { CellEvent } from './order.js'
    is the shared one; `lib/calendar-zoom.ts` carries the reasoning and the
    compile-time check that it and `Zoom` above are the same three strings. */
 import { CALENDAR_ZOOMS } from '../../../shared/bundle.js'
-import { setCalendarZoom, useCalendarZoom } from '../../lib/calendar-zoom.js'
+import {
+  clearRevealedZoom,
+  revealCalendarZoom,
+  setCalendarZoom,
+  useCalendarZoom,
+} from '../../lib/calendar-zoom.js'
 
 /*
 How many lines a month cell draws, and it is measured rather than chosen.
@@ -378,9 +383,18 @@ export function PlannedCalendar(): React.JSX.Element {
   the zoom a preference a person sets and expects to hold, and makes previous,
   next and today a way of moving around inside the period they are looking at.
   A remembered anchor would open a person on last week rather than on this one.
+
+  The "+N more" reveal below is the third case and writes nothing: Imran ruled
+  on the review of #140 that peeking at a crowded day is a look rather than a
+  choice, so it sets a transient zoom that this page drops when it unmounts.
   */
   const zoom = useCalendarZoom()
   const [anchor, setAnchor] = useState<string>(today)
+
+  /* 9.5's "leaves the page": a reveal lasts as long as the calendar is on
+     screen and never longer, so nothing a person peeked at follows them to the
+     next page or the next visit. */
+  useEffect(() => clearRevealedZoom, [])
 
   const dates = useMemo(() => datesFor(zoom, anchor), [zoom, anchor])
   /*
@@ -574,11 +588,14 @@ export function PlannedCalendar(): React.JSX.Element {
                   lastRow={row === weeks.length - 1}
                   events={cells.get(date) ?? []}
                   onReveal={() => {
-                    // 9.5's reveal: the day zoom draws every row the day holds.
-                    // It writes the account like any other choice of zoom;
-                    // `lib/calendar-zoom.ts` says why that is not an exception.
+                    // 9.5's reveal: the day zoom draws every row the day
+                    // holds. It changes what is drawn and never the account
+                    // (Imran, on the review of #140): a person looking at one
+                    // crowded day has not chosen a zoom, and a look that
+                    // rewrote the preference would follow them to every device
+                    // they own. `lib/calendar-zoom.ts` carries the ruling.
                     setAnchor(date)
-                    setCalendarZoom('day')
+                    revealCalendarZoom('day')
                   }}
                   onDropTask={(taskId) => {
                     moveTaskTo(taskId, date)
