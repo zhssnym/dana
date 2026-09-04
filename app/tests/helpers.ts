@@ -217,17 +217,86 @@ export async function expectRejectedWith(
   expect(observed).toEqual(expected)
 }
 
-// Deletion order honors the two RESTRICT foreign keys of section 4
-// (tasks.created_by, folders.owner_id); everything else cascades. In-memory
-// PGlite discards the database at close, so this is load-bearing only for
-// the shared TEST_DATABASE_URL case.
+interface ReferencingColumn {
+  table_schema: string
+  table_name: string
+  column_name: string
+}
+
+/**
+ * Every column anywhere in the database holding a foreign key onto
+ * `users(id)`, discovered rather than listed.
+ *
+ * The sessions table belongs to the Security engineer and lives outside the
+ * section 4 model (10.1), so its shape is not knowable from here; and the
+ * model itself grows a table at a time. Asking the catalog is what keeps this
+ * correct across both.
+ */
+async function columnsReferencingUsers(db: Db): Promise<ReferencingColumn[]> {
+  return (await rows(
+    db,
+    sql`
+      SELECT tc.table_schema, tc.table_name, kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON kcu.constraint_name = tc.constraint_name
+       AND kcu.constraint_schema = tc.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON ccu.constraint_name = tc.constraint_name
+       AND ccu.constraint_schema = tc.constraint_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND ccu.table_name = 'users'
+        AND ccu.column_name = 'id'
+    `,
+  )) as unknown as ReferencingColumn[]
+}
+
+/**
+ * Removes every trace of the named users, and is the one implementation of
+ * that: `cleanupAuthUsers` in `auth-harness.ts` is now a name for this
+ * function rather than a second copy of it.
+ *
+ * **It used to delete tasks, then folders, then the user, and that was a list
+ * of the RESTRICT keys section 4 had when it was written** (issue #112,
+ * 2026-09-04). The list went out of date the way lists do. `events.actor_id`
+ * is RESTRICT by design, 4.13 soft-deleting users precisely so that their acts
+ * survive them, and an event that belongs to a folder cascades away with the
+ * folder while an event that belongs to nothing does not. So a user with a
+ * folder-less event could not be deleted, and the way that presented is the
+ * expensive part: a suite error raised in cleanup, in whichever file happened
+ * to be running, naming a constraint rather than the change that caused it.
+ * It cost a session in #65 exactly once, on a shelf event carrying a null
+ * `folder_id`.
+ *
+ * So the columns are discovered from the catalog rather than named here, which
+ * is what `cleanupAuthUsers` already did eleven files away and is the reason
+ * that copy is the survivor. Tasks first and folders second, because both hold
+ * RESTRICT keys onto users and deleting a folder cascades its tasks away;
+ * everything else after, in whatever order the catalog answers in, each of
+ * those being either a cascade or a row that belongs to the user alone.
+ *
+ * In-memory PGlite discards its database at close, so this is load-bearing
+ * only where a database outlives the file that used it.
+ */
 export async function cleanupUsers(
   db: Db,
   userIds: readonly string[],
 ): Promise<void> {
+  if (userIds.length === 0) return
+  const rank = (table: string): number =>
+    table === 'tasks' ? 0 : table === 'folders' ? 1 : 2
+  const ordered = [...(await columnsReferencingUsers(db))].sort(
+    (a, b) => rank(a.table_name) - rank(b.table_name),
+  )
+
   for (const id of userIds) {
-    await db.execute(sql`DELETE FROM tasks WHERE created_by = ${id}`)
-    await db.execute(sql`DELETE FROM folders WHERE owner_id = ${id}`)
+    for (const reference of ordered) {
+      const target = sql.raw(
+        `"${reference.table_schema}"."${reference.table_name}"`,
+      )
+      const column = sql.raw(`"${reference.column_name}"`)
+      await db.execute(sql`DELETE FROM ${target} WHERE ${column} = ${id}`)
+    }
     await db.execute(sql`DELETE FROM users WHERE id = ${id}`)
   }
 }
