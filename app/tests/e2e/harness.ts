@@ -852,17 +852,21 @@ export const conflictCopy = {
 export function sidebarLink(page: Page, name: string): Locator {
   const named = page.getByRole('link', { name, exact: true })
   /*
-  Desk names two of them, and only Desk does (issue #98). 9.1's page block
-  opens with a page called Desk at `/app`, and 4.3 names the viewer's default
-  folder Desk too, so its row is a second link of that name pointing at
-  `/app/folders/:id`. The row usually carries its pending badge and so reads
-  "Desk 7" rather than "Desk", which is why this is not ambiguous most of the
-  time; an account whose default folder has nothing pending in it has no
-  badge, and then it is. Pinning the destination costs nothing and removes the
-  case rather than leaving it to be met once, in a leg, by whoever emptied
-  that folder. It also hides the collision from this leg by design, which is
-  issue #158's to answer and not this file's. See `linkTo` below for the same
-  reasoning at greater length.
+  Desk named two of them, and only Desk did (issue #98). 9.1's page block opens
+  with a page called Desk at `/app`, and 4.3 names the viewer's default folder
+  Desk too, so its row was a second link of that name pointing at
+  `/app/folders/:id`. The row usually carried its pending badge and so read
+  "Desk 7" rather than "Desk", which is why it was not ambiguous most of the
+  time; an account whose default folder had nothing pending in it had no badge,
+  and then it was.
+
+  **Issue #158 settled it and the names no longer collide**: the default
+  folder's row appends an unseen "folder" to its own name, so it reads "Desk
+  folder" and, with a badge, "Desk folder 7". `linkTo` below carries the
+  ruling. This pin therefore no longer hides anything, and it is kept rather
+  than deleted for the reason it was worth having before the ambiguity existed:
+  both halves are asserted, so a page entry that acquires the wrong `href`
+  fails here instead of passing on its name.
   */
   return name === 'Desk'
     ? named.and(page.locator(`[href="${routesV2.desk}"]`))
@@ -995,39 +999,34 @@ export function regionOf(page: Page, name: string): Locator {
  * A link addressed by its accessible name and by the destination 9.1's routes
  * table gives it, for the places where a name alone names two of them.
  *
- * **The sidebar holds two links called Desk and always has** (issue #98,
- * 2026-09-04). One is the page entry of 9.1's page block, whose name is a
- * fixed string and whose destination is `/app`. The other is the row of the
- * viewer's default folder, which 4.3 names Desk on every account provisioned
- * since RFC 0005 and which points at `/app/folders/:id`. Nothing was wrong
- * with the four cases that broke on this: the seed called that folder Inbox
- * until #98, so the collision was invisible to a leg that runs entirely on
- * the seed, and every provisioned account has had it all along.
+ * **The sidebar held two links called Desk, and issue #158 has separated
+ * them.** One is the page entry of 9.1's page block, whose name is a fixed
+ * string and whose destination is `/app`. The other is the row of the viewer's
+ * default folder, which 4.3 names Desk on every account provisioned since RFC
+ * 0005 and which points at `/app/folders/:id`. Nothing was wrong with the four
+ * cases that broke on that (issue #98, 2026-09-04): the seed called that folder
+ * Inbox until #98, so the collision was invisible to a leg that runs entirely
+ * on the seed, and every provisioned account had it all along.
  *
- * **Say plainly what this helper does to that: it makes the collision
- * invisible to the browser leg again, on purpose, and issue #158 is where the
- * collision itself is answered.** Two links of one name in one navigation
- * landmark is a product question - a person using a screen reader in the rail
- * hears "Desk" twice with nothing to separate them - and it is Imran's to
- * rule on, the answer being a name or a label rather than a locator. What
- * this file may decide is only how a criterion addresses a control while that
- * ruling is outstanding, and pinning the destination is the answer that
- * measures the criterion the case is about instead of failing on a different
- * one. When #158 lands this helper is what to revisit: if the two names stop
- * colliding it becomes unnecessary, and if they are deliberately kept the
- * same it becomes the documented way to address either.
+ * **The ambiguity is resolved in the client and not here.** #158 ruled that
+ * the folder row carries the distinguishing name, on the ground that the page
+ * entry's name is 9.1's own fixed string while a folder's is the person's:
+ * `shell/app-sidebar.tsx` gives the default folder's row an unseen "folder"
+ * inside its anchor, so it reads "Desk folder", or "Desk folder 7" while it
+ * carries a badge, expanded and in the rail alike. Only that row takes the
+ * word; the reasoning against every folder row taking it is in that file. So a
+ * name alone now does separate the two, and AC-155 asserts that it does.
  *
- * Expanded, the two are told apart by name after all, the folder row carrying
- * its pending badge and reading "Desk 7"; collapsed to the rail the badge is
- * gone and both read exactly "Desk". That separation is an accident of the
- * badge rather than a design, which is the other half of why #158 exists. So
- * a name is not enough, and the thing
- * that separates them is the one the section fixes normatively: the routes
- * table gives each page and each folder page a URL of its own. Addressing by
- * `href` is therefore reading 9.1 rather than reaching around it, which is
- * the distinction this file's addressing rule draws when it refuses class,
- * DOM shape and test identifier. It refuses those because none of them is in
- * the section; this is.
+ * **This helper is kept anyway, and the reason has changed.** It no longer
+ * hides a collision, because there is none; what it still does is what it was
+ * always also doing, which is to hold a link to the routes table as well as to
+ * its name. That is worth having on its own: the two Desk links differ by one
+ * appended word, and a client that put the word on the wrong one of them, or
+ * dropped it again, would go on satisfying a name-only locator that happened to
+ * be looking at the other link. Reading the `href` is reading 9.1 rather than
+ * reaching around it, which is the distinction this file's addressing rule
+ * draws when it refuses class, DOM shape and test identifier: it refuses those
+ * because none of them is in the section, and this is.
  *
  * Both halves are kept rather than the destination alone, so that a link with
  * the right URL and the wrong name still fails.
