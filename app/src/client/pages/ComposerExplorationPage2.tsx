@@ -666,17 +666,21 @@ function CanvasTaskRow({
 
 function WritingGap({ onWrite }: { readonly onWrite: () => void }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      aria-label="Write between tasks"
-      onClick={onWrite}
-      className="group/gap -ml-8 flex h-3 w-[calc(100%+2rem)] items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <span className="flex w-8 justify-center text-muted-foreground opacity-0 transition-opacity group-hover/gap:opacity-60 group-focus-visible/gap:opacity-80">
-        <Plus className="size-3" strokeWidth={1.75} aria-hidden="true" />
-      </span>
-      <span className="h-px flex-1 bg-border opacity-0 transition-opacity group-hover/gap:opacity-50 group-focus-visible/gap:opacity-70" />
-    </button>
+    /* The twelve-pixel hit target overlaps the ordinary row gap. Its wrapper
+       has no height, so discoverability never changes the list's rhythm. */
+    <div className="relative h-0">
+      <button
+        type="button"
+        aria-label="Write between tasks"
+        onClick={onWrite}
+        className="group/gap absolute -top-1.5 z-20 -ml-8 flex h-3 w-[calc(100%+2rem)] items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex w-8 justify-center text-muted-foreground opacity-0 transition-opacity group-hover/gap:opacity-60 group-focus-visible/gap:opacity-80">
+          <Plus className="size-3" strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        <span className="h-px flex-1 bg-border opacity-0 transition-opacity group-hover/gap:opacity-50 group-focus-visible/gap:opacity-70" />
+      </button>
+    </div>
   )
 }
 
