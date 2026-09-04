@@ -49,6 +49,12 @@ and it recomputes its proposal on every move, so a single `mouse.move` to the
 destination is a gesture the product never receives from a person and would
 measure a code path nobody uses.
 
+**Both releases cross `watchCommit` before 7.4 is read, 2026-09-04 and issue
+#141.** The shape was hidden here rather than written out: `labelOf` waited on
+API quiet of its own accord, so each case read as though it had a barrier
+while the barrier it had was the one the harness deprecates for a read after
+an edit. See that helper's header below for why quiet alone is not it.
+
 Spec: 9.1 (the Library, its one ordered list, the closed-group limit and the
 "Into {shelf}" drop), frozen 7.4 (my-membership, which a group is the label
 of), 4.4, DES-171, DES-190, AC-180 (the same label written from the menus),
@@ -68,6 +74,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -93,11 +100,25 @@ async function memberships(page: Page): Promise<Membership[]> {
   return (await response.json()) as Membership[]
 }
 
-/** The viewer's label for a folder, read from 7.4 after the write has landed. */
+/**
+ * The viewer's label for a folder, read from frozen 7.4.
+ *
+ * **The quiet below orders this read and does not on its own order a read
+ * after an edit** (2026-09-04, issue #141). `waitForApiIdle` returns as soon
+ * as nothing is in flight, and that is also true in the window between a
+ * release and the request the release causes, React having to render before
+ * the mutation is issued; a read ordered by quiet alone can therefore ask 7.4
+ * about a label the browser has not sent yet, and what that produces is the
+ * old label, which is indistinguishable from the sidebar that regroups its own
+ * rendering and writes nothing. So each release below takes a `watchCommit`
+ * barrier of its own first, and this wait is what covers the refetch behind
+ * it and the reads taken after a reload, where there is no edit to order.
+ */
 async function labelOf(page: Page, name: string): Promise<string | null> {
   await waitForApiIdle(
     page,
-    'the label write has to have been sent and answered before 7.4 is asked what it holds',
+    'whatever the page had to say about the label has been said and answered before 7.4 ' +
+      'is asked what it holds',
   )
   const folder = (await memberships(page)).find((entry) => entry.name === name)
   expect(
@@ -285,7 +306,13 @@ test.describe('AC-227: the Library is one column, rearranged by dragging', () =>
         'so in words instead',
     ).toBeHidden()
 
+    const commit = watchCommit(page)
     await page.mouse.up()
+    await commit.settled(
+      'spec 9.1 and frozen 7.4: landing in a group writes the label frozen 7.4 keeps ' +
+        'label, so the release is read back only once that write has gone out and ' +
+        'been answered',
+    )
 
     expect(
       await labelOf(page, CARRIED),
@@ -321,7 +348,13 @@ test.describe('AC-227: the Library is one column, rearranged by dragging', () =>
     ).toBeVisible()
 
     await carryOnto(page, folderRow(page, CARRIED), folderRow(page, LOOSE))
+    const commit = watchCommit(page)
     await page.mouse.up()
+    await commit.settled(
+      'spec 9.1 and DES-171: carrying a folder out of every group clears the label, ' +
+        'which is a write like any other, so the read below waits for it to have gone ' +
+        'out and been answered',
+    )
 
     expect(
       await labelOf(page, CARRIED),

@@ -58,6 +58,30 @@ of 2026-09-01 found the same fault in both: it clamped its waypoints into the
 window on the horizontal axis and not the vertical one, and this board grows
 downwards. See that helper for the measurement.
 
+**The read behind the release crosses `watchCommit` rather than
+`waitForApiIdle`, 2026-09-04 and issue #141.** The two are not
+interchangeable, and the harness says so over `watchCommit` itself: API quiet
+is also true in the window between the release and the request the release
+causes, React having to render before the mutation is issued, so a read
+ordered by quiet alone can ask the server about a write that has not left the
+browser. What that produces here is a stored folder still reading Groceries,
+which is indistinguishable from the product defect this case exists to find,
+a board that repaints without writing. The positive barrier says instead that
+this gesture's own request went out and that everything behind it has been
+answered, and it fails in as many words when a release reaches no endpoint at
+all. Unmeasured when the issue was filed and still not observed here: ten
+repeats were green both before the change and after it, so what this removes
+is a known-wrong barrier rather than a known red.
+
+**The refusal case below keeps `waitForApiIdle`, and that is deliberate.**
+`watchCommit` asserts that a request went out, which is the exact thing a
+refusal denies, so it cannot be the barrier for a case whose whole claim is
+that nothing was written; there is no positive signal for an act that never
+happens. What is left is quiet, and quiet is weak in the direction that
+yields a false green rather than a false red, a write still in flight being
+missed. The guard that remains is the comparison itself, the stored date
+after the release read against the same field read before it.
+
 Spec: 9.1 (the view strip's board sentence, the region table's board column,
 the undo bar), DES-182 (a column is a value), DES-171 (the proposal seam),
 AC-221 (the capture half), 6 (the order inside a column is the server's).
@@ -81,6 +105,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 /**
@@ -195,8 +220,12 @@ test.describe('AC-228: a board column takes the drop and writes its value', () =
         'it in, so the promise and the outcome are the same thing. Read while the ' +
         'pointer is still down, which is the only moment it exists',
     ).toBeVisible()
+    const commit = watchCommit(page)
     await page.mouse.up()
-    await waitForApiIdle(page, 'the drop\'s write lands before the row is read back')
+    await commit.settled(
+      'spec 9.1: "dropping a card in a column writes that value", so the release is a ' +
+        'write; the row below is read only once that write has gone out and been answered',
+    )
 
     const stored = await storedTask(page, task.id)
     expect(
@@ -251,6 +280,9 @@ test.describe('AC-228: a board column takes the drop and writes its value', () =
         'and refuses is the arrangement that sentence rejects',
     ).toHaveCount(0)
     await page.mouse.up()
+    // Quiet rather than `watchCommit`, for the reason the header gives: the
+    // barrier that asserts a request went out cannot order a read whose own
+    // claim is that none did.
     await waitForApiIdle(page, 'anything the release did would have been sent by now')
 
     const after = await storedTask(page, task.id)
