@@ -47,6 +47,12 @@ export async function createTestDb(): Promise<DbClient> {
     const lock = new pg.Client({
       connectionString: process.env.TEST_DATABASE_URL ?? '',
     })
+    // Held across the whole migration run, and an unlistened pg.Client throws
+    // its socket errors as uncaught exceptions rather than merely rejecting
+    // the query. Issue #174, and postgres-leg-admin.ts carries the reasoning.
+    lock.on('error', (error: Error) => {
+      process.stderr.write(`[postgres leg] migration lock connection error: ${error.message}\n`)
+    })
     await lock.connect()
     try {
       await lock.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY])
