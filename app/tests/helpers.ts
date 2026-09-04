@@ -217,63 +217,120 @@ export async function expectRejectedWith(
   expect(observed).toEqual(expected)
 }
 
-interface ReferencingColumn {
+interface BlockingColumn {
   table_schema: string
   table_name: string
   column_name: string
+  not_null: unknown
 }
 
 /**
- * Every column anywhere in the database holding a foreign key onto
- * `users(id)`, discovered rather than listed.
+ * Every column whose foreign key onto `users(id)` would make the database
+ * refuse a delete, with whether that column can hold a null.
  *
- * The sessions table belongs to the Security engineer and lives outside the
- * section 4 model (10.1), so its shape is not knowable from here; and the
- * model itself grows a table at a time. Asking the catalog is what keeps this
- * correct across both.
+ * **Read from `pg_constraint` rather than from `information_schema`, because
+ * the delete rule is the whole question and `information_schema` does not
+ * carry `confdeltype`.** A column that cascades or nulls itself needs nothing
+ * from a test helper: the database already knows what to do with it, and
+ * doing it here instead is how a cleanup starts destroying rows that belong
+ * to somebody else. Only `'r'` (RESTRICT) and `'a'` (NO ACTION) refuse, so
+ * only those are swept.
+ *
+ * The sessions table lives outside the section 4 model (10.1) and the model
+ * grows a table at a time, so the set is discovered rather than listed. Single
+ * column keys only, which every key onto `users(id)` is; a composite one would
+ * need a different statement and there is none to write it against.
  */
-async function columnsReferencingUsers(db: Db): Promise<ReferencingColumn[]> {
+async function blockingColumnsOnUsers(db: Db): Promise<BlockingColumn[]> {
   return (await rows(
     db,
     sql`
-      SELECT tc.table_schema, tc.table_name, kcu.column_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON kcu.constraint_name = tc.constraint_name
-       AND kcu.constraint_schema = tc.constraint_schema
-      JOIN information_schema.constraint_column_usage ccu
-        ON ccu.constraint_name = tc.constraint_name
-       AND ccu.constraint_schema = tc.constraint_schema
-      WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND ccu.table_name = 'users'
-        AND ccu.column_name = 'id'
+      SELECT n.nspname   AS table_schema,
+             child.relname AS table_name,
+             col.attname   AS column_name,
+             col.attnotnull AS not_null
+      FROM pg_constraint c
+      JOIN pg_class child ON child.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = child.relnamespace
+      JOIN pg_class parent ON parent.oid = c.confrelid
+      JOIN pg_attribute col
+        ON col.attrelid = c.conrelid AND col.attnum = c.conkey[1]
+      JOIN pg_attribute referenced
+        ON referenced.attrelid = c.confrelid AND referenced.attnum = c.confkey[1]
+      WHERE c.contype = 'f'
+        AND parent.relname = 'users'
+        AND referenced.attname = 'id'
+        AND array_length(c.conkey, 1) = 1
+        AND c.confdeltype IN ('a', 'r')
+      ORDER BY child.relname, col.attname
     `,
-  )) as unknown as ReferencingColumn[]
+  )) as unknown as BlockingColumn[]
 }
 
 /**
  * Removes every trace of the named users, and is the one implementation of
- * that: `cleanupAuthUsers` in `auth-harness.ts` is now a name for this
- * function rather than a second copy of it.
+ * that: `cleanupAuthUsers` in `auth-harness.ts` is a name for this function
+ * rather than a second copy of it.
  *
  * **It used to delete tasks, then folders, then the user, and that was a list
  * of the RESTRICT keys section 4 had when it was written** (issue #112,
  * 2026-09-04). The list went out of date the way lists do. `events.actor_id`
- * is RESTRICT by design, 4.13 soft-deleting users precisely so that their acts
- * survive them, and an event that belongs to a folder cascades away with the
- * folder while an event that belongs to nothing does not. So a user with a
- * folder-less event could not be deleted, and the way that presented is the
- * expensive part: a suite error raised in cleanup, in whichever file happened
- * to be running, naming a constraint rather than the change that caused it.
- * It cost a session in #65 exactly once, on a shelf event carrying a null
- * `folder_id`.
+ * is RESTRICT too, and deliberately: 4.13 soft-deletes users so that their
+ * acts outlive them. An event owned by a folder cascades away with the folder,
+ * so the list held for as long as every event had one; a folder-less event
+ * left a row nothing touched and the `DELETE FROM users` then raised, in
+ * `afterAll`, in whichever file happened to hold the fixture, naming a foreign
+ * key rather than the change that caused it. #65 met it once on a shelf event.
  *
- * So the columns are discovered from the catalog rather than named here, which
- * is what `cleanupAuthUsers` already did eleven files away and is the reason
- * that copy is the survivor. Tasks first and folders second, because both hold
- * RESTRICT keys onto users and deleting a folder cascades its tasks away;
- * everything else after, in whatever order the catalog answers in, each of
- * those being either a cascade or a row that belongs to the user alone.
+ * **The first fix for that swept every column referencing `users`, and that
+ * was too much.** It is recorded rather than quietly replaced, because the
+ * fault is easy to write again: `DELETE FROM tasks WHERE completed_by = <id>`
+ * removes a task standing in somebody else's folder, taking its steps and
+ * comments with it, and the survivor's fixture then fails somewhere unrelated.
+ * A cleanup that destroys rows the departing account does not own is a worse
+ * bug than the one it replaced, because it is silent.
+ *
+ * **So the rule is: do only what the database would otherwise refuse.** Ask
+ * `pg_constraint` which columns block a delete, and leave every CASCADE and
+ * SET NULL column alone, the engine being better at those than this file is.
+ * Of the ones that block, the shape of the column decides the act, and the act
+ * is the smallest one that clears the refusal:
+ *
+ * - **NOT NULL, so the row cannot outlive the person: delete the row.** These
+ *   are the account's own content and its own acts, and there is nothing else
+ *   they could be — `tasks.created_by`, `folders.owner_id` (the two the old
+ *   helper named), `comments.author_id`, `events.actor_id`, `files.owner_id`,
+ *   `invites.inviter_id`, `reminders.created_by`.
+ * - **Nullable, so the row is somebody else's and merely mentions the person:
+ *   null the mention.** `tasks.completed_by` and `invites.accepted_by`. A task
+ *   in a shared folder that the departing account happened to tick is the
+ *   folder owner's task, and deleting it would be this helper answering a
+ *   question nobody asked it.
+ *
+ * `reminders.created_by` is NOT NULL and so goes with its author even where
+ * the task survives, which is the database's own ruling rather than a choice
+ * made here; a nullable column would have been nulled.
+ *
+ * **And one case the database refuses both ways, which this raises on rather
+ * than guessing at.** `tasks_completed_by_check` is
+ * `(status = 'completed') = (completed_by IS NOT NULL)`, so a completed task
+ * standing in a survivor's folder can neither keep a completer who no longer
+ * exists nor be given a null one. The three ways out are all decisions rather
+ * than mechanics: delete the survivor's task, reopen it, or refuse. Two of
+ * those quietly change somebody else's data, and a helper that runs in
+ * `afterAll` is the worst place in the repository to make that choice on
+ * nobody's authority, so this refuses and says which constraint refused and
+ * what to do about it. In the product this cannot arise: 4.19 soft-deletes an
+ * account (4.13) precisely so that its acts survive it, and nothing hard
+ * deletes a user outside this suite.
+ *
+ * **No ordering is required and none is imposed.** Every foreign key onto
+ * `tasks` and onto `folders` is CASCADE except `invites.task_id`, which is
+ * SET NULL, so nothing refuses either delete and the old tasks-then-folders
+ * rank was never load-bearing. The only order the constraints ask for is that
+ * all of this precede `DELETE FROM users`, which it does. The statements run
+ * in the catalog's own order, sorted by table and column so that two runs
+ * issue the same sequence and a log is readable.
  *
  * In-memory PGlite discards its database at close, so this is load-bearing
  * only where a database outlives the file that used it.
@@ -283,19 +340,36 @@ export async function cleanupUsers(
   userIds: readonly string[],
 ): Promise<void> {
   if (userIds.length === 0) return
-  const rank = (table: string): number =>
-    table === 'tasks' ? 0 : table === 'folders' ? 1 : 2
-  const ordered = [...(await columnsReferencingUsers(db))].sort(
-    (a, b) => rank(a.table_name) - rank(b.table_name),
-  )
+  const blocking = await blockingColumnsOnUsers(db)
 
   for (const id of userIds) {
-    for (const reference of ordered) {
+    for (const reference of blocking) {
       const target = sql.raw(
         `"${reference.table_schema}"."${reference.table_name}"`,
       )
       const column = sql.raw(`"${reference.column_name}"`)
-      await db.execute(sql`DELETE FROM ${target} WHERE ${column} = ${id}`)
+      // pg answers a bool as a boolean and PGlite agrees; 't' is read too
+      // rather than trusting one driver's spelling of the same catalog.
+      const notNull =
+        reference.not_null === true || String(reference.not_null) === 't'
+      if (notNull) {
+        await db.execute(sql`DELETE FROM ${target} WHERE ${column} = ${id}`)
+        continue
+      }
+      try {
+        await db.execute(
+          sql`UPDATE ${target} SET ${column} = NULL WHERE ${column} = ${id}`,
+        )
+      } catch (failure) {
+        const where = `${reference.table_name}.${reference.column_name}`
+        throw new Error(
+          `cleanupUsers cannot release ${where} for user ${id}: the row belongs to somebody ` +
+            'else and a CHECK on it refuses the null, so the only ways through are to ' +
+            'delete their row or to rewrite its other columns, and this helper will do ' +
+            'neither on its own authority. Clean up the row yourself before calling this, ' +
+            `or do not create it. The server's own error follows: ${errorChainText(failure)}`,
+        )
+      }
     }
     await db.execute(sql`DELETE FROM users WHERE id = ${id}`)
   }
