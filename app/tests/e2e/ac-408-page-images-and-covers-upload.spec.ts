@@ -1,8 +1,9 @@
 /*
 AC-408: given Desk and given a folder the person made, when a picture is added
-to the page through the Image tool, then it is stored and served — the block
-draws it from `/api/v1/files/:id` after a reload and the browser decodes it —
-and the cover picker's Upload tab on the same page does the same.
+to the page through the Image item of its insert control, then it is stored and
+served — the block draws it from `/api/v1/files/:id` after a reload and the
+browser decodes it — and the cover picker's Upload tab on the same page does
+the same.
 
 Authored 2026-09-04 for issue #79, "images cannot be uploaded or shown in Desk
 and user folders", and it is a **guard rather than a fix**: driven in a browser
@@ -46,6 +47,33 @@ upload today is a picture block that already exists, and the fixture seeds one
 the way the page itself would write it. Whether that composer should offer the
 tool is a client question and Imran's; the server half is what #167 is.
 
+**The control the two folder arms drive moved with #145 (2026-09-04).** The
+Image chip at the foot of the page became one "Insert into page" menu when
+#178 shipped the writing-first composer, so those arms reach the block through
+`insertBlock` instead. Only the way the empty block is made changed; the round
+trip after it — the choose, the reload, the served source and the decoded
+width — is untouched, and so is the shelf arm above, which never used the
+chip. Issues #145, #178, #181.
+
+**And the barrier that orders the reload was the wrong one, found by the trace
+of a red on 2026-09-04 and corrected here (issue #159's class).** Choosing a
+picture is not one write and is not immediate: the client decodes it on a
+canvas and downscales it before it sends anything, so the page is quiet for
+longer than `API_SETTLE_MS` between `setFiles` and `POST /files`, and then
+sends a *second* write, the whole-page PUT that puts the stored `file_id` on
+the block. `waitForApiIdle` returns inside the first of those gaps, and the
+`page.reload()` after it aborted the PUT: the picture was stored and the block
+never named it, so the reload found an empty block and the case failed on the
+picture it had just watched appear. Worse, an aborted request fires neither
+`requestfinished` nor `requestfailed`, so the tracker's in-flight count stays
+at one for the rest of the case and the *next* barrier fails too, fifteen
+seconds of nothing with one request outstanding — which is how this presented
+before the trace was read. The barrier is `watchCommit` taken before the
+picture is chosen, which is `waitForApiIdle`'s own documented rule for an act
+that writes and a read that depends on the write, and it covers the second
+write for the reason `ac-350` gives: quiet cannot return between two writes
+30ms apart. **No assertion changed.**
+
 Spec: 9.6 (the page's blocks and its cover), 9.10 (the shelf page), 4.17, 4.18,
 7.15 as amended 2026-09-04, 7.16, 10.8; issues #79, #13, #34, #167.
 */
@@ -58,12 +86,13 @@ import {
   createFolder,
   createShelf,
   csrfToken,
+  insertBlock,
   routesV2,
   seedSubs,
   shortName,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -102,16 +131,20 @@ async function drawnPicture(page: Page): Promise<{ src: string; width: number }>
 
 async function anImageBlockKeepsItsPicture(page: Page, where: string): Promise<void> {
   await page.mouse.move(4, 4)
-  await clickControl(
-    page.getByRole('main').getByRole('button', { name: 'Image', exact: true }).last(),
-    `spec 9.6: ${where} offers the Image tool at the foot of its page`,
-  )
+  await insertBlock(page, 'Image', {
+    why: `spec 9.6: ${where} offers Image on the insert control at the foot of its page`,
+  })
+  /* Before the act (2026-09-04, issue #159's class; the header says why). The
+     choose is followed by a decode, then the upload, then the whole-page PUT
+     that names the stored file on the block, and the reload below has to come
+     after all three. */
+  const stored = watchCommit(page)
   await chooseAPicture(
     page,
     page.getByRole('button', { name: 'Add an image', exact: true }),
     `issue #79: ${where} lets a person choose a picture`,
   )
-  await waitForApiIdle(page, `${where}: the bytes go up and the block names the file`)
+  await stored.settled(`${where}: the bytes go up and the block names the file`)
 
   await expect(
     page.getByText('This picture could not be stored, so it will not survive a reload.'),
@@ -156,12 +189,16 @@ test('AC-408: a folder the person made stores and shows one too, on its page and
     page.getByRole('button', { name: 'Upload', exact: true }),
     "the picker's Upload tab",
   )
+  /* Before the act (2026-09-04, issue #159's class), and for the same reason:
+     the decode, the upload, and then the PATCH that points the folder at the
+     stored file. */
+  const covered = watchCommit(page)
   await chooseAPicture(
     page,
     page.getByRole('button', { name: 'Choose an image', exact: true }),
     'issue #79: a cover picture can be chosen',
   )
-  await waitForApiIdle(page, 'the cover is stored and the folder points at it')
+  await covered.settled('the cover is stored and the folder points at it')
   await page.keyboard.press('Escape')
 
   await page.reload()
@@ -221,13 +258,14 @@ test('AC-408: a shelf page stores and shows one too, its picture belonging to th
   await seedAnEmptyImageBlock(page, shelf.id)
 
   await page.goto(routesV2.shelf(shelf.id))
+  /* Before the act (2026-09-04, issue #159's class), the third of the three. */
+  const shelfStored = watchCommit(page)
   await chooseAPicture(
     page,
     page.getByRole('button', { name: 'Add an image', exact: true }),
     'issue #167: a shelf page lets a person choose a picture for its block',
   )
-  await waitForApiIdle(
-    page,
+  await shelfStored.settled(
     'the bytes go up with no folder_id, and the block names the file',
   )
   await expect(
