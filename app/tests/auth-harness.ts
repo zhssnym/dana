@@ -660,66 +660,22 @@ export function visibleText(html: string): string {
     .trim()
 }
 
-interface ReferencingColumn {
-  table_schema: string
-  table_name: string
-  column_name: string
-}
-
 /**
- * Every column anywhere in the database with a foreign key onto users(id).
- * The sessions table belongs to the Security engineer and lives outside the
- * section 4 model (10.1), so its shape is unknown here; discovering references
- * rather than listing them keeps cleanup correct on the shared-Postgres CI leg
- * once that table exists.
- */
-async function columnsReferencingUsers(db: Db): Promise<ReferencingColumn[]> {
-  return (await rows(
-    db,
-    sql`
-      SELECT tc.table_schema, tc.table_name, kcu.column_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON kcu.constraint_name = tc.constraint_name
-       AND kcu.constraint_schema = tc.constraint_schema
-      JOIN information_schema.constraint_column_usage ccu
-        ON ccu.constraint_name = tc.constraint_name
-       AND ccu.constraint_schema = tc.constraint_schema
-      WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND ccu.table_name = 'users'
-        AND ccu.column_name = 'id'
-    `,
-  )) as unknown as ReferencingColumn[]
-}
-
-/**
- * Removes every trace of the named users. Test files must leave the database
- * as they found it: Vitest runs files in parallel workers, and on the
- * TEST_DATABASE_URL leg they all share one database (see helpers.ts).
+ * Removes every trace of the named users.
+ *
+ * **This is `cleanupUsers` under another name, since issue #112 on
+ * 2026-09-04**, and the name is kept rather than the code: the catalog sweep
+ * that used to live here is now the whole of `cleanupUsers`, so the two
+ * harnesses cannot drift apart again. They had drifted, and the direction is
+ * worth recording — the auth harness swept every column referencing `users`
+ * while the acceptance harness named two of them, so a user the auth files
+ * could delete was one the criterion files could not. Four files import this
+ * name and it stays exported for them.
  */
 export async function cleanupAuthUsers(
   db: Db,
   userIds: readonly string[],
 ): Promise<void> {
-  if (userIds.length === 0) return
-  const references = await columnsReferencingUsers(db)
-  // tasks and folders first, in that order: both hold RESTRICT keys onto
-  // users, and deleting a folder cascades its tasks away.
-  const rank = (table: string): number =>
-    table === 'tasks' ? 0 : table === 'folders' ? 1 : 2
-  const ordered = [...references].sort(
-    (a, b) => rank(a.table_name) - rank(b.table_name),
-  )
-
-  for (const id of userIds) {
-    for (const reference of ordered) {
-      const target = sql.raw(
-        `"${reference.table_schema}"."${reference.table_name}"`,
-      )
-      const column = sql.raw(`"${reference.column_name}"`)
-      await db.execute(sql`DELETE FROM ${target} WHERE ${column} = ${id}`)
-    }
-  }
   await cleanupUsers(db, userIds)
 }
 

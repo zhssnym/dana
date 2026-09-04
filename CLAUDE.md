@@ -251,9 +251,12 @@ protocol points here rather than repeating them.
   counts for about an hour before finding two `playwright test` processes
   alive at once. **Kill by command line rather than by port**, every `node.exe`
   whose command line matches `playwright` or `e2e:app`, then poll until
-  nothing at all answers on the port, `until ! netstat -ano | grep -q ":<port>"`,
-  because a listening socket in TIME_WAIT is enough for the next run's
-  readiness probe. And **delete `test-results/` between runs**, so that no
+  no listener is left on the port, `until ! netstat -ano | grep LISTENING | grep -q ":<port>"`.
+  Poll for LISTENING only, corrected 2026-09-04 (issue #141): a finished leg
+  leaves dozens of client sockets in TIME_WAIT for minutes (85 measured on one
+  port with no listener), so a bare grep on the port never clears, and it is the
+  listener the next run's readiness probe needs gone. And **delete
+  `test-results/` between runs**, so that no
   artifact you are about to read belongs to a run that is already dead.
 - **A lone browser leg on its own port still loses about one case a run when
   commit charge is short, and the port-collision bullet above does not cover

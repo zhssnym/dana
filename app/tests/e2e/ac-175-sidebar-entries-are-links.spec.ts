@@ -64,6 +64,7 @@ import { expect, test } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   DEFAULT_PINS,
+  linkTo,
   patchBundle,
   routesV2,
   seedIds,
@@ -128,10 +129,10 @@ test.describe('AC-175: the sidebar entries are links', () => {
     // row on a shelf and a row off one differently, and one of them being a
     // link says nothing about the other.
     for (const [what, id, label] of [
-      ['the default folder', seedIds.hassanInbox, 'Inbox'],
+      ['the default folder', seedIds.hassanDesk, 'Desk'],
       ['a folder carrying a member label', seedIds.groceries, 'Groceries'],
     ] as const) {
-      const row = nav.getByRole('link', { name: new RegExp(label) })
+      const row = linkTo(nav, new RegExp(label), routesV2.folder(id))
       await expect(
         row,
         `spec 9.1's roles table: ${what} is a link, the table naming "the page entries, and ` +

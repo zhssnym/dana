@@ -215,7 +215,7 @@ test.describe('AC-091: the installed app opens offline', () => {
     await expectServiceWorkerControl(page)
     await expect(
       page.getByText('Sort inbox'),
-      'spec 6 Q2: the seeded undated task in the viewer\'s Inbox is on Tasks online. ' +
+      'spec 6 Q2: the seeded undated task in the viewer\'s Desk is on Tasks online. ' +
         'This is the control that makes the absence below discriminate',
     ).toBeVisible()
 
