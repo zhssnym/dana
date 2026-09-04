@@ -15,6 +15,7 @@ import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier, notifierOf } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
 import { resolveEmailTransport } from './notify/resend.js'
+import { reportDatabaseFallback } from './observability/database-fallback.js'
 import { createServerErrorTracker } from './observability/error-tracker.js'
 import type { ErrorTracker } from './observability/error-tracker.js'
 import { createApplicationLogger } from './observability/logger.js'
@@ -28,7 +29,7 @@ import { createConversationRouter } from './routes/conversation.js'
 import { createEventsRouter } from './routes/events.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
-import { healthRouter } from './routes/health.js'
+import { healthRouter, recordDatabaseKind } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
@@ -629,6 +630,24 @@ async function main(): Promise<void> {
     database: dbClient.kind,
   })
 
+  /* Issue #80. That line above is how the fallback was diagnosable at all, and
+     it reads as neutral information: a production process on the embedded
+     database looks exactly like a healthy one until the container restarts and
+     everybody is signed out. The condition now says so in its own words, in a
+     line of its own, and reaches Sentry; the module beside this call carries
+     the reasoning, including why this is not a refusal to boot. The tracker is
+     built here and handed to the application so the process holds one, rather
+     than this line initialising Sentry a second time. */
+  const errorTracker = createServerErrorTracker()
+  reportDatabaseFallback({
+    kind: dbClient.kind,
+    nodeEnv: process.env.NODE_ENV,
+    log: runtimeBootLog,
+    tracker: errorTracker,
+  })
+  // And from outside the container too, without Render's logs (11.12).
+  recordDatabaseKind(dbClient.kind)
+
   // The existence check lives here rather than in createApp, which performs
   // no I/O (11.10). Absent means a source checkout that never built the
   // client; Vite serves it in development.
@@ -642,8 +661,14 @@ async function main(): Promise<void> {
   const fileStore = defaultDiskStore()
   const app = createApp(
     hasClientBuild
-      ? { dbClient, clientDist, securityLog: runtimeSecurityLog, fileStore }
-      : { dbClient, securityLog: runtimeSecurityLog, fileStore },
+      ? {
+          dbClient,
+          clientDist,
+          securityLog: runtimeSecurityLog,
+          fileStore,
+          errorTracker,
+        }
+      : { dbClient, securityLog: runtimeSecurityLog, fileStore, errorTracker },
   )
   const server = app.listen(port, () => {
     runtimeBootLog.operation('info', 'server_listening', { port })
