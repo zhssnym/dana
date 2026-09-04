@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 
 import { createApp } from '../index.js'
-import { recordSchedulerPass } from './health.js'
+import { recordDatabaseKind, recordSchedulerPass } from './health.js'
 
 let server: Server
 let baseUrl: string
@@ -28,10 +28,32 @@ test('GET /api/health answers 200 with the build version', async () => {
     status: string
     version: string
     secondsSinceLastPass: number | null
+    database: string | null
   }
   expect(body.status).toBe('ok')
   expect(body.version).toMatch(/^\d+\.\d+\.\d+$/)
   expect(body.secondsSinceLastPass).toBeNull()
+  expect(
+    body.database,
+    'this app was constructed with no client, so nothing has declared an engine (issue #80)',
+  ).toBeNull()
+})
+
+test('the engine the seam chose is readable from outside the container', async () => {
+  /*
+  Issue #80: a production process on the embedded database looked exactly like
+  a healthy one from anywhere but Render's own logs, and every spin-down of it
+  destroys every row. The boot declares the kind after `createDbClient`, the
+  way the scheduler declares a pass, and this is the field that makes the
+  condition answerable by a probe.
+  */
+  recordDatabaseKind('pglite')
+  const fallen = await fetch(`${baseUrl}/api/health`)
+  expect((await fallen.json() as { database?: unknown }).database).toBe('pglite')
+
+  recordDatabaseKind('postgres')
+  const healthy = await fetch(`${baseUrl}/api/health`)
+  expect((await healthy.json() as { database?: unknown }).database).toBe('postgres')
 })
 
 test('a completed scheduler pass surfaces as an age in seconds', async () => {

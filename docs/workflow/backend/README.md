@@ -167,11 +167,17 @@ not know them, and **only two of them are answered by re-running**:
   is the clock. Note `TZ=UTC` settles only the PGlite leg; on Postgres the cluster's own
   zone governs and the process variable changes nothing.
 
-  **The criterion is fixed as of 2026-09-03 (issue #46)** — its oracle is now the database's
-  own clock, bracketed across the operation. What is *not* fixed is the product defect
-  underneath: the endpoint anchors on the database's day rather than the viewer's, which
-  spec 8.1 forbids by name. That is **issue #76**, and when it lands the criterion's oracle
-  has to move in the same commit or this class comes straight back.
+  **Closed 2026-09-04 by issue #76, and left here because the way it presented is what to
+  recognise.** The interim fix of #46 made the criterion's oracle the database's own clock,
+  bracketed across the operation, and said in terms that it described the behaviour without
+  blessing it. #76 is the product defect underneath — the endpoint anchored on the database's
+  day rather than the viewer's, which 8.1 forbids by name — and it has landed: both
+  duplicates take `tz`, they do not read `current_date` at all, and AC-277 and AC-200 pin a
+  zone and assert an exact date in the same commit. **So a duplicate criterion that fails on
+  a date is now a defect rather than this class.** What remains true in general is the shape:
+  where an assertion compares a date the server computed against a date the test computed,
+  check which clock each one read before believing the red, and force the zone to tell them
+  apart.
 
 **The Postgres leg used to be a third one, and is not any more (issue #32, 2026-09-03).**
 It pointed all 282 files at one `dana_test`, they saw each other's rows, and the fingerprint

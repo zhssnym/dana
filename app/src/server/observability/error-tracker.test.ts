@@ -20,6 +20,9 @@ test('AC-104: a deliberately thrown server error reaches the tracker', async () 
   const captured: unknown[] = []
   const tracker: ErrorTracker = {
     captureException: (error) => captured.push(error),
+    // The interface's second path, unused here: issue #80 needs a condition
+    // that is not an exception to reach the same tracker.
+    captureMessage: () => undefined,
   }
   const sink = {
     info: () => undefined,

@@ -10,9 +10,27 @@ due dates are shifted rather than copied, but only when the plan is spent.
 The intervals are what a template keeps, so when the folder's earliest date
 has already passed, every date moves forward by the same days that bring
 that earliest date to today; dates still ahead are a live plan and copy
-untouched. The comparison day is the database's current_date: the endpoint
-carries no tz parameter (7.16), and a boundary-hour duplicate landing a day
-off is a template being a day conservative, not a lie.
+untouched.
+
+**The comparison day is today in the caller's zone, and until 2026-09-04 it was
+the database session's `current_date` (issue #76).** The header here defended
+that as "a template being a day conservative, not a lie". It was a lie: 8.1
+defines today as the current date in the request's tz and says in terms that an
+endpoint which evaluates a date and takes no tz is an incomplete surface rather
+than an invitation to substitute the stored zone below — recorded at the P4
+merge review after this exact mistake had been made once already, and 7.8 is
+the endpoint that was completed then. Both duplicates now take `tz` on 7.8's
+precedent, exactly as 7.16's import does: present and invalid is 422, absent is
+422 when a date would be evaluated, and absent is fine when none would.
+
+Whether a date would be evaluated is decided without a zone, because the zone
+is the thing that may be missing. Across every IANA offset the caller's today
+is at most the UTC date plus a day, so a due date after that is ahead of the
+plan in every zone on earth and needs no re-anchoring and no tz; a date on or
+before the UTC date could be spent in some zone and the server refuses to guess
+which. That is a shade conservative by construction, and conservative in the
+direction of asking rather than of quietly anchoring on a day nobody asked
+for.
 
 The import is the same maker's-work rule with a file for a source, and its
 refusals are the schema's shape (shared/workflows.ts): what the caps admit
@@ -29,6 +47,28 @@ import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { upsertReminder } from './tasks.js'
 
+/**
+ * Whether the copy can be made without knowing the caller's zone.
+ *
+ * `earliest` is the earliest due date the copy will carry, as YYYY-MM-DD, or
+ * null where it carries none. The bound is the UTC date: today(V) is at most
+ * one day ahead of it in the furthest zone, and a date strictly after that
+ * bound is therefore in the future wherever the caller is standing, so nothing
+ * re-anchors and 8.1 has nothing to say. Anything on or before it might be
+ * spent, and the endpoint asks rather than guesses.
+ *
+ * The instant is a parameter for the same reason `today` in `server/time`
+ * takes one: a helper that read the clock out of sight would settle where the
+ * clock comes from by accident.
+ */
+export function zoneIsNeededToReanchor(
+  earliest: string | null,
+  at: Date = new Date(),
+): boolean {
+  if (earliest === null) return false
+  return earliest <= at.toISOString().slice(0, 10)
+}
+
 /* ------------------------------------------------------------------ *
  * POST /folders/:id/duplicate
  * ------------------------------------------------------------------ */
@@ -36,12 +76,24 @@ import { upsertReminder } from './tasks.js'
 export type DuplicateFolderResult =
   | { kind: 'duplicated'; id: string; name: string; shiftedDays: number }
   | { kind: 'folder_cap' }
+  /** A date would be re-anchored and the request named no zone to anchor it
+   * in (8.1, issue #76). The route answers 422 naming tz; the copy is not
+   * made, this being one unit. */
+  | { kind: 'tz_required' }
 
-/** The caller has resolved member access on the source (10.2). */
+/**
+ * The caller has resolved member access on the source (10.2).
+ *
+ * `anchor` is today(V) in the zone the request named, or null where it named
+ * none — resolved by the route, because 8.1 makes the zone an input of the
+ * request rather than a fact the server holds, which is the same seam
+ * `importWorkflow` takes below.
+ */
 export async function duplicateFolder(
   db: Db,
   viewerId: string,
   sourceFolderId: string,
+  anchor: string | null = null,
 ): Promise<DuplicateFolderResult> {
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
@@ -52,6 +104,24 @@ export async function duplicateFolder(
             AND deleted_at IS NULL`,
     )
     if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' } as const
+
+    /* Before anything is written, because a request is one unit and a copy
+       half-made in the wrong zone is worse than no copy. The earliest date
+       the copy will carry is the earliest of the tasks it will copy, which
+       is the same set the loop below reads. */
+    const earliest = await rowsOf(
+      tx,
+      sql`SELECT to_char(min(due_date), 'YYYY-MM-DD') AS earliest FROM tasks
+          WHERE folder_id = ${sourceFolderId} AND deleted_at IS NULL
+            AND due_date IS NOT NULL`,
+    )
+    const earliestDue =
+      earliest[0]?.earliest === null || earliest[0]?.earliest === undefined
+        ? null
+        : String(earliest[0].earliest)
+    if (anchor === null && zoneIsNeededToReanchor(earliestDue)) {
+      return { kind: 'tz_required' } as const
+    }
 
     const source = (
       await rowsOf(
@@ -157,16 +227,23 @@ export async function duplicateFolder(
       }
     }
 
-    // DES-198's date rule: spent plans re-anchor whole, live plans copy
-    // untouched. The shift is read once, then one UPDATE moves every date
-    // by the same days, which is what keeps the intervals.
-    const anchor = await rowsOf(
-      tx,
-      sql`SELECT (current_date - min(due_date))::int AS shift
-          FROM tasks
-          WHERE folder_id = ${copyId}::uuid AND due_date IS NOT NULL`,
-    )
-    const shift = Number(anchor[0]?.shift ?? 0)
+    /* DES-198's date rule: spent plans re-anchor whole, live plans copy
+       untouched. The shift is read once, then one UPDATE moves every date by
+       the same days, which is what keeps the intervals. The comparison day is
+       the caller's, passed in as a date literal rather than read from the
+       session's `current_date` (issue #76); where no zone was named, the guard
+       above has already established that no date can be spent, so there is
+       nothing to shift and no day to compare against. */
+    const shifted =
+      anchor === null
+        ? []
+        : await rowsOf(
+            tx,
+            sql`SELECT (${anchor}::date - min(due_date))::int AS shift
+                FROM tasks
+                WHERE folder_id = ${copyId}::uuid AND due_date IS NOT NULL`,
+          )
+    const shift = Number(shifted[0]?.shift ?? 0)
     if (shift > 0) {
       await tx.execute(
         sql`UPDATE tasks SET due_date = due_date + ${shift}::int
@@ -208,6 +285,12 @@ export interface DuplicableSource {
   title: string
 }
 
+export type DuplicateTaskResult =
+  | { kind: 'duplicated'; id: string }
+  /** As the folder's: a spent date would be re-anchored and the request named
+   * no zone (8.1, issue #76). */
+  | { kind: 'tz_required' }
+
 /**
  * RFC 0005 change control items 46 and 47(b), enacted by RFC 0004's S28a:
  * the copy carries the title, the notes, the importance, the steps (all
@@ -216,24 +299,44 @@ export interface DuplicableSource {
  * made the copy (item 44's B10). The date follows 9.6's one rule for a
  * folder applied to one task: a spent due date re-anchors on today and a
  * future one keeps, the repeat riding whichever the copy carries.
+ *
+ * `anchor` is today(V) in the request's zone, or null where it named none,
+ * and the read below refuses rather than substituting a day of its own
+ * (issue #76). Today is the caller's, never the database session's.
  */
 export async function duplicateTask(
   db: Db,
   viewerId: string,
   source: DuplicableSource,
-): Promise<string> {
+  anchor: string | null = null,
+): Promise<DuplicateTaskResult> {
   return inTransaction(db, async (tx) => {
-    const row = (
+    const stored = (
       await rowsOf(
         tx,
         sql`SELECT title, notes, important,
-                   to_char(CASE WHEN due_date < current_date
-                                THEN current_date ELSE due_date END,
-                           'YYYY-MM-DD') AS due_date,
+                   to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id
             FROM tasks WHERE id = ${source.id}::uuid`,
       )
     )[0]
+    const storedDue =
+      stored?.due_date === null || stored?.due_date === undefined
+        ? null
+        : String(stored.due_date)
+    if (anchor === null && zoneIsNeededToReanchor(storedDue)) {
+      return { kind: 'tz_required' } as const
+    }
+    /* 9.6's rule applied in the caller's zone: a date already behind them
+       moves up to today, a date still ahead of them copies as it stands. In
+       the arm where no zone was named, the guard above has proved the date is
+       ahead in every zone, so `anchor` being null cannot reach the
+       comparison. */
+    const dueForCopy =
+      storedDue !== null && anchor !== null && storedDue < anchor
+        ? anchor
+        : storedDue
+    const row = stored
     const rule =
       row?.recurrence_rule === null || row?.recurrence_rule === undefined
         ? null
@@ -247,7 +350,7 @@ export async function duplicateTask(
           VALUES (${source.folderId}::uuid, ${title},
                   ${row?.notes === null ? null : String(row?.notes ?? '')},
                   ${row?.important === true},
-                  ${row?.due_date === null ? null : String(row?.due_date)}::date,
+                  ${dueForCopy}::date,
                   ${rule},
                   ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
                   ${viewerId}::uuid, ${viewerId}::uuid,
@@ -277,7 +380,7 @@ export async function duplicateTask(
       folderId: source.folderId,
       detail: `from ${source.title}`,
     })
-    return newId
+    return { kind: 'duplicated', id: newId } as const
   })
 }
 

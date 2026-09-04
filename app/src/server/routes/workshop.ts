@@ -41,7 +41,11 @@ import {
   shelfView,
 } from '../domain/shelves.js'
 import { accessibleTask, taskView } from '../domain/tasks.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import {
+  sendError,
+  sendFieldValidationError,
+  sendValidationError,
+} from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -49,6 +53,42 @@ import { routerWithPreamble } from './preamble.js'
 export interface WorkshopRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+}
+
+/*
+`?tz` for the two duplicates, on frozen 7.6's precedent of 2026-08-10, which
+7.16's import already follows a few handlers below (issue #76).
+
+Three states rather than two, which is why this answers a sentinel rather than
+null: a zone that was named and is valid resolves to today(V); a zone that was
+named and is not is 422 here and now, always, whether or not a date would have
+been evaluated; and no zone at all is null, which the domain refuses only when
+a date would in fact be re-anchored. That last decision belongs to the domain
+because only it knows what dates the copy will carry, and it is the same seam
+`needsImportAnchor` gives the import.
+
+Until this date both endpoints took no zone at all and re-anchored on the
+database session's `current_date`, which 8.1 forbids by name.
+*/
+const REFUSED = Symbol('tz refused')
+
+const TZ_REQUIRED =
+  'tz: must be supplied, as an IANA timezone identifier, when the copy carries a due date that may need re-anchoring on today'
+
+function anchorOf(req: Request, res: Response): string | null | typeof REFUSED {
+  const rawTz = req.query.tz
+  if (rawTz === undefined) return null
+  const zone = viewTz.safeParse(rawTz)
+  if (!zone.success) {
+    sendError(
+      res,
+      422,
+      'validation_failed',
+      'tz: must be a valid IANA timezone identifier',
+    )
+    return REFUSED
+  }
+  return today(zone.data)
 }
 
 export function createWorkshopRouter(
@@ -109,6 +149,23 @@ export function createWorkshopRouter(
         // refuses a home the viewer cannot see rather than trusting its
         // caller (issue #35).
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'file_not_here') {
+        /* Issue #107: the block named a file the page cannot reach. The
+           field is addressed the way a schema failure on the same block
+           would address it, so a client reads one shape of 422 whichever
+           validator refused it, and every offending block is named in one
+           answer (10.3). A file that does not exist and one the caller
+           cannot reach get this same sentence, as 7.16's cover does, because
+           telling them apart is the disclosure (10.2). */
+        sendFieldValidationError(
+          res,
+          outcome.blockIndexes.map((index) => ({
+            field: `blocks.${String(index)}.file_id`,
+            message: 'must name a file you can reach',
+          })),
+        )
         return
       }
       if (outcome.kind === 'stale') {
@@ -291,6 +348,19 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      if (outcome.kind === 'file_not_here') {
+        // The shelf half of issue #107, and the clause behind it is the
+        // other one: a shelf page has no folder to scope to, so the file is
+        // gated by 7.15's own serving predicate. The answer is identical.
+        sendFieldValidationError(
+          res,
+          outcome.blockIndexes.map((index) => ({
+            field: `blocks.${String(index)}.file_id`,
+            message: 'must name a file you can reach',
+          })),
+        )
+        return
+      }
       if (outcome.kind === 'stale') {
         sendError(
           res,
@@ -322,7 +392,9 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      const outcome = await duplicateFolder(db, viewer(req), folderId)
+      const anchor = anchorOf(req, res)
+      if (anchor === REFUSED) return
+      const outcome = await duplicateFolder(db, viewer(req), folderId, anchor)
       if (outcome.kind === 'folder_cap') {
         sendError(
           res,
@@ -330,6 +402,10 @@ export function createWorkshopRouter(
           'validation_failed',
           'You already have 200 custom folders, the most an account can hold.',
         )
+        return
+      }
+      if (outcome.kind === 'tz_required') {
+        sendError(res, 422, 'validation_failed', TZ_REQUIRED)
         return
       }
       res
@@ -353,12 +429,19 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      const newId = await duplicateTask(db, viewer(req), {
-        id: source.id,
-        folderId: source.folderId,
-        title: source.title,
-      })
-      res.status(201).json(await taskView(db, viewer(req), newId))
+      const anchor = anchorOf(req, res)
+      if (anchor === REFUSED) return
+      const outcome = await duplicateTask(
+        db,
+        viewer(req),
+        { id: source.id, folderId: source.folderId, title: source.title },
+        anchor,
+      )
+      if (outcome.kind === 'tz_required') {
+        sendError(res, 422, 'validation_failed', TZ_REQUIRED)
+        return
+      }
+      res.status(201).json(await taskView(db, viewer(req), outcome.id))
     },
   )
 
@@ -383,22 +466,14 @@ export function createWorkshopRouter(
       carry a repeat or a reminder, and 4.5 and 8.6 admit neither without a
       date, so those are the files that evaluate one. Every file that
       imported before this widening still needs no zone.
+
+      The parsing half moved into `anchorOf` at the top of this file when the
+      two duplicates took the same precedent (issue #76); which requests must
+      carry a zone is still this handler's own question, and `needsImportAnchor`
+      is still how it answers it.
       */
-      const rawTz = req.query.tz
-      let anchor: string | null = null
-      if (rawTz !== undefined) {
-        const zone = viewTz.safeParse(rawTz)
-        if (!zone.success) {
-          sendError(
-            res,
-            422,
-            'validation_failed',
-            'tz: must be a valid IANA timezone identifier',
-          )
-          return
-        }
-        anchor = today(zone.data)
-      }
+      const anchor = anchorOf(req, res)
+      if (anchor === REFUSED) return
       if (anchor === null && needsImportAnchor(parsed.data)) {
         sendError(
           res,

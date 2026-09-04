@@ -47,7 +47,7 @@ of its task is item 58's endpoint, B9's one-way promotion given an address
 
 import { folder as folderSchema } from '../../shared/folders.js'
 import { taskDetail } from '../../shared/tasks.js'
-import { getPlain, mutateApi } from '../api/http.js'
+import { getPlain, mutateApi, requestTimezone } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
@@ -88,7 +88,14 @@ function settle(): void {
  * entry undoes.
  */
 export function duplicateTask(taskId: string, title: string): void {
-  void mutateApi(taskDetail, { method: 'POST', path: `/tasks/${taskId}/duplicate` })
+  /* tz because the copy re-anchors a spent due date on today, and today is
+     the viewer's day rather than the database's (8.1, issue #76): without it
+     the endpoint refuses a copy that would move a date. */
+  void mutateApi(taskDetail, {
+    method: 'POST',
+    path: `/tasks/${taskId}/duplicate`,
+    params: { tz: requestTimezone() },
+  })
     .then((copy) => {
       settle()
       pushUndo(undoLabel('Duplicated', title), () => {

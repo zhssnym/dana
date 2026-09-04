@@ -68,6 +68,15 @@ export interface OperationLogFields {
   database?: string
   port?: number
   missing?: string
+  /**
+   * A whole sentence, for the one class of line where the event name is not
+   * enough: a condition an operator has to understand at three in the morning
+   * from the log alone (issue #80). It is prose written in the source, never a
+   * value that came from a request or a row — `safeNote` below refuses
+   * anything that is not plain words and clips the length, so a value that
+   * ever became dynamic is a mangled line rather than a 10.5 leak.
+   */
+  note?: string
 }
 
 export type AuthLogEvent =
@@ -92,6 +101,11 @@ export type OperationLogEvent =
   | 'reminder_pass_overlapped'
   | 'reminder_pass_failed'
   | 'migrations_applied'
+  /** Production is running on the embedded database (issue #80). Its own
+   * event name so alerting can key on it rather than on a substring of
+   * `migrations_applied`, which reads as neutral information and is how this
+   * went unnoticed. */
+  | 'database_fallback_pglite'
   | 'server_listening'
   | 'boot_failed'
 
@@ -135,6 +149,14 @@ function safeReason(value: string): string {
 
 function safeLabel(value: string): string {
   return /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(value) ? value : 'other'
+}
+
+/** Plain words and the odd environment variable name, at most 240
+ * characters: no braces, quotes, angle brackets, equals signs or newlines, so
+ * neither SQL nor a JSON fragment can pass through this field whatever a
+ * future caller hands it. */
+function safeNote(value: string): string {
+  return /^[A-Za-z0-9_ ,.'’\-:;()]{1,240}$/.test(value) ? value : 'other'
 }
 
 function safeMissing(value: string): string {
@@ -273,6 +295,7 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
             ? {}
             : { database: safeLabel(fields.database) }),
           ...(fields.port === undefined ? {} : { port: fields.port }),
+          ...(fields.note === undefined ? {} : { note: safeNote(fields.note) }),
           ...(fields.missing === undefined
             ? {}
             : { missing: safeMissing(fields.missing) }),

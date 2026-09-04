@@ -608,7 +608,10 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
 }
 
 /** POST /folders/:id/duplicate (7.16): DES-198's copy rules server-side;
- * the answer is the copy's identity, which the caller navigates to. */
+ * the answer is the copy's identity, which the caller navigates to. The tz is
+ * the day a spent plan re-anchors on, the viewer's rather than the database's
+ * (8.1, issue #76); without it the endpoint refuses a copy that would move a
+ * date. */
 export function useDuplicateFolder(): UseMutationResult<
   DuplicateFolderResponse,
   Error,
@@ -619,6 +622,7 @@ export function useDuplicateFolder(): UseMutationResult<
       mutateApi(duplicateFolderResponse, {
         method: 'POST',
         path: `/folders/${id}/duplicate`,
+        params: { tz: requestTimezone() },
       }),
   })
 }

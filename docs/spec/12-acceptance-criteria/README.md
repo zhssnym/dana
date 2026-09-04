@@ -56,6 +56,18 @@ default, so read this list before spending one.
   database beside the 422 the endpoint answers, because AC-001 sees a constraint's name and
   never what its expression does. AC-375 to AC-377 were not spent by this branch and are not
   claimed here.
+- **AC-376 was taken from the tail on 2026-09-04** (issue #76), on the same branch: both
+  duplicate endpoints re-anchored a spent due date on the database session's day, which 8.1
+  forbids by name, and they now take `tz` on 7.8's precedent. The criterion is the refusal
+  shape — absent when a date would move, and present but not an IANA name — for both
+  endpoints at once, because neither AC-277 nor AC-200 could carry it without becoming two
+  criteria in one file. It is 12.16's. AC-277 and AC-200 were rewritten in the same change
+  rather than renumbered: their oracle stopped depending on the database's clock, which is
+  what the interim fix of issue #46 had tied it to.
+- **AC-375 was taken from the tail on 2026-09-04** (issue #107), on the tail rule stated four
+  bullets below: `putPage` stored whatever `file_id` it was handed, so a member of one folder could
+  plant another folder's id and everyone learned that a file with it exists. The gate is two
+  clauses because the block has two homes, and the criterion asserts both. It is 12.9's.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today

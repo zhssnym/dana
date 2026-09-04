@@ -215,19 +215,19 @@ export async function patchShelf(
     shares the predicate above with this gate and carries no kind clause,
     correctly: it serves voice notes too.
 
-    **A note for whoever takes #107, because half of the reasoning that
-    deferred it is wrong and it is the half that would produce a hole.** It
-    was recorded as "`readableFileScope` would be the wrong gate for
-    `putPage`, because a page block wants folder scope, which is
-    `createComment`'s `AND folder_id = $folder`". That is true of a
+    **#107 was taken on 2026-09-04 and this note is what it was written
+    for**, kept because the reasoning it corrects is the reasoning anyone
+    reading the deferral would repeat. That deferral said "`readableFileScope`
+    would be the wrong gate for `putPage`, because a page block wants folder
+    scope, which is `createComment`'s `AND folder_id = $folder`". True of a
     **folder-homed** page and false of a **shelf-homed** one: `page_blocks`
     carries exactly one home, `page_blocks_one_home_check` being
     `(folder_id IS NULL) <> (shelf_id IS NULL)`, so on a shelf page there is
     no folder id for such a clause to compare against and this predicate is
     the right gate rather than the wrong one. A fix written from the deferral
-    sentence alone would gate folder pages and leave shelf pages ungated —
-    and a shelf page is exactly where the folder-less pictures this change
-    introduces live. Both halves, or neither.
+    sentence alone would have gated folder pages and left shelf pages ungated
+    — where the folder-less pictures this change introduces live. `putPage`
+    carries both halves; AC-375 asserts both.
     */
     if (patch.cover_file_id !== undefined && patch.cover_file_id !== null) {
       const cover = await rowsOf(
