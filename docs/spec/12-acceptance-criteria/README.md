@@ -29,6 +29,14 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-378 to AC-380 were taken from the tail on 2026-09-04** (issues #140 and #142), on the
+  rule four bullets below rather than out of the gaps above, several branches being open that
+  night: the calendar's zoom becoming a durable account preference. AC-378 and AC-379 are
+  12.3's, the default a fresh account reads and the preference following the person between
+  sessions rather than the browser; AC-380 is 12.1's, migration 0013's CHECK tried against the
+  database beside the 422 the endpoint answers, because AC-001 sees a constraint's name and
+  never what its expression does. AC-375 to AC-377 were not spent by this branch and are not
+  claimed here.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today
