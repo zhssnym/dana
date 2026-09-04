@@ -16,27 +16,66 @@ address, so a leak through a field nobody thought to name is still a failure.
 This is the criterion that would notice a statement in `domain/export.ts`
 losing the join that scopes it, which 10.2 says nothing structural can catch.
 
+**And the two tempting rows are planted where a wrong scope would reach
+them.** A folder somebody else owns is easy to keep out; the interesting rows
+are the ones *inside a folder the viewer owns and can read*. So this fixture
+puts another person's comment, and another person's file, in a folder the
+viewer owns and the other person is a member of. Both must be absent, and for
+different reasons that a single wrong `JOIN` would break separately:
+`comments` is keyed by `author_id` and not by folder visibility, and `files`
+is keyed by `owner_id` and not by whether the viewer may read the bytes. The
+viewer can see both through 7.14 and 7.15 and neither is theirs to export.
+
 Spec: 7.22, 10.2.
 */
+import { randomUUID } from 'node:crypto'
+
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { exportForViewer } from '../src/server/domain/export.js'
 import {
   Cast,
   EXPORT_PATH,
   expectStatus,
   requestExport,
+  seedFile,
   startAuthTestApp,
   twoWorkspaces,
+  writeComment,
 } from './export-harness.js'
-import type { AuthTestApp, TwoWorkspaces } from './export-harness.js'
+import type {
+  AuthTestApp,
+  ExportDocument,
+  TwoWorkspaces,
+} from './export-harness.js'
+import { addMemberOk, createFolder } from './folders-harness.js'
 
 let app: AuthTestApp
 let world: TwoWorkspaces
+/** A folder the viewer owns, holding rows that are somebody else's. */
+let sharedOwnedFolderId: string
+let intruderFileId: string
+const intruderComment = 'A comment the other person wrote in my own folder.'
 const cast = new Cast(['owner', 'stranger'], 'ac391')
 
 beforeAll(async () => {
   app = await startAuthTestApp()
   world = await twoWorkspaces(app, cast)
+
+  sharedOwnedFolderId = await createFolder(world.viewer, 'My folder, their words')
+  await addMemberOk(world.viewer, sharedOwnedFolderId, world.other.id)
+  intruderFileId = await seedFile(
+    app.db,
+    world.other.id,
+    sharedOwnedFolderId,
+    'their-attachment.txt',
+  )
+  await writeComment(
+    world.other,
+    sharedOwnedFolderId,
+    intruderComment,
+    intruderFileId,
+  )
 }, 60_000)
 
 afterAll(async () => {
@@ -79,6 +118,60 @@ describe('AC-391 the export needs a session and answers one person', () => {
         `${what} must not appear anywhere in the viewer's export; every statement in domain/export.ts is scoped to the caller inside its own FROM clause (spec 10.2)`,
       ).toBe(false)
     }
+  })
+
+  test('another person\'s comment and file inside the viewer\'s own folder are not the viewer\'s to export', async () => {
+    const response = await requestExport(world.viewer)
+    expectStatus(response, 200, 'the viewer exports their own data')
+    const document = response.json() as ExportDocument
+
+    // The folder itself is theirs and must be in the document, or the two
+    // absences below are satisfied by the viewer simply not seeing it.
+    expect(
+      document.folders.some((folder) => folder.id === sharedOwnedFolderId),
+      'the folder is the viewer\'s own and belongs in their export',
+    ).toBe(true)
+
+    expect(
+      document.comments.some((comment) => comment.body === intruderComment),
+      'a comment in the viewer\'s own folder written by somebody else is that person\'s: `comments` is keyed by author_id, never by which folders the caller can read (spec 7.22)',
+    ).toBe(false)
+    expect(
+      document.files.some((file) => file.id === intruderFileId),
+      'a file the viewer can read through 7.15 is not a file the viewer owns: `files` is keyed by owner_id, and readability is not ownership',
+    ).toBe(false)
+    expect(
+      response.body.includes(intruderComment),
+      'and it is nowhere else in the bytes either — not on a folder, not on a comment thread, not as a file name',
+    ).toBe(false)
+
+    // The positive control: the viewer's own comment and own file, in the
+    // same document, so the two checks above cannot pass by emptiness.
+    expect(
+      document.comments.some(
+        (comment) => comment.body === world.viewerCommentBody,
+      ),
+      'the viewer\'s own comment is there, or the assertions above prove nothing',
+    ).toBe(true)
+    expect(
+      document.files.some((file) => file.id === world.viewerFileId),
+      'the viewer\'s own file is there, for the same reason',
+    ).toBe(true)
+  })
+
+  test('the domain read answers null for an id no live account holds', async () => {
+    /*
+    This is the branch `routes/export.ts` turns into a 401, and it cannot be
+    driven over HTTP: `resolveSession` refuses any session whose user row has
+    `deleted_at` set, in the same statement that rolls the expiry, so the
+    handler is unreachable with a viewer id that has no live account. The
+    branch is defence in depth, matching 7.1's `handleGetMe`, and it is
+    asserted here at the only level where it is reachable at all.
+    */
+    expect(
+      await exportForViewer(app.db, randomUUID()),
+      'an id no live account holds exports nothing, rather than an empty document that would read as a person who has nothing',
+    ).toBeNull()
   })
 
   test('the other person\'s export carries no row of the viewer\'s', async () => {

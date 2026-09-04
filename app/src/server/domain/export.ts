@@ -14,12 +14,26 @@ join that scopes it were deleted, would it return somebody else's rows, or
 none?
 
 **The document is built whole in memory and sent whole.** 10.3's 1000-row cap
-is applied per collection, in SQL where the collection is nested (a window
-function per parent) and as a LIMIT where it is flat, so what is fetched is
-bounded rather than merely what is sent. A collection that hit the cap is
-named in `truncated`. Streaming is not attempted in version 1; the caps are
-what make that safe, and an account that outgrows them wants a format change
-rather than a chunked copy of this one.
+is applied per collection: in SQL where the collection is nested, as a window
+function per parent, and as a LIMIT where it is flat. **And every child
+statement is handed the ids of the parents that survived their own cap**, so
+what is fetched is what is sent. That last clause is the correction of
+2026-09-04: the first version of this module scoped each child by repeating
+its parent's predicate, which is sound but reads every task in every owned
+folder and every step of every one of them, then discards whatever the caps
+cut. A collection that hit a cap is named in `truncated`, unchanged.
+
+**The honest ceiling, because "bounded" above is per collection and not per
+document.** Nothing here bounds the whole answer: the caps multiply, and an
+account sitting at all of them at once — 10.3's 200 custom folders, a thousand
+tasks in each, ten thousand characters of notes on every task — would build
+something on the order of a gigabyte of JSON inside the single production
+process (11.1), where it is the memory every other request is also using. No
+real account is anywhere near that, and the caps make it a ceiling rather than
+a surprise, but a ceiling is not a bound. **If an account ever approaches it
+the answer is a streamed or paged export**, which is a format change and a
+`version` bump rather than an adjustment here. 7.22 carries the same sentence,
+so the decision is not buried in a source file.
 
 **No statement below reads an email address but the viewer's own.** Other
 people enter the document as `display_name` and nothing else: members of a
@@ -29,10 +43,21 @@ not read at all, which is the same rule stated as an absence.
 **No statement is per row.** Tasks, steps, reminders, blocks, members and
 comment attachments each arrive as one statement across every parent, grouped
 in memory afterwards, rather than as one statement per folder or per comment.
-And none of them names a list of ids gathered by an earlier statement, which
-is the shape that would have put a hundred thousand bind parameters on the
-wire for a large account: each is scoped by repeating the predicate that
-scoped its parent.
+The parent ids ride as **one** bind parameter, a jsonb array unnested in the
+statement, rather than as an IN list: a list would put up to two hundred
+thousand parameters on the wire for an account at 10.3's folder cap, which is
+past what the protocol carries at all. `idSet` below is that spelling, and it
+was measured on both legs rather than assumed — drizzle expands a JavaScript
+array into `($1, $2, …)` rather than binding one array, so `= ANY(${ids})`
+does not do what it reads as and fails on both backends with "cannot cast type
+record to uuid[]".
+
+**The ids are handed over and the scope predicate stays anyway.** Every child
+statement below still carries the join or the WHERE clause that scopes it to
+the viewer, even though the ids it is given already came from a scoped read.
+That is 10.2's rule applied to a statement whose caller happens to be
+trustworthy: delete the id list and the statement returns the viewer's rows,
+delete the scope and it returns nothing. Neither alone is the authorization.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -144,6 +169,27 @@ function cappedPerParent(
              AS export_rn
     ${source}
   ) capped WHERE capped.export_rn <= ${FETCH}`
+}
+
+/**
+ * A set of uuids as **one** bind parameter, for a child statement restricted
+ * to the parents that survived their cap.
+ *
+ * The list rides as a jsonb array unnested in the statement rather than as an
+ * IN list of literals, because an account at 10.3's 200-folder cap with a
+ * thousand tasks in each would otherwise need two hundred thousand bind
+ * parameters, three times what the wire protocol carries. An empty array
+ * yields no rows and needs no special case at the call sites.
+ *
+ * Measured on both legs on 2026-09-04, which is the reason for the spelling:
+ * `= ANY(${ids})` reads like the obvious answer and is not one, drizzle
+ * expanding a JavaScript array into a parameter *list* rather than binding a
+ * single array, so the statement reaches the database as
+ * `unnest(($1, $2)::uuid[])` and fails identically on PGlite and Postgres.
+ */
+function idSet(ids: readonly string[]): SQL {
+  return sql`(SELECT e::uuid FROM
+    jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) e)`
 }
 
 /** Groups rows under the value of one column, preserving row order. */
@@ -318,7 +364,10 @@ export async function exportForViewer(
    *
    * `owner_id = viewer` is the scope on all four statements, written into
    * each FROM clause rather than resolved once and passed down: a statement
-   * that lost it returns nothing rather than another person's rows.
+   * that lost it returns nothing rather than another person's rows. The
+   * three child statements are additionally restricted to the folder ids
+   * that survived the folder cap, so none of them reads a row the document
+   * is going to throw away.
    *
    * Trashed folders are carried with their flag. 7.13 has not deleted them
    * yet, so an export that dropped them would be wrong on the day their
@@ -339,6 +388,7 @@ export async function exportForViewer(
         LIMIT ${FETCH}`,
   )
   const folders = truncation.apply('folders', folderRows)
+  const folderIds = folders.map((row) => String(row.id))
 
   const memberRows = await rowsOf(
     db,
@@ -346,7 +396,8 @@ export async function exportForViewer(
       sql`fm.folder_id, u.display_name`,
       sql`FROM folder_members fm
           JOIN folders f ON f.id = fm.folder_id AND f.owner_id = ${viewerId}
-          JOIN users u ON u.id = fm.user_id`,
+          JOIN users u ON u.id = fm.user_id
+          WHERE fm.folder_id IN ${idSet(folderIds)}`,
       sql`fm.folder_id`,
       sql`fm.created_at ASC, fm.user_id ASC`,
     ),
@@ -358,7 +409,8 @@ export async function exportForViewer(
       TASK_COLUMNS,
       sql`FROM tasks t
           JOIN folders f ON f.id = t.folder_id AND f.owner_id = ${viewerId}
-          ${TASK_JOINS}`,
+          ${TASK_JOINS}
+          WHERE t.folder_id IN ${idSet(folderIds)}`,
       sql`t.folder_id`,
       sql`t.created_at ASC, t.id ASC`,
     ),
@@ -370,11 +422,20 @@ export async function exportForViewer(
       sql`b.id, b.folder_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at`,
       sql`FROM page_blocks b
-          JOIN folders f ON f.id = b.folder_id AND f.owner_id = ${viewerId}`,
+          JOIN folders f ON f.id = b.folder_id AND f.owner_id = ${viewerId}
+          WHERE b.folder_id IN ${idSet(folderIds)}`,
       sql`b.folder_id`,
       sql`b.position ASC, b.id ASC`,
     ),
   )
+
+  /* The per-folder task cap is taken here rather than during assembly,
+     because the step statement below is handed these ids and must not read
+     the steps of a task the document has already cut. */
+  const tasksByFolder = new Map<string, Record<string, unknown>[]>()
+  for (const [id, list] of groupBy(folderTaskRows, 'folder_id')) {
+    tasksByFolder.set(id, truncation.apply('folders.tasks', list))
+  }
 
   /* ---------------------------------------------------------------- *
    * Tasks in folders the person belongs to and does not own, kept only
@@ -401,22 +462,41 @@ export async function exportForViewer(
   )
   const foreignTasks = truncation.apply('tasks_elsewhere', foreignTaskRows)
 
-  /* Steps for both task sets in one statement. The WHERE is the disjunction
-     of the two scopes above rather than a list of the ids they returned:
-     a step is reachable here exactly when its task is. */
+  /*
+  Steps for both task sets in one statement, restricted to the tasks that
+  actually reached the document.
+
+  **The membership join is LEFT here and it used to be INNER, which was a
+  latent way to lose every step of an owned folder (corrected 2026-09-04).**
+  The two arms of the scope are not the same shape: a folder the viewer owns
+  is theirs by `folders.owner_id` and by nothing else, while a folder they
+  merely belong to is theirs by `folder_members`. An INNER join asked for a
+  membership row on both arms, so an owner whose own membership row had gone
+  missing would have exported their folders, their tasks and *no steps at
+  all*, silently and with nothing in the document saying so. INV-2 makes that
+  row exist, which is exactly why the bug would have been invisible until the
+  day it did not. `folderRows` above already has this shape; the two now
+  match.
+  */
+  const cappedTaskIds = [
+    ...[...tasksByFolder.values()].flat().map((row) => String(row.id)),
+    ...foreignTasks.map((row) => String(row.id)),
+  ]
   const stepRows = await rowsOf(
     db,
     cappedPerParent(
       sql`s.id, s.task_id, s.title, s.done, s.position, s.created_at`,
       sql`FROM steps s
           JOIN tasks t ON t.id = s.task_id
-          JOIN folder_members m
-            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
           JOIN folders f ON f.id = t.folder_id
-          WHERE f.owner_id = ${viewerId}
-             OR (f.deleted_at IS NULL
-                 AND (t.created_by = ${viewerId}
-                      OR t.assignee_id = ${viewerId}))`,
+          LEFT JOIN folder_members m
+            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+          WHERE s.task_id IN ${idSet(cappedTaskIds)}
+            AND (f.owner_id = ${viewerId}
+                 OR (m.user_id IS NOT NULL
+                     AND f.deleted_at IS NULL
+                     AND (t.created_by = ${viewerId}
+                          OR t.assignee_id = ${viewerId})))`,
       sql`s.task_id`,
       sql`s.position ASC, s.id ASC`,
     ),
@@ -454,7 +534,10 @@ export async function exportForViewer(
       sql`FROM comment_files cf
           JOIN comments c
             ON c.id = cf.comment_id AND c.author_id = ${viewerId}
-          JOIN files fi ON fi.id = cf.file_id`,
+          JOIN files fi ON fi.id = cf.file_id
+          WHERE cf.comment_id IN ${idSet(
+            comments.map((row) => String(row.id)),
+          )}`,
       sql`cf.comment_id`,
       sql`cf.created_at ASC, cf.file_id ASC`,
     ),
@@ -482,7 +565,10 @@ export async function exportForViewer(
       sql`b.id, b.shelf_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at`,
       sql`FROM page_blocks b
-          JOIN shelves s ON s.id = b.shelf_id AND s.user_id = ${viewerId}`,
+          JOIN shelves s ON s.id = b.shelf_id AND s.user_id = ${viewerId}
+          WHERE b.shelf_id IN ${idSet(
+            shelves.map((row) => String(row.id)),
+          )}`,
       sql`b.shelf_id`,
       sql`b.position ASC, b.id ASC`,
     ),
@@ -504,8 +590,9 @@ export async function exportForViewer(
    * ---------------------------------------------------------------- */
 
   const membersByFolder = groupBy(memberRows, 'folder_id')
-  const tasksByFolder = groupBy(folderTaskRows, 'folder_id')
   const blocksByFolder = groupBy(folderBlockRows, 'folder_id')
+  // tasksByFolder was built above, the per-folder cap already taken, because
+  // the step statement had to be handed the surviving ids.
 
   const exportedFolders: ExportFolder[] = folders.map((row) => {
     const id = String(row.id)
@@ -534,11 +621,13 @@ export async function exportForViewer(
             ? ''
             : String(member.display_name),
         ),
-      tasks: truncation
-        .apply('folders.tasks', tasksByFolder.get(id) ?? [])
-        .map((task) =>
-          taskFrom(task, stepsOf(String(task.id), 'folders.tasks.steps')),
-        ),
+      // Already capped, above, so no second `apply` here: calling it twice
+      // would be harmless (the second call sees a list at the cap and cuts
+      // nothing) and would read as though the cap were taken here, which is
+      // the thing the step statement above depends on it not being.
+      tasks: (tasksByFolder.get(id) ?? []).map((task) =>
+        taskFrom(task, stepsOf(String(task.id), 'folders.tasks.steps')),
+      ),
       blocks: truncation
         .apply('folders.blocks', blocksByFolder.get(id) ?? [])
         .map(blockFrom),
