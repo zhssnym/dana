@@ -40,6 +40,18 @@ export interface DeletionLogFields {
   sessions?: number
 }
 
+/**
+ * The 10.5 line a browser's own CSP violation report produces (issue #99).
+ * Three fields and no fourth: a report also carries `script-sample`, a slice
+ * of the refused script, and the query string of the document URL, and
+ * neither has a parameter here through which it could reach a log line.
+ */
+export interface CspViolationLogFields {
+  directive: string
+  blockedUri: string
+  documentPath: string
+}
+
 export interface RequestErrorLogFields {
   method: string
   path: string
@@ -96,6 +108,7 @@ export interface SecurityLogger {
     event: 'reminder_sent' | 'reminder_skipped' | 'reminder_send_failed',
     fields: { taskId: string; reason?: string },
   ): void
+  cspViolation(fields: CspViolationLogFields): void
   requestError(fields: RequestErrorLogFields): void
   operation(
     level: 'info' | 'warn' | 'error',
@@ -122,6 +135,33 @@ function safeReason(value: string): string {
 
 function safeLabel(value: string): string {
   return /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(value) ? value : 'other'
+}
+
+/* The three shapes a violation report may contribute, each narrow enough
+   that no prose fits through it. security/csp-report.ts has already reduced
+   a report to these, and these run anyway: 10.5's promise is that the logger
+   has no parameter user content can reach, not that every caller is careful.
+   A value outside the shape becomes `other` rather than being truncated,
+   because half of a sample is still a sample. */
+function safeDirective(value: string): string {
+  return /^[a-z][a-z0-9-]{0,39}$/.test(value) ? value : 'other'
+}
+
+/** A CSP keyword (`inline`, `eval`), or a scheme with an optional host. A
+ * path or a query is not a shape this admits. */
+function safeBlockedUri(value: string): string {
+  const keyword = /^[a-z][a-z-]{0,39}$/
+  const schemeAndHost = /^[a-z][a-z0-9+.-]{0,31}:(\/\/[A-Za-z0-9.:*_-]{1,255})?$/
+  return keyword.test(value) || schemeAndHost.test(value) ? value : 'other'
+}
+
+/** One absolute path, no query and no fragment: the two characters that
+ * would begin either are outside the class, and so is `%`, because Dana's
+ * own routes are ASCII segments and uuids, so nothing legitimate here needs
+ * percent-encoding and an encoded segment is by definition somewhere bytes
+ * can hide. */
+function safeDocumentPath(value: string): string {
+  return /^\/[A-Za-z0-9/_.~-]{0,255}$/.test(value) ? value : 'other'
 }
 
 function safeMissing(value: string): string {
@@ -215,6 +255,17 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
             : { reason: safeReason(fields.reason) }),
         },
         'reminder',
+      )
+    },
+    cspViolation(fields) {
+      sink.warn(
+        {
+          event: 'csp_violation',
+          directive: safeDirective(fields.directive),
+          blocked_uri: safeBlockedUri(fields.blockedUri),
+          document_path: safeDocumentPath(fields.documentPath),
+        },
+        'csp violation',
       )
     },
     requestError(fields) {

@@ -25,6 +25,10 @@ import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
+import {
+  CSP_REPORT_PATH,
+  createCspReportRouter,
+} from './routes/csp-report.js'
 import { createEventsRouter } from './routes/events.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
@@ -36,6 +40,7 @@ import { createTrashRouter } from './routes/trash.js'
 import { createViewsRouter } from './routes/views.js'
 import { createWorkshopRouter } from './routes/workshop.js'
 import { startReminderScheduler } from './scheduler/index.js'
+import { originOf } from './security/csp-report.js'
 import { createRateLimits } from './security/rate-limit.js'
 import type { RateLimits } from './security/rate-limit.js'
 import { createSecurityLogger } from './security/log.js'
@@ -249,7 +254,31 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   HSTS is deliberately absent: 10.8 gives it to the edge in front of the
   process, which is the only party that knows TLS is really terminating.
+
+  **The last two directives are the reporting pair, added 2026-09-04 for
+  issue #99, and they are the only reason any of the four amendments above
+  were ever found.** Every one of them was a directive refusing something
+  the product does, and every one was silent for months, because a refusal
+  raises no error the server sees and no error the client can report. So the
+  policy now names an endpoint and the browser posts its own refusals to it.
+
+  Both generations of the mechanism are stated because browsers are split
+  across them: `report-uri` is deprecated in Chromium and implemented
+  everywhere, `report-to` is its replacement and needs the
+  `Reporting-Endpoints` header below to say what the endpoint name means. A
+  browser that honours both sends one report, not two, `report-to` winning
+  where it is understood. Sending only the modern pair would lose Safari and
+  Firefox today; sending only `report-uri` would lose Chromium the day it
+  finishes removing it, silently, which is the failure this is here to stop.
+
+  The endpoint value is absolute when APP_ORIGIN is set, which 11.11 makes
+  certain in production. The header's value is parsed against the document's
+  own URL, so a relative path is well defined too and is the development
+  fallback; the absolute form is preferred because this is a header whose
+  misconfiguration reports nothing and says nothing, and there is no reason
+  to leave a resolution rule between it and working.
   */
+  const reportEndpoint = `${originOf(process.env.APP_ORIGIN) ?? ''}${CSP_REPORT_PATH}`
   const securityHeaders: ReadonlyArray<[string, string]> = [
     [
       'Content-Security-Policy',
@@ -259,8 +288,11 @@ export function createApp(options: AppOptions = {}): express.Express {
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data: blob: https://*.googleusercontent.com; " +
         "media-src 'self' blob:; " +
-        "connect-src 'self' data: https://*.sentry.io",
+        "connect-src 'self' data: https://*.sentry.io; " +
+        `report-uri ${CSP_REPORT_PATH}; ` +
+        'report-to csp-endpoint',
     ],
+    ['Reporting-Endpoints', `csp-endpoint="${reportEndpoint}"`],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
   ]
   app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -279,6 +311,7 @@ export function createApp(options: AppOptions = {}): express.Express {
               invitePerDay: Number.MAX_SAFE_INTEGER,
               searchPerMinute: Number.MAX_SAFE_INTEGER,
               mutationsPerMinute: Number.MAX_SAFE_INTEGER,
+              cspReportsPerMinute: Number.MAX_SAFE_INTEGER,
             },
           }
         : {},
@@ -316,6 +349,32 @@ export function createApp(options: AppOptions = {}): express.Express {
       sink: options.notifications,
       transport: resolveEmailTransport({ logger: notifyLogger }),
       logger: notifyLogger,
+    }),
+  )
+
+  /*
+  The CSP violation endpoint (issue #99), and **its position here is
+  load-bearing in two ways** rather than one.
+
+  It is ahead of the global `express.json` because it needs a 16 KB cap of
+  its own and a parser told about `application/csp-report` and
+  `application/reports+json`; behind it, an `application/json` body would be
+  buffered at 3 MB before this router ever saw it, by an unauthenticated
+  caller.
+
+  And it is ahead of the non-object body guard below, which refuses an array
+  outright — while the Reporting API's shape *is* an array, so behind that
+  guard every modern browser's report would answer 400. Neither of these
+  announces itself if the mount slides: the reports simply stop, which is
+  the silence this endpoint exists to end.
+  */
+  app.use(
+    CSP_REPORT_PATH,
+    createCspReportRouter({
+      securityLog,
+      errorTracker,
+      rateLimits,
+      appOrigin: process.env.APP_ORIGIN,
     }),
   )
 

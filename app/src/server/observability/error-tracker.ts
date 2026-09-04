@@ -8,12 +8,35 @@ export interface ErrorContext {
   status?: number
 }
 
+/**
+ * A message that is not an exception, and the grouping it belongs to.
+ *
+ * `fingerprint` is the whole reason this exists (issue #99). A broken policy
+ * refuses the same thing on every cold load for everybody, so a hundred
+ * identical refusals must be one issue in Sentry rather than a hundred, and
+ * only the caller knows which fields make two of them the same.
+ */
+export interface MessageContext {
+  level?: 'info' | 'warning' | 'error'
+  /** Replaces Sentry's own grouping outright, which is the point. */
+  fingerprint?: readonly string[]
+  tags?: Readonly<Record<string, string>>
+}
+
 export interface ErrorTracker {
   captureException(error: unknown, context?: ErrorContext): void
+  /**
+   * Optional so that a focused test can still inject a tracker in two lines
+   * — AC-104's does — and so that adding this in 2026-09 did not require
+   * editing a test to keep the compiler happy. Every tracker this module
+   * builds implements it; a caller reaches it through `?.`.
+   */
+  captureMessage?(message: string, context?: MessageContext): void
 }
 
 export const noOpErrorTracker: ErrorTracker = {
   captureException: () => undefined,
+  captureMessage: () => undefined,
 }
 
 /** A tracker receives a new error whose message contains no request or row
@@ -55,6 +78,19 @@ export function createServerErrorTracker(
         if (context.path !== undefined) scope.setTag('http.path', context.path)
         if (context.status !== undefined) scope.setTag('http.status', context.status)
         Sentry.captureException(sanitizedError(error))
+      })
+    },
+    captureMessage(message, context = {}) {
+      const level = context.level ?? 'warning'
+      Sentry.withScope((scope) => {
+        scope.setLevel(level)
+        if (context.fingerprint !== undefined) {
+          scope.setFingerprint([...context.fingerprint])
+        }
+        for (const [name, value] of Object.entries(context.tags ?? {})) {
+          scope.setTag(name, value)
+        }
+        Sentry.captureMessage(message, level)
       })
     },
   }
