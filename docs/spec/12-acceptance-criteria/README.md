@@ -15,12 +15,14 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **381 criteria carry their text in the files below, and 379 of them are live.** Every
-  number from AC-001 to AC-412 not named below is one of them. Re-derived on 2026-09-04 by
+- **382 criteria carry their text in the files below, and 380 of them are live.** Every
+  number from AC-001 to AC-413 not named below is one of them. Re-derived on 2026-09-04 by
   the wave-3 integration merge, which was the last of that night, by **counting the `- AC-`
   bullets across the files** rather than by adding up what five branches each believed: 381,
-  with no number appearing twice, which the arithmetic then agrees with — 412 numbers in the
-  run, less AC-229 and the thirty free ones named below, is 381.
+  with no number appearing twice, which the arithmetic then agreed with — 412 numbers in the
+  run, less AC-229 and the thirty free ones named below, was 381. **AC-413 was taken from the
+  tail after it, on the same day, by issue #167**, and the count moved with it by the same
+  arithmetic: 413 numbers in the run, less AC-229 and the same thirty, is 382.
 
   **The two retired ones are inside that 381 and that is this section's own rule, not an
   oversight.** AC-122 and AC-123 were retired by issue #113 and are *marked* rather than
@@ -58,8 +60,8 @@ default, so read this list before spending one.
   authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
   400 taken unassigned beside it. Neither branch could see the other's, which is why each
   wrote a different "next number" and why this list, rather than either bullet, is where the
-  answer is. **401 to 412 are spent but for 403, and the next number to take from the tail is
-  413.** That sentence is the wave-3 integration's, written as the last merge of the night of
+  answer is. **401 to 413 are spent but for 403, and the next number to take from the tail is
+  414.** That sentence is the wave-3 integration's, written as the last merge of the night of
   2026-09-04 and derived from the files: 401 and 402 went to the browser-suite branch, 404
   and 405 to the settings-and-zoom one, 406 to 408 to the covers one, 411 to the images one,
   and 409, 410 and 412 to the settings-bundle one. **Each branch's own bullet below names a
@@ -75,6 +77,16 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-413 was taken from the tail on 2026-09-04** (issue #167), on the rule the AC-361 to
+  AC-365 bullet below states, and it is 12.9's, beside AC-375 whose gate it leans on: a
+  picture on a shelf page had no folder to be uploaded into, so `POST /files { kind: image }`
+  answered 422 and a person choosing one on a shelf saw nothing happen. The criterion asserts
+  the widened upload, who may read the folder-less row, which page may name it — a shelf's may
+  and a folder's may not — that `file` and `voice` still require a folder, and the lifetime
+  7.19 gives it, because a picture nothing can reach and nothing can delete is what #116 was
+  filed about. **The count at the top and 12.9's row in the table below are re-derived here**
+  rather than left to a later merge, this being the only branch open with a criterion in it:
+  the wave-3 integration's sentence said the next tail number was 413, and this took it.
 - **AC-412 was assigned from the tail on 2026-09-04** (issue #168), on the same rule as
   AC-409 and AC-410 below, and it is 12.23's: the Google sign-in begin and its callback
   carried no rate limiter at all, which is older than every limit in 10.4 and could only be
@@ -328,7 +340,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
 | 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 33 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 25 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 26 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 13 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |

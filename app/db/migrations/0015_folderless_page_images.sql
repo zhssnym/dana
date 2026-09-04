@@ -1,0 +1,54 @@
+-- 0015: a page image may belong to a person rather than to a folder
+-- (issue #167).
+--
+-- Forward-only, and it widens a rule rather than adding one, so every existing
+-- row passes by construction: the set of admitted kinds grows. The constraint
+-- keeps its name and its columns, which is what AC-001's catalog asserts, so
+-- the catalog is unchanged and the change is invisible to it — which is
+-- exactly the class of change the fifth bullet of
+-- docs/workflow/backend/README.md warns can only be seen by a behavioural
+-- case. AC-413 is that case.
+--
+-- Journal `when` 1789000000000, strictly above 0014's 1788900000000. The
+-- number 0015 was taken unassigned: no other branch was open with a migration
+-- in it when this was written, and CLAUDE.md records why `when` rather than
+-- the filename is the apply gate.
+--
+-- ## What was wrong
+--
+-- 0012 wrote down the rule the server had just started enforcing: a row
+-- outside a folder is an avatar or a cover, and nothing else. That was right
+-- for what #20 ruled and wrong for the page kind it was ruled about. A shelf
+-- is private (4.18) and is not a folder, so a shelf page's blocks have no
+-- folder either — `page_blocks_one_home_check` gives a block one home and a
+-- shelf page's is the shelf. The cover of such a page could be stored, and the
+-- image on it could not: `POST /api/v1/files { kind: image }` with no
+-- folder_id answered 422, so a person who chose a picture on a shelf page saw
+-- nothing happen. Issue #167 records it found twice in one day, by the branch
+-- gating page-block files (#107) and by the branch giving shelves a cover
+-- picker (#118), neither of which could fix it because it is a section 7
+-- question.
+--
+-- ## Which kinds, and why not the other two
+--
+-- A picture decorates a page, and the kinds of page are not all folders, so a
+-- picture's scope has to be able to match its page's: a folder page's image is
+-- the folder's and every member reads it, a shelf page's is the person's. A
+-- `file` and a `voice` note hang on a comment thread, and a thread lives in a
+-- folder — there is no page kind for which that is not so, so neither gains
+-- anything from a null here and each keeps the folder that is its visibility.
+--
+-- `kind` is NOT NULL, so `kind IN (...)` is never UNKNOWN and the disjunction
+-- has the same two-valued honesty 0012's own note argues for.
+--
+-- ## Why drop and re-add rather than add a second constraint
+--
+-- The rule is one rule and belongs in one place. A second CHECK admitting
+-- `image` would leave the first refusing it, and the row would be refused by
+-- their conjunction with a constraint name that names the wrong one. Dropping
+-- and re-adding under the same name keeps AC-001's catalog true and leaves
+-- exactly one sentence in the schema saying which kinds may stand outside a
+-- folder.
+ALTER TABLE files
+  DROP CONSTRAINT files_folderless_kind_check,
+  ADD CONSTRAINT files_folderless_kind_check CHECK (folder_id IS NOT NULL OR kind IN ('avatar', 'cover', 'image'));

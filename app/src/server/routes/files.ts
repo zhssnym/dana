@@ -51,19 +51,29 @@ export interface FilesRouterOptions {
 7.15's multipart fields.
 
 **`folder_id` became optional for `cover` alone on 2026-09-03 (issues #20 and
-#100).** Imran ruled that folders, shelves and the built-in pages get the same
-four cover options and that "pictures should belong to the user instead of
-only a folder"; a shelf and a place page are not folders, so a cover has to be
-storable without one. Every other kind still requires it and the refusal is
-422 naming the field, not the 404 a folder the caller cannot see would get:
-an absent `folder_id` on a page image is a malformed request rather than a
-scope failure, and it was 422 before this change too.
+#100), and for `image` beside it on 2026-09-04 (issue #167).** Imran ruled the
+first: folders, shelves and the built-in pages get the same four cover options,
+and "pictures should belong to the user instead of only a folder"; a shelf and
+a place page are not folders, so a cover has to be storable without one. The
+second is the same sentence about the same page. A shelf page's image block had
+no folder to name either, so the upload behind it answered 422 and a person
+choosing a picture on a shelf saw nothing happen at all — the fault #167
+reports. A folder-less image belongs to the uploader, is served to them alone
+(`readableFileScope`), and can be named only by a block on a page that reaches
+it (`putPage`, issue #107).
+
+**`file` and `voice` still require one** and the refusal is 422 naming the
+field, not the 404 a folder the caller cannot see would get: an absent
+`folder_id` on an attachment is a malformed request rather than a scope
+failure, and it was 422 before either change.
 
 `superRefine` rather than a check in the handler so the rule is stated once,
 in the shape the message comes from, and so `createFile`'s own restatement of
-it (migration 0012's files_folderless_kind_check) is a second line of defence
+it (migration 0015's files_folderless_kind_check) is a second line of defence
 rather than the only one.
 */
+const FOLDERLESS_UPLOAD_KINDS = new Set(['cover', 'image'])
+
 const uploadFields = z
   .object({
     kind: z.enum(['image', 'file', 'voice', 'cover']),
@@ -71,11 +81,14 @@ const uploadFields = z
     duration_ms: z.coerce.number().int().positive().optional(),
   })
   .superRefine((fields, ctx) => {
-    if (fields.folder_id === undefined && fields.kind !== 'cover') {
+    if (
+      fields.folder_id === undefined &&
+      !FOLDERLESS_UPLOAD_KINDS.has(fields.kind)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['folder_id'],
-        message: 'is required for every kind but cover',
+        message: 'is required for a file or a voice note',
       })
     }
   })
@@ -186,14 +199,15 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         /* One sentence for the whole shape, as before, rather than the
            per-field formatter: the parts of a multipart body are not the
            JSON fields `sendFieldValidationError` builds its paths from.
-           The wording moved with the rule above — `folder_id` is a uuid
-           where it is sent, and required for every kind but cover. */
+           The wording moves with the rule above — `folder_id` is a uuid
+           where it is sent, and required for a file or a voice note, the two
+           kinds that hang on a comment thread in a folder (issue #167). */
         onInvalid: () => {
           sendError(
             res,
             422,
             'validation_failed',
-            'kind: must be image, file, voice or cover; folder_id must be a uuid, and is required for every kind but cover.',
+            'kind: must be image, file, voice or cover; folder_id must be a uuid, and is required for a file or a voice note.',
           )
         },
       })

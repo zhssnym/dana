@@ -27,8 +27,27 @@ a served file, and `naturalWidth` is non-zero, which is the browser saying it
 decoded the bytes this origin sent rather than reserving space for a picture
 that never came.
 
-Spec: 9.6 (the page's blocks and its cover), 4.17, 7.15, 10.8; issues #79, #13,
-#34.
+**A shelf arm was added 2026-09-04 for issue #167**, which is the same round
+trip on the page kind that could not make it at all. A shelf is not a folder,
+so its page's blocks have none either, and `POST /files` required a `folder_id`
+for `kind: image`: the client sent an empty one, the server answered 422, and
+the person saw the optimistic draw and then nothing. 7.15 now stores a
+folder-less image, `screens/shelf-page.tsx` sends no part rather than an empty
+one, and this case is what says the two halves meet — the same reload, the same
+`naturalWidth`, and for the same reason as the folder arms: the paint before
+the round trip is true whether or not the bytes ever left.
+
+**It reaches the block through 7.16 rather than through a tool at the foot of
+the page, and that is a fact about the page rather than a shortcut.** Issue
+#167 says "a shelf page's composer offers Image"; it does not — that page's
+insert line is given a section and a paragraph and no image (measured
+2026-09-04, `screens/shelf-page.tsx`) — so the only way a person reaches this
+upload today is a picture block that already exists, and the fixture seeds one
+the way the page itself would write it. Whether that composer should offer the
+tool is a client question and Imran's; the server half is what #167 is.
+
+Spec: 9.6 (the page's blocks and its cover), 9.10 (the shelf page), 4.17, 4.18,
+7.15 as amended 2026-09-04, 7.16, 10.8; issues #79, #13, #34, #167.
 */
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
@@ -37,8 +56,11 @@ import {
   caseTitle,
   clickControl,
   createFolder,
+  createShelf,
+  csrfToken,
   routesV2,
   seedSubs,
+  shortName,
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
@@ -168,4 +190,61 @@ test('AC-408: a folder the person made stores and shows one too, on its page and
     (await page.request.get(served)).status(),
     `spec 7.15 serves the cover from this origin; ${served}`,
   ).toBe(200)
+})
+
+/**
+ * One empty image block on a shelf's page, written through 7.16's own PUT.
+ *
+ * The page is PUT whole, and this shelf has nothing else on it, so one block
+ * is the whole body. `file_id` is absent: an unfilled block is exactly what
+ * the page's own composer inserts before anybody chooses a picture, and it is
+ * what gives this case its "Add an image" control to press.
+ */
+async function seedAnEmptyImageBlock(page: Page, shelfId: string): Promise<void> {
+  const token = await csrfToken(page.context())
+  const response = await page.request.put(`/api/v1/shelves/${shelfId}/page`, {
+    data: { blocks: [{ kind: 'image', position: 0 }] },
+    headers: { 'X-CSRF-Token': token },
+  })
+  expect(
+    response.status(),
+    `PUT /shelves/${shelfId}/page for the fixture answered ${response.status()}: ` +
+      `${await response.text()}`,
+  ).toBe(200)
+}
+
+test('AC-408: a shelf page stores and shows one too, its picture belonging to the person', async ({
+  page,
+}) => {
+  await signIn(page, seedSubs.hassan)
+  const shelf = await createShelf(page, shortName('AC-408 shelf'))
+  await seedAnEmptyImageBlock(page, shelf.id)
+
+  await page.goto(routesV2.shelf(shelf.id))
+  await chooseAPicture(
+    page,
+    page.getByRole('button', { name: 'Add an image', exact: true }),
+    'issue #167: a shelf page lets a person choose a picture for its block',
+  )
+  await waitForApiIdle(
+    page,
+    'the bytes go up with no folder_id, and the block names the file',
+  )
+  await expect(
+    page.getByText('This picture could not be stored, so it will not survive a reload.'),
+    'issue #167: the 422 this used to answer is what that line said, and there is none',
+  ).toHaveCount(0)
+
+  await page.reload()
+  const drawn = await drawnPicture(page)
+  expect(
+    drawn.src,
+    "issue #167: after a reload the shelf page draws the picture from 7.15's serving path, " +
+      'which is the whole of the round trip that could not be made at all',
+  ).toContain('/api/v1/files/')
+  expect(
+    drawn.width,
+    'and the browser decoded the bytes this origin served, so the block shows a picture ' +
+      'rather than a reserved space',
+  ).toBeGreaterThan(0)
 })

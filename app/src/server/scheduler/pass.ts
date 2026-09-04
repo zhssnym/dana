@@ -53,7 +53,7 @@ import { pino } from 'pino'
 import type { DbClient } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
-import { reclaimUnwornCovers } from '../domain/files.js'
+import { reclaimUnwornPictures } from '../domain/files.js'
 import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -133,9 +133,10 @@ export interface ReminderPassOutcome {
   purgedTrash: number
   /** Events past 90 days the fourth duty purged (4.13). */
   purgedEvents: number
-  /** Folder-less cover files nothing references and older than 30 days, the
-   * fifth duty reclaimed with their objects (issue #116, spec 7.19). */
-  reclaimedCovers: number
+  /** Folder-less pictures nothing references and older than 30 days, the
+   * fifth duty reclaimed with their objects (issue #116, spec 7.19; the
+   * `image` half is issue #167's, on the same rule and the same window). */
+  reclaimedPictures: number
 }
 
 export type ReminderPass = () => Promise<ReminderPassOutcome>
@@ -396,7 +397,10 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     ).length
 
     /*
-    The fifth duty (issue #116, 2026-09-04): the cover files nothing wears.
+    The fifth duty (issue #116, 2026-09-04): the folder-less pictures nothing
+    uses. Covers when it was written, and folder-less page images with them
+    since issue #167 the same day, that ruling having given a shelf page's
+    image the folder-less life a cover already had.
 
     **It is here rather than in the act that stops wearing one, and that is
     the design decision rather than a convenience.** A folder-less cover is
@@ -415,8 +419,8 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     the tick still opens exactly one transaction. The statement, and every
     column that can name a file, are in `domain/files.ts`.
     */
-    const reclaimedCovers = (
-      await reclaimUnwornCovers(db, deps.fileStore)
+    const reclaimedPictures = (
+      await reclaimUnwornPictures(db, deps.fileStore)
     ).length
 
     // Both liveness signals, after the work and only on a cycle that
@@ -434,7 +438,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
       prunedSessions,
       purgedTrash,
       purgedEvents,
-      reclaimedCovers,
+      reclaimedPictures,
     }
   }
 }

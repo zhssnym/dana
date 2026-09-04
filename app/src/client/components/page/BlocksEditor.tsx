@@ -501,7 +501,11 @@ export function BlocksEditor({
               */
               <div className="pt-2">
                 <PageImage
-                  folderId={folderId ?? ''}
+                  /* Null and not '': an empty part is a folder_id the server
+                     parses as a uuid and refuses, which is #167's own fault.
+                     This editor draws for a folder today, so the fallback is
+                     unreached; the day it draws for a shelf it is right. */
+                  folderId={folderId ?? null}
                   image={{
                     id: block.file_id ?? '',
                     ratio: reservedRatio(block.file_width, block.file_height),
