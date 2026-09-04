@@ -15,6 +15,7 @@ import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier, notifierOf } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
 import { resolveEmailTransport } from './notify/resend.js'
+import { reportConnectionLost } from './observability/connection-lost.js'
 import { reportDatabaseFallback } from './observability/database-fallback.js'
 import { createServerErrorTracker } from './observability/error-tracker.js'
 import type { ErrorTracker } from './observability/error-tracker.js'
@@ -769,9 +770,21 @@ async function main(): Promise<void> {
   // While the dev server holds .data open, the db scripts (migrate, seed,
   // verify) must not target it concurrently: PGlite is single-connection
   // (11.15).
+  /* Built before the pool rather than after it, which is the only reason this
+     line moved: the seam reports a lost connection through a callback, and a
+     tracker created afterwards could not be in it. */
+  const errorTracker = createServerErrorTracker()
+
   const dbClient = await createDbClient({
     url: process.env.DATABASE_URL === '' ? undefined : process.env.DATABASE_URL,
     dataDir: '.data',
+    /* Issue #174. Without this the seam writes one plain line to stderr, which
+       is right for the suite and says nothing to alerting. The module beside
+       this call carries the reasoning, including why the error a route sees is
+       drizzle's rollback failure rather than the code recorded here. */
+    onConnectionLost: (event) => {
+      reportConnectionLost({ event, log: runtimeBootLog, tracker: errorTracker })
+    },
   })
   await dbClient.runMigrations()
   runtimeBootLog.operation('info', 'migrations_applied', {
@@ -784,9 +797,8 @@ async function main(): Promise<void> {
      everybody is signed out. The condition now says so in its own words, in a
      line of its own, and reaches Sentry; the module beside this call carries
      the reasoning, including why this is not a refusal to boot. The tracker is
-     built here and handed to the application so the process holds one, rather
+     built above and handed to the application so the process holds one, rather
      than this line initialising Sentry a second time. */
-  const errorTracker = createServerErrorTracker()
   reportDatabaseFallback({
     kind: dbClient.kind,
     nodeEnv: process.env.NODE_ENV,

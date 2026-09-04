@@ -399,9 +399,10 @@ protocol points here rather than repeating them.
   is skipped, whole files fail with `Hook timed out in 60000ms` and no test fails an
   assertion. It is starvation, it is caused by load, and unlike the fork class it is
   answered by re-running on a quiet machine. Four agents hit it independently that night.
-- **Four classes now, counting the starvation one above, and only two of them are
-  answered by re-running.** These three were measured in CI on 2026-08-31 and
-  2026-09-01, on the first runs this repository has ever had.
+- **Five classes now, counting the starvation one above and the reset one in the bullet
+  after this list, and only two of them are answered by re-running.** These three were
+  measured in CI on 2026-08-31 and 2026-09-01, on the first runs this repository has
+  ever had.
   - **The Postgres leg used to share one `dana_test`, and does not any more. Closed
     2026-09-03 by issue #32.** Every file pointed at one database and they saw each
     other's rows; the fingerprint was a count that climbed across successive tests,
@@ -439,6 +440,39 @@ protocol points here rather than repeating them.
     a date is a defect now, not this class.** The class is kept because the shape
     recurs: two clocks in two zones read as a midnight race and are not one, and forcing
     the zone is what separates them.
+- **The fifth class, measured and fixed on 2026-09-04: `read ECONNRESET` takes a whole
+  file with nothing having asserted anything.** Issue #174. Three times in one day, on
+  three commits, the Postgres leg lost one file to `Error: read ECONNRESET` with its
+  tests skipped, zero assertion failures, a different file each time, and every one of
+  them green when run alone. **It is not connection exhaustion and the cluster is not
+  killing anything**, which is what everyone assumed including the issue: sampled every
+  500 ms across whole parallel 12-worker legs the peak is **17 and 18 client backends
+  against a `max_connections` of 100**, and the cluster log carries no `too many clients`, no
+  terminated connection and no crashed backend on any of the days a file was lost.
+  **The cause was in the seam.** `app/db/client.ts` built its `pg.Pool` with no
+  `'error'` listener: node-postgres re-emits an **idle** pooled connection's socket
+  error on the pool, and a connection **checked out** by `pool.connect()` — every
+  transaction, every migration run — emits its own; an EventEmitter `'error'` with no
+  listener throws, so one reset socket ended the worker process with an uncaught
+  exception, and vitest attributes an uncaught exception to whichever file was running.
+  That is exactly why the lost file differed every time and passed alone. Both windows
+  were measured with a TCP proxy resetting a real pooled socket on demand, both now
+  carry a listener that reports the loss once and lets the pool discard the connection,
+  and `tests/postgres-leg-connection-loss.test.ts` goes red if either is removed. **What
+  a route sees is not this error**, which is worth knowing before you go looking for it:
+  a socket that dies inside a transaction rejects the statement and drizzle then runs its
+  ROLLBACK on the same dead connection, so the request error line and Sentry carry
+  `Connection terminated unexpectedly` while the `ECONNRESET` underneath it lives only in
+  the seam's own `database_connection_lost` line. The same
+  listener is why the single production instance no longer dies when an idle connection
+  is reset, which it would have. **What resets the socket in the wild is still not known
+  and is deliberately not guessed at**, on the rule the `.data` bullet keeps: TIME_WAIT
+  peaked at 1120 of this machine's 16384 ephemeral ports, so it is not port exhaustion
+  either. It also does not need to be known, which is the point of fixing it here: a
+  transient reset is now a discarded connection rather than a lost file. Two whole
+  Postgres legs after the fix, each accounting for every file: **345 files and 2141
+  tests, twice, and zero `ECONNRESET`**. A red of this shape after that fix is something
+  else, and re-running the file alone is still the honest first check.
 - **Between them these are why a red is not evidence until you have named which class it
   is.** In three CI runs of one commit, every step passed at least once and no run passed
   all of them together, with nothing wrong in the commit.
