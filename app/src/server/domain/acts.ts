@@ -144,21 +144,6 @@ export async function duplicateFolder(
         )
       )[0]
       const name = `${String(source?.name ?? 'Folder')} (copy)`.slice(0, 100)
-      const made = await rowsOf(
-        tx,
-        sql`INSERT INTO folders (owner_id, name, icon, color, description,
-                                 cover_preset, cover_focal_y)
-            VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
-                    ${source?.color ?? null}, ${source?.description ?? null},
-                    ${source?.cover_preset ?? null},
-                    ${Number(source?.cover_focal_y ?? 50)})
-            RETURNING id`,
-      )
-      const copyId = String(made[0]?.id)
-      await tx.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id)
-            VALUES (${copyId}::uuid, ${viewerId}::uuid)`,
-      )
 
       /*
       **The cover picture is carried, and until 2026-09-04 it was not.** This
@@ -167,32 +152,67 @@ export async function duplicateFolder(
       diagnosed the problem exactly and then dropped the picture rather than
       solving it — so a duplicated folder wore its preset and its crop (AC-293)
       and silently lost an uploaded photograph, which is #117's fault one object
-      over. `coverFileFor` answers it: the copy is made **inside the new
-      folder**, so its scope is the copy's own membership and nothing lies. It
-      spends the duplicator's quota, which is right — they are the owner of the
-      folder they just made. Issues #116 and #128.
+      over. The copy is made **inside the new folder**, so its scope is the
+      copy's own membership and nothing lies. It spends the duplicator's quota,
+      which is right — they are the owner of the folder they just made. Issues
+      #116 and #128.
+
+      **It runs before the folder is inserted, and that ordering is the whole
+      of the fix reviewed on 2026-09-04.** It ran after, and the quota refusal
+      below was an ordinary `return` out of the `inTransaction` callback —
+      which resolves it, so drizzle *commits*. A caller at 10.3's gigabyte got
+      413 and kept an empty "(copy)" folder with a membership row, no blocks,
+      no tasks and no picture, counting against the 200 cap and needing hand
+      deletion. `duplicateShelf` had the right shape already: copy first, then
+      insert, so every early return has written nothing that a rollback is
+      needed to take back. This is the same shape with one extra step, the
+      scope, because a folder cover's `folder_id` cannot name a folder that
+      does not exist yet: the copy is made folder-less and given its scope
+      immediately after the INSERT, inside the same transaction, so no other
+      statement can ever observe it unscoped.
       */
+      let coverFileId: string | null = null
       if (source?.cover_file_id !== null && source?.cover_file_id !== undefined) {
         const held = await copyCoverFile(
           tx,
           store,
           viewerId,
           String(source.cover_file_id),
-          copyId,
+          null,
         )
         if (held.kind === 'quota_exceeded') {
           return { kind: 'quota_exceeded' } as const
         }
         if (held.kind === 'copied') {
           copiedObjects.push(held.id)
-          await tx.execute(
-            sql`UPDATE folders SET cover_file_id = ${held.id}::uuid,
-                                   cover_preset = NULL
-                WHERE id = ${copyId}::uuid`,
-          )
+          coverFileId = held.id
         }
         /* 'bytes_missing' leaves the new folder wearing nothing, which is
            what the source draws too when its object has gone. */
+      }
+
+      const made = await rowsOf(
+        tx,
+        sql`INSERT INTO folders (owner_id, name, icon, color, description,
+                                 cover_file_id, cover_preset, cover_focal_y)
+            VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
+                    ${source?.color ?? null}, ${source?.description ?? null},
+                    ${coverFileId}::uuid,
+                    ${coverFileId === null ? (source?.cover_preset ?? null) : null},
+                    ${Number(source?.cover_focal_y ?? 50)})
+            RETURNING id`,
+      )
+      const copyId = String(made[0]?.id)
+      await tx.execute(
+        sql`INSERT INTO folder_members (folder_id, user_id)
+            VALUES (${copyId}::uuid, ${viewerId}::uuid)`,
+      )
+      if (coverFileId !== null) {
+        // The scope, now that there is a folder to name (4.16, 7.15).
+        await tx.execute(
+          sql`UPDATE files SET folder_id = ${copyId}::uuid
+              WHERE id = ${coverFileId}::uuid`,
+        )
       }
 
       // The page next, so the section map exists when the tasks arrive.

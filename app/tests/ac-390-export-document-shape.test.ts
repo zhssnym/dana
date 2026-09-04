@@ -47,6 +47,7 @@ import type {
   TwoWorkspaces,
 } from './export-harness.js'
 import type { RawResponse } from './http-client.js'
+import { exportDocument } from '../src/shared/export.js'
 
 let app: AuthTestApp
 let world: TwoWorkspaces
@@ -60,6 +61,19 @@ async function exported(): Promise<RawResponse> {
   return answer
 }
 
+/**
+ * The document, **parsed through the shared schema rather than asserted to
+ * be it**.
+ *
+ * It read `response.json() as ExportDocument` until 2026-09-04, which is a
+ * type assertion: it compiles against a schema nobody ran and proves nothing
+ * about the bytes. `src/shared/export.ts` is the other half of 7.22 and the
+ * client validates every response against it before rendering, so a field the
+ * server emits and the schema does not declare is stripped in silence — which
+ * is exactly what `calendar_zoom` was for a day. Parsing here makes the
+ * schema load-bearing in this criterion, and the key list below then measures
+ * what the contract admits rather than what one build happened to send.
+ */
 async function document(): Promise<ExportDocument> {
   const response = await exported()
   expectStatus(
@@ -67,7 +81,7 @@ async function document(): Promise<ExportDocument> {
     200,
     'GET /api/v1/me/export must answer the caller their own data (spec 7.22)',
   )
-  return response.json() as ExportDocument
+  return exportDocument.parse(response.json())
 }
 
 beforeAll(async () => {

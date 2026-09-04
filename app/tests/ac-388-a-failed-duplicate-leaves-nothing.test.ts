@@ -24,6 +24,16 @@ throws having written nothing, and asserts the same two things, so a
 regression that removed the catch would still be caught by the first arm and a
 regression that removed the transaction by both.
 
+**The folder duplicate is the second arm and it was added on 2026-09-04 after
+review**, because `duplicateFolder` copies a cover the same way and carries the
+same catch, so the mechanism is one mechanism and a criterion that pinned it on
+one endpoint would leave the other free to lose it. This criterion stays in
+12.10 rather than splitting across two groups: what it is about is the failure
+path of `copyCoverFile`'s caller, which is one rule, and neither file could
+state it holding half. The shelf is where it was found and 12.10 is where the
+rule lives; 12.16's own duplicate criteria are about what a copy carries, not
+about what a failure leaves.
+
 Spec: 7.16 as amended 2026-09-04, 4.16, 11.10; issue #128.
 */
 import { sql } from 'drizzle-orm'
@@ -31,9 +41,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from './auth-harness.js'
 import type { AuthTestApp } from './auth-harness.js'
-import { Cast, expectStatus } from './folders-harness.js'
+import { Cast, createFolder, expectStatus } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
-import { uploadCoverOk } from './uploads-harness.js'
+import { uploadCoverOk, uploadImageOk } from './uploads-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner'], 'ac388')
@@ -85,6 +95,14 @@ async function countFiles(userId: string): Promise<number> {
 async function countShelves(userId: string): Promise<number> {
   const found = (await app.db.execute(
     sql`SELECT count(*)::int AS n FROM shelves WHERE user_id = ${userId}::uuid`,
+  )) as unknown as { rows: Array<{ n: unknown }> }
+  return Number(found.rows[0]?.n ?? 0)
+}
+
+async function countFolders(userId: string): Promise<number> {
+  const found = (await app.db.execute(
+    sql`SELECT count(*)::int AS n FROM folders
+        WHERE owner_id = ${userId}::uuid AND deleted_at IS NULL`,
   )) as unknown as { rows: Array<{ n: unknown }> }
   return Number(found.rows[0]?.n ?? 0)
 }
@@ -157,6 +175,65 @@ describe('AC-388 a duplicate that fails leaves no half of itself behind', () => 
       await owner.browser.json(`/shelves/${shelfId}/duplicate`, 'POST'),
       201,
       'the duplicate lands once the store answers (spec 7.16 as amended)',
+    )
+  })
+
+  test('and the same of a folder duplicate, which copies a cover the same way', async () => {
+    const [owner] = (await cast.of(app)) as [Actor]
+
+    putMode = 'ok'
+    const folderId = await createFolder(owner, 'ac388 folder')
+    const picture = await uploadImageOk(owner, folderId, 'ac388-folder.png')
+    expectStatus(
+      await owner.browser.json(`/folders/${folderId}`, 'PATCH', {
+        cover_file_id: picture,
+      }),
+      200,
+      'the folder wears a picture, so its duplicate has bytes to copy (spec 7.4)',
+    )
+
+    const foldersBefore = await countFolders(owner.id)
+    const filesBefore = await countFiles(owner.id)
+    const objectsBefore = objects.size
+
+    for (const mode of ['after', 'before'] as const) {
+      putMode = mode
+      const refused = await owner.browser.json(
+        // The zone, because a folder duplicate refuses without one when a
+        // date would move (8.1, AC-376), and this criterion is about the
+        // store failing rather than about that refusal.
+        `/folders/${folderId}/duplicate?tz=UTC`,
+        'POST',
+      )
+      expect(
+        refused.status,
+        `a store failure ${mode} the write must not answer 201 (spec 7.0)`,
+      ).toBe(500)
+
+      expect(
+        await countFolders(owner.id),
+        `no half-duplicated folder after a failure ${mode} the write (#116, #128)`,
+      ).toBe(foldersBefore)
+      expect(
+        await countFiles(owner.id),
+        'and no copied files row, the transaction having taken it',
+      ).toBe(filesBefore)
+      expect(
+        objects.size,
+        'and no unattached object: the folder path carries the same catch the shelf path does',
+      ).toBe(objectsBefore)
+    }
+
+    putMode = 'ok'
+    const original = await owner.browser.json(`/folders/${folderId}`, 'GET')
+    expect(
+      (original.json() as { cover_file_id?: unknown }).cover_file_id,
+      'the folder that was duplicated still wears its own picture',
+    ).toBe(picture)
+    expectStatus(
+      await owner.browser.json(`/folders/${folderId}/duplicate?tz=UTC`, 'POST'),
+      201,
+      'and the duplicate lands once the store answers (spec 7.16 as amended)',
     )
   })
 })

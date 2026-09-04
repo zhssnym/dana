@@ -32,6 +32,8 @@ contact a person who never agreed to be in it.
 */
 import { z } from 'zod'
 
+import { CALENDAR_ZOOMS } from './bundle.js'
+
 /** The document's self-description, so a reader can tell what it is holding
  * before it parses anything else. */
 export const EXPORT_FORMAT = 'dana-export'
@@ -261,6 +263,20 @@ export const exportSettings = z.object({
   row_density: z.string(),
   clock: z.string(),
   task_open: z.string(),
+  /* Declared 2026-09-04 at the wave-1 integration, having been emitted and
+     undeclared for a day: `domain/export.ts` spreads `readBundle`'s answer,
+     so `calendar_zoom` (4.10, migration 0013, issue #142) has been in the
+     document since it entered the bundle, and this object is the other half
+     of 7.22's "everything 4.10 holds for them". An undeclared key is not a
+     wrong key, it is a key a `.parse()` strips in silence, which is the
+     request-schema fault of 11.15 wearing a response's clothes.
+
+     `z.enum` rather than the `z.string()` its four neighbours carry, matching
+     `settingsBundle` exactly: this value has a CHECK under it and a shared
+     constant over it, and `readBundle` maps anything else to the default, so
+     nothing this endpoint can emit fails it. The neighbours are loose because
+     they predate their own constants, not because looseness is the rule. */
+  calendar_zoom: z.enum(CALENDAR_ZOOMS),
   pinned_views: z.array(z.string()),
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),

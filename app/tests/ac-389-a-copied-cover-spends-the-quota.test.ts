@@ -19,6 +19,16 @@ The refusal reuses `createFile`'s own path deliberately: same status, same
 storage is the same event to the person as an upload that did, and a second
 wording for it would be a second thing to keep in step.
 
+**The folder duplicate is the fourth door and it was added on 2026-09-04
+after review**, with the arm below asserting one thing the other three cannot:
+that no *folder* row survives the refusal. `duplicateFolder` inserted the copy
+and its membership row and only then copied the picture, and a `return` out of
+an `inTransaction` callback resolves it, so drizzle committed — 413 to the
+caller and an empty "(copy)" folder left behind, counting against the 200 cap.
+Nothing in the three arms above could see it: they refuse before any row of
+their own act exists. So this arm counts folders as well as files, which is
+the assertion the fix is answerable to.
+
 Spec: 10.3, 7.15, 7.16 and 7.19 as amended 2026-09-04, 9; issues #116, #128.
 */
 import { sql } from 'drizzle-orm'
@@ -62,6 +72,14 @@ async function countFiles(userId: string): Promise<number> {
   return Number(found.rows[0]?.n ?? 0)
 }
 
+async function countFolders(userId: string): Promise<number> {
+  const found = (await app.db.execute(
+    sql`SELECT count(*)::int AS n FROM folders
+        WHERE owner_id = ${userId}::uuid AND deleted_at IS NULL`,
+  )) as unknown as { rows: Array<{ n: unknown }> }
+  return Number(found.rows[0]?.n ?? 0)
+}
+
 /** Fills the account to one byte under the gigabyte with a row of the size
  * that leaves it there, so any copy at all is over. A planted row rather
  * than a real upload: 10.3's quota is arithmetic over `bytes` and a real
@@ -100,9 +118,19 @@ describe('AC-389 a copied cover is charged to the person who set it', () => {
       'the shelf wears the person’s own picture (spec 7.16)',
     )
 
+    // And the folder wears one too, so its duplicate has a picture to copy.
+    expectStatus(
+      await owner.browser.json(`/folders/${folderId}`, 'PATCH', {
+        cover_file_id: fromFolder,
+      }),
+      200,
+      'the folder wears a picture of its own (spec 7.4)',
+    )
+
     await fillTo(owner.id, 1)
     const filesAtFull = await countFiles(owner.id)
     const spentAtFull = await spent(owner.id)
+    const foldersAtFull = await countFolders(owner.id)
 
     // 1. A set that must copy, because the source lives in a folder.
     const setOverQuota = await owner.browser.json(
@@ -136,9 +164,31 @@ describe('AC-389 a copied cover is charged to the person who set it', () => {
       'a duplicate’s independent picture is a new file and is charged for one',
     )
 
+    // 4. And a folder duplicate, which copies the folder's own picture.
+    const folderOverQuota = await owner.browser.json(
+      // The zone is named because the endpoint refuses a copy that would
+      // re-anchor a date without one (8.1, AC-376), and this criterion is
+      // about the quota rather than about that refusal.
+      `/folders/${folderId}/duplicate?tz=UTC`,
+      'POST',
+    )
+    expectStatus(
+      folderOverQuota,
+      413,
+      'a duplicated folder carries its cover, so it is charged for one (spec 7.16 as amended)',
+    )
+    expect(
+      (folderOverQuota.json() as { error?: { code?: unknown } }).error?.code,
+      'with the same code the other three answer (spec 7.0, 10.3)',
+    ).toBe('quota_exceeded')
+    expect(
+      await countFolders(owner.id),
+      'and no folder row survives it: the refusal is the whole request, not the last step of one, so nothing half-made is left counting against the 200 of 7.4',
+    ).toBe(foldersAtFull)
+
     expect(
       await countFiles(owner.id),
-      'and none of the three stored anything: a refusal writes no row',
+      'and none of the four stored anything: a refusal writes no row',
     ).toBe(filesAtFull)
     expect(await spent(owner.id), 'nor spent anything').toBe(spentAtFull)
 
