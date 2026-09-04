@@ -165,6 +165,97 @@ export function PageMark({
   )
 }
 
+interface PageHeadingStructureProps {
+  icon: LucideIcon
+  title: string
+  fact?: ReactNode
+  description?: ReactNode
+  actions?: ReactNode
+  hasCover: boolean
+  cover?: ReactNode
+  coverAction?: ReactNode
+  children?: ReactNode
+}
+
+/*
+The mark, title, fact, description and actions are one structure. `PageHead`
+adds the identity features that belong to places with storage; `PageHeading`
+fixes the same structure to the no-cover, prose-only form used by People.
+Keeping those capabilities in the wrappers means sharing the geometry never
+quietly promises People a cover or an edit that cannot be saved (#84).
+*/
+function PageHeadingStructure({
+  icon,
+  title,
+  fact,
+  description,
+  actions,
+  hasCover,
+  cover,
+  coverAction,
+  children,
+}: PageHeadingStructureProps): React.JSX.Element {
+  return (
+    <header className={cn("group/head", hasCover ? "pt-0" : "pt-2")}>
+      {cover}
+      <PageMark icon={icon} hasCover={hasCover} />
+      {coverAction}
+
+      {/* polish: pagehead F6. On a phone the fact wraps under the name. */}
+      <div className="mt-1.5 flex items-baseline justify-between gap-6">
+        <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
+          <h1 className="min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal">
+            {title}
+          </h1>
+          {fact === undefined ? null : (
+            <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
+              {fact}
+            </span>
+          )}
+        </div>
+        {actions}
+      </div>
+
+      {description}
+      {children}
+    </header>
+  )
+}
+
+/**
+ * The fixed page-heading variation. It deliberately has no storage name and
+ * no identity props, so a caller such as People can share the page geometry
+ * without acquiring cover or editable-description controls.
+ */
+export function PageHeading({
+  icon,
+  title,
+  description,
+  fact,
+  actions,
+}: {
+  readonly icon: LucideIcon
+  readonly title: string
+  readonly description: string
+  readonly fact?: ReactNode
+  readonly actions?: ReactNode
+}): React.JSX.Element {
+  return (
+    <PageHeadingStructure
+      icon={icon}
+      title={title}
+      hasCover={false}
+      {...(fact === undefined ? {} : { fact })}
+      description={
+        <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+          {description}
+        </p>
+      }
+      {...(actions === undefined ? {} : { actions })}
+    />
+  )
+}
+
 export function PageHead({
   storageName,
   icon: Icon,
@@ -194,7 +285,35 @@ export function PageHead({
   const hasCover = usePageHasCover(storageName)
 
   return (
-    <header className={cn("group/head", hasCover ? "pt-0" : "pt-2")}>
+    <PageHeadingStructure
+      icon={Icon}
+      title={title}
+      hasCover={hasCover}
+      {...(fact === undefined ? {} : { fact })}
+      cover={hasCover ? (
+        <div className="-mt-4 md:-mt-6">
+          <PageCover storageName={storageName} />
+        </div>
+      ) : undefined}
+      coverAction={
+        <div className="mt-1">
+          <AddCoverAction storageName={storageName} />
+        </div>
+      }
+      description={descriptionEditable ? (
+        <PageDescription
+          storageName={storageName}
+          fallback={description}
+          label={`${title} description`}
+        />
+      ) : description ? (
+        /* The same tier, the same measure and the same offset as the field
+           above draws at rest: what changes is that it is prose. */
+        <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+          {description}
+        </p>
+      ) : undefined}
+    >
       {/*
       **Seam, S25: the band is drawn here rather than by the page above.**
 
@@ -221,48 +340,8 @@ export function PageHead({
       column is `py-4` on a phone and `py-6` from `md` up, so a flat `-mt-6`
       pulled the band 8px past the top of the scroll region on a phone.
       */}
-      {hasCover ? (
-        <div className="-mt-4 md:-mt-6">
-          <PageCover storageName={storageName} />
-        </div>
-      ) : null}
-      {/* Not pickable, and therefore not a button: My Day's sun is Dana's,
-          not the person's, and a popover on it would promise a choice that
-          does not exist. Same mark, same geometry, see PageMark. */}
-      <PageMark icon={Icon} hasCover={hasCover} />
-
-      <div className="mt-1">
-        <AddCoverAction storageName={storageName} />
-      </div>
-
-      {/* polish: pagehead F6. On a phone the fact wraps under the name. */}
-      <div className="mt-1.5 flex items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-        <h1 className="min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal">
-          {title}
-        </h1>
-        {fact ? (
-          <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-            {fact}
-          </span>
-        ) : null}
-      </div>
-
-      {descriptionEditable ? (
-        <PageDescription
-          storageName={storageName}
-          fallback={description}
-          label={`${title} description`}
-        />
-      ) : description ? (
-        /* The same tier, the same measure and the same offset as the field
-           above draws at rest: what changes is that it is prose. */
-        <p className="mt-1 max-w-xl text-[12px] leading-5 text-[var(--color-graphite-600)]">
-          {description}
-        </p>
-      ) : null}
-
       {children}
-    </header>
+    </PageHeadingStructure>
   )
 }
 

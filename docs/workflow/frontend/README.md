@@ -62,7 +62,7 @@ A **fresh chat** for each issue. Then:
 
 ## The client, folder by folder
 
-230 files. Some of the names overlap, and the honest reason is that this code was
+235 files. Some of the names overlap, and the honest reason is that this code was
 ported from a prototype and never fully tidied. Where a distinction is real, it is noted.
 Where it is a leftover, that is noted too, so you do not waste time inventing a rule that
 was never there.
@@ -74,9 +74,9 @@ read 230 three days later.
 
 | Folder | Files | What it is |
 | - | - | - |
-| `components/` | 94 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
+| `components/` | 96 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
 | `lib/` | 36 | Named "helpers", but 18 of its files now read or write the server. Treat it as application logic, not utilities. |
-| `pages/` | 24 | A route's wiring: fetching, state, deciding what to render. |
+| `pages/` | 27 | A route's wiring: fetching, state, deciding what to render. |
 | `shell/` | 18 | The frame around every page: sidebar, layout, navigation. |
 | `views/` | 16 | The saved and native views (My Day, Planned, and so on). |
 | `api/` | 9 | Every call to the server. See below. |
