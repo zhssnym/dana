@@ -38,18 +38,48 @@ export const hexColor = z
   .string({ error: 'must be a string' })
   .regex(/^#[0-9A-Fa-f]{6}$/, { error: 'must be a hex color in #RRGGBB form' })
 
-// POST /folders. Body { name }, 422 outside 1 to 100 (7.4, 10.3). The
-// 200-custom-folder cap is a count the domain module resolves, not a body
-// fact.
+/*
+A fourth primitive, and 4.3's `description`: the sentence a folder's page
+opens with, bounded by that table's `folders_description_length_check` at 500
+characters. It is one definition for the same reason the three above are, and
+the reason became load-bearing on 2026-09-04 (issues #21 and #70): two
+endpoints write this column now, the create as well as the rename, and a
+folder that could be started with a sentence no later edit could restore
+would be two rules wearing one column's name. The message is this file's
+convention rather than zod's default, which reads "expected string to have
+<=500 characters" beside "must be 1 to 100 characters"; the PATCH's 422 moves
+to the same wording with it, being the same rule.
+
+Nullable and optional are left to each body, so that each endpoint says for
+itself what an absent field means.
+*/
+export const folderDescription = z
+  .string({ error: 'must be a string' })
+  .max(500, { error: 'must be 500 characters or fewer' })
+
+/*
+POST /folders. Body { name, description }, 422 outside 1 to 100 (7.4, 10.3).
+The 200-custom-folder cap is a count the domain module resolves, not a body
+fact.
+
+`description` joined the create on 2026-09-04 (7.4's dated paragraph, issues
+#21 and #70): a new folder starts with a sentence, and the sentence has to
+ride the create because the gesture that makes a folder is one request. AC-279
+counts the mutations the hold writes and admits `POST /folders` plus the task
+moves and nothing else, so a follow-up PATCH is not a slower way to do this,
+it is a different act that fails a criterion. Absent or null is NULL, which is
+what a folder made before this carried and still carries.
+*/
 export const postFoldersBody = z.object({
   name: folderName,
+  description: folderDescription.nullable().optional(),
 })
 export type PostFoldersBody = z.infer<typeof postFoldersBody>
 
 // PATCH /folders/:id. Body { name }: the rename, default folder included
-// (7.4). The same one-field shape as the create, declared separately so
-// each endpoint's body carries its route's name; the shared primitive keeps
-// the two one rule.
+// (7.4). The same name rule as the create, declared separately so each
+// endpoint's body carries its route's name; the shared primitives keep the
+// name and the description one rule apiece.
 /** 4.20's preset key shape, shared by a folder's cover since item 58. */
 const coverPreset = z
   .string()
@@ -75,7 +105,7 @@ export const patchFolderBody = z.object({
      other server-side, and a body naming both is refused. */
   cover_preset: coverPreset.nullable().optional(),
   cover_focal_y: z.int().min(0).max(100).optional(),
-  description: z.string().max(500).nullable().optional(),
+  description: folderDescription.nullable().optional(),
 }).refine(
   (body) => !(body.cover_file_id != null && body.cover_preset != null),
   { message: 'cover_file_id and cover_preset: a cover is a file or a preset, not both', path: ['cover_preset'] },

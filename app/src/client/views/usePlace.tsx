@@ -427,10 +427,8 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
  * records, because the mark rides up over the band on a negative margin and
  * that only works while the two are adjacent in one flow.
  *
- * **The description is Dana's sentence and not a field**, `descriptionEditable`
- * being false for the reason `page-head.tsx` states at that prop: 9.4 asks for
- * an editable description, 4.20 stores no wording, and a rewrite that is
- * accepted and silently discarded is worse than a sentence.
+ * The description starts with Dana's friendly sentence. A person's edit is
+ * saved by 7.21, and clearing it brings that friendly sentence back.
  */
 export function PlaceHead({
   place,
@@ -446,7 +444,6 @@ export function PlaceHead({
         icon={place.spine.icon}
         title={place.spine.name}
         description={place.spine.question}
-        descriptionEditable={false}
         {...(fact === undefined ? {} : { fact })}
       />
   )

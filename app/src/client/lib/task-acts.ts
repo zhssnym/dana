@@ -51,6 +51,7 @@ import { getPlain, mutateApi, requestTimezone } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
+import { defaultFolderDescription } from './folder-description.js'
 import { folderLibrary } from './folder-library.js'
 import { taskLink } from './nav-links.js'
 import type { ConceptStep } from './task-model.js'
@@ -115,14 +116,21 @@ export function duplicateTask(taskId: string, title: string): void {
  * The task is read first, for the folder the undo returns it to: a row on a
  * folder page draws no folder chip (DES-183) and so holds no folder id, and
  * one read is cheaper than a prop threaded through every list.
+ *
+ * **The folder is made in one request**, for the reason `api/mutations.ts`
+ * gives at `useCreateFolder`: this act is the hold with one task in it, and
+ * the same composition AC-279 counts on the wire. The default description
+ * rides that one POST, 7.4's create body having taken `description` on
+ * 2026-09-04 (issues #21 and #70, AC-377).
  */
 export function makeFolderOfTask(taskId: string, title: string): void {
+  const folderName = title.slice(0, 100)
   void getPlain(taskDetail, `/tasks/${taskId}`)
     .then((task) =>
       mutateApi(folderSchema, {
         method: 'POST',
         path: '/folders',
-        body: { name: title.slice(0, 100) },
+        body: { name: folderName, description: defaultFolderDescription(folderName) },
       }).then((made) =>
         mutateApi(null, {
           method: 'PATCH',

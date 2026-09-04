@@ -27,6 +27,8 @@ import { getThreadResponse } from '../../shared/comments.js'
 import type { GetThreadResponse } from '../../shared/comments.js'
 import { getPlaceCoversResponse } from '../../shared/covers.js'
 import type { GetPlaceCoversResponse } from '../../shared/covers.js'
+import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
+import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -550,5 +552,19 @@ export function usePlaceCovers(): UseQueryResult<GetPlaceCoversResponse> {
   return useQuery({
     queryKey: queryKeys.placeCovers(),
     queryFn: () => getPlain(getPlaceCoversResponse, '/place-covers'),
+  })
+}
+
+/**
+ * A person's wording for Dana's native pages. The response is dense, so a
+ * missing sentence is always `null` and means "show Dana's friendly default".
+ */
+export function usePlaceDescriptions(
+  enabled = true,
+): UseQueryResult<GetPlaceDescriptionsResponse> {
+  return useQuery({
+    queryKey: queryKeys.placeDescriptions(),
+    queryFn: () => getPlain(getPlaceDescriptionsResponse, '/place-descriptions'),
+    enabled,
   })
 }

@@ -16,15 +16,10 @@ here, because `savePrototypeFolderIdentity` in a shipped client would name
 neither a prototype nor a folder; the lifted files alias them back on import,
 so the whole seam is one import statement per file and no body moves.
 
-**Only the cover crosses, and the description deliberately does not.** The
-prototype's identity record carries a glyph, a colour, a cover, its crop and
-a description; 4.20 stores a cover, its crop and nothing else. A place page's
-glyph is Dana's own and was never a person's to pick, which `page-head.tsx`
-states itself. The description is the live half of RFC 0005 change control
-item 9 and is escalated at this row's close rather than improvised, so
-`description` is always undefined here and the head draws the page's DES-152
-question as its prose line. A field wired to nothing is worse than a
-sentence.
+**The cover and description now cross through separate contracts.** 7.19
+stores the cover and 7.21 stores the person's wording. They still meet here
+because the lifted page head expects one identity object. A place page's glyph
+remains Dana's own and is never offered as a personal setting.
 
 **The key alphabet is the one real translation.** The prototype writes
 `gradient:cobalt` and `mark:ink`; 4.20's `preset` is checked against
@@ -74,10 +69,16 @@ import { z } from 'zod'
 import { mutateApi } from '../api/http.js'
 import { queryClient } from '../api/queryClient.js'
 import { placeCover } from '../../shared/covers.js'
+import { placeDescription } from '../../shared/place-descriptions.js'
 import { writeFailureMessage } from '../api/queryClient.js'
 import { showToast } from '../state/toasts.js'
 
-import { usePlaceCovers, useFolder, useShelf } from '../api/queries.js'
+import {
+  useFolder,
+  usePlaceCovers,
+  usePlaceDescriptions,
+  useShelf,
+} from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
 import type { CoverTier } from '../components/folder-cover.js'
 
@@ -96,8 +97,7 @@ export interface PageIdentity {
   cover?: string
   /** 4.20's `focal_y`, the vertical crop of a photographic cover, 0 to 100. */
   coverPos?: number
-  /** Undefined for a place (see the module header); 4.3's or 4.18's text
-   *  for a folder or a shelf. */
+  /** The saved wording for a place, folder, or shelf. */
   description?: string
   /** The prototype's name for 4.18's `icon` key, a shelf's only today. */
   glyph?: string
@@ -300,16 +300,18 @@ export function coverKeyOf(cover: PlaceCover): string | undefined {
  * on Today is on Today the moment the write settles.
  */
 export function usePageIdentity(place: string): PageIdentity {
+  const folderId = folderOf(place)
+  const shelfId = shelfOf(place)
+  const isNativePlace = folderId === null && shelfId === null
   const covers = usePlaceCovers()
+  const descriptions = usePlaceDescriptions(isNativePlace)
   /*
   The folder half. Both hooks run on every page because hooks must, and each
   is off where it has nothing to read: `useFolder` is disabled for a place
   name, and `usePlaceCovers` is one unconditional request the whole client
   shares anyway (7.19 answers the caller's own covers whole).
   */
-  const folderId = folderOf(place)
   const folder = useFolder(folderId ?? '', folderId !== null)
-  const shelfId = shelfOf(place)
   const shelf = useShelf(shelfId ?? '', shelfId !== null)
   if (shelfId !== null) {
     const detail = shelf.data
@@ -339,11 +341,17 @@ export function usePageIdentity(place: string): PageIdentity {
       ...(detail.description === null ? {} : { description: detail.description }),
     }
   }
-  const found = covers.data?.covers.find((cover) => cover.place === place)
-  if (found === undefined) return NO_IDENTITY
-  const key = coverKeyOf(found)
-  if (key === undefined) return NO_IDENTITY
-  return { cover: key, coverPos: found.focal_y }
+  const foundCover = covers.data?.covers.find((cover) => cover.place === place)
+  const cover = foundCover === undefined ? undefined : coverKeyOf(foundCover)
+  const description = descriptions.data?.descriptions.find(
+    (entry) => entry.place === place,
+  )?.description
+  return {
+    ...(cover === undefined || foundCover === undefined
+      ? {}
+      : { cover, coverPos: foundCover.focal_y }),
+    ...(description == null ? {} : { description }),
+  }
 }
 
 /** The cached set, for the plain-function write below. */
@@ -433,6 +441,20 @@ export function savePageIdentity(
       .catch((error: unknown) => showToast(writeFailureMessage(error)))
     return
   }
+
+  if ('description' in patch) {
+    void mutateApi(placeDescription, {
+      method: 'PUT',
+      path: `/place-descriptions/${place}`,
+      body: { description: patch.description ?? null },
+    })
+      .then(settle)
+      .catch((error: unknown) => showToast(writeFailureMessage(error)))
+  }
+
+  /* A description-only edit has finished above. Cover work continues only
+     when the same patch actually names a cover or its position. */
+  if (!('cover' in patch) && patch.coverPos === undefined) return
 
   if ('cover' in patch && patch.cover === undefined) {
     void mutateApi(null, { method: 'DELETE', path: `/place-covers/${place}` })

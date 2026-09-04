@@ -24,9 +24,6 @@ ones section 7 names.
 */
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
-// A value import since S13: two one-key response shapes (the import's and
-// the transfer's) are their endpoints' own and no shared module carries them.
-import { z } from 'zod'
 
 import {
   deleteFolderResponse,
@@ -34,6 +31,7 @@ import {
   patchFolderMyMembershipResponse,
   patchFolderResponse,
   postFolderMembersResponse,
+  transferOwnershipResponse,
 } from '../../shared/folders.js'
 import type {
   DeleteFolderResponse,
@@ -42,6 +40,7 @@ import type {
   PatchFolderBody,
   PatchFolderMyMembershipBody,
   PostFoldersBody,
+  TransferOwnershipResponse,
 } from '../../shared/folders.js'
 import { getSettingsResponse, savedView } from '../../shared/bundle.js'
 import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
@@ -102,16 +101,47 @@ import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
-import { needsImportAnchor } from '../../shared/workflows.js'
-import type { ImportWorkflowBody } from '../../shared/workflows.js'
+import {
+  importWorkflowResponse,
+  needsImportAnchor,
+} from '../../shared/workflows.js'
+import type {
+  ImportWorkflowBody,
+  ImportWorkflowResponse,
+} from '../../shared/workflows.js'
 
+import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
 import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 
+/*
+Making a folder is one request, and it has to stay one.
+
+A default description was written here for one revision with a second call,
+`PATCH /folders/:id` sent the moment the POST answered. It cost the criterion
+that watches this act: AC-279 reads every mutation the hold makes between the
+confirm and the API going quiet and expects one `POST /folders` plus one
+`PATCH /tasks/:id` per task moved and nothing else, RFC 0005 change control
+item 44's "the gesture is a composition of two existing endpoints and adds
+none". Every folder made anywhere in the client comes through here, the hold's
+panel included (`pages/task-rows.tsx`'s `onMerge`), so the extra call failed
+that criterion from every door.
+
+**The wording rides the POST now** (7.4's dated paragraph of 2026-09-04,
+issues #21 and #70, and AC-377): `postFoldersBody` takes `description`, the
+route reads it and `domain/folders.ts` inserts it, so the sentence a new
+folder opens with costs no second call. The default is written here rather
+than at each door, because here is the one door: a caller that has its own
+wording still wins, the spread reading its key when it carries one.
+*/
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
     mutationFn: (body: PostFoldersBody) =>
-      mutateApi(folder, { method: 'POST', path: '/folders', body }),
+      mutateApi(folder, {
+        method: 'POST',
+        path: '/folders',
+        body: { description: defaultFolderDescription(body.name), ...body },
+      }),
   })
 }
 
@@ -766,37 +796,19 @@ export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string
 /** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
  * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
 export function useTransferOwnership(): UseMutationResult<
-  { owner_id: string },
+  TransferOwnershipResponse,
   Error,
   { readonly id: string; readonly to: string }
 > {
   return useMutation({
     mutationFn: ({ id, to }) =>
-      mutateApi(z.object({ owner_id: z.uuid() }), {
+      mutateApi(transferOwnershipResponse, {
         method: 'POST',
         path: `/folders/${id}/transfer-ownership`,
         body: { to },
       }),
   })
 }
-
-/*
-7.16's workflow import, which 9.13's starter offer is the only caller of so
-far and a person's own exported file will be the second.
-
-**The response schema is declared here rather than in `src/shared/`**, and
-that is a boundary rather than a preference. The v2 packages published write
-bodies and no readable response shapes, which S9 recorded when it added four
-read schemas outside its own paths and flagged them; `src/shared/workflows.ts`
-belongs to the API role, so this session declares what it needs to parse and
-leaves the move to the Steward. It is not a duplicate of anything: no shared
-schema for this body exists to duplicate.
-*/
-const importWorkflowResponse = z.object({
-  folders: z.array(z.object({ id: z.uuid(), name: z.string() })),
-})
-
-export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
 
 export function useImportWorkflow(): UseMutationResult<
   ImportWorkflowResponse,

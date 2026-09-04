@@ -164,6 +164,12 @@ in this directory: nothing sits under this number either, so a count that is
 not tied to its insert is a suggestion. Two creates arriving together at 199
 both read 199 and both insert.
 
+The description is written by this insert and not by a PATCH behind it (7.4's
+dated paragraph of 2026-09-04, issues #21 and #70): making a folder is one
+request, which AC-279 asserts on the wire, and the sentence a new folder opens
+with has to arrive in it. Defaulted to null so the callers that name only a
+folder keep the NULL every folder made before this carries.
+
 The lock is the owner's user row, because the set being counted is "the
 folders this account owns" and the account is the only row that names it. The
 folders themselves cannot be locked: the row that would break the cap is the
@@ -176,6 +182,7 @@ export async function createFolder(
   db: Db,
   viewerId: string,
   name: string,
+  description: string | null = null,
 ): Promise<CreateFolderResult> {
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
@@ -195,8 +202,8 @@ export async function createFolder(
     // shares with the guard that admitted them.
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO folders (owner_id, name)
-          VALUES (${viewerId}::uuid, ${name})
+      sql`INSERT INTO folders (owner_id, name, description)
+          VALUES (${viewerId}::uuid, ${name}, ${description})
           RETURNING id`,
     )
     const id = String(inserted[0]?.id)
@@ -229,7 +236,7 @@ export async function createFolder(
         cover_file_id: null,
         cover_preset: null,
         cover_focal_y: 50,
-        description: null,
+        description,
       },
     }
   })

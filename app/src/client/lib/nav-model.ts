@@ -5,7 +5,7 @@ The page block as the lifted surfaces read it: `prototype-v2`'s
 **The one table stays `routes.ts`'s and this is a view of it.** The prototype
 keys every page by its display name and declares `NAV_PAGES` with `name`,
 `icon`, `pinned` and `hideable`, then answers `pageQuestion(name)` and
-`pageGlyph(name)` from that array; `settings-screen.tsx` and
+`pageGlyph(name)` from that array; `settings-page-content.tsx` and
 `search-overlay.tsx` both import exactly those four names and nothing else
 of the module. This client already holds the same facts in `routes.ts`, keyed
 by 9.1's stable key and carrying the path a route needs, and 9.1 fixes the

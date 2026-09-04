@@ -120,7 +120,7 @@ test.describe('AC-219: day-level due, clocked reminder', () => {
     await clickControl(
       page.getByRole('button', { name: /reminder/i }).first(),
       'spec 9.3: the reminder chip opens its picker; the task is dated, so the picker ' +
-        'is offered rather than the "Set a due date first" helper',
+        'is offered rather than a disabled chip',
     )
     const picker = page.getByRole('dialog').last()
     await expect(
