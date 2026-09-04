@@ -1052,8 +1052,10 @@ export function ComposerStudyGate(): React.JSX.Element {
     let alive = true
     async function enter(): Promise<void> {
       try {
+        // eslint-disable-next-line no-restricted-syntax -- the study's development gate runs before any session exists: this GET only asks whether one does, takes no tz, and a 401 is a fine answer (#72's rule, its one reasoned exception beside lib/viewer.ts)
         const current = await fetch('/api/v1/me')
         if (!current.ok) {
+          // eslint-disable-next-line no-restricted-syntax -- the development sign-in door: no session yet, so there is no CSRF header to add, and the route takes no tz (#72)
           const made = await fetch(
             '/api/v1/auth/dev-login?sub=composer-study&email=composer-study%40dev.local&name=Composer%20Study&timezone=America%2FEdmonton&sample=true',
             { method: 'POST' },
