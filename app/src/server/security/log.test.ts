@@ -100,6 +100,20 @@ describe('unknown request fields (10.5, issue #104)', () => {
     ])
   })
 
+  test('count is what the caller sent, not what survived the whitelist', () => {
+    /* Mangling before counting would collapse every ill-formed key into one
+       `other` and report `count: 1` for forty of them, erasing the magnitude
+       signal for exactly the caller this line exists to notice. */
+    const lines: { fields: Record<string, unknown> }[] = []
+    createSecurityLogger(recordingSink(lines as unknown[])).unknownRequestFields({
+      route: 'PATCH /api/v1/folders/:id',
+      fields: ['x-one', 'x-two', 'x-three', 'x-four', 'colour'],
+    })
+    const [line] = lines as [{ fields: Record<string, unknown> }]
+    expect(line.fields['count']).toBe(5)
+    expect(line.fields['fields']).toEqual(['colour', 'other'])
+  })
+
   test('a route label carrying a row id is refused rather than repaired', () => {
     /* Every router in this application is mounted at a literal path today, so
        this cannot fire; it is the guard for the day one is mounted under a

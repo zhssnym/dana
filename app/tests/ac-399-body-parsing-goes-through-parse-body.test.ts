@@ -22,9 +22,10 @@ application without the number moving in the same change.
 There were two ways to write AC-399 and this is the cheaper one, said plainly
 because the difference matters to whoever reads a green run.
 
-**What was written** is a source sweep: no file under `src/server` may parse
-`req.body` other than through the helper, with an allowlist of zero, and the
-call sites and the modules holding them are counted to equality.
+**What was written** is a source sweep: no file under `src/server` may touch
+`req.body` other than through the helper, with every exception named and its
+reads counted, and the helper's call sites and the modules holding them
+counted to equality.
 
 **What was not written** is the runtime sweep — enumerate the mounted router
 the way AC-236 does, drive every body-taking mutation with an unknown key
@@ -47,6 +48,14 @@ were the convention before this helper existed. And the counts catch the rest
 of it the way AC-236's do — not by understanding, but by refusing to stay the
 same while the surface changes.
 
+**The first draft of this file was weaker than that and the correction is
+worth keeping.** It matched the two spellings of a parse, `safeParse(req.body)`
+and `.parse(req.body)`, and four readers were invisible to it because they
+assign `req.body` to a local first — so the guard could be walked around by a
+rename, which is the one thing a guard may not be. It now enumerates the
+*mention*, and every mention outside the helper is named below with its reason
+and its count.
+
 Spec: 7.0, 10.5, 11.14, 11.15; issue #104.
 */
 import { readdir, readFile } from 'node:fs/promises'
@@ -67,13 +76,64 @@ import type { Actor } from './folders-harness.js'
 
 const SERVER_ROOT = fileURLToPath(new URL('../src/server/', import.meta.url))
 
-/**
- * The one file allowed to parse `req.body` directly, because it is the
- * helper. An allowlist of one entry and no room for a second: an exemption
- * here would be a route excused from the guard, which is the thing this file
- * exists to make impossible.
- */
 const PARSER = 'http/parse-body.ts'
+
+/**
+ * Every place under `src/server` that touches `req.body` at all, and why each
+ * one is not a route parsing a shared schema.
+ *
+ * **The number is part of the entry deliberately.** An allowlist that names a
+ * file excuses everything that file will ever do with a body; one that names a
+ * file *and a count* excuses exactly what was read and understood on the day it
+ * was written, and a second read in the same file fails here rather than
+ * inheriting the first one's reason.
+ *
+ * `reads` counts **lines that mention `req.body`**, not occurrences: the sweep
+ * reports line numbers so that a failure points at something a reader can
+ * open, and two mentions on one line would count once. No line here has two.
+ */
+const DIRECT_READERS = new Map<string, { reads: number; reason: string }>([
+  [
+    PARSER,
+    {
+      reads: 2,
+      reason:
+        'the helper itself: the safeParse every route now goes through, and the read that compares the body’s own keys against the schema’s declared ones',
+    },
+  ],
+  [
+    'auth/dev-login.ts',
+    {
+      reads: 1,
+      reason:
+        'not a section 7 route, and absent from production builds (11.6, AC-114). It merges the query string over the body so that a plain HTML form, which cannot post JSON, can still name the account, and every field is optional — there is no declared key set an unknown one could be measured against',
+    },
+  ],
+  [
+    'routes/csp-report.ts',
+    {
+      reads: 1,
+      reason:
+        "a stranger's JSON rather than this contract's (issue #99). The browser composes the report and app/src/shared/ declares no schema for it, so every key in it is one nobody declared; violationsIn narrows it to the three fields 10.5 admits and drops the rest, which is a stricter answer than logging them",
+    },
+  ],
+  [
+    'index.ts',
+    {
+      reads: 1,
+      reason:
+        "7.0's malformed-body guard, which runs before any router and asks one question of the parsed value: whether it is an object at all. It reads no field and knows no schema, and a body it lets past is one every route below then parses through the helper",
+    },
+  ],
+  [
+    'routes/tasks.ts',
+    {
+      reads: 1,
+      reason:
+        "7.6's 'status is not accepted here (409 if present)', asked before the schema parses because the schema would strip the field and answer 200 to a request 7.6 refuses. It is the opposite of a silent drop, and that is why it cannot go through the helper: the helper's answer for an undeclared key is to log it and carry on, and this key has to stop the request",
+    },
+  ],
+])
 
 /**
  * Test files are not routes. Four route modules under `src/server` build
@@ -102,35 +162,112 @@ async function sourceFiles(): Promise<string[]> {
     .sort()
 }
 
-async function read(relative: string): Promise<string> {
-  return readFile(`${SERVER_ROOT}${relative}`, 'utf8')
+/**
+ * The source with its comments and string literals blanked out, line numbering
+ * preserved.
+ *
+ * Counting raw source counts prose. The comments in this repository are long
+ * and argumentative and name the things they discuss, so both `req.body` and
+ * `parseBody(` appear inside them; a count taken over raw text would partly be
+ * a count of how often somebody explained the rule. Characters are replaced
+ * rather than removed so a line number in a failure message still points at the
+ * line a reader will open.
+ *
+ * It is a scanner and not a parser. It knows `//`, the block form, the three
+ * quote characters and a backslash escape, and nothing else — a regular
+ * expression literal containing a quote would confuse it. There is none under
+ * `src/server`, and the day one arrives the symptom is a count that moved,
+ * which is the failure this file exists to make loud.
+ */
+function withoutCommentsOrStrings(source: string): string {
+  const LINE = 1
+  const BLOCK = 2
+  let out = ''
+  let mode: number | string = 0
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i] as string
+    const next = source[i + 1]
+    const blank = char === '\n' ? '\n' : ' '
+    if (mode === 0) {
+      if (char === '/' && next === '/') {
+        mode = LINE
+        out += '  '
+        i += 1
+      } else if (char === '/' && next === '*') {
+        mode = BLOCK
+        out += '  '
+        i += 1
+      } else if (char === '"' || char === "'" || char === '`') {
+        mode = char
+        out += ' '
+      } else out += char
+    } else if (mode === LINE) {
+      if (char === '\n') mode = 0
+      out += blank
+    } else if (mode === BLOCK) {
+      if (char === '*' && next === '/') {
+        mode = 0
+        out += '  '
+        i += 1
+      } else out += blank
+    } else if (char === '\\') {
+      out += '  '
+      i += 1
+    } else if (char === mode) {
+      mode = 0
+      out += ' '
+    } else out += blank
+  }
+  return out
+}
+
+async function code(relative: string): Promise<string> {
+  return withoutCommentsOrStrings(
+    await readFile(`${SERVER_ROOT}${relative}`, 'utf8'),
+  )
 }
 
 describe('AC-399 no route parses a request body except through parseBody', () => {
-  test('the two spellings of a direct parse appear nowhere but the helper', async () => {
+  test('every req.body reader outside the helper is named, with its reason', async () => {
     const files = await sourceFiles()
     expect(
       files.length,
-      'the walk found no source under src/server, which is a broken walk rather than a clean tree',
+      'the walk found almost no source under src/server, which is a broken walk rather than a clean tree',
     ).toBeGreaterThan(50)
 
-    /* Both forms: the checked one this repository writes everywhere, and the
-       throwing one it writes nowhere, which is worth refusing before somebody
-       reaches for it as the way around a guard that only names the other. */
-    const direct = /(?:safeParse|parse)\(req\.body\)/
-    const offenders: string[] = []
+    /* The mention rather than the parse. Matching `safeParse(req.body)`
+       catches the way this is lost by copying an older route, and misses the
+       way it is lost by anyone who has read this file: assign `req.body` to a
+       local and the spelling is gone. Enumerating the mention catches both
+       and cannot be renamed around. */
+    const reads = new Map<string, string[]>()
     for (const file of files) {
-      if (file === PARSER) continue
-      const source = await read(file)
+      const source = await code(file)
       for (const [index, line] of source.split('\n').entries()) {
-        if (direct.test(line)) offenders.push(`${file}:${String(index + 1)}`)
+        if (!line.includes('req.body')) continue
+        reads.set(file, [...(reads.get(file) ?? []), `${file}:${String(index + 1)}`])
       }
     }
 
+    const unnamed = [...reads]
+      .filter(([file]) => !DIRECT_READERS.has(file))
+      .flatMap(([, sites]) => sites)
     expect(
-      offenders,
-      `these parse req.body without parseBody, so a key the caller sent and nobody declared is dropped there in silence (issue #104): ${offenders.join(', ')}`,
+      unnamed,
+      `these read req.body without going through parseBody and without a reason recorded above, so a key the caller sent and nobody declared is dropped there in silence (issue #104): ${unnamed.join(', ')}`,
     ).toEqual([])
+
+    const drifted: string[] = []
+    for (const [file, entry] of DIRECT_READERS) {
+      const found = reads.get(file)?.length ?? 0
+      if (found !== entry.reads) {
+        drifted.push(
+          `${file}: ${String(found)} reads of req.body against the ${String(entry.reads)} this allowlist was written for — read the new one and either route it through the helper or extend the reason (${entry.reason})`,
+        )
+      }
+      expect(entry.reason.length, `${file} owes a reason`).toBeGreaterThan(40)
+    }
+    expect(drifted, drifted.join('; ')).toEqual([])
   })
 
   test('the helper is called from every module that reads a body, counted', async () => {
@@ -139,9 +276,16 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
     const modules = new Set<string>()
     for (const file of files) {
       if (file === PARSER) continue
-      const source = await read(file)
+      const source = await code(file)
       for (const [index, line] of source.split('\n').entries()) {
-        if (!/\bparseBody\(/.test(line)) continue
+        /* A call and not a mention, over source whose comments and strings
+           are already blanked: the identifier, an open parenthesis, and
+           something that could be a schema. **What this count can see** is a
+           call whose first argument sits on the same line, which all 29 do.
+           **What it cannot see** is one whose arguments begin on the next
+           line, and that is the first thing to check if this number ever
+           disagrees with a grep. */
+        if (!/\bparseBody\(\s*[A-Za-z_$]/.test(line)) continue
         sites.push(`${file}:${String(index + 1)}`)
         modules.add(file)
       }
@@ -159,11 +303,11 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        exception to it. A new body-taking route moves the first number by one
        and may move the second; **before you move either, check that the
        sweep above passed** — if it failed, the number is telling you a route
-       parses a body directly, and moving it is the thing the backend
+       reads a body outside the helper, and moving it is the thing the backend
        README's rule 2 forbids. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 29 on 2026-09-04. Fewer means a route stopped using it, which the sweep above catches only if it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+      `parseBody is called from ${String(sites.length)} places and there were 29 on 2026-09-04. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
     ).toBe(29)
     expect(
       [...modules].sort().length,

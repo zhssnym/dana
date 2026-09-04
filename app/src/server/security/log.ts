@@ -300,9 +300,13 @@ function safeFieldName(value: string): string {
 
 /** At most this many names on one line. A caller can send an object of a
  * thousand keys within 10.3's body cap, and every one of them would otherwise
- * be a line as long as the body. `count` is how many the line would have
- * carried uncapped — distinct names after whitelisting, which is the number
- * the list is a prefix of — so a clipped line still says how much it clipped. */
+ * be a line as long as the body.
+ *
+ * `count` is the number of **distinct keys the caller actually sent**, taken
+ * before `safeFieldName` runs, and the difference is not cosmetic: mangling
+ * first would collapse every ill-formed key into one `other`, so forty dashed
+ * keys would log `count: 1` and erase the magnitude signal for exactly the
+ * caller this line exists to notice. Count the raw names, redact the list. */
 const UNKNOWN_FIELD_LIMIT = 20
 
 function safeMissing(value: string): string {
@@ -421,13 +425,16 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
       )
     },
     unknownRequestFields(fields) {
-      const names = [...new Set(fields.fields.map(safeFieldName))].sort()
+      /* Distinct before mangling, redacted after: `count` measures what the
+         caller sent and `fields` says only what may be said about it. */
+      const distinct = new Set(fields.fields)
+      const names = [...new Set([...distinct].map(safeFieldName))].sort()
       sink.warn(
         {
           event: 'unknown_request_fields',
           route: safeRoute(fields.route),
           fields: names.slice(0, UNKNOWN_FIELD_LIMIT),
-          count: names.length,
+          count: distinct.size,
         },
         'unknown request fields',
       )
