@@ -60,6 +60,7 @@ import {
   clickControl,
   DEFAULT_PINS,
   floatingAddButton,
+  linkTo,
   patchBundle,
   routesV2,
   seedIds,
@@ -78,6 +79,28 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /** 9.1's page block as this account pins it, which the rail must still reach. */
 const PAGES = [...V2_PAGE_NAMES, 'Done'] as const
+
+/*
+Where each of them goes, which the names alone did not need until issue #98.
+The rail draws the viewer's default folder beside the page block, 4.3 names
+that folder Desk, and 9.1's page block opens with a page called Desk: two
+links of one name, told apart by the folder's pending badge while the sidebar
+is open and by nothing at all once it is a rail. So the entries below are
+addressed by 9.1's routes table as well as by name; see `linkTo` in the
+harness for why that is reading the section rather than reaching around it.
+
+The `satisfies` is the guard on the map: a page added to V2_PAGE_NAMES and not
+to this list fails the compiler rather than this case.
+*/
+const PAGE_PATHS = {
+  Desk: routesV2.desk,
+  Today: routesV2.today,
+  Scheduled: routesV2.scheduled,
+  Assignments: routesV2.assignments,
+  Important: routesV2.important,
+  All: routesV2.all,
+  Done: routesV2.done,
+} as const satisfies Record<(typeof PAGES)[number], string>
 
 /**
  * The control that collapses the sidebar to its icon rail. 9.1 names the
@@ -150,7 +173,7 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
        folder list at all, and the amended 9.1 says the rail holds the page
        set, the folder the viewer is standing in, and the folders the tab
        strip holds open. On Desk with nothing else open, the rail owes the
-       page set and the Inbox (Desk being the default folder's page), and it
+       page set and Desk (which is the default folder's page), and it
        owes Groceries — neither selected nor open — no row at all, which is
        the assertion that makes the rule discriminate. */
     await page.goto(routesV2.desk)
@@ -162,14 +185,16 @@ test.describe('AC-182: the sidebar rail and the two widths', () => {
     const nav = sidebar(page)
     for (const name of PAGES) {
       await expect(
-        nav.getByRole('link', { name, exact: true }),
+        linkTo(nav, name, PAGE_PATHS[name], { exact: true }),
         `spec 9.1: the rail keeps the page set, so ${name} is still an entry of it`,
       ).toHaveCount(1)
     }
     await expect(
-      nav.getByRole('link', { name: new RegExp('Inbox') }),
+      linkTo(nav, new RegExp('Desk'), routesV2.folder(seedIds.hassanDesk)),
       "spec 9.1: the viewer stands on Desk, which is the default folder's page, so the rail " +
-        'owes the Inbox its row',
+        'owes that folder its row. Addressed by the routes table as well as the name, the ' +
+        'rail holding a page entry called Desk too and the badge that tells them apart when ' +
+        'the sidebar is open being gone when it is a rail',
     ).toHaveCount(1)
     await expect(
       nav.getByRole('link', { name: new RegExp('Groceries') }),

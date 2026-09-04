@@ -20,6 +20,15 @@ The carry is the harness's `carryInto`, which is AC-228's gesture and was a
 copy of it here until 2026-09-01; see that helper for why one copy is worth
 more than two.
 
+**The read behind the release crosses `watchCommit` rather than
+`waitForApiIdle`, 2026-09-04 and issue #141**, which is AC-228's change and
+made here for AC-228's reason: quiet is also true in the window between the
+release and the request the release causes, so a read ordered by it can ask
+the server about a write still sitting in the browser. This case is the more
+exposed of the two, because what it reads first is the wire log, and an empty
+`mutations()` reads as a board that completed nothing rather than as a
+barrier that returned early.
+
 Spec: 9.1 (the board sentence and the region table), 9.5 (Done, completion),
 9.6 (the folder board), 7.6 (the transition), RFC 0005 items 44 B2 and 58.
 */
@@ -40,7 +49,7 @@ import {
   TEST_TIMEOUT_MS,
   transition,
   viewStrip,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -89,8 +98,12 @@ test.describe('AC-295: the folder board\'s Done column, and Done\'s own board', 
       page.getByText('Into Done'),
       'DES-171: the carried card names the column a release would land it in',
     ).toBeVisible()
+    const commit = watchCommit(page)
     await page.mouse.up()
-    await waitForApiIdle(page, 'the completion lands before the row is read back')
+    await commit.settled(
+      'spec 7.6: a drop on Done is the completion transition, so the release is a write ' +
+        'and both the wire and the row are read only once it has gone out and been answered',
+    )
 
     const completes = wire
       .mutations()

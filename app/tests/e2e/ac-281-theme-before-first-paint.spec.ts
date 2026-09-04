@@ -37,8 +37,47 @@ same way.
 `light` and a mirror that resolved before storing would be caught; and so
 the first case's `dark` cannot be the device's opinion.
 
-Spec: 9.7 (the sentence), 4.19 (the column), 11.4 (`data-theme` as what the
-token file answers), RFC 0005 change control item 43 and item 52.
+**The paragraph above described this file's measurement until 2026-09-04, and
+it had stopped being true (issue #81).** It said that without the inline
+script the first value the root is given is `light`. That was so when this was
+written and is not so now: `useTheme()` in `lib/theme.ts` answers
+`bundle.data?.theme ?? mirroredTheme()`, and `mirroredTheme()` reads the same
+`localStorage` mirror the inline script reads, so `shell/appearance.ts` writes
+`dark` too. Both paths reach the same value, and a value both paths reach is
+not evidence about which one ran. **What that cost is on the record**: the
+policy #34 fixed refused this very script in production, every person on Dark
+saw a white frame on every cold load, and this criterion was green throughout.
+It was a person who reported it.
+
+**So the file measures the refusal directly, which is a timing property read
+as one.** A `securitypolicyviolation` listener is installed through
+`addInitScript`, before the document exists and therefore before the parser
+reaches the head, and it keeps every violation the page reports; the case
+fails if any of them is `script-src` against a blocked URI of `inline`. That
+is the exact shape Chromium reports for a refused inline script, and it is
+what #34 would have failed on the day the header was written. The listener
+lives on `window` because the event is fired at the document and bubbles.
+
+**The value assertion stays, on what it still says rather than on what it used
+to say.** `dark` as the first value the root is ever given rules out a light
+first frame from any path, inline script or bundle, and that is 9.7's promise
+to the person. It no longer carries the claim that the inline script is what
+produced it, because it cannot; the violation listener is what carries that.
+Two assertions, each covering what the other cannot: one says nothing painted
+light, the other says the thing that stops it painting light was allowed to
+run.
+
+**Two things the listener does not do**, said here so nobody reads more into
+a green than is there. `sample` is recorded and is empty, this policy carrying
+no `report-sample`, so the violation is identified by its directive and its
+blocked URI and never by the script's text. And the listener is per
+navigation, `addInitScript` re-running and re-emptying the array on each one,
+so what it reports is the last `goto` and not the case as a whole; the
+assertion sits directly after the navigation it is about.
+
+Spec: 9.7 (the sentence), 4.19 (the column), 10.8 (the policy that refused
+it), 11.4 (`data-theme` as what the token file answers), RFC 0005 change
+control item 43 and item 52.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -97,6 +136,61 @@ async function watchFirstTheme(page: Page): Promise<void> {
   })
 }
 
+/** One refusal the page reported, in the fields this policy can fill. */
+interface CspViolation {
+  directive: string
+  blockedURI: string
+  sample: string
+  sourceFile: string
+}
+
+/**
+ * Keeps every Content-Security-Policy refusal the page reports, from before
+ * the document exists.
+ *
+ * `securitypolicyviolation` is fired at the element that was refused and
+ * bubbles, so one listener on the window catches an inline script in the head
+ * as well as anything later. Installed through `addInitScript` for the same
+ * reason `watchFirstTheme` is: a listener added after the navigation has begun
+ * cannot hear about a script the parser has already reached.
+ */
+async function watchCspViolations(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const view = globalThis as unknown as {
+      __cspViolations?: CspViolation[]
+      addEventListener: (type: string, listener: (event: unknown) => void) => void
+    }
+    const seen: CspViolation[] = []
+    view.__cspViolations = seen
+    view.addEventListener('securitypolicyviolation', (event: unknown) => {
+      const report = event as {
+        effectiveDirective?: string
+        violatedDirective?: string
+        blockedURI?: string
+        sample?: string
+        sourceFile?: string
+      }
+      seen.push({
+        directive: report.effectiveDirective ?? report.violatedDirective ?? '',
+        blockedURI: report.blockedURI ?? '',
+        sample: report.sample ?? '',
+        sourceFile: report.sourceFile ?? '',
+      })
+    })
+  })
+}
+
+/** The refusals of an inline script, which is the one this document carries. */
+async function inlineScriptRefusals(page: Page): Promise<CspViolation[]> {
+  const reported = await page.evaluate(
+    () => (globalThis as unknown as { __cspViolations?: CspViolation[] }).__cspViolations ?? [],
+  )
+  return reported.filter(
+    (violation) =>
+      violation.directive.startsWith('script-src') && violation.blockedURI === 'inline',
+  )
+}
+
 async function firstTheme(page: Page): Promise<string | null | undefined> {
   return page.evaluate(
     () => (globalThis as unknown as { __firstTheme?: string | null }).__firstTheme,
@@ -134,13 +228,22 @@ test.describe('AC-281: the theme is on the document before first paint', () => {
       .toBe('dark')
 
     await watchFirstTheme(page)
+    await watchCspViolations(page)
     await page.goto(routesV2.today)
+    expect(
+      await inlineScriptRefusals(page),
+      'spec 9.7 and 10.8: the inline script that paints the mirror before the first frame ' +
+        'is named by the policy through its sha256, so the page reports no script-src ' +
+        'refusal of it. This is the assertion that measures the mechanism rather than its ' +
+        'outcome: issue #34 was a policy that refused this script, every person on Dark saw ' +
+        'a white frame on every cold load, and the value below stayed dark throughout',
+    ).toEqual([])
     expect(
       await firstTheme(page),
       'spec 9.7: "the theme is applied before first paint from a copy mirrored into the ' +
-        'browser". Without the inline script, the first value the root is given is what ' +
-        'shell/appearance.ts resolves for the in-flight default, light on this device, and ' +
-        'the person sees a white frame before the bundle answers',
+        'browser", so no frame is ever drawn light for a person who chose Dark. Read as ' +
+        'what it still says: the first value rules out a light first frame from either ' +
+        'path, and the refusal assertion above is what says the fast one was allowed to run',
     ).toBe('dark')
   })
 

@@ -93,7 +93,15 @@ export function createFoldersRouter(
         sendValidationError(res, parsed.error)
         return
       }
-      const result = await createFolder(db, viewer(req), parsed.data.name)
+      /* The description rides the create rather than a PATCH behind it
+         (7.4, 2026-09-04). Absent is undefined here and NULL in the row,
+         which is every folder made before this. */
+      const result = await createFolder(
+        db,
+        viewer(req),
+        parsed.data.name,
+        parsed.data.description ?? null,
+      )
       if (result.kind === 'folder_cap') {
         sendError(
           res,

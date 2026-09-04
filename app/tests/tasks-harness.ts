@@ -877,6 +877,46 @@ export function yesterdayInUtc(): string {
 }
 
 /**
+ * today in a named zone, read from the process clock, which is the clock the
+ * server reads once an endpoint takes a `tz` (issue #76, 2026-09-04).
+ *
+ * `server/time/today.ts`'s `today(tz)` is `Intl` over `new Date()`, and the
+ * acceptance app runs in this process, so a test that pins a zone and computes
+ * the day this way is sharing one clock with the implementation rather than
+ * comparing two. That is the whole of what AC-200's rule asks, and it is why a
+ * duplicate's date is no longer read through `databaseToday` below: after #76
+ * the endpoint does not consult the database's day at all.
+ */
+export function todayInZone(zone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+/**
+ * Run something, and report every civil date the clock stood on in that zone
+ * while it ran — `databaseDaysAcross` below, one clock over.
+ *
+ * One date in every run that does not straddle that zone's midnight, so the
+ * assertion is exact rather than loosened; two in the run that does, which is
+ * the only run in which one reading could have been the wrong one. The window
+ * here is the request itself rather than hours of disagreement between two
+ * zones, which is what #46 was actually measuring.
+ */
+export async function zoneDaysAcross<T>(
+  zone: string,
+  run: () => Promise<T>,
+): Promise<{ result: T; days: string[] }> {
+  const opened = todayInZone(zone)
+  const result = await run()
+  const closed = todayInZone(zone)
+  return { result, days: opened === closed ? [opened] : [opened, closed] }
+}
+
+/**
  * today as the database reads it: current_date, in the session's TimeZone.
  *
  * Not the same value as todayInUtc(), and the gap is not a rounding error.
@@ -888,6 +928,11 @@ export function yesterdayInUtc(): string {
  * server took from current_date must read it from here. That is AC-200's
  * rule, "the assertion and the implementation share a clock", expressed as a
  * value rather than as a comparison folded into the assertion's own SQL.
+ *
+ * **Nothing in the duplicate criteria reads this any more.** Those endpoints
+ * took a `tz` on 2026-09-04 (issue #76) and re-anchor on the caller's day, so
+ * their oracle is `todayInZone` above; this stays for any endpoint that still
+ * computes a date in SQL.
  */
 export async function databaseToday(db: Db): Promise<string> {
   const found = await rows(

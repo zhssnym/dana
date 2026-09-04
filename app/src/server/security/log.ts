@@ -40,6 +40,30 @@ export interface DeletionLogFields {
   sessions?: number
 }
 
+/**
+ * 7.22's data export (10.5, amended 2026-09-04 for issue #77). Two fields and
+ * there is deliberately no third: who exported, and how many bytes left.
+ * The size is the one thing worth knowing after the fact — it is how anyone
+ * would notice the endpoint growing past what building a document in memory
+ * can carry — and it says nothing whatever about what was in it.
+ */
+export interface ExportLogFields {
+  actorId: string
+  bytes: number
+}
+
+/**
+ * The 10.5 line a browser's own CSP violation report produces (issue #99).
+ * Three fields and no fourth: a report also carries `script-sample`, a slice
+ * of the refused script, and the query string of the document URL, and
+ * neither has a parameter here through which it could reach a log line.
+ */
+export interface CspViolationLogFields {
+  directive: string
+  blockedUri: string
+  documentPath: string
+}
+
 export interface RequestErrorLogFields {
   method: string
   path: string
@@ -56,6 +80,15 @@ export interface OperationLogFields {
   database?: string
   port?: number
   missing?: string
+  /**
+   * A whole sentence, for the one class of line where the event name is not
+   * enough: a condition an operator has to understand at three in the morning
+   * from the log alone (issue #80). It is prose written in the source, never a
+   * value that came from a request or a row — `safeNote` below refuses
+   * anything that is not plain words and clips the length, so a value that
+   * ever became dynamic is a mangled line rather than a 10.5 leak.
+   */
+  note?: string
 }
 
 export type AuthLogEvent =
@@ -80,6 +113,11 @@ export type OperationLogEvent =
   | 'reminder_pass_overlapped'
   | 'reminder_pass_failed'
   | 'migrations_applied'
+  /** Production is running on the embedded database (issue #80). Its own
+   * event name so alerting can key on it rather than on a substring of
+   * `migrations_applied`, which reads as neutral information and is how this
+   * went unnoticed. */
+  | 'database_fallback_pglite'
   | 'server_listening'
   | 'boot_failed'
 
@@ -96,6 +134,8 @@ export interface SecurityLogger {
     event: 'reminder_sent' | 'reminder_skipped' | 'reminder_send_failed',
     fields: { taskId: string; reason?: string },
   ): void
+  exportEvent(fields: ExportLogFields): void
+  cspViolation(fields: CspViolationLogFields): void
   requestError(fields: RequestErrorLogFields): void
   operation(
     level: 'info' | 'warn' | 'error',
@@ -122,6 +162,65 @@ function safeReason(value: string): string {
 
 function safeLabel(value: string): string {
   return /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(value) ? value : 'other'
+}
+
+/** Plain words and the odd environment variable name, at most 240
+ * characters: no braces, quotes, angle brackets, equals signs or newlines, so
+ * neither SQL nor a JSON fragment can pass through this field whatever a
+ * future caller hands it. */
+function safeNote(value: string): string {
+  return /^[A-Za-z0-9_ ,.'’\-:;()]{1,240}$/.test(value) ? value : 'other'
+}
+
+/* The three shapes a violation report may contribute, each narrow enough
+   that no prose fits through it. security/csp-report.ts has already reduced
+   a report to these, and these run anyway: 10.5's promise is that the logger
+   has no parameter user content can reach, not that every caller is careful.
+   A value outside the shape becomes `other` rather than being truncated,
+   because half of a sample is still a sample. */
+function safeDirective(value: string): string {
+  return /^[a-z][a-z0-9-]{0,39}$/.test(value) ? value : 'other'
+}
+
+/** A CSP keyword (`inline`, `eval`), or a scheme with an optional host. A
+ * path or a query is not a shape this admits. */
+function safeBlockedUri(value: string): string {
+  const keyword = /^[a-z][a-z-]{0,39}$/
+  const schemeAndHost = /^[a-z][a-z0-9+.-]{0,31}:(\/\/[A-Za-z0-9.:*_-]{1,255})?$/
+  return keyword.test(value) || schemeAndHost.test(value) ? value : 'other'
+}
+
+/** One absolute path, no query and no fragment: the two characters that
+ * would begin either are outside the class, and so is `%`, because Dana's
+ * own routes are ASCII segments and uuids, so nothing legitimate here needs
+ * percent-encoding and an encoded segment is by definition somewhere bytes
+ * can hide. */
+function safeDocumentPath(value: string): string {
+  return /^\/[A-Za-z0-9/_.~-]{0,255}$/.test(value) ? value : 'other'
+}
+
+/**
+ * The three fields reduced to what 10.5 admits, exported because **the
+ * Sentry copy of a violation has to be the same values and not merely
+ * similar ones** (issue #99, reviewer finding 2). The route sent
+ * `blockedUri` verbatim into a fingerprint, a message and a tag, so a
+ * caller-supplied string reached the tracker unwhitelisted and the key
+ * space of the fingerprint was unbounded — one changed character was one
+ * more Sentry event. Sanitising here and handing the result to both is the
+ * only shape in which the two cannot drift.
+ *
+ * Idempotent: every output of this function is a fixed point of it, so
+ * `cspViolation` applying it again to an already-safe value is free and the
+ * logger keeps its own guarantee whoever calls it.
+ */
+export function safeCspViolation(
+  fields: CspViolationLogFields,
+): CspViolationLogFields {
+  return {
+    directive: safeDirective(fields.directive),
+    blockedUri: safeBlockedUri(fields.blockedUri),
+    documentPath: safeDocumentPath(fields.documentPath),
+  }
 }
 
 function safeMissing(value: string): string {
@@ -217,6 +316,28 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
         'reminder',
       )
     },
+    exportEvent(fields) {
+      sink.info(
+        {
+          event: 'data_exported',
+          actor_id: fields.actorId,
+          bytes: fields.bytes,
+        },
+        'data export',
+      )
+    },
+    cspViolation(fields) {
+      const safe = safeCspViolation(fields)
+      sink.warn(
+        {
+          event: 'csp_violation',
+          directive: safe.directive,
+          blocked_uri: safe.blockedUri,
+          document_path: safe.documentPath,
+        },
+        'csp violation',
+      )
+    },
     requestError(fields) {
       sink.error(
         {
@@ -250,6 +371,7 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
             ? {}
             : { database: safeLabel(fields.database) }),
           ...(fields.port === undefined ? {} : { port: fields.port }),
+          ...(fields.note === undefined ? {} : { note: safeNote(fields.note) }),
           ...(fields.missing === undefined
             ? {}
             : { missing: safeMissing(fields.missing) }),

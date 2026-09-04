@@ -159,9 +159,9 @@ test.describe('AC-166: the inline quick-add', () => {
     expect(card.important, 'spec 9.3: important is off at this entry point').toBe(false)
     expect(
       card.folder.name,
-      'spec 9.3: the Tasks entry point defaults to Inbox, and the box was typed into the ' +
-        'ungrouped Inbox block at the top of the page (6 Q2)',
-    ).toBe('Inbox')
+      'spec 9.3: the Tasks entry point defaults to the viewer default folder, and the box ' +
+        'was typed into the ungrouped block that folder heads at the top of the page (6 Q2)',
+    ).toBe('Desk')
   })
 
   test('AC-166: enter on the Planned list saves the task dated today', async ({ page }) => {
@@ -257,7 +257,7 @@ test.describe('AC-166: the inline quick-add', () => {
     if (card === undefined) throw new Error('unreachable: length asserted above')
     expect(
       card.folder.name,
-      'spec 9.3: the folder page entry point defaults the folder to that folder, not to Inbox',
+      'spec 9.3: the folder page entry point defaults the folder to that folder, not to Desk',
     ).toBe('Groceries')
     expect(
       card.due_date,

@@ -18,13 +18,18 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type {
+  CalendarZoom,
   PatchSettingsBody,
   PatchViewBody,
   PostViewBody,
   SavedView,
   SettingsBundle,
 } from '../../shared/bundle.js'
-import { DEFAULT_PINNED } from '../../shared/bundle.js'
+import {
+  CALENDAR_ZOOMS,
+  DEFAULT_CALENDAR_ZOOM,
+  DEFAULT_PINNED,
+} from '../../shared/bundle.js'
 import { inTransaction, rowsOf } from '../database.js'
 
 function toIso(value: unknown): string {
@@ -55,6 +60,31 @@ function derivePins(row: Record<string, unknown>): string[] {
   return pins
 }
 
+/*
+The calendar's zoom, read defensively (issues #140, #142).
+
+The column's CHECK admits exactly `CALENDAR_ZOOMS`, so a stored value outside
+them cannot exist today and this branch is unreachable through the schema.
+It is written anyway because of what the alternative costs on the day a zoom
+is retired: the client parses every response through `settingsBundle`, whose
+`calendar_zoom` is that same enum, so a row left carrying a dropped value
+would fail the parse and the person would meet an error on the whole settings
+bundle rather than a calendar drawn at the default. Reading a retired value as
+`DEFAULT_CALENDAR_ZOOM` is Imran's own ask on #140 — "invalid/retired values
+should fall back safely to the product default" — and it costs one comparison.
+
+This is deliberately not done for `theme`, `clock` and the rest: their values
+have never moved, nobody has asked, and a defensive read added everywhere on
+the strength of one requirement is four more places for a real wrong value to
+hide.
+*/
+function zoomFrom(value: unknown): CalendarZoom {
+  const stored = String(value)
+  return (CALENDAR_ZOOMS as readonly string[]).includes(stored)
+    ? (stored as CalendarZoom)
+    : DEFAULT_CALENDAR_ZOOM
+}
+
 function bundleFrom(row: Record<string, unknown>): SettingsBundle {
   const order = jsonOf(row.sidebar_order)
   const arrangements = jsonOf(row.arrangements)
@@ -63,6 +93,7 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
     row_density: String(row.row_density) as SettingsBundle['row_density'],
     clock: String(row.clock) as SettingsBundle['clock'],
     task_open: String(row.task_open) as SettingsBundle['task_open'],
+    calendar_zoom: zoomFrom(row.calendar_zoom),
     pinned_views: derivePins(row),
     sidebar_order: Array.isArray(order) ? order.map(String) : [],
     arrangements:
@@ -74,7 +105,7 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
   }
 }
 
-const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open,
+const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom,
   pinned_views, sidebar_order, arrangements,
   show_important, show_all, show_done`
 
@@ -107,6 +138,13 @@ export async function writeBundle(
   if (patch.clock !== undefined) sets.push(sql`clock = ${patch.clock}`)
   if (patch.task_open !== undefined) {
     sets.push(sql`task_open = ${patch.task_open}`)
+  }
+  /* The reader above and this writer landed with the field itself (issues
+     #140, #142). A declared request field with no writer is the four-package
+     reminder loss `shared/tasks.ts` records: it parses, it is dropped, and
+     the caller is answered 200. */
+  if (patch.calendar_zoom !== undefined) {
+    sets.push(sql`calendar_zoom = ${patch.calendar_zoom}`)
   }
   if (patch.pinned_views !== undefined) {
     const pins = patch.pinned_views.includes('desk')

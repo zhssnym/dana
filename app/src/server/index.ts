@@ -15,6 +15,7 @@ import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier, notifierOf } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
 import { resolveEmailTransport } from './notify/resend.js'
+import { reportDatabaseFallback } from './observability/database-fallback.js'
 import { createServerErrorTracker } from './observability/error-tracker.js'
 import type { ErrorTracker } from './observability/error-tracker.js'
 import { createApplicationLogger } from './observability/logger.js'
@@ -25,10 +26,15 @@ import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
 import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
+import {
+  CSP_REPORT_PATH,
+  createCspReportRouter,
+} from './routes/csp-report.js'
 import { createEventsRouter } from './routes/events.js'
+import { createExportRouter } from './routes/export.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
-import { healthRouter } from './routes/health.js'
+import { healthRouter, recordDatabaseKind } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
@@ -36,6 +42,7 @@ import { createTrashRouter } from './routes/trash.js'
 import { createViewsRouter } from './routes/views.js'
 import { createWorkshopRouter } from './routes/workshop.js'
 import { startReminderScheduler } from './scheduler/index.js'
+import { originOf } from './security/csp-report.js'
 import { createRateLimits } from './security/rate-limit.js'
 import type { RateLimits } from './security/rate-limit.js'
 import { createSecurityLogger } from './security/log.js'
@@ -249,7 +256,31 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   HSTS is deliberately absent: 10.8 gives it to the edge in front of the
   process, which is the only party that knows TLS is really terminating.
+
+  **The last two directives are the reporting pair, added 2026-09-04 for
+  issue #99, and they are the only reason any of the four amendments above
+  were ever found.** Every one of them was a directive refusing something
+  the product does, and every one was silent for months, because a refusal
+  raises no error the server sees and no error the client can report. So the
+  policy now names an endpoint and the browser posts its own refusals to it.
+
+  Both generations of the mechanism are stated because browsers are split
+  across them: `report-uri` is deprecated in Chromium and implemented
+  everywhere, `report-to` is its replacement and needs the
+  `Reporting-Endpoints` header below to say what the endpoint name means. A
+  browser that honours both sends one report, not two, `report-to` winning
+  where it is understood. Sending only the modern pair would lose Safari and
+  Firefox today; sending only `report-uri` would lose Chromium the day it
+  finishes removing it, silently, which is the failure this is here to stop.
+
+  The endpoint value is absolute when APP_ORIGIN is set, which 11.11 makes
+  certain in production. The header's value is parsed against the document's
+  own URL, so a relative path is well defined too and is the development
+  fallback; the absolute form is preferred because this is a header whose
+  misconfiguration reports nothing and says nothing, and there is no reason
+  to leave a resolution rule between it and working.
   */
+  const reportEndpoint = `${originOf(process.env.APP_ORIGIN) ?? ''}${CSP_REPORT_PATH}`
   const securityHeaders: ReadonlyArray<[string, string]> = [
     [
       'Content-Security-Policy',
@@ -259,8 +290,11 @@ export function createApp(options: AppOptions = {}): express.Express {
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data: blob: https://*.googleusercontent.com; " +
         "media-src 'self' blob:; " +
-        "connect-src 'self' data: https://*.sentry.io",
+        "connect-src 'self' data: https://*.sentry.io; " +
+        `report-uri ${CSP_REPORT_PATH}; ` +
+        'report-to csp-endpoint',
     ],
+    ['Reporting-Endpoints', `csp-endpoint="${reportEndpoint}"`],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
   ]
   app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -279,6 +313,7 @@ export function createApp(options: AppOptions = {}): express.Express {
               invitePerDay: Number.MAX_SAFE_INTEGER,
               searchPerMinute: Number.MAX_SAFE_INTEGER,
               mutationsPerMinute: Number.MAX_SAFE_INTEGER,
+              cspReportsPerMinute: Number.MAX_SAFE_INTEGER,
             },
           }
         : {},
@@ -319,6 +354,32 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
+  /*
+  The CSP violation endpoint (issue #99), and **its position here is
+  load-bearing in two ways** rather than one.
+
+  It is ahead of the global `express.json` because it needs a 16 KB cap of
+  its own and a parser told about `application/csp-report` and
+  `application/reports+json`; behind it, an `application/json` body would be
+  buffered at 3 MB before this router ever saw it, by an unauthenticated
+  caller.
+
+  And it is ahead of the non-object body guard below, which refuses an array
+  outright — while the Reporting API's shape *is* an array, so behind that
+  guard every modern browser's report would answer 400. Neither of these
+  announces itself if the mount slides: the reports simply stop, which is
+  the silence this endpoint exists to end.
+  */
+  app.use(
+    CSP_REPORT_PATH,
+    createCspReportRouter({
+      securityLog,
+      errorTracker,
+      rateLimits,
+      appOrigin: process.env.APP_ORIGIN,
+    }),
+  )
+
   // 10.3's JSON body row (RFC 0005 change control item 18): 3 MB, sized
   // above the largest legal workflow file so every cap in the limits table
   // is reachable. The parser's default 100 kB was refusing legal imports
@@ -352,8 +413,9 @@ export function createApp(options: AppOptions = {}): express.Express {
   /*
   The mount order below is load-bearing in exactly one place, and issue #37
   is that nothing said so. Everything else here is order-independent, which
-  is why the one exception is easy to lose: fifteen routers share the
-  `/api/v1` mount, Express matches whole paths rather than prefixes, and the
+  is why the one exception is easy to lose: sixteen routers share the
+  `/api/v1` mount (fifteen until 7.22's export joined them on 2026-09-04),
+  Express matches whole paths rather than prefixes, and the
   wiring ledger in routes/README.md checks path-by-path for each new router
   that it meets no whole path an earlier one claims. The rule those checks
   are for:
@@ -498,7 +560,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // earlier routers claim, Express matching whole paths.
   app.use(
     '/api/v1',
-    createWorkshopRouter({ dbClient: options.dbClient, rateLimits }),
+    createWorkshopRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
   // The S6 conversation (7.14): threads, replies, likes.
@@ -515,7 +577,17 @@ export function createApp(options: AppOptions = {}): express.Express {
   // literal pages if it moved ahead. See the block above `/api/v1`.
   app.use(
     '/api/v1',
-    createBundleRouter({ dbClient: options.dbClient, rateLimits }),
+    createBundleRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
+  )
+
+  // 7.22's data export (issue #77): one GET at the literal path `/me/export`,
+  // which no earlier router claims, so this mount is order-independent like
+  // every other one but the views/bundle pair above. It is handed the
+  // security log because 10.5 records one line per export, and the limiter
+  // set because 10.4 gives the route five per hour of its own.
+  app.use(
+    '/api/v1',
+    createExportRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {
@@ -629,6 +701,24 @@ async function main(): Promise<void> {
     database: dbClient.kind,
   })
 
+  /* Issue #80. That line above is how the fallback was diagnosable at all, and
+     it reads as neutral information: a production process on the embedded
+     database looks exactly like a healthy one until the container restarts and
+     everybody is signed out. The condition now says so in its own words, in a
+     line of its own, and reaches Sentry; the module beside this call carries
+     the reasoning, including why this is not a refusal to boot. The tracker is
+     built here and handed to the application so the process holds one, rather
+     than this line initialising Sentry a second time. */
+  const errorTracker = createServerErrorTracker()
+  reportDatabaseFallback({
+    kind: dbClient.kind,
+    nodeEnv: process.env.NODE_ENV,
+    log: runtimeBootLog,
+    tracker: errorTracker,
+  })
+  // And from outside the container too, without Render's logs (11.12).
+  recordDatabaseKind(dbClient.kind)
+
   // The existence check lives here rather than in createApp, which performs
   // no I/O (11.10). Absent means a source checkout that never built the
   // client; Vite serves it in development.
@@ -642,8 +732,14 @@ async function main(): Promise<void> {
   const fileStore = defaultDiskStore()
   const app = createApp(
     hasClientBuild
-      ? { dbClient, clientDist, securityLog: runtimeSecurityLog, fileStore }
-      : { dbClient, securityLog: runtimeSecurityLog, fileStore },
+      ? {
+          dbClient,
+          clientDist,
+          securityLog: runtimeSecurityLog,
+          fileStore,
+          errorTracker,
+        }
+      : { dbClient, securityLog: runtimeSecurityLog, fileStore, errorTracker },
   )
   const server = app.listen(port, () => {
     runtimeBootLog.operation('info', 'server_listening', { port })
