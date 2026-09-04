@@ -862,7 +862,7 @@ export function ComposerExplorationPage(): React.JSX.Element {
         <PageMark
           icon={Rocket}
           hasCover
-          color="var(--color-dana-accent-700)"
+          color="var(--color-primary)"
           aria-label="Product launch folder icon"
         />
         <div className="mt-1.5 flex items-baseline gap-3">
