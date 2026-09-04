@@ -149,12 +149,16 @@ export function readPageImage(fileId: string): string | undefined {
 /**
  * The bytes, stored, answering the id 4.17's `file_id` then names.
  *
+ * `folderId` is null for a page with no folder — a shelf's — which
+ * `uploadFile` turns into an upload carrying no `folder_id` part, the shape
+ * 7.15 has admitted for `kind: image` since issue #167.
+ *
  * Null where the upload was refused, which the block says in words rather than
  * dropping the picture silently: the prototype's own treatment of a full
  * store, kept because the fault it describes is the same one.
  */
 export async function savePageImage(
-  folderId: string,
+  folderId: string | null,
   scaled: ScaledImage,
 ): Promise<string | null> {
   try {

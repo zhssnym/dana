@@ -1,9 +1,19 @@
 /*
 AC-370: given the upload surface, when a picture is stored as a `cover` with
-no `folder_id`, then it stores and belongs to the person; when any other kind
-omits `folder_id`, then 422 naming the field; and the folder-less row is the
-same row in every other respect — re-encoded, measured, and counted against
-the same quota.
+no `folder_id`, then it stores and belongs to the person; when a kind that
+hangs on a folder omits `folder_id`, then 422 naming the field; and the
+folder-less row is the same row in every other respect — re-encoded, measured,
+and counted against the same quota.
+
+**The kinds this case refuses were `image`, `file` and `voice`, and are `file`
+and `voice` since 2026-09-04 (issue #167).** The rule this criterion asserts
+moved: 7.15 now admits a folder-less `image` too, a shelf page's picture being
+in the same position its cover is, and the criterion follows the contract
+rather than the contract following the criterion. What is *not* weakened is the
+sentence this file is for — a kind that hangs on something living in a folder
+is refused without one, and the refusal is 422 naming the field rather than a
+404 about a folder. AC-413 asserts the arm that moved, on both sides: the
+folder-less image stores, and `file` and `voice` still do not.
 
 **This is the sentence issue #20 rests on, and the issue's own diagnosis of it
 is wrong in a way worth writing down.** #20 says "Dana can only store an
@@ -51,8 +61,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-370 a cover is the one kind that needs no folder', () => {
-  test('cover stores without one; image, file and voice do not; the row is otherwise the same row', async () => {
+describe('AC-370 a cover needs no folder, and an attachment still does', () => {
+  test('cover stores without one; file and voice do not; the row is otherwise the same row', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
 
     // A picture large enough that the 2048px downscale has something to do,
@@ -111,10 +121,12 @@ describe('AC-370 a cover is the one kind that needs no folder', () => {
       '4.16’s dimensions are recorded for a folder-less cover as for any other (issue #27)',
     ).toBe(2048)
 
-    // The three kinds that hang on something living in a folder still require
-    // one, and the refusal is a shape refusal naming the field rather than the
-    // 404 an unreachable folder gets.
-    for (const kind of ['image', 'file', 'voice'] as const) {
+    // The kinds that hang on something living in a folder still require one,
+    // and the refusal is a shape refusal naming the field rather than the 404
+    // an unreachable folder gets. `image` left this list on 2026-09-04 with
+    // issue #167, which is the note at the head of this file; AC-413 holds
+    // both halves of the line where it now runs.
+    for (const kind of ['file', 'voice'] as const) {
       const refused = await upload(
         owner,
         '/files',

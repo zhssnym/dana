@@ -31,6 +31,23 @@ function errorCode(error: unknown): string | undefined {
 /** Opens a client against one database. The caller always ends it. */
 export async function connect(url: string): Promise<pg.Client> {
   const client = new pg.Client({ connectionString: url })
+  /*
+  The same hazard the pool in db/client.ts carries, and issue #174 measured it
+  there: a connected pg.Client emits 'error' on itself the moment its socket
+  dies (`_handleErrorEvent`, pg/lib/client.js) whether or not a query is in
+  flight, and an EventEmitter 'error' with no listener throws. These are the
+  connections held longest in the leg — the registry connection lives for the
+  whole run in Vitest's own process, and the target one is held across a
+  TRUNCATE of every table — so an unlistened one turns a reset that cost one
+  query into a lost run.
+
+  Nothing is swallowed. A query in flight still rejects with this error and its
+  caller still fails on it; this only stops the second copy, the one the client
+  emits at the same time, from arriving as an uncaught exception.
+  */
+  client.on('error', (error: Error) => {
+    process.stderr.write(`[postgres leg] connection error: ${error.message}\n`)
+  })
   await client.connect()
   return client
 }
