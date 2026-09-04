@@ -429,9 +429,13 @@ protocol points here rather than repeating them.
     `TZ=UTC` at the same minute**, green again in local TZ at 00:31Z. Note `TZ=UTC`
     settles only the **PGlite** leg; on Postgres the cluster's own zone governs and the
     process variable changes nothing. Three agents reached this independently. The
-    criterion is fixed (#46); the product defect underneath it — an endpoint that
-    anchors on the database's day rather than the viewer's, which spec 8.1 forbids by
-    name — is **#76**, and when that lands the criterion's oracle must move with it.
+    criterion was fixed first (#46), and **the product defect underneath it is fixed
+    too, on 2026-09-04 by #76**: both duplicate endpoints take a `tz` and re-anchor on
+    the caller's day, `current_date` is gone from that path, and AC-277 and AC-200 pin a
+    zone and assert an exact date in the same commit. **A duplicate criterion failing on
+    a date is a defect now, not this class.** The class is kept because the shape
+    recurs: two clocks in two zones read as a midnight race and are not one, and forcing
+    the zone is what separates them.
 - **Between them these are why a red is not evidence until you have named which class it
   is.** In three CI runs of one commit, every step passed at least once and no run passed
   all of them together, with nothing wrong in the commit.
