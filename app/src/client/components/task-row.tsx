@@ -2706,7 +2706,11 @@ export function TaskRow(props: TaskRowProps) {
                     Unassigned
                   </span>
                 ),
-                onSelect: () => patch(task.id, { assignee: undefined }),
+                /* `null` and not `undefined`, issue #169: the card's copy of
+                   this menu sent nothing at all for years because undefined
+                   is "this field was not touched". Both menus say clear the
+                   same way. `lib/task-model.ts` carries the three values. */
+                onSelect: () => patch(task.id, { assignee: null }),
               },
             ])}
         >

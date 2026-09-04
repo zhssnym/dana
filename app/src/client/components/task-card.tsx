@@ -2163,8 +2163,12 @@ export function TaskCard({
               },
               {
                 key: "__unassigned",
+                /* `null` and not `undefined`, issue #169: undefined is "this
+                   field was not touched", so the press cleared the chip here
+                   and sent nothing, and the assignment came back on the next
+                   read. `lib/task-model.ts` carries the three values. */
                 label: <span>{UNASSIGNED}</span>,
-                onSelect: () => patch(task.id, { assignee: undefined }),
+                onSelect: () => patch(task.id, { assignee: null }),
               },
             ],
           )}
@@ -2219,14 +2223,28 @@ export function TaskCard({
 
       <TaskMoveGuard
         pending={pendingMove}
-        assignee={task.assignee}
+        /* The guard asks who would be stranded, and both of #169's empties
+           are "nobody", which is the same question a `Face` asks. */
+        assignee={task.assignee ?? undefined}
         onProceed={(folder, stranded) => {
           setPendingMove(null)
           patch(task.id, {
             folder,
-            /* 7.6 unassigns on a move that strands the assignee (4.4, INV-5),
-               so the card says so rather than letting the row learn it from
-               the next read. */
+            /*
+            7.6 unassigns on a move that strands the assignee (4.4, INV-5), so
+            the card says so rather than letting the row learn it from the next
+            read.
+
+            **`undefined` here and not #169's `null`, which is the one place in
+            this file the two must stay apart.** The move is the server's own
+            unassign: `domain/tasks.ts` drops an assignee the target does not
+            hold and *forces* the single member where the target has one. An
+            explicit null is a different request, and INV-5's unassign guard
+            answers it 409 in exactly that single-member folder, which is the
+            commonest destination a move strands somebody into. So this says
+            "move it" and lets 7.6 do what 7.6 does; the local copy reads the
+            absent assignee as nobody either way.
+            */
             ...(stranded ? { assignee: undefined } : {}),
           })
         }}

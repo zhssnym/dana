@@ -16,41 +16,40 @@ folder menu; a menu listing it first has copied the value and lost the
 design's reason.
 
 **The clear is asserted on the stored row**, through the surface and then the
-wire: choose a member, then Unassigned, and the task's row shows no assignee
-chip where it showed one.
+wire: choose a member, then Unassigned, and 7.6 answers an assignee of null
+where it named the member a moment before.
 
 **That paragraph was false when it was written, and the sweep of issue #159
 found it on 2026-09-04.** This case read the chip and never the stored row, and
 `waitForApiIdle` between the press and the read hid the difference. Replacing
 that barrier with `watchCommit` failed five runs of five saying the page had
 sent nothing at all, which turned out to be true of the product rather than of
-the barrier: **choosing Unassigned clears the chip in the browser and writes
-nothing.** Measured with the wire recorder: no request of any kind after the
-press, none after the menu closes, and `GET /tasks/:id` still naming the member
-four seconds later. A reload brings the assignment back.
+the barrier: choosing Unassigned cleared the chip in the browser and wrote
+nothing. Measured with the wire recorder: no request of any kind after the
+press, none after the menu closed, and `GET /tasks/:id` still naming the member
+four seconds later. A reload brought the assignment back.
 
-Where it is. `components/task-card.tsx` offers the option as
+Where it was. `components/task-card.tsx` offered the option as
 `patch(task.id, { assignee: undefined })`, and `lib/task-concept.ts`'s
-`conceptPatchToBody` writes `assignee_id` only when `fields.assignee` is not
-`undefined` -- so the clear is indistinguishable from "this field was not
-touched", the body comes out empty and no request is made. The comment beside
-that line states the right rule, "a cleared assignee is `null` and not an
-absent key", which is CLAUDE.md's warning about comments exactly: it describes
-what the code is supposed to do. `ConceptTask['assignee']` carries no null
-either, so there is no way to *say* "clear" in that type, which is why this is
-a handoff rather than a one-line fix, and why it is not fixed here: it is
-`app/src/client/`, it is wider than the two files
-`docs/workflow/backend/allowed-frontend-changes.md` allows without one, and
-three frontend branches were open on that directory the night it was found.
+`conceptPatchToBody` wrote `assignee_id` only when `fields.assignee` was not
+`undefined` -- so the clear was indistinguishable from "this field was not
+touched", the body came out empty and no request was made. The comment beside
+that line stated the right rule, "a cleared assignee is `null` and not an
+absent key", which is CLAUDE.md's warning about comments exactly: it described
+what the code was supposed to do. `ConceptTask['assignee']` carried no null
+either, so there was no way to *say* "clear" in that type.
 
-**So the second clause is held open rather than asserted**, on the shape
-`tests/ac-397-authorization-sweep.test.ts` uses for a finding a branch is not
-allowed to fix, and for the reason that file gives for preferring a manual
-inversion to `test.fails`: what is asserted below is that **the finding is
-still open**, so this case is green while the defect is there and red the day
-it is fixed, and the red says what to do. The half that does work, the chip
-leaving the surface, is asserted beside it, so the surface is not left
-unmeasured.
+**Closed by issue #169, 2026-09-04, the night after the sweep opened it.** The
+concept type carries three values now, a person, an absent field meaning "not
+touched", and null meaning "clear it"; `conceptPatchToBody` sends 7.6's
+`assignee_id: null` for the third; and both menus that offer Unassigned, the
+card's and the row's, send it. So the block that held this criterion's second
+clause open, on `tests/ac-397-authorization-sweep.test.ts`'s shape for a
+finding a branch is not allowed to fix, is **deleted**, and the sentence AC-220
+actually makes is asserted in its place. The barrier moved with it: there is a
+write to wait for now, so the read after the press is ordered by `watchCommit`
+taken before it, which is rule one of the #159 sweep and the rule whose
+application found the defect.
 
 Spec: 9.3 (the assignee chip), 9.1 (the addressing sentence), DES-194,
 AC-094 (the API sibling), INV-5.
@@ -66,7 +65,6 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
   watchCommit,
  openTaskRow } from './harness.js'
 
@@ -138,6 +136,15 @@ test.describe('AC-220: the assignee menu', () => {
       page.getByRole('button', { name: /assignee|assign/i }).first(),
       'reopen the menu for the clear',
     )
+    /* `watchCommit` on the clear as well, and this is the half the case exists
+       for. The read below depends on what the press wrote, and quiet is also
+       what a page looks like in the window between the press and the request
+       the press causes, so a barrier waiting only for quiet reports the state
+       the page was in beforehand -- which is the exact shape of the defect
+       this clause catches. It stood on `waitForApiIdle` while the clear wrote
+       nothing at all (issue #169, above), because no barrier can wait for an
+       absence; the write exists, so the barrier is the positive one. */
+    const cleared = watchCommit(page)
     await clickControl(
       page
         .getByRole('menuitem', { name: /Unassigned/ })
@@ -146,17 +153,13 @@ test.describe('AC-220: the assignee menu', () => {
       'spec 9.3: choosing Unassigned clears the assignment, the control AC-094\'s v1 ' +
         'surface never offered',
     )
-    /* Quiet and not `watchCommit` here, which is rule two of the #159 sweep
-       read against the finding above: while the defect is open, what this
-       press produces *is* an absence, and the barrier that waits for a request
-       to go out cannot order a read whose own claim is that none did. */
-    await waitForApiIdle(
-      page,
-      'everything the press might have sent has been sent and answered before the row is read',
+    await cleared.settled(
+      'AC-220: choosing Unassigned is an edit, and 9.3 commits an edit as it is made, so ' +
+        'the clear reaches the server before the stored row is read',
     )
     await expect(
       page.getByRole('button', { name: /Imran/ }),
-      'the half of the clear that works: the chip stops naming the member on the surface',
+      'spec 9.3: the chip stops naming the member on the surface',
     ).toHaveCount(0)
 
     const stored = await page.request.get(`/api/v1/tasks/${task.id}`)
@@ -167,14 +170,12 @@ test.describe('AC-220: the assignee menu', () => {
     const assignee = ((await stored.json()) as { assignee: { display_name: string } | null })
       .assignee
     expect(
-      assignee?.display_name ?? null,
-      'FINDING, open on 2026-09-04 and recorded rather than asserted (issue #159 sweep). ' +
-        'AC-220 says "choosing Unassigned clears the assignment" and the client does not: ' +
-        'the press clears the chip and sends nothing, so 7.6 still names the member and a ' +
-        'reload brings the assignment back. This line asserts the defect is STILL THERE. ' +
-        'When it fails, the defect is fixed: delete this block, assert the clear for real ' +
-        'with expect(assignee).toBeNull(), and the criterion is satisfied. This file, ' +
-        'header says where the defect is',
-    ).toBe('Imran')
+      assignee,
+      'AC-220: "choosing Unassigned clears the assignment", which is a fact about the task ' +
+        'rather than about the chip. 7.6 answers the assignee it holds, so a member named ' +
+        'here is the press having cleared the surface and written nothing, and a reload ' +
+        'would bring the assignment back: that is issue #169, and this file, header, says ' +
+        'where it lived',
+    ).toBeNull()
   })
 })
