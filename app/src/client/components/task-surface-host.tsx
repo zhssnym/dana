@@ -172,6 +172,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
           ...(viewer === undefined ? {} : { assignee_id: viewer.id }),
           ...(defaults.important === undefined ? {} : { important: defaults.important }),
           ...(defaults.due_date == null ? {} : { due_date: defaults.due_date }),
+          ...(defaults.section_block_id === undefined
+            ? {}
+            : { section_block_id: defaults.section_block_id }),
         },
         {
           onSuccess: (detail) => setCreated(detail.id),
@@ -303,6 +306,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
         ...(open?.defaults.due_date == null
           ? {}
           : { due_date: open.defaults.due_date }),
+        ...(open?.defaults.section_block_id === undefined
+          ? {}
+          : { section_block_id: open.defaults.section_block_id }),
       },
       {
         onSuccess: (detail) => setCreated(detail.id),
