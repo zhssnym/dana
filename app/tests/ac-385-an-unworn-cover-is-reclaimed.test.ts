@@ -17,11 +17,22 @@ half).
 detail.** Reclaiming the instant a page stops naming a file is what everybody
 reaches for and it is wrong: the caller is still holding that id, and AC-368
 sets a shelf's cover, replaces it with a gradient, and sets the same picture
-back, which is what a cover picker does. Nothing records when a reference was
-dropped, so `created_at` is the lower bound available and the window is the
-one Dana already uses everywhere it destroys anything (7.13's Trash, 8.8's
-purge, 4.13's events at 90). Both arms are asserted below: the young file
-survives the same pass that takes the aged one.
+back, which is what a cover picker does. The window is the one Dana already
+uses everywhere it destroys anything (7.13's Trash, 8.8's purge, 4.13's events
+at 90), and it runs **from the moment the last reference went**, which
+migration 0014's `files.unreferenced_since` records because nothing else did.
+
+**This criterion is written the way it is because its first version could not
+see the bug.** It aged the file's `created_at`, which is what the reclaim read
+at first, and that measures when the bytes arrived rather than when the cover
+came off: a picture uploaded months ago and worn until this morning was, the
+instant it was replaced, both unreferenced and old, so the very next tick took
+it with no window at all — the one case the window exists for. The three arms
+below are therefore about the *mark* and not about the upload: an old file
+unworn only now survives the next tick; a file whose mark is a month old is
+taken; and a file that is worn again inside the window loses its mark and
+stays. Only the first of those is red against the `created_at` version, and it
+is the one a person would have lost a picture to.
 
 Aging by UPDATE is AC-213's precedent, and the injected store is AC-235's: a
 removal from a store nothing reads is unobservable.
@@ -87,16 +98,34 @@ async function fileBytes(fileId: string): Promise<number> {
   return Number(found.rows[0]?.bytes ?? 0)
 }
 
-/** 30 days is the line; 31 puts a row over it. */
-async function age(fileId: string): Promise<void> {
+/** Backdates the mark the tick writes, which is what the window is measured
+ * from (migration 0014). 30 days is the line; 31 puts a row over it. Aging by
+ * UPDATE is AC-213's precedent; what is aged is the fact the rule names. */
+async function ageTheMark(fileId: string): Promise<void> {
   await app.db.execute(
-    sql`UPDATE files SET created_at = now() - interval '31 days'
+    sql`UPDATE files SET unreferenced_since = now() - interval '31 days'
         WHERE id = ${fileId}::uuid`,
   )
 }
 
+/** Backdates the upload. Nothing in the rule reads this, which is the point
+ * of the arm that uses it. */
+async function ageTheUpload(fileId: string): Promise<void> {
+  await app.db.execute(
+    sql`UPDATE files SET created_at = now() - interval '400 days'
+        WHERE id = ${fileId}::uuid`,
+  )
+}
+
+async function markOf(fileId: string): Promise<unknown> {
+  const found = (await app.db.execute(
+    sql`SELECT unreferenced_since FROM files WHERE id = ${fileId}::uuid`,
+  )) as unknown as { rows: Array<{ unreferenced_since: unknown }> }
+  return found.rows[0]?.unreferenced_since ?? null
+}
+
 describe('AC-385 the tick reclaims a cover nothing wears', () => {
-  test('replaced, then cleared: the rows and the bytes go, and the young one stays', async () => {
+  test('the window runs from the day it came off, not from the day it arrived', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
 
     const made = await owner.browser.json('/shelves', 'POST', {
@@ -111,6 +140,13 @@ describe('AC-385 the tick reclaims a cover nothing wears', () => {
       objects.has(first) && objects.has(second),
       'the injected store must hold both objects, or nothing here measures anything',
     ).toBe(true)
+
+    /* The picture is old — it has been the shelf's cover for over a year —
+       and that must buy the reclaim nothing at all. This is the arm the
+       first version of this criterion did not have, and the defect it hides
+       loses a person a picture the moment they change a cover they have had
+       a while. */
+    await ageTheUpload(first)
 
     expectStatus(
       await owner.browser.json(`/shelves/${shelfId}`, 'PATCH', {
@@ -127,25 +163,61 @@ describe('AC-385 the tick reclaims a cover nothing wears', () => {
       'and then the second, which is the replacement #116 is about',
     )
 
-    // Young, and therefore kept: a picker that switches to a gradient and
-    // back must still find the id it is holding (AC-368's own flow).
+    // Unworn as of this minute. One pass marks it; no pass may take it.
     await runPass(app)
     expect(
       await fileExists(first),
-      'a pass does not take a picture replaced a moment ago; the caller may still name it',
+      'a picture that came off a moment ago is not reclaimed, however old the upload is: the window runs from the mark (migration 0014)',
     ).toBe(true)
     expect(objects.has(first), 'and its bytes stay with the row').toBe(true)
+    expect(
+      await markOf(first),
+      'and the tick has recorded when it came off, which is the fact the rule reads',
+    ).not.toBeNull()
 
+    await runPass(app)
+    expect(
+      await fileExists(first),
+      'a second pass does not move the mark forward or take the row',
+    ).toBe(true)
+
+    // Worn again inside the window: the mark goes and the row is safe.
+    expectStatus(
+      await owner.browser.json('/place-covers/today', 'PUT', {
+        file_id: first,
+      }),
+      200,
+      'the person puts the same picture on Today (spec 7.19, AC-373)',
+    )
+    await runPass(app)
+    expect(
+      await markOf(first),
+      'wearing it again clears the mark, so the window starts over rather than running out under it',
+    ).toBeNull()
+    await ageTheMark(first)
+    await runPass(app)
+    expect(
+      await fileExists(first),
+      'and a cleared mark cannot be aged into a deletion: the row is worn',
+    ).toBe(true)
+
+    // Off again, and this time the mark is allowed to run out.
+    expectStatus(
+      await owner.browser.json('/place-covers/today', 'DELETE'),
+      204,
+      'Today’s cover is removed (spec 7.19)',
+    )
+    await runPass(app)
     const size = await fileBytes(first)
     expect(size, 'the row records what it spends (4.16)').toBeGreaterThan(0)
     const before = await quotaSpent(owner.id)
 
-    await age(first)
+    await ageTheMark(first)
     await runPass(app)
 
     expect(
       await fileExists(first),
-      'past 30 days with nothing wearing it, the row goes (spec 7.19 as amended)',
+      'thirty days unworn, and the row goes (spec 7.19 as amended)',
     ).toBe(false)
     expect(
       objects.has(first),
@@ -156,13 +228,17 @@ describe('AC-385 the tick reclaims a cover nothing wears', () => {
       'and the owner’s 1 GB is smaller by exactly that file (10.3)',
     ).toBe(before - size)
 
-    // The cover the shelf is actually wearing survives the same sweep, aged
-    // or not: it is referenced, which is the only question the sweep asks.
-    await age(second)
+    // The cover the shelf is actually wearing is never marked, so there is
+    // nothing to age: it is referenced, which is the only question asked.
+    expect(
+      await markOf(second),
+      'a picture a page wears carries no mark at all',
+    ).toBeNull()
+    await ageTheMark(second)
     await runPass(app)
     expect(
       await fileExists(second),
-      'a picture a page still wears is never reclaimed, whatever its age',
+      'and even a mark planted under it is cleared before the delete looks',
     ).toBe(true)
 
     // And clearing is a replacement too: the removal of the last reference.
@@ -174,6 +250,8 @@ describe('AC-385 the tick reclaims a cover nothing wears', () => {
       200,
       'the shelf takes its cover off (spec 7.16)',
     )
+    await runPass(app)
+    await ageTheMark(second)
     await runPass(app)
     expect(
       await fileExists(second),

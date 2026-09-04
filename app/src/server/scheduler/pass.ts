@@ -406,8 +406,14 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     and is wrong: the caller is still holding that id, and setting the same
     picture back a moment later is what a cover picker does. So this is a
     sweep over what nothing has referenced for thirty days, Dana's own line
-    for destroying anything (7.13, 8.8). The statement, and every column that
-    can name a file, are in `domain/files.ts`.
+    for destroying anything (7.13, 8.8), measured from the moment the last
+    reference went — `files.unreferenced_since`, migration 0014 — because
+    `created_at` measures when the bytes arrived and would take a picture worn
+    for a year the instant it came off. One statement, clearing, marking and
+    deleting in three CTEs the way `destroyFolders` claims and collects in
+    one, so this duty is the single wrapperless statement the others are and
+    the tick still opens exactly one transaction. The statement, and every
+    column that can name a file, are in `domain/files.ts`.
     */
     const reclaimedCovers = (
       await reclaimUnwornCovers(db, deps.fileStore)

@@ -263,6 +263,16 @@ export async function patchFolderProfile(
   patch: FolderProfilePatch,
 ): Promise<PatchProfileResult> {
   return inTransaction(db, async (tx) => {
+    /* **This gate takes no copy, and 7.19's rule 1 is stated over folders
+       anyway.** The clause below requires the named file to be a file *of
+       this folder*, so a folder's cover is already a `cover` or an `image` in
+       the page's own scope and there is nothing for `coverFileFor` to
+       normalise; nor can a folder cover suffer the fault the copy exists to
+       close, since you cannot leave a folder and still be looking at its
+       page. 7.19 says the rule for all three page kinds regardless, against
+       the day this clause widens: whoever widens it adds the copy here in the
+       same change, or a folder cover starts breaking the way a shelf's used
+       to (issue #116). */
     if (patch.coverFileId !== undefined && patch.coverFileId !== null) {
       const cover = await rowsOf(
         tx,

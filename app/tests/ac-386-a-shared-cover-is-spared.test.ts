@@ -69,10 +69,24 @@ async function fileExists(fileId: string): Promise<boolean> {
   return found.rows.length > 0
 }
 
-async function ageEverything(): Promise<void> {
+/**
+ * One reclaim, wound forward past the window.
+ *
+ * The tick's first pass marks whatever has stopped being worn and clears the
+ * mark on whatever is worn again; the window then runs from that mark
+ * (migration 0014), so a criterion that wants to see the delete has to age
+ * the mark rather than the upload and run the tick again. Doing it in one
+ * helper keeps every case below reading as one act, and keeps the aging
+ * pointed at the fact the rule actually names — which is the correction
+ * AC-385's header records.
+ */
+async function sweep(): Promise<void> {
+  await runPass(app)
   await app.db.execute(
-    sql`UPDATE files SET created_at = now() - interval '31 days'`,
+    sql`UPDATE files SET unreferenced_since = now() - interval '31 days'
+        WHERE unreferenced_since IS NOT NULL`,
   )
+  await runPass(app)
 }
 
 describe('AC-386 the reclaim spares what anything still names', () => {
@@ -123,8 +137,7 @@ describe('AC-386 the reclaim spares what anything still names', () => {
           WHERE id = ${folderId}::uuid`,
     )
 
-    await ageEverything()
-    await runPass(app)
+    await sweep()
 
     expect(
       await fileExists(shared),
@@ -147,8 +160,7 @@ describe('AC-386 the reclaim spares what anything still names', () => {
       200,
       'the shelf swaps its picture for a gradient (spec 7.16)',
     )
-    await ageEverything()
-    await runPass(app)
+    await sweep()
     expect(
       await fileExists(shared),
       'Today still wears it, so replacing it on the shelf reclaims nothing — which is the whole reason this is a reference count and not a delete-on-replace',
@@ -174,8 +186,7 @@ describe('AC-386 the reclaim spares what anything still names', () => {
       204,
       'Today’s cover is removed (spec 7.19)',
     )
-    await ageEverything()
-    await runPass(app)
+    await sweep()
     expect(
       await fileExists(shared),
       'nothing names it any more, so it is reclaimed on the next pass',

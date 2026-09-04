@@ -433,11 +433,20 @@ referencing is still a file the *caller* is holding the id of: AC-368 sets a
 shelf's cover to a picture, replaces it with a gradient, and sets the same
 picture back, which is an ordinary thing for a picker to do and would answer
 422 against a row deleted the instant the gradient landed. So reclamation is
-about a file nothing has referenced *for a while*, and nothing records when a
-reference was dropped; `created_at` is the only lower bound available, and 30
-days is the line Dana already draws everywhere it destroys something (7.13's
-Trash, 8.8's purge). A cover changed this month costs a few hundred KB after
-7.15's downscale and is reclaimed next month.
+about a file nothing has referenced *for a while*, and 30 days is the line
+Dana already draws everywhere it destroys something (7.13's Trash, 8.8's
+purge). **A cover is reclaimed thirty days after it stopped being worn, and a
+cover worn again inside that window is kept.**
+
+**That sentence was `created_at` until it was reviewed, and the difference is
+the whole reason 0014 exists.** Aging from the upload measures when the bytes
+arrived, not when the last reference went: a cover uploaded in June and worn
+until this morning is, the instant it is replaced, both unreferenced and four
+months old, so the next tick took it with no window at all — which is exactly
+the case the window was traded for. AC-385 could not see it, because it only
+ever aged a file that was already unworn. `files.unreferenced_since`
+(migration 0014) records the moment instead, and the tick writes it, clears it
+and reads it.
 
 **Legacy rows are not backfilled and need no special case.** A cover set
 before tonight may name a folder's file or a file two pages share; neither is
@@ -633,25 +642,57 @@ function fileIsUnreferenced(): SQL {
 /**
  * The 11.7 tick's fifth duty: reclaim the cover files nothing wears.
  *
+ * **Three acts, and one statement rather than three.** Clear: a marked row
+ * that something references again loses its mark, which is what makes a
+ * picker putting a picture back inside the window safe rather than merely
+ * lucky. Mark: a folder-less `cover` that nothing references and carries no
+ * mark gets `unreferenced_since = now()`. Delete: a row marked more than 30
+ * days ago goes, row and object.
+ *
+ * They are data-modifying CTEs of one statement, which is `destroyFolders`'s
+ * shape in `domain/trash.ts` and is chosen for its reason: one snapshot, one
+ * wrapperless statement, and the pass keeps the property `interval.test.ts`
+ * pins — one transaction per tick, so that file can go on counting passes by
+ * counting transactions. It is also stronger than three statements sharing a
+ * transaction would be, which at READ COMMITTED would still take three
+ * snapshots.
+ *
+ * **The CTEs cannot see each other's work, and that is safe here rather than
+ * merely tolerated.** Postgres runs every arm of a WITH against the same
+ * snapshot, so the delete reads the marks as they were before the clear and
+ * the mark ran. It takes nothing it should not: a row this statement marks
+ * carries `now()` and is not thirty days old under any reading, and a row the
+ * clear un-marks is by definition referenced, which the delete's own
+ * unreferenced clause excludes on its own. The delete therefore never depends
+ * on the other two having run first.
+ *
  * Narrow on purpose, and every clause earns its place. **`kind = 'cover'`**,
  * because a page image or a comment's attachment is a thing somebody put
  * somewhere and is reachable through surfaces this query knows nothing
  * about, while a cover is only ever pointed at. **`folder_id IS NULL`**,
  * because a folder-scoped file is listed in its folder and its members can
  * delete it themselves, and because a folder's own deletion already cascades
- * it away (8.8) with the purge removing its object. **Older than 30 days**,
- * for the reason at the head of this block: nothing records when a reference
- * was dropped, and a caller may still be holding the id of a file this
- * server stopped pointing at a moment ago. **And unreferenced**, by every
- * column that can name a file rather than by the cover columns alone, so a
- * legacy row two pages share, or a picture that is both a page block and a
- * cover, is not taken while either reference lives.
+ * it away (8.8) with the purge removing its object. **And unreferenced**, by
+ * every column that can name a file rather than by the cover columns alone,
+ * so a legacy row two pages share, or a picture that is both a page block and
+ * a cover, is neither marked nor taken while either reference lives.
  *
- * The claim is `FOR UPDATE SKIP LOCKED` and the delete is idempotent, which
+ * The delete repeats the unreferenced clause the clear arm also tests, and
+ * that repetition is load-bearing twice over: it is what makes the shared
+ * snapshot safe, above, and it is what stops a mark written a month ago —
+ * evidence about a month ago — from being the only thing standing between a
+ * worn picture and its deletion.
+ *
+ * The claim is `FOR UPDATE SKIP LOCKED` and every pass is idempotent, which
  * is what the other purge duties do and what keeps 11.7's missed-tick and
  * deploy-overlap properties true. The objects leave the store only after the
  * rows are gone, 7.15's order, so a refused delete cannot have destroyed
  * bytes whose rows survived.
+ *
+ * **No backfill, and the direction of that is the safe one.** Every existing
+ * row has a null mark, so the first pass after 0014 deploys marks today's
+ * orphans and reclaims nothing; they wait one window from the mark rather
+ * than being taken on the strength of a date that never meant this.
  */
 export async function reclaimUnwornCovers(
   db: Db,
@@ -659,11 +700,24 @@ export async function reclaimUnwornCovers(
 ): Promise<string[]> {
   const removed = await rowsOf(
     db,
-    sql`DELETE FROM files WHERE id IN (
+    sql`WITH cleared AS (
+          UPDATE files f SET unreferenced_since = NULL
+           WHERE f.unreferenced_since IS NOT NULL
+             AND NOT ${fileIsUnreferenced()}
+          RETURNING f.id),
+        marked AS (
+          UPDATE files f SET unreferenced_since = now()
+           WHERE f.kind = 'cover'
+             AND f.folder_id IS NULL
+             AND f.unreferenced_since IS NULL
+             AND ${fileIsUnreferenced()}
+          RETURNING f.id)
+        DELETE FROM files WHERE id IN (
           SELECT f.id FROM files f
            WHERE f.kind = 'cover'
              AND f.folder_id IS NULL
-             AND f.created_at < now() - ${COVER_RECLAIM_DAYS}::int * interval '1 day'
+             AND f.unreferenced_since
+                   < now() - ${COVER_RECLAIM_DAYS}::int * interval '1 day'
              AND ${fileIsUnreferenced()}
            FOR UPDATE SKIP LOCKED)
         RETURNING id`,
