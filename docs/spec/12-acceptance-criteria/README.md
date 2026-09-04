@@ -29,6 +29,19 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-390 to AC-393 were taken from the tail on 2026-09-04** (issue #77), on the rule the
+  AC-361 bullet below states, and they are 7.22's data export: the whole shape of the document and the
+  task and the addresses that must not be in it, the session gate with two-account
+  non-leakage measured over the raw bytes, the five-per-hour limiter driven against the
+  mounted route rather than against the limiter alone, and the attachment headers with
+  10.3's cap planted as a real thousand-and-first row. **The numbers were assigned by the
+  session that opened this branch beside several others**, which is the backend README's
+  rule for parallel branches, so 375 to 389 belong to those and are not free here. Three of
+  the four are 12.3's and AC-392 is 12.23's; the reasons are written beside them in each
+  file. The count, the range sentence at the top of this list and the
+  per-file counts in the table below are the last merge's to re-derive, as the AC-361
+  bullet already says of the total; this branch deliberately moved none of them, several
+  branches being open on the same files at once.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today

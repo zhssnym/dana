@@ -26,6 +26,7 @@ import { createConnectionsRouter } from './routes/connections.js'
 import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
 import { createEventsRouter } from './routes/events.js'
+import { createExportRouter } from './routes/export.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { healthRouter } from './routes/health.js'
@@ -352,8 +353,9 @@ export function createApp(options: AppOptions = {}): express.Express {
   /*
   The mount order below is load-bearing in exactly one place, and issue #37
   is that nothing said so. Everything else here is order-independent, which
-  is why the one exception is easy to lose: fifteen routers share the
-  `/api/v1` mount, Express matches whole paths rather than prefixes, and the
+  is why the one exception is easy to lose: sixteen routers share the
+  `/api/v1` mount (fifteen until 7.22's export joined them on 2026-09-04),
+  Express matches whole paths rather than prefixes, and the
   wiring ledger in routes/README.md checks path-by-path for each new router
   that it meets no whole path an earlier one claims. The rule those checks
   are for:
@@ -516,6 +518,16 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createBundleRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+
+  // 7.22's data export (issue #77): one GET at the literal path `/me/export`,
+  // which no earlier router claims, so this mount is order-independent like
+  // every other one but the views/bundle pair above. It is handed the
+  // security log because 10.5 records one line per export, and the limiter
+  // set because 10.4 gives the route five per hour of its own.
+  app.use(
+    '/api/v1',
+    createExportRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {

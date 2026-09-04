@@ -50,14 +50,16 @@ It reads layer.route at the top of the application's stack and nested.route
 one stack down, so a router mounted inside another router contributes nothing
 and says nothing about it: its routes are absent from the enumeration and
 every assertion here then passes over a smaller surface than it claims.
-Verified 2026-09-03: all 15 Router() instances in src/server are mounted
-directly on the application in index.ts, and every router.use() call inside
-one attaches middleware rather than a router, so the walk does see the whole
-surface today. **Grepping `Router()` no longer finds fifteen and that is not
-a change to this fact**: since issue #36 the thirteen routers under
+Verified 2026-09-03 at 15 and re-checked 2026-09-04 at 16: every Router()
+instance in src/server is mounted directly on the application in index.ts,
+and every router.use() call inside one attaches middleware rather than a
+router, so the walk does see the whole surface today. The sixteenth is
+7.22's export router (issue #77), one GET at a literal path.
+**Grepping `Router()` does not find sixteen and that is not
+a change to this fact**: since issue #36 the routers under
 src/server/routes are constructed by routes/preamble.ts, which also registers
 their session middleware, so the literal call sites are three — that one,
-auth/router.ts and routes/health.ts — for the same fifteen instances. The counts are the only thing that would notice the day that
+auth/router.ts and routes/health.ts — for all sixteen instances. The counts are the only thing that would notice the day that
 stops being true, which is why they are exact numbers carrying a date rather
 than floors.
 
@@ -244,11 +246,14 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // Equality for the same reason as the mutating count: 36 when this half
     // was written on 2026-09-02 and 36 again on 2026-09-03 when the floor
     // became a number. A nested router hiding five GETs would have taken
-    // this to 31 and passed `> 25` in silence.
+    // this to 31 and passed `> 25` in silence. 37 to 38 on 2026-09-04, for
+    // GET /me/export (7.22, issue #77), which is this sentence's own
+    // instruction followed rather than an exception to it: the sweep already
+    // passed on the new route, answering 401 bare, and only the count moved.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 37 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(37)
+      `the walker found ${String(routes.length)} reading routes and there were 38 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(38)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

@@ -42,6 +42,19 @@ them is not a second decision but the same one. **The owner's confirmation of th
 half is nonetheless owed**, the ruling having named section 4 explicitly and this section
 only by implication.
 
+**Fourth, a whole subsection was added on 2026-09-04, and it is the first one
+since the S29a fold rather than an annotation of an existing one.** 7.22 is the
+data export, `GET /me/export`, and it moves this frozen section on two human
+decisions in the way the freeze asks: Imran ruled the product on issue #77,
+that Dana offers a real export of a person's own data on the wide reading
+rather than the narrowest compliance one, and Hassan ruled the shape. It is
+**purely additive** — no existing endpoint, response or status changed, and
+nothing that parsed before stops parsing. It is written as its own file rather
+than as a paragraph inside 7.1 because it is a surface with a format, a cap, a
+limiter and an authorization argument of its own, and because 10.9 named
+inventing one inside a compliance note as the wrong way to acquire it. 10.9
+stops recording the gap in the same change and points here.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
@@ -66,3 +79,4 @@ only by implication.
 | 7.19 | [`07.19-place-covers.md`](07.19-place-covers.md) | 7.19 Place covers |
 | 7.20 | [`07.20-sample-workspace.md`](07.20-sample-workspace.md) | 7.20 Sample workspace |
 | 7.21 | [`07.21-place-descriptions.md`](07.21-place-descriptions.md) | 7.21 Place descriptions |
+| 7.22 | [`07.22-data-export.md`](07.22-data-export.md) | 7.22 Data export |
