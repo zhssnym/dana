@@ -54,17 +54,29 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-402 was taken from the tail on 2026-09-04** (issue #96), on the rule the AC-361 to
+  AC-365 bullet below states and one past the number in the bullet under this one, both
+  having been taken by the same branch on the same night. It is 12.23's, beside AC-238,
+  whose inline-script arm it completes: that one recomputes the digests from the shell
+  document and in CI always reads the source, both vitest legs running before the build
+  step, so a script that only the build produces was invisible to the whole suite. This
+  reads the document the browser leg's own server serves, which `npm run e2e:app` built
+  moments earlier. **The next number to take from the tail is 403 unless a sibling branch
+  says otherwise**, and no gap above is claimed or freed here for the reason the bullet
+  below gives.
+
 - **AC-401 was taken from the tail on 2026-09-04** (issue #57), on the rule the AC-361 to
-  AC-365 bullet below states and at the tail the bullet above leaves: it is the icon rail's
+  AC-365 bullet below states and at the tail the AC-399 bullet below leaves: it is the icon
+  rail's
   alignment, which nothing guarded while the glyphs sat at three different x positions for
   months. It is 12.18's, beside AC-182, which collapses the same rail and asserts what it
   still reaches where this asserts how it is drawn. **The numbers above 401 are not claimed
-  or freed here.** Sibling branches were open the same night and one of them holds AC-402;
-  whether anything past that is spent is not known from here, and listing a number free that
-  a sibling has just spent is the collision this rule exists to prevent, made by the fix
-  rather than by the mistake. The count in the table below and the total at the top are the
-  last merge's to re-derive from the files, as the AC-394 bullet says, and this branch moved
-  neither.
+  or freed here.** AC-402 is the same branch's, in the bullet above; whether anything past
+  it is spent is not known from here, three other branches having been open the same night,
+  and listing a number free that a sibling has just spent is the collision this rule exists
+  to prevent, made by the fix rather than by the mistake. The count in the table below and
+  the total at the top are the last merge's to re-derive from the files, as the AC-394
+  bullet says, and this branch moved neither.
 
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
