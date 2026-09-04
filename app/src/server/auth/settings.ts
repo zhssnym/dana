@@ -17,7 +17,8 @@ import type { Request, Response } from 'express'
 import type { Db } from '../../../db/client.js'
 import { patchMeSettingsBody } from '../../shared/me.js'
 import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
-import { sendValidationError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import type { SecurityLogger } from '../security/log.js'
 import { rowsOf } from '../database.js'
 
 /** The three 7.2 columns, named once so read and write cannot select
@@ -120,15 +121,14 @@ export async function handlePatchSettings(
   userId: string,
   req: Request,
   res: Response,
+  /* account.ts's reason, one file over (issue #104). */
+  securityLog: SecurityLogger,
 ): Promise<void> {
   // Validate, then delegate: the schema refuses every non-boolean including
   // null (4.10 admits no null state) with a 422 naming the field, and it
   // refuses the whole body, so a valid field cannot land beside a refused one.
-  const parsed = patchMeSettingsBody.safeParse(req.body)
-  if (!parsed.success) {
-    sendValidationError(res, parsed.error)
-    return
-  }
+  const parsed = parseBody(patchMeSettingsBody, req, res, securityLog)
+  if (parsed === null) return
   // 7.2, by the owner's ruling: the PATCH answers the GET /me/settings object.
-  res.status(200).json(await writeSettings(db, userId, parsed.data))
+  res.status(200).json(await writeSettings(db, userId, parsed))
 }

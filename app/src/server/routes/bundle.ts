@@ -47,7 +47,10 @@ import {
   putPlaceDescription,
 } from '../domain/place-descriptions.js'
 import type { ObjectStore } from '../files/store.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -59,11 +62,13 @@ export interface BundleRouterOptions {
    * copy the picture it names (issue #116, spec 7.19). Optional beside the
    * other two for `routes/files.ts`'s reason, and guarded the same way. */
   fileStore?: ObjectStore
+  securityLog?: SecurityLogger
 }
 
 export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   /** `routes/files.ts`'s guard, one router over: an application constructed
    * without a store cannot copy a cover's bytes, and saying so is better
@@ -99,12 +104,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = patchSettingsBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      res.status(200).json(await writeBundle(db, viewer(req), parsed.data))
+      const parsed = parseBody(patchSettingsBody, req, res, securityLog)
+      if (parsed === null) return
+      res.status(200).json(await writeBundle(db, viewer(req), parsed))
     },
   )
 
@@ -122,12 +124,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = postViewBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const outcome = await createView(db, viewer(req), parsed.data)
+      const parsed = parseBody(postViewBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await createView(db, viewer(req), parsed)
       if (outcome.kind === 'view_cap') {
         sendError(
           res,
@@ -177,12 +176,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (db === null) return
       const viewId = parsedId(res, req.params.id)
       if (viewId === null) return
-      const parsed = patchViewBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const view = await patchView(db, viewer(req), viewId, parsed.data)
+      const parsed = parseBody(patchViewBody, req, res, securityLog)
+      if (parsed === null) return
+      const view = await patchView(db, viewer(req), viewId, parsed)
       if (view === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -248,11 +244,8 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (db === null) return
       const place = parsedPlace(res, req.params.place)
       if (place === null) return
-      const parsed = putPlaceCoverBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(putPlaceCoverBody, req, res, securityLog)
+      if (parsed === null) return
       const store = storeOf(res)
       if (store === null) return
       const outcome = await putPlaceCover(
@@ -260,7 +253,7 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
         store,
         viewer(req),
         place,
-        parsed.data,
+        parsed,
       )
       if (outcome.kind === 'file_not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
@@ -334,14 +327,11 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (db === null) return
       const place = parsedPlace(res, req.params.place)
       if (place === null) return
-      const parsed = putPlaceDescriptionBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(putPlaceDescriptionBody, req, res, securityLog)
+      if (parsed === null) return
       res
         .status(200)
-        .json(await putPlaceDescription(db, viewer(req), place, parsed.data))
+        .json(await putPlaceDescription(db, viewer(req), place, parsed))
     },
   )
 

@@ -16,7 +16,9 @@ import { patchMeBody } from '../../shared/me.js'
 import type { MeResponse } from '../../shared/me.js'
 import { deleteAccountData } from '../domain/account-deletion.js'
 import type { AccountDeletionCounts } from '../domain/account-deletion.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import type { SecurityLogger } from '../security/log.js'
 import { clearSessionCookies } from './cookies.js'
 import { inTransaction, rowsOf } from '../database.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
@@ -98,12 +100,13 @@ export async function handlePatchMe(
   userId: string,
   req: Request,
   res: Response,
+  /* Handed in rather than constructed here, the way every router in this
+     repository takes it: this is a handler the auth router calls, and its
+     10.5 lines have to land in the same sink as that router's (issue #104). */
+  securityLog: SecurityLogger,
 ): Promise<void> {
-  const parsed = patchMeBody.safeParse(req.body)
-  if (!parsed.success) {
-    sendValidationError(res, parsed.error)
-    return
-  }
+  const parsed = parseBody(patchMeBody, req, res, securityLog)
+  if (parsed === null) return
 
   /*
   The comparison and its consequence in one transaction, and the whole of 7.1's
@@ -131,10 +134,10 @@ export async function handlePatchMe(
       sql`SELECT timezone FROM users WHERE id = ${userId}`,
     )
     const stored = current[0]?.timezone
-    if (typeof stored === 'string' && sameZone(parsed.data.timezone, stored)) {
+    if (typeof stored === 'string' && sameZone(parsed.timezone, stored)) {
       return
     }
-    await writeTimezone(tx, userId, parsed.data.timezone)
+    await writeTimezone(tx, userId, parsed.timezone)
   })
 
   const body = await meBody(db, userId)
