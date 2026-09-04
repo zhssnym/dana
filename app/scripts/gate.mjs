@@ -21,6 +21,14 @@ a claim; a record with them is a measurement.
 through `scripts/run-suite.mjs`, which fails a run that exited 0 without
 accounting for every file it collected, and this file prints that accounting
 into the record so that a reader sees 295 files rather than the word "passed".
+**A leg that reports no tally at all is red**, not ok: an exit code with no
+summary behind it is the same false green one layer up.
+
+**Three verdicts, and only one of them opens a pull request.** `green` means all
+seven ran and all seven passed. `red at <step>` means one failed. `incomplete`
+means a step of the seven did not run — this machine has no `TEST_DATABASE_URL`,
+or you asked for `--quick`. Incomplete is not red, because there is no defect to
+point at, and it is not green, because 11.11 fixes seven steps.
 
 **Read a red through CLAUDE.md before believing it.** Four flake classes are
 enumerated there and only two are answered by re-running. Nothing here tries to
@@ -124,22 +132,36 @@ function elapsed(ms) {
   return `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, '0')}s`
 }
 
-/** The tallies vitest reported, as one line of the record. */
+/**
+ * What a leg reported, as {ok, note}. `ok: false` fails the step even though
+ * the command exited 0.
+ *
+ * **A leg with no tally is red rather than ok**, and that is the whole reason
+ * these return a verdict instead of a string. A green exit code with no summary
+ * line means the run ended in some way this file cannot read, and a record that
+ * writes `ok` beside "no summary line found" is a claim dressed as a
+ * measurement — the same false green `run-suite.mjs` exists to refuse, arriving
+ * one layer up.
+ */
 function vitestTally(output) {
   const { files, tests } = summarise(output)
-  if (files === null || tests === null) return 'no summary line found'
-  return `${files.text} files, ${tests.text} tests`
+  if (files === null || tests === null) {
+    return { ok: false, note: 'no summary line: this run reported no tally to record' }
+  }
+  return { ok: true, note: `${files.text} files, ${tests.text} tests` }
 }
 
-/** The tallies Playwright reported, as one line of the record. */
+/** The same, for Playwright's list reporter. */
 function playwrightTally(output) {
   const parts = []
   for (const line of output.split(/\r?\n/).map((l) => l.replace(ANSI, ''))) {
     const match = PLAYWRIGHT_TALLY.exec(line)
     if (match !== null) parts.push(`${match[1]} ${match[2]}`)
   }
-  if (parts.length === 0) return 'no summary line found'
-  return `${[...new Set(parts)].join(', ')} cases`
+  if (parts.length === 0) {
+    return { ok: false, note: 'no summary line: this run reported no tally to record' }
+  }
+  return { ok: true, note: `${[...new Set(parts)].join(', ')} cases` }
 }
 
 async function main() {
@@ -160,6 +182,8 @@ async function main() {
   /** @type {{name: string, state: string, note: string, took: string}[]} */
   const rows = []
   let failedAt = null
+  /** Steps of the seven that did not run. A record with any of these is not green. */
+  const missing = []
 
   const record = (name, state, note, took) => rows.push({ name, state, note, took })
 
@@ -169,46 +193,83 @@ async function main() {
     const at = Date.now()
     const { code, output } = await run(command, args, env)
     const took = elapsed(Date.now() - at)
+    const verdict = tally === undefined ? { ok: true, note: '' } : tally(output)
     if (code !== 0) {
       failedAt = name
-      record(name, 'RED', tally === undefined ? `exit ${code}` : `exit ${code}, ${tally(output)}`, took)
+      record(name, 'RED', verdict.note === '' ? `exit ${code}` : `exit ${code}, ${verdict.note}`, took)
       return
     }
-    record(name, 'ok', tally === undefined ? '' : tally(output), took)
+    if (!verdict.ok) {
+      failedAt = name
+      record(name, 'RED', verdict.note, took)
+      return
+    }
+    record(name, 'ok', verdict.note, took)
   }
 
-  // Step 1 of 11.11's seven, and the only one this file does not execute.
+  // Step 1 of 11.11's seven. It is executed only when the lockfile has actually
+  // moved, and the comparison is against the merge base with origin/main rather
+  // than against the working tree: what matters is whether this branch changed
+  // the dependencies, not whether git happens to see the file as dirty.
+  //
   // `npm ci` deletes node_modules and rebuilds it, which is right for a fresh
-  // runner and wrong for a working tree someone is in the middle of. What the
-  // record says instead is what was checked: that the tree the other six steps
-  // ran against is the tree the lockfile describes.
-  const lockChanged = porcelain.split(/\r?\n/).some((line) => line.includes('package-lock.json'))
-  record(
-    'install',
-    'ok',
-    lockChanged
-      ? 'package-lock.json is modified in this tree; npm ci not re-run'
-      : 'node_modules as installed, package-lock.json unmodified; npm ci not re-run',
-    '-',
-  )
+  // runner and expensive for a working tree that has not touched the lockfile.
+  // So the two cases are said differently and neither is a guess: unmodified
+  // since the base, and the record says the install was not re-run; modified,
+  // and it is re-run here as a real step with its own timing, because the other
+  // six then ran against dependencies nobody had installed.
+  const base = await read('git', ['merge-base', 'HEAD', 'origin/main'])
+  const lockMoved =
+    base === ''
+      ? null
+      : (await read('git', ['diff', '--name-only', base, '--', 'package-lock.json'])) !== ''
+
+  if (lockMoved === null) {
+    record('install', 'ok', 'no origin/main to compare against; npm ci not re-run', '-')
+  } else if (lockMoved) {
+    await step('install', 'npm', ['ci'])
+    const row = rows[rows.length - 1]
+    if (row !== undefined && row.name === 'install' && row.state === 'ok') {
+      row.note = `package-lock.json moved since ${base.slice(0, 7)}; npm ci run`
+    }
+  } else {
+    record(
+      'install',
+      'ok',
+      `node_modules as installed, package-lock.json unmodified since ${base.slice(0, 7)}; npm ci not re-run`,
+      '-',
+    )
+  }
 
   await step('lint', 'npm', ['run', 'lint'])
   await step('typecheck', 'npm', ['run', 'typecheck'])
 
-  if (!quick) {
+  if (quick) {
+    missing.push('the legs and the browser')
+  } else {
     // Empty rather than absent, which is the condition app/db/client.ts tests
     // and the same spelling ci.yml uses on this step.
     await step('test (PGlite)', 'npm', ['test'], { TEST_DATABASE_URL: '' }, vitestTally)
 
     if (havePostgres) {
       await step('test (Postgres 18)', 'npm', ['test'], { TEST_DATABASE_URL: postgres }, vitestTally)
+    } else if (failedAt !== null) {
+      // Nothing. An earlier step failed, the run has stopped, and a row saying
+      // this leg was unavailable would be describing a leg that was never
+      // reached for a different reason. `red at <step>` is the whole verdict.
     } else {
+      // Not a failure and not a pass. 11.11 fixes seven steps and this run did
+      // six, so the record cannot say green and must not say red either: red
+      // would read as a defect in the branch, and there is none. The one-time
+      // setup is spec 11.10's CREATE DATABASE statement, which is why the note
+      // names it rather than shrugging.
       record(
         'test (Postgres 18)',
         'n/a',
-        "not available on this machine; main's run is the authority",
+        'not available on this machine; TEST_DATABASE_URL is unset. Spec 11.10 has the setup',
         '-',
       )
+      missing.push('Postgres leg not available on this machine')
     }
   }
 
@@ -257,6 +318,32 @@ async function main() {
   else if (dirtyAfter) treeLine = `tree dirty at ${shortSha} — edited while the run was going`
   if (moved) treeLine += `; HEAD moved to ${shaAfter} during the run`
 
+  // **Green means all seven ran and all seven passed, and nothing else does.**
+  // A run that skipped one is `incomplete`: not red, because there is no defect
+  // to point at, and not green, because 11.11 fixes seven steps and this record
+  // is the evidence that they were answered for. `how-we-work.md` section 8 and
+  // `hard-stops.md` both say a pull request needs a green gate, so a machine
+  // with no Postgres cannot open one, and spec 11.10 carries the one CREATE
+  // DATABASE statement that fixes it. `--quick` is incomplete by construction
+  // and can therefore never be mistaken for a pull request's gate.
+  const green = failedAt === null && missing.length === 0
+  const verdict =
+    failedAt !== null
+      ? `GATE: red at ${failedAt}`
+      : green
+        ? 'GATE: green'
+        : `GATE: incomplete (${missing.join('; ')})`
+
+  // **The verdict line and the exit code answer different questions**, and
+  // separating them is deliberate rather than sloppy. The line answers "is this
+  // a pull request's gate", and only `green` is. The code answers "did you get
+  // what you asked for": a machine that cannot run a leg you asked for is a
+  // failure of the run and exits non-zero, while `--quick` gave you exactly the
+  // three steps you asked for and exits 0 so that it can sit in a shell loop.
+  // Neither can be mistaken for the other, because `--quick` never prints
+  // `GATE: green`.
+  const gotWhatWasAsked = failedAt === null && (quick || missing.length === 0)
+
   const ended = new Date()
   const width = Math.max(...rows.map((row) => row.name.length))
   const lines = [
@@ -273,12 +360,19 @@ async function main() {
     ),
     '',
     quick ? 'quick: lint, typecheck and build only. The legs and the browser did not run.' : null,
-    failedAt === null ? 'GATE: green' : `GATE: red at ${failedAt}`,
+    verdict,
     '```',
   ].filter((line) => line !== null)
 
   process.stdout.write(`\n${lines.join('\n')}\n`)
-  process.exit(failedAt === null ? 0 : 1)
+
+  // exitCode rather than exit(), so that stdout is flushed rather than
+  // truncated. process.exit() kills the process at the next tick whatever is
+  // still in the pipe, and the thing in the pipe here is the record itself:
+  // piped into `tee` or read over a slow console it is exactly the output that
+  // would be lost, which would make a red run look like a run that never
+  // finished.
+  process.exitCode = gotWhatWasAsked ? 0 : 1
 }
 
 // The same entry guard run-suite.mjs carries, and for the same reason: the
