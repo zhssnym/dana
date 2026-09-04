@@ -21,11 +21,23 @@ contract test can say is said here:
 The two-method probe is this role's mandate rather than a criterion: section 7
 and the implemented routes are meant to correspond exactly, so a method 7.2
 never wrote must not answer.
+
+**Scope widened on 2026-09-04 by issue #152, and to a second subsection rather
+than to more of this one.** Everything above is `/me/settings`, frozen 7.2's
+three booleans. The last describe block below is AC-409 and it is 7.23's, the
+v2 settings bundle at `/settings` — a different endpoint sharing one row of
+`user_settings` and not one column of it. It is here because this is the file
+that already boots the real application and holds the shared schemas against
+what the wire answers, which is the whole of that criterion, and because the
+two subsections are read together: 7.2's annotation now points at 7.23 and
+issue #113 retires 7.2 into it.
 */
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -36,6 +48,7 @@ import { TestBrowser } from '../../../tests/http-client.js'
 import type { RawRequestOptions, RawResponse } from '../../../tests/http-client.js'
 import { startOidcStub } from '../../../tests/oidc-stub.js'
 import type { OidcStub } from '../../../tests/oidc-stub.js'
+import { patchSettingsBody, settingsBundle } from '../../shared/bundle.js'
 import { errorEnvelope } from '../../shared/error-envelope.js'
 import {
   getMeSettingsResponse,
@@ -371,5 +384,91 @@ describe('the 7.0 taxonomy on the 7.2 surface', () => {
         `${method} /me/settings must refuse in the 7.0 envelope`,
       ).toBe(true)
     }
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * AC-409, the 7.23 settings bundle
+ * ------------------------------------------------------------------ */
+
+/**
+ * The fields 7.23's table names, read out of the markdown as text.
+ *
+ * Read rather than imported, the way `tests/ac-315-...` reads `routes.ts`,
+ * and for a stronger reason than that one had: the document is the artifact
+ * under test here. A criterion that imported a list from the same module the
+ * document is supposed to describe would assert the schema against itself and
+ * pass on a 7.23 that had gone stale, which is precisely the state issue #152
+ * found section 7 in and precisely what this exists to stop happening again.
+ *
+ * The section is anchored by its heading and the rows by the backticked name
+ * in the first cell, so a rename of either fails loudly — an empty list is
+ * asserted against below rather than compared to an empty schema and passed.
+ */
+function fieldsNamedBy723(): string[] {
+  const document = readFileSync(
+    fileURLToPath(
+      new URL(
+        '../../../../docs/spec/07-api/07.23-settings-bundle.md',
+        import.meta.url,
+      ),
+    ),
+    'utf8',
+  )
+  const section = /\n## The fields\n([\s\S]*?)(?=\n## |$)/.exec(document)?.[1]
+  if (section === undefined) return []
+  return [...section.matchAll(/^\|\s*`([a-z_]+)`\s*\|/gm)].map(
+    (row) => row[1] as string,
+  )
+}
+
+describe('AC-409: 7.23 names every field of the settings bundle', () => {
+  const documented = fieldsNamedBy723().sort()
+
+  test('the document names a field list at all, in the shape read above', () => {
+    // Asserted first and separately. Every comparison below is against this
+    // list, so a heading or a table this regex stops matching would otherwise
+    // turn the whole criterion into two empty sets agreeing with each other.
+    expect(
+      documented.length,
+      'spec 7.23 must carry a "## The fields" table whose rows open with a backticked field name',
+    ).toBeGreaterThan(0)
+  })
+
+  test('the request schema declares exactly the documented fields', () => {
+    expect(
+      Object.keys(patchSettingsBody.shape).sort(),
+      'issue #152: a field PATCH /settings accepts with no row in 7.23 is a contract ' +
+        'that has gone stale, and a row in 7.23 for a field the schema does not accept ' +
+        'is a contract describing an endpoint nobody built',
+    ).toEqual(documented)
+  })
+
+  test('the response schema declares exactly the documented fields', () => {
+    // The second half, and not the same assertion twice: shared/bundle.ts
+    // holds a request schema and a response schema that are separate objects,
+    // and 7.23 states one field list for both because the endpoint answers
+    // the whole object on either method.
+    expect(
+      Object.keys(settingsBundle.shape).sort(),
+      'the GET shape and 7.23 must name one list, PATCH answering the GET object',
+    ).toEqual(documented)
+  })
+
+  test('and the body GET /api/v1/settings actually answers carries them', async () => {
+    // The arm neither of the two above can make. A schema is a promise; this
+    // is the wire. 11.15's first loss class is a field declared on both sides
+    // and served by neither, which every static comparison here passes.
+    const who = await actor()
+    const response = await api(who, '/settings')
+    expect(response.status).toBe(200)
+    expect(
+      Object.keys(response.json() as Record<string, unknown>).sort(),
+      'the bundle on the wire must be exactly the fields 7.23 names: nothing extra, nothing missing',
+    ).toEqual(documented)
+    expect(
+      issuesOf(settingsBundle.safeParse(response.json())),
+      'and it must parse with the shared schema the client validates it against',
+    ).toEqual([])
   })
 })

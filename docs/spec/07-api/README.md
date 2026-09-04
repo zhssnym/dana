@@ -55,6 +55,20 @@ limiter and an authorization argument of its own, and because 10.9 named
 inventing one inside a compliance note as the wrong way to acquire it. 10.9
 stops recording the gap in the same change and points here.
 
+**Fifth, and on the same day, 7.23 is a second new subsection and it is the
+opposite kind of move: it records an endpoint that has shipped since RFC 0005
+rather than adding one (issue #152).** `GET` and `PATCH /api/v1/settings`, the
+4.19 bundle, were described nowhere in this section — not in 7.2, which is the
+frozen v1 `/me/settings` and its three page flags, not in 7.17, not in RFC
+0005's folded units — so the only account of them anywhere was 4.19's column
+list and the zod schemas both sides import. That was found while adding
+`calendar_zoom` for #142, which had to annotate 7.2 to name the endpoint at all
+and said in terms that writing it up was separate work. The owner ruled it a
+hole in the contract rather than a new surface, which is why this one moves the
+frozen section without changing a single status, body or field, and why no
+criterion moves with it. AC-409 holds the new file to the schemas so that it
+cannot quietly go stale the way the endpoint itself did.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
@@ -80,3 +94,4 @@ stops recording the gap in the same change and points here.
 | 7.20 | [`07.20-sample-workspace.md`](07.20-sample-workspace.md) | 7.20 Sample workspace |
 | 7.21 | [`07.21-place-descriptions.md`](07.21-place-descriptions.md) | 7.21 Place descriptions |
 | 7.22 | [`07.22-data-export.md`](07.22-data-export.md) | 7.22 Data export |
+| 7.23 | [`07.23-settings-bundle.md`](07.23-settings-bundle.md) | 7.23 The settings bundle |

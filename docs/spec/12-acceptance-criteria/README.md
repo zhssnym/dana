@@ -54,6 +54,16 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-409 was assigned from the tail on 2026-09-04** (issue #152), on the backend README's
+  rule for parallel branches rather than out of the gaps above: several branches were open
+  that night and the number was handed out by the session that opened them, deliberately
+  above 401 to 408, which belong to siblings and are **not** free here. It is 12.3's, and it
+  is the guard on the subsection written the same night: `GET` and `PATCH /api/v1/settings`,
+  the 4.19 bundle, were described nowhere in section 7 for the whole of RFC 0005 while four
+  fields were added to them, so 7.23 records the endpoint and AC-409 holds that record equal
+  to the two schemas and to the wire. **No total moves with it**, this branch being one of
+  several on these files; the count, the range sentence above and the per-file rows below
+  are the last merge's to re-derive, as the AC-361 bullet already says.
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
   branch by the session that opened several at once, which is the backend README's rule for
