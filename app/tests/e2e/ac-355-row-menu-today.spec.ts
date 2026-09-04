@@ -20,7 +20,7 @@ import {
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -40,8 +40,16 @@ test('AC-355: Add to Today is 7.8\'s pull, and the menu then offers Remove from 
   const wire = watchWire(page)
   await row.hover()
   await clickControl(row.getByRole('button', { name: 'More actions', exact: true }), "the row's menu")
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const pulled = watchCommit(page)
   await clickControl(page.getByRole('menuitem', { name: 'Add to Today', exact: true }), 'the act')
-  await waitForApiIdle(page, 'the pull has been written')
+  await pulled.settled('the pull reaches the server before the wire is read')
   expect(
     wire
       .mutations()

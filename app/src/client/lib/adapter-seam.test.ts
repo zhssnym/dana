@@ -290,6 +290,22 @@ describe('task-concept: what a PATCH may carry, and what it refuses', () => {
     })
     expect(conceptPatchToBody({})).toEqual({})
   })
+
+  /*
+  Issue #169, and the case the type could not state until it was fixed. The
+  menu's Unassigned said `undefined`, which this function reads as "the field
+  was not touched", so the body came out empty, no request was made, and the
+  chip cleared in the browser over a task the server still had assigned. The
+  two empties are two values now, and this asserts both of them: null clears,
+  absent leaves alone. AC-220 reads the same pair through the browser.
+  */
+  test('a null assignee clears and an untouched one is left alone', () => {
+    expect(conceptPatchToBody({ assignee: null })).toEqual({ assignee_id: null })
+    expect(conceptPatchToBody({ title: 'Pay the deposit' })).toEqual({
+      title: 'Pay the deposit',
+    })
+    expect(conceptPatchToBody({ assignee: undefined })).toEqual({})
+  })
 })
 
 describe('task-writer: the seam names what it dropped', () => {

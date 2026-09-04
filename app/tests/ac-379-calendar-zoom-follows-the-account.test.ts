@@ -14,8 +14,9 @@ tell those apart, because a cookie jar is what a device is here. The two
 sessions are the same `sub`, so they are one account and two browsers rather
 than two accounts.
 
-**The stored row is read beside the wire**, which is `settings-harness.ts`'s
-standing discipline for this surface: an endpoint that answers 200 without
+**The stored row is read beside the wire**, which is `bundle-harness.ts`'s
+standing discipline for this surface — `settings-harness.ts`'s before issue
+#113 retired frozen 7.2 and replaced it: an endpoint that answers 200 without
 writing, or writes without answering, must fail on whichever half lied.
 
 **And the third clause is the one that catches a write with no WHERE.**

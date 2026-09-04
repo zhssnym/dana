@@ -17,13 +17,25 @@ the block, one picture per block for ever; a file in Dana is its own row, is
 reusable, and is what a block points at. An empty string is a block whose
 picture has not been chosen yet, which is the state the dropzone below draws.
 
-**Three. The width is 4.17's `width_pct` and the ratio is nobody's.** B7's
-handle writes a column S22a landed; B7's aspect-ratio reservation has nothing
-to read a ratio from, which is **section 13 item 47**, recorded at S22a
-precisely against this file. So the reservation is exact for whoever chose the
-picture and 16 by 9 for every other reader, and the item is where the pair of
-columns that would close it is written down. It is not a styling problem and
-must not be treated as one.
+**Three. The width is 4.17's `width_pct` and the ratio is the file's.** B7's
+handle writes a column S22a landed; B7's reservation had nothing to read a
+ratio from, which was section 13 item 47, and issue #108 closed it. The ratio
+arrives in the model and what fills the model is 4.16's `file_width` and
+`file_height` off the block read (7.16). This block does not decide it and
+should not: one picture on three pages is one shape reported three times rather
+than three numbers free to disagree, which is why those columns are the file's
+and are absent from `PageBlockWrite`.
+
+**What stood here said the reservation was "exact for whoever chose the
+picture and 16 by 9 for every other reader", and nobody has ever seen the
+first half.** `components/page/BlocksEditor.tsx` passed a literal `16 / 9` and
+dropped the measured ratio on the next render, so the author got the fallback
+too. The sentence described an intention and was read as behaviour, which is
+the failure mode `CLAUDE.md` names first, caught in this file's own header.
+
+`lib/page-images.ts`'s `reservedRatio` is the one place null becomes 16 by 9,
+and it stays right for every picture stored before migration 0009: they report
+null and always will, no backfill having been run.
 */
 /*
 A picture on a page.
@@ -55,10 +67,17 @@ kind of writing. A caption is too, so it takes the tier rather than inventing a
 fourth size, and it is optional, absent rather than a placeholder, because a
 picture that explains itself should not carry an empty line under it.
 
-**The space is reserved before the picture loads.** The block knows its aspect
-ratio from the moment the file is chosen, so the page never jumps by the height
-of an image, the single most noticeable thing a page of text can do wrong, and
-the reason \`scaleImageFile\` returns the ratio rather than only the bytes.
+**The space is reserved before the picture loads.** The page never jumps by the
+height of an image, the single most noticeable thing a page of text can do
+wrong. The brief said the block knew its ratio "from the moment the file is
+chosen", which was the whole of what it could know when this was written and is
+no longer the interesting half: 4.16 measures the stored picture and 7.16
+reports it, so the reservation is right for everyone who opens the page and not
+only for the person holding the file. That asymmetry is what issue #108 was
+about — the jump was invisible to whoever uploaded the picture and visible to
+everybody else, which is how it survived. \`scaleImageFile\` still returns the
+ratio, now for the round trip it saves rather than because it is the only
+reading there is.
 
 Three ways in, because people reach for different ones and all three are one
 line apart: choose a file, drop one, or paste. Paste is the gesture that matters
@@ -80,6 +99,7 @@ import {
 import { cn } from "./ui/utils.js"
 import { ImagePlus, MoreHorizontal, Trash2 } from "../lib/icons.js"
 import {
+  FALLBACK_RATIO,
   forgetPageImage,
   readPageImage,
   savePageImage,
@@ -89,8 +109,10 @@ import {
 export interface PageImageModel {
   /* Seam two: 7.15's file id, empty for a block nobody has filled yet. */
   id: string
-  /* Width over height, kept so the block can hold its place before the bytes
-     arrive. */
+  /* Width over height, so the block holds its place before the bytes arrive.
+     Whoever builds this model owes `reservedRatio` rather than a literal: it
+     is 4.16's measured pair where the file has one and 16 by 9 where it does
+     not, and this component draws what it is handed. */
   ratio: number
   caption: string
   /* A percentage of the page column, 25 to 100. Absent means full width, so
@@ -227,8 +249,12 @@ export function PageImage({
         <img
           src={src}
           alt={image.caption || "Image on this page"}
-          /* The ratio holds the space before the bytes paint. */
-          style={{ aspectRatio: image.ratio || 16 / 9 }}
+          /* The ratio holds the space before the bytes paint. The `||` is the
+             last guard rather than the fallback: `reservedRatio` has already
+             turned an unmeasured file into 16 by 9, and this catches a caller
+             that hands over a zero or a NaN, which CSS would draw as a
+             collapsed box. */
+          style={{ aspectRatio: image.ratio || FALLBACK_RATIO }}
           className="block w-full object-cover"
         />
         <span className="absolute top-2 right-2 opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover/img:opacity-100 focus-within:opacity-100">

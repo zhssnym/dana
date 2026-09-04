@@ -1,6 +1,13 @@
 /*
-The /me endpoints as code, 7.1's three and 7.2's two: the request bodies the
-server validates with, and the response shapes both sides read.
+The /me endpoints as code, 7.1's three: the request bodies the server
+validates with, and the response shapes both sides read.
+
+7.2's two were here as well until issue #113 retired them on 2026-09-04, and
+their schemas followed on the merge that brought #150's client half in. The
+three booleans they carried are still a shape this file declares, because
+frozen 7.1's GET /me answers them under its `settings` key; what is gone is
+the request body of an endpoint that no longer exists, and the two response
+aliases that named this object after it.
 
 The server validates requests with these authoritatively; the client may
 import them for convenience, which per 7.11 carries no authority. Convention
@@ -32,8 +39,9 @@ export type DeleteMeBody = z.infer<typeof deleteMeBody>
 The 7.2 settings surface. One primitive serves all three fields on both
 sides, because the three carry one rule: a boolean, and nothing else.
 
-z.boolean refuses every non-boolean without coercing, which is the whole of
-AC-121. Null is among the refusals rather than a clear: 4.10's three columns
+z.boolean refuses every non-boolean without coercing, which was the whole of
+AC-121 before #113 rewrote that criterion against 7.23's bundle. Null is
+among the refusals rather than a clear: 4.10's three columns
 are NOT NULL booleans with defaults, so there is no state to clear back to,
 unlike the label and color of 7.4's my-membership, which the frozen text
 itself marks nullable. Section 12 records that reading at the P2S opening;
@@ -42,11 +50,23 @@ this is where it is enforced.
 export const settingsToggle = z.boolean({ error: 'must be a boolean' })
 
 /*
-The 7.2 settings object: GET /me/settings answers it, the settings key of
-the GET /me body carries it (7.1), and PATCH /me/settings answers it too by
-the owner ruling now standing in 7.2. One definition for one object, since
-three copies of a shape are three things that can disagree, and this role
-exists to prevent per-endpoint variants of the same object.
+The settings object. Since issue #113 exactly one live endpoint answers it,
+the settings key of the GET /me body (7.1), the two that also did having been
+retired. One definition for one object, since copies of a shape are things
+that can disagree, and this role exists to prevent per-endpoint variants of
+the same object.
+
+**Its two aliases went on 2026-09-04, one merge after the endpoints they were
+named for**, exactly as the note that stood here promised. `getMeSettingsResponse`
+and `patchMeSettingsResponse` were this object under 7.2's names, and
+`patchMeSettingsBody` was the request body of `PATCH /me/settings`; all three
+outlived their routes by one merge because the client on `main` still imported
+them, and issue #150 is the branch that stopped. That branch is on this
+integration branch now, nothing imports any of the four, and they are deleted
+here. What is not dead is this object: 7.1 is frozen and untouched by #113, so
+the `settings` key of `GET /me` still carries the three booleans, AC-116 still
+pins that shape, and `domain/bundle.ts` still derives the three columns into
+`pinned_views` per 4.19.
 */
 export const settings = z.object({
   show_important: settingsToggle,
@@ -54,42 +74,6 @@ export const settings = z.object({
   show_done: settingsToggle,
 })
 export type Settings = z.infer<typeof settings>
-
-export const getMeSettingsResponse = settings
-
-/*
-The ruled PATCH response, by construction rather than by transcription:
-7.2's appended sentence says PATCH /me/settings answers the GET /me/settings
-object, the fresh-GET convention 7.1 carries on PATCH /me and 7.4 on each of
-its mutations. Binding the name to the same schema is how a ruling stops
-being a sentence two shapes might each claim to satisfy.
-*/
-export const patchMeSettingsResponse = settings
-
-/*
-PATCH /me/settings. Body: any subset of the three booleans (7.2), which the
-P2 merge ratified as the section 7 PATCH reading, absent unchanged and every
-present value valid. The empty subset is a subset, so {} parses; refusing it
-with an at-least-one-field rule would refuse a body the frozen sentence
-admits (AC-120).
-
-Absent must survive parsing as absent, not as undefined-valued, because the
-handler writes only the fields it finds here: an implementation that reads,
-merges, and writes all three columns loses one side of two concurrent
-disjoint PATCHes, which AC-120 races for.
-
-Written out field by field rather than derived from the settings object
-above with .partial(). They coincide today because frozen 7.2 says both are
-the three booleans, but one is what the endpoint accepts and the other is
-what it answers; deriving would silently make any later read-only field
-writable.
-*/
-export const patchMeSettingsBody = z.object({
-  show_important: settingsToggle.optional(),
-  show_all: settingsToggle.optional(),
-  show_done: settingsToggle.optional(),
-})
-export type PatchMeSettingsBody = z.infer<typeof patchMeSettingsBody>
 
 /*
 The GET /me response, which 7.1 fixes as

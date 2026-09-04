@@ -55,7 +55,11 @@ export function surfaceTask(
     ...(task.due === undefined ? {} : { due: task.due }),
     status: task.abandoned ? 'abandoned' : task.done ? 'completed' : 'pending',
     ...(task.important === undefined ? {} : { important: task.important }),
-    ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+    /* Both of #169's empties are "no chip": `TaskRowProps['assignee']` carries
+       a person or nothing, null being a patch's word and never a row's. */
+    ...(task.assignee === undefined || task.assignee === null
+      ? {}
+      : { assignee: task.assignee }),
     ...(task.pulled === undefined ? {} : { pulled: task.pulled }),
     detail: task,
   }

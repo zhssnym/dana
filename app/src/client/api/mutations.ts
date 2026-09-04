@@ -65,8 +65,6 @@ import type {
   PostInvitesBody,
   PostInvitesResponse,
 } from '../../shared/invites.js'
-import { patchMeSettingsResponse } from '../../shared/me.js'
-import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
 import {
   patchStepResponse,
   patchTaskResponse,
@@ -494,21 +492,6 @@ export function useRemoveFromMyDay(): UseMutationResult<TaskDetail, Error, strin
   })
 }
 
-export function useUpdateSettings(): UseMutationResult<
-  Settings,
-  Error,
-  PatchMeSettingsBody
-> {
-  return useMutation({
-    mutationFn: (body: PatchMeSettingsBody) =>
-      mutateApi(patchMeSettingsResponse, {
-        method: 'PATCH',
-        path: '/me/settings',
-        body,
-      }),
-  })
-}
-
 export function useCreateInvite(): UseMutationResult<
   PostInvitesResponse,
   Error,
@@ -535,11 +518,14 @@ export function useCreateInvite(): UseMutationResult<
  * ------------------------------------------------------------------ */
 
 /**
- * The 4.19 bundle's write, at the v2 address.
+ * The 4.19 bundle's write, at the v2 address, and the client's only settings
+ * write.
  *
- * Beside frozen 7.2's `useUpdateSettings` and never instead of it: that one
- * still owns the three v1 page flags, and this owns the pin list, the theme,
- * the density, the clock, the task-open surface and the arrangements.
+ * It owns the pin list, the theme, the density, the clock, the task-open
+ * surface, the calendar's zoom and the arrangements. A `useUpdateSettings`
+ * over frozen 7.2's `/me/settings` stood beside it until issue #150, called
+ * by nothing: the three v1 page flags are still the server's and still derive
+ * into the pin list, and no surface in this client writes them directly.
  */
 export function usePatchBundle(): UseMutationResult<
   GetSettingsResponse,
@@ -634,6 +620,45 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(null, { method: 'DELETE', path: `/shelves/${id}` }),
+  })
+}
+
+/**
+ * POST /shelves/:id/duplicate (7.16 as amended 2026-09-04; issues #117, #128).
+ * 201 with the whole new Shelf, which the caller navigates to.
+ *
+ * **It replaces two calls, and the second one is what #117 was about.** The
+ * page duplicated a shelf as `POST /shelves` carrying the icon, colour and
+ * description read from the original, and there was no third field it could
+ * have carried for the cover: `POST /shelves` refuses all three cover fields
+ * out loud rather than dropping them (#40's ruling), so the copy came out
+ * bare. Two calls also have a gap between them, and a failure in it is the
+ * half-duplicated shelf #128 asks not to exist, so the copy is one act on the
+ * server. It carries the icon, colour, description, `cover_preset` and
+ * `cover_focal_y` verbatim and **a cover file of its own** — the picture is
+ * copied rather than shared, because one `cover_file_id` on two shelves is not
+ * independence: the foreign key's ON DELETE SET NULL blanks both the moment
+ * that file goes. That is Imran's ruling on #117, "changing or removing the
+ * cover on either shelf must not change the other".
+ *
+ * It does not carry the shelf's page (4.17), which is 7.16's own distinction
+ * and not this client's to make.
+ *
+ * **It asks for its 422's own sentence, which is the second thing this act can
+ * be refused for.** 7.16 answers `name: you already have a shelf with this
+ * name.` where "(copy)" and its numbered successors will not fit inside 10.3's
+ * forty characters — a real outcome for a shelf named at the cap, and one the
+ * person can act on by shortening the name. Without the meta the mutation
+ * cache says "Something went wrong. Nothing was saved. Try again.", which is
+ * true and useless, and trying again produces the same refusal for ever. The
+ * 413 the copy's quota can earn needs no meta: `writeFailureMessage` passes
+ * every `quota_exceeded` sentence through, that status having one producer.
+ */
+export function useDuplicateShelf(): UseMutationResult<Shelf, Error, string> {
+  return useMutation({
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
+    mutationFn: (id: string) =>
+      mutateApi(shelf, { method: 'POST', path: `/shelves/${id}/duplicate` }),
   })
 }
 

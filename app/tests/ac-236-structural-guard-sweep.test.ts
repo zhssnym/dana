@@ -256,10 +256,22 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // the walker finds it and EXEMPT removes it. A route that arrives with an
     // exemption therefore moves the map above rather than this number, and
     // the two together are still one line per mutating route.
+    //
+    // **68 to 67 on 2026-09-04, and it is the first time this number has gone
+    // down.** Issue #113 retired `PATCH /api/v1/me/settings`, frozen 7.2's
+    // write, into 7.23's `/settings` bundle on the owner's ruling. The
+    // instruction above is the same in this direction and is worth saying
+    // once, because the guard reads differently going down: a fall is what
+    // this count exists to be suspicious of, since a nested router hiding
+    // routes looks exactly like a route deleted on purpose. What separates
+    // them is that the deletion is in the same diff, and the route it names
+    // answers 404 on the mounted application rather than being merely absent
+    // from the walk — `bundle-contract.test.ts` asserts that for the surface
+    // that replaced it.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 68 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(68)
+      `the walker found ${String(routes.length)} mutating routes and there were 67 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(67)
 
     const failures: string[] = []
     const jsonBody = {
@@ -323,10 +335,14 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // GET /me/export (7.22, issue #77), which is this sentence's own
     // instruction followed rather than an exception to it: the sweep already
     // passed on the new route, answering 401 bare, and only the count moved.
+    // 38 to 37 the same day, the other way: issue #113 retired
+    // `GET /api/v1/me/settings` with its sibling write, on the owner's
+    // ruling. See the mutating count above for why a fall is read more
+    // carefully than a rise.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 38 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(38)
+      `the walker found ${String(routes.length)} reading routes and there were 37 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(37)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

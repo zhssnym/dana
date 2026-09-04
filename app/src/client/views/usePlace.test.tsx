@@ -38,6 +38,7 @@ import type { SavedView } from '../../shared/bundle.js'
 import { NO_FILTER, viewDefinition } from './filter.js'
 import { writeFilter } from './filter-store.js'
 import { PLACES } from './place-pages.js'
+import { writeViewMode } from './view-mode.js'
 import { WindowBar } from '../components/window-bar.js'
 import { PlaceChrome, usePlace } from './usePlace.js'
 
@@ -108,6 +109,10 @@ function Harness(): React.JSX.Element {
   return (
     <>
       <span data-testid="important">{place.filter.important ? 'on' : 'off'}</span>
+      {/* Issue #48's second seed. `?mode=` writes the one preference of 9.1
+          rather than a per-page record, so what is read back here is the
+          store's answer for this page. */}
+      <span data-testid="mode">{place.mode}</span>
       <WindowBar />
       <PlaceChrome place={place} />
     </>
@@ -132,6 +137,7 @@ function mount(): { rerender: () => void } {
 }
 
 const importantIs = (): string => screen.getByTestId('important').textContent ?? ''
+const modeIs = (): string => screen.getByTestId('mode').textContent ?? ''
 
 beforeEach(() => {
   nextKey += 1
@@ -139,6 +145,11 @@ beforeEach(() => {
   router.search = ''
   router.navigate.mockReset()
   address('/app/all')
+  /* One preference across every page, held in a module-level cache over
+     `localStorage`, so it is the one piece of state here that is not keyed per
+     test. Written rather than cleared, because writing is what resets the
+     cache as well as the storage. */
+  writeViewMode('list')
 })
 
 describe('usePlace: a saved view seeds the filter, and a hand edit outlives a late seed', () => {
@@ -227,5 +238,132 @@ describe('usePlace: a saved view seeds the filter, and a hand edit outlives a la
     rerender()
 
     expect(importantIs()).toBe('on')
+  })
+})
+
+/*
+The same lag under the two seeds `?view=` left behind (issue #48).
+
+**They were latent and are not tested as though they were live.** Nothing in
+this client generates either link — `lib/nav-links.ts`'s `parameterTarget`
+maps `?task=` and nothing else — so neither could arrive except on a cold
+load, where React's first render already holds the real location and there is
+nothing to be behind. What these cases pin is the rule rather than a bug
+report: the seed applies while the address carries it and never while it does
+not, so the trap is closed before the first `<Link to="/app/today?state=important">`
+that 9.4 explicitly invites turns it into the defect #47 was.
+
+**The late echo is the whole of what "left this seed" means for these two.**
+Unlike `?view=`, nothing takes `?state=` or `?mode=` out of the address, so
+there is no hand-edit case to separate from a re-arrival: the address carries
+the seed for as long as the person is on that page, and the only way for the
+lagging copy to say something the address does not is for the person to have
+gone somewhere else. Each pair below is therefore the arrival and that echo.
+*/
+describe('usePlace: the one-way seeds apply only while the address carries them', () => {
+  test('arriving at ?state=important seeds the filter', () => {
+    address('/app/all?state=important')
+    router.search = 'state=important'
+
+    mount()
+
+    expect(importantIs()).toBe('on')
+  })
+
+  test('a ?state=important the address has already left does not seed on its late echo', () => {
+    /* The person opened the seeded link, went somewhere without it, and the
+       address moved synchronously. React's copy of the old location commits
+       afterwards, which re-runs the effect with a `seedState` the address
+       gave up. Before the guard this turned the switch on under them. */
+    const { rerender } = mount()
+    expect(importantIs()).toBe('off')
+
+    address('/app/all')
+    router.search = 'state=important'
+    rerender()
+
+    expect(importantIs()).toBe('off')
+  })
+
+  test('a ?state=important still in the address seeds on the render that first sees it', () => {
+    /* The other half, and the one that keeps the case above from passing on a
+       client that had simply stopped seeding. Same sequence, address left
+       carrying the parameter. */
+    const { rerender } = mount()
+    expect(importantIs()).toBe('off')
+
+    address('/app/all?state=important')
+    router.search = 'state=important'
+    rerender()
+
+    expect(importantIs()).toBe('on')
+  })
+
+  /*
+  The rule the dependency array is carrying on its own, written down as a case
+  so that it stops being carried on its own.
+
+  `?state=` is one-way: nothing takes it out of the address, so it is still
+  there after the person turns the switch off by hand. What keeps the seed from
+  putting the switch straight back is that `filter` is deliberately absent from
+  the effect's dependency list, which is a comment and an omission rather than
+  anything a reader can check. An `exhaustive-deps` autofix, or anybody
+  "completing" that array, would re-lock the switch and every other case in
+  this file would still pass: the guard added for #48 cannot catch it, the
+  address genuinely does still carry the seed. So this is the case that goes
+  red instead.
+
+  It is the shape #47's own comment calls the difference between a starting
+  point and a lock, asserted for the seed that has no way out of the address.
+  */
+  test('turning the switch off with ?state=important still in the address leaves it off', () => {
+    address('/app/all?state=important')
+    router.search = 'state=important'
+
+    const { rerender } = mount()
+    expect(importantIs()).toBe('on')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Important only' }))
+    expect(importantIs()).toBe('off')
+
+    /* Nothing about the location moves, because nothing takes `?state=` out of
+       it: this is the ordinary next render of a page the person is still on. */
+    rerender()
+
+    expect(importantIs()).toBe('off')
+  })
+
+  test('arriving at ?mode=board seeds the view mode', () => {
+    address('/app/all?mode=board')
+    router.search = 'mode=board'
+
+    mount()
+
+    expect(modeIs()).toBe('board')
+  })
+
+  test('a ?mode=board the address has already left does not seed on its late echo', () => {
+    const { rerender } = mount()
+    expect(modeIs()).toBe('list')
+
+    address('/app/all')
+    router.search = 'mode=board'
+    rerender()
+
+    /* 9.1 makes this one preference across every page, so a seed honoured
+       here would follow the person off this page as well: the mode is
+       written to the store rather than held for the render that read it. */
+    expect(modeIs()).toBe('list')
+  })
+
+  test('a ?mode=board still in the address seeds on the render that first sees it', () => {
+    const { rerender } = mount()
+    expect(modeIs()).toBe('list')
+
+    address('/app/all?mode=board')
+    router.search = 'mode=board'
+    rerender()
+
+    expect(modeIs()).toBe('board')
   })
 })

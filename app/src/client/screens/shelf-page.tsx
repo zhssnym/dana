@@ -20,9 +20,13 @@ original except at the seams named here, each marked `Seam` in the body.
    client's `IconPicker` for the reason S26 recorded on the folder page: 4.3
    and 4.18 store a key and `icon-manifest.ts` is the one place a key
    becomes a glyph, so `folderPageMark` is `markIcon` here.
-5. **No Add cover control is drawn**, `coverTiersFor` answering nothing for a
-   shelf: 7.15's upload needs a `folder_id` (section 13 item 57), and a tier a
-   surface cannot honestly draw is a tier it does not draw (DES-144).
+5. **The Add cover control is the prototype's, drawn since issue #118.** It
+   stood empty until then, with a comment saying `coverTiersFor` answered
+   nothing for a shelf because 7.15's upload needed a `folder_id` — true when
+   written, false since issues #20 and #100 made that part optional for a
+   cover and gave 4.18 the preset and crop columns. A shelf now offers the
+   folder page's own Gallery, Upload and Photos, which is Imran's ruling on
+   #118, and the seam is unchanged: `lib/page-identity.ts` answers the tiers.
 6. **A folder row is a link**, 9.1's roles table naming each folder and shelf
    row one and AC-223 addressing it so, where the prototype draws a button;
    the page hands it an `href` beside `onOpenFolder`.
@@ -33,6 +37,13 @@ original except at the seams named here, each marked `Seam` in the body.
    `page-image.tsx`'s upload seam needing one (7.15) and a shelf having none;
    a stored image block still draws. `InsertLine` is this client's, which
    has no `dense` strip, the folder page's blocks having none either.
+   **This is still true after #118 and the reason is narrower than it was.**
+   7.15 made `folder_id` optional for `kind: cover` and for nothing else, so
+   a page image — `kind: image` — still needs a folder this page has not got,
+   and the empty string passed below is refused 422 rather than stored. The
+   one gesture that can reach it is "Replace…" on a block that already holds a
+   picture, which fails silently and leaves the old one; a page-image upload
+   with no folder is a section 7 question and not this file's to decide.
 9. **`InlineInput`'s rename commits on Enter as well as blur**, 9.10's inline
    rename being what AC-203 and the sidebar dialog both expect of a field.
 
@@ -44,7 +55,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { IconPicker as FolderIconPicker } from "../components/page/IconPicker.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { PageCover } from "../components/page-cover.js"
+import { AddCoverAction, PageCover } from "../components/page-cover.js"
 import { ObjectMenu } from "../components/object-menu.js"
 import { HistorySheet } from "../components/history-sheet.js"
 import { FolderPlus, MoreHorizontal, Plus } from "../lib/icons.js"
@@ -59,6 +70,7 @@ import {
 import { InlineInput, InlineTextarea } from "../components/ui/inline-field.js"
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover.js"
 import { PageImage, type PageImageModel } from "../components/page-image.js"
+import { FALLBACK_RATIO } from "../lib/page-images.js"
 import { WindowActivity, WindowBarActions } from "../components/window-bar.js"
 import { useHistory } from "../lib/history.js"
 import {
@@ -246,7 +258,14 @@ export function ShelfPage({
       kind === "section"
         ? { kind: "section", section: { id, name: "New section" } }
         : kind === "image"
-          ? { kind: "image", image: { id: "", ratio: 16 / 9, caption: "" } }
+          ? {
+              kind: "image",
+              /* A block nobody has filled yet has no file and therefore no
+                 measured shape, which is exactly the case `FALLBACK_RATIO`
+                 answers (issue #108). Spelled once in `lib/page-images.ts` so
+                 that this page and a folder page reserve the same box. */
+              image: { id: "", ratio: FALLBACK_RATIO, caption: "" },
+            }
           : { kind: "paragraph", paragraph: { id, text: "" } }
     setItems((current) => {
       const next = [...current]
@@ -413,9 +432,14 @@ export function ShelfPage({
           </PopoverContent>
         </Popover>
 
-        {/* Seam 5: the prototype draws `AddCoverAction` here. A shelf is a
-            place, so it can wear a cover (DES-141, DES-219), and no tier can
-            reach one today; section 13 item 57. */}
+        {/* Seam 5: the prototype's `AddCoverAction`, in the prototype's own
+            place — a shelf is a place, so it wears a cover (DES-141,
+            DES-219), and since #118 every tier can reach one. The wrapper is
+            the folder page's `mt-1` verbatim so the control sits at the same
+            distance under the mark on both pages. */}
+        <div className="mt-1">
+          <AddCoverAction storageName={key} />
+        </div>
 
         <InlineInput
           ref={renameRef}

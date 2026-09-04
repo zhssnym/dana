@@ -108,6 +108,10 @@ export function toConceptTask(
   from the other side, in `TaskRowProps.given`: a row says what its page does
   not, decided per list and never per row.
   */
+  /* A task nobody is assigned maps to an absent assignee rather than to the
+     null of #169: that null is a *patch* saying "clear this", and a whole
+     task has nothing to clear. Every reader of this field asks it by
+     truthiness, so the two empties are one answer here. */
   const assignee =
     task.assignee === null ? undefined : toConceptPerson(task.assignee)
 
@@ -218,10 +222,24 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
   if (fields.notes !== undefined) body['notes'] = fields.notes
   if (fields.important !== undefined) body['important'] = fields.important
   if (fields.folder?.id !== undefined) body['folder_id'] = fields.folder.id
-  /* A cleared assignee is `null` and not an absent key: 7.6 distinguishes the
-     two, and "unassigned is a member of the set, not the absence of one"
-     (ledger L-094) is the same rule read from the card's side. */
-  if (fields.assignee !== undefined) body['assignee_id'] = fields.assignee.id ?? null
+  /*
+  A cleared assignee is `null` and not an absent key: 7.6 distinguishes the
+  two, and "unassigned is a member of the set, not the absence of one"
+  (ledger L-094) is the same rule read from the card's side.
+
+  **That comment was true of the rule and false of the code until issue #169,
+  which is CLAUDE.md's warning about comments exactly.** The line under it
+  could only ever be reached by a *person*, `ConceptTask['assignee']` having
+  carried no null, so the one caller that meant "clear" said `undefined` and
+  was read here as "this field was not touched": the body came out empty, the
+  writer sent nothing at all, and the chip cleared in the browser over a task
+  the server still had assigned. The type now carries the third value
+  (`lib/task-model.ts` says what each of the three means) and both spellings
+  of an empty assignee land on the same null: an explicit clear, and a person
+  named without an id, who is not an address this client can send (see the
+  paragraph above about `folder`).
+  */
+  if (fields.assignee !== undefined) body['assignee_id'] = fields.assignee?.id ?? null
   return body as PatchTaskBody
 }
 

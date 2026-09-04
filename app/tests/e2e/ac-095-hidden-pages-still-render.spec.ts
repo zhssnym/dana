@@ -61,7 +61,6 @@ import {
   clickControl,
   DEFAULT_PINS,
   patchBundle,
-  patchSettings,
   routesV2,
   seedSubs,
   sidebarLink,
@@ -87,9 +86,15 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(async ({ page }) => {
   // Back to the pin list 9.7 ships, which is the state every other spec in
-  // this leg assumes, and back to 4.10's flags for the same reason.
+  // this leg assumes.
+  //
+  // A second line restored 4.10's three v1 flags here, defensively, and it
+  // went with the endpoint on 2026-09-04 (issue #113): `PATCH /me/settings`
+  // is retired and nothing writes those columns any more. Nothing in this
+  // file ever moved them either — the Settings switch this spec presses
+  // writes `pinned_views`, not a flag — so the restore was already a no-op
+  // and removing it changes no state this leg depends on.
   await patchBundle(page, { pinned_views: [...DEFAULT_PINS] })
-  await patchSettings(page, { show_important: true, show_all: true, show_done: false })
 })
 
 test.describe('AC-095: hidden pages are a navigation preference', () => {

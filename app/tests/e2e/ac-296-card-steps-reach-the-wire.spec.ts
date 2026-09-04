@@ -30,7 +30,7 @@ import {
   signIn,
   taskSurface,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
  openTaskRow } from './harness.js'
 
@@ -88,11 +88,18 @@ test.describe('AC-296: a step ticked or removed in the card is written through 7
     /* The steps draw in 7.7's position order and the ticked one was added
        first, so its box is the block's first; a step row carries no list
        role of its own, only its three controls. */
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const tick = watchCommit(page)
     await clickControl(
       taskSurface(page).getByRole('checkbox', { name: 'Mark step done', exact: true }).first(),
       'the step\'s own box',
     )
-    await waitForApiIdle(page, 'the tick has been written and read back')
+    await tick.settled('the tick reaches the server before the wire and 7.7 are read')
     const patches = wire
       .mutations()
       .map((call) => `${call.method} ${new URL(call.url).pathname}`)
@@ -107,11 +114,18 @@ test.describe('AC-296: a step ticked or removed in the card is written through 7
     ).toBe(true)
 
     await taskSurface(page).getByRole('button', { name: removed.title, exact: true }).hover()
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const removal = watchCommit(page)
     await clickControl(
       taskSurface(page).getByRole('button', { name: `Remove ${removed.title}`, exact: true }),
       'the step\'s own remove control',
     )
-    await waitForApiIdle(page, 'the removal has been written and read back')
+    await removal.settled('the removal reaches the server before the wire and 7.7 are read')
     const deletes = wire
       .mutations()
       .map((call) => `${call.method} ${new URL(call.url).pathname}`)

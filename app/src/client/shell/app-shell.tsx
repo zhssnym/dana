@@ -28,13 +28,21 @@ rather than the source, because Tailwind's source detection scans prose too
 and a document that spelled the utility would emit it; so this comment
 describes it and does not write it.
 
-**The three chrome reads are made here rather than in the pages.** `/me`,
-`/me/settings` and `/folders` back the sidebar and the account menu on every
-page, so a page that fetched them would fetch them again on the next page for
-the same answer. `main.tsx` starts all three before this component mounts.
+**The chrome reads are made here rather than in the pages.** `/me`,
+`/folders` and 4.19's bundle at `/settings` back the sidebar and the account
+menu on every page, so a page that fetched them would fetch them again on the
+next page for the same answer. `main.tsx` starts `/me` and `/folders` before
+this component mounts; the bundle is read at the `useBundle` call below, whose
+own comment says why it is the bundle rather than frozen 7.2's settings.
 The shell renders before any of them answers, and it has to: 10.6's
 navigation fallback opens every /app path from the cached shell with no
 network at all, and AC-091 and AC-160 read the sidebar's page links there.
+
+**This sentence named `/me/settings` as the third read until issue #150, and
+it was stale rather than merely untidy.** The fold at S9 moved the sidebar
+onto the bundle and left the sentence describing the read it had replaced, so
+a boot prefetch nothing consumed had a comment vouching for it. It is gone
+with the prefetch; the account menu reads `/me`.
 
 **Document order carries two contracts.** The search overlay is first, ahead
 of the sidebar, because the suite addresses its field as the document's first

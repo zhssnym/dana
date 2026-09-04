@@ -42,7 +42,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -60,6 +60,14 @@ test.describe('AC-225: undo takes back a completion', () => {
     await page.goto(`/app/folders/${seedIds.groceries}`)
 
     const row = page.getByRole('main').getByRole('listitem').filter({ hasText: title })
+    /* Before the press (2026-09-04, issue #159), and this file is the clearest
+       case for it in the suite: the assertion under this barrier is that the
+       POST went out at all. API quiet is satisfied in the window before the
+       request leaves the browser, so a barrier that returned there would read
+       the wire empty and fail saying the client queued the write for five
+       seconds — which is the defect this criterion exists to catch, reported
+       by the barrier rather than by the product. */
+    const completion = watchCommit(page)
     await checkControl(
       row.getByRole('checkbox', { name: 'Complete task', exact: true }),
       'spec 9.1: a completion is an act the undo bar can take back; the checkbox ' +
@@ -77,7 +85,7 @@ test.describe('AC-225: undo takes back a completion', () => {
         'completions apart, which is why the section gives the sentence a subject',
     ).toBeVisible()
 
-    await waitForApiIdle(page, 'the completion is on the wire before undo is pressed')
+    await completion.settled('the completion is on the wire before undo is pressed')
 
     const completions = wire
       .mutations()
@@ -90,8 +98,11 @@ test.describe('AC-225: undo takes back a completion', () => {
         'because a queued write lies on every other member\'s screen (DES-158)',
     ).toBeGreaterThanOrEqual(1)
 
+    /* Same again for undo, whose own assertion is that an inverse mutation was
+       sent rather than a queued write rolled back in the browser. */
+    const inverse = watchCommit(page)
     await page.keyboard.press('Control+z')
-    await waitForApiIdle(page, 'the inverse mutation lands before the state is read')
+    await inverse.settled('the inverse mutation reaches the server before the wire is read')
 
     const inverses = wire
       .mutations()
