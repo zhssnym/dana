@@ -1,8 +1,18 @@
 /*
 AC-406: given a shelf and given one of 4.20's built-in place pages, when a
 picture is uploaded through the cover picker's Upload tab, then the page wears
-that picture, it is still worn after a reload, and — on the shelf — a gallery
-preset chosen afterwards takes the picture off.
+that picture, it is still worn after a reload; when the place page's picture is
+dragged and the position saved, then the crop is stored and the band is drawn
+where it was left on the next load; and — on the shelf — a gallery preset
+chosen afterwards takes the picture off.
+
+**The reposition arm found a defect rather than confirming one, and it is
+worth knowing which.** Pressing "Save position" wrote nothing on any page: the
+band captures the pointer for the drag, capture retargets the click that
+follows to the capturing element, and both controls are children of the band,
+so neither could ever be reached. `page-cover.tsx` carries the measurement and
+the fix. Nothing here was watching it because nothing could reach the state on
+a place page before this issue — a gradient has no crop to move.
 
 Authored 2026-09-04 for issue #118, whose product ruling is that "shelves and
 place pages should use exactly the same Gallery, Upload, and Photos treatment
@@ -36,6 +46,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -69,6 +80,30 @@ async function paintedCovers(page: Page): Promise<string[]> {
   })
 }
 
+/**
+ * Where down the picture the band is drawn, as the browser reports it.
+ *
+ * 4.20's `focal_y` is a percentage down the cover, and `resolveCover` spends it
+ * as `background-position: center <n>%`, so this is that number after a round
+ * trip. Read from the element the picture is painted on, for the same reason
+ * `paintedCovers` reads the picture: the band has no role and no name.
+ */
+async function paintedPosition(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const view = globalThis as unknown as {
+      document: { querySelectorAll: (s: string) => Iterable<unknown> }
+      getComputedStyle: (el: unknown) => Record<string, string>
+    }
+    for (const element of view.document.querySelectorAll('*')) {
+      const style = view.getComputedStyle(element)
+      if (String(style['backgroundImage'] ?? '').includes('/api/v1/files/')) {
+        return String(style['backgroundPosition'] ?? '')
+      }
+    }
+    return ''
+  })
+}
+
 /** The picker's Upload tab, driven by its two named controls. */
 async function uploadACover(page: Page, why: string): Promise<void> {
   await clickControl(
@@ -92,10 +127,15 @@ async function uploadACover(page: Page, why: string): Promise<void> {
     page.getByRole('button', { name: 'Choose an image', exact: true }),
     `${why}: the tab's own control opens the file chooser`,
   )
+  /* The barrier is positive rather than negative, for the reason `watchCommit`
+     states at length: quiet alone is true in the window between the gesture
+     and the request the gesture causes, so it would pass through and leave the
+     read below asking the server about a write nobody had made yet. */
+  const commit = watchCommit(page)
   await (
     await chooser
   ).setFiles({ name: 'ac-406.png', mimeType: 'image/png', buffer: PICTURE })
-  await waitForApiIdle(page, `${why}: the picture is stored and the page points at it`)
+  await commit.settled(`${why}: the picture is stored and the page points at it`)
   await page.keyboard.press('Escape')
 }
 
@@ -227,4 +267,80 @@ test('AC-406: a built-in place page wears an uploaded picture and keeps it acros
       },
     )
     .toContain(painted[0])
+
+  /*
+  The reposition, which is the same write with only a position in it and the
+  arm issue #118 fixed second. 7.19's PUT is idempotent over the whole entry
+  rather than a partial update, so a drag has to re-send the cover it is
+  moving; that re-send was spelled as a preset, which a picture's key can never
+  be, so the drag was dropped and the band snapped back on the next read.
+  */
+  await page.getByRole('button', { name: 'Change', exact: true }).hover({ force: true })
+  await clickControl(
+    page.getByRole('button', { name: 'Reposition', exact: true }),
+    'spec 9.6: a photographic cover can be moved, and 4.20 has somewhere to keep where',
+  )
+  const hint = page.getByText('Drag to reposition', { exact: true })
+  await expect(hint, 'the band says what it is waiting for').toBeVisible()
+  const grip = await hint.boundingBox()
+  expect(grip, 'the band has to be on screen to be dragged').not.toBeNull()
+  const x = (grip?.x ?? 0) + (grip?.width ?? 0) / 2
+  const top = grip?.y ?? 0
+  await page.mouse.move(x, top + 44)
+  await page.mouse.down()
+  /* Upward, which walks the crop down the picture. */
+  await page.mouse.move(x, top + 8, { steps: 8 })
+  const dragged = await paintedPosition(page)
+  await page.mouse.up()
+  expect(
+    dragged,
+    'spec 9.6: the band follows the pointer while it is being dragged, so what is saved is ' +
+      'what was seen',
+  ).not.toBe('50% 50%')
+  const kept = watchCommit(page)
+  await clickControl(
+    page.getByRole('button', { name: 'Save position', exact: true }),
+    'the drag is kept on purpose rather than on release',
+  )
+  await kept.settled('spec 4.20: the crop the drag left is written')
+  expect(
+    wire
+      .mutations()
+      .filter((call) => new URL(call.url).pathname === '/api/v1/place-covers/today').length,
+    'spec 7.19: the drag is a write of its own, the endpoint being an idempotent PUT of the ' +
+      'whole entry rather than a partial update — the cover is re-sent with the new crop',
+  ).toBe(2)
+
+  /*
+  **The expected value comes from the server and never from a second reading of
+  the screen.** A drag and the paint that follows it are one animation frame
+  apart, so a case that compares what it measured before a reload with what it
+  measures after is comparing two numbers it took itself, which is the shape
+  CLAUDE.md records as failing more often on a quiet machine than a busy one.
+  What 4.20 stored is a fact with no frame in it.
+  */
+  const entries = await page.request.get('/api/v1/place-covers')
+  expect(entries.status(), 'spec 7.19 answers the caller their own covers').toBe(200)
+  const stored = ((await entries.json()) as {
+    covers: { place: string; file_id: string | null; focal_y: number }[]
+  }).covers.find((entry) => entry.place === 'today')
+  expect(
+    stored?.file_id,
+    'issue #118: the reposition re-sent the picture as 7.19 file_id, so the entry is still ' +
+      'a picture; spelled as a preset it would have been dropped and this would be the ' +
+      'upload’s own row untouched',
+  ).toEqual(expect.any(String))
+  expect(
+    stored?.focal_y,
+    'and the crop moved off 4.20’s default, which is what the drag was for',
+  ).not.toBe(50)
+
+  await page.reload()
+  await expect
+    .poll(() => paintedPosition(page), {
+      message:
+        'spec 4.20: the crop is read back on the next load and the band is drawn where it ' +
+        'was left, rather than snapping to the middle',
+    })
+    .toBe(`50% ${String(stored?.focal_y)}%`)
 })

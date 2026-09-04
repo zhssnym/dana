@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   uploadFile: vi.fn(() =>
     Promise.resolve({ id: 'stored-1', bytes: 1, width: 1, height: 1 }),
   ),
+  /* What `storedCover` reads. `savePageIdentity` is a plain function rather
+     than a hook, so a reposition takes the cover it is moving out of the cache
+     instead of out of a render; this is that cache. */
+  cached: { covers: [] as unknown[] },
 }))
 
 vi.mock('../api/queries.js', () => ({
@@ -32,7 +36,7 @@ vi.mock('../api/http.js', () => ({
 
 vi.mock('../api/queryClient.js', () => ({
   queryClient: () => ({
-    getQueryData: () => undefined,
+    getQueryData: () => mocks.cached,
     invalidateQueries: mocks.invalidateQueries,
   }),
   writeFailureMessage: () => 'Nothing was saved.',
@@ -52,6 +56,7 @@ import {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.cached.covers = []
 })
 
 describe('native page descriptions', () => {
@@ -161,5 +166,62 @@ describe('the cover seam answers the same for three kinds of page', () => {
       path: '/shelves/s-1',
       body: { cover_preset: 'gradient-cobalt-deep', cover_focal_y: 50 },
     })
+  })
+})
+
+/*
+The reposition-only write, which is the arm with no other guard on either leg.
+
+A drag on a place page's band sends `{ coverPos }` and nothing else, and 7.19's
+PUT is idempotent over the whole entry rather than a partial update, so the
+cover being moved has to be re-sent with it. That re-send is read out of the
+query cache — `savePageIdentity` is a plain function and has no render to read
+from — and for a picture it must be spelled `file_id`. It was spelled as a
+preset until issue #118, which is the same `return` that stopped a place page
+holding a picture at all: the drag went nowhere and the band snapped back on
+the next read. AC-406 drives the gesture in a browser; these two are the shape
+of the body, which a browser cannot see.
+*/
+describe('repositioning a place page’s cover re-sends the cover it is moving', () => {
+  it('re-sends a picture as file_id with the new crop, never as a preset', () => {
+    mocks.cached.covers = [
+      { place: 'today', file_id: 'f-9', preset: null, focal_y: 50 },
+    ]
+
+    savePageIdentity('today', { coverPos: 72 })
+
+    expect(mocks.mutateApi).toHaveBeenCalledWith(placeCover, {
+      method: 'PUT',
+      path: '/place-covers/today',
+      body: { file_id: 'f-9', focal_y: 72 },
+    })
+    const [, options] = mocks.mutateApi.mock.calls[0] as unknown as [
+      unknown,
+      { body: object },
+    ]
+    expect(
+      Object.keys(options.body),
+      '4.20 admits exactly one source and 7.19 refuses a body naming both',
+    ).not.toContain('preset')
+  })
+
+  it('re-sends a gradient as its preset key with the new crop', () => {
+    mocks.cached.covers = [
+      { place: 'today', file_id: null, preset: 'gradient-fern', focal_y: 50 },
+    ]
+
+    savePageIdentity('today', { coverPos: 20 })
+
+    expect(mocks.mutateApi).toHaveBeenCalledWith(placeCover, {
+      method: 'PUT',
+      path: '/place-covers/today',
+      body: { preset: 'gradient-fern', focal_y: 20 },
+    })
+  })
+
+  it('sends nothing where the page is wearing no cover to move', () => {
+    savePageIdentity('today', { coverPos: 72 })
+
+    expect(mocks.mutateApi).not.toHaveBeenCalled()
   })
 })

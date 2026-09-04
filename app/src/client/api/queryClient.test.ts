@@ -45,4 +45,23 @@ describe('mutationFailureMessage', () => {
       mutationFailureMessage(new ApiError(413, 'error', 'too large'), undefined),
     ).toBe(ERROR_TOAST)
   })
+
+  /* Issue #117's other refusal, and the one that has to be read to be acted
+     on. 7.16 answers this sentence when a shelf's "(copy)" will not fit inside
+     10.3's forty characters, which a shelf named at the cap reaches; the
+     generic copy tells the person to try again, and trying again earns the
+     same 422 for ever. `useDuplicateShelf` is the mutation that opts in, and
+     `mutations.test.ts` asserts that it does. */
+  test('surfaces the shelf duplicate’s name refusal to the person who can fix it', () => {
+    expect(
+      mutationFailureMessage(
+        new ApiError(
+          422,
+          'validation_failed',
+          'name: you already have a shelf with this name.',
+        ),
+        validationMeta,
+      ),
+    ).toBe('name: you already have a shelf with this name.')
+  })
 })

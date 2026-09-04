@@ -656,12 +656,21 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
  * cover on either shelf must not change the other".
  *
  * It does not carry the shelf's page (4.17), which is 7.16's own distinction
- * and not this client's to make; the two refusals it can answer, 413 for the
- * quota the copy spends and 422 for a name it cannot fit, are the mutation
- * cache's to toast like any other.
+ * and not this client's to make.
+ *
+ * **It asks for its 422's own sentence, which is the second thing this act can
+ * be refused for.** 7.16 answers `name: you already have a shelf with this
+ * name.` where "(copy)" and its numbered successors will not fit inside 10.3's
+ * forty characters — a real outcome for a shelf named at the cap, and one the
+ * person can act on by shortening the name. Without the meta the mutation
+ * cache says "Something went wrong. Nothing was saved. Try again.", which is
+ * true and useless, and trying again produces the same refusal for ever. The
+ * 413 the copy's quota can earn needs no meta: `writeFailureMessage` passes
+ * every `quota_exceeded` sentence through, that status having one producer.
  */
 export function useDuplicateShelf(): UseMutationResult<Shelf, Error, string> {
   return useMutation({
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
     mutationFn: (id: string) =>
       mutateApi(shelf, { method: 'POST', path: `/shelves/${id}/duplicate` }),
   })
