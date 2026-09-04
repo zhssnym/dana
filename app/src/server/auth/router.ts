@@ -174,6 +174,13 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   const router = Router()
   const pending = new PendingAuthorizations()
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  /* The two sign-in doors carried no limiter at all until issue #168, which
+     is older than every other limit: the general quota keys on the session
+     and both of these precede one, so there was nothing to key on and they
+     were left out. They are keyed on the caller's address instead, which
+     only became per-client with issue #153's one trusted proxy hop. */
+  const signInBeginLimit = optionalLimit(options.rateLimits?.signInBegins)
+  const signInCallbackLimit = optionalLimit(options.rateLimits?.signInCallbacks)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
   // Configuration is resolved once per application, and lazily: an
@@ -212,7 +219,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
    * The handshake
    * ---------------------------------------------------------------- */
 
-  router.get('/auth/google', async (req: Request, res: Response) => {
+  router.get('/auth/google', signInBeginLimit, async (req: Request, res: Response) => {
     const config = oidc()
     const configuration = await config.configure()
 
@@ -244,7 +251,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     res.redirect(302, authorizationUrl.toString())
   })
 
-  router.get('/auth/google/callback', async (req: Request, res: Response) => {
+  router.get('/auth/google/callback', signInCallbackLimit, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
 

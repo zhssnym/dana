@@ -54,6 +54,13 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-412 was assigned from the tail on 2026-09-04** (issue #168), on the same rule as
+  AC-409 and AC-410 below, and it is 12.23's: the Google sign-in begin and its callback
+  carried no rate limiter at all, which is older than every limit in 10.4 and could only be
+  fixed once #153 made an address-keyed limit mean one client. **AC-411 is not spent by this
+  branch** and is not added to the free list above, on the AC-377 bullet's rule: a sibling
+  branch may hold it and listing a number free that another branch has just spent is the
+  collision this rule exists to prevent.
 - **Five criteria changed state on 2026-09-04 and none of them is a new number** (issue
   #113): frozen 7.2's `GET` and `PATCH /me/settings` were retired on the owner's ruling, and
   AC-119 to AC-123 went with the endpoint. **AC-119, AC-120 and AC-121 are rewritten**

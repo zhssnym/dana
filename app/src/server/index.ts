@@ -359,6 +359,13 @@ export function createApp(options: AppOptions = {}): express.Express {
               searchPerMinute: Number.MAX_SAFE_INTEGER,
               mutationsPerMinute: Number.MAX_SAFE_INTEGER,
               cspReportsPerMinute: Number.MAX_SAFE_INTEGER,
+              // Issue #168. Every auth criterion signs in repeatedly from
+              // one address, and the whole suite shares this machine, so
+              // twenty a minute would be measuring 10.4 rather than the
+              // criterion. AC-412 constructs a real limiter of its own, the
+              // way AC-396 does for the CSP row.
+              signInBeginsPerMinute: Number.MAX_SAFE_INTEGER,
+              signInCallbacksPerMinute: Number.MAX_SAFE_INTEGER,
             },
           }
         : {},

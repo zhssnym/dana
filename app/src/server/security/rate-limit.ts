@@ -47,6 +47,23 @@ export const RATE_LIMIT_POLICY = {
   quota, which is the case it must not become.
   */
   cspReportsPerMinute: 30,
+  /*
+  10.4's two sign-in rows (issue #168), and the only limits here besides the
+  CSP one that are keyed on an address rather than on a user — necessarily,
+  because both routes precede any session by definition and there is nothing
+  else to key on.
+
+  Twenty a minute each is chosen from both ends. A person retrying a sign-in
+  produces a handful, and a browser that loops a redirect produces a handful
+  more, so twenty leaves a wide margin above every honest case; and twenty
+  bounds what an unauthenticated stranger can make this process spend, which
+  for the begin is state, nonce and PKCE plus a cookie write, and for the
+  callback is an outbound token exchange against Google. The callback is the
+  one that matters: it is the only route in this API that makes a request to
+  a third party on an unauthenticated caller's say-so.
+  */
+  signInBeginsPerMinute: 20,
+  signInCallbacksPerMinute: 20,
 } as const
 
 export interface RateLimits {
@@ -56,6 +73,8 @@ export interface RateLimits {
   search: RequestHandler
   dataExport: RequestHandler
   cspReports: RequestHandler
+  signInBegins: RequestHandler
+  signInCallbacks: RequestHandler
 }
 
 interface RateLimitOverrides {
@@ -65,6 +84,8 @@ interface RateLimitOverrides {
   mutationsPerMinute?: number
   exportPerHour?: number
   cspReportsPerMinute?: number
+  signInBeginsPerMinute?: number
+  signInCallbacksPerMinute?: number
 }
 
 export interface CreateRateLimitsOptions {
@@ -210,6 +231,40 @@ export function createRateLimits(
       limit: configured.cspReportsPerMinute,
       identifier: 'csp-reports-per-minute',
       requestPropertyName: 'cspReportRateLimit',
+      keyFor: (req) => ipKeyGenerator(req.ip ?? 'unknown'),
+    }),
+    /*
+    The two sign-in doors (issue #168, 10.4's two new rows).
+
+    **They carried no limiter at all until 2026-09-04**, which is older than
+    every limit above: `keyFor` reads the session and both of these precede
+    one, so there was nothing for the general mutation quota to key on and
+    they were simply left out. Both are GETs as well, so the quota's
+    SAFE_METHODS skip would have turned it off even if they had carried it.
+
+    Keyed on the address for the CSP row's reason, with the same
+    `ipKeyGenerator`, and **separately rather than as one bucket**: a person
+    who is being redirected back and forth spends the callback and not the
+    begin, and one shared counter would let a stranger hammering one door
+    lock a real visitor out of the other. Two counters cost one map.
+
+    This is the second thing #153 bought. Before `trust proxy`, an
+    address-keyed limit here would have been one bucket for every visitor
+    behind Render's edge, which for a sign-in route is not a limit but an
+    outage.
+    */
+    signInBegins: limiter({
+      windowMs: MINUTE_MS,
+      limit: configured.signInBeginsPerMinute,
+      identifier: 'sign-in-begins-per-minute',
+      requestPropertyName: 'signInBeginRateLimit',
+      keyFor: (req) => ipKeyGenerator(req.ip ?? 'unknown'),
+    }),
+    signInCallbacks: limiter({
+      windowMs: MINUTE_MS,
+      limit: configured.signInCallbacksPerMinute,
+      identifier: 'sign-in-callbacks-per-minute',
+      requestPropertyName: 'signInCallbackRateLimit',
       keyFor: (req) => ipKeyGenerator(req.ip ?? 'unknown'),
     }),
   }
