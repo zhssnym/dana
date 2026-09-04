@@ -15,11 +15,19 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **366 criteria carry their text in the files below.** Every number from AC-001 to AC-396
-  not named below is one of them. Re-derived on 2026-09-04 at the wave-1 integration merge,
-  by counting the criterion bullets in the files rather than by adding up what six branches
-  each believed: 396 numbers in the run, less AC-229 and the twenty-nine free ones named
-  below, is 366.
+- **370 criteria carry their text in the files below.** Every number from AC-001 to AC-400
+  not named below is one of them. Re-derived on 2026-09-04 by the last merge of that night,
+  the authorization-sweep branch (#74), by **counting the `- AC-` bullets across the files**
+  rather than by adding up what eight branches each believed: 370, with no number appearing
+  twice, which the arithmetic then agrees with — 400 numbers in the run, less AC-229 and the
+  twenty-nine free ones named below, is 370.
+
+  **Only one per-file row moved with it and that is the point of counting rather than
+  adding.** Twenty-two of the twenty-three rows in the table below already matched their
+  files, because each night's branches had left the arithmetic alone as this bullet asks;
+  12.23 was two behind, having gained AC-399 and AC-400 from issue #104 in the last merge
+  before this one. A count derived once at the end is one number to check. A count carried
+  forward is twenty-three.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
@@ -31,15 +39,15 @@ default, so read this list before spending one.
   asks the last merge for.** 375 to 396 were all spent on 2026-09-04 by the six branches of
   the wave-1 batch and by 7.22's export before them, 375 and 376 included — they were taken
   by issues #107 and #76, which is what the sibling branches could not know while they were
-  open. **397 is reserved rather than free**: the authorization sweep is holding it on a
-  branch that had not merged when this was written. So the next number to take from the tail
-  was 398, and the twenty-nine gaps above are the only free numbers below it.
-
-  **399 and 400 went to issue #104 on 2026-09-04, and 398 was left alone**, which is the
-  bullet below this one: 399 was handed to that branch, 400 taken beside it unassigned, and
-  398 not taken because that branch could not tell whether a sibling was holding it. **So
-  the next number to take from the tail is 401**, and 398 is free only if whoever was handed
-  it says so.
+  open. **397 to 400 are all spent**, and this sentence is the four of them reconciled by the
+  merge that came last, which is what the AC-361 bullet asks for. 397 was reserved for the
+  authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
+  400 taken unassigned beside it. Neither branch could see the other's, which is why each
+  wrote a different "next number" and why this list, rather than either bullet, is where the
+  answer is. **The next number to take from the tail is 401**, and the twenty-nine gaps above
+  are the only free numbers below it. The reservation language is left standing in the
+  bullets below rather than tidied away, because it is the only record of why 397 sat unspent
+  for a day and of why #104 deliberately stepped over 398.
 
   **229 was in this list until 2026-09-03 and contradicted the bullet directly above it**,
   which says the number is spent and must not be taken again. The count said thirty because
@@ -60,6 +68,25 @@ default, so read this list before spending one.
   for a body that carries none. **The count in the table below is not re-derived here**, on
   the AC-394 bullet's precedent: several branches were open the same night and the
   arithmetic belongs to the last merge rather than to any one of them.
+- **AC-397 and AC-398 were taken from the tail on 2026-09-04** (issue #74), on the rule four
+  bullets below. AC-397 is the authorization sweep: every route on the mounted router whose
+  path carries a parameter, driven as a person with no relationship to the row that id names.
+  It is 12.23's, beside AC-236, which made the *session* half of 10.2 structural and left this
+  half resting on people remembering. **AC-398 is the one defect that sweep found**, and it is
+  12.15's because it is about files: `DELETE /api/v1/files/:id` answered 404 to a member who
+  reads the same bytes at 200, where 10.2 asks for 403. The two are adjacent because the
+  second was written the night the first found the thing it asserts. 397 is the number the
+  wave-1 merge held open for this branch — the bullet above records it as reserved rather
+  than free — and 398 is the tail as that merge left it.
+
+  **This branch merged after wave 1 and so it is the one that re-derives**, which the AC-361
+  bullet makes the last merge's job rather than either side's. It did that twice, and the
+  second time is why the first is recorded rather than corrected: at the wave-1 merge it took
+  the count to 368 with the run ending at AC-398, and an hour later #104 landed with AC-399
+  and AC-400 and this branch merged again, so **the number that stands is 370 and it is the
+  top bullet's**. Nothing was wrong with the first derivation; it was simply not last. That is
+  the ordinary shape of this rule rather than a failure of it, and it is the argument for
+  deriving from the files every time instead of adding to whatever the previous merge wrote.
 - **AC-394 to AC-396 were taken from the tail on 2026-09-04** (issue #99), on the rule the
   AC-361 to AC-365 bullet below states, and with the number assigned rather than chosen —
   several branches were open that night and the tail is only collision-proof when one party
@@ -168,7 +195,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
 | 12.13 | [`12.13-events-history-and-notifications.md`](12.13-events-history-and-notifications.md) | 12.13 Events, history and notifications, 9 criteria |
 | 12.14 | [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | 12.14 Comments and likes, 11 criteria |
-| 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 14 criteria |
+| 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 15 criteria |
 | 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 11 criteria |
 | 12.17 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | 12.17 First run and the sample workspace, 9 criteria |
 | 12.18 | [`12.18-the-application-shell.md`](12.18-the-application-shell.md) | 12.18 The application shell, 15 criteria |
@@ -176,4 +203,4 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.20 | [`12.20-deletion-trash-and-restore.md`](12.20-deletion-trash-and-restore.md) | 12.20 Deletion, Trash and restore, 17 criteria |
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
-| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 13 criteria |
+| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 16 criteria |
