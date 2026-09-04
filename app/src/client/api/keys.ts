@@ -10,7 +10,6 @@ matches on a prefix.
 
 export const queryKeys = {
   me: () => ['me'] as const,
-  settings: () => ['me', 'settings'] as const,
   folders: () => ['folders'] as const,
   folder: (id: string) => ['folders', id] as const,
   folderTasks: (id: string, section: 'open' | 'completed') =>
@@ -23,8 +22,11 @@ export const queryKeys = {
   task: (id: string) => ['tasks', id] as const,
 
   /* The v2 surfaces (RFC 0005). `bundle` is the 4.19 person's bundle at
-     /settings, which is beside frozen 7.2's /me/settings and never instead of
-     it, so it carries a key of its own rather than shadowing `settings`. */
+     /settings, and since issue #150 it is the only settings read this client
+     makes: a `settings` key over frozen 7.2's /me/settings sat above `folders`
+     until then, named by the boot prefetch and by a hook no component called.
+     Deleted with them, because a key here is a claim that something in the
+     cache answers to it. */
   bundle: () => ['settings', 'bundle'] as const,
   savedViews: () => ['settings', 'views'] as const,
   shelves: () => ['shelves'] as const,

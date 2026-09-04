@@ -433,9 +433,12 @@ export function putReminder(
 }
 
 /*
-The ruled 7.9 response body is judged here, once, the way patchSettingsOk
-judges the ruled 7.2 body and expectAffectedTask judges the ruled 7.7 and 7.8
-ones. Frozen 7.9's bullet named a status and no body; the human owner ruled on
+The ruled 7.9 response body is judged here, once, the way patchBundleOk in
+bundle-harness.ts judges the ruled 7.23 body and expectAffectedTask judges the
+ruled 7.7 and 7.8 ones. It named patchSettingsOk and frozen 7.2 until issue
+#113 retired that endpoint on 2026-09-04, taking settings-harness.ts with it.
+
+Frozen 7.9's bullet named a status and no body; the human owner ruled on
 2026-08-10, escalated at the P7 kickoff, that PUT answers 200 with the
 affected TaskDetail, because 7.0 gives the reminder no object of its own, this
 section offers no GET for one, and TaskDetail already carries a reminder

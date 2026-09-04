@@ -529,7 +529,26 @@ export function FilterControl({
                        address bar and the panel cannot disagree about which
                        view is open. */
                     setOpen(false)
-                    setSearch({ view: view.id })
+                    /*
+                    Merged into the address rather than written over it (issue
+                    #48's inventory, which named this line). It was
+                    `setSearch({ view: view.id })`, which **replaces** the
+                    whole search, so opening a saved view dropped every other
+                    parameter the page was carrying: `?conversation=open` on a
+                    folder page is the one a person would notice, the filter
+                    panel closing a conversation nobody asked it to touch.
+
+                    Read off `window.location` rather than off
+                    `useSearchParams`, for the reason `usePlace`'s `liveSearch`
+                    writes out at length: React Router's copy of the search can
+                    sit hundreds of milliseconds behind the address bar, so
+                    merging into that copy would put back parameters the
+                    address has already dropped, which is the same defect the
+                    other direction.
+                    */
+                    const next = new URLSearchParams(window.location.search)
+                    next.set('view', view.id)
+                    setSearch(next)
                   }}
                   className={cn(rowClass(false), 'min-w-0 flex-1')}
                 >

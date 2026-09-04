@@ -24,7 +24,7 @@ import {
   signIn,
   storedReminder,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
  openTaskRow } from './harness.js'
 
@@ -61,8 +61,16 @@ test('AC-356: the calendar is open, Custom date is gone, and Time writes the rem
   const wire = watchWire(page)
   const time = picker.locator('input[type="time"]')
   await expect(time, 'a dated task takes a time under the day').toHaveCount(1)
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const written = watchCommit(page)
   await time.fill('09:00')
-  await waitForApiIdle(page, 'the time has been written')
+  await written.settled('the time reaches 7.9 before the wire and the stored reminder are read')
   expect(
     wire
       .mutations()

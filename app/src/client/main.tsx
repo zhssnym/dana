@@ -35,7 +35,7 @@ import { Router } from './Router.js'
 import { installSearchShortcut } from './shell/overlays.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getInvitesPendingResponse } from '../shared/invites.js'
-import { getMeSettingsResponse, meResponse } from '../shared/me.js'
+import { meResponse } from '../shared/me.js'
 
 const queryClient = createQueryClient()
 // The mutation cache invalidates through this handle; see queryClient.ts for
@@ -43,10 +43,10 @@ const queryClient = createQueryClient()
 setQueryClient(queryClient)
 
 /*
-The chrome's three reads, started here rather than by the components that
+The chrome's two reads, started here rather than by the components that
 consume them.
 
-They are the same three on every route (AppLayout says why), so nothing about
+They are the same two on every route (AppLayout says why), so nothing about
 them waits on routing, on a render, or on which page the person opened. This
 module is a deferred script, so it runs before the document's load event,
 which buys the sidebar its data roughly a render earlier than a component
@@ -54,7 +54,15 @@ effect would; on a sidebar whose folder list is data rather than structure,
 that difference is the difference between a first paint with the folder list
 and one without.
 
-Failures are swallowed here and nowhere else: each of the three has an
+**They were three, and the third was frozen 7.2's `/me/settings` (issue
+#150).** Nothing consumed it: the sidebar reads the 4.19 bundle at
+`/settings`, as `shell/app-shell.tsx` says at the `useBundle` call, so this
+prefetch was one request per cold load answering a question no component
+asked. #113 retires the endpoint on the server, and expand-and-contract puts
+the client's half first: the client stops calling it, then the server stops
+answering it, so no boot ever meets a 404.
+
+Failures are swallowed here and nowhere else: each of them has an
 observer that will report it, through the query cache's own error path and
 9.1's toast. A rejection escaping this prefetch would be an unhandled one,
 which is not how the error state is meant to arrive.
@@ -64,20 +72,16 @@ void queryClient.prefetchQuery({
   queryFn: () => getPlain(meResponse, '/me'),
 })
 void queryClient.prefetchQuery({
-  queryKey: queryKeys.settings(),
-  queryFn: () => getPlain(getMeSettingsResponse, '/me/settings'),
-})
-void queryClient.prefetchQuery({
   queryKey: queryKeys.folders(),
   queryFn: () => getPlain(getFoldersResponse, '/folders'),
 })
 /*
-The fourth, added at P8R session R10 with 9.8's invite gate.
+The third, added at P8R session R10 with 9.8's invite gate.
 
 Q12 decides whether the application renders at all, so this read is the same
-kind of thing as the three above it rather than a page's: `app-shell.tsx`
+kind of thing as the two above it rather than a page's: `app-shell.tsx`
 renders the gate in place of the application while it is non-empty. It is
-started here for a reason the other three do not have, and that reason is
+started here for a reason the other two do not have, and that reason is
 stated in the shell: the gate is conditioned on a non-empty answer and never on
 a pending read, because 10.6 opens every /app path from the cached shell with
 no network at all. So an account holding an invite sees the shell for exactly

@@ -46,6 +46,8 @@ acceptance).
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
+import type { CommitBarrier } from './harness.js'
+
 import {
   ACTION_TIMEOUT_MS,
   clickControl,
@@ -55,7 +57,7 @@ import {
   sidebar,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -72,10 +74,20 @@ interface Folder {
   my_color: string | null
 }
 
-async function folders(page: Page): Promise<Folder[]> {
-  await waitForApiIdle(
-    page,
-    'the dialog\'s write has to have been sent and answered before 7.4 is asked what it holds',
+/**
+ * What 7.4 holds, read on the far side of the dialog's own write.
+ *
+ * **`watchCommit` and not API quiet, taken before the dialog commits**
+ * (2026-09-04, issue #159). Quiet is also what an interface that has not yet
+ * sent the request looks like, React having to render before the mutation is
+ * issued, so a read landing in that window returns a list without the new
+ * folder in it — which is precisely what a dialog that collects a name and
+ * never sends it returns, and precisely the defect the assertion below exists
+ * to catch.
+ */
+async function folders(page: Page, commit: CommitBarrier): Promise<Folder[]> {
+  await commit.settled(
+    "the dialog's write has to have reached the server before 7.4 is asked what it holds",
   )
   const response = await page.request.get('/api/v1/folders')
   expect(
@@ -118,12 +130,13 @@ test.describe('AC-181: the "New folder" dialog', () => {
         'no numbered section names the control',
     ).toHaveCount(1)
     await fillControl(name, NEW_FOLDER, 'spec 9.1: the dialog takes a name')
+    const commit = watchCommit(page)
     await clickControl(
       dialog.getByRole('button', { name: /create|save|continue|add/i }).first(),
       'spec 9.1: and creates the folder, so the dialog commits',
     )
 
-    const created = (await folders(page)).find((folder) => folder.name === NEW_FOLDER)
+    const created = (await folders(page, commit)).find((folder) => folder.name === NEW_FOLDER)
     expect(
       created,
       'spec 9.1 and frozen 7.4: "creating the folder" is POST /folders, so the folder exists ' +

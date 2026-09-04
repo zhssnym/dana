@@ -32,7 +32,7 @@ import {
   signIn,
   tabNamed,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -58,6 +58,10 @@ test.describe('AC-223: the shelf page', () => {
       'spec 9.10: the shelf page places existing folders. The v1 client has no shelf ' +
         'page at all, which is the red this shows until S12',
     )
+    /* Before the press (2026-09-04, issue #159): the row this case then
+       presses is drawn from the placement, so a barrier that can return
+       before the placement was sent leaves nothing to press. */
+    const placed = watchCommit(page)
     await clickControl(
       page
         .getByRole('menuitem', { name: new RegExp(folderName) })
@@ -65,7 +69,7 @@ test.describe('AC-223: the shelf page', () => {
         .first(),
       'the placed folder is this case\'s own',
     )
-    await waitForApiIdle(page, 'the placement lands before the row is pressed')
+    await placed.settled('the placement reaches the server before the row it draws is pressed')
 
     await clickControl(
       page.getByRole('main').getByRole('link', { name: new RegExp(folderName) }).first(),

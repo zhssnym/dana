@@ -469,7 +469,10 @@ export function addStep(
 
 /*
 The ruled 7.7 and 7.8 response bodies are judged here, once each, the way
-patchSettingsOk in settings-harness.ts judges the ruled 7.2 body.
+patchBundleOk in bundle-harness.ts judges the ruled 7.23 body. That sentence
+named patchSettingsOk in settings-harness.ts until issue #113 retired frozen
+7.2's endpoint on 2026-09-04 and both went with it; the convention is the
+same one and it now has its home on the surviving surface.
 
 Both sections were silent on what their mutations answer while these files
 were written, so nothing judged it and the criteria asserted statuses

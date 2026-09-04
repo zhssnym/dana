@@ -281,7 +281,7 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
         /* A call and not a mention, over source whose comments and strings
            are already blanked: the identifier, an open parenthesis, and
            something that could be a schema. **What this count can see** is a
-           call whose first argument sits on the same line, which all 29 do.
+           call whose first argument sits on the same line, which all 28 do.
            **What it cannot see** is one whose arguments begin on the next
            line, and that is the first thing to check if this number ever
            disagrees with a grep. */
@@ -304,15 +304,26 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        and may move the second; **before you move either, check that the
        sweep above passed** — if it failed, the number is telling you a route
        reads a body outside the helper, and moving it is the thing the backend
-       README's rule 2 forbids. */
+       README's rule 2 forbids.
+
+       **29 to 28 the same day, and it is the first fall.** Issue #113 retired
+       `PATCH /api/v1/me/settings` on the owner's ruling and deleted
+       `auth/settings.ts` with it, which was one call site and one module. A
+       fall is read more carefully than a rise, for AC-236's reason: a route
+       that stopped calling the helper and a route that was deleted look the
+       same from here. What separates them is the sweep above — it passed —
+       and the diff, where the module is gone rather than merely quiet. The
+       module count falls with it, 11 to 10: `auth/settings.ts` was the whole
+       of that module's body reading, so it leaves the list rather than
+       shrinking inside it. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 29 on 2026-09-04. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(29)
+      `parseBody is called from ${String(sites.length)} places and there were 28 on 2026-09-04. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(28)
     expect(
       [...modules].sort().length,
-      `${String(modules.size)} modules read a request body and there were 11 on 2026-09-04: ${[...modules].sort().join(', ')}`,
-    ).toBe(11)
+      `${String(modules.size)} modules read a request body and there were 10 on 2026-09-04: ${[...modules].sort().join(', ')}`,
+    ).toBe(10)
   })
 })
 

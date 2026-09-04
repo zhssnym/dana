@@ -25,7 +25,7 @@ import {
   shortName,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -59,8 +59,16 @@ test('AC-334: Move to shelf lists the shelves, moves with Undo, and the dialog s
     'shelves F1: the way off a shelf is said in the shelf\'s own word',
   ).toBeVisible()
   await expect(page.getByRole('menuitemradio', { name: 'No group', exact: true })).toHaveCount(0)
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const placed = watchCommit(page)
   await clickControl(option, 'spec 9.6: a member\'s personal shelf placement is Move to shelf')
-  await waitForApiIdle(page, 'the membership label is written')
+  await placed.settled('the placement reaches the server before the Library is read for it')
 
   await expect(
     page.getByRole('button', { name: /^Undo/ }).or(page.getByText(`Moved "${folderName}" to ${shelfName}`)).first(),

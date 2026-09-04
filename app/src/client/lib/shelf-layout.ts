@@ -27,6 +27,7 @@ the screen's own reconciliation, and a member the layout has never seen
 joins it there too.
 */
 import type { PageBlock, PageBlockWrite } from '../../shared/pages.js'
+import { reservedRatio } from './page-images.js'
 import type { ShelfItem } from '../screens/shelf-page.js'
 
 /** 4.17's rows as the screen's blocks. */
@@ -43,7 +44,15 @@ export function shelfItemsOf(blocks: readonly PageBlock[]): ShelfItem[] {
         blockId: block.id,
         image: {
           id: block.file_id ?? '',
-          ratio: 16 / 9,
+          /* 4.16's measured shape, so a shelf page reserves the space a
+             picture will take exactly as a folder page does (issue #108).
+             This read a literal `16 / 9` and threw away the pair sitting on
+             the block beside it, which is the same defect `BlocksEditor`
+             carried: the two translations feed one
+             `components/page-image.tsx`, so a fallback spelled a second time
+             here would be a second answer to a question that has one. Null
+             stays 16 by 9 for ever, no backfill having been run. */
+          ratio: reservedRatio(block.file_width, block.file_height),
           caption: block.text ?? '',
           ...(block.width_pct === null ? {} : { width: block.width_pct }),
         },

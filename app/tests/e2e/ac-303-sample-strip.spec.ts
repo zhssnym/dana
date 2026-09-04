@@ -14,7 +14,7 @@ count on is what they get.
 */
 import { expect, test } from '@playwright/test'
 
-import { routesV2, signIn, waitForApiIdle, watchWire } from './harness.js'
+import { routesV2, signIn, watchCommit, watchWire } from './harness.js'
 
 const SUB = `ac303-sample-${Date.now()}`
 
@@ -37,6 +37,13 @@ test.describe('AC-303: the sample strip and its Remove flow', () => {
       'the sample folders are in the sidebar (9.1)',
     ).toBeVisible()
 
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const removed = watchCommit(page)
     await strip.getByRole('button', { name: 'Remove sample data', exact: true }).click()
     await page.getByRole('button', { name: 'Continue', exact: true }).click()
 
@@ -44,7 +51,7 @@ test.describe('AC-303: the sample strip and its Remove flow', () => {
       page.getByRole('status').filter({ hasText: 'Sample workspace removed' }),
       'spec 9.1: the undo bar names the act it can take back',
     ).toBeVisible()
-    await waitForApiIdle(page, 'the removal and the refetch it triggers have settled')
+    await removed.settled('the removal reaches the server before the wire and the sidebar are read')
 
     expect(
       wire.mutations().some((call) => call.method === 'DELETE' && call.url.endsWith('/api/v1/sample')),

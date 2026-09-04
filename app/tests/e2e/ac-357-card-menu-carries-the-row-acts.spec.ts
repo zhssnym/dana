@@ -25,7 +25,7 @@ import {
   openTaskRow,
   taskSurface,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -62,8 +62,16 @@ test('AC-357: History, Abandon and Delete task are in the card\'s menu, and Dele
     "spec 9.3: the row's confirm, telling the truth 7.13 made",
   ).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Keep it', exact: true })).toBeVisible()
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const deleted = watchCommit(page)
   await clickControl(dialog.getByRole('button', { name: 'Delete', exact: true }), 'confirming')
-  await waitForApiIdle(page, 'the deletion has been written')
+  await deleted.settled('the deletion reaches the server before the wire and the page are read')
   expect(
     wire
       .mutations()

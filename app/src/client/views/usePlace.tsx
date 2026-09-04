@@ -83,8 +83,10 @@ read one that suddenly did.
 
 **The functional form of `setSearchParams` is no escape.** React Router calls
 it with `new URLSearchParams(searchParams)`, the same memoised, possibly stale
-value (`useSearchParams` in the same file). `window.location` is the only
-thing that is current at that instant, so both decisions below read it.
+value (`useSearchParams` in the same file). `window.location` is the only thing
+that is current at that instant, so every decision below reads it: the `?view=`
+seed and the filter edit that strips it (#47), and the `?state=` and `?mode=`
+seeds (#48), which had the same fault latently and now take the same guard.
 */
 function liveSearch(): URLSearchParams {
   return new URLSearchParams(window.location.search)
@@ -195,11 +197,49 @@ export function usePlace(
   const seedMode = modeFromSearch(search.toString())
   const seedView = search.get('view')
   const savedDefinition = savedViews.data?.find((view) => view.id === seedView)?.definition
+  /*
+  What "the person has left this seed" means for the two one-way seeds (issue
+  #48), decided here rather than copied from `?view=` below, because the rule
+  that made `?view=` easy does not exist for these.
+
+  **The rule: a seed applies while the address bar carries it, and never while
+  it does not.** That is the same guard `?view=` takes and it is all these two
+  need against the lag `liveSearch` describes. Each effect keys on a value read
+  from React's copy of the location, so it fires when a location the person has
+  already left finally commits; without the guard, a `?state=important` they
+  navigated away from turns the switch back on somewhere else, hundreds of
+  milliseconds late, and the failure looks like the filter switching itself on
+  rather than like a routing problem.
+
+  **What is deliberately not copied is the other half of `?view=`.** Editing
+  the filter takes `?view=` out of the address (`changeFilter` below), so a
+  hand-cleared filter stops claiming to be a saved view. Nothing takes
+  `?state=` or `?mode=` out, and nothing should: a view is an object the
+  sidebar draws as open, so an address still naming it while the filter says
+  otherwise is a contradiction a person can see, and these two name no object
+  and nothing on the screen claims them. Two things follow and both are wanted.
+  Turning the switch off does not rewrite the address, which would be a
+  navigation nobody asked for. And reloading `?state=important` seeds again,
+  which is right: 9.4 calls it "any link that means 'Today, important only'",
+  and a link that stopped meaning that the second time it was opened would be a
+  strange link.
+
+  So the guard bites in exactly one case, the late echo, which is the case #48
+  is about. It is latent today because nothing in this client generates either
+  link — `lib/nav-links.ts`'s `parameterTarget` maps `?task=` and nothing else
+  — and it is written now because the first person to add the link 9.4 invites
+  would otherwise turn a latent trap into a live defect.
+  */
   useEffect(() => {
-    if (seedMode !== null) writeViewMode(seedMode)
+    if (seedMode === null) return
+    /* Through the same helper the seed above it is read with, so that the
+       lagging reading and the live one cannot differ by how they were
+       parsed as well as by when. */
+    if (modeFromSearch(liveSearch().toString()) !== seedMode) return
+    writeViewMode(seedMode)
   }, [seedMode])
   useEffect(() => {
-    if (seedState === 'important' && !filter.important) {
+    if (seedState === 'important' && !filter.important && liveSearch().get('state') === seedState) {
       setFilter({ ...filter, important: true })
     }
     // The filter is deliberately out of the dependency list: this seeds once
