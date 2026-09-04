@@ -1792,6 +1792,19 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
                   <img
                     src={file.preview}
                     alt={file.name}
+                    /* The other variable-height picture a conversation draws,
+                       reserved from 4.16's shape like the one in the thread
+                       (issue #108). It matters more here, because this opens
+                       inside a `Reveal` that animates to the height of its
+                       contents: an unreserved image gives that animation a
+                       height of zero to travel to and then jumps past it when
+                       the bytes land.
+
+                       No style where the file was never measured, rather than
+                       a default shape: nothing is backfilled and every
+                       attachment from before migration 0009 reports null, so
+                       those must go on drawing at their own proportion. */
+                    style={file.ratio === undefined ? undefined : { aspectRatio: file.ratio }}
                     className="w-full max-w-[320px] rounded-md border border-[var(--color-graphite-200)]"
                   />
                 </div>

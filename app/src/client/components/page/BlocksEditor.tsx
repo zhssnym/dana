@@ -42,6 +42,7 @@ import type { ReactNode } from 'react'
 import type { PageBlock, PageBlockWrite } from '../../../shared/pages.js'
 import { AlignLeft, ChevronDown, Heading1, ImagePlus, Trash2 } from '../../lib/icons.js'
 import { InlineInput, InlineTextarea } from '../ui/inline-field.js'
+import { reservedRatio } from '../../lib/page-images.js'
 import { PageImage } from '../page-image.js'
 import { cn } from '../ui/utils.js'
 
@@ -482,19 +483,28 @@ export function BlocksEditor({
               picture; the handle's column landed at S22a with nothing to
               write it.
 
-              The ratio is the one part that cannot be whole: `files` carries
-              no dimensions and `page_blocks` no ratio, so a reader who did not
-              choose the picture gets the block's own 16 by 9 default. That is
-              **section 13 item 47**, recorded at S22a against this exact
-              surface, and it is a frozen section 4 change rather than a
-              styling one.
+              **The ratio was the one part that could not be whole, and issue
+              #108 made it whole.** This line read `ratio: 16 / 9` and the
+              comment above it said the fallback was for "a reader who did not
+              choose the picture", which was section 13 item 47 and was also
+              not true of this surface: the literal was every reader's,
+              including the author's, because the ratio `PageImage` measures
+              off the chosen file goes back through `onChange` into no field a
+              block carries and is gone by the next render. So the reservation
+              this block was written to make has never been made here.
+
+              It is made now, from 4.16's `file_width` and `file_height` off
+              the block read (7.16, issue #27). Null stays 16 by 9 for ever:
+              no backfill has been run and every picture stored before
+              migration 0009 reports null, so the fallback is those pages'
+              real behaviour rather than a placeholder for a better one.
               */
               <div className="pt-2">
                 <PageImage
                   folderId={folderId ?? ''}
                   image={{
                     id: block.file_id ?? '',
-                    ratio: 16 / 9,
+                    ratio: reservedRatio(block.file_width, block.file_height),
                     caption: block.text ?? '',
                     ...(block.width_pct === null ? {} : { width: block.width_pct }),
                   }}

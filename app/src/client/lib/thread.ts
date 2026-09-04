@@ -36,13 +36,16 @@ and nothing on the wire carried a file's name, its type or its size, so an
 attachment could only be drawn as the picture and the composer offered images
 alone (section 13 item 54). 7.14 now answers `files: { id, name, mime, bytes }[]`,
 4.16's own columns, so the tile-name-meta row the prototype draws is drawn
-for every file. The write half, one file per comment, stands as 7.14 wrote it
-and is the half item 54 left with the owner.
+for every file. It answers `width` and `height` beside them since migration
+0009 (issue #27), which is what `attachmentOf` turns into the reservation
+issue #108 asked for. The write half, one file per comment, stands as 7.14
+wrote it and is the half item 54 left with the owner.
 */
 import { useMemo } from 'react'
 
 import type { CommentFile, CommentLine } from '../../shared/comments.js'
 import { useMe } from '../api/queries.js'
+import { measuredRatio } from './page-images.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 
@@ -94,6 +97,23 @@ function attachmentOf(file: CommentFile): Attachment {
     meta: `${file.mime.split('/')[1]?.toUpperCase() ?? 'FILE'} · ${readableSize(file.bytes)}`,
     kind,
     preview: kind === 'image' ? fileSrc(file.id) : undefined,
+    /*
+    4.16's shape, so a surface can reserve the space a picture will take before
+    it arrives (issue #108). Carried only where there is a picture: a document
+    has no shape, and the fixed 32px tile beside every attachment has nothing
+    to reserve, so this reaches the two places a comment's picture is drawn at
+    a size the picture decides.
+
+    `measuredRatio` and not `reservedRatio`, and the choice is the careful
+    half of #108. A page block has always reserved 16 by 9 for every picture,
+    so falling back to it there keeps that surface's behaviour; a comment's
+    picture has never had a reservation and takes its own proportion once the
+    bytes land. Nothing is backfilled, so every attachment posted before
+    migration 0009 reports null for ever, and giving those 16 by 9 would
+    reshape all of them. Undefined here means the surface draws what it draws
+    today, which is the whole of what null is allowed to mean.
+    */
+    ratio: kind === 'image' ? measuredRatio(file.width, file.height) : undefined,
   }
 }
 

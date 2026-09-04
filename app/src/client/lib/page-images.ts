@@ -17,18 +17,36 @@ between B11 and AC-231's server re-encode: the server's pass protects the
 store, this one protects the person's connection, and neither replaces the
 other. 10.3 carries the numbers.
 
-**Two things the prototype's module returns that this one cannot.**
+**The aspect ratio was one of two things this module could not answer, and
+issue #108 answered it. The paragraph that stood here was wrong twice over
+and is rewritten rather than amended.**
 
-The first is the aspect ratio, and it is section 13 item 47 exactly as that
-item predicted: `files` carries no dimensions and `page_blocks` carries no
-ratio, so the authoring client knows the picture's shape from the `File` it
-just chose and every other reader knows nothing. What ships is the reservation
-working for the author and a 16 by 9 default for everyone else, which is the
-honest half of a correctness fix rather than a styling problem, and the item is
-where the pair of columns that would close it is recorded. Read it before
-treating this as a gap somebody forgot.
+It said `files` carried no dimensions. That stopped being true at migration
+0009 (issue #27): 4.16 has `width` and `height`, filled from the sharp pass
+7.15 was already making, and they describe the **stored** object rather than
+the one that was sent, a 3000x1500 upload being stored and reported as
+2048x1024. 7.16 hands them to a block read as `file_width` and `file_height`,
+7.14 hands them to a comment's file as `width` and `height`, and `POST /files`
+answers them on the 201. So the ratio is on the wire; `reservedRatio` below is
+the one place this client turns it into a number, and every reader of a page
+gets the reservation rather than only whoever chose the picture.
 
-The second is a synchronous answer. The lab writes the bytes and knows at once
+It also said the reservation worked "for the author", and that was false on
+the day it was written, for the surface it was written about.
+`components/page/BlocksEditor.tsx` built its model with a literal `16 / 9`,
+and the ratio `take` measured went back through `onChange` into a block field
+that does not exist, so the author's own next render drew the fallback as
+well. Nobody has ever seen the behaviour that sentence described. It is the
+failure mode `CLAUDE.md` names first, and it is recorded here as one rather
+than quietly deleted.
+
+**What is still true is the fallback, and it is not a stopgap.** Null means
+unknown, no backfill has been run, and every file stored before 0009 reports
+null indefinitely, so 16 by 9 has to stay exactly right for those pictures for
+as long as they exist.
+
+The second thing the prototype's module returns and this one cannot is a
+synchronous answer. The lab writes the bytes and knows at once
 whether the store took them; an upload is a round trip, so `savePageImage`
 returns a promise carrying the file's id, and `components/page-image.tsx`'s
 `take` is the one function in that file this costs. Its own seam comment says
@@ -40,12 +58,78 @@ import { mutateApi, uploadFile } from '../api/http.js'
 const MAX_EDGE = 1600
 const QUALITY = 0.72
 
+/**
+ * The shape a stored picture is drawn at when the wire does not say what its
+ * shape is.
+ *
+ * Sixteen by nine is what every one of these surfaces already drew, and the
+ * point of writing it once is that it must go on being what they draw. 4.16's
+ * pair is nullable and no backfill has been run, so a picture uploaded before
+ * migration 0009 reports null for ever; a reader that treated null as anything
+ * but "unknown" would change what those pages look like today.
+ */
+export const FALLBACK_RATIO = 16 / 9
+
+/**
+ * Width over height where 4.16 measured the picture, and undefined where it
+ * did not (issue #108).
+ *
+ * **One function for every surface that draws a stored picture**, a page
+ * block's `file_width`/`file_height` and a comment file's `width`/`height`
+ * being the same pair under two names. A rule spelled per surface is a rule
+ * that drifts per surface, which is the reason `tokens.css` is one file.
+ *
+ * Zero and negative are read as unmeasured along with null. The columns are
+ * declared positive and nothing should send a zero, but a zero height divides
+ * into `Infinity` and a zero width into a ratio of nothing, and CSS accepts
+ * both and draws an unbounded or collapsed box. A number that cannot be a
+ * picture's is not a shape, and "no shape" already has an answer per surface.
+ */
+export function measuredRatio(
+  width: number | null | undefined,
+  height: number | null | undefined,
+): number | undefined {
+  if (width === null || width === undefined || width <= 0) return undefined
+  if (height === null || height === undefined || height <= 0) return undefined
+  return width / height
+}
+
+/**
+ * The same reading for a surface whose answer to "no shape" is already 16 by
+ * 9, which is the page block and only the page block.
+ *
+ * **The split between this and `measuredRatio` is the whole care of issue
+ * #108 and is not a stylistic one.** Null means unknown and a surface must go
+ * on drawing an unknown picture exactly as it draws it today, which is a
+ * different thing on the two surfaces. `components/page-image.tsx` has always
+ * reserved 16 by 9 for every picture, measured or not, so 16 by 9 is what
+ * today draws there and keeping it is keeping the behaviour. A comment's
+ * picture has never had a reservation at all: it takes its own proportion
+ * once the bytes arrive, so imposing 16 by 9 on the unmeasured ones would
+ * reshape every attachment posted before migration 0009, which is the
+ * regression this pair exists to make impossible to write by accident.
+ */
+export function reservedRatio(
+  width: number | null | undefined,
+  height: number | null | undefined,
+): number {
+  return measuredRatio(width, height) ?? FALLBACK_RATIO
+}
+
 /** A picture the person has just chosen, downscaled and measured. */
 export interface ScaledImage {
   /** For the optimistic draw, so the picture is on the page before the round
    *  trip, the way it is in the lab. */
   readonly dataUrl: string
-  /** Width over height, which only this client will ever know (item 47). */
+  /**
+   * Width over height, measured off the canvas this module just drew.
+   *
+   * It is the one reading that does not come from 4.16, and it is kept because
+   * it is available a round trip earlier: the person who chose the picture has
+   * its shape in hand before `POST /files` has answered with the stored one.
+   * The two agree, the server's pass preserving the proportion while it
+   * downscales, and the stored pair is what every later render reads.
+   */
   readonly ratio: number
   /** What goes up. */
   readonly blob: Blob
@@ -138,7 +222,7 @@ export function scaleImageFile(file: File): Promise<ScaledImage | null> {
           }
           resolve({
             dataUrl,
-            ratio: h === 0 ? 16 / 9 : w / h,
+            ratio: reservedRatio(w, h),
             blob,
             name: file.name,
           })
