@@ -67,6 +67,13 @@ default, so read this list before spending one.
   in the table below is not re-derived here**, on the AC-394 bullet's precedent, several
   branches being open on these files at once; whoever merges last re-derives it and says what
   became of 401 to 403.
+- **AC-405 was taken from the tail on 2026-09-04** (issue #140), beside AC-404 and on the same
+  assignment. It is the client half of the calendar zoom that AC-378 and AC-379 made a durable
+  account preference: the zoom chosen in the browser surviving a reload and reaching a second
+  browser context on the same account, which is what "follow the person rather than the
+  browser" means from the outside. It is 12.8's rather than 12.3's, the two beside it in that
+  pair notwithstanding: what it asserts is the Scheduled calendar drawing the stored zoom, and
+  9.5's calendar is that group's subject. AC-379 already holds the account half over the wire.
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
   branch by the session that opened several at once, which is the backend README's rule for

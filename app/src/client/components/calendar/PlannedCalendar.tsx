@@ -94,6 +94,12 @@ import {
 import type { Zoom } from './grid.js'
 import { cellsByDate } from './order.js'
 import type { CellEvent } from './order.js'
+/* 9.5's zoom is 4.10's `calendar_zoom` since issue #140, so the strip below
+   reads and writes the account rather than component state. The list of zooms
+   is the shared one; `lib/calendar-zoom.ts` carries the reasoning and the
+   compile-time check that it and `Zoom` above are the same three strings. */
+import { CALENDAR_ZOOMS } from '../../../shared/bundle.js'
+import { setCalendarZoom, useCalendarZoom } from '../../lib/calendar-zoom.js'
 
 /*
 How many lines a month cell draws, and it is measured rather than chosen.
@@ -364,7 +370,16 @@ function DayCell({
 
 export function PlannedCalendar(): React.JSX.Element {
   const today = presenterToday()
-  const [zoom, setZoom] = useState<Zoom>('month')
+  /*
+  The zoom is the account's (#140, #142), where it was `useState('month')`
+  until 2026-09-04 and persisted nothing while 9.5 said it persisted.
+
+  The anchor beside it stays component state and deliberately so: 9.5 makes
+  the zoom a preference a person sets and expects to hold, and makes previous,
+  next and today a way of moving around inside the period they are looking at.
+  A remembered anchor would open a person on last week rather than on this one.
+  */
+  const zoom = useCalendarZoom()
   const [anchor, setAnchor] = useState<string>(today)
 
   const dates = useMemo(() => datesFor(zoom, anchor), [zoom, anchor])
@@ -493,7 +508,7 @@ export function PlannedCalendar(): React.JSX.Element {
               role="group"
               aria-label="Calendar zoom"
             >
-              {(['day', 'week', 'month'] as const).map((level) => (
+              {CALENDAR_ZOOMS.map((level) => (
                 <Button
                   key={level}
                   variant="ghost"
@@ -504,7 +519,7 @@ export function PlannedCalendar(): React.JSX.Element {
                   )}
                   aria-pressed={zoom === level}
                   onClick={() => {
-                    setZoom(level)
+                    setCalendarZoom(level)
                   }}
                 >
                   {ZOOM_LABEL[level]}
@@ -560,8 +575,10 @@ export function PlannedCalendar(): React.JSX.Element {
                   events={cells.get(date) ?? []}
                   onReveal={() => {
                     // 9.5's reveal: the day zoom draws every row the day holds.
+                    // It writes the account like any other choice of zoom;
+                    // `lib/calendar-zoom.ts` says why that is not an exception.
                     setAnchor(date)
-                    setZoom('day')
+                    setCalendarZoom('day')
                   }}
                   onDropTask={(taskId) => {
                     moveTaskTo(taskId, date)
