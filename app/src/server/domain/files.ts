@@ -461,15 +461,20 @@ export type CoverFileResult =
   | { kind: 'quota_exceeded' }
 
 /**
- * The set-time normaliser: the file a page may point at, copied if it is not
- * already one this person holds in the page's own scope.
+ * The two acts that put a file behind a cover, over one copy primitive.
  *
- * **A set asks "may this page point at this row as it stands?"**, and the
- * answer is yes when the row is already a `cover` in the page's own scope
- * owned by the person setting it — that file is theirs outright and copying
- * it would buy nothing, while AC-373 fixes that one folder-less picture of a
- * person's own may dress a shelf and a place page at once, both reading back
- * the same id. The reference count below is what keeps those two independent.
+ * **`coverFileFor` normalises and `copyCoverFile` duplicates**, and they are
+ * two functions rather than a flag because they answer two different
+ * questions. A *set* asks "may this page point at this row as it stands?",
+ * and the answer is yes when the row is already a `cover` in the page's own
+ * scope owned by the person setting it — that file is theirs outright and
+ * copying it would buy nothing, while AC-373 fixes that one folder-less
+ * picture of a person's own may dress a shelf and a place page at once, both
+ * reading back the same id. A *duplicate* asks for a second, independent
+ * picture and must never answer with the first: Imran's ruling on #117 is
+ * that "changing or removing the cover on either shelf must not change the
+ * other", and two shelves on one `cover_file_id` are blanked together by
+ * 0003's SET NULL the moment that file is deleted.
  *
  * **The caller has already decided the file may be worn.** Neither takes a
  * view on readability or kind — `readableFileScope` and the
@@ -511,6 +516,20 @@ export async function coverFileFor(
   ) {
     return { kind: 'kept', id: String(source.id) }
   }
+  return copyOf(tx, store, viewerId, source, scopeFolderId)
+}
+
+/** The duplicate's arm: a second picture, always, whatever the source's
+ * scope. Never answers `kept`. */
+export async function copyCoverFile(
+  tx: Executor,
+  store: ObjectStore,
+  viewerId: string,
+  sourceFileId: string,
+  scopeFolderId: string | null,
+): Promise<CoverFileResult> {
+  const source = await coverSource(tx, sourceFileId)
+  if (source === undefined) return { kind: 'bytes_missing' }
   return copyOf(tx, store, viewerId, source, scopeFolderId)
 }
 

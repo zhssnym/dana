@@ -207,11 +207,14 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // 2026-09-03, dev-login excluded by EXEMPT. 66 to 67 the same day, for
     // POST /covers/photo (issues #20 and #100), which is this sentence's own
     // instruction followed rather than an exception to it: the sweep already
-    // passed on the new route, and only the count moved.
+    // passed on the new route, and only the count moved. 67 to 68 on
+    // 2026-09-04 for POST /shelves/:id/duplicate (issues #117 and #128),
+    // the same way round: the sweep passed on it — 401 bare, 403 without
+    // CSRF — before this number was touched.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 67 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(67)
+      `the walker found ${String(routes.length)} mutating routes and there were 68 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(68)
 
     const failures: string[] = []
     const jsonBody = {

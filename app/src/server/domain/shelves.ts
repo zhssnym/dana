@@ -15,7 +15,7 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { coverFileFor, readableFileScope } from './files.js'
+import { copyCoverFile, coverFileFor, readableFileScope } from './files.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -377,4 +377,162 @@ export async function deleteShelf(
     })
     return 'deleted' as const
   })
+}
+
+/* ------------------------------------------------------------------ *
+ * POST /shelves/:id/duplicate (7.16, issues #117 and #128)
+ * ------------------------------------------------------------------ */
+
+/*
+Duplicating a shelf, server-side and in one transaction.
+
+**Why this is a route at all, when the client already had one that worked.**
+`ShelfPage.tsx` duplicated a shelf by POSTing a new one and PATCHing the
+other five fields onto it, which #117 found dropping the cover. The obvious
+repair is a sixth field in that PATCH, and it does not hold: Imran ruled on
+#117 that the two shelves must be independent — "changing or removing the
+cover on either shelf must not change the other" — and two shelves pointing
+at one `cover_file_id` are not, because `DELETE /files/:id` blanks both
+through 0003's SET NULL. So the duplicate needs its own file, which needs the
+bytes copied, which is 10.3 quota arithmetic and object-store work no browser
+should be doing (#128 says so in as many words: not by downloading and
+re-uploading the picture). And two requests cannot be atomic, so a failure
+between them is exactly the half-duplicated shelf #128 asks not to exist.
+
+**What it carries**: the five identity fields the client already copied, plus
+the cover — `cover_preset` and `cover_focal_y` verbatim, since a preset needs
+no file and a crop is a number, and `cover_file_id` as a copy of the source's
+picture made by `coverFileFor`. What it does not carry is the shelf's *page*
+(4.17's blocks), for `duplicateFolder`'s reason: a page is the document, and
+DES-198's copy rules are about structure rather than about the words on it —
+folder duplication carries a page because a folder's page holds its sections,
+and a shelf's page holds prose. Nothing in #117 or #128 asks for it, and it
+would be a decision by omission in the other direction.
+
+**Atomicity, both ways.** The bytes are written inside the transaction that
+inserts the shelf row, so a failure anywhere in it rolls the shelf back; and
+because a rollback cannot un-write a file, the catch removes the object the
+copy put in the store. No half-duplicated shelf, and no unattached copy.
+*/
+
+export type DuplicateShelfResult =
+  | { kind: 'duplicated'; shelf: Shelf }
+  | { kind: 'not_found' }
+  /** Fifty names of the form "X (copy n)" were all taken, which needs 50
+   * duplicates of one shelf; 4.18's UNIQUE (user_id, name) is what makes it
+   * a refusal rather than a constraint violation answered as a 500. */
+  | { kind: 'name_taken' }
+  /** 10.3's 1 GB, spent by the copied picture. */
+  | { kind: 'quota_exceeded' }
+
+/** 10.3 bounds a shelf name at 40 characters and 4.18 makes it unique per
+ * person, so the suffix is fitted inside the bound rather than added past
+ * it: the base is cut to leave room, never the suffix. */
+async function freeCopyName(
+  tx: Executor,
+  viewerId: string,
+  sourceName: string,
+): Promise<string | null> {
+  for (let n = 1; n <= 50; n += 1) {
+    const suffix = n === 1 ? ' (copy)' : ` (copy ${String(n)})`
+    const base = sourceName.slice(0, Math.max(1, 40 - suffix.length)).trimEnd()
+    const candidate = `${base}${suffix}`
+    const taken = await rowsOf(
+      tx,
+      sql`SELECT 1 AS present FROM shelves
+          WHERE user_id = ${viewerId} AND name = ${candidate}`,
+    )
+    if (taken.length === 0) return candidate
+  }
+  return null
+}
+
+export async function duplicateShelf(
+  db: Db,
+  store: ObjectStore,
+  viewerId: string,
+  shelfId: string,
+): Promise<DuplicateShelfResult> {
+  const copied: string[] = []
+  try {
+    return await inTransaction(db, async (tx) => {
+      const found = await rowsOf(
+        tx,
+        sql`SELECT name, icon, color, description, cover_file_id,
+                   cover_preset, cover_focal_y
+            FROM shelves
+            WHERE id = ${shelfId} AND user_id = ${viewerId}`,
+      )
+      const source = found[0]
+      if (source === undefined) return { kind: 'not_found' } as const
+
+      const name = await freeCopyName(tx, viewerId, String(source.name))
+      if (name === null) return { kind: 'name_taken' } as const
+
+      /* The picture, if there is one. **`copyCoverFile` and not
+         `coverFileFor`**, which is the whole difference between a set and a
+         duplicate: the source is a folder-less cover of this person's own,
+         which is exactly the shape a *set* keeps rather than copies, and
+         keeping it here would hand two shelves one `cover_file_id` and make
+         Imran's ruling on #117 unkeepable. The scope is null because a shelf
+         is private (4.18) and its cover belongs to the person.
+
+         **A source whose bytes have gone from the store carries no file at
+         all**: the copy would be a row that can never serve, and the source
+         does not draw either, so the two shelves still look the same — which
+         is the product rule — and nothing unservable is created to spend the
+         quota. */
+      let coverFileId: string | null = null
+      if (source.cover_file_id !== null && source.cover_file_id !== undefined) {
+        const held = await copyCoverFile(
+          tx,
+          store,
+          viewerId,
+          String(source.cover_file_id),
+          null,
+        )
+        if (held.kind === 'quota_exceeded') {
+          return { kind: 'quota_exceeded' } as const
+        }
+        if (held.kind === 'copied') {
+          copied.push(held.id)
+          coverFileId = held.id
+        }
+      }
+
+      const made = await rowsOf(
+        tx,
+        sql`INSERT INTO shelves (user_id, name, icon, color, description,
+                                 cover_file_id, cover_preset, cover_focal_y)
+            VALUES (${viewerId}::uuid, ${name},
+                    ${source.icon === null ? null : String(source.icon)},
+                    ${source.color === null ? null : String(source.color)},
+                    ${source.description === null ? null : String(source.description)},
+                    ${coverFileId}::uuid,
+                    ${coverFileId === null && source.cover_preset !== null ? String(source.cover_preset) : null},
+                    ${Number(source.cover_focal_y ?? 50)})
+            RETURNING ${SHELF_COLUMNS}`,
+      )
+      const shelf = shelfFromRow(made[0] ?? {})
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'duplicated',
+        subjectKind: 'shelf',
+        subjectId: shelf.id,
+        subjectName: shelf.name,
+        folderId: null,
+        detail: `from ${String(source.name)}`,
+      })
+      return { kind: 'duplicated', shelf } as const
+    })
+  } catch (error: unknown) {
+    for (const id of copied) {
+      try {
+        await store.remove(id)
+      } catch {
+        // Unreachable bytes; they must not replace the real error below.
+      }
+    }
+    throw error
+  }
 }
