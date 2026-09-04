@@ -101,33 +101,85 @@ export function attachedFileIds(comment: PostCommentBody): string[] {
 }
 
 /*
-The edit half, and it is the words alone.
+The edit half, and since 2026-09-04 it is the words and the attachments
+(issue #94).
 
-**`PATCH /comments/:id` with `file_ids` on it answers 200 and changes no
-attachment.** Nothing in this folder is `.strict()`, so the field parses, is
-dropped, and the caller is told the request succeeded. That is the same shape
+**This comment used to say `file_ids` here was accepted and dropped, and that
+is no longer true.** It was: nothing in this folder is `.strict()`, so the
+field parsed, was discarded, and the caller was answered 200 — the same shape
 as the reminder field `tasks.ts` records, arriving on the very endpoint the
-create half was just widened for: the next person building a multi-file
-composer will reasonably try it.
+create half had just been widened for. What was undefined was attachment
+editing itself, and Imran has now ruled it exists: "A person should be able to
+add or remove attachments from an existing comment without having to delete
+the whole comment and post it again." 7.14 carries the ruling as a dated
+annotation and `domain/comments.ts` carries the work; this schema and that
+module changed together, because a declared field with no reader is the very
+loss this paragraph used to describe.
 
-**It is left tolerant on purpose and the reason is not tidiness.** Frozen 7.0
-rules it outright, "on a parsed object, unknown fields are tolerated and wrong
-types are not", so a `.strict()` here would not be a local hardening but this
-one endpoint contradicting the section that governs every endpoint, and
-section 7 moves only on a human decision. Issue #40 carries the question for
-`app/src/shared/` as a whole, which is where it belongs: eighteen schemas
-answering one way and one answering another is worse than either answer.
+**`file_ids` here is the full new set, not an addition.** Omitted means the
+attachments are untouched, `[]` removes every one of them, and any other list
+makes the set exactly those ids in that order. There is no add-one or
+remove-one spelling, because a composer that holds the whole set and sends it
+is the shape that cannot get out of step with what the person is looking at,
+and a partial verb would need an ordering rule between two callers that this
+endpoint has no way to give.
 
-**What is genuinely undefined is attachment editing itself.** 7.14 as widened
-on 2026-09-03 says what a comment is posted with and says nothing about
-changing what it carries afterwards, so there is no rule here to enforce and
-none to break. Whoever specifies it should read `attachedFileIds` above: the
-two spellings exist because replacing a field the client still sends is the
-failure this endpoint has already been careful about once.
+**Only one spelling, and that is deliberate rather than an oversight.** The
+create half takes `file_id` as well, and the reason is written above
+`attachedFileIds`: the shipping client posts it, so replacing it would have
+made every attachment from that client vanish into a 201. No client has ever
+sent anything but `body` here, so there is no second spelling to keep alive
+and inventing one would only guarantee the two disagree one day. `file_id` is
+declared and refused instead of being tolerated and dropped: 11.14 rules
+`.strict()` out for this folder and names `z.never({ error })` as what an
+endpoint uses when it means to refuse one field, which answers 422 naming it
+without making the object strict. Somebody who knows the create half's alias
+will try it here, and being told which spelling to use is the whole difference
+between a caller who can fix their request and a 200 that changed nothing.
+
+**`body` became optional and the object did not become emptier for it.** A
+wordless comment is legal — 4.15 admits one carrying files alone, and the
+create half's own rule is "words or a file, at least one" — so a required
+`body` of at least one character would have made exactly those comments the
+ones whose attachments could never be edited. The same at-least-one rule
+applies here instead, and the resulting comment must still satisfy it: a `[]`
+that would leave neither words nor files is refused by the route, which is the
+only place that knows what the comment already holds.
 */
-export const patchCommentBody = z.object({
-  body: z.string().min(1).max(4000),
-})
+export const patchCommentBody = z
+  .object({
+    body: z.string().min(1).max(4000).optional(),
+    /** The full new set, up to 10.3's cap, in the order they are to be
+     * attached. Omitted leaves the attachments alone. */
+    file_ids: z
+      .array(z.uuid())
+      .max(COMMENT_FILE_CAP, {
+        error: `must name at most ${String(COMMENT_FILE_CAP)} files (spec 10.3)`,
+      })
+      .optional(),
+    /** Refused rather than dropped: the create half's one-file spelling has
+     * no meaning here, and a silent 200 is what issue #94 was opened about. */
+    file_id: z
+      .never({
+        error:
+          'is the create half’s spelling and has no meaning on an edit; send file_ids, which is the full new set of attachments',
+      })
+      .optional(),
+  })
+  /* `comment_files` is keyed on (comment_id, file_id), so the same id twice is
+     a constraint violation wearing a 500. Refused rather than deduplicated,
+     for the create half's reason: dropping one of two ids a caller actually
+     sent is the silent-loss failure again, in miniature. */
+  .refine(
+    (patch) =>
+      patch.file_ids === undefined ||
+      new Set(patch.file_ids).size === patch.file_ids.length,
+    { error: 'must not name the same file twice', path: ['file_ids'] },
+  )
+  .refine(
+    (patch) => patch.body !== undefined || patch.file_ids !== undefined,
+    { message: 'body: an edit changes the words, the attachments, or both' },
+  )
 export type PatchCommentBody = z.infer<typeof patchCommentBody>
 
 /** A comment's file as the thread answers it, 4.16's own columns and no
@@ -205,6 +257,23 @@ export const getThreadResponse = z.object({
 })
 export type GetThreadResponse = z.infer<typeof getThreadResponse>
 
-/** PATCH /comments/:id answers { edited: true } (`routes/conversation.ts`);
- * the deletes and the like pair answer 204 and carry no body to parse. */
-export const patchCommentResponse = z.object({ edited: z.literal(true) })
+/*
+PATCH /comments/:id answers `{ edited: true }` (`routes/conversation.ts`); the
+deletes and the like pair answer 204 and carry no body to parse.
+
+**`comment` joined it on 2026-09-04 with attachment editing (issue #94), and
+`edited` stayed.** The endpoint now changes something a caller cannot see from
+the request it sent — the resolved file rows, with their names, types, sizes
+and dimensions — so it answers the comment as the thread would read it, which
+is the create half's answer and the fresh-read convention 7.1, 7.2 and 7.4
+carry on their own mutations. `edited` is kept rather than replaced for the
+reason `file_id` is kept on the create half: the shipping client parses this
+response through this schema, and a key removed here fails that parse at the
+moment somebody edits a comment. It is the same one-word answer it always was
+and nothing has to stop reading it.
+*/
+export const patchCommentResponse = z.object({
+  edited: z.literal(true),
+  comment: commentLine,
+})
+export type PatchCommentResponse = z.infer<typeof patchCommentResponse>

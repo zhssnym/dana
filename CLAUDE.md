@@ -251,9 +251,12 @@ protocol points here rather than repeating them.
   counts for about an hour before finding two `playwright test` processes
   alive at once. **Kill by command line rather than by port**, every `node.exe`
   whose command line matches `playwright` or `e2e:app`, then poll until
-  nothing at all answers on the port, `until ! netstat -ano | grep -q ":<port>"`,
-  because a listening socket in TIME_WAIT is enough for the next run's
-  readiness probe. And **delete `test-results/` between runs**, so that no
+  no listener is left on the port, `until ! netstat -ano | grep LISTENING | grep -q ":<port>"`.
+  Poll for LISTENING only, corrected 2026-09-04 (issue #141): a finished leg
+  leaves dozens of client sockets in TIME_WAIT for minutes (85 measured on one
+  port with no listener), so a bare grep on the port never clears, and it is the
+  listener the next run's readiness probe needs gone. And **delete
+  `test-results/` between runs**, so that no
   artifact you are about to read belongs to a run that is already dead.
 - **A lone browser leg on its own port still loses about one case a run when
   commit charge is short, and the port-collision bullet above does not cover
@@ -429,9 +432,13 @@ protocol points here rather than repeating them.
     `TZ=UTC` at the same minute**, green again in local TZ at 00:31Z. Note `TZ=UTC`
     settles only the **PGlite** leg; on Postgres the cluster's own zone governs and the
     process variable changes nothing. Three agents reached this independently. The
-    criterion is fixed (#46); the product defect underneath it — an endpoint that
-    anchors on the database's day rather than the viewer's, which spec 8.1 forbids by
-    name — is **#76**, and when that lands the criterion's oracle must move with it.
+    criterion was fixed first (#46), and **the product defect underneath it is fixed
+    too, on 2026-09-04 by #76**: both duplicate endpoints take a `tz` and re-anchor on
+    the caller's day, `current_date` is gone from that path, and AC-277 and AC-200 pin a
+    zone and assert an exact date in the same commit. **A duplicate criterion failing on
+    a date is a defect now, not this class.** The class is kept because the shape
+    recurs: two clocks in two zones read as a midnight race and are not one, and forcing
+    the zone is what separates them.
 - **Between them these are why a red is not evidence until you have named which class it
   is.** In three CI runs of one commit, every step passed at least once and no run passed
   all of them together, with nothing wrong in the commit.

@@ -28,10 +28,11 @@ the server's own message (5.1's conflict copy, which 9.1 requires verbatim),
 and everything else (the 9.1 error toast). Which toast a failure earns is
 decided once, in `queryClient.ts`, off these three types.
 */
+import type { z } from 'zod'
+
 import { errorEnvelope } from '../../shared/error-envelope.js'
-// A value import since S12: `uploadFile` parses its answer with an inline
-// schema, the one response shape 7.15 owns and no shared module carries.
-import { z } from 'zod'
+import { postAvatarResponse, postFilesResponse } from '../../shared/files.js'
+import type { PostAvatarResponse, PostFilesResponse } from '../../shared/files.js'
 
 import { isOnline, reportReachable, reportUnreachable } from '../state/connectivity.js'
 
@@ -283,13 +284,13 @@ export async function uploadFile(
   kind: 'image' | 'file' | 'voice' | 'cover',
   folderId: string,
   file: File,
-): Promise<{ id: string; bytes: number }> {
+): Promise<PostFilesResponse> {
   const form = new FormData()
   form.set('kind', kind)
   form.set('folder_id', folderId)
   form.set('file', file)
   return parsed(
-    z.object({ id: z.uuid(), bytes: z.number().int() }),
+    postFilesResponse,
     '/files',
     await postMultipart('/files', form),
   )
@@ -306,11 +307,11 @@ export async function uploadFile(
  * did not carry 9.1's "Couldn't save. You're offline." One multipart path,
  * one contract, and 10.6's offline rule reaches the avatar with it.
  */
-export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+export async function uploadAvatar(file: File): Promise<PostAvatarResponse> {
   const form = new FormData()
   form.set('file', file)
   return parsed(
-    z.object({ avatar_url: z.string() }),
+    postAvatarResponse,
     '/me/avatar',
     await postMultipart('/me/avatar', form),
   )

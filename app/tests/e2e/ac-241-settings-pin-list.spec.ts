@@ -65,7 +65,9 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /**
- * 9.1's page block, whole, with the question DES-152 gives each page.
+ * 9.1's page block, whole, with the question `routes.ts` gives each page.
+ * DES-152 named the original set; issue #21 reworded every one of them, and
+ * the client's table is the source these are transcribed from.
  *
  * Every view Dana has natively, not the six that ship pinned: the three that
  * ship unpinned are exactly the rows a person opens this page to find, and a
@@ -73,15 +75,15 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
  * you can turn off.
  */
 const NATIVE_VIEWS = [
-  { name: 'Desk', question: 'Nothing decided about it yet' },
-  { name: 'Today', question: 'What I am doing today' },
-  { name: 'Scheduled', question: 'Everything with a date' },
-  { name: 'Assignments', question: "Who's carrying what" },
-  { name: 'Important', question: 'Starred tasks' },
-  { name: 'All', question: 'Every task, finished ones included' },
-  { name: 'Done', question: 'Everything you have finished' },
-  { name: 'Abandoned', question: 'Things you decided not to do' },
-  { name: 'Anytime', question: 'No date on it, whenever you get to it' },
+  { name: 'Desk', question: 'A home for things you have not sorted yet.' },
+  { name: 'Today', question: 'Keep today clear and focus on what matters now.' },
+  { name: 'Scheduled', question: 'See what is coming and when it needs your attention.' },
+  { name: 'Assignments', question: 'See who is carrying each task.' },
+  { name: 'Important', question: 'Keep the tasks that matter most close at hand.' },
+  { name: 'All', question: 'See every task together, including finished work.' },
+  { name: 'Done', question: 'Look back on everything you have completed.' },
+  { name: 'Abandoned', question: 'Keep track of what you chose not to continue.' },
+  { name: 'Anytime', question: 'Keep undated tasks ready for whenever the time is right.' },
 ] as const
 
 /** 9.7, verbatim: the note that stands where the one locked row is. */
@@ -132,7 +134,7 @@ test.describe('AC-241: Settings is a pin list', () => {
 
       await expect(
         views.getByText(view.question, { exact: true }),
-        `spec 9.7: each row carries "its one-line question", and DES-152 gives ${view.name} ` +
+        `spec 9.7: each row carries "its one-line question", and routes.ts gives ${view.name} ` +
           `${JSON.stringify(view.question)}. The sidebar and this list draw one page, so a ` +
           'second description of it written here would be the thing the pin list exists to ' +
           'stop',

@@ -33,11 +33,15 @@ the row, so the comparison cannot be written the wrong way round in one place
 and right in another, and so a row does not age between the poll and the
 branch.
 
-**Four duties, and that is the ceiling.** 8.6 calls this loop the only
+**Five duties, and that is the ceiling.** 8.6 calls this loop the only
 background execution in v1, so pruning expired sessions rides here rather than
 in a second scheduled process (11.7), and the Trash and events purges joined it
 for the same reason. This paragraph said two until 2026-09-01, having been
-written when there were two; the count below the delivery block is the one that
+written when there were two, and four until 2026-09-04, when the cover reclaim
+of issue #116 joined it: a folder-less cover file is listed by no surface and
+reachable by no route, so once nothing wears it there is no act anywhere in
+section 7 that could ever remove it, and a background pass is the only place
+the work can live. The count below the delivery block is the one that
 kept up. It runs after the reminder work, on the
 handle rather than inside the delivery transaction, because it is hygiene and
 never revocation (11.6): its failure must not roll back a delivery that
@@ -49,6 +53,7 @@ import { pino } from 'pino'
 import type { DbClient } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
+import { reclaimUnwornCovers } from '../domain/files.js'
 import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -128,6 +133,9 @@ export interface ReminderPassOutcome {
   purgedTrash: number
   /** Events past 90 days the fourth duty purged (4.13). */
   purgedEvents: number
+  /** Folder-less cover files nothing references and older than 30 days, the
+   * fifth duty reclaimed with their objects (issue #116, spec 7.19). */
+  reclaimedCovers: number
 }
 
 export type ReminderPass = () => Promise<ReminderPassOutcome>
@@ -387,6 +395,30 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
       )
     ).length
 
+    /*
+    The fifth duty (issue #116, 2026-09-04): the cover files nothing wears.
+
+    **It is here rather than in the act that stops wearing one, and that is
+    the design decision rather than a convenience.** A folder-less cover is
+    reachable by no listing and no route, so a replaced one used to spend its
+    owner's 1 GB (10.3) with nothing able to delete it — #116's first half.
+    Deleting it the instant a page stopped naming it was the obvious repair
+    and is wrong: the caller is still holding that id, and setting the same
+    picture back a moment later is what a cover picker does. So this is a
+    sweep over what nothing has referenced for thirty days, Dana's own line
+    for destroying anything (7.13, 8.8), measured from the moment the last
+    reference went — `files.unreferenced_since`, migration 0014 — because
+    `created_at` measures when the bytes arrived and would take a picture worn
+    for a year the instant it came off. One statement, clearing, marking and
+    deleting in three CTEs the way `destroyFolders` claims and collects in
+    one, so this duty is the single wrapperless statement the others are and
+    the tick still opens exactly one transaction. The statement, and every
+    column that can name a file, are in `domain/files.ts`.
+    */
+    const reclaimedCovers = (
+      await reclaimUnwornCovers(db, deps.fileStore)
+    ).length
+
     // Both liveness signals, after the work and only on a cycle that
     // completed: /api/health's age since P0 (11.12), and the heartbeat whose
     // silence alerts.
@@ -395,6 +427,14 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
       await pingHeartbeat(deps.heartbeatUrl, logger)
     }
 
-    return { sent, skipped, failed, prunedSessions, purgedTrash, purgedEvents }
+    return {
+      sent,
+      skipped,
+      failed,
+      prunedSessions,
+      purgedTrash,
+      purgedEvents,
+      reclaimedCovers,
+    }
   }
 }

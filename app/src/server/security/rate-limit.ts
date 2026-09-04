@@ -7,7 +7,7 @@ This deliberately assumes one running application instance. A scale-out to
 multiple instances must replace the stores with one shared counter store.
 */
 import type { Request, RequestHandler } from 'express'
-import { rateLimit } from 'express-rate-limit'
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit'
 
 import { sessionOf } from '../auth/middleware.js'
 import { sendError } from '../http/errors.js'
@@ -35,6 +35,18 @@ export const RATE_LIMIT_POLICY = {
   process.
   */
   exportPerHour: 5,
+  /*
+  10.4's CSP-report row (issue #99). The only limit here keyed on an address
+  rather than on a user, because the caller is a browser posting a violation
+  report of its own accord and has no session to key on.
+
+  Thirty a minute is chosen from both ends. A real breakage on a cold load
+  produces one report per refused resource, and the shell loads a handful,
+  so thirty leaves a wide margin above the case the endpoint exists to
+  catch; and thirty bounds what a stranger can spend of a free-tier Sentry
+  quota, which is the case it must not become.
+  */
+  cspReportsPerMinute: 30,
 } as const
 
 export interface RateLimits {
@@ -43,6 +55,7 @@ export interface RateLimits {
   invitesPerDay: RequestHandler
   search: RequestHandler
   dataExport: RequestHandler
+  cspReports: RequestHandler
 }
 
 interface RateLimitOverrides {
@@ -51,6 +64,7 @@ interface RateLimitOverrides {
   searchPerMinute?: number
   mutationsPerMinute?: number
   exportPerHour?: number
+  cspReportsPerMinute?: number
 }
 
 export interface CreateRateLimitsOptions {
@@ -156,6 +170,31 @@ export function createRateLimits(
       identifier: 'data-exports-per-hour',
       requestPropertyName: 'exportRateLimit',
       keyFor,
+    }),
+    /*
+    Keyed on the caller's address rather than on `keyFor`, which reads the
+    session: a CSP report arrives without one, so every report in the
+    deployment would otherwise share the key `no-session` and the first
+    thirty reports a minute anywhere would exhaust it.
+
+    `ipKeyGenerator` is express-rate-limit's own and collapses an IPv6
+    address to its /64, so one client cannot walk a subnet to reset the
+    count. **And the honest limit on it: this application does not set
+    `trust proxy`, so `req.ip` behind Render's edge is the edge's address
+    and not the visitor's, which makes the bucket per-deployment in
+    production and per-client only in development and under test.** That is
+    the conservative direction — it bounds noise harder rather than less —
+    and thirty a minute is still far above what a real breakage produces;
+    but nothing here should be read as identifying a visitor, and setting
+    `trust proxy` would change this limiter and every other one at once,
+    which is not a change to make inside this one.
+    */
+    cspReports: limiter({
+      windowMs: MINUTE_MS,
+      limit: configured.cspReportsPerMinute,
+      identifier: 'csp-reports-per-minute',
+      requestPropertyName: 'cspReportRateLimit',
+      keyFor: (req) => ipKeyGenerator(req.ip ?? 'unknown'),
     }),
   }
 }

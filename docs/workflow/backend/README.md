@@ -62,8 +62,13 @@ job.** Nothing adds it for you.
 `app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
 mutating route missing a session or CSRF check, and since issue #33 any GET that answers
 something other than 401 without a session. Three reads are exempt by name — the health
-probe and the two OAuth legs — each with its reason written beside it, and an exemption
-that stops being true fails too. **Nothing structural checks authorization at all**: a GET
+probe and the two OAuth legs — and since issue #99 two mutations are: the development
+login, and `POST /api/csp-report`, which a browser sends of its own accord with no cookie
+and no CSRF header for this application to require. Each of the five carries its reason
+in the test beside it. A read exemption is asserted in both directions, so one that stops
+being true fails; the mutating half cannot be, the development login being absent from
+that harness entirely, and what holds it honest instead is the route count and the reason
+a reviewer reads. **Nothing structural checks authorization at all**: a GET
 that takes a session and then reads whatever id it is handed passes the entire suite, so
 the `accessOf(...)` gate above is still yours to write and nothing will miss it.
 
@@ -90,6 +95,29 @@ several branches open at once, have your number assigned by whoever opened them,
 nobody did, take the next free one and say in your pull request that you took it
 unassigned.** A collision is trivial to fix before a merge and is a production incident
 after one.
+
+**Two counts in the suite are fixtures over the implementation, and moving them is not
+breaking rule 2 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 2 says
+never edit a test to make your code pass, and it is the right rule; these two are the
+exception it needs stated, because otherwise the honest reading is to stop. Each is a number
+describing the shape of the server rather than a behaviour anybody asked for, each says so
+beside itself, and each is written to fail when that shape changes so that the change is
+noticed rather than assumed.
+
+- `app/tests/ac-236-structural-guard-sweep.test.ts` asserts the **count of mutating routes**
+  the walker found. Adding a route moves it by one. What must be true before you touch it is
+  that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
+  only the count failed; if the sweep failed, the number is telling you something and moving
+  it is the thing rule 2 forbids.
+- `app/src/server/scheduler/interval.test.ts` asserts the **count of statements the 11.7 pass
+  runs after its delivery transaction**, as the way to see that a held pass ran to
+  completion. A new duty on the tick moves it by one, and the comment beside it enumerates
+  which statements they are: keep that enumeration in step or the next person cannot tell a
+  legitimate move from a lost duty.
+
+Move the number **and** its comment in the same change, say in the pull request that you did,
+and say which. A moved count with no note is indistinguishable from the thing rule 2 exists
+to stop.
 
 **A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
 Added 2026-09-03 from issue #27, where it cost a red run and would otherwise have cost a
@@ -167,11 +195,17 @@ not know them, and **only two of them are answered by re-running**:
   is the clock. Note `TZ=UTC` settles only the PGlite leg; on Postgres the cluster's own
   zone governs and the process variable changes nothing.
 
-  **The criterion is fixed as of 2026-09-03 (issue #46)** — its oracle is now the database's
-  own clock, bracketed across the operation. What is *not* fixed is the product defect
-  underneath: the endpoint anchors on the database's day rather than the viewer's, which
-  spec 8.1 forbids by name. That is **issue #76**, and when it lands the criterion's oracle
-  has to move in the same commit or this class comes straight back.
+  **Closed 2026-09-04 by issue #76, and left here because the way it presented is what to
+  recognise.** The interim fix of #46 made the criterion's oracle the database's own clock,
+  bracketed across the operation, and said in terms that it described the behaviour without
+  blessing it. #76 is the product defect underneath — the endpoint anchored on the database's
+  day rather than the viewer's, which 8.1 forbids by name — and it has landed: both
+  duplicates take `tz`, they do not read `current_date` at all, and AC-277 and AC-200 pin a
+  zone and assert an exact date in the same commit. **So a duplicate criterion that fails on
+  a date is now a defect rather than this class.** What remains true in general is the shape:
+  where an assertion compares a date the server computed against a date the test computed,
+  check which clock each one read before believing the red, and force the zone to tell them
+  apart.
 
 **The Postgres leg used to be a third one, and is not any more (issue #32, 2026-09-03).**
 It pointed all 282 files at one `dana_test`, they saw each other's rows, and the fingerprint

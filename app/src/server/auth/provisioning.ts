@@ -36,19 +36,27 @@ import { sameZone, writeTimezone } from './timezone-sync.js'
 The words a brand-new Desk carries under its name (issue #68).
 
 **It is Dana's own sentence for Desk, transcribed and not invented.** The
-client's `routes.ts` has answered "Nothing decided about it yet" under that
-page since RFC 0005, so writing anything else here would give one page two
-descriptions of itself and make the folder disagree with the sidebar it
-hangs in. It goes in `folders.description`, the column 4.3 already has, so
-the person can rewrite or empty it through 7.4 like any other folder's, and
-this is a default rather than a fixture: nothing restores it.
+client's `routes.ts` answers this sentence under that page, so writing
+anything else here would give one page two descriptions of itself and make
+the folder disagree with the sidebar it hangs in. It goes in
+`folders.description`, the column 4.3 already has, so the person can rewrite
+or empty it through 7.4 like any other folder's, and this is a default rather
+than a fixture: nothing restores it.
+
+**The sentence lives in two files and AC-315 asserts that they agree (issue
+#97).** `routes.ts` is the client's and this constant is the server's, and
+neither side may import the other (the eslint boundary). The wording changed
+once already, on issue #21, and only the client moved: nothing on this side
+failed, and every new account would have gone on receiving the old sentence
+under a sidebar saying the new one. Whoever rewords Desk in `routes.ts`
+rewords it here in the same change, and the criterion is what says so.
 
 Only new accounts get it. Existing Desks are not backfilled, because a
 migration that wrote words into a folder somebody had deliberately left
 blank would be Dana putting sentences in a person's mouth, and there is no
 way to tell the two blanks apart after the fact.
 */
-export const DESK_DEFAULT_DESCRIPTION = 'Nothing decided about it yet'
+export const DESK_DEFAULT_DESCRIPTION = 'A home for things you have not sorted yet.'
 
 export interface GoogleIdentity {
   sub: string

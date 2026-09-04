@@ -24,11 +24,20 @@ retires it as a field entirely, the due row reading "a day; the pickers offer
 no time of day (a stored due_time from v1 is displayed and clearable, never
 settable)". A field nobody can set has no enabled state to assert, so what
 is left date-dependent is reminder and repeat, which the v2 table gives the
-same "requires a due date" and the same helper. **The Replace that brings the
-criterion's own count in step is recommended in RFC 0005 change control item
-20 and is the owner's, not this session's**, on the item 14 precedent that a
-criterion's sentence is ruled rather than taken; this file asserts what 9.3
-now says and names the gap rather than hiding it.
+same "requires a due date". **The Replace that brings the criterion's own
+count in step is recommended in RFC 0005 change control item 20 and is the
+owner's, not this session's**, on the item 14 precedent that a criterion's
+sentence is ruled rather than taken; this file asserts what 9.3 now says and
+names the gap rather than hiding it.
+
+**The helper is gone, and this file stopped reading it on 2026-09-03 (issue
+#126).** 9.3's two rows carried "Set a due date first" beside their disabled
+state, and three arms here read it: on the surface after a confirmed clear,
+on the surface while a fresh capture's two chips were disabled, and gone once
+the date enabled them. Imran removed the sentence as clutter, 9.3 records the
+reversal under its field table, and what the disabled state means is what the
+chips already showed: visible and inoperable. The arms that read the state
+are what remain, and they are the criterion's own sentence.
 
 Four cases, and the last two are where an implementation that satisfies the
 criterion as written still fails.
@@ -60,8 +69,8 @@ Important, and still for its own reason: of the three pages 9.1 leaves the
 floating button on, Important is the one whose entry defaults leave the task
 undated, which is the state the third case is expressly about.
 
-Spec: 9.3 (the v2 field rules, the two date-dependent rows and their helper,
-the clear-date warning kept verbatim, the commit-as-it-is-made rule), 9.1
+Spec: 9.3 (the v2 field rules, the two date-dependent rows, the clear-date
+warning kept verbatim, the commit-as-it-is-made rule), 9.1
 (the v2 capture rule, the v2 routes table, and the confirmation's two
 controls), 8.4 (the clear-date cascade the warning describes), 7.6, 10.3.
 */
@@ -101,8 +110,8 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 /**
  * The fields 9.3's v2 table makes conditional on a due date, in that table's
- * own words: "requires a due date... disabled helper 'Set a due date first'".
- * Two rather than v1's three, for the reason this file's header records.
+ * own words: "requires a due date". Two rather than v1's three, for the
+ * reason this file's header records.
  */
 const DEPENDENTS = ['reminder', 'repeat'] as const
 
@@ -278,12 +287,6 @@ test.describe('AC-092: clearing the date on the task surface', () => {
       await chipValue(taskChip(page, 'repeat'), 'repeat'),
       'spec 8.4: the cascade ends the repeat, and this chip was reading the Daily preset',
     ).not.toContain('Daily')
-
-    await expect(
-      page.getByText(copy.dateDependentHelper),
-      'spec 9.3: the v2 table gives both date-dependent rows the helper "Set a due date first", ' +
-        'and a disabled control with no helper is what that column exists to forbid',
-    ).toBeVisible()
   })
 
   test('AC-092: declining the warning changes nothing', async ({ page }) => {
@@ -344,11 +347,6 @@ test.describe('AC-092: clearing the date on the task surface', () => {
           'whose row of the entry table leaves it undated',
       ).toBeDisabled()
     }
-    await expect(
-      page.getByText(copy.dateDependentHelper),
-      'spec 9.3: the helper belongs to the disabled state, so it is on the surface while the ' +
-        'two are disabled',
-    ).toBeVisible()
 
     await setDue(page)
 
@@ -364,11 +362,6 @@ test.describe('AC-092: clearing the date on the task surface', () => {
           'renders a chip a person cannot press while the answer sits beside it',
       ).toBeEnabled()
     }
-    await expect(
-      page.getByText(copy.dateDependentHelper),
-      'spec 9.3: the helper belongs to the disabled state, so it is gone once the two are ' +
-        'enabled',
-    ).toHaveCount(0)
   })
 
   test('AC-092: an existing rule pre-fills and clearing the date warns the same way', async ({

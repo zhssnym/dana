@@ -10,7 +10,15 @@ one fact the bar needs, put on 7.16's answer by RFC 0005 change control
 item 58 (E) because a client that re-derived it from the copy's dates would
 be a second copy of the rule.
 
-Spec: 7.16 (as widened by item 58), 9.6, 4.13.
+The spent case names a zone, because since issue #76 (2026-09-04) the day a
+plan re-anchors on is the caller's rather than the database session's, and a
+duplicate that would move a date and names no zone is refused rather than
+guessed at. The case that follows it names none on purpose: 2040 is ahead of
+today everywhere on earth, so there is nothing for a zone to decide, and the
+undated path staying open is part of what this file is for.
+
+Spec: 7.16 (as widened by item 58, and as annotated for issue #76), 8.1, 9.6,
+4.13.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -53,7 +61,10 @@ describe('AC-292 the duplicate answer says whether the dates moved', () => {
       { title: 'loose ac292 long past', folder_id: folderId, due_date: '2020-01-01' },
       'a spent date stages (spec 7.6)',
     )
-    const copied = await owner.browser.json(`/folders/${folderId}/duplicate`, 'POST')
+    const copied = await owner.browser.json(
+      `/folders/${folderId}/duplicate?tz=Pacific/Kiritimati`,
+      'POST',
+    )
     expectStatus(copied, 201, 'the duplicate (spec 7.16)')
     const made = copied.json() as { id: string; shifted_days: number }
     expect(made.shifted_days, '2020 is spent, so the plan moved a positive number of days').toBeGreaterThan(0)

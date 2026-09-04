@@ -25,6 +25,31 @@ seed now buys is that every table has a row against which a migration, a
 cascade or a query can be exercised, and that the truncate below is proved
 against a populated database rather than an empty one.
 
+**The default folders are named Desk, and were named Inbox until 2026-09-04
+(issue #98).** `auth/provisioning.ts` has created them as Desk since RFC 0005
+and this file never followed, so every browser spec signed into a product
+whose one universal folder had the wrong name. That is not a cosmetic
+difference in a file the browser leg runs entirely on: a spec that reads the
+sidebar, the folder chip or the entry-point default was reading v1.
+
+Two decisions came with that rename and are recorded here rather than left to
+be re-derived.
+
+**A seeded Desk carries no description, and provisioning's does.** #68 gives a
+brand-new Desk the sentence "Nothing decided about it yet" and says in as many
+words that existing Desks are not backfilled, "because a migration that wrote
+words into a folder somebody had deliberately left blank would be Dana putting
+sentences in a person's mouth". The people in this dataset are established
+accounts: they own folders, tasks, events and history, and an account of that
+age predates #68 exactly as a real one does. So the blank is what #68's own
+ruling produces here, and it is now a decision rather than an oversight.
+
+**`taskSortInbox` keeps its key and its title.** It names a task, not a
+folder, and "Sort inbox" is a thing a person wrote on a list rather than the
+product's name for anything. Eight browser specs address that row by its
+literal title; renaming it would churn them and measure nothing. The folder
+keys moved because they name the folder whose name changed.
+
 Identifiers are fixed so end to end tests can reference rows; dates are
 relative to today so the day-scoped pages (My Day, Planned) have content
 whenever the seed runs. Reseeding wipes application rows first: it refuses to
@@ -43,8 +68,8 @@ import type { Db } from './client.js'
 export const seedIds = {
   hassan: '11111111-1111-4111-8111-111111111111',
   imran: '22222222-2222-4222-8222-222222222222',
-  hassanInbox: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  imranInbox: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  hassanDesk: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  imranDesk: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   groceries: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   taskBuyMilk: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   taskCallPlumber: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
@@ -57,7 +82,7 @@ export const seedIds = {
   // nothing below is reachable from a session signed in as Hassan or Imran;
   // see the header for why the eleven tables she carries are hers.
   nadia: '33333333-3333-4333-8333-333333333333',
-  nadiaInbox: '44444444-4444-4444-8444-444444444444',
+  nadiaDesk: '44444444-4444-4444-8444-444444444444',
   nadiaStudio: '55555555-5555-4555-8555-555555555555',
   taskNadiaDraft: '10101010-1010-4010-8010-101010101010',
   shelfNadiaReading: '20202020-2020-4020-8020-202020202020',
@@ -212,19 +237,19 @@ export async function seed(): Promise<void> {
   `)
   await db.execute(sql`
     INSERT INTO folders (id, owner_id, name, is_default) VALUES
-      (${seedIds.hassanInbox}, ${seedIds.hassan}, 'Inbox', true),
-      (${seedIds.imranInbox}, ${seedIds.imran}, 'Inbox', true),
+      (${seedIds.hassanDesk}, ${seedIds.hassan}, 'Desk', true),
+      (${seedIds.imranDesk}, ${seedIds.imran}, 'Desk', true),
       (${seedIds.groceries}, ${seedIds.hassan}, 'Groceries', false),
-      (${seedIds.nadiaInbox}, ${seedIds.nadia}, 'Inbox', true),
+      (${seedIds.nadiaDesk}, ${seedIds.nadia}, 'Desk', true),
       (${seedIds.nadiaStudio}, ${seedIds.nadia}, 'Studio', false)
   `)
   await db.execute(sql`
     INSERT INTO folder_members (folder_id, user_id, label, color) VALUES
-      (${seedIds.hassanInbox}, ${seedIds.hassan}, NULL, NULL),
-      (${seedIds.imranInbox}, ${seedIds.imran}, NULL, NULL),
+      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL),
+      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL),
       (${seedIds.groceries}, ${seedIds.hassan}, 'Home', '#33AA55'),
       (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL),
-      (${seedIds.nadiaInbox}, ${seedIds.nadia}, NULL, NULL),
+      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL),
       (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL)
   `)
 
@@ -244,7 +269,7 @@ export async function seed(): Promise<void> {
         ${yesterdayInstant}, ${seedIds.hassan}),
       (${seedIds.taskOldIdea}, ${seedIds.groceries}, 'Old idea', NULL, 'abandoned',
         false, NULL, NULL, NULL, NULL, NULL, ${seedIds.imran}, NULL, NULL),
-      (${seedIds.taskSortInbox}, ${seedIds.hassanInbox}, 'Sort inbox', NULL, 'pending',
+      (${seedIds.taskSortInbox}, ${seedIds.hassanDesk}, 'Sort inbox', NULL, 'pending',
         false, NULL, NULL, NULL, NULL, ${seedIds.hassan}, ${seedIds.hassan}, NULL, NULL)
   `)
 
@@ -295,7 +320,7 @@ export async function seed(): Promise<void> {
       (${seedIds.blockNadiaImage}, ${seedIds.nadiaStudio}, NULL, 'image', 3,
        NULL, ${seedIds.fileNadiaSketch}, NULL, 75),
       (${seedIds.blockNadiaFolderRef}, ${seedIds.nadiaStudio}, NULL, 'folder_ref', 4,
-       NULL, NULL, ${seedIds.nadiaInbox}, NULL),
+       NULL, NULL, ${seedIds.nadiaDesk}, NULL),
       (${seedIds.blockNadiaShelfParagraph}, NULL, ${seedIds.shelfNadiaReading},
        'paragraph', 1, 'A shelf has a page too.', NULL, NULL, NULL)
   `)
