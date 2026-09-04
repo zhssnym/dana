@@ -1,65 +1,72 @@
 # CODEOWNERS
 #
-# When a pull request changes a file, GitHub asks that file's owner to review
-# it. That is ALL this file does. It does not stop anyone editing anything.
+# OWNERSHIP HERE IS WHO REVIEWS, NOT WHO MAY EDIT. Changed 2026-09-04 by issue
+# #180, and it is a change of meaning rather than of lines: every path below
+# reads the same as it did the day before.
 #
-# On this repository it has no teeth at all: branch protection is unavailable
-# on the current plan, and requiring code-owner review is what would give it
-# force. So read this as the map each agent reads to learn where the boundary
-# is, and as the record of who owns what. The control that actually protects
-# main is Hassan reading the diff before he merges.
+# When a pull request changes a file, GitHub asks that file's owner to review
+# it. That is ALL this file does, and now it is all it is meant to do. There is
+# one team, anyone may edit anything, and what stops a change is
+# docs/workflow/hard-stops.md, which stops everyone equally. This file no
+# longer says where a boundary is, because there is no longer a boundary for it
+# to describe.
+#
+# It has no teeth either way: branch protection is unavailable on the current
+# plan, and requiring code-owner review is what would give it force. The
+# controls that actually protect main are the local gate, the reviewer agent
+# the author runs before the pull request exists, and Hassan reading the diff
+# before he merges.
 #
 # THE LAST MATCHING LINE WINS. Not the most specific one. Order matters.
 # A leading / anchors at the repository root. A trailing / matches everything
 # inside the directory.
 
 # ---------------------------------------------------------------------------
-# Default. Anything not claimed below is Hassan's.
+# Default. A change anywhere not named below asks Hassan to read it.
 # ---------------------------------------------------------------------------
-*                          @zhssnym
+*                          @mranwafa @zhssnym
 
 # ---------------------------------------------------------------------------
-# Imran's ground.
+# What the user sees.
 # ---------------------------------------------------------------------------
-# What the user sees. Both names on purpose: with Imran alone, every client fix
-# Hassan makes would sit waiting for Imran's approval, and most recent client
-# commits were Hassan's. With both names, whoever did not write it can approve
-# it.
+# Both names, so that whoever did not write it is the one asked to read it.
+# With Imran alone, every client fix Hassan makes would sit waiting for Imran,
+# and most recent client commits were Hassan's.
 #
 # Component tests live in here too, beside the components they test, and are
-# owned by this line. That is why app/tests/ is not split.
+# read under this line. That is why app/tests/ is not split.
 /app/src/client/           @mranwafa @zhssnym
 
 # ---------------------------------------------------------------------------
-# Hassan's ground.
+# The system, the suite, the specification and the infrastructure.
 # ---------------------------------------------------------------------------
 # Redundant with the `*` line today. They stop being redundant the moment
 # anyone adds a broader rule above them, which is the whole reason to write
-# them down.
-/app/src/server/           @zhssnym
-/app/db/                   @zhssnym
-/app/tests/                @zhssnym
-/.github/                  @zhssnym
-/docs/spec/                @zhssnym
-/docs/rfcs/                @zhssnym
-/docs/workflow/            @zhssnym
-/CODEOWNERS                @zhssnym
+# them down. Naming Hassan here asks him to read a change; it does not reserve
+# the files, and Imran's work reaches every one of them.
+/app/src/server/           @mranwafa @zhssnym
+/app/db/                   @mranwafa @zhssnym
+/app/tests/                @mranwafa @zhssnym
+/.github/                  @mranwafa @zhssnym
+/docs/spec/                @mranwafa @zhssnym
+/docs/rfcs/                @mranwafa @zhssnym
+/docs/workflow/            @mranwafa @zhssnym
+/CODEOWNERS                @mranwafa @zhssnym
 
 # ---------------------------------------------------------------------------
-# The contested middle.
+# The seam.
 # ---------------------------------------------------------------------------
-# The contract between the two halves. 36 server files and 59 client files
-# import from it, and a change here is a change to spec section 7 in disguise.
-# Reading it is free and constant; only editing it asks for a review.
+# The contract both halves import. A change here is a change to spec section 7
+# in disguise, so it is worth a second reader every time.
 #
-# One standing exception, written in docs/workflow/frontend/: a frontend pull
-# request may add a new READ schema for a shape the server already sends.
-# Nothing on the server imports it, and a wrong one fails loudly on one screen.
-# Request schemas are different and never move alone, because an unhandled
-# field is accepted and silently dropped with a 200.
-/app/src/shared/           @zhssnym
+# A READ schema for a shape the server already sends is an ordinary change:
+# nothing on the server imports it, and a wrong one fails loudly on one screen.
+# A REQUEST field is a hard stop and never moves alone, because one the server
+# does not read is accepted and silently dropped with a 200.
+# docs/workflow/hard-stops.md carries the rule.
+/app/src/shared/           @mranwafa @zhssnym
 
-# Dependencies. Imran's agent will want UI libraries. That is a bundle size,
-# licence and supply chain decision, so it comes here.
-/app/package.json          @zhssnym
-/app/package-lock.json     @zhssnym
+# Dependencies. Adding a library is a bundle size, licence and supply chain
+# decision, which is a technical ruling and so is read here every time.
+/app/package.json          @mranwafa @zhssnym
+/app/package-lock.json     @mranwafa @zhssnym

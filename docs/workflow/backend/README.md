@@ -1,8 +1,9 @@
 # Working on the backend
 
-Read this before you start. It is everything you need for a backend task.
+**One issue, one fresh chat.** Read this before you start. It is everything you need to begin
+a task on the system rather than on a screen.
 
-## What you own
+## Where this starts
 
 Everything except `app/src/client/`. In practice:
 
@@ -14,24 +15,35 @@ Everything except `app/src/client/`. In practice:
 | `app/tests/` | The acceptance suite and the browser tests |
 | `.github/`, `docs/`, root config | Infrastructure and documentation |
 
+**A starting point and not a fence.** The same task may end in a component, and a screen
+change may end in a migration; change what the issue needs and change all of it.
+[`../frontend/README.md`](../frontend/README.md) is the map of the other half.
+
 ## The rules that are never broken
 
-1. **Every change starts from a GitHub issue.** This includes your own work.
-2. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
-3. **Say you are blocked rather than saying you are done.** A false green is the worst
+1. **Every change starts from a GitHub issue**, and one issue is one fresh chat. This
+   includes your own work.
+2. **Read [`../hard-stops.md`](../hard-stops.md) before you start.** Most of the eight live
+   on this side. Everything else: decide, do it, and say what you decided.
+3. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
+   A criterion changes only when the decision it pins changes, and the pull request names it.
+4. **Say you are blocked rather than saying you are done.** A false green is the worst
    available failure, because everything after it is built on top.
-4. **Run the review agent before merging your own work.** Imran cannot read backend code, so
-   nothing else reviews it. That agent is the second reader you would otherwise not have.
-5. **When the workflow itself is wrong, fix it or open an issue labelled `documentation`.**
-   `docs/workflow/` is yours, so unlike the frontend you have both options; fixing it in the
-   pull request that hit the problem is usually right. What is not an option is working
-   around it in silence and leaving the next person to pay the same tax. Shared rule 11.
+5. **Run `npm run gate`, then run the `reviewer` agent.** The pull request exists only after
+   both, green on the head commit, and it carries the record. The reviewer is the second
+   reader on every branch, including the one you are on.
+6. **When the workflow itself is wrong, fix it or open an issue labelled `documentation`.**
+   Fixing it in the pull request that hit the problem is usually right. What is not an option
+   is working around it in silence and leaving the next person to pay the same tax. Shared
+   rule 12.
 
 ## Starting a task
 
-New session per issue. Read the issue, check for open pull requests on the same files,
-branch from `main` as `backend/<issue>-<short-description>`, and read `CLAUDE.md` for the
-commands and this machine's failure modes.
+A fresh chat per issue. Read the issue, check for open pull requests on the same files,
+branch from `main` as `backend/<issue>-<short-description>` — CI checks that shape,
+`^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$` — read
+[`../hard-stops.md`](../hard-stops.md), and read `CLAUDE.md` for the commands and this
+machine's failure modes.
 
 ## The server, folder by folder
 
@@ -64,9 +76,11 @@ number; the previous table was measured without them and read about half of this
 **There is no authorization chokepoint, despite what spec 10.2 says.** There cannot be one,
 because what counts as authorized depends on what is being asked for. What exists instead is
 two good things: the membership check is written **inside the `FROM` clause**, so a query
-that forgets it returns nothing rather than someone else's rows; and there are about 20
-hand-written `accessOf(...)` gates across 9 files. **When you add a route, the gate is your
-job.** Nothing adds it for you.
+that forgets it returns nothing rather than someone else's rows; and there are hand-written
+`accessOf(...)` gates — 22 call sites across 12 files outside the tests, measured 2026-09-04
+with `grep -rn "accessOf(" app/src/server --include="*.ts"`; the sentence this replaces read
+"about 20 across 9 files". **When you add a route, the gate is your job.** Nothing adds it
+for you.
 
 **What is structurally checked, since 2026-09-04 and issue #74**, is that no id-bearing route
 is left ungated *silently*. `app/tests/ac-397-authorization-sweep.test.ts` walks the mounted
@@ -126,7 +140,7 @@ unassigned.** A collision is trivial to fix before a merge and is a production i
 after one.
 
 **Two counts in the suite are fixtures over the implementation, and moving them is not
-breaking rule 2 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 2 says
+breaking rule 3 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 3 says
 never edit a test to make your code pass, and it is the right rule; these two are the
 exception it needs stated, because otherwise the honest reading is to stop. Each is a number
 describing the shape of the server rather than a behaviour anybody asked for, each says so
@@ -137,7 +151,7 @@ noticed rather than assumed.
   the walker found. Adding a route moves it by one. What must be true before you touch it is
   that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
   only the count failed; if the sweep failed, the number is telling you something and moving
-  it is the thing rule 2 forbids.
+  it is the thing rule 3 forbids.
 - `app/src/server/scheduler/interval.test.ts` asserts the **count of statements the 11.7 pass
   runs after its delivery transaction**, as the way to see that a held pass ran to
   completion. A new duty on the tick moves it by one, and the comment beside it enumerates
@@ -145,7 +159,7 @@ noticed rather than assumed.
   legitimate move from a lost duty.
 
 Move the number **and** its comment in the same change, say in the pull request that you did,
-and say which. A moved count with no note is indistinguishable from the thing rule 2 exists
+and say which. A moved count with no note is indistinguishable from the thing rule 3 exists
 to stop.
 
 **A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
@@ -191,7 +205,16 @@ criterion that proves it.** Spec 11.15 names both classes and what catches each.
 
 ## Testing
 
-There are two database legs and they are not interchangeable.
+**`npm run gate` is what a pull request carries.** It runs spec 11.11's seven steps in order
+on this machine, stops at the first failure, and prints the record: the head sha, whether the
+tree was dirty, the machine, the clock, and each step's tally.
+
+```
+npm run gate              the seven steps, about half an hour
+npm run gate -- --quick   lint, typecheck and build, for the middle of the work
+```
+
+The individual commands, for when you want one of them:
 
 ```
 npm run lint
@@ -201,9 +224,21 @@ npm run build
 npm run e2e       the browser leg
 ```
 
+There are two database legs and they are not interchangeable.
 **Never select a leg by habit. Print the variable and check.** `TEST_DATABASE_URL` is
 ambient on this machine and has changed more than once. Set it for Postgres, empty it for
-PGlite. Running `npm test` twice measures one leg twice and reports two greens.
+PGlite. Running `npm test` twice measures one leg twice and reports two greens. The gate does
+that selection explicitly — empty for the PGlite leg, the parent process's value for the
+Postgres one — and writes into the record which of the two it got, which is the answer to
+read rather than any file's.
+
+**A gate that could not run the Postgres leg is `incomplete`, not green, and exits non-zero.**
+Green means all seven of 11.11's steps ran, and a pull request needs green, so a machine with
+no `TEST_DATABASE_URL` cannot open one. **The setup is one-time and lives in spec 11.10**: its
+`CREATE DATABASE` statement fixes the builtin `C.UTF-8` locale so the two legs order text
+identically, and `CLAUDE.md` describes this cluster, whose own locale is French and must never
+become the suite's. Point the variable at a database that inherited the cluster default and
+the two legs stop agreeing.
 
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
@@ -256,11 +291,31 @@ which every translation keeps verbatim, or the SQLSTATE and the table or column 
 the error, which no locale touches; `expectRejectedWith` in `tests/helpers.ts` does the
 second, and `tests/postgres-leg-isolation.test.ts` fails by name any test that reads prose.
 
-## When the work needs the frontend
+## When the work needs the client
 
-Read [`allowed-frontend-changes.md`](allowed-frontend-changes.md). The same two-question
-shape as the frontend's file, pointing the other way. **The rule binds you too.** A quick
-frontend fix is how Imran discovers his own area changed underneath him.
+**Most of the client is as silent as a migration from a terminal**, and this is the one thing
+to know before you touch it. `app/vitest.config.ts:5` sets `environment: 'node'` for the
+whole suite, so `npm test` proves the client **compiles** and almost nothing about what it
+does; six files opt into `jsdom` per file and are the only ones in the suite that render
+anything (measured 2026-09-04, and the count moved twice that day). Everything a screen actually does is covered by the Playwright specs and by nothing
+else. A person with a browser would see the broken screen; you will not.
+
+So say honestly how you checked a client change: you ran the Playwright spec that covers it
+and you name it, or you ran the app and looked, or **you say it was not verified in a
+browser**. The third is an acceptable answer. Claiming the first while having done the third
+is not.
+
+Two ways to make the change, and both are ordinary:
+
+- **Do it.** [`../frontend/README.md`](../frontend/README.md) is the folder map and the
+  things that bite.
+- **Invoke the `frontend` agent** with the exact need, on the same branch, and integrate its
+  commit. That is not an escalation and it needs no issue.
+
+Two files in there are hard stops because no criterion sees them —
+`app/src/client/styles/tokens.css` and `app/src/client/parts/presenters.ts` — and a renamed
+`localStorage` key is the one genuinely irreversible thing in the client.
+[`../hard-stops.md`](../hard-stops.md) carries all three.
 
 ## Labels, in one line
 
@@ -271,8 +326,13 @@ of that file.
 
 ## Opening the pull request
 
-Same template as everyone. Declare files touched outside your area, name the test commands
-you ran, and title it as a Conventional Commit because the version is read from it.
+**Only when the work is finished**, which means `npm run gate` is green on the head commit
+and the `reviewer` agent has run. Never a draft.
 
-Then run the review agent, read its verdict, and merge. Merging deploys to production within
-minutes.
+The template asks for four things and none is optional: the **gate record**, pasted; the
+**hard stops** you touched with the rule you met, or "none"; the **criteria** you changed and
+why, or "none"; and the **reviewer's verdict** in a paragraph. Title it as a Conventional
+Commit, because the version is read from it.
+
+Then Hassan merges. Merging deploys to production within minutes, and the seven steps run
+again on `main`, which is the verdict on what was merged.

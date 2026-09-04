@@ -1,6 +1,16 @@
 # Every issue uses a template. Issue #5 asked for this directly: "future issues
 # must be posted in their own template and in more organized manner, pin
 # pointing exact files or dirs."
+#
+# Three templates since 2026-09-04 (#180): Bug, Feature or change, and Decision
+# needed. The two handoff templates are gone, because work no longer crosses a
+# boundary and nothing is handed over; what is left is a decision a person owes,
+# which is what Decision needed is for.
+#
+# An agent opens an issue in exactly five cases - the task it was given, a
+# blocker it cannot resolve, a defect it found outside its task, a decision a
+# person must make, and the workflow itself being wrong - and
+# docs/workflow/how-we-work.md section 2 is the authority on that.
 blank_issues_enabled: false
 contact_links:
   - name: An idea, a question, or something not yet decided

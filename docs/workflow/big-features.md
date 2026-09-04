@@ -5,7 +5,7 @@
 | The work is | Use |
 | - | - |
 | A fix, a small change, a normal feature | [`how-we-work.md`](how-we-work.md). Nothing here applies. |
-| Frontend work that needs a bit of backend | A handoff issue. Still nothing here. |
+| Screen work that needs a bit of server | Do it, or invoke the `backend` agent on the same branch. Still nothing here. |
 | **An RFC-sized feature, weeks of work on each side at the same time** | **This document.** |
 
 If there is no RFC, you are in the wrong file.
@@ -106,14 +106,15 @@ your screen is wrong.
 on the *values* being right, such as counts, ordering or totals, before Hassan says the real
 implementation has landed. Build against the shape.
 
-**You may add a read schema. You may not add a request field.** A read schema cannot break
-the server and fails loudly on one screen if it is wrong. A request field the backend does
-not read is accepted and dropped, and the API answers 200: your screen looks correct and the
-feature does nothing. A request-schema change ships with the backend change that reads it.
+**A read schema is free. A request field is a hard stop.** A read schema cannot break the
+server and fails loudly on one screen if it is wrong. A request field nothing on the server
+reads is accepted and dropped, and the API answers 200: your screen looks correct and the
+feature does nothing. So the field, the code that reads it and the criterion that proves it
+land together, which [`hard-stops.md`](hard-stops.md) says in full.
 
-**When the contract turns out wrong**, and sometimes it will, say so on the issue and open a
-`handoff-to-backend` issue if it is substantial. Stop building on the assumption. That is a
-normal event, not a failure, and the type checker will tell both of you what has to change.
+**When the contract turns out wrong**, and sometimes it will, say so on the issue and stop
+building on the assumption. That is a normal event, not a failure, and the type checker will
+tell both of you what has to change.
 
 ## Hassan's part
 
@@ -124,10 +125,10 @@ and mocks are how the two shapes quietly diverge.
 **Say when the stub becomes real.** He cannot tell by looking, and until he hears it he is
 right to distrust every value the API returns.
 
-**Do not change the contract quietly.** Once he is building, `app/src/shared/` is a shared
-surface. If the shape has to change, say so on the issue before you push it. His work
-against the old shape may be substantial, and the compiler will only tell him after he has
-written it.
+**Do not change the contract quietly.** Once he is building, `app/src/shared/` is a surface
+two branches are reading at once. If the shape has to change, say so on the issue before you
+push it. His work against the old shape may be substantial, and the compiler will only tell
+him after he has written it.
 
 **Review his slices as they arrive**, not in a batch at the end. That is the entire point of
 slicing.
