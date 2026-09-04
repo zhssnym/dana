@@ -299,6 +299,40 @@ describe('usePlace: the one-way seeds apply only while the address carries them'
     expect(importantIs()).toBe('on')
   })
 
+  /*
+  The rule the dependency array is carrying on its own, written down as a case
+  so that it stops being carried on its own.
+
+  `?state=` is one-way: nothing takes it out of the address, so it is still
+  there after the person turns the switch off by hand. What keeps the seed from
+  putting the switch straight back is that `filter` is deliberately absent from
+  the effect's dependency list, which is a comment and an omission rather than
+  anything a reader can check. An `exhaustive-deps` autofix, or anybody
+  "completing" that array, would re-lock the switch and every other case in
+  this file would still pass: the guard added for #48 cannot catch it, the
+  address genuinely does still carry the seed. So this is the case that goes
+  red instead.
+
+  It is the shape #47's own comment calls the difference between a starting
+  point and a lock, asserted for the seed that has no way out of the address.
+  */
+  test('turning the switch off with ?state=important still in the address leaves it off', () => {
+    address('/app/all?state=important')
+    router.search = 'state=important'
+
+    const { rerender } = mount()
+    expect(importantIs()).toBe('on')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Important only' }))
+    expect(importantIs()).toBe('off')
+
+    /* Nothing about the location moves, because nothing takes `?state=` out of
+       it: this is the ordinary next render of a page the person is still on. */
+    rerender()
+
+    expect(importantIs()).toBe('off')
+  })
+
   test('arriving at ?mode=board seeds the view mode', () => {
     address('/app/all?mode=board')
     router.search = 'mode=board'

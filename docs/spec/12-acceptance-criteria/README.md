@@ -54,6 +54,24 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-411 was taken from the tail on 2026-09-04** (issue #108), on the rule the AC-361 to
+  AC-365 bullet below states. It is 12.9's, beside AC-363, which is the server half of the
+  same sentence: that criterion pins that a member who did not upload a picture reads its
+  width and height on the block, and this one pins that the client reserves the space with
+  them, on a folder page and on a shelf page alike. The two halves were written a week apart
+  and the gap between them is where the defect lived, both page surfaces having drawn a
+  literal 16 by 9 for every picture and thrown the measured pair away.
+
+  **401 to 410 are deliberately not claimed here and are not added to the free list above.**
+  The bullet below says the next number from the tail is 401; this branch took 411 because
+  several branches of the same night were choosing from that tail while it was open, and
+  stepping over a range is the cheaper mistake, a gap being ordinary where a collision is a
+  duplicate test filename. Whether any of the ten is spent is not this branch's to say and
+  the last merge is where the answer is, which is what this list already records of 375, 376
+  and 398. **The count at the top and the per-file row in the table below are likewise not
+  re-derived here**, on the AC-394 bullet's precedent: the arithmetic belongs to the last
+  merge rather than to any one of several branches open at once, so 370 stands as the last
+  derivation rather than as a number this branch moved by one.
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
   branch by the session that opened several at once, which is the backend README's rule for
