@@ -289,6 +289,21 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      if (outcome === 'forbidden') {
+        /* 10.2's second half, added 2026-09-04 under issue #74: this caller
+           reads the same bytes at 200 through the GET above, so the file's
+           existence is not a thing a 404 could still be protecting, and a
+           refusal that says why is what the grammar asks for. The sentence is
+           `deleteComment`'s in shape and in the actors it names, that being
+           the same rule on the same surface (7.14, 7.15). */
+        sendError(
+          res,
+          403,
+          'forbidden',
+          'Only the person who uploaded this file or the folder owner can delete it.',
+        )
+        return
+      }
       res.status(204).end()
     },
   )
