@@ -59,7 +59,7 @@ was never there.
 
 | Folder | Files | What it is |
 | - | - | - |
-| `components/` | 86 | The reusable pieces. `components/ui/` is the base layer. |
+| `components/` | 93 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
 | `lib/` | 29 | Named "helpers", but 18 of its files now read or write the server. Treat it as application logic, not utilities. |
 | `pages/` | 24 | A route's wiring: fetching, state, deciding what to render. |
 | `shell/` | 16 | The frame around every page: sidebar, layout, navigation. |
@@ -69,12 +69,8 @@ was never there.
 | `onboarding/` | 5 | First-run flow. |
 | `state/` | 4 | Global client state: toasts, connectivity. |
 | `screens/` | 4 | The markup half of a page, split out. Only 4 of 24 pages do this. |
-| `states/` | 3 | Loading, empty and error screens. **Not the same as `state/`.** |
 | `pwa/` | 2 | Install prompt and service worker glue. |
 | `styles/` | - | `tokens.css`. See below. |
-
-**`state/` and `states/` are genuinely different things one letter apart.** Check which one
-you meant before importing.
 
 **The table tells you where things live, not where a given feature lives.** One screen often
 straddles two folders: the sidebar's navigation rows are in `shell/app-sidebar.tsx` while its

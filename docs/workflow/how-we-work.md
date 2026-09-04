@@ -64,7 +64,8 @@ agent that discovers the label was wrong should change it as part of the work.
 
 ## 4. Branch from `main`
 
-Always from current `main`, never from another branch. One issue, one branch.
+Always from current `main`, never from another branch. **One issue, one branch**, unless
+several issues touch the same files, in which case one branch may carry them.
 
 ```
 frontend/42-assignee-avatar-in-task-row
@@ -73,7 +74,23 @@ chore/61-drop-dead-launch-config
 ```
 
 The shape is `<area>/<issue-number>-<short-description>`. Area first, so the branch list
-sorts by owner. The number, so a branch found six weeks later can be traced back.
+sorts by owner. The number, so a branch found six weeks later can be traced back. A branch
+carrying several issues takes the number of one of them.
+
+**Three conditions come with carrying several issues**, and together they are what makes it
+allowed:
+
+- **Each issue gets its own commit.** The merge squashes the branch into one commit on
+  `main`, so that per-issue commit is what a review reads and the only place an issue sits
+  beside its own diff.
+- **The pull request names every issue it closes**, one line each in the body.
+- **Grouping is for avoiding conflicts between your own branches, never for saving CI time
+  on unrelated work.** Unrelated issues stay on separate branches, so a failed check points
+  at one thing and a review is about one thing.
+
+Added 2026-09-04 from issue #73, where twenty-five backend issues queued behind one
+self-hosted runner: taken literally the plain rule cost either a day of serialised runs or a
+set of greens measured against a `main` that had moved underneath them.
 
 **A branch lives as long as its work is alive, and not one day longer.** A month is fine if
 work is happening. What is not fine is a branch nobody has touched. When the work is done,
@@ -249,6 +266,9 @@ not optional:
   catches an undeclared change. "None" is the usual and best answer.
 - **which test commands you ran**, with results.
 
+**A pull request that closes several issues names every one of them.** Section 4 says when a
+branch may carry more than one.
+
 The title becomes the commit on `main`, because merges are squashed. Write it as a
 Conventional Commit, because the version number and the changelog are read from it:
 
@@ -280,8 +300,8 @@ settled and the review does not reopen it.
 
 **Merging into `main` deploys to production within minutes.** There is no staging.
 
-Hassan merges, and only Hassan. Squash merge, so one issue becomes one commit. The branch is
-deleted automatically.
+Hassan merges, and only Hassan. Squash merge, so a pull request becomes one commit. The
+branch is deleted automatically.
 
 ## Versions
 
