@@ -2,7 +2,8 @@
 AC-413: given the upload surface, when a picture is stored as an `image` with
 no `folder_id`, then it stores and belongs to the person, who reads it while
 nobody else can; `file` and `voice` still require a folder; a block on a shelf
-page may name that picture and a block on a folder page may not; and the 11.7
+page may name that picture and a block on a folder page may not; setting it as
+that shelf's cover copies it rather than wearing it as it stands; and the 11.7
 pass reclaims one nothing references on the same window a cover gets.
 
 **This is issue #167, and it is the sentence issues #20 and #100 stopped one
@@ -34,6 +35,15 @@ so the same picture is refused on a folder page belonging to the same person.
 That is not an oversight to be tidied later: a folder page is shared with its
 members (4.3), and a picture only its uploader can read would draw as a broken
 image for everyone else.
+
+**A cover set from one is copied rather than worn as it stands, and that arm
+is here because the widening is what makes the case reachable.** 7.19's rule 1
+keeps a named file only when it is already a `cover` in the page's own scope
+owned by the setter; a folder-less `image` is readable and is one of the two
+kinds 7.16 admits, so it passes the gate and then fails that test on its kind
+alone. So the shelf wears a new id, of kind `cover`, and the person's quota
+carries both rows. Nothing in `coverFileFor` was changed for #167 — the arm
+asserts that the file it now has to consider is normalised like any other.
 
 **And the lifetime, because a widening that stopped at the upload would leak.**
 A folder-less image nothing names is listed by no surface and reachable by no
@@ -127,6 +137,17 @@ async function fileExists(fileId: string): Promise<boolean> {
     sql`SELECT 1 AS present FROM files WHERE id = ${fileId}::uuid`,
   )
   return found.length > 0
+}
+
+/** 10.3's 1 GB is a sum of `bytes` by `owner_id`, so a copy is visible in it
+ * as an upload is. AC-389's arithmetic, one criterion over. */
+async function quotaSpent(userId: string): Promise<number> {
+  const found = await rows(
+    app.db,
+    sql`SELECT coalesce(sum(bytes), 0)::bigint AS used
+        FROM files WHERE owner_id = ${userId}::uuid`,
+  )
+  return Number((found[0] as Record<string, unknown> | undefined)?.used ?? 0)
 }
 
 /** Backdates the mark the tick writes, which is what the window is measured
@@ -309,6 +330,65 @@ describe('AC-413 a shelf page’s image belongs to the person, like its cover', 
       (folderPage.json() as { blocks?: unknown[] }).blocks,
       'a PUT is one unit, so a body refused on one block applies none of itself (7.16)',
     ).toHaveLength(0)
+  })
+
+  test('a shelf cover set from one is copied rather than kept, and both rows are the person’s', async () => {
+    const [owner] = (await cast.of(app)) as [Actor]
+
+    const made = await owner.browser.json('/shelves', 'POST', {
+      name: 'ac413 cover shelf',
+    })
+    expectStatus(made, 201, 'a shelf creates (spec 7.16)')
+    const shelfId = String((made.json() as { id?: unknown }).id)
+    const picture = await uploadFolderlessImage(owner, 'ac413-as-cover.png')
+
+    const before = await quotaSpent(owner.id)
+    const worn = await owner.browser.json(`/shelves/${shelfId}`, 'PATCH', {
+      cover_file_id: picture,
+    })
+    expectStatus(
+      worn,
+      200,
+      'a folder-less image of the person’s own passes 7.16’s gate: readable, and kind in (cover, image)',
+    )
+    const shelfCover = String(
+      (worn.json() as { cover_file_id?: unknown }).cover_file_id,
+    )
+    expect(
+      shelfCover,
+      '7.19 rule 1 keeps only a file that is already a cover in the page’s scope, and this is an image, so the page stores a copy',
+    ).not.toBe(picture)
+
+    const copy = (
+      await rows(
+        app.db,
+        sql`SELECT folder_id, owner_id, kind, bytes
+            FROM files WHERE id = ${shelfCover}::uuid`,
+      )
+    )[0] as Record<string, unknown> | undefined
+    expect(copy, 'the copy is a row of its own').toBeDefined()
+    expect(String(copy?.kind), 'and it is a cover, which is what 4.16 calls a page’s picture').toBe('cover')
+    expect(
+      copy?.folder_id,
+      'in the page’s own scope, which for a shelf is no folder at all (7.19 rule 1)',
+    ).toBeNull()
+    expect(
+      String(copy?.owner_id),
+      'and owned by the person who set it, so leaving a folder can never blank it',
+    ).toBe(owner.id)
+    expect(
+      objects.has(shelfCover),
+      'the bytes are copied with the row, or the cover would serve nothing',
+    ).toBe(true)
+
+    expect(
+      await fileExists(picture),
+      'the page image itself is untouched: a set copies rather than moves',
+    ).toBe(true)
+    expect(
+      await quotaSpent(owner.id),
+      'and the person now pays for both rows, which is 7.19 rule 4’s whole subject (10.3)',
+    ).toBe(before + Number(copy?.bytes))
   })
 
   test('the tick reclaims one nothing names, and spares the one a shelf page holds', async () => {

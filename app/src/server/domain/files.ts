@@ -521,8 +521,9 @@ and reads it.
 
 **Legacy rows are not backfilled and need no special case.** A cover set
 before tonight may name a folder's file or a file two pages share; neither is
-touched, because the sweep takes only folder-less `cover` rows that nothing
-references, and each of those is one or the other.
+touched, because the sweep takes only folder-less pictures — `cover` and, since
+issue #167, `image` — that nothing references, and each of those legacy rows is
+one or the other.
 */
 
 /** 7.13 and 8.8's line, one object over: nothing is destroyed sooner. */
@@ -692,7 +693,8 @@ Every column in the schema that can name a file, as one predicate over a
 `comment_files`, `shelves.cover_file_id`, `page_blocks.file_id` and
 `folders.cover_file_id`, and 0005's `user_page_covers.file_id` — and this is
 all five. `users.avatar_url` is a URL rather than a key and needs no clause:
-the sweep takes `cover` rows and an avatar is never one.
+the sweep takes folder-less `cover` and `image` rows and an avatar is never
+either.
 
 **It is a query and not a counter column**, which is why no migration comes
 with this work. A counter is a second record of a fact the foreign keys
