@@ -240,9 +240,6 @@ function currentPage(
      the same tab, window bar, sidebar and content measure as every other
      route. The branch and route are both absent from production. */
   if (import.meta.env.MODE !== 'production' && pathname === '/app/labs/composer') {
-    return { title: 'Writing-first study', icon: Layers3, iconColor: undefined }
-  }
-  if (import.meta.env.MODE !== 'production' && pathname === '/app/labs/composer-2') {
     return { title: 'Writing-first canvas', icon: Layers3, iconColor: undefined }
   }
   const page = navPages.find((candidate) => pathname === candidate.path)

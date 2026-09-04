@@ -59,7 +59,6 @@ import { AppShell } from './shell/app-shell.js'
    out of the production route table. Static-importing it behind a DEV check
    left the whole prototype in the main chunk even though no path reached it. */
 const composerExplorationModule = '/src/client/pages/ComposerExplorationPage.tsx'
-const composerExplorationModule2 = '/src/client/pages/ComposerExplorationPage2.tsx'
 const ComposerExplorationPage = import.meta.env.MODE !== 'production'
   ? lazy(async () => {
       const module = (await import(
@@ -78,24 +77,6 @@ const ComposerStudyGate = import.meta.env.MODE !== 'production'
       return { default: module.ComposerStudyGate }
     })
   : null
-const ComposerExplorationPage2 = import.meta.env.MODE !== 'production'
-  ? lazy(async () => {
-      const module = (await import(
-        /* @vite-ignore */
-        composerExplorationModule2
-      )) as { readonly ComposerExplorationPage2: ComponentType }
-      return { default: module.ComposerExplorationPage2 }
-    })
-  : null
-const ComposerStudyGate2 = import.meta.env.MODE !== 'production'
-  ? lazy(async () => {
-      const module = (await import(
-        /* @vite-ignore */
-        composerExplorationModule2
-      )) as { readonly ComposerStudyGate2: ComponentType }
-      return { default: module.ComposerStudyGate2 }
-    })
-  : null
 
 export function Router(): React.JSX.Element {
   const composerExploration = ComposerExplorationPage === null
@@ -104,12 +85,6 @@ export function Router(): React.JSX.Element {
   const composerGate = ComposerStudyGate === null
     ? null
     : <Suspense fallback={null}><ComposerStudyGate /></Suspense>
-  const composerExploration2 = ComposerExplorationPage2 === null
-    ? null
-    : <Suspense fallback={null}><ComposerExplorationPage2 /></Suspense>
-  const composerGate2 = ComposerStudyGate2 === null
-    ? null
-    : <Suspense fallback={null}><ComposerStudyGate2 /></Suspense>
 
   return (
     <BrowserRouter>
@@ -139,9 +114,6 @@ export function Router(): React.JSX.Element {
              existing shell requires, then replaces itself with the study's
              nested route. It is absent from production with the study. */
           <Route path="/labs/composer" element={composerGate} />
-        )}
-        {composerGate2 === null ? null : (
-          <Route path="/labs/composer-2" element={composerGate2} />
         )}
         <Route path="/app" element={<AppShell />}>
           {/* Desk, the default folder and the installed app's start_url. */}
@@ -177,9 +149,6 @@ export function Router(): React.JSX.Element {
             or widening any server contract.
             */
             <Route path="labs/composer" element={composerExploration} />
-          )}
-          {composerExploration2 === null ? null : (
-            <Route path="labs/composer-2" element={composerExploration2} />
           )}
           {retiredPaths.map(({ from, to }) => (
             <Route
