@@ -48,13 +48,21 @@ animated, and the folder rows reach the rail's centre after the sidebar has
 finished narrowing, so the case was reading a position the interface was on
 its way through. That is CLAUDE.md's AC-182 bullet exactly, and it arrived
 wearing the defect's own clothes — a single row off by ten pixels is what
-issue #57 describes. So the barrier here is that two readings of every centre,
-150ms apart, agree: the rail has stopped moving, whatever it has stopped on,
-and the alignment is then asserted once against a still layout rather than
-polled until it happens to pass. A poll on the alignment itself would have
-been a barrier that reports a genuinely crooked rail only at its timeout, and
-a settle that cannot distinguish "not yet" from "never" is the thing this
-suite has been bitten by twice.
+issue #57 describes.
+
+So the barrier is stillness, and it is a *duration* rather than a pair of
+readings. Two samples that agree cannot tell finished from stalled: a main
+thread blocked for longer than the gap between them hands back identical
+rectangles from the middle of the animation, and the false red then names one
+row off by ten pixels, which is #57's own sentence. What is required instead is
+that every sample across a 600ms span agrees with the one before it, five
+samples at 150ms, and that the sidebar's own width is the same number for the
+whole of that span — a rail that is still moving cannot hold both, and a stall
+long enough to fake it would have to be four intervals long rather than one.
+The alignment is then asserted once against the still layout. A poll on the
+alignment itself was rejected: it would report a genuinely crooked rail only at
+its timeout, and a settle that cannot distinguish "not yet" from "never" is the
+thing this suite has been bitten by twice.
 
 **A component test cannot do this and that is why it is here.**
 `vitest.config.ts` sets `environment: 'node'`, and jsdom has no layout engine
@@ -107,12 +115,16 @@ function railControl(page: Page): Locator {
 }
 
 /*
-How long two readings of the rail's geometry are held apart before they are
-called the same layout. Long enough that a transition still running has moved
-between them — the collapse measured about a fifth of a second here — and
-short enough that the settle costs one blink on a case that is already still.
+The two halves of the stillness barrier. `SAMPLE` is how far apart two readings
+are taken: long enough that a transition still running has moved between them,
+the collapse measuring about a fifth of a second here. `STILL_FOR` is how long
+that agreement has to hold before the layout is called finished, and it is the
+half that matters — one agreeing pair is also what a blocked main thread hands
+back from the middle of the animation, where four consecutive intervals of it
+would need a stall of most of a second lined up with a read.
 */
-const GEOMETRY_STABLE_MS = 150
+const SAMPLE_MS = 150
+const STILL_FOR_MS = 600
 
 /** The width the browser painted for an element, in whole pixels. */
 async function widthOf(locator: Locator): Promise<number> {
@@ -127,6 +139,12 @@ interface Glyph {
   readonly centre: number
 }
 
+/** One measurement of the rail: its own width, and every glyph it draws. */
+interface Reading {
+  readonly width: number
+  readonly glyphs: Glyph[]
+}
+
 /**
  * Every glyph the rail actually draws, with the centre-x of its box and the
  * name of the link or button it sits in.
@@ -136,9 +154,9 @@ interface Glyph {
  * other, and a measurement taken across thirty round trips is thirty
  * measurements of a layout that is free to move between them.
  */
-async function railGlyphs(bar: Locator): Promise<Glyph[]> {
-  return bar.locator('svg').evaluateAll((nodes) =>
-    nodes
+async function railReading(bar: Locator): Promise<Reading> {
+  return bar.evaluate((element) => {
+    const glyphs = [...element.querySelectorAll('svg')]
       .map((node) => {
         const box = node.getBoundingClientRect()
         const owner = node.closest('a,button')
@@ -150,45 +168,68 @@ async function railGlyphs(bar: Locator): Promise<Glyph[]> {
         }
       })
       .filter((glyph) => glyph.drawn)
-      .map(({ of, centre }) => ({ of, centre })),
+      .map(({ of, centre }) => ({ of, centre }))
+    return { width: element.getBoundingClientRect().width, glyphs }
+  })
+}
+
+/** Two readings of the same layout: same width, same glyphs, same centres. */
+function same(a: Reading | null, b: Reading): boolean {
+  return (
+    a !== null &&
+    a.width === b.width &&
+    a.glyphs.length === b.glyphs.length &&
+    b.glyphs.every((glyph, index) => glyph.centre === a.glyphs[index]?.centre)
   )
 }
 
 /**
- * The rail's glyphs once it has stopped moving: the same reading twice,
- * `GEOMETRY_STABLE_MS` apart, returned as the reading to assert on.
+ * The rail's glyphs once it has stopped moving, and "stopped" means stayed
+ * stopped: every sample across `STILL_FOR_MS` agreeing with the one before it,
+ * width included.
  *
- * This waits for the layout to be still and asserts nothing about where it
- * came to rest, which is the whole point. A poll on the alignment would pass
- * the moment the rail happened to be straight and could only report a
- * genuinely crooked one at its own timeout; this reports it on the first
- * still frame, with every centre in the message.
+ * This waits for the layout to be still and asserts nothing about where it came
+ * to rest, which is the whole point. A poll on the alignment would pass the
+ * moment the rail happened to be straight and could only report a genuinely
+ * crooked one at its own timeout; this reports it on the first still reading,
+ * with every centre in the message.
+ *
+ * The width travels with the glyphs and is compared with them because it is the
+ * cheapest independent witness that the collapse has finished: the animation
+ * that moves the glyphs is the one that narrows the sidebar, so a reading taken
+ * mid-flight has to differ in one or the other.
  */
-async function settledRailGlyphs(bar: Locator): Promise<Glyph[]> {
-  let previous: Glyph[] | null = null
-  let still: Glyph[] = []
+async function settledRailGlyphs(bar: Locator): Promise<Reading> {
+  let previous: Reading | null = null
+  let stillSince: number | null = null
+  let still: Reading | null = null
   await expect
     .poll(
       async () => {
-        const now = await railGlyphs(bar)
-        const same =
-          previous !== null &&
-          previous.length === now.length &&
-          now.every((glyph, index) => glyph.centre === previous?.[index]?.centre)
+        const now = await railReading(bar)
+        if (same(previous, now)) {
+          stillSince ??= Date.now() - SAMPLE_MS
+          still = now
+        } else {
+          stillSince = null
+        }
         previous = now
-        if (same) still = now
-        return same
+        return stillSince !== null && Date.now() - stillSince >= STILL_FOR_MS
       },
       {
         message:
-          'the rail stops moving. Two readings of every centre in it, taken ' +
-          `${GEOMETRY_STABLE_MS}ms apart have to agree before the alignment below is read, ` +
-          'because the collapse is animated and a glyph caught in flight is not where the ' +
-          'rail put it',
-        intervals: [GEOMETRY_STABLE_MS],
+          'the rail stops moving and stays stopped. Every reading of its width and of ' +
+          `every centre in it, taken ${SAMPLE_MS}ms apart, has to agree with the one before ` +
+          `it for ${STILL_FOR_MS}ms before the alignment below is read: the collapse is ` +
+          'animated, a glyph caught in flight is not where the rail put it, and one agreeing ' +
+          'pair is also what a blocked main thread hands back from the middle of the same ' +
+          'animation',
+        intervals: [SAMPLE_MS],
+        timeout: 20_000,
       },
     )
     .toBe(true)
+  if (still === null) throw new Error('unreachable: the poll above returned true')
   return still
 }
 
@@ -220,21 +261,33 @@ test('AC-401: every glyph the collapsed rail draws shares one centre line', asyn
     })
     .toBeLessThan(open)
 
-  const glyphs = await settledRailGlyphs(bar)
+  const reading = await settledRailGlyphs(bar)
+  const glyphs = reading.glyphs
+  expect(
+    reading.width,
+    'spec 9.1: the width the rail settled on is still a rail width, so the reading above ' +
+      'is of the collapsed sidebar and not of one that reopened while it was being taken',
+  ).toBeLessThan(open)
   /*
   The floor, and it is what stops the assertion below passing on nothing. A
   spread over an empty or one-element list is zero, so a rail that drew no
   glyphs, or a filter that removed them all, would read as a perfectly
-  aligned one. 9.1's page block alone is six entries and each draws a glyph,
-  so a count under that is the rail not drawing the block — which is AC-182's
-  defect rather than this one's, and this case says so and stops rather than
-  reporting an alignment it never measured.
+  aligned one.
+
+  **It is a floor and not an inventory, and the number is a lower bound rather
+  than a claim about which glyphs are there.** Folder rows draw glyphs in the
+  rail too and count toward this, so six is reachable without the page block
+  being drawn at all: what this fails on is a rail with almost nothing in it,
+  not a rail that dropped what 9.1 says it holds. That second thing is AC-182's
+  and is asserted there by name.
   */
   expect(
     glyphs.length,
-    "the rail draws at least one glyph per page in 9.1's page block. Fewer than that " +
-      'means the collapsed sidebar has dropped what it holds, which 9.1 forbids and ' +
-      'AC-182 asserts; the alignment below cannot be read until that is true',
+    'the rail draws enough glyphs for their agreement to mean anything, at least as many ' +
+      `as 9.1's page block has entries (${V2_PAGE_NAMES.length}). Folder rows count toward ` +
+      'this too, so it is a floor and not a check that the block is present, which is ' +
+      "AC-182's; what a failure here means is that the rail is drawing almost nothing and " +
+      'the spread below would be measuring a list too short to have one',
   ).toBeGreaterThanOrEqual(V2_PAGE_NAMES.length)
 
   const centres = glyphs.map((glyph) => glyph.centre)

@@ -48,7 +48,19 @@ three frontend branches were open on that directory the night it was found.
 allowed to fix, and for the reason that file gives for preferring a manual
 inversion to `test.fails`: what is asserted below is that **the finding is
 still open**, so this case is green while the defect is there and red the day
-it is fixed, and the red says what to do. The half that does work, the chip
+it is fixed, and the red says what to do.
+
+**The proof is the wire and not the stored row, and the ordering was corrected
+in review.** A read of `GET /tasks/:id` behind API quiet is a race with any
+write that is on its way, so on the day the client starts sending the PATCH
+that read could beat it and leave this case green past its own fix — a held
+finding that cannot notice being closed is worse than no finding at all. The
+recorder is taken before the press instead and the empty mutation list is the
+primary assertion, which goes red the instant a PATCH appears; the stored row
+follows as the consequence. Quiet alone would not carry even that, returning as
+it does before React has issued anything, so a fixed settle of two
+`API_SETTLE_MS` windows sits behind it, which is the smallest span in which a
+request that was going to appear has appeared. The half that does work, the chip
 leaving the surface, is asserted beside it, so the surface is not left
 unmeasured.
 
@@ -59,6 +71,7 @@ import { expect, test } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  API_SETTLE_MS,
   caseTitle,
   clickControl,
   createTask,
@@ -68,6 +81,7 @@ import {
   TEST_TIMEOUT_MS,
   waitForApiIdle,
   watchCommit,
+  watchWire,
  openTaskRow } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -138,6 +152,9 @@ test.describe('AC-220: the assignee menu', () => {
       page.getByRole('button', { name: /assignee|assign/i }).first(),
       'reopen the menu for the clear',
     )
+    /* The wire recorder is the primary oracle for the finding below and is
+       taken here so that it holds this press and nothing before it. */
+    const wire = watchWire(page)
     await clickControl(
       page
         .getByRole('menuitem', { name: /Unassigned/ })
@@ -149,15 +166,39 @@ test.describe('AC-220: the assignee menu', () => {
     /* Quiet and not `watchCommit` here, which is rule two of the #159 sweep
        read against the finding above: while the defect is open, what this
        press produces *is* an absence, and the barrier that waits for a request
-       to go out cannot order a read whose own claim is that none did. */
+       to go out cannot order a read whose own claim is that none did.
+
+       And then a fixed settle on top of it, which is the part that keeps this
+       arm honest **on the day the defect is fixed**. Quiet returns the moment
+       nothing is in flight, and that is already true one millisecond after the
+       press, before React has rendered and issued anything — so a fixed
+       assertion behind quiet alone would still be reading an empty wire on a
+       client that does send the PATCH, and this case would stay green past its
+       own fix. Two settle windows is the smallest span in which a request that
+       was going to appear has appeared and been counted; it is expressed in
+       the harness's own `API_SETTLE_MS` rather than in a literal so the two
+       cannot drift apart. */
     await waitForApiIdle(
       page,
       'everything the press might have sent has been sent and answered before the row is read',
     )
+    await page.waitForTimeout(API_SETTLE_MS * 2)
     await expect(
       page.getByRole('button', { name: /Imran/ }),
       'the half of the clear that works: the chip stops naming the member on the surface',
     ).toHaveCount(0)
+
+    expect(
+      wire.mutations().map((call) => `${call.method} ${new URL(call.url).pathname}`),
+      'FINDING, open on 2026-09-04 and recorded rather than asserted (issue #159 sweep). ' +
+        'AC-220 says "choosing Unassigned clears the assignment" and the client does not: ' +
+        'the press clears the chip in the browser and puts nothing on the wire at all. ' +
+        'This is the primary proof of the finding and it is the one that goes red the ' +
+        'instant the fix lands, a PATCH appearing here where the list is asserted empty. ' +
+        'When it does: delete this expectation and the one under it, and assert the clear ' +
+        'for real with expect(assignee).toBeNull(). This file, header says where the ' +
+        'defect is',
+    ).toEqual([])
 
     const stored = await page.request.get(`/api/v1/tasks/${task.id}`)
     expect(
@@ -168,13 +209,10 @@ test.describe('AC-220: the assignee menu', () => {
       .assignee
     expect(
       assignee?.display_name ?? null,
-      'FINDING, open on 2026-09-04 and recorded rather than asserted (issue #159 sweep). ' +
-        'AC-220 says "choosing Unassigned clears the assignment" and the client does not: ' +
-        'the press clears the chip and sends nothing, so 7.6 still names the member and a ' +
-        'reload brings the assignment back. This line asserts the defect is STILL THERE. ' +
-        'When it fails, the defect is fixed: delete this block, assert the clear for real ' +
-        'with expect(assignee).toBeNull(), and the criterion is satisfied. This file, ' +
-        'header says where the defect is',
+      'the consequence of the finding above, asserted second because it is the weaker of ' +
+        'the two: nothing having been sent, 7.6 still names the member, and a reload brings ' +
+        'the assignment back. Weaker because a read of the stored row is a race with any ' +
+        'write that is on its way, where the wire assertion above is not',
     ).toBe('Imran')
   })
 })

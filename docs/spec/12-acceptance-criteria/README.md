@@ -44,8 +44,12 @@ default, so read this list before spending one.
   authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
   400 taken unassigned beside it. Neither branch could see the other's, which is why each
   wrote a different "next number" and why this list, rather than either bullet, is where the
-  answer is. **The next number to take from the tail is 401**, and the twenty-nine gaps above
-  are the only free numbers below it. The reservation language is left standing in the
+  answer is. **The next number to take from the tail is 403, and 404 to 412 are spent on the
+  sibling branches of the night of 2026-09-04** — 404 and 405, 406 to 408, 409 and 410, and
+  411 and 412, one pair or triple to a branch — so nothing in that run is free either; the
+  twenty-nine gaps above are the only free numbers below 403. 401 and 402 are this branch's,
+  in the two bullets below. The integrator merging last re-derives the total and the per-file
+  counts from the files, as the AC-394 bullet asks. The reservation language is left standing in the
   bullets below rather than tidied away, because it is the only record of why 397 sat unspent
   for a day and of why #104 deliberately stepped over 398.
 
