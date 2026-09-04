@@ -1,0 +1,88 @@
+name: Decision needed
+description: A person has to decide something before this work can be right. Not for anything an agent could decide itself.
+labels: [open-question]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        **The bar is high on purpose.** Escalate only when the answer changes
+        what Dana is, or costs money, or cannot be taken back. Everything else:
+        decide it, do it, and say what you decided in the pull request. An agent
+        that escalates an obvious thing costs a person a decision they did not
+        need to make, and that failure is far more common here than the other
+        one.
+
+
+        This is not a handoff. **No file in this repository belongs to someone
+        else**, so needing to change one is never a reason to open this. Where
+        you need the other half of the codebase, invoke the `frontend` or
+        `backend` agent on the same branch and integrate its commit.
+
+
+        `open-question` is set for you. **Add the area label** - `frontend`,
+        `backend`, or both - **and assign the person you name below.** An
+        open question with no assignee is a note to nobody.
+  - type: textarea
+    id: decision
+    attributes:
+      label: What must be decided
+      description: One sentence, phrased as a choice. Not a description of the situation.
+      placeholder: Whether a shelf someone has left keeps their tasks or deletes them.
+    validations:
+      required: true
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who decides
+      description: >
+        Product - what Dana should do or become - is Imran's. Technical - how
+        something should work - is Hassan's. Assign the issue to whoever you
+        pick.
+      options:
+        - "Product. Imran decides"
+        - "Technical. Hassan decides"
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: What I will do in each case
+      description: >
+        **The question this template exists for.** One line per possible answer,
+        saying what you do if it goes that way. An agent that cannot fill this in
+        has usually not found a decision; it has found a choice it should make
+        and record.
+      placeholder: |
+        If they are kept: the tasks stay and the shelf shows "left" beside the name.
+        If they are deleted: the delete cascades and AC-311 changes with it.
+    validations:
+      required: true
+  - type: input
+    id: from
+    attributes:
+      label: Came from
+      description: The issue this arose in. Comment there naming this one, so neither end is a dead end.
+      placeholder: "#42"
+    validations:
+      required: true
+  - type: dropdown
+    id: blocking
+    attributes:
+      label: Can the work continue meanwhile
+      description: >
+        Carry on with whatever does not depend on the answer. Label your own
+        issue `blocked` only when nothing does.
+      options:
+        - "Yes, the rest of the work continues"
+        - "No, everything waits on this"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What the decider needs to know
+      description: >
+        Enough to answer without going and reading anything. Anything going to
+        Imran must be answerable **without reading code**.
+    validations:
+      required: true

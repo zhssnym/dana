@@ -1,10 +1,11 @@
 # The authentication module (spec 11.6)
 
-Owned by Hassan, with everything else outside `app/src/client/`; `CODEOWNERS`
-at the repository root is the map of who owns what, and
-`docs/workflow/backend/README.md` is how work on it flows. The thirteen
-persona files this line used to name were deleted at the workflow restructure
-(`a7886df`, 2026-09-01) and are in git history before that commit.
+`CODEOWNERS` at the repository root asks Hassan to review a change here, and
+since 2026-09-04 that is all it does: there is one team and no area anyone may
+not edit. `docs/workflow/backend/README.md` is how work on this module flows,
+and `docs/workflow/hard-stops.md` is what stops it. The thirteen persona files
+this line used to name were deleted at the workflow restructure (`a7886df`,
+2026-09-01) and are in git history before that commit.
 
 Implements sections 7.1, 7.2, 10.1, and 11.6 against the acceptance criteria
 AC-005 to AC-010, AC-105 to AC-115, and AC-119 to AC-123.
@@ -88,7 +89,7 @@ GitHub issue; `docs/workflow/backend/README.md` is the process.
 - **AC-086's third case cannot pass beside AC-154's third case, and the fixture
   is why.** Raised at the P7 phase 3 session and escalated rather than fixed,
   under the build-era rule for "an acceptance criterion appears wrong"; the
-  standing rule now is `docs/workflow/README.md`'s rule 7, which says the same
+  standing rule now is `docs/workflow/README.md`'s rule 6, which says the same
   thing. `AC-086: one login recomputes two due dates either
   side of a transition` builds its two reminders on due dates in 2010, so
   `planReminder` computes an instant sixteen years past and frozen 7.9's own

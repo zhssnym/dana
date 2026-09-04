@@ -1,12 +1,22 @@
 # How work flows, from issue to production
 
-Dana is built by two people. Imran leads the product and owns what the user sees. Hassan
-leads the technical side and owns everything behind it. Each works through an AI agent, and
-this file is what those agents follow.
+Dana is built by two people working as one team. Imran leads the product and decides what
+Dana should be. Hassan leads the technical side and decides how it is built. Both work
+through AI agents, and this file is what those agents follow.
+
+**Deciding is not the same as owning a folder.** Either person's work may reach any file in
+this repository; what stays with a person is the decision, not the directory. The rules that
+stop a change are in [`hard-stops.md`](hard-stops.md), and they stop everyone.
 
 ```
- discuss  →  issue  →  label  →  branch  →  work  →  test  →  pull request  →  review  →  merge  →  live
+ discuss → issue → label → branch → work → gate → review → pull request → merge → live
 ```
+
+**The gate and the review both come before the pull request, not after it.** That is the one
+place this diagram differs from the shape most projects have, and sections 7 and 8 are why.
+The sections are numbered in that order too, except for section 9: it is called Review, it
+sits after Open a pull request, and it describes two moments — the reviewer agent the author
+runs **before** section 8, and the reading whoever merges does after.
 
 ## 1. Discuss, in GitHub Discussions
 
@@ -38,6 +48,35 @@ How much the issue says depends on the size of the work:
 Writing long documents for small changes wasted a great deal of time in version 1. Do not
 repeat it.
 
+### What an agent may open, and it is five things
+
+An agent opens an issue in exactly five cases:
+
+1. **The task it was given**, when no issue exists for it yet. Open it first, then branch.
+2. **A blocker it cannot resolve**, which is the same moment rule 9 applies: say you are
+   blocked, and the issue is where that gets recorded.
+3. **A defect it found outside the task it was given.** One issue per defect, and do not fix
+   it here; see the end of section 6.
+4. **A decision a person must make**, on the `Decision needed` template, whether or not the
+   work is blocked on the answer. Section 6 says what counts as one, and the bar is high.
+5. **The workflow itself being wrong** in a way the agent cannot simply fix in the pull
+   request that hit it. That is rule 12, and it is labelled `documentation`.
+
+**Not for anything else.** Never to park a thought, never to ask a question the agent could
+have decided, never to split its own task into pieces so that some of them can be somebody
+else's, and never because a file it needed belongs to someone — no file does.
+
+Five shapes, every time. **Always through a template**, because a blank issue is a
+paragraph nobody can triage. **Always an area label and a type label.** **One issue per
+defect**, because an issue with three defects in it closes when one is fixed.
+
+*Added 2026-09-04 from issue #180, where two overnight runs produced a study branch named
+after a tool, issues opened to park a thought, and issues opened to hand work over a boundary
+that no longer exists. **The list read three cases when it was first written that day, and
+was missing two this same document asks for elsewhere**, sections 6 and rule 12; a list of
+permitted cases that excludes the cases its own workflow requires is a list that teaches
+people to stop reading it.*
+
 ## 3. Label it
 
 Every issue gets an **area** and a **type**.
@@ -53,14 +92,17 @@ Every issue gets an **area** and a **type**.
 | `blocked` | Cannot proceed until something else lands. Say what, in a comment |
 | `rfc` | This work has an RFC |
 | `open-question` | A decision nobody has made yet. Always assigned to whoever decides it |
-| `handoff-to-backend` | The frontend needs something from the server |
-| `handoff-to-frontend` | The backend needs something from the client |
 
-An issue that needs both sides gets **both** `frontend` and `backend`.
+An issue that needs both sides gets **both** `frontend` and `backend`. **The area label says
+where the work is, never who may do it.**
 
 A label is a starting guess, not a verdict. It is chosen before anyone has looked at the
 code, so it is often wrong. Either person may change it at any time without asking, and an
 agent that discovers the label was wrong should change it as part of the work.
+
+*The two `handoff-to-*` labels were retired on 2026-09-04 with issue #180. Work no longer
+crosses a boundary, so there is nothing to hand off; what is left is a decision a person owes,
+which is `open-question` and has always been.*
 
 ## 4. Branch from `main`
 
@@ -73,9 +115,17 @@ backend/57-assignee-name-in-task-response
 chore/61-drop-dead-launch-config
 ```
 
-The shape is `<area>/<issue-number>-<short-description>`. Area first, so the branch list
-sorts by owner. The number, so a branch found six weeks later can be traced back. A branch
-carrying several issues takes the number of one of them.
+The shape is `<area>/<issue-number>-<short-description>`, lower case with hyphens, and
+**CI fails a pull request whose branch does not match it**:
+
+```
+^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$
+```
+
+Area first, so the branch list sorts by where the work is. The number, so a branch found six
+weeks later can be traced back. A branch carrying several issues takes the number of one of
+them. **The area in the name is where the work started**, and it does not bind what the
+branch may touch.
 
 **Three conditions come with carrying several issues**, and together they are what makes it
 allowed:
@@ -96,17 +146,18 @@ set of greens measured against a `main` that had moved underneath them.
 work is happening. What is not fine is a branch nobody has touched. When the work is done,
 the branch is deleted, and GitHub does that automatically on merge.
 
-On a long branch, bring `main` in regularly rather than only at the end. A conflict inside
-your own area is yours to fix. A conflict outside it goes to whoever owns that area.
+On a long branch, bring `main` in regularly rather than only at the end. **A conflict is
+yours to resolve wherever in the tree it lands**; where resolving it needs a decision rather
+than a merge, section 6 says what that is.
 
 ## 5. Gather context, in a fresh session
 
-Start a new session per issue. Then, before writing code:
+**One issue, one fresh chat.** Then, before writing code:
 
 - read the issue, and anything it links to;
 - check whether an open pull request is already touching the same files;
-- read `docs/workflow/` for your own side;
-- read `CODEOWNERS`;
+- read your starting point, `frontend/README.md` or `backend/README.md`;
+- read [`hard-stops.md`](hard-stops.md);
 - read the part of `docs/spec/` the work touches;
 - read `CLAUDE.md` for the commands and this machine's quirks.
 
@@ -115,66 +166,57 @@ because starting fresh feels like re-explaining everything. But the context dilu
 model starts inventing. **If an agent can rebuild its own context in thirty seconds,
 starting fresh stops being expensive.**
 
-## 6. Work, inside your area
+## 6. Work, wherever the issue reaches
 
-Change what the issue needs, inside the area you own.
+Change what the issue needs, and change all of it. A product change that moves a word on a
+screen usually also moves the browser criterion that pinned the word and the specification
+sentence that named it; those are part of the same change and land in the same pull request.
+**A change that cannot be complete on its own is the thing this workflow is built to
+avoid.**
 
-If the work reaches outside your area, stop and read your side's rules before touching
-anything:
+Before you start, and again whenever the work turns, read
+[`hard-stops.md`](hard-stops.md). Eight things stop everyone until the rule beside each is
+met, and they are the whole of what stops you. Everything else: decide, do it, and say what
+you decided in the pull request.
 
-- frontend: [`frontend/allowed-backend-changes.md`](frontend/allowed-backend-changes.md)
-- backend: [`backend/allowed-frontend-changes.md`](backend/allowed-frontend-changes.md)
+### When you need the other half of the codebase
 
-Both files work the same way. There is a short list of things that **always stop you**, no
-matter how small the change looks. Everything else is judged against written criteria. If
-you cannot tell which applies, that is an answer: hand it off.
+**Invoke the other side's agent.** Give the `frontend` or `backend` agent the exact need, let
+it work on the same branch, and integrate its commit. It is not an escalation, it needs no
+issue, and it is the ordinary way one pull request covers both halves of one change.
 
-### Handing off
+You may also just do it. The agents exist because one of them already knows the folder map
+and the traps, not because the other is forbidden.
 
-A handoff is a **GitHub issue**, not a file. An issue has no length limit, it notifies
-someone, it has an assignee, and it can be closed. A file has none of that.
+### When a person has to decide
 
-1. Open an issue using the `Handoff to backend` or `Handoff to frontend` template.
-2. Put everything in the body. Do not summarise and promise detail somewhere else.
-3. The template sets the label and the assignee for you.
-4. Link both ways: name the issue you came from, and comment on that issue naming the
-   handoff. One direction alone leaves a dead end for whoever reads it later.
-5. If your own work cannot continue, label your issue `blocked`.
+**An issue exists when a person must decide something, and only then.** A product decision —
+what Dana should do or become — is Imran's. A technical decision — how something should work
+— is Hassan's. Use the **Decision needed** template, which asks for three things and will not
+let you skip the third:
 
-Only an RFC-scale handoff earns a document, and then it goes in `docs/handoffs/` and the
-issue points at it. That folder does not exist yet, which is the expected state.
+1. what must be decided;
+2. who decides it;
+3. **what you will do in each case.** An agent that cannot answer this has usually not found
+   a decision; it has found a choice it should make and record.
 
-**When the work is merged, close the handoff issue and delete the document if there was
-one.** This repository is working code, not an archive of finished conversations.
+Label it `open-question` plus the area, assign it to whoever decides, and **carry on with
+whatever does not depend on the answer.** Label your own issue `blocked` only if nothing does.
 
-### The repository is not a scratchpad
+Anything going to Imran must be answerable **without reading code**.
 
-**Anything unresolved lives in GitHub, not in a file.** An open question, a thing to come
-back to, a "we should decide this later", a note to self: that is an issue.
-
-The rule exists because the alternative was tried and it failed in a specific, measurable
-way. Specification section 13 accumulated **57 items**, most of them long since
-decided, in a file nobody revisited. A question parked in a document is invisible: it
-notifies nobody, it has no owner, nothing marks it answered, and it is indistinguishable at a
-glance from a question that still matters. Fifty-seven of them together are simply weight,
-and weight is what stops a document being read at all.
-
-An issue is the opposite of all of that. It notifies someone, it has an assignee, it closes,
-and closed is visibly different from open.
-
-**But most things are not open questions, and this is the part worth getting right.**
+### The bar for escalating is high, on purpose
 
 The protocol this workflow replaced made agents escalate rather than decide. It produced 57
-parked items, and when they were triaged, **nine of the twenty-one still live ones turned out
-to be work an agent should simply have done**: two screens showing an old name, a limit that
-disagreed with its endpoint, a spec paragraph nobody had written, a 2.3 MB bundle nobody had
-split.
+parked items in specification section 13, and when they were triaged, **nine of the twenty-one
+still live ones turned out to be work an agent should simply have done**: two screens showing
+an old name, a limit that disagreed with its endpoint, a spec paragraph nobody had written, a
+2.3 MB bundle nobody had split.
 
 None of those needed a person. They needed somebody to decide and get on with it.
 
-So the bar is high. **Escalate only when the answer changes what Dana is, or costs money, or
-cannot be taken back.** Everything else, decide it, do it, and say in the pull request what
-you decided and why.
+So: **escalate only when the answer changes what Dana is, or costs money, or cannot be taken
+back.**
 
 - "Which of two spellings does the product use?" is not a question. The rename is decided.
 - "Should Dana let anyone sign up, or only invited people?" is a question. It changes what
@@ -187,87 +229,127 @@ An agent that escalates an obvious thing costs a person a decision they did not 
 An agent that decides a product question costs the project its direction. The first failure
 is far more common here than the second, and this workflow is deliberately tuned against it.
 
-**When you meet a genuine open question:**
+### The repository is not a scratchpad
 
-1. Open an issue, labelled `open-question`.
-2. **Assign it.** A product question, about what Dana should do or become, goes to Imran: he
-   decides where the product goes. A technical question, about how something should work,
-   goes to Hassan.
-3. Write it so the assignee can answer it. Anything going to Imran must be answerable
-   **without reading code**.
-4. Do not also write it into a document. The issue is the record.
+**Anything unresolved lives in GitHub, not in a file.** An open question, a thing to come
+back to, a "we should decide this later", a note to self: that is an issue.
 
-The same rule covers audits, investigations, handoffs and one-off reports: **do the work,
-act on it, then delete the file.** Git history keeps everything, and nothing that has stopped
-being true should be sitting in a folder waiting to mislead someone.
+The rule exists because the alternative was tried and it failed in a specific, measurable
+way. Specification section 13 accumulated **57 items**, most of them long since decided, in a
+file nobody revisited. A question parked in a document is invisible: it notifies nobody, it
+has no owner, nothing marks it answered, and it is indistinguishable at a glance from a
+question that still matters. Fifty-seven of them together are simply weight, and weight is
+what stops a document being read at all.
+
+An issue is the opposite of all of that. It notifies someone, it has an assignee, it closes,
+and closed is visibly different from open.
+
+The same rule covers audits, investigations and one-off reports: **do the work, act on it,
+then delete the file.** Git history keeps everything, and nothing that has stopped being true
+should be sitting in a folder waiting to mislead someone.
 
 The test for whether something belongs in the repository at all: *is this true of the
 product today, and will it still be true next month?* A specification is. A workflow rule is.
 A question is not.
 
-### Reporting a problem you are not going to fix
+### A defect you find that is not your task
 
-If you notice something wrong outside your own area, **open an issue and do not fix it**.
+**Open an issue and do not fix it.** Not because the file is someone else's — no file is —
+but because a pull request closes the issues it names and no others, and an unrelated fix
+inside it is a change nobody agreed to review. One issue per defect, with what you saw and
+where.
 
-The value of two people is that each sees what the other misses, and that value is realised
-by reporting. It is destroyed by fixing, because now the owner has to review an unplanned
-change to their own area, possibly in files they are halfway through editing.
+The value of two people is that each sees what the other misses, and reporting is how that
+value is realised.
 
-## 7. Test
-
-Run what you can. Then **name the commands in the pull request**, and name what you could
-not run and why.
+## 7. Run the gate
 
 ```
-Ran:     npm run lint · npm run typecheck · npm test (PGlite leg, 1893 tests)
-Did not: Playwright (browser not installed) · Postgres leg (no local database)
+npm run gate
 ```
 
-Naming matters. "Tested" is a word that gets written after watching the code compile. A
-command is a claim someone can check. An unstated gap is worse than a known one.
+It runs spec 11.11's seven steps in order on this machine — install, lint, typecheck, the
+PGlite leg, the Postgres 18 leg, build, Playwright — stops at the first failure, and prints a
+**gate record**: the head sha, whether the tree was dirty at either end of the run, the
+machine, the clock, and the tally each step reported. `npm run gate -- --quick` runs lint,
+typecheck and build only, and says so in the record; it is for the middle of the work and
+never for a pull request.
 
-### When CI runs, and what a commit costs
+**The record is the claim, and it is a claim somebody can check.** "Tested" is a word that
+gets written after watching code compile. A record naming 295 files and 1961 tests against a
+sha is not.
 
-**CI does not run per commit.** It runs per *push* to a branch that has an open pull request,
-and on pushes to `main`. Measured on pull request #14: **31 commits, 5 runs.**
+Four things about it:
 
-So commit as small and as often as you like. Batching commits to spare the runner is solving
-a problem that is already solved, and three things are why:
+- **It must be green on the head commit.** A record whose sha is not the tip of your branch
+  measured something else, and one that says `tree dirty at <sha>` measured a tree nobody can
+  reconstruct.
+- **There are three verdicts and only `green` opens a pull request.** `red at <step>` means a
+  step failed. **`incomplete` means a step of the seven did not run**, and it is neither: not
+  red, because there is no defect to point at, and not green, because 11.11 fixes seven steps
+  and this record is the evidence they were answered for.
+- **So the Postgres leg is not optional.** It needs `TEST_DATABASE_URL` set in the process
+  that runs the gate, and without it the record ends
+  `GATE: incomplete (Postgres leg not available on this machine)` and the gate exits non-zero.
+  **A machine that cannot run that leg cannot open a pull request.** The fix is a one-time
+  setup rather than an exemption: spec 11.10 carries the `CREATE DATABASE` statement that
+  fixes the locale, and it is the same database on every machine. `CLAUDE.md` is emphatic
+  that the variable is ambient here and has changed more than once, so read what the record
+  printed rather than what you expected.
+- **A red is not evidence until you have named which class it is.** `CLAUDE.md` enumerates
+  four flake classes and only two are answered by re-running. Say in the pull request which
+  one you decided it was, and why.
 
-- **A branch with no pull request runs nothing at all.** The `push` trigger is narrowed to
-  `main`. Push a work-in-progress branch fifty times and CI never starts.
-- **Successive pushes to an open pull request collapse into one.** `concurrency` cancels the
-  run in progress when the next push arrives, so five pushes in ten minutes cost one
-  completed run rather than five. `main` is exempt: a cancelled verdict is not a verdict.
-- **Opening the pull request is the moment CI starts caring**, which makes it the real lever.
-  Finish the work before the pull request exists — which is what "not a draft" in section 8
-  is already asking for, from the other direction.
+**The order for a small change: look at it first, gate it last.** The full gate is most of
+half an hour, and spending it before anyone has seen a seventeen-line change spends it in the
+wrong order; issue #66 measured fourteen minutes before the change could be shown to
+anybody. So make the change, run `npm run gate -- --quick`, run the one Playwright spec that
+covers that screen, and look at it in a browser. Show it, take the corrections, and run the
+whole gate when the work is accepted. **Nothing is weakened by this: the same seven steps in
+full before every pull request. Only the order moves.**
 
-One case that leaves uncovered: a one-word fix pushed to a pull request that is already open.
-Two things answer it.
+### What GitHub Actions still does
 
-- **Documentation-only changes skip themselves.** `paths-ignore` in the workflow keeps the job
-  off `docs/`, `.claude/`, `.vscode/`, the issue and pull request templates, and the root
-  markdown files. The list is in `.github/workflows/ci.yml`, with the reasoning.
-- **`[skip ci]` in the commit message** skips the run outright. GitHub honours it natively on
-  `push` and `pull_request`. For a typo in a comment, and nothing else: it is the wrong tool
-  the moment a change could alter what any leg measures, and a run skipped by hand is a run
-  nobody can tell was needed.
+CI is the safety net, not the gate.
 
-**None of this makes a run cheaper, only rarer.** A run is about twenty minutes of the one
-self-hosted runner, and a docs job holding it is a code job not running.
+- **On every pull request, without exception**: the branch name, `npm ci`, lint, typecheck,
+  build. Minutes, not half an hour, and light enough to run beside the agents that are
+  working on this machine. It exists to catch a pull request opened without a gate run, not
+  to be that run. **A documentation-only pull request gets it too**, because a branch is
+  misnamed whatever files it touches.
+- **On a push to `main`**: all seven steps of 11.11, unchanged. That is the run that matters,
+  because it measures what was actually merged.
+- **A documentation-only push to `main` skips that one.** `paths-ignore` in
+  `.github/workflows/ci.yml` keeps the seven-step job off `docs/`, `.claude/`, `.vscode/`,
+  the issue and pull request templates and the root markdown files, with the reasoning beside
+  it. It is on that trigger alone.
+
+**Commit as small and as often as you like.** Successive pushes to an open pull request
+collapse into one, `concurrency` cancelling the run in progress when the next arrives, and
+`main` is exempt because a cancelled verdict is not a verdict.
 
 ## 8. Open a pull request
 
-Not a draft. The template asks for what the review depends on, and two of its sections are
-not optional:
+**A pull request exists only when the work is finished**, which means all of this is already
+true:
 
-- **which files outside your own area you touched, and why.** Nothing else in this project
-  catches an undeclared change. "None" is the usual and best answer.
-- **which test commands you ran**, with results.
+- `npm run gate` says **`GATE: green` on the head commit**, and its record goes in the body.
+  Green and not `incomplete`: a record missing one of the seven has not answered for the
+  seven, whatever the reason it gives;
+- the **`reviewer` agent has run** on the branch, and its verdict goes in the body;
+- every **hard stop** the change touched is named, with the rule that was met;
+- every **criterion** the change moved is named, with the decision that moved;
+- the branch name matches the shape in section 4, which CI checks on every pull request.
 
-**A pull request that closes several issues names every one of them.** Section 4 says when a
-branch may carry more than one.
+**Never a draft.** A draft pull request is a way of asking for attention before the work is
+worth attention, and the whole of section 7 exists so that it does not have to be.
+
+**It closes the issues it names and no others.** A pull request that closes several names
+every one of them, one line each. Section 4 says when a branch may carry more than one.
+
+**An exploration or a study is a branch with an issue, never a pull request without one.**
+Push the branch, say what you learned on the issue, and delete the branch. Nothing that is
+not meant to merge should be sitting in the pull request list looking like it is.
 
 The title becomes the commit on `main`, because merges are squashed. Write it as a
 Conventional Commit, because the version number and the changelog are read from it:
@@ -279,19 +361,25 @@ refactor: one router preamble, not thirteen
 feat!: folders are now shelves          the ! means breaking
 ```
 
-For frontend work, attach before and after screenshots.
+For a change to what a person sees, attach before and after screenshots.
 
 ## 9. Review
 
-Hassan reviews everything that reaches `main`. A review agent runs first, on both sides'
-work, including his own.
+**The `reviewer` agent is the second reader, on both sides' work including Hassan's own, and
+the author runs it before the pull request exists.** It has no write tools on purpose: a
+reviewer that can fix what it finds stops looking once it has fixed something.
 
-For frontend work the review is four questions, not a style opinion:
+Its verdict goes in the pull request in one paragraph. "It found nothing" is a verdict and a
+good one; a reviewer that always finds something teaches everyone to skim it.
 
-1. Did it stay inside `app/src/client/`?
-2. If it went outside, was that allowed, and was it declared?
-3. Do the tests pass?
-4. Does it do what the issue asked?
+**Then whoever merges reads three things**, in this order:
+
+1. **The gate record against the head sha.** A record for a different commit, or one that
+   says the tree was dirty, is not a gate run.
+2. **The hard stops declared**, against the diff. This is the box nothing else in this
+   project catches.
+3. **The criteria changed**, and whether the pull request names the decision that moved each
+   one.
 
 Product decisions are Imran's. Technical decisions are Hassan's. That split is already
 settled and the review does not reopen it.
@@ -301,7 +389,8 @@ settled and the review does not reopen it.
 **Merging into `main` deploys to production within minutes.** There is no staging.
 
 Hassan merges, and only Hassan. Squash merge, so a pull request becomes one commit. The
-branch is deleted automatically.
+branch is deleted automatically. The seven steps then run on `main`, and that run is the
+verdict on what was merged.
 
 ## Versions
 

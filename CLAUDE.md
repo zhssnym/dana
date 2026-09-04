@@ -63,7 +63,9 @@ Everything runs from `app/`, never from the repository root, where there is no
 
 ```bash
 npm ci
-npm run lint && npm run typecheck && npm test && npm run build   # the gate, in CI's order
+npm run gate                               # the gate: 11.11's seven steps, in order, with a record
+npm run gate -- --quick                    # lint, typecheck, build only
+npm run lint && npm run typecheck && npm test && npm run build   # four of the seven, by hand
 npm test -- --maxWorkers=2                 # vitest flags go after the --
 npm run dev                                # API server plus client dev server
 npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
@@ -371,13 +373,19 @@ protocol points here rather than repeating them.
   because the next person to meet a long queue will otherwise assume something is running
   that is not, and start cancelling or restarting things that were fine. `Get-Process
   Runner.Worker` settles it: a listener with no worker, and a job queued, is this state.
-- **CI triggers on pull requests and on pushes to `main`, not on every push.** A
-  branch with no pull request gets no verdict, which is correct under a workflow where
-  nothing reaches `main` except through one, and it stops a single runner starting two
-  jobs for one change.
+- **CI triggers on pull requests and on pushes to `main`, not on every push, and since
+  2026-09-04 the two run different jobs.** A pull request gets `check`: the branch name
+  against `^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$`, then `npm ci`, lint, typecheck,
+  build. A push to `main` gets `ci`, all seven steps of 11.11 unchanged. **The gate is
+  now `npm run gate` on the machine the code was written on**, which runs the same seven
+  and prints a record a pull request carries; issue #180 and 11.11's dated amendment are
+  the reasoning. A branch with no pull request still gets no verdict, which is correct
+  under a workflow where nothing reaches `main` except through one.
 - **The CI runner and your own agents cannot share this machine, and the way that
-  fails reads exactly like broken code.** Measured 2026-09-03 across a night of eight
-  branches. A CI job holds about **7.7 GB of this machine's 15.8**: killing the runner
+  fails reads exactly like broken code. Scoped 2026-09-04: this is about the `main`
+  job, and no longer about every job.** Measured 2026-09-03 across a night of eight
+  branches, when a pull request ran all seven steps. A seven-step CI job holds about
+  **7.7 GB of this machine's 15.8**: killing the runner
   mid-job took free memory from **2.0 GB to 9.7 GB** in one step. With five or six
   agents running vitest beside it, the job goes red with
   `Hook timed out in 60000ms` in `startAuthTestApp` and
@@ -385,7 +393,12 @@ protocol points here rather than repeating them.
   the tell, and the thing to check first. One run lost 20 files that way and every one
   passed alone. A second job died with **no steps recorded and no log at all**, which is
   the runner losing the job rather than the job failing.
-  **So run agents or run CI, not both.** Queue the work: stopping the runner leaves jobs
+  **So run agents or run a `main` job, not both.** The pull-request `check` job is a
+  different matter and is *why* the split exists: `npm ci`, lint, typecheck and build hold
+  no database, start no browser and run no vitest pool, so it can run beside agents.
+  **This is a measurement about the seven steps and it does not license the four**; a
+  `check` job that ever grows a leg back stops being covered by this sentence.
+  Queue the work when the seven-step job is what you need: stopping the runner leaves jobs
   queued at GitHub harmlessly, and they run clean afterwards. Three things about doing
   that, all learned the hard way the same night. `Stop-ScheduledTask` does **not** stop
   it — `run.cmd` detaches, the task reports `Ready` while `Runner.Listener` keeps
@@ -393,6 +406,28 @@ protocol points here rather than repeating them.
   `busy=true` with a session that no longer exists, and it dispatches nothing to a busy
   runner, so **cancel the stuck run** to free it. And the job it was running is lost, so
   stop it between jobs where you can.
+- **`npm run gate` is the local seven steps, and it is what a pull request carries.**
+  Added 2026-09-04 with issue #180. It runs lint, typecheck, the PGlite leg with
+  `TEST_DATABASE_URL` empty, the Postgres leg with whatever this process has, build, and
+  Playwright, stops at the first failure, and prints a record naming the head sha, whether
+  `git status --porcelain` was empty at **either end** of the run, the machine, the clock
+  and each step's tally. Five things worth knowing before you run it. **It prints three
+  verdicts and only `GATE: green` opens a pull request**: `red at <step>` is a failure, and
+  **`incomplete` is a step of the seven that did not run** — this machine without
+  `TEST_DATABASE_URL`, or `--quick`. Incomplete exits non-zero for the first and zero for
+  the second, because the exit code answers "did you get what you asked for" while the
+  verdict line answers "is this a pull request's gate". **A leg that reports no tally at
+  all is red rather than ok**, an exit code with no summary behind it being the same false
+  green one layer up. It **refuses to start the browser leg when anything answers on
+  3100**, which is the port collision two bullets below written as a precondition rather
+  than as a postmortem, and it deletes `test-results/` first. It reaches the vitest legs
+  through `npm test`, so `run-suite.mjs`'s false-green guard is in the path and the record
+  prints the file count that guard checks. And it runs **`npm ci` only when
+  `package-lock.json` moved since `git merge-base HEAD origin/main`**, since that command
+  deletes `node_modules`, which is right for a fresh runner and expensive for a working
+  tree that never touched the lockfile; the record says which of the two happened.
+  `npm run gate -- --quick` is lint, typecheck and build, for the middle of the work and
+  never for a pull request.
 - **A fourth flake class, and it is this one wearing a different hat.** The
   `beforeAll` hook timeout above is **not** the worker-fork class the bullets further up
   describe, and a session reading only those will not recognise it: no fork dies, no file
