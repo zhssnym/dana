@@ -1,8 +1,9 @@
 # Working on the backend
 
-Read this before you start. It is everything you need for a backend task.
+**One issue, one fresh chat.** Read this before you start. It is everything you need to begin
+a task on the system rather than on a screen.
 
-## What you own
+## Where this starts
 
 Everything except `app/src/client/`. In practice:
 
@@ -14,24 +15,35 @@ Everything except `app/src/client/`. In practice:
 | `app/tests/` | The acceptance suite and the browser tests |
 | `.github/`, `docs/`, root config | Infrastructure and documentation |
 
+**A starting point and not a fence.** The same task may end in a component, and a screen
+change may end in a migration; change what the issue needs and change all of it.
+[`../frontend/README.md`](../frontend/README.md) is the map of the other half.
+
 ## The rules that are never broken
 
-1. **Every change starts from a GitHub issue.** This includes your own work.
-2. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
-3. **Say you are blocked rather than saying you are done.** A false green is the worst
+1. **Every change starts from a GitHub issue**, and one issue is one fresh chat. This
+   includes your own work.
+2. **Read [`../hard-stops.md`](../hard-stops.md) before you start.** Most of the eight live
+   on this side. Everything else: decide, do it, and say what you decided.
+3. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
+   A criterion changes only when the decision it pins changes, and the pull request names it.
+4. **Say you are blocked rather than saying you are done.** A false green is the worst
    available failure, because everything after it is built on top.
-4. **Run the review agent before merging your own work.** Imran cannot read backend code, so
-   nothing else reviews it. That agent is the second reader you would otherwise not have.
-5. **When the workflow itself is wrong, fix it or open an issue labelled `documentation`.**
-   `docs/workflow/` is yours, so unlike the frontend you have both options; fixing it in the
-   pull request that hit the problem is usually right. What is not an option is working
-   around it in silence and leaving the next person to pay the same tax. Shared rule 11.
+5. **Run `npm run gate`, then run the `reviewer` agent.** The pull request exists only after
+   both, green on the head commit, and it carries the record. The reviewer is the second
+   reader on every branch, including the one you are on.
+6. **When the workflow itself is wrong, fix it or open an issue labelled `documentation`.**
+   Fixing it in the pull request that hit the problem is usually right. What is not an option
+   is working around it in silence and leaving the next person to pay the same tax. Shared
+   rule 12.
 
 ## Starting a task
 
-New session per issue. Read the issue, check for open pull requests on the same files,
-branch from `main` as `backend/<issue>-<short-description>`, and read `CLAUDE.md` for the
-commands and this machine's failure modes.
+A fresh chat per issue. Read the issue, check for open pull requests on the same files,
+branch from `main` as `backend/<issue>-<short-description>` — CI checks that shape,
+`^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$` — read
+[`../hard-stops.md`](../hard-stops.md), and read `CLAUDE.md` for the commands and this
+machine's failure modes.
 
 ## The server, folder by folder
 
@@ -191,7 +203,16 @@ criterion that proves it.** Spec 11.15 names both classes and what catches each.
 
 ## Testing
 
-There are two database legs and they are not interchangeable.
+**`npm run gate` is what a pull request carries.** It runs spec 11.11's seven steps in order
+on this machine, stops at the first failure, and prints the record: the head sha, whether the
+tree was dirty, the machine, the clock, and each step's tally.
+
+```
+npm run gate              the seven steps, about half an hour
+npm run gate -- --quick   lint, typecheck and build, for the middle of the work
+```
+
+The individual commands, for when you want one of them:
 
 ```
 npm run lint
@@ -201,9 +222,13 @@ npm run build
 npm run e2e       the browser leg
 ```
 
+There are two database legs and they are not interchangeable.
 **Never select a leg by habit. Print the variable and check.** `TEST_DATABASE_URL` is
 ambient on this machine and has changed more than once. Set it for Postgres, empty it for
-PGlite. Running `npm test` twice measures one leg twice and reports two greens.
+PGlite. Running `npm test` twice measures one leg twice and reports two greens. The gate does
+that selection explicitly — empty for the PGlite leg, the parent process's value for the
+Postgres one — and writes into the record which of the two it got, which is the answer to
+read rather than any file's.
 
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
@@ -256,11 +281,31 @@ which every translation keeps verbatim, or the SQLSTATE and the table or column 
 the error, which no locale touches; `expectRejectedWith` in `tests/helpers.ts` does the
 second, and `tests/postgres-leg-isolation.test.ts` fails by name any test that reads prose.
 
-## When the work needs the frontend
+## When the work needs the client
 
-Read [`allowed-frontend-changes.md`](allowed-frontend-changes.md). The same two-question
-shape as the frontend's file, pointing the other way. **The rule binds you too.** A quick
-frontend fix is how Imran discovers his own area changed underneath him.
+**Most of the client is as silent as a migration from a terminal**, and this is the one thing
+to know before you touch it. `app/vitest.config.ts:5` sets `environment: 'node'` for the
+whole suite, so `npm test` proves the client **compiles** and almost nothing about what it
+does; five files opt into `jsdom` per file and are the only ones in the suite that render
+anything. Everything a screen actually does is covered by the Playwright specs and by nothing
+else. A person with a browser would see the broken screen; you will not.
+
+So say honestly how you checked a client change: you ran the Playwright spec that covers it
+and you name it, or you ran the app and looked, or **you say it was not verified in a
+browser**. The third is an acceptable answer. Claiming the first while having done the third
+is not.
+
+Two ways to make the change, and both are ordinary:
+
+- **Do it.** [`../frontend/README.md`](../frontend/README.md) is the folder map and the
+  things that bite.
+- **Invoke the `frontend` agent** with the exact need, on the same branch, and integrate its
+  commit. That is not an escalation and it needs no issue.
+
+Two files in there are hard stops because no criterion sees them —
+`app/src/client/styles/tokens.css` and `app/src/client/parts/presenters.ts` — and a renamed
+`localStorage` key is the one genuinely irreversible thing in the client.
+[`../hard-stops.md`](../hard-stops.md) carries all three.
 
 ## Labels, in one line
 
@@ -271,8 +316,13 @@ of that file.
 
 ## Opening the pull request
 
-Same template as everyone. Declare files touched outside your area, name the test commands
-you ran, and title it as a Conventional Commit because the version is read from it.
+**Only when the work is finished**, which means `npm run gate` is green on the head commit
+and the `reviewer` agent has run. Never a draft.
 
-Then run the review agent, read its verdict, and merge. Merging deploys to production within
-minutes.
+The template asks for four things and none is optional: the **gate record**, pasted; the
+**hard stops** you touched with the rule you met, or "none"; the **criteria** you changed and
+why, or "none"; and the **reviewer's verdict** in a paragraph. Title it as a Conventional
+Commit, because the version is read from it.
+
+Then Hassan merges. Merging deploys to production within minutes, and the seven steps run
+again on `main`, which is the verdict on what was merged.
