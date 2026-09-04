@@ -48,7 +48,7 @@ and a retired criterion is marked rather than removed.
 | 9 | [`09-ui/`](09-ui/) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
-| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 344 numbered criteria, the definition of done |
+| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 366 numbered criteria, the definition of done |
 | 13 | [`13-open-questions/`](13-open-questions/) | **Retired 2026-09-01.** A forwarding address only: open questions are GitHub issues now, its recorded assumptions moved into the sections they constrain, and its table maps all 57 old item numbers to where each went. The number is not reused. |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by number and
@@ -67,7 +67,11 @@ annotation of one's own to be true is the freeze working rather than an exceptio
 what the freeze protects is criteria asserted by number, and a sentence that describes the
 server wrongly protects nothing.
 
-The count in row 12 above was 335 while the criteria files held 337, and it is 344 now
+The count in row 12 above was 335 while the criteria files held 337, and it is 366 now
 because that is what counting the bullets answers. It is arithmetic over the files rather
 than a number to be carried forward, and whoever merges last re-derives it, which is the
-rule 12's own README states for the same reason.
+rule 12's own README states for the same reason. It read 344 until 2026-09-04, when it
+went to 366: eighteen criteria from the six branches of the wave-1 integration, and the
+four of 7.22's export, which merged before them and left this number for the last merge
+exactly as this paragraph asks. It was derived once at the end rather than seven times
+on the way.
